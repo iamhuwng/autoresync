@@ -1,0 +1,22 @@
+/* Modal positioning overrides for Edit Quiz two-modal system */
+
+[data-modal-positioned="left"] .mantine-Modal-content {
+  position: fixed !important;
+  left: 2rem !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  margin: 0 !important;
+}
+
+[data-modal-positioned="right"] .mantine-Modal-content {
+  position: fixed !important;
+  left: calc(450px + 3rem) !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  margin: 0 !important;
+}
+
+/* Ensure modals stay within viewport */
+[data-modal-positioned] .mantine-Modal-content {
+  max-height: 80vh !important;
+}

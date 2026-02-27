@@ -1,0 +1,347 @@
+/* ═══════════════════════════════════════════════════════════════
+ * WritingTestPage — Student CSS
+ * PRD-0030: IELTS Writing Test System
+ * NO MANTINE
+ * ═══════════════════════════════════════════════════════════════ */
+
+/* ── Layout ─────────────────────────────────────────────────── */
+
+.wtp-page {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background: #f8fafc;
+    overflow: hidden;
+}
+
+.wtp-tab-bar {
+    display: flex;
+    gap: 0;
+    background: #fff;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 0 24px;
+}
+
+.wtp-tab {
+    padding: 12px 24px;
+    border: none;
+    background: transparent;
+    font-size: 14px;
+    font-weight: 500;
+    color: #64748b;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s ease;
+}
+
+.wtp-tab:hover {
+    color: #334155;
+    background: #f8fafc;
+}
+
+.wtp-tab--active {
+    color: #3b82f6;
+    border-bottom-color: #3b82f6;
+}
+
+.wtp-main {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+}
+
+/* ── Prompt Panel ───────────────────────────────────────────── */
+
+.wtp-prompt-panel {
+    width: 40%;
+    flex-shrink: 0;
+    overflow-y: auto;
+    padding: 24px;
+    background: #fff;
+    border-right: 1px solid #e2e8f0;
+}
+
+.wtp-prompt-panel--desktop {
+    display: block;
+}
+
+.wtp-prompt-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.wtp-task-label {
+    font-size: 18px;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.wtp-rec-time {
+    font-size: 13px;
+    color: #64748b;
+    padding: 4px 10px;
+    background: #f1f5f9;
+    border-radius: 6px;
+}
+
+.wtp-prompt-image-wrapper {
+    margin-bottom: 16px;
+}
+
+.wtp-prompt-image {
+    width: 100%;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+}
+
+.wtp-image-caption {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-top: 6px;
+    font-style: italic;
+}
+
+.wtp-prompt-text {
+    font-size: 15px;
+    line-height: 1.7;
+    color: #1e293b;
+    white-space: pre-wrap;
+    margin-bottom: 20px;
+}
+
+.wtp-word-min {
+    font-size: 14px;
+    color: #64748b;
+    padding: 10px 14px;
+    background: #eff6ff;
+    border-radius: 8px;
+    border-left: 3px solid #3b82f6;
+}
+
+/* ── Mobile Prompt ──────────────────────────────────────────── */
+
+.wtp-prompt-mobile-btn {
+    display: none;
+    position: fixed;
+    bottom: 80px;
+    left: 16px;
+    padding: 10px 18px;
+    border-radius: 24px;
+    border: none;
+    background: #3b82f6;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    z-index: 20;
+}
+
+.wtp-prompt-mobile-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 50;
+    display: flex;
+    align-items: flex-end;
+}
+
+.wtp-prompt-mobile-content {
+    background: #fff;
+    width: 100%;
+    max-height: 70vh;
+    overflow-y: auto;
+    border-radius: 16px 16px 0 0;
+    padding: 24px;
+    position: relative;
+}
+
+.wtp-prompt-mobile-close {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    background: transparent;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    color: #94a3b8;
+}
+
+/* ── Editor ─────────────────────────────────────────────────── */
+
+.wtp-editor-wrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 24px;
+    overflow: hidden;
+}
+
+.wtp-editor-textarea {
+    flex: 1;
+    min-height: 400px;
+    padding: 20px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    font-family: 'Inter', sans-serif;
+    font-size: 16px;
+    line-height: 1.8;
+    color: #1e293b;
+    resize: none;
+    background: #fff;
+    transition: border-color 0.15s ease;
+}
+
+.wtp-editor-textarea:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.wtp-editor-textarea:disabled {
+    background: #f1f5f9;
+    color: #94a3b8;
+    cursor: not-allowed;
+}
+
+.wtp-word-counter {
+    display: flex;
+    justify-content: flex-end;
+    padding: 8px 0;
+}
+
+.wtp-word-count {
+    font-size: 14px;
+    font-weight: 500;
+    color: #10b981;
+    padding: 4px 12px;
+    background: #f0fdf4;
+    border-radius: 16px;
+}
+
+.wtp-word-count--low {
+    color: #f59e0b;
+    background: #fffbeb;
+}
+
+/* ── Submit Modal ───────────────────────────────────────────── */
+
+.wtp-submit-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+}
+
+.wtp-submit-modal {
+    background: #fff;
+    border-radius: 16px;
+    padding: 32px;
+    max-width: 420px;
+    width: 90%;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+.wtp-submit-modal h2 {
+    font-size: 20px;
+    font-weight: 600;
+    color: #0f172a;
+    margin: 0 0 16px;
+}
+
+.wtp-submit-tasks {
+    margin-bottom: 20px;
+}
+
+.wtp-submit-task-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: #f8fafc;
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+.wtp-submit-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.wtp-submit-btn {
+    padding: 10px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+}
+
+.wtp-submit-btn--cancel {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.wtp-submit-btn--confirm {
+    background: #3b82f6;
+    color: #fff;
+}
+
+.wtp-submit-btn--confirm:hover {
+    background: #2563eb;
+}
+
+/* ── Submitted Overlay ──────────────────────────────────────── */
+
+.wtp-submitted-overlay {
+    position: fixed;
+    inset: 0;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.wtp-submitted-overlay h1 {
+    font-size: 28px;
+    color: #0f172a;
+}
+
+.wtp-submitted-overlay p {
+    font-size: 16px;
+    color: #64748b;
+}
+
+/* ── Responsive ─────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+    .wtp-prompt-panel--desktop {
+        display: none;
+    }
+
+    .wtp-prompt-mobile-btn {
+        display: block;
+    }
+
+    .wtp-main {
+        flex-direction: column;
+    }
+
+    .wtp-editor-wrapper {
+        padding: 12px;
+    }
+
+    .wtp-editor-textarea {
+        min-height: 300px;
+        font-size: 15px;
+    }
+}

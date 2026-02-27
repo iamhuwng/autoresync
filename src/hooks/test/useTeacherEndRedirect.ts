@@ -1,0 +1,87 @@
+/**
+ * useTeacherEndRedirect Hook
+ * 
+ * PRD-TEST-END-FLOW: When teacher ends test early, students should return
+ * to the waiting lobby with a results modal — NOT a standalone results page.
+ * 
+ * The teacher's endFullSession() auto-submits all unsubmitted students and saves 
+ * their results to Firebase BEFORE clearing testId. When testId becomes null,
+ * the student's useTestData fires and testData becomes null. At that moment,
+ * the player's hasCompletedTest flag is still true (cleanup hasn't run yet).
+ * 
+ * This hook checks that flag and redirects to the waiting room with showResults state.
+ */
+
+import { useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ref, get } from 'firebase/database';
+// @ts-ignore - firebase.js is a JS file
+import { database } from '../../services/firebase';
+import { sessionService } from '../../services/sessionService';
+
+interface UseTeacherEndRedirectOptions {
+    sessionCode: string | undefined;
+}
+
+/**
+ * Returns a function that checks if the student was auto-submitted by the teacher
+ * and redirects to the waiting room with showResults flag.
+ * 
+ * @returns checkAndRedirect - async function that returns true if redirected,
+ *          false if the caller should handle navigation
+ */
+export const useTeacherEndRedirect = ({ sessionCode }: UseTeacherEndRedirectOptions) => {
+    const navigate = useNavigate();
+
+    const checkAndRedirect = useCallback(async (): Promise<boolean> => {
+        if (!sessionCode) return false;
+
+        try {
+            const playerId = sessionService.getPlayerId();
+            if (!playerId) return false;
+
+            const playerRef = ref(database, `game_sessions/${sessionCode}/players/${playerId}`);
+            const snapshot = await get(playerRef);
+
+            if (snapshot.exists()) {
+                const playerData = snapshot.val();
+
+                // Check if the player was auto-submitted by the teacher ending the test
+                // or if they submitted themselves (hasCompletedTest is set by both paths)
+                const wasCompleted = playerData.hasCompletedTest === true;
+                const wasSubmitted = playerData.isSubmitted === true ||
+                    (playerData.submittedAt && typeof playerData.submittedAt === 'number');
+                const wasTeacherEnded = playerData.submittedBy === 'teacher-end' ||
+                    playerData.submittedBy === 'system-timeout';
+
+                // CRITICAL FIX: Also check persistent lastTestEndedAt field.
+                // The player flags (hasCompletedTest, isSubmitted) may have been
+                // cleared by the delayed cleanup in endFullSession, but lastTestEndedAt
+                // is NEVER cleared, so it's always available.
+                const lastTestEndedAt = playerData.lastTestEndedAt;
+                const recentlyEnded = lastTestEndedAt &&
+                    (Date.now() - lastTestEndedAt) < 30000; // Within 30 seconds
+
+                if (wasCompleted || wasSubmitted || wasTeacherEnded || recentlyEnded) {
+                    console.log('🔄 [TeacherEndRedirect] Student was auto-submitted, redirecting to waiting room with results modal');
+                    console.log('  → hasCompletedTest:', wasCompleted, '| isSubmitted:', wasSubmitted, '| submittedBy:', playerData.submittedBy, '| recentlyEnded:', recentlyEnded);
+
+                    // PRD-TEST-END-FLOW: Navigate to waiting room with showResults flag
+                    // The waiting room will auto-open a TestResultsModal
+                    navigate(`/student-wait/${sessionCode}`, {
+                        replace: true,
+                        state: { showResults: true, sessionCode },
+                    });
+                    return true;
+                }
+            }
+
+            return false;
+        } catch (error) {
+            console.error('[TeacherEndRedirect] Error checking player status:', error);
+            return false;
+        }
+    }, [sessionCode, navigate]);
+
+    return { checkAndRedirect };
+};

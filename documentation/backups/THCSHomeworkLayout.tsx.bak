@@ -1,0 +1,780 @@
+/**
+ * THCSHomeworkLayout — Student-facing THCS test layout for homework & course standalone modes
+ * Phase 3, Task 2.6
+ *
+ * ARCHITECTURE NOTE (Gotcha #4): This component intentionally does NOT reuse THCSTestLayout.tsx
+ * because that component is tightly coupled to RTDB sessions. Instead, this follows the
+ * THCSPreviewOverlay.tsx local-state architecture.
+ *
+ * Supports two modes:
+ * - 'homework': Teacher-assigned homework with late policies, attempt limits, feedback timing
+ * - 'course-standalone': Course material with unlimited attempts, immediate feedback
+ */
+
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useMediaQuery } from '@mantine/hooks';
+import { useAuth } from '../../hooks/useAuth';
+import { markThcsTest } from '../../services/thcsAutoMarking.service';
+import THCSQuestionRenderer from './THCSQuestionRenderer';
+import type { THCSTest, THCSQuestion, THCSGradingResult } from '../../types/thcs-test.types';
+import type { HomeworkAssignment } from '../../types/homework.types';
+import {
+    collection,
+    doc,
+    setDoc,
+    getDocs,
+    query,
+    where,
+} from 'firebase/firestore';
+// @ts-ignore - firebase.js doesn't have type declarations
+import { firestore as db } from '../../services/firebase';
+import { sendThcsSubmittedNotification, sendThcsLateSubmissionNotification, sendThcsFullyGradedNotification } from '../../services/notificationService';
+import { shuffleTest } from '../../utils/thcsShuffle';
+import { updateStudentCourseProgress } from '../../services/courseProgressService';
+
+// ============================================================================
+// Types
+// ============================================================================
+
+export interface THCSHomeworkLayoutProps {
+    testData: THCSTest;
+    mode: 'homework' | 'course-standalone';
+    homeworkId?: string;
+    homeworkConfig?: HomeworkAssignment['thcsConfig'];
+    teacherId: string;
+    courseId?: string;
+    materialId?: string;
+    /** Task 2.7: Due date timestamp for late submission enforcement */
+    schedulingDueDate?: number;
+}
+
+type LayoutPhase = 'info' | 'test' | 'submitting' | 'results' | 'blocked';
+
+// ============================================================================
+// Component
+// ============================================================================
+
+export function THCSHomeworkLayout({
+    testData,
+    mode,
+    homeworkId,
+    homeworkConfig,
+    teacherId,
+    courseId,
+    materialId,
+    schedulingDueDate,
+}: THCSHomeworkLayoutProps) {
+    const { user } = useAuth();
+
+    // Responsive breakpoints
+    const isMobile = useMediaQuery('(max-width: 767px)');
+    const [showMobileNav, setShowMobileNav] = useState(false);
+
+    // Phase
+    const [phase, setPhase] = useState<LayoutPhase>('info');
+    const [loadingAttempts, setLoadingAttempts] = useState(true);
+
+    // Timer
+    const timerMode = useMemo(() => {
+        if (mode === 'homework') {
+            return homeworkConfig?.timerModeOverride ?? testData.metadata.timerMode ?? 'strict';
+        }
+        return testData.metadata.timerMode ?? 'strict';
+    }, [mode, homeworkConfig, testData.metadata.timerMode]);
+
+    const [timeRemaining, setTimeRemaining] = useState(testData.metadata.duration * 60);
+    const [timerStarted, setTimerStarted] = useState(false);
+    const [timerExpiredBanner, setTimerExpiredBanner] = useState(false); // Task 11.3: informational mode
+
+    // Answers (local state — NOT RTDB)
+    const [answers, setAnswers] = useState<Record<string, string | string[] | null>>({});
+    const [flags, setFlags] = useState<Record<string, boolean>>({});
+
+    // Navigation
+    const [currentSectionIdx, setCurrentSectionIdx] = useState(0);
+    const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
+
+    // Attempt tracking
+    const [attemptCount, setAttemptCount] = useState(0);
+    const maxAttempts = homeworkConfig?.maxAttempts ?? 1;
+
+    // Results
+    const [gradingResult, setGradingResult] = useState<THCSGradingResult | null>(null);
+    const [feedbackBlocked, setFeedbackBlocked] = useState(false);
+
+    // Task 6.3: Apply deterministic shuffle per student
+    const shuffledTestData = useMemo(() => {
+        if (!user?.uid) return testData;
+        return shuffleTest(testData, user.uid);
+    }, [testData, user?.uid]);
+
+    // Flatten all questions for navigation (use shuffled data)
+    const allQuestions = useMemo(() => {
+        const flat: Array<{ sectionIdx: number; questionIdx: number; question: THCSQuestion; sectionName: string }> = [];
+        (shuffledTestData.sections || []).forEach((section, si) => {
+            section.questions.forEach((q, qi) => {
+                flat.push({ sectionIdx: si, questionIdx: qi, question: q, sectionName: section.name });
+            });
+        });
+        return flat;
+    }, [shuffledTestData.sections]);
+
+    // Current question
+    const currentFlatIdx = useMemo(() => {
+        let idx = 0;
+        const sections = shuffledTestData.sections || [];
+        for (let s = 0; s < currentSectionIdx; s++) {
+            idx += sections[s]?.questions?.length || 0;
+        }
+        return idx + currentQuestionIdx;
+    }, [currentSectionIdx, currentQuestionIdx, shuffledTestData.sections]);
+
+    const currentQuestion = allQuestions[currentFlatIdx]?.question;
+
+    // ── Load attempt count (homework mode only) ──
+    useEffect(() => {
+        if (mode !== 'homework' || !homeworkId || !user?.uid) {
+            setLoadingAttempts(false);
+            return;
+        }
+
+        const loadAttempts = async () => {
+            try {
+                const q = query(
+                    collection(db, 'homework_submissions'),
+                    where('homeworkId', '==', homeworkId),
+                    where('studentId', '==', user.uid),
+                );
+                const snap = await getDocs(q);
+                setAttemptCount(snap.size);
+
+                // Check if blocked by attempts
+                if (snap.size >= maxAttempts) {
+                    setPhase('blocked');
+                }
+
+                // Task 2.7: Check if blocked by deadline rejection
+                if (schedulingDueDate && Date.now() > schedulingDueDate) {
+                    const latePolicy = homeworkConfig?.lateSubmissionPolicy || 'accept';
+                    if (latePolicy === 'reject') {
+                        setPhase('blocked');
+                    }
+                }
+            } catch (err) {
+                console.error('[THCSHomeworkLayout] Error loading attempts:', err);
+            } finally {
+                setLoadingAttempts(false);
+            }
+        };
+        loadAttempts();
+    }, [mode, homeworkId, user?.uid, maxAttempts]);
+
+    // ── Timer ──
+    useEffect(() => {
+        if (!timerStarted || timerMode === 'none' || phase !== 'test') return;
+
+        const interval = setInterval(() => {
+            setTimeRemaining(prev => {
+                if (prev <= 1) {
+                    clearInterval(interval);
+                    if (timerMode === 'strict') {
+                        handleSubmit();
+                    } else if (timerMode === 'informational') {
+                        // Task 11.3: Show banner, stop timer at 0, do NOT auto-submit
+                        setTimerExpiredBanner(true);
+                    }
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+
+        return () => clearInterval(interval);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [timerStarted, timerMode, phase]);
+
+    // ── Answer handlers ──
+    const handleAnswer = useCallback((questionId: string, answer: string | string[] | null) => {
+        setAnswers(prev => ({ ...prev, [questionId]: answer }));
+    }, []);
+
+    const handleToggleFlag = useCallback((questionId: string) => {
+        setFlags(prev => ({ ...prev, [questionId]: !prev[questionId] }));
+    }, []);
+
+    // ── Start test ──
+    const handleStart = () => {
+        setPhase('test');
+        setTimerStarted(true);
+    };
+
+    // ── Submit ──
+    const handleSubmit = async () => {
+        if (!user?.uid) return;
+        setPhase('submitting');
+
+        try {
+            // 1. Auto-grade using path-agnostic markThcsTest (Gotcha #3)
+            // Filter out null answers for markThcsTest compatibility
+            const cleanAnswers: Record<string, string | string[]> = {};
+            Object.entries(answers).forEach(([key, val]) => {
+                if (val !== null && val !== undefined) cleanAnswers[key] = val;
+            });
+            const result = markThcsTest(
+                testData.id,
+                user.uid,
+                testData.sections,
+                cleanAnswers,
+            );
+
+            // 2. Late submission enforcement (Task 2.7)
+            let finalResult = result;
+            let isLate = false;
+            let latePenaltyApplied: number | undefined;
+
+            if (mode === 'homework' && schedulingDueDate) {
+                const now = Date.now();
+                const latePolicy = homeworkConfig?.lateSubmissionPolicy || 'accept';
+
+                if (now > schedulingDueDate) {
+                    if (latePolicy === 'reject') {
+                        // Should be blocked before reaching here, but safety check
+                        setPhase('blocked');
+                        return;
+                    }
+                    if (latePolicy === 'accept-late') {
+                        isLate = true;
+                    }
+                    if (latePolicy === 'penalty') {
+                        isLate = true;
+                        const pct = homeworkConfig?.penaltyPercent || 10;
+                        latePenaltyApplied = pct;
+                        // Apply penalty to scaled score
+                        const penaltyMultiplier = (100 - pct) / 100;
+                        finalResult = {
+                            ...result,
+                            scaledScore: Math.round(result.scaledScore * penaltyMultiplier * 10) / 10,
+                        };
+                    }
+                    // 'accept' — no marking, no penalty
+                }
+            }
+
+            // 3. Store results based on mode
+            if (mode === 'homework' && homeworkId) {
+                const submissionId = `${homeworkId}_${user.uid}_${Date.now()}`;
+                await setDoc(doc(db, 'homework_submissions', submissionId), {
+                    id: submissionId,
+                    homeworkId,
+                    studentId: user.uid,
+                    studentName: user.displayName || 'Unknown',
+                    attemptNumber: attemptCount + 1,
+                    startedAt: Date.now() - (testData.metadata.duration * 60 - timeRemaining) * 1000,
+                    submittedAt: Date.now(),
+                    timeSpent: (testData.metadata.duration * 60 - timeRemaining),
+                    isLate,
+                    ...(latePenaltyApplied !== undefined ? { latePenaltyApplied } : {}),
+                    score: finalResult.totalPoints,
+                    maxScore: finalResult.maxPoints,
+                    percentage: finalResult.maxPoints > 0
+                        ? Math.round((finalResult.totalPoints / finalResult.maxPoints) * 100)
+                        : 0,
+                    status: 'submitted',
+                    thcsData: {
+                        scaledScore: finalResult.scaledScore,
+                        rawScore: finalResult.totalPoints,
+                        totalPoints: finalResult.maxPoints,
+                        sectionResults: finalResult.sectionResults,
+                        gradingStatus: finalResult.gradingStatus,
+                        questionResults: finalResult.questionResults,
+                    },
+                    studentAnswers: answers,
+                });
+
+                // Check feedback timing
+                const ft = homeworkConfig?.feedbackTiming || 'after-submission';
+                if (ft === 'after-deadline' || ft === 'manual') {
+                    setFeedbackBlocked(true);
+                }
+            }
+            // course-standalone: update course progress with scaled score
+            if (mode === 'course-standalone' && courseId && materialId && user?.uid) {
+                const scaledScore = finalResult.scaledScore ?? (finalResult.totalPoints / (finalResult.maxPoints || 1)) * 10;
+                updateStudentCourseProgress(courseId, user.uid, materialId, {
+                    completed: true,
+                    score: Math.round(scaledScore * 10) / 10,
+                    resultId: `thcs_${testData.id}_${Date.now()}`,
+                }).catch(err => console.warn('[THCSHomeworkLayout] Course progress update error:', err));
+            }
+
+            // Task 3.7: Wire notification triggers
+            if (mode === 'homework' && homeworkId && user?.uid) {
+                // Trigger 3.5: Submitted notification
+                sendThcsSubmittedNotification(
+                    user.uid,
+                    testData.metadata?.title || 'THCS Test',
+                    homeworkId
+                ).catch(err => console.warn('[THCSHomeworkLayout] Submitted notification error:', err));
+
+                // Trigger 3.6: Late submission notification
+                if (isLate) {
+                    sendThcsLateSubmissionNotification(
+                        user.uid,
+                        teacherId,
+                        testData.metadata?.title || 'THCS Test',
+                        user.displayName || 'Unknown Student',
+                        homeworkId
+                    ).catch(err => console.warn('[THCSHomeworkLayout] Late notification error:', err));
+                }
+            }
+
+            // Task 12.4: Update academic record for fully-graded homework
+            if (finalResult.gradingStatus === 'fully-graded' && user?.uid) {
+                import('../../services/academicRecordService').then(({ updateThcsProgress }) => {
+                    updateThcsProgress(user.uid, {
+                        testId: testData.id,
+                        testTitle: testData.metadata?.title || 'THCS Test',
+                        scaledScore: finalResult.scaledScore,
+                        gradeLevel: testData.metadata?.gradeLevel || 9,
+                        examType: testData.metadata?.examType || 'general',
+                        sectionResults: finalResult.sectionResults,
+                    }).catch(err => console.warn('Academic record update failed:', err));
+                }).catch(err => console.warn('Failed to load academicRecordService:', err));
+
+                // Phase 3 Task 3.3: Notify student that homework test is fully graded
+                sendThcsFullyGradedNotification(
+                    user.uid,
+                    testData.metadata?.title || 'THCS Test',
+                    finalResult.scaledScore,
+                    homeworkId || `hw_${testData.id}_${user.uid}`
+                ).catch(err => console.warn('[THCSHomework] Fully graded notification failed:', err));
+            }
+
+            setGradingResult(finalResult);
+            setPhase('results');
+        } catch (err) {
+            console.error('[THCSHomeworkLayout] Submit error:', err);
+            setPhase('test'); // Allow retry
+        }
+    };
+
+    // ── Navigation ──
+    const goToQuestion = (flatIdx: number) => {
+        const item = allQuestions[flatIdx];
+        if (item) {
+            setCurrentSectionIdx(item.sectionIdx);
+            setCurrentQuestionIdx(item.questionIdx);
+        }
+    };
+
+    // ── Format time ──
+    const formatTime = (seconds: number) => {
+        const m = Math.floor(seconds / 60);
+        const s = seconds % 60;
+        return `${m}:${s.toString().padStart(2, '0')}`;
+    };
+
+    // ════════════════════════════════════════════════════════════
+    // RENDER
+    // ════════════════════════════════════════════════════════════
+
+    // Loading
+    if (loadingAttempts) {
+        return (
+            <div style={{ textAlign: 'center', padding: '4rem' }}>
+                <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>⏳</div>
+                <p style={{ color: '#64748b' }}>Loading...</p>
+            </div>
+        );
+    }
+
+    // Blocked (max attempts reached or deadline rejected)
+    if (phase === 'blocked') {
+        const isDeadlineBlocked = schedulingDueDate && Date.now() > schedulingDueDate
+            && homeworkConfig?.lateSubmissionPolicy === 'reject';
+
+        return (
+            <div style={{
+                textAlign: 'center', padding: '4rem',
+                background: 'linear-gradient(135deg, #fef2f2 0%, #fff7ed 100%)',
+                borderRadius: '16px', margin: '2rem',
+            }}>
+                <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🚫</div>
+                <h2 style={{ color: '#dc2626', fontWeight: 700 }}>
+                    {isDeadlineBlocked ? 'Deadline Passed' : 'All Attempts Used'}
+                </h2>
+                <p style={{ color: '#64748b', marginTop: '0.5rem' }}>
+                    {isDeadlineBlocked
+                        ? 'Deadline passed. Submissions are closed.'
+                        : `You have used all ${maxAttempts} attempt${maxAttempts > 1 ? 's' : ''} for this homework.`
+                    }
+                </p>
+            </div>
+        );
+    }
+
+    // Info screen
+    if (phase === 'info') {
+        return (
+            <div style={{
+                maxWidth: '600px', margin: '2rem auto', padding: '2rem',
+                background: 'white', borderRadius: '16px',
+                boxShadow: '0 4px 24px rgba(0,0,0,0.06)',
+            }}>
+                <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '1rem', color: '#1e293b' }}>
+                    {testData.metadata.title}
+                </h2>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+                    <span style={{ padding: '0.25rem 0.75rem', background: '#f3e8ff', borderRadius: '999px', fontSize: '0.8rem', color: '#7c3aed', fontWeight: 600 }}>
+                        THCS-THPT
+                    </span>
+                    <span style={{ padding: '0.25rem 0.75rem', background: '#ecfdf5', borderRadius: '999px', fontSize: '0.8rem', color: '#059669', fontWeight: 600 }}>
+                        {testData.metadata.duration} min
+                    </span>
+                    <span style={{ padding: '0.25rem 0.75rem', background: '#eff6ff', borderRadius: '999px', fontSize: '0.8rem', color: '#2563eb', fontWeight: 600 }}>
+                        {allQuestions.length} questions
+                    </span>
+                </div>
+                {homeworkConfig?.instructions && (
+                    <div style={{
+                        padding: '1rem', background: '#fffbeb', borderRadius: '8px',
+                        border: '1px solid #fcd34d', marginBottom: '1rem',
+                    }}>
+                        <p style={{ fontWeight: 600, marginBottom: '0.25rem', color: '#92400e' }}>📝 Instructions</p>
+                        <p style={{ color: '#78350f', fontSize: '0.9rem' }}>{homeworkConfig.instructions}</p>
+                    </div>
+                )}
+                {mode === 'homework' && (
+                    <p style={{ color: '#64748b', fontSize: '0.9rem', marginBottom: '1rem' }}>
+                        Attempt {attemptCount + 1} of {maxAttempts}
+                    </p>
+                )}
+                <button
+                    onClick={handleStart}
+                    style={{
+                        width: '100%', padding: '0.75rem',
+                        background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 100%)',
+                        color: 'white', border: 'none', borderRadius: '10px',
+                        fontWeight: 700, fontSize: '1rem', cursor: 'pointer',
+                    }}
+                >
+                    ▶️ Start Test
+                </button>
+            </div>
+        );
+    }
+
+    // Submitting
+    if (phase === 'submitting') {
+        return (
+            <div style={{ textAlign: 'center', padding: '4rem' }}>
+                <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>⏳</div>
+                <p style={{ color: '#64748b', fontWeight: 600 }}>Grading your answers...</p>
+            </div>
+        );
+    }
+
+    // Results
+    if (phase === 'results' && gradingResult) {
+        if (feedbackBlocked) {
+            const msg = homeworkConfig?.feedbackTiming === 'after-deadline'
+                ? 'Results will be available after the deadline.'
+                : 'Results will be released by your teacher.';
+            return (
+                <div style={{
+                    textAlign: 'center', padding: '4rem',
+                    background: 'white', borderRadius: '16px', margin: '2rem',
+                    boxShadow: '0 4px 24px rgba(0,0,0,0.06)',
+                }}>
+                    <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>✅</div>
+                    <h2 style={{ color: '#1e293b', fontWeight: 700 }}>Submitted Successfully!</h2>
+                    <p style={{ color: '#64748b', marginTop: '0.5rem' }}>{msg}</p>
+                </div>
+            );
+        }
+
+        const pct = gradingResult.maxPoints > 0
+            ? Math.round((gradingResult.totalPoints / gradingResult.maxPoints) * 100)
+            : 0;
+
+        return (
+            <div style={{
+                maxWidth: '600px', margin: '2rem auto', padding: '2rem',
+                background: 'white', borderRadius: '16px',
+                boxShadow: '0 4px 24px rgba(0,0,0,0.06)',
+            }}>
+                <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+                    <div style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>
+                        {pct >= 80 ? '🎉' : pct >= 50 ? '👍' : '💪'}
+                    </div>
+                    <h2 style={{ color: '#1e293b', fontWeight: 700, fontSize: '1.5rem' }}>
+                        Score: {gradingResult.scaledScore.toFixed(1)}/10
+                    </h2>
+                    <p style={{ color: '#64748b' }}>{pct}% • {gradingResult.totalPoints}/{gradingResult.maxPoints} points</p>
+                    {gradingResult.gradingStatus === 'auto-graded' && (
+                        <p style={{
+                            color: '#f59e0b', fontSize: '0.85rem', marginTop: '0.5rem',
+                            padding: '0.5rem', background: '#fffbeb', borderRadius: '8px',
+                        }}>
+                            ⚠️ Score is partial — writing questions are pending teacher review.
+                        </p>
+                    )}
+                </div>
+                {/* Section breakdown */}
+                {gradingResult.sectionResults.map((sr, i) => (
+                    <div key={i} style={{
+                        padding: '0.75rem', background: '#f8fafc',
+                        borderRadius: '8px', marginBottom: '0.5rem',
+                        display: 'flex', justifyContent: 'space-between',
+                    }}>
+                        <span style={{ fontWeight: 600, color: '#334155' }}>{sr.sectionName}</span>
+                        <span style={{ color: '#6366f1', fontWeight: 700 }}>{sr.pointsEarned}/{sr.pointsMax}</span>
+                    </div>
+                ))}
+            </div>
+        );
+    }
+
+    // ── Test phase ──
+    const section = shuffledTestData.sections[currentSectionIdx];
+    const answeredCount = Object.values(answers).filter(a => a !== null && a !== '' && a !== undefined).length;
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#f8fafc' }}>
+            {/* Header bar — responsive */}
+            <div style={{
+                padding: isMobile ? '0.5rem 0.75rem' : '0.75rem 1.5rem',
+                background: 'white',
+                borderBottom: '1px solid #e2e8f0',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                flexWrap: 'wrap', gap: '0.5rem',
+            }}>
+                <div style={{ minWidth: 0, flex: '1 1 auto' }}>
+                    <span style={{ fontWeight: 700, color: '#1e293b', fontSize: isMobile ? '0.85rem' : '1rem' }}>
+                        {isMobile && testData.metadata.title.length > 25
+                            ? testData.metadata.title.slice(0, 25) + '...'
+                            : testData.metadata.title
+                        }
+                    </span>
+                    <span style={{ marginLeft: '0.5rem', fontSize: '0.8rem', color: '#64748b' }}>
+                        {answeredCount}/{allQuestions.length}
+                    </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                    {timerMode !== 'none' && (
+                        <div style={{
+                            padding: '0.25rem 0.75rem', borderRadius: '999px',
+                            background: timeRemaining < 300 ? '#fef2f2' : '#f8fafc',
+                            color: timeRemaining < 300 ? '#dc2626' : '#1e293b',
+                            fontWeight: 700, fontSize: isMobile ? '0.85rem' : '1rem',
+                            fontFamily: 'monospace',
+                        }}>
+                            ⏱ {formatTime(timeRemaining)}
+                        </div>
+                    )}
+                    {/* Mobile: question nav toggle */}
+                    {isMobile && (
+                        <button
+                            onClick={() => setShowMobileNav(!showMobileNav)}
+                            style={{
+                                width: 36, height: 36, borderRadius: '8px',
+                                border: '1px solid #e2e8f0', background: showMobileNav ? '#6366f1' : 'white',
+                                color: showMobileNav ? 'white' : '#6366f1',
+                                fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            }}
+                        >
+                            #
+                        </button>
+                    )}
+                    <button
+                        onClick={() => {
+                            if (confirm('Are you sure you want to submit? You cannot change your answers after submission.')) {
+                                handleSubmit();
+                            }
+                        }}
+                        style={{
+                            padding: isMobile ? '0.4rem 0.75rem' : '0.5rem 1.25rem',
+                            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                            color: 'white', border: 'none', borderRadius: '8px',
+                            fontWeight: 700, cursor: 'pointer',
+                            fontSize: isMobile ? '0.8rem' : '0.875rem',
+                        }}
+                    >
+                        {isMobile ? '📤' : 'Submit'}
+                    </button>
+                </div>
+            </div>
+
+            {/* Task 11.3: Informational timer expired banner */}
+            {timerExpiredBanner && (
+                <div style={{
+                    padding: '0.5rem 1rem',
+                    background: '#fef3c7',
+                    borderBottom: '1px solid #fbbf24',
+                    color: '#92400e',
+                    fontWeight: 600,
+                    fontSize: '0.875rem',
+                    textAlign: 'center',
+                }}>
+                    ⏰ Time is up — you may continue at your own pace.
+                </div>
+            )}
+
+            <div style={{ flex: 1, display: 'flex', flexDirection: isMobile ? 'column' : 'row', overflow: 'hidden' }}>
+                {/* Mobile: Collapsible question nav panel */}
+                {isMobile && showMobileNav && (
+                    <div style={{
+                        padding: '0.75rem', background: 'white',
+                        borderBottom: '1px solid #e2e8f0',
+                    }}>
+                        <div style={{
+                            display: 'flex', flexWrap: 'wrap', gap: '0.3rem',
+                            justifyContent: 'center',
+                        }}>
+                            {allQuestions.map((item, idx) => {
+                                const isAnswered = answers[item.question.id] !== undefined && answers[item.question.id] !== null;
+                                const isCurrent = idx === currentFlatIdx;
+                                const isFlagged = flags[item.question.id];
+
+                                return (
+                                    <button
+                                        key={item.question.id}
+                                        onClick={() => { goToQuestion(idx); setShowMobileNav(false); }}
+                                        style={{
+                                            width: 32, height: 32,
+                                            borderRadius: '6px', border: 'none',
+                                            fontSize: '0.7rem', fontWeight: 700,
+                                            cursor: 'pointer',
+                                            background: isCurrent ? '#1e293b'
+                                                : isFlagged ? '#f59e0b'
+                                                    : isAnswered ? '#3b82f6'
+                                                        : '#e2e8f0',
+                                            color: isCurrent || isAnswered || isFlagged ? '#fff' : '#64748b',
+                                            boxShadow: isCurrent ? '0 0 0 2px #3b82f6' : 'none',
+                                        }}
+                                    >
+                                        {idx + 1}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                {/* Main content */}
+                <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '1rem' : '1.5rem' }}>
+                    {/* Section header */}
+                    <div style={{ marginBottom: '1rem' }}>
+                        <h3 style={{
+                            fontSize: isMobile ? '1rem' : '1.1rem', fontWeight: 700, color: '#6366f1',
+                            marginBottom: '0.25rem',
+                        }}>
+                            {section?.name}
+                        </h3>
+                        {section?.instructionText && (
+                            <p style={{ fontSize: '0.85rem', color: '#64748b', fontStyle: 'italic' }}>
+                                {section.instructionText}
+                            </p>
+                        )}
+                    </div>
+
+                    {/* Question renderer */}
+                    {currentQuestion && (
+                        <THCSQuestionRenderer
+                            question={currentQuestion}
+                            selectedAnswer={answers[currentQuestion.id] ?? null}
+                            onAnswer={(answer) => handleAnswer(currentQuestion.id, answer)}
+                            isFlagged={!!flags[currentQuestion.id]}
+                            onToggleFlag={() => handleToggleFlag(currentQuestion.id)}
+                            isReviewMode={false}
+                        />
+                    )}
+
+                    {/* Navigation buttons */}
+                    <div style={{
+                        display: 'flex', justifyContent: 'space-between',
+                        marginTop: '1.5rem', gap: '1rem',
+                    }}>
+                        <button
+                            disabled={currentFlatIdx === 0}
+                            onClick={() => goToQuestion(currentFlatIdx - 1)}
+                            style={{
+                                padding: isMobile ? '0.5rem 1rem' : '0.5rem 1.5rem',
+                                borderRadius: '8px',
+                                border: '1px solid #d1d5db', background: 'white',
+                                fontWeight: 600, cursor: currentFlatIdx === 0 ? 'not-allowed' : 'pointer',
+                                opacity: currentFlatIdx === 0 ? 0.5 : 1,
+                                flex: isMobile ? 1 : undefined,
+                            }}
+                        >
+                            ← Prev
+                        </button>
+                        <button
+                            disabled={currentFlatIdx >= allQuestions.length - 1}
+                            onClick={() => goToQuestion(currentFlatIdx + 1)}
+                            style={{
+                                padding: isMobile ? '0.5rem 1rem' : '0.5rem 1.5rem',
+                                borderRadius: '8px',
+                                border: 'none',
+                                background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                                color: 'white', fontWeight: 600,
+                                cursor: currentFlatIdx >= allQuestions.length - 1 ? 'not-allowed' : 'pointer',
+                                opacity: currentFlatIdx >= allQuestions.length - 1 ? 0.5 : 1,
+                                flex: isMobile ? 1 : undefined,
+                            }}
+                        >
+                            Next →
+                        </button>
+                    </div>
+                </div>
+
+                {/* Desktop/Tablet: Question navigation sidebar */}
+                {!isMobile && (
+                    <div style={{
+                        width: '200px', borderLeft: '1px solid #e2e8f0',
+                        background: 'white', padding: '1rem', overflow: 'auto',
+                        flexShrink: 0,
+                    }}>
+                        <p style={{ fontWeight: 700, fontSize: '0.85rem', color: '#64748b', marginBottom: '0.75rem' }}>
+                            Questions
+                        </p>
+                        <div style={{
+                            display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
+                            gap: '0.35rem',
+                        }}>
+                            {allQuestions.map((item, idx) => {
+                                const isAnswered = answers[item.question.id] !== undefined && answers[item.question.id] !== null;
+                                const isCurrent = idx === currentFlatIdx;
+                                const isFlagged = flags[item.question.id];
+
+                                return (
+                                    <button
+                                        key={item.question.id}
+                                        onClick={() => goToQuestion(idx)}
+                                        style={{
+                                            width: '36px', height: '36px',
+                                            borderRadius: '8px', border: 'none',
+                                            fontSize: '0.75rem', fontWeight: 700,
+                                            cursor: 'pointer',
+                                            background: isCurrent ? '#1e293b'
+                                                : isFlagged ? '#f59e0b'
+                                                    : isAnswered ? '#3b82f6'
+                                                        : '#e2e8f0',
+                                            color: isCurrent || isAnswered || isFlagged ? '#fff' : '#64748b',
+                                            boxShadow: isCurrent ? '0 0 0 3px #3b82f6' : 'none',
+                                        }}
+                                    >
+                                        {idx + 1}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+export default THCSHomeworkLayout;

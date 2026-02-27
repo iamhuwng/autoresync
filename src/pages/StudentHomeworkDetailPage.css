@@ -1,0 +1,67 @@
+/**
+ * Student Homework Detail Page Styles
+ * PRD-0016: Solo Study & Homework System
+ */
+
+.homework-detail-page .mantine-Card-root {
+    transition: transform 0.2s ease;
+}
+
+/* Config cards */
+.homework-detail-page .mantine-Paper-root {
+    transition: background-color 0.2s ease;
+}
+
+.homework-detail-page .mantine-Paper-root:hover {
+    background-color: var(--mantine-color-gray-0);
+}
+
+/* Timeline styling */
+.homework-detail-page .mantine-Timeline-item {
+    padding-bottom: var(--mantine-spacing-md);
+}
+
+/* Best score highlight */
+.best-score-highlight {
+    background: linear-gradient(135deg, var(--mantine-color-blue-0) 0%, var(--mantine-color-cyan-0) 100%);
+    border-color: var(--mantine-color-blue-3);
+}
+
+/* Start button animation */
+.homework-detail-page .start-button {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.homework-detail-page .start-button:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .homework-detail-page .mantine-Grid-col {
+        padding: var(--mantine-spacing-xs);
+    }
+}
+
+/* Alert animations */
+.homework-detail-page .mantine-Alert-root {
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Modal overlay */
+.homework-detail-page .mantine-Modal-overlay {
+    backdrop-filter: blur(4px);
+}

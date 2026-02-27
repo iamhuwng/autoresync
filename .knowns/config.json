@@ -1,0 +1,41 @@
+{
+  "name": "kahoot",
+  "id": "kahoot",
+  "createdAt": "2026-02-27T15:15:25.203Z",
+  "settings": {
+    "defaultPriority": "high",
+    "defaultLabels": [],
+    "statuses": [
+      "todo",
+      "in-progress",
+      "in-review",
+      "done",
+      "blocked",
+      "on-hold",
+      "urgent"
+    ],
+    "visibleColumns": [
+      "todo",
+      "in-progress",
+      "blocked",
+      "done",
+      "in-review"
+    ],
+    "statusColors": {
+      "todo": "gray",
+      "in-progress": "blue",
+      "in-review": "purple",
+      "done": "green",
+      "blocked": "red",
+      "on-hold": "yellow",
+      "urgent": "orange"
+    },
+    "timeFormat": "24h",
+    "gitTrackingMode": "git-tracked",
+    "semanticSearch": {
+      "enabled": true,
+      "model": "gte-base"
+    },
+    "serverPort": 6420
+  }
+}

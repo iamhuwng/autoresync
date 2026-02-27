@@ -1,0 +1,136 @@
+﻿{
+  "config": {
+    "configFile": "C:\\Users\\The Lord\\Desktop\\Homework App\\kahoot\\playwright.config.js",
+    "rootDir": "C:/Users/The Lord/Desktop/Homework App/kahoot/e2e",
+    "forbidOnly": false,
+    "fullyParallel": true,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "C:/Users/The Lord/Desktop/Homework App/kahoot/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "C:/Users/The Lord/Desktop/Homework App/kahoot/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 60000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "json"
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "runAgents": "none",
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.58.1",
+    "workers": 1,
+    "webServer": {
+      "command": "npm run dev",
+      "url": "http://localhost:5173",
+      "reuseExistingServer": true
+    }
+  },
+  "suites": [
+    {
+      "title": "debug-login.spec.ts",
+      "file": "debug-login.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "debug parsing transition",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 20862,
+                  "errors": [],
+                  "stdout": [
+                    {
+                      "text": "[1] On upload step\n"
+                    },
+                    {
+                      "text": "[2] Filled textarea\n"
+                    },
+                    {
+                      "text": "[3] Clicked Start Parsing #0\n"
+                    },
+                    {
+                      "text": "[4] Dialog headings: Parsing Your Test...\n"
+                    },
+                    {
+                      "text": "[5] Has parsing text: \u001b[33mtrue\u001b[39m\n"
+                    },
+                    {
+                      "text": "[6] Dialog visible elements:\n<p> Processing\n<p> AI is parsing your test ΓÇó Step 5 of 5\n<button> \n<h2> Parsing Your Test...\n<p> Extracting text from document...\n<button> Cancel\n<p> Please wait while AI processes your content...\n<button> Cancel Parsing\n"
+                    },
+                    {
+                      "text": "[7] After 8s:\n<p> Processing\n<p> AI is parsing your test ΓÇó Step 5 of 5\n<button> \n<h2> Parsing Complete!\n<p> Parsing complete! Ready for review.\n<button> Continue to Review ΓåÆ\n<p> Please wait while AI processes your content...\n<button> Cancel Parsing\n"
+                    },
+                    {
+                      "text": "[8] Continue to Review visible: \u001b[33mtrue\u001b[39m\n"
+                    }
+                  ],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-02-07T03:23:00.830Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5f1889fdd7b10a4db9e9-cfda676a0e37c4c1e53e",
+          "file": "debug-login.spec.ts",
+          "line": 28,
+          "column": 1
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-02-07T03:22:58.585Z",
+    "duration": 26452.099,
+    "expected": 1,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

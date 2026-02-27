@@ -1,0 +1,2604 @@
+{
+  "0F6NPO": {
+    "className": "Class 0F6NPO",
+    "createdAt": 1769784926970,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769871326970,
+    "isPaused": false,
+    "mode": "test",
+    "sessionCode": "0F6NPO",
+    "settings": {
+      "accessControl": "class-only",
+      "allowAnonymous": false,
+      "allowLateJoin": false,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769784926970_pjrnks2x2",
+    "updatedAt": 1769933935111
+  },
+  "1D6WRX": {
+    "players": {
+      "G5yDXmkDfsVhoKYTp7xTwbbggtB2": {
+        "disconnectedAt": 1770215203891,
+        "isConnected": false,
+        "lastActivity": 1770215202685
+      }
+    }
+  },
+  "1VVVNT": {
+    "className": "Class 1VVVNT",
+    "createdAt": 1769784914477,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769871314477,
+    "isPaused": false,
+    "mode": "quiz",
+    "sessionCode": "1VVVNT",
+    "settings": {
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769784914477_dl0v4ma71",
+    "updatedAt": 1769933935736
+  },
+  "2EMSTC": {
+    "createdAt": 1763834263561,
+    "currentQuestionIndex": 0,
+    "endTime": 1763871004738,
+    "expiresAt": 1763920663561,
+    "isPaused": false,
+    "mode": "test",
+    "pausedAt": 1763870009018,
+    "players": {
+      "1763834290648-c4e4g3m2b": {
+        "submittedAt": 1763862044476,
+        "timeSpent": 3600
+      }
+    },
+    "resumedAt": 1763870218851,
+    "sessionCode": "2EMSTC",
+    "settings": {
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "showLeaderboard": true
+    },
+    "startTime": 1763834298805,
+    "status": "expired",
+    "testId": "test-1763810218116-qxmgh95",
+    "totalDuration": 15,
+    "updatedAt": 1763921296254
+  },
+  "2UUTEM": {
+    "className": "Class 2UUTEM",
+    "createdAt": 1769780889675,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769867289675,
+    "isPaused": false,
+    "mode": "quiz",
+    "sessionCode": "2UUTEM",
+    "settings": {
+      "accessControl": "public",
+      "allowAnonymous": true,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769780889675_w2uhbokqa",
+    "updatedAt": 1769933936021
+  },
+  "3ETFKB": {
+    "players": {
+      "G5yDXmkDfsVhoKYTp7xTwbbggtB2": {
+        "lastActivity": 1770209827025
+      }
+    }
+  },
+  "4LY96H": {
+    "className": "Class 4LY96H",
+    "createdAt": 1769784984724,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769871384724,
+    "isPaused": false,
+    "mode": "quiz",
+    "sessionCode": "4LY96H",
+    "settings": {
+      "allowAnonymous": true,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769784984724_v3iygbuht",
+    "updatedAt": 1769933936291
+  },
+  "54CVSF": {
+    "className": "Class 54CVSF",
+    "createdAt": 1770999123966,
+    "createdByUserId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "currentQuestionIndex": 0,
+    "expiresAt": 1771085523966,
+    "isPaused": false,
+    "linkedClassId": "FN5U8C",
+    "mode": "test",
+    "players": {
+      "G5yDXmkDfsVhoKYTp7xTwbbggtB2": {
+        "answers": [
+          null,
+          {
+            "answer": "iv. The time and place of the Industrial Revolution",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "viii. Conditions required for industrialisation",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "vii. Two keys to Britain's industrial revolution",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "i. The search for the reasons for an increase in population",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "ii. Industrialisation and the fear of unemployment",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "ix. Comparisons with Japan lead to the answer",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "v. The cases of Holland, France and China",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "NOT GIVEN",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "TRUE",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "FALSE",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "FALSE",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "NOT GIVEN",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "FALSE",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "A",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "D",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "F",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "D",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "B",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "D",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "A",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "E",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "C",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "books",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "internal regulation",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "emotional ẩeness",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "spoon-feeding",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "B",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "H",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "L",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "G",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "E",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "B the conflict that may arise in society between financial and artistic values.",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "D they feel their personal reaction is of no significance.",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "A the variety of works on display and the way they are arranged.",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "B require a specific location for a performance.",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "NO",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "NOT GIVEN",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "NO",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "NOT GIVEN",
+            "timestamp": 1770999910258
+          },
+          {
+            "answer": "YES",
+            "timestamp": 1770999910258
+          }
+        ],
+        "bandScore": 4,
+        "completedAt": 1770999910198,
+        "correctCount": 18,
+        "disconnectedAt": 1770999915306,
+        "hasCompletedTest": true,
+        "isConnected": false,
+        "isSubmitted": true,
+        "lastActivity": 1770999915305,
+        "lastAnswerUpdate": 1770999909345,
+        "maxScore": 40,
+        "percentage": 45,
+        "score": 18,
+        "submittedAt": 1770999910198,
+        "submittedBy": "student",
+        "timeSpent": 775,
+        "totalQuestions": 40
+      }
+    },
+    "sessionCode": "54CVSF",
+    "settings": {
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": true,
+      "showLeaderboard": true
+    },
+    "startTime": 1770999134632,
+    "status": "expired",
+    "teacherId": "teacher_1770999123966_47mqyalg4",
+    "testId": "test-1770888798048-vgb9fpe",
+    "updatedAt": 1771270472384
+  },
+  "55KQ7Z": {
+    "className": "Class 55KQ7Z",
+    "courseId": "-OkInffOrMX5hIQsXhtL",
+    "createdAt": 1769859211266,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769945611266,
+    "isPaused": false,
+    "mode": "test",
+    "moduleId": "-OkIo9-bE2WKjKyMdAwh",
+    "sessionCode": "55KQ7Z",
+    "settings": {
+      "accessType": "open",
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "duration": 30,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769859211266_spufsyt4x",
+    "testId": "listening-1764215199799-vxdrkxz",
+    "updatedAt": 1770004499635
+  },
+  "5M74IC": {
+    "className": "Class 5M74IC",
+    "createdAt": 1769784991696,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769871391696,
+    "isPaused": false,
+    "mode": "test",
+    "sessionCode": "5M74IC",
+    "settings": {
+      "allowAnonymous": false,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769784991696_h0wik72ig",
+    "updatedAt": 1769933936659
+  },
+  "67W44Z": {
+    "createdAt": 1763879980286,
+    "currentQuestionIndex": 0,
+    "endTime": 1763880016753,
+    "expiresAt": 1763966380286,
+    "isPaused": false,
+    "mode": "test",
+    "sessionCode": "67W44Z",
+    "settings": {
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "showLeaderboard": true
+    },
+    "startTime": 1763880013355,
+    "status": "expired",
+    "testId": "test-1763810218116-qxmgh95",
+    "totalDuration": 1,
+    "updatedAt": 1764026384523
+  },
+  "6V63X4": {
+    "className": "Class 6V63X4",
+    "createdAt": 1769732346303,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769818746303,
+    "isPaused": false,
+    "mode": "quiz",
+    "sessionCode": "6V63X4",
+    "settings": {
+      "allowAnonymous": true,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769732346303_2tygx1wsz",
+    "updatedAt": 1769732346303
+  },
+  "74FRPO": {
+    "completedAt": 1763887762000,
+    "createdAt": 1763880825256,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1763967225256,
+    "isPaused": false,
+    "lastTestCompletedAt": 1763887755577,
+    "mode": "test",
+    "pausedDuration": 0,
+    "sessionCode": "74FRPO",
+    "settings": {
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "showLeaderboard": true
+    },
+    "showCorrectAnswers": false,
+    "status": "expired",
+    "updatedAt": 1764026384738
+  },
+  "7EC62H": {
+    "className": "Class 7EC62H",
+    "createdAt": 1764074261655,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1764160661655,
+    "isPaused": false,
+    "lastTestCompletedAt": 1764075753222,
+    "mode": "test",
+    "pausedDuration": 0,
+    "players": {
+      "1764073926687-hgmzwfmoz": {
+        "bandScore": 3,
+        "correctCount": 11,
+        "disconnectedAt": 1764074620048,
+        "ip": "113.23.38.82",
+        "isConnected": true,
+        "isSubmitted": true,
+        "lastActivity": 1764075732881,
+        "lastAnswerUpdate": 1764075731738,
+        "maxScore": 400,
+        "name": "Tùng",
+        "percentage": 28,
+        "score": 11,
+        "submittedAt": 1764075052397,
+        "timeSpent": 454,
+        "totalQuestions": 40
+      },
+      "1764073957464-8tk6khds5": {
+        "answers": [
+          null,
+          {
+            "answer": "FALSE",
+            "timestamp": 1764074722052
+          },
+          {
+            "answer": "TRUE",
+            "timestamp": 1764074722052
+          },
+          {
+            "answer": "FALSE",
+            "timestamp": 1764074722052
+          },
+          {
+            "answer": "TRUE",
+            "timestamp": 1764074722052
+          },
+          {
+            "answer": "TRUE",
+            "timestamp": 1764074722052
+          },
+          {
+            "answer": "TRUE",
+            "timestamp": 1764074722052
+          },
+          {
+            "answer": "TRUE",
+            "timestamp": 1764074722052
+          },
+          {
+            "answer": "snail",
+            "timestamp": 1764074722052
+          },
+          {
+            "answer": "purple solutions",
+            "timestamp": 1764074722052
+          },
+          {
+            "answer": "mauve",
+            "timestamp": 1764074722052
+          },
+          {
+            "answer": "Robert Pullar",
+            "timestamp": 1764074722052
+          },
+          {
+            "answer": "France",
+            "timestamp": 1764074722052
+          },
+          {
+            "answer": "malaria",
+            "timestamp": 1764074722052
+          }
+        ],
+        "bandScore": 2.5,
+        "correctCount": 8,
+        "disconnectedAt": 1764074597435,
+        "ip": "113.23.38.82",
+        "isConnected": false,
+        "isSubmitted": true,
+        "lastActivity": 1764074764348,
+        "lastAnswerUpdate": 1764074695452,
+        "maxScore": 400,
+        "name": "Bảo",
+        "percentage": 20,
+        "score": 8,
+        "submittedAt": 1764074722052,
+        "timeSpent": 122,
+        "totalQuestions": 40
+      },
+      "1764074039454-kilqowx5s": {
+        "answers": [
+          null,
+          {
+            "answer": "FALSE",
+            "timestamp": 1764074728494
+          },
+          {
+            "answer": "FALSE",
+            "timestamp": 1764074728494
+          },
+          {
+            "answer": "TRUE",
+            "timestamp": 1764074728494
+          },
+          {
+            "answer": "TRUE",
+            "timestamp": 1764074728494
+          },
+          {
+            "answer": "TRUE",
+            "timestamp": 1764074728494
+          },
+          {
+            "answer": "TRUE",
+            "timestamp": 1764074728494
+          },
+          {
+            "answer": "NOT GIVEN",
+            "timestamp": 1764074728494
+          },
+          {
+            "answer": "the rich",
+            "timestamp": 1764074728494
+          },
+          {
+            "answer": "first synthetic",
+            "timestamp": 1764074728494
+          },
+          {
+            "answer": "tyrian purple",
+            "timestamp": 1764074728494
+          },
+          {
+            "answer": "rober pullar",
+            "timestamp": 1764074728494
+          },
+          {
+            "answer": "london",
+            "timestamp": 1764074728494
+          },
+          {
+            "answer": "bacilli",
+            "timestamp": 1764074728494
+          }
+        ],
+        "bandScore": 2,
+        "correctCount": 5,
+        "disconnectedAt": 1764074597083,
+        "ip": "113.23.38.82",
+        "isConnected": false,
+        "isSubmitted": true,
+        "lastActivity": 1764075067084,
+        "lastAnswerUpdate": 1764074707070,
+        "maxScore": 400,
+        "name": "dương cát lạ",
+        "percentage": 13,
+        "score": 5,
+        "submittedAt": 1764074728494,
+        "timeSpent": 132,
+        "totalQuestions": 40
+      },
+      "1764074054827-w8vqabcf4": {
+        "answers": [
+          null,
+          {
+            "answer": "FALSE",
+            "timestamp": 1764074715185
+          },
+          {
+            "answer": "NOT GIVEN",
+            "timestamp": 1764074715185
+          },
+          {
+            "answer": "FALSE",
+            "timestamp": 1764074715185
+          },
+          {
+            "answer": "TRUE",
+            "timestamp": 1764074715185
+          },
+          {
+            "answer": "FALSE",
+            "timestamp": 1764074715185
+          },
+          {
+            "answer": "TRUE",
+            "timestamp": 1764074715185
+          },
+          {
+            "answer": "NOT GIVEN",
+            "timestamp": 1764074715185
+          },
+          {
+            "answer": "The rich",
+            "timestamp": 1764074715185
+          },
+          {
+            "answer": "Commercial",
+            "timestamp": 1764074715185
+          },
+          {
+            "answer": "Mauve",
+            "timestamp": 1764074715185
+          },
+          {
+            "answer": "Robert puller",
+            "timestamp": 1764074715185
+          },
+          {
+            "answer": "France",
+            "timestamp": 1764074715185
+          },
+          {
+            "answer": "Mi bombo",
+            "timestamp": 1764074715185
+          }
+        ],
+        "bandScore": 3,
+        "correctCount": 9,
+        "disconnectedAt": 1764074597088,
+        "ip": "172.225.56.3",
+        "isConnected": false,
+        "isSubmitted": true,
+        "lastActivity": 1764074865146,
+        "lastAnswerUpdate": 1764074706788,
+        "maxScore": 400,
+        "name": "Duccop",
+        "percentage": 23,
+        "score": 9,
+        "submittedAt": 1764074715185,
+        "timeSpent": 118,
+        "totalQuestions": 40
+      },
+      "1764074102618-vmquhxws1": {
+        "answers": [
+          null,
+          {
+            "answer": "FALSE",
+            "timestamp": 1764074778581
+          },
+          {
+            "answer": "NOT GIVEN",
+            "timestamp": 1764074778581
+          },
+          {
+            "answer": "TRUE",
+            "timestamp": 1764074778581
+          },
+          {
+            "answer": "TRUE",
+            "timestamp": 1764074778581
+          },
+          {
+            "answer": "NOT GIVEN",
+            "timestamp": 1764074778581
+          },
+          {
+            "answer": "TRUE",
+            "timestamp": 1764074778581
+          },
+          {
+            "answer": "NOT GIVEN",
+            "timestamp": 1764074778581
+          },
+          {
+            "answer": "rich",
+            "timestamp": 1764074778581
+          },
+          {
+            "answer": "commercial",
+            "timestamp": 1764074778581
+          },
+          {
+            "answer": "mauve",
+            "timestamp": 1764074778581
+          },
+          {
+            "answer": "robert pullar",
+            "timestamp": 1764074778581
+          },
+          {
+            "answer": "france",
+            "timestamp": 1764074778581
+          }
+        ],
+        "bandScore": 3,
+        "correctCount": 9,
+        "disconnectedAt": 1764074602282,
+        "ip": "113.23.38.82",
+        "isConnected": false,
+        "isSubmitted": true,
+        "lastActivity": 1764074861290,
+        "lastAnswerUpdate": 1764074767728,
+        "maxScore": 400,
+        "name": "🙄",
+        "percentage": 23,
+        "score": 9,
+        "submittedAt": 1764074778581,
+        "timeSpent": 181,
+        "totalQuestions": 40
+      },
+      "1764074567339-w5709qy3x": {
+        "answers": [
+          null,
+          {
+            "answer": "FALSE",
+            "timestamp": 1764074804325
+          },
+          {
+            "answer": "FALSE",
+            "timestamp": 1764074804325
+          },
+          {
+            "answer": "TRUE",
+            "timestamp": 1764074804325
+          },
+          {
+            "answer": "FALSE",
+            "timestamp": 1764074804325
+          },
+          {
+            "answer": "TRUE",
+            "timestamp": 1764074804325
+          },
+          {
+            "answer": "FALSE",
+            "timestamp": 1764074804325
+          },
+          {
+            "answer": "TRUE",
+            "timestamp": 1764074804325
+          },
+          {
+            "answer": "=)",
+            "timestamp": 1764074804325
+          },
+          {
+            "answer": "instant recognition",
+            "timestamp": 1764074804325
+          },
+          {
+            "answer": "tyrian purple",
+            "timestamp": 1764074804325
+          },
+          {
+            "answer": "robert pullar",
+            "timestamp": 1764074804325
+          },
+          {
+            "answer": "london",
+            "timestamp": 1764074804325
+          },
+          {
+            "answer": "=)",
+            "timestamp": 1764074804325
+          }
+        ],
+        "bandScore": 1.5,
+        "correctCount": 2,
+        "disconnectedAt": 1764074595321,
+        "ip": "113.23.38.82",
+        "isConnected": true,
+        "isSubmitted": true,
+        "lastActivity": 1764075320604,
+        "lastAnswerUpdate": 1764074799374,
+        "maxScore": 400,
+        "name": "Linh",
+        "percentage": 5,
+        "score": 2,
+        "submittedAt": 1764074804325,
+        "timeSpent": 207,
+        "totalQuestions": 40
+      },
+      "1764074641435-35i2wkzip": {
+        "answers": [
+          null,
+          {
+            "answer": "FALSE",
+            "timestamp": 1764074736198
+          },
+          {
+            "answer": "FALSE",
+            "timestamp": 1764074736198
+          },
+          {
+            "answer": "TRUE",
+            "timestamp": 1764074736198
+          },
+          {
+            "answer": "TRUE",
+            "timestamp": 1764074736198
+          },
+          {
+            "answer": "NOT GIVEN",
+            "timestamp": 1764074736198
+          },
+          {
+            "answer": "TRUE",
+            "timestamp": 1764074736198
+          },
+          {
+            "answer": "TRUE",
+            "timestamp": 1764074736198
+          },
+          {
+            "answer": "outrageously expensive",
+            "timestamp": 1764074736198
+          },
+          {
+            "answer": "commercial posi",
+            "timestamp": 1764074736198
+          }
+        ],
+        "disconnectedAt": 1764074643066,
+        "ip": "113.23.38.82",
+        "isConnected": false,
+        "lastActivity": 1764074753067,
+        "lastAnswerUpdate": 1764074736331,
+        "name": "Vtc",
+        "score": 0
+      },
+      "1764074790982-q3i47eh6t": {
+        "answers": [
+          null,
+          {
+            "answer": "FALSE",
+            "timestamp": 1764075043252
+          },
+          {
+            "answer": "NOT GIVEN",
+            "timestamp": 1764075043252
+          },
+          {
+            "answer": "TRUE",
+            "timestamp": 1764075043252
+          },
+          {
+            "answer": "TRUE",
+            "timestamp": 1764075043252
+          },
+          {
+            "answer": "NOT GIVEN",
+            "timestamp": 1764075043252
+          },
+          {
+            "answer": "TRUE",
+            "timestamp": 1764075043252
+          },
+          {
+            "answer": "TRUE",
+            "timestamp": 1764075043252
+          },
+          {
+            "answer": "outrageously expensive",
+            "timestamp": 1764075043252
+          },
+          {
+            "answer": "commercial possibilities ",
+            "timestamp": 1764075043252
+          },
+          {
+            "answer": "mauve",
+            "timestamp": 1764075043252
+          },
+          {
+            "answer": "Robert Puller",
+            "timestamp": 1764075043252
+          },
+          {
+            "answer": "France",
+            "timestamp": 1764075043252
+          },
+          {
+            "answer": "malaria",
+            "timestamp": 1764075043252
+          }
+        ],
+        "bandScore": 3,
+        "correctCount": 9,
+        "disconnectedAt": 1764074792445,
+        "ip": "113.23.38.82",
+        "isConnected": false,
+        "isSubmitted": true,
+        "lastActivity": 1764075067446,
+        "lastAnswerUpdate": 1764075043367,
+        "maxScore": 400,
+        "name": "Tc",
+        "percentage": 23,
+        "score": 9,
+        "submittedAt": 1764075042277,
+        "timeSpent": 446,
+        "totalQuestions": 40
+      }
+    },
+    "sessionCode": "7EC62H",
+    "settings": {
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "showLeaderboard": true
+    },
+    "showCorrectAnswers": false,
+    "status": "expired",
+    "teacherId": "teacher_1764074261655_6vlkoctct",
+    "testId": "test-1764074426043-6ia8edi",
+    "updatedAt": 1764171432361
+  },
+  "82Q8C5": {
+    "className": "Class 82Q8C5",
+    "createdAt": 1768577534721,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1768663934721,
+    "isPaused": false,
+    "lastTestCompletedAt": 1768662685149,
+    "linkedClassId": "FN5U8C",
+    "mode": "test",
+    "pausedDuration": 0,
+    "players": {
+      "ILMbyeRrH4eJoJCjvW7eixHmH0v1": {
+        "disconnectedAt": 1768678278238,
+        "isConnected": false,
+        "lastActivity": 1768678279241
+      }
+    },
+    "sessionCode": "82Q8C5",
+    "settings": {
+      "accessControl": "public",
+      "allowAnonymous": true,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "showLeaderboard": true
+    },
+    "showCorrectAnswers": false,
+    "status": "expired",
+    "teacherId": "teacher_1768577534721_9mssvcsk0",
+    "updatedAt": 1768664035027
+  },
+  "9EA7IX": {
+    "className": "Class 9EA7IX",
+    "createdAt": 1769784996079,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769871396079,
+    "isPaused": false,
+    "mode": "quiz",
+    "sessionCode": "9EA7IX",
+    "settings": {
+      "allowAnonymous": true,
+      "allowLateJoin": false,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769784996079_j4q4cbxrg",
+    "updatedAt": 1769933936968
+  },
+  "9EEKAI": {
+    "className": "Class 9EEKAI",
+    "createdAt": 1769784921980,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769871321980,
+    "isPaused": false,
+    "mode": "test",
+    "sessionCode": "9EEKAI",
+    "settings": {
+      "accessControl": "class-only",
+      "allowAnonymous": false,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769784921980_103rtll3q",
+    "updatedAt": 1769933937235
+  },
+  "9LNLF0": {
+    "audioCommand": {
+      "timestamp": 1769795534423,
+      "type": "pause"
+    },
+    "className": "Class 9LNLF0",
+    "createdAt": 1769795419836,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769881819836,
+    "isPaused": false,
+    "lastTestCompletedAt": 1769795801790,
+    "linkedClassId": "FN5U8C",
+    "mode": "test",
+    "pausedDuration": 0,
+    "players": {
+      "ILMbyeRrH4eJoJCjvW7eixHmH0v1": {
+        "audioIndicesCompleted": [
+          0
+        ],
+        "correctCount": 0,
+        "currentAudioIndex": 1,
+        "currentQuestionNumber": 11,
+        "currentSection": 2,
+        "disconnectedAt": 1769795802022,
+        "hasSubmitted": false,
+        "isConnected": false,
+        "isSubmitted": true,
+        "lastActivity": 1769795802017,
+        "lastAnswerUpdate": 1769795558109,
+        "maxScore": 26,
+        "percentage": 0,
+        "playbackSpeed": 1,
+        "progress": 0,
+        "timeSpent": 237,
+        "totalQuestions": 26,
+        "volume": 0.9
+      }
+    },
+    "sessionCode": "9LNLF0",
+    "settings": {
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": true,
+      "showLeaderboard": true
+    },
+    "showCorrectAnswers": false,
+    "status": "expired",
+    "teacherId": "teacher_1769795419836_6v1qajfj2",
+    "updatedAt": 1769933937668
+  },
+  "A6M8TP": {
+    "className": "Class A6M8TP",
+    "createdAt": 1769784915833,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769871315833,
+    "isPaused": false,
+    "mode": "quiz",
+    "sessionCode": "A6M8TP",
+    "settings": {
+      "allowAnonymous": true,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769784915833_i1bv8n3g0",
+    "updatedAt": 1769784915833
+  },
+  "ACOJUR": {
+    "className": "Class ACOJUR",
+    "createdAt": 1769784994514,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769871394514,
+    "isPaused": false,
+    "mode": "test",
+    "sessionCode": "ACOJUR",
+    "settings": {
+      "accessControl": "class-only",
+      "allowAnonymous": false,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769784994514_b7x1cjtl2",
+    "updatedAt": 1769933937992
+  },
+  "BSM7IY": {
+    "className": "Class BSM7IY",
+    "createdAt": 1769784932623,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769871332623,
+    "isPaused": false,
+    "mode": "quiz",
+    "sessionCode": "BSM7IY",
+    "settings": {
+      "allowAnonymous": true,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769784932623_nuba9raqe",
+    "updatedAt": 1769784932623
+  },
+  "CNHH3E": {
+    "className": "Class CNHH3E",
+    "createdAt": 1769780873974,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769867273974,
+    "isPaused": false,
+    "mode": "quiz",
+    "sessionCode": "CNHH3E",
+    "settings": {
+      "allowAnonymous": true,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769780873974_wsdd0241v",
+    "updatedAt": 1769933938424
+  },
+  "D0U71L": {
+    "completedAt": 1763820635095,
+    "createdAt": 1763818682412,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1763905082412,
+    "isPaused": false,
+    "mode": "test",
+    "sessionCode": "D0U71L",
+    "settings": {
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "testId": "test-1763810218116-qxmgh95",
+    "updatedAt": 1763916505890
+  },
+  "D1VE1Z": {
+    "players": {
+      "G5yDXmkDfsVhoKYTp7xTwbbggtB2": {
+        "disconnectedAt": 1770214854198,
+        "isConnected": false,
+        "lastActivity": 1770214854192
+      }
+    }
+  },
+  "DXWFOG": {
+    "className": "Class DXWFOG",
+    "createdAt": 1769784920612,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769871320612,
+    "isPaused": false,
+    "mode": "quiz",
+    "sessionCode": "DXWFOG",
+    "settings": {
+      "accessControl": "public",
+      "allowAnonymous": true,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769784920612_lxhdkjamq",
+    "updatedAt": 1769933938928
+  },
+  "E0GNRR": {
+    "className": "Class E0GNRR",
+    "createdAt": 1770629908522,
+    "createdByUserId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "currentQuestionIndex": 0,
+    "expiresAt": 1770716308522,
+    "isPaused": false,
+    "mode": "quiz",
+    "quizId": "-OeeZb-k7tHhyYIkZsai",
+    "sessionCode": "E0GNRR",
+    "settings": {
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1770629908522_es07ysif8",
+    "updatedAt": 1770730024402
+  },
+  "E46BFT": {
+    "className": "Class E46BFT",
+    "createdAt": 1764306768487,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1764393168487,
+    "isPaused": false,
+    "mode": "test",
+    "sessionCode": "E46BFT",
+    "settings": {
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1764306768487_q23qh0x88",
+    "updatedAt": 1768401010574
+  },
+  "E91C6U": {
+    "className": "Class E91C6U",
+    "createdAt": 1769780882209,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769867282209,
+    "isPaused": false,
+    "mode": "quiz",
+    "sessionCode": "E91C6U",
+    "settings": {
+      "accessControl": "public",
+      "allowAnonymous": true,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769780882209_rzc9e7qvq",
+    "updatedAt": 1769933939209
+  },
+  "EJP9LO": {
+    "className": "Class EJP9LO",
+    "createdAt": 1769780876583,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769867276583,
+    "isPaused": false,
+    "mode": "quiz",
+    "sessionCode": "EJP9LO",
+    "settings": {
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769780876583_gwi5xgfjc",
+    "updatedAt": 1769933939614
+  },
+  "FCXE3A": {
+    "className": "Class FCXE3A",
+    "createdAt": 1770609208242,
+    "createdByUserId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "currentQuestionIndex": 0,
+    "expiresAt": 1770695608242,
+    "isPaused": false,
+    "mode": "quiz",
+    "players": {
+      "1770609247572-3fxzc90jq": {
+        "disconnectedAt": 1770609249448,
+        "ip": "104.28.222.73",
+        "isConnected": false,
+        "isGuest": true,
+        "name": "TestStudent",
+        "score": 0
+      }
+    },
+    "quizId": "-OeeZb-k7tHhyYIkZsai",
+    "sessionCode": "FCXE3A",
+    "settings": {
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1770609208242_94mev90ak",
+    "updatedAt": 1770730024605
+  },
+  "FN5U8C": {
+    "players": {
+      "G5yDXmkDfsVhoKYTp7xTwbbggtB2": {
+        "joinedAt": 1770206077336,
+        "name": "Nguyen Dat Hung",
+        "score": 0,
+        "uid": "G5yDXmkDfsVhoKYTp7xTwbbggtB2"
+      },
+      "x3hDfjYVN7cJtSbwq0ChIjl1Bk62": {
+        "joinedAt": 1771869824466,
+        "name": "Student Test",
+        "score": 0,
+        "uid": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62"
+      }
+    }
+  },
+  "FT8ELT": {
+    "className": "Class FT8ELT",
+    "createdAt": 1770629996935,
+    "createdByUserId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "currentQuestionIndex": 0,
+    "expiresAt": 1770716396935,
+    "isPaused": false,
+    "mode": "quiz",
+    "quizId": "-OeeZb-k7tHhyYIkZsai",
+    "sessionCode": "FT8ELT",
+    "settings": {
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1770629996935_1o3cggl05",
+    "updatedAt": 1770730024809
+  },
+  "FVYUCO": {
+    "className": "Class FVYUCO",
+    "createdAt": 1769780893214,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769867293214,
+    "isPaused": false,
+    "mode": "quiz",
+    "sessionCode": "FVYUCO",
+    "settings": {
+      "allowAnonymous": true,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769780893214_6nend1yl4",
+    "updatedAt": 1769780893214
+  },
+  "G67YG5": {
+    "className": "Class G67YG5",
+    "createdAt": 1769780884707,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769867284707,
+    "isPaused": false,
+    "mode": "quiz",
+    "sessionCode": "G67YG5",
+    "settings": {
+      "allowAnonymous": true,
+      "allowLateJoin": false,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769780884707_627uq9wh1",
+    "updatedAt": 1769933940028
+  },
+  "H6HU8T": {
+    "className": "Class H6HU8T",
+    "createdAt": 1769784917663,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769871317663,
+    "isPaused": false,
+    "mode": "test",
+    "sessionCode": "H6HU8T",
+    "settings": {
+      "accessControl": "public",
+      "allowAnonymous": true,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769784917663_nnstgst0d",
+    "updatedAt": 1769933940435
+  },
+  "HNIT0O": {
+    "className": "Class HNIT0O",
+    "createdAt": 1769784986026,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769871386026,
+    "isPaused": false,
+    "mode": "quiz",
+    "sessionCode": "HNIT0O",
+    "settings": {
+      "allowAnonymous": false,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769784986026_uir5oi611",
+    "updatedAt": 1769933940855
+  },
+  "IKBJGI": {
+    "className": "Class IKBJGI",
+    "createdAt": 1769795358096,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769881758096,
+    "isPaused": false,
+    "linkedClassId": "FN5U8C",
+    "mode": "test",
+    "sessionCode": "IKBJGI",
+    "settings": {
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": true,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769795358096_n87ee2my7",
+    "testId": "listening-1768985441620-nf72gbl",
+    "updatedAt": 1769933941310
+  },
+  "IVIWGQ": {
+    "players": {
+      "ILMbyeRrH4eJoJCjvW7eixHmH0v1": {
+        "disconnectedAt": 1769458523077,
+        "isConnected": false
+      }
+    }
+  },
+  "J9X78E": {
+    "createdAt": 1763877276905,
+    "currentQuestionIndex": 0,
+    "endTime": 1763879770938,
+    "expiresAt": 1763963676905,
+    "isPaused": true,
+    "mode": "test",
+    "pausedAt": 1763879078673,
+    "resumedAt": 1763878703396,
+    "sessionCode": "J9X78E",
+    "settings": {
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "showLeaderboard": true
+    },
+    "startTime": 1763877362100,
+    "status": "expired",
+    "testId": "test-1763810218116-qxmgh95",
+    "totalDuration": 0,
+    "updatedAt": 1764026384980
+  },
+  "JDDIGY": {
+    "className": "Class JDDIGY",
+    "createdAt": 1769780883465,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769867283465,
+    "isPaused": false,
+    "mode": "test",
+    "sessionCode": "JDDIGY",
+    "settings": {
+      "accessControl": "class-only",
+      "allowAnonymous": false,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769780883465_46ipqrycx",
+    "updatedAt": 1769933941630
+  },
+  "JJ7NFG": {
+    "className": "Class JJ7NFG",
+    "createdAt": 1769785001099,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769871401099,
+    "isPaused": false,
+    "mode": "quiz",
+    "sessionCode": "JJ7NFG",
+    "settings": {
+      "accessControl": "public",
+      "allowAnonymous": true,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769785001099_wfcr4odnw",
+    "updatedAt": 1769933941942
+  },
+  "JRD731": {
+    "createdAt": 1763810530054,
+    "currentQuestionIndex": 0,
+    "endTime": 1763816980211,
+    "expiresAt": 1763896930054,
+    "isPaused": true,
+    "mode": "test",
+    "pausedAt": 1763811152794,
+    "sessionCode": "JRD731",
+    "settings": {
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoStart": true,
+      "showLeaderboard": true
+    },
+    "startTime": 1763811083950,
+    "status": "expired",
+    "testId": "test-1763810218116-qxmgh95",
+    "totalDuration": 0,
+    "updatedAt": 1763900924896
+  },
+  "K4M5PH": {
+    "className": "Class K4M5PH",
+    "createdAt": 1769784988634,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769871388634,
+    "isPaused": false,
+    "mode": "quiz",
+    "sessionCode": "K4M5PH",
+    "settings": {
+      "allowAnonymous": true,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769784988634_n6jm1xhtu",
+    "updatedAt": 1769784988634
+  },
+  "KIEV1D": {
+    "createdAt": 1763810234282,
+    "currentQuestionIndex": 0,
+    "endTime": 1763810249915,
+    "expiresAt": 1763896634282,
+    "isPaused": false,
+    "mode": "test",
+    "sessionCode": "KIEV1D",
+    "settings": {
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "showLeaderboard": true
+    },
+    "startTime": 1763810238233,
+    "status": "expired",
+    "testId": "test-1763810218116-qxmgh95",
+    "totalDuration": 10,
+    "updatedAt": 1763900925110
+  },
+  "KS364R": {
+    "className": "Class KS364R",
+    "createdAt": 1769780888024,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769867288024,
+    "isPaused": false,
+    "mode": "test",
+    "sessionCode": "KS364R",
+    "settings": {
+      "accessControl": "class-only",
+      "allowAnonymous": false,
+      "allowLateJoin": false,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769780888024_4swbuahr2",
+    "updatedAt": 1769933942276
+  },
+  "KV5WOZ": {
+    "players": {
+      "ILMbyeRrH4eJoJCjvW7eixHmH0v1": {
+        "disconnectedAt": 1769338992910,
+        "isConnected": false
+      }
+    }
+  },
+  "L18X9K": {
+    "className": "Class L18X9K",
+    "createdAt": 1769732372870,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769818772870,
+    "isPaused": false,
+    "mode": "quiz",
+    "sessionCode": "L18X9K",
+    "settings": {
+      "allowAnonymous": true,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769732372870_rx0ocpss7",
+    "updatedAt": 1769732372870
+  },
+  "LY51N5": {
+    "className": "Class LY51N5",
+    "createdAt": 1769785004942,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769871404942,
+    "isPaused": false,
+    "mode": "quiz",
+    "sessionCode": "LY51N5",
+    "settings": {
+      "allowAnonymous": true,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769785004942_qu8rmu2j2",
+    "updatedAt": 1769785004942
+  },
+  "M2O2RD": {
+    "players": {
+      "ILMbyeRrH4eJoJCjvW7eixHmH0v1": {
+        "disconnectedAt": 1769526810907,
+        "isConnected": false,
+        "lastActivity": 1769526810904
+      }
+    }
+  },
+  "M92MVQ": {
+    "createdAt": 1763940077744,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1764026477744,
+    "isPaused": false,
+    "lastTestCompletedAt": 1763957339122,
+    "mode": "test",
+    "pausedDuration": 0,
+    "players": {
+      "1763940097676-7gjwd67u2": {
+        "answers": {
+          "18": "D",
+          "27": "I"
+        },
+        "bandScore": 0.5,
+        "correctCount": 1,
+        "disconnectedAt": 1763940298244,
+        "ip": "unknown",
+        "isConnected": false,
+        "isReMarked": true,
+        "isSubmitted": true,
+        "lastActivity": 1763940298240,
+        "lastAnswerUpdate": 1763940253180,
+        "maxScore": 40,
+        "name": "Noa",
+        "percentage": 3,
+        "reMarkDetails": {
+          "18": 1,
+          "27": 0
+        },
+        "reMarkTimestamp": 1763940285084,
+        "score": 1,
+        "submittedAt": 1763940266585,
+        "timeSpent": 133,
+        "totalQuestions": 40
+      },
+      "1763957188453-5y9iyn216": {
+        "answers": [
+          null,
+          {
+            "answer": "FALSE",
+            "timestamp": 1763957258712
+          },
+          {
+            "answer": "FALSE",
+            "timestamp": 1763957258713
+          },
+          {
+            "answer": "NOT GIVEN",
+            "timestamp": 1763957258713
+          },
+          {
+            "answer": "NOT GIVEN",
+            "timestamp": 1763957258713
+          }
+        ],
+        "bandScore": 0.5,
+        "correctCount": 2,
+        "disconnectedAt": 1763957433019,
+        "ip": "unknown",
+        "isConnected": false,
+        "isReMarked": true,
+        "isSubmitted": true,
+        "lastActivity": 1763957339583,
+        "lastAnswerUpdate": 1763957221871,
+        "maxScore": 40,
+        "name": "you",
+        "percentage": 5,
+        "reMarkDetails": [
+          null,
+          0,
+          1,
+          1,
+          0
+        ],
+        "reMarkTimestamp": 1763957290759,
+        "score": 2,
+        "submittedAt": 1763957258713,
+        "timeSpent": 51,
+        "totalQuestions": 40
+      }
+    },
+    "sessionCode": "M92MVQ",
+    "settings": {
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "showLeaderboard": true
+    },
+    "showCorrectAnswers": false,
+    "status": "expired",
+    "updatedAt": 1764027002302
+  },
+  "OL07SS": {
+    "className": "Class OL07SS",
+    "createdAt": 1769780879486,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769867279486,
+    "isPaused": false,
+    "mode": "test",
+    "sessionCode": "OL07SS",
+    "settings": {
+      "accessControl": "public",
+      "allowAnonymous": true,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769780879486_udq4b5eyf",
+    "updatedAt": 1769933942690
+  },
+  "OLCSUK": {
+    "className": "Class OLCSUK",
+    "createdAt": 1768736960510,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1768823360510,
+    "isPaused": false,
+    "lastTestCompletedAt": 1768766823845,
+    "linkedClassId": "FN5U8C",
+    "mode": "test",
+    "pausedDuration": 0,
+    "players": {
+      "ILMbyeRrH4eJoJCjvW7eixHmH0v1": {
+        "bandScore": 0.5,
+        "correctCount": 0,
+        "disconnectedAt": 1768857271694,
+        "hasSubmitted": false,
+        "isConnected": false,
+        "isSubmitted": true,
+        "lastActivity": 1768863083240,
+        "lastAnswerUpdate": 1768768576785,
+        "maxScore": 200,
+        "percentage": 0,
+        "progress": 0,
+        "score": 0,
+        "submittedAt": 1768768633152,
+        "timeSpent": 1799,
+        "totalQuestions": 20
+      }
+    },
+    "sessionCode": "OLCSUK",
+    "settings": {
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "showLeaderboard": true
+    },
+    "showCorrectAnswers": false,
+    "startTime": 1768766831502,
+    "status": "expired",
+    "teacherId": "teacher_1768736960510_2tglv5dm1",
+    "testId": "listening-1768677315907-l4rlcpc",
+    "updatedAt": 1768978217815
+  },
+  "OQTFBI": {
+    "className": "Class OQTFBI",
+    "createdAt": 1769784997837,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769871397837,
+    "isPaused": false,
+    "mode": "quiz",
+    "sessionCode": "OQTFBI",
+    "settings": {
+      "allowAnonymous": true,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769784997837_2pnqze3ao",
+    "updatedAt": 1769933943096
+  },
+  "OVEM05": {
+    "className": "Class OVEM05",
+    "createdAt": 1770608674274,
+    "createdByUserId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "currentQuestionIndex": 0,
+    "expiresAt": 1770695074274,
+    "isPaused": false,
+    "mode": "quiz",
+    "quizId": "-OeeZb-k7tHhyYIkZsai",
+    "sessionCode": "OVEM05",
+    "settings": {
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1770608674274_hn729kq6l",
+    "updatedAt": 1770730025013
+  },
+  "PHBN2U": {
+    "players": {
+      "G5yDXmkDfsVhoKYTp7xTwbbggtB2": {
+        "disconnectedAt": 1771597511293,
+        "isConnected": false
+      }
+    }
+  },
+  "PY8588": {
+    "className": "Class PY8588",
+    "createdAt": 1769780875335,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769867275335,
+    "isPaused": false,
+    "mode": "quiz",
+    "sessionCode": "PY8588",
+    "settings": {
+      "allowAnonymous": false,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769780875335_zhgujknot",
+    "updatedAt": 1769933943713
+  },
+  "QESKCZ": {
+    "className": "Class QESKCZ",
+    "createdAt": 1769784993215,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769871393215,
+    "isPaused": false,
+    "mode": "quiz",
+    "sessionCode": "QESKCZ",
+    "settings": {
+      "accessControl": "public",
+      "allowAnonymous": true,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769784993215_chc105mkw",
+    "updatedAt": 1769933944011
+  },
+  "QF4XJE": {
+    "className": "Class QF4XJE",
+    "createdAt": 1769780880743,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769867280743,
+    "isPaused": false,
+    "mode": "test",
+    "sessionCode": "QF4XJE",
+    "settings": {
+      "allowAnonymous": false,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769780880743_6r102b6k0",
+    "updatedAt": 1769933944332
+  },
+  "QFL6CU": {
+    "className": "Class QFL6CU",
+    "createdAt": 1769784999577,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769871399577,
+    "isPaused": false,
+    "mode": "test",
+    "sessionCode": "QFL6CU",
+    "settings": {
+      "accessControl": "class-only",
+      "allowAnonymous": false,
+      "allowLateJoin": false,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769784999577_1xszquyjx",
+    "updatedAt": 1769933944751
+  },
+  "QTD88G": {
+    "className": "Class QTD88G",
+    "createdAt": 1769780891539,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769867291539,
+    "isPaused": false,
+    "mode": "quiz",
+    "sessionCode": "QTD88G",
+    "settings": {
+      "allowAnonymous": false,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769780891539_spnkasefw",
+    "updatedAt": 1769933945024
+  },
+  "R4S52E": {
+    "className": "Class R4S52E",
+    "createdAt": 1769784987335,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769871387335,
+    "isPaused": false,
+    "mode": "quiz",
+    "sessionCode": "R4S52E",
+    "settings": {
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769784987335_yzenq5z45",
+    "updatedAt": 1769933945350
+  },
+  "RGOXBN": {
+    "audioCommand": {
+      "sectionNumber": 2,
+      "timestamp": 1768992174943,
+      "type": "skipToSection"
+    },
+    "className": "Class RGOXBN",
+    "createdAt": 1768990172500,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769076572500,
+    "isPaused": false,
+    "lastTestCompletedAt": 1768996915563,
+    "linkedClassId": "FN5U8C",
+    "mode": "test",
+    "pausedDuration": 0,
+    "players": {
+      "ILMbyeRrH4eJoJCjvW7eixHmH0v1": {
+        "audioIndicesCompleted": [
+          0
+        ],
+        "currentAudioIndex": 1,
+        "currentSection": 2,
+        "disconnectedAt": 1769006573219,
+        "hasSubmitted": false,
+        "isConnected": false,
+        "lastActivity": 1768996916224,
+        "lastAnswerUpdate": 1768993044483,
+        "progress": 0
+      }
+    },
+    "sessionCode": "RGOXBN",
+    "settings": {
+      "accessControl": "class-only",
+      "allowAnonymous": false,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "showLeaderboard": true
+    },
+    "showCorrectAnswers": false,
+    "status": "expired",
+    "studentAccommodations": {
+      "ILMbyeRrH4eJoJCjvW7eixHmH0v1": {
+        "extraTime": 0,
+        "fullAudioControls": false,
+        "maxReplays": 2,
+        "timestamp": 1768992198555,
+        "unlimitedReplays": false
+      }
+    },
+    "teacherId": "teacher_1768990172500_1umvnr3po",
+    "updatedAt": 1769080275959
+  },
+  "S2H4OL": {
+    "className": "Class S2H4OL",
+    "createdAt": 1769784930795,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769871330795,
+    "isPaused": false,
+    "mode": "quiz",
+    "sessionCode": "S2H4OL",
+    "settings": {
+      "allowAnonymous": false,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769784930795_88827ih3y",
+    "updatedAt": 1769933945756
+  },
+  "S7AZXQ": {
+    "completedAt": 1763834257956,
+    "createdAt": 1763823120180,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1763909520180,
+    "isPaused": false,
+    "mode": "test",
+    "pausedAt": 1763828643204,
+    "players": {
+      "1763826668874-hhq6kh6nl": {
+        "submittedAt": 1763828422522,
+        "timeSpent": 3600
+      },
+      "1763828656806-coe9vrr3c": {
+        "submittedAt": 1763829094709,
+        "timeSpent": 3600
+      }
+    },
+    "resumedAt": 1763828661234,
+    "sessionCode": "S7AZXQ",
+    "settings": {
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "showLeaderboard": true
+    },
+    "startTime": 1763824390163,
+    "status": "expired",
+    "testId": "test-1763810218116-qxmgh95",
+    "updatedAt": 1763916506096
+  },
+  "T0M9GP": {
+    "className": "Class T0M9GP",
+    "createdAt": 1769780886365,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769867286365,
+    "isPaused": false,
+    "mode": "quiz",
+    "sessionCode": "T0M9GP",
+    "settings": {
+      "allowAnonymous": true,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769780886365_ldj13gorr",
+    "updatedAt": 1769933946171
+  },
+  "T5YZB7": {
+    "players": {
+      "ILMbyeRrH4eJoJCjvW7eixHmH0v1": {
+        "disconnectedAt": 1770609390670,
+        "isConnected": false
+      }
+    }
+  },
+  "TA9BZW": {
+    "className": "Class TA9BZW",
+    "createdAt": 1769784911597,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769871311597,
+    "isPaused": false,
+    "mode": "quiz",
+    "sessionCode": "TA9BZW",
+    "settings": {
+      "allowAnonymous": true,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769784911597_2rohy563p",
+    "updatedAt": 1769933946409
+  },
+  "TDD4QH": {
+    "className": "Class TDD4QH",
+    "createdAt": 1770630116483,
+    "createdByUserId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "currentQuestionIndex": 0,
+    "expiresAt": 1770716516483,
+    "isPaused": false,
+    "lastTestCompletedAt": 1770730008864,
+    "lastTestId": "test-1770607823386-hjw6one",
+    "linkedClassId": "FN5U8C",
+    "mode": "test",
+    "pausedDuration": 0,
+    "players": {
+      "ILMbyeRrH4eJoJCjvW7eixHmH0v1": {
+        "correctCount": 0,
+        "disconnectedAt": 1770631910111,
+        "hasSubmitted": false,
+        "isConnected": true,
+        "isSubmitted": true,
+        "lastActivity": 1770730008864,
+        "lastAnswerUpdate": 1770631911807,
+        "maxScore": 40,
+        "percentage": 0,
+        "progress": 0,
+        "timeSpent": 3600,
+        "totalQuestions": 40
+      }
+    },
+    "sessionCode": "TDD4QH",
+    "settings": {
+      "accessControl": "public",
+      "allowAnonymous": true,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": true,
+      "showLeaderboard": true
+    },
+    "showCorrectAnswers": false,
+    "status": "expired",
+    "teacherId": "teacher_1770630116483_9revk95n3",
+    "updatedAt": 1770730025220
+  },
+  "TQP2RN": {
+    "players": {
+      "G5yDXmkDfsVhoKYTp7xTwbbggtB2": {
+        "disconnectedAt": 1771720724269,
+        "isConnected": false
+      }
+    }
+  },
+  "U22KB8": {
+    "className": "Class U22KB8",
+    "createdAt": 1769784925152,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769871325152,
+    "isPaused": false,
+    "mode": "quiz",
+    "sessionCode": "U22KB8",
+    "settings": {
+      "allowAnonymous": true,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769784925152_n0bqnqxwy",
+    "updatedAt": 1769933946784
+  },
+  "UBA8S0": {
+    "players": {
+      "G5yDXmkDfsVhoKYTp7xTwbbggtB2": {
+        "disconnectedAt": 1770221638305,
+        "isConnected": false,
+        "lastActivity": 1770221637198
+      }
+    }
+  },
+  "ULN3QJ": {
+    "className": "Class ULN3QJ",
+    "createdAt": 1764171449706,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1764257849706,
+    "isPaused": false,
+    "lastTestCompletedAt": 1764215372568,
+    "mode": "test",
+    "pausedDuration": 0,
+    "players": {
+      "1764215227867-zupn45p01": {
+        "disconnectedAt": 1764215239035,
+        "ip": "unknown",
+        "isConnected": false,
+        "lastActivity": 1764215364036,
+        "lastAnswerUpdate": 1764215241087,
+        "name": "Mui",
+        "score": 0
+      }
+    },
+    "sessionCode": "ULN3QJ",
+    "settings": {
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "showLeaderboard": true
+    },
+    "showCorrectAnswers": false,
+    "status": "expired",
+    "teacherId": "teacher_1764171449706_2kbjzce4w",
+    "updatedAt": 1764306764622
+  },
+  "URHR2Q": {
+    "players": {
+      "G5yDXmkDfsVhoKYTp7xTwbbggtB2": {
+        "disconnectedAt": 1771606552476,
+        "isConnected": false
+      }
+    }
+  },
+  "USAKC0": {
+    "className": "Class USAKC0",
+    "createdAt": 1770825859922,
+    "createdByUserId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "currentQuestionIndex": 0,
+    "expiresAt": 1770912259922,
+    "isPaused": false,
+    "lastTestCompletedAt": 1770910018487,
+    "lastTestId": "test-1770888798048-vgb9fpe",
+    "linkedClassId": "FN5U8C",
+    "mode": "test",
+    "pausedDuration": 0,
+    "players": {
+      "G5yDXmkDfsVhoKYTp7xTwbbggtB2": {
+        "answers": {
+          "27": {
+            "answer": "B",
+            "timestamp": 1770912078092
+          },
+          "28": {
+            "answer": "G",
+            "timestamp": 1770912078092
+          },
+          "29": {
+            "answer": "K",
+            "timestamp": 1770912078092
+          },
+          "30": {
+            "answer": "I",
+            "timestamp": 1770912078092
+          },
+          "31": {
+            "answer": "D",
+            "timestamp": 1770912078092
+          }
+        },
+        "bandScore": 1.5,
+        "completedAt": 1770912078092,
+        "correctCount": 2,
+        "disconnectedAt": 1770912057592,
+        "hasCompletedTest": true,
+        "hasSubmitted": false,
+        "isConnected": false,
+        "isSubmitted": true,
+        "lastActivity": 1770912079932,
+        "lastAnswerUpdate": 1770912075753,
+        "lastTestEndedAt": 1770910018487,
+        "lastTestId": "test-1770888798048-vgb9fpe",
+        "lastTestSessionCode": "USAKC0",
+        "maxScore": 40,
+        "percentage": 5,
+        "progress": 0,
+        "score": 2,
+        "submittedAt": 1770912078092,
+        "submittedBy": "student",
+        "timeSpent": 28,
+        "totalQuestions": 40
+      },
+      "ILMbyeRrH4eJoJCjvW7eixHmH0v1": {
+        "disconnectedAt": 1770829127013,
+        "hasSubmitted": false,
+        "isConnected": false,
+        "lastActivity": 1770910025015,
+        "lastAnswerUpdate": 1770828844409,
+        "lastTestEndedAt": 1770910018487,
+        "lastTestId": "test-1770888798048-vgb9fpe",
+        "lastTestSessionCode": "USAKC0",
+        "progress": 0
+      }
+    },
+    "sessionCode": "USAKC0",
+    "settings": {
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": true,
+      "showLeaderboard": true
+    },
+    "showCorrectAnswers": false,
+    "startTime": 1770912047690,
+    "status": "expired",
+    "teacherId": "teacher_1770825859922_1ptpp4qds",
+    "testId": "test-1770888798048-vgb9fpe",
+    "updatedAt": 1770999116684
+  },
+  "UZDMFN": {
+    "className": "Class UZDMFN",
+    "createdAt": 1771270476206,
+    "createdByUserId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "currentQuestionIndex": 0,
+    "expiresAt": 1771356876206,
+    "isPaused": false,
+    "lastTestCompletedAt": 1771278175406,
+    "lastTestId": "test-1770888798048-vgb9fpe",
+    "linkedClassId": "FN5U8C",
+    "mode": "test",
+    "pausedDuration": 0,
+    "players": {
+      "G5yDXmkDfsVhoKYTp7xTwbbggtB2": {
+        "correctCount": 24,
+        "disconnectedAt": 1771278176818,
+        "hasSubmitted": false,
+        "isConnected": false,
+        "lastActivity": 1771278181892,
+        "lastAnswerUpdate": 1771278172535,
+        "lastTestEndedAt": 1771278175406,
+        "lastTestId": "test-1770888798048-vgb9fpe",
+        "lastTestSessionCode": "UZDMFN",
+        "maxScore": 40,
+        "percentage": 60,
+        "progress": 0,
+        "timeSpent": 425,
+        "totalQuestions": 40
+      }
+    },
+    "sessionCode": "UZDMFN",
+    "settings": {
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": true,
+      "showLeaderboard": true
+    },
+    "showCorrectAnswers": false,
+    "status": "expired",
+    "teacherId": "teacher_1771270476206_52ygzz7fc",
+    "updatedAt": 1771580489556
+  },
+  "VC897C": {
+    "players": {
+      "ILMbyeRrH4eJoJCjvW7eixHmH0v1": {
+        "isConnected": true,
+        "lastActivity": 1770263725945
+      }
+    }
+  },
+  "VXR789": {
+    "className": "Class VXR789",
+    "createdAt": 1769784928763,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769871328763,
+    "isPaused": false,
+    "mode": "quiz",
+    "sessionCode": "VXR789",
+    "settings": {
+      "accessControl": "public",
+      "allowAnonymous": true,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769784928763_w3512x691",
+    "updatedAt": 1769933947130
+  },
+  "W8DQ8V": {
+    "className": "Class W8DQ8V",
+    "createdAt": 1770740277604,
+    "createdByUserId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "currentQuestionIndex": 0,
+    "expiresAt": 1770826677604,
+    "isPaused": false,
+    "lastTestCompletedAt": 1770743626379,
+    "lastTestId": "test-1770740263614-f5ra692",
+    "linkedClassId": "FN5U8C",
+    "mode": "test",
+    "pausedDuration": 0,
+    "players": {
+      "ILMbyeRrH4eJoJCjvW7eixHmH0v1": {
+        "disconnectedAt": 1770755421851,
+        "hasSubmitted": false,
+        "isConnected": false,
+        "isSubmitted": true,
+        "lastActivity": 1770743627438,
+        "lastAnswerUpdate": 1770740340449,
+        "progress": 0
+      }
+    },
+    "sessionCode": "W8DQ8V",
+    "settings": {
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": true,
+      "showLeaderboard": true
+    },
+    "showCorrectAnswers": false,
+    "status": "expired",
+    "teacherId": "teacher_1770740277604_0zm84xcbl",
+    "updatedAt": 1770827825305
+  },
+  "X3FYNM": {
+    "className": "Class X3FYNM",
+    "createdAt": 1769784912964,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769871312964,
+    "isPaused": false,
+    "mode": "quiz",
+    "sessionCode": "X3FYNM",
+    "settings": {
+      "allowAnonymous": false,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769784912964_2d82enztp",
+    "updatedAt": 1769933947473
+  },
+  "XMEOV4": {
+    "className": "Class XMEOV4",
+    "createdAt": 1769780877827,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769867277827,
+    "isPaused": false,
+    "mode": "quiz",
+    "sessionCode": "XMEOV4",
+    "settings": {
+      "allowAnonymous": true,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769780877827_x5xm507i2",
+    "updatedAt": 1769780877827
+  },
+  "XZP070": {
+    "className": "Class XZP070",
+    "createdAt": 1769784990386,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769871390386,
+    "isPaused": false,
+    "mode": "test",
+    "sessionCode": "XZP070",
+    "settings": {
+      "accessControl": "public",
+      "allowAnonymous": true,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769784990386_m4t02j7et",
+    "updatedAt": 1769933947807
+  },
+  "YDJSOA": {
+    "className": "Class YDJSOA",
+    "createdAt": 1769785003051,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769871403051,
+    "isPaused": false,
+    "mode": "quiz",
+    "sessionCode": "YDJSOA",
+    "settings": {
+      "allowAnonymous": false,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769785003051_ruvso4c8x",
+    "updatedAt": 1769933948142
+  },
+  "YG7D7T": {
+    "players": {
+      "ILMbyeRrH4eJoJCjvW7eixHmH0v1": {
+        "disconnectedAt": 1770259826306,
+        "isConnected": false
+      }
+    }
+  },
+  "YS249W": {
+    "className": "Class YS249W",
+    "createdAt": 1769784919023,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769871319023,
+    "isPaused": false,
+    "mode": "test",
+    "sessionCode": "YS249W",
+    "settings": {
+      "allowAnonymous": false,
+      "allowLateJoin": true,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769784919023_tu9imcq8p",
+    "updatedAt": 1769933948492
+  },
+  "Z4XN2V": {
+    "className": "Class Z4XN2V",
+    "createdAt": 1769784923343,
+    "currentQuestionIndex": 0,
+    "expiresAt": 1769871323343,
+    "isPaused": false,
+    "mode": "quiz",
+    "sessionCode": "Z4XN2V",
+    "settings": {
+      "allowAnonymous": true,
+      "allowLateJoin": false,
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "restrictToClassMembers": false,
+      "showLeaderboard": true
+    },
+    "status": "expired",
+    "teacherId": "teacher_1769784923343_ef8y1l3wa",
+    "updatedAt": 1769933948732
+  },
+  "Z59RNH": {
+    "players": {
+      "ILMbyeRrH4eJoJCjvW7eixHmH0v1": {
+        "disconnectedAt": 1769529942967,
+        "isConnected": false
+      }
+    }
+  },
+  "ZCLJIE": {
+    "players": {
+      "ILMbyeRrH4eJoJCjvW7eixHmH0v1": {
+        "disconnectedAt": 1769612825768,
+        "isConnected": false,
+        "lastActivity": 1769579482959
+      }
+    }
+  },
+  "ZZY4LL": {
+    "players": {
+      "G5yDXmkDfsVhoKYTp7xTwbbggtB2": {
+        "disconnectedAt": 1770214484125,
+        "isConnected": false,
+        "lastActivity": 1770214484118,
+        "lastAnswerUpdate": 1770214480576
+      }
+    }
+  }
+}

@@ -1,0 +1,314 @@
+/* Import Tailwind CSS */
+@import "tailwindcss";
+
+/* Import Modern Design System */
+@import './styles/modern.css';
+
+/* Student View Design Standard v1.0 — Override Layer
+   Neutralizes ALL legacy glassmorphism/gradient patterns on student pages.
+   ANY element inside .student-view-root gets the new flat design.
+   See: documentation/design/student-view-design-standard.md */
+@import './styles/student-view-override.css';
+
+/* Legacy Glassmorphism Global Styles (for backward compatibility) */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+}
+
+/* Ensure text is always visible */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+span,
+div {
+  color: inherit;
+}
+
+/* Glass utility classes - Light Mode */
+.glass {
+  background: rgba(255, 255, 255, 0.15);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(203, 213, 225, 0.3);
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+  color: #1e293b;
+}
+
+.glass-strong {
+  background: rgba(255, 255, 255, 0.25);
+  -webkit-backdrop-filter: blur(20px) saturate(200%);
+  backdrop-filter: blur(20px) saturate(200%);
+  border: 1px solid rgba(203, 213, 225, 0.4);
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.2);
+  color: #1e293b;
+}
+
+.glass-subtle {
+  background: rgba(255, 255, 255, 0.08);
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  backdrop-filter: blur(12px) saturate(150%);
+  border: 1px solid rgba(203, 213, 225, 0.2);
+  box-shadow: 0 4px 16px 0 rgba(31, 38, 135, 0.1);
+  color: #1e293b;
+}
+
+
+/* Glassmorphism card variants */
+.glass-card {
+  background: rgba(255, 255, 255, 0.15);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  border-radius: 24px;
+  border: 1px solid rgba(203, 213, 225, 0.3);
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+  padding: 1.5rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  color: #1e293b;
+}
+
+.glass-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 48px 0 rgba(31, 38, 135, 0.25),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.15);
+}
+
+
+/* Frosted glass button */
+.glass-button {
+  background: rgba(255, 255, 255, 0.2);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(203, 213, 225, 0.3);
+  border-radius: 16px;
+  padding: 0.75rem 1.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 16px rgba(31, 38, 135, 0.1);
+  color: #1e293b;
+}
+
+.glass-button:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(31, 38, 135, 0.15);
+}
+
+.glass-button:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(31, 38, 135, 0.1);
+}
+
+
+/* Glass panel with gradient border */
+.glass-panel-gradient {
+  position: relative;
+  background: rgba(255, 255, 255, 0.1);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  backdrop-filter: blur(16px) saturate(180%);
+  border-radius: 24px;
+  padding: 2px;
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+  color: #1e293b;
+}
+
+
+.glass-panel-gradient::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.1));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Animated gradient background */
+@keyframes gradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.gradient-bg {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #00f2fe 100%);
+  background-size: 400% 400%;
+  animation: gradientShift 15s ease infinite;
+}
+
+/* Glassmorphism input fields */
+.glass-input {
+  background: rgba(255, 255, 255, 0.15);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(203, 213, 225, 0.3);
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  color: #1e293b;
+  transition: all 0.2s ease;
+}
+
+.glass-input:focus {
+  outline: none;
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(139, 92, 246, 0.4);
+  box-shadow: 0 4px 16px rgba(31, 38, 135, 0.1);
+}
+
+
+/* Floating glass effect */
+.glass-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+@keyframes float {
+
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* Pop-in animation for speech bubbles */
+@keyframes popIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.8) translateY(20px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Shimmer effect for glass surfaces */
+.glass-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.glass-shimmer::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(45deg,
+      transparent 30%,
+      rgba(255, 255, 255, 0.1) 50%,
+      transparent 70%);
+  animation: shimmer 3s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%) translateY(-100%) rotate(45deg);
+  }
+
+  100% {
+    transform: translateX(100%) translateY(100%) rotate(45deg);
+  }
+}
+
+/* Glass morphism shadows */
+.shadow-glass {
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+}
+
+.shadow-glass-strong {
+  box-shadow: 0 12px 48px 0 rgba(31, 38, 135, 0.25),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.15);
+}
+
+/* Custom Scrollbars - Light Mode */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(241, 245, 249, 0.6);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.5);
+  border-radius: 10px;
+  border: 2px solid rgba(241, 245, 249, 0.6);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.7);
+}
+
+
+/* Firefox Scrollbar (Firefox 64+, Chrome 121+) */
+/* Progressive enhancement: Only applies in supporting browsers */
+@supports (scrollbar-width: thin) {
+  * {
+    scrollbar-width: thin;
+  }
+}
+
+@supports (scrollbar-color: auto) {
+  * {
+    scrollbar-color: rgba(148, 163, 184, 0.5) rgba(241, 245, 249, 0.6);
+  }
+
+}
+
+/* Responsive glassmorphism */
+@media (max-width: 768px) {
+  .glass-card {
+    padding: 1rem;
+    border-radius: 16px;
+  }
+
+  .glass {
+    -webkit-backdrop-filter: blur(12px) saturate(150%);
+    backdrop-filter: blur(12px) saturate(150%);
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+}
+
+/* THCS Reading Passage — hidden scrollbar (still scrollable) */
+.thcs-passage-scroll::-webkit-scrollbar {
+  display: none;
+}

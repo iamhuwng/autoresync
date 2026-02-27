@@ -1,0 +1,22 @@
+{
+  "version": "1.0",
+  "generatedAt": "2026-02-24T23:42:19.923Z",
+  "backupId": "BK-2026-02-24T23-42-12",
+  "mediaFiles": [],
+  "totalFiles": 0,
+  "totalSizeBytes": 0,
+  "categories": {
+    "audio": {
+      "count": 0,
+      "sizeBytes": 0
+    },
+    "images": {
+      "count": 0,
+      "sizeBytes": 0
+    },
+    "avatars": {
+      "count": 0,
+      "sizeBytes": 0
+    }
+  }
+}

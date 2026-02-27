@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clear Session Storage</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        button {
+            background: #8b5cf6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 10px 10px 10px 0;
+        }
+        button:hover {
+            background: #7c3aed;
+        }
+        .info {
+            background: #f0f9ff;
+            border-left: 4px solid #3b82f6;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .success {
+            background: #f0fdf4;
+            border-left: 4px solid #22c55e;
+            padding: 15px;
+            margin: 20px 0;
+            display: none;
+        }
+        pre {
+            background: #1e293b;
+            color: #94a3b8;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+        .data-display {
+            background: #fafafa;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-family: monospace;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧹 Session Storage Manager</h1>
+        
+        <div class="info">
+            <strong>Current Session Data:</strong>
+            <div id="currentData" class="data-display">Loading...</div>
+        </div>
+
+        <button onclick="clearSession()">Clear Session Storage</button>
+        <button onclick="clearAll()">Clear All Storage</button>
+        <button onclick="checkFirebase()">Check Firebase Session</button>
+        <button onclick="location.href='http://localhost:5174'">Go to App</button>
+        
+        <div id="success" class="success">
+            ✅ Storage cleared successfully! You can now test with a fresh session.
+        </div>
+
+        <h2>Testing Steps:</h2>
+        <pre>
+1. Click "Clear All Storage" above
+2. Go to app and login as admin/admin
+3. Create a new TEST mode session
+4. Note the session code (e.g., ABC123)
+5. DO NOT select any test yet
+6. Open incognito/private window
+7. Join with the session code
+8. You should see the waiting room ✅
+        </pre>
+
+        <h2>What Was Wrong:</h2>
+        <ul>
+            <li>Old session 5727YC had testId already set</li>
+            <li>rejoinStudent found this and redirected to test page</li>
+            <li>Need to test with FRESH session that has NO testId</li>
+        </ul>
+    </div>
+
+    <script>
+        function displayCurrentData() {
+            const data = {
+                playerId: sessionStorage.getItem('playerId'),
+                playerName: sessionStorage.getItem('playerName'),
+                sessionCode: sessionStorage.getItem('sessionCode'),
+                isAdmin: sessionStorage.getItem('isAdmin'),
+                teacherId: Object.keys(sessionStorage).filter(k => k.startsWith('teacherId_')).map(k => `${k}: ${sessionStorage.getItem(k)}`)
+            };
+            document.getElementById('currentData').innerHTML = JSON.stringify(data, null, 2) || 'No session data';
+        }
+
+        function clearSession() {
+            sessionStorage.removeItem('playerId');
+            sessionStorage.removeItem('playerName');
+            sessionStorage.removeItem('sessionCode');
+            displayCurrentData();
+            document.getElementById('success').style.display = 'block';
+            console.log('✅ Session cleared');
+        }
+
+        function clearAll() {
+            sessionStorage.clear();
+            localStorage.clear();
+            // Clear cookies for localhost
+            document.cookie.split(";").forEach(function(c) { 
+                document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+            });
+            displayCurrentData();
+            document.getElementById('success').style.display = 'block';
+            console.log('✅ All storage cleared');
+        }
+
+        async function checkFirebase() {
+            const sessionCode = prompt('Enter session code to check:');
+            if (sessionCode) {
+                // This would need Firebase integration, showing the concept
+                alert(`Check Firebase console for session: ${sessionCode}\nLook for testId field - it should NOT exist for empty sessions`);
+            }
+        }
+
+        // Display data on load
+        displayCurrentData();
+        
+        // Auto-refresh display
+        setInterval(displayCurrentData, 1000);
+    </script>
+</body>
+</html>

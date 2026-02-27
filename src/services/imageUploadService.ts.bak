@@ -1,0 +1,56 @@
+/**
+ * Image Upload Service (PRD-0027 Task 4.14)
+ * Firebase Storage upload for THCS-THPT question images
+ *
+ * Requires Firebase Storage to be enabled in Firebase Console > Build > Storage
+ */
+
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject, ref } from 'firebase/storage';
+import { initializeApp, getApp } from 'firebase/app';
+
+/** Max file size: 5MB */
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
+
+/**
+ * Upload a question image to Firebase Storage
+ * @param file - Image file to upload
+ * @param contextId - Draft or test ID for path organization
+ * @returns Download URL of the uploaded image
+ */
+export async function uploadQuestionImage(file: File, contextId: string): Promise<string> {
+    // Validate file size
+    if (file.size > MAX_FILE_SIZE) {
+        throw new Error(`File too large. Maximum size is 5MB, got ${(file.size / 1024 / 1024).toFixed(1)}MB.`);
+    }
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+        throw new Error(`Invalid file type: ${file.type}. Only image files are allowed.`);
+    }
+
+    const storage = getStorage(getApp());
+    const path = `thcs-images/${contextId}/${Date.now()}-${file.name}`;
+    const fileRef = storageRef(storage, path);
+
+    await uploadBytes(fileRef, file);
+    const url = await getDownloadURL(fileRef);
+
+    console.log('✅ Image uploaded:', path);
+    return url;
+}
+
+/**
+ * Delete a question image from Firebase Storage
+ * @param imageUrl - Full download URL of the image to delete
+ */
+export async function deleteQuestionImage(imageUrl: string): Promise<void> {
+    try {
+        const storage = getStorage(getApp());
+        const fileRef = ref(storage, imageUrl);
+        await deleteObject(fileRef);
+        console.log('✅ Image deleted');
+    } catch (error) {
+        // Image might already be deleted — log warning but don't throw
+        console.warn('⚠️ Failed to delete image (may already be gone):', error);
+    }
+}

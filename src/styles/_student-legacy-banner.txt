@@ -1,0 +1,19 @@
+/**
+ * ╔══════════════════════════════════════════════════════════════════╗
+ * ║  ⚠️  STUDENT VIEW DESIGN STANDARD v1.0 — ACTIVE               ║
+ * ║                                                                 ║
+ * ║  This file uses LEGACY styling (glassmorphism, #667eea, etc.)  ║
+ * ║  that is DEPRECATED and scheduled for migration.                ║
+ * ║                                                                 ║
+ * ║  🚫 DO NOT copy styles from this file for new student pages.   ║
+ * ║  ✅ Reference: src/pages/StudentDashboardPage.jsx               ║
+ * ║  📖 Spec: documentation/design/student-view-design-standard.md ║
+ * ║                                                                 ║
+ * ║  BANNED patterns in this file (to be removed during migration): ║
+ * ║  - #667eea / #764ba2 (purple gradients)                        ║
+ * ║  - linear-gradient backgrounds                                  ║
+ * ║  - .glass / .glass-card classes                                 ║
+ * ║  - AppShell from @mantine/core                                  ║
+ * ║  - Emoji navigation icons                                       ║
+ * ╚══════════════════════════════════════════════════════════════════╝
+ */

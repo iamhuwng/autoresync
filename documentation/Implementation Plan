@@ -1,0 +1,141 @@
+# Word Limit Root Cause Consolidation
+
+Consolidation of work from `conversation_2026-02-20_log.md`. The log documents fixes across the test creation pipeline for IELTS word limits, but a **critical gap** remains in the Firebase persistence layer that silently drops `wordLimit` before it reaches students.
+
+## Root Cause Analysis
+
+```mermaid
+flowchart LR
+    A["AI Parsing<br/>type-classifier"] --> B["Validation<br/>validator.service"]
+    B --> C["Mapping<br/>useTestCreation"]
+    C --> D["Review/Draft<br/>TestReviewPage"]
+    D --> E["Firebase Storage<br/>testStorage ⚠️"]
+    E --> F["Student Load<br/>useTestData"]
+    F --> G["Student UI<br/>AuthenticAnswerInput<br/>IELTSQuestionsPanel"]
+
+    style E fill:#ff4444,color:#fff
+```
+
+| Layer | Status | Detail |
+|-------|--------|--------|
+| AI Parsing (`type-classifier`) | ✅ Working | Extracts `wordLimit { max, min? }` correctly |
+| Validation (`validator.service`) | ✅ Working | Preserves `wordLimit` on `MergedQuestion` (verified by test) |
+| Mapping (`useTestCreation`) | ✅ Working | Maps `q.wordLimit?.max` to `ParsedQuestion.wordLimit` (line 329) |
+| Review Page (`TestReviewPage`) | ✅ Working | Loads `wordLimit` from drafts (line 378), handles section instruction changes (lines 446-448), persists to storage format (line 600) |
+| **Firebase Storage (`testStorage`)** | ❌ **THE GAP** | `saveTestToFirebase` creates a new `formatted` object (line 213) that **omits `wordLimit`**. `TestData.questions` type also **lacks `wordLimit`**. |
+| Student Load (`useTestData`) | ⚠️ Passive | Passes raw `TestData` through — if Firebase has it, students get it |
+| Student UI components | ✅ Working | `getMaxWordsForType` accepts `manualLimit` override; `getTaskInstructions` accepts `wordLimit` param; `groupQuestionsByTaskType` passes `firstQ.wordLimit` |
+
+> [!CAUTION]
+> Despite all upstream fixes being correctly implemented, the Firebase persistence layer (`testStorage.ts` lines 212-234) silently drops `wordLimit` when creating the `formatted` question object. **Every test published through this function has `wordLimit: undefined` in Firebase**, causing all student views to fall back to hardcoded defaults.
+
+## Proposed Changes
+
+### Firebase Storage Layer
+
+#### [MODIFY] [testStorage.ts](file:///c:/Users/Sanctuary/Desktop/Homework%20App/kahoot/src/services/testStorage.ts)
+
+**1. Add `wordLimit` to `TestData.questions` type** (line ~127-139):
+
+```diff
+ questions: Array<{
+     number: number;
+     type: string;
+     question: string;
+     options?: string[];
+     answer: string | string[] | Record<string, string>;
+     passageId: string;
+     resourceId?: string;
+     sectionNumber?: number;
+     points: number;
+     explanation?: string;
+     acceptableAnswers?: string[];
++    wordLimit?: number;
++    sectionInstructionId?: string;
+ }>;
+```
+
+**2. Persist `wordLimit` in `saveTestToFirebase` question formatting** (line ~212-234):
+
+```diff
+ const formatted: any = {
+     number: question.number || index + 1,
+     type: question.type,
+     question: question.question,
+     answer: question.answer,
+     passageId: question.passageId || (passages[0]?.id || 'default'),
+     points: question.points || 1,
+ };
+
+ if (question.options && question.options.length > 0) {
+     formatted.options = question.options;
+ }
++if (question.wordLimit !== undefined && question.wordLimit > 0) {
++    formatted.wordLimit = question.wordLimit;
++}
++if (question.sectionInstructionId) {
++    formatted.sectionInstructionId = question.sectionInstructionId;
++}
+```
+
+**3. Add diagnostic logging** after question formatting:
+
+```diff
++// Diagnostic: Log wordLimit statistics for debugging
++const questionsWithWordLimit = formattedQuestions.filter((q: any) => q.wordLimit);
++if (questionsWithWordLimit.length > 0) {
++    console.log(`📏 [TestStorage] ${questionsWithWordLimit.length}/${formattedQuestions.length} questions have wordLimit set`);
++}
+```
+
+---
+
+### Test Coverage
+
+#### [MODIFY] [testStorage.test.ts](file:///c:/Users/Sanctuary/Desktop/Homework%20App/kahoot/src/services/testStorage.test.ts)
+
+Add a new test case verifying `wordLimit` is preserved through `saveTestToFirebase`:
+
+```typescript
+describe('wordLimit persistence', () => {
+    it('should persist wordLimit in formatted questions when saving to Firebase', async () => {
+        const { set } = await import('firebase/database');
+        (set as any).mockResolvedValueOnce(undefined);
+
+        const metadata: TestMetadata = {
+            title: 'Word Limit Test',
+            type: 'IELTS',
+            skill: 'Reading',
+            duration: 60,
+        };
+        const passages = [{ id: 'p1', title: 'P1', content: 'Test content', type: 'text' as const, wordCount: 2, questionStart: 1, questionEnd: 2, createdAt: '' }];
+        const questions = [
+            { id: 'q-1', number: 1, questionNumber: 1, questionText: 'Q1', question: 'Q1', type: 'sentence-completion' as const, answer: 'answer', answerSource: 'ai-suggestion' as const, passageId: 'p1', confidence: 90, points: 1, wordLimit: 3 },
+            { id: 'q-2', number: 2, questionNumber: 2, questionText: 'Q2', question: 'Q2', type: 'short-answer' as const, answer: 'answer', answerSource: 'ai-suggestion' as const, passageId: 'p1', confidence: 90, points: 1 },
+        ];
+
+        await saveTestToFirebase(metadata, passages as any, questions as any, 'user1');
+
+        const savedData = (set as any).mock.calls[0][1];
+        expect(savedData.questions[0].wordLimit).toBe(3);
+        expect(savedData.questions[1].wordLimit).toBeUndefined(); // Not set = no field
+    });
+});
+```
+
+## Verification Plan
+
+### Automated Tests
+
+1. **Unit tests**: `cd c:\Users\Sanctuary\Desktop\Homework App\kahoot && npx vitest run src/services/testStorage.test.ts`
+2. **All tests**: `cd c:\Users\Sanctuary\Desktop\Homework App\kahoot && npx vitest run`
+3. **Build check**: `cd c:\Users\Sanctuary\Desktop\Homework App\kahoot && npm run build`
+
+### Manual Verification
+
+> [!IMPORTANT]
+> After deploying, please verify by:
+> 1. Creating a new IELTS Reading test with a source document containing "NO MORE THAN THREE WORDS"
+> 2. Publishing the test
+> 3. Opening Firebase console → `tests/{testId}/questions` → verify `wordLimit: 3` is present on completion-type questions
+> 4. Having a student open the test → verify the instruction banner says "Choose NO MORE THAN THREE WORDS" instead of the default

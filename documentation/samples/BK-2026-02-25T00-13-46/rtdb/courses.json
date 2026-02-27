@@ -1,0 +1,125 @@
+{
+  "-OkEzUJ6Sw5XHB7S_GWR": {
+    "code": "IELTS-20260131-0040",
+    "createdAt": 1769794827873,
+    "description": "",
+    "duration": {
+      "unit": "months",
+      "value": 3
+    },
+    "entranceRequirements": "",
+    "graduateTarget": "",
+    "id": "-OkEzUJ6Sw5XHB7S_GWR",
+    "name": "IELTS Foundation",
+    "note": "",
+    "ownerId": "ADMIN_UID",
+    "type": "IELTS",
+    "updatedAt": 1769794827873,
+    "visibility": "protected"
+  },
+  "-OkF-Dwr_SRn4Io_U59_": {
+    "code": "IELTS-20260131-0043",
+    "createdAt": 1769795022997,
+    "description": "",
+    "duration": {
+      "unit": "months",
+      "value": 3
+    },
+    "entranceRequirements": "5.5",
+    "graduateTarget": "9.0",
+    "id": "-OkF-Dwr_SRn4Io_U59_",
+    "name": "IELTS Cambridge 10",
+    "note": "",
+    "ownerId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "type": "IELTS",
+    "updatedAt": 1771791254919,
+    "visibility": "public"
+  },
+  "-OkF0-8VfFUH3r0XoZWx": {
+    "archivedAt": 1771791394614,
+    "code": "IELTS-20260131-0043-FN5U8C",
+    "createdAt": 1769795224510,
+    "description": "",
+    "duration": {
+      "unit": "months",
+      "value": 3
+    },
+    "entranceRequirements": "4.5",
+    "graduateTarget": "5.5-6.0",
+    "hardDeleteAt": 1774383394614,
+    "id": "-OkF0-8VfFUH3r0XoZWx",
+    "name": "IELTS Intermediate (MD-IELTS-1)",
+    "note": "",
+    "ownerId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "type": "IELTS",
+    "updatedAt": 1769795224510,
+    "visibility": "protected"
+  },
+  "-OkInffOrMX5hIQsXhtL": {
+    "code": "IELTS-20260131-1826",
+    "createdAt": 1769858838505,
+    "description": "",
+    "duration": {
+      "unit": "months",
+      "value": 3
+    },
+    "entranceRequirements": "",
+    "graduateTarget": "",
+    "id": "-OkInffOrMX5hIQsXhtL",
+    "name": "Test Course",
+    "note": "",
+    "ownerId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "type": "IELTS",
+    "updatedAt": 1769858838505,
+    "visibility": "private"
+  },
+  "-Om5JZldI38m-EQEP32N": {
+    "code": "IELTS-20260131-0043-FN5U8C",
+    "createdAt": 1771780066550,
+    "description": "",
+    "duration": {
+      "unit": "months",
+      "value": 3
+    },
+    "entranceRequirements": "4.5",
+    "graduateTarget": "5.5-6.0",
+    "id": "-Om5JZldI38m-EQEP32N",
+    "isClassInstance": true,
+    "name": "IELTS Intermediate (MD-IELTS-1)",
+    "note": "",
+    "originalName": "IELTS Intermediate",
+    "ownerId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "type": "IELTS",
+    "updatedAt": 1771780066550,
+    "visibility": "private"
+  },
+  "-Om5zpBkeRYShTEE9jsn": {
+    "code": "IELTS-20260131-0043-FN5U8C",
+    "createdAt": 1771791405820,
+    "description": "",
+    "duration": {
+      "unit": "months",
+      "value": 3
+    },
+    "entranceRequirements": "5.5",
+    "graduateTarget": "9.0",
+    "id": "-Om5zpBkeRYShTEE9jsn",
+    "isClassInstance": true,
+    "name": "IELTS Cambridge 10 (MD-IELTS-1)",
+    "note": "",
+    "originalName": "IELTS Cambridge 10",
+    "ownerId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "type": "IELTS",
+    "updatedAt": 1771791405820,
+    "visibility": "private"
+  },
+  "demo-course-789": {
+    "code": "DEMO-IELTS-001",
+    "createdAt": 1769840179738,
+    "description": "Demo course for testing feedback components",
+    "id": "demo-course-789",
+    "name": "Demo Course - IELTS Preparation",
+    "type": "public",
+    "visibility": "public"
+  }
+}

@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Google API Network Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .test {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success { background: #d4edda; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; border: 1px solid #bee5eb; }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        button:hover { background: #0056b3; }
+        pre {
+            background: #f4f4f4;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Google API Network Diagnostic</h1>
+    <p>This test will determine if your network/browser can access Google APIs.</p>
+    
+    <button onclick="runTests()">Run Diagnostic Tests</button>
+    
+    <div id="results"></div>
+
+    <script>
+        async function runTests() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<div class="info test">Running tests...</div>';
+            
+            const results = [];
+            
+            // Test 1: Basic connectivity to googleapis.com
+            results.push('<h2>Test 1: Basic Connectivity</h2>');
+            try {
+                const response = await fetch('https://www.googleapis.com/', { mode: 'no-cors' });
+                results.push('<div class="success test">✅ Can reach googleapis.com domain</div>');
+            } catch (error) {
+                results.push('<div class="error test">❌ Cannot reach googleapis.com<br>Error: ' + error.message + '</div>');
+            }
+            
+            // Test 2: Discovery document
+            results.push('<h2>Test 2: Discovery Document (The Failing Request)</h2>');
+            const discoveryUrl = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
+            try {
+                const response = await fetch(discoveryUrl);
+                if (response.ok) {
+                    results.push('<div class="success test">✅ Discovery document loads successfully<br>Status: ' + response.status + '</div>');
+                    const data = await response.json();
+                    results.push('<div class="info test">Discovery doc contains ' + Object.keys(data.resources || {}).length + ' resources</div>');
+                } else {
+                    results.push('<div class="error test">❌ Discovery document failed<br>Status: ' + response.status + ' ' + response.statusText + '</div>');
+                }
+            } catch (error) {
+                results.push('<div class="error test">❌ Discovery document request blocked<br>Error: ' + error.message + '<br><br><strong>This is the problem!</strong> Your network/browser is blocking Google API requests.</div>');
+            }
+            
+            // Test 3: CORS check
+            results.push('<h2>Test 3: CORS & Third-Party Requests</h2>');
+            try {
+                const response = await fetch('https://www.googleapis.com/discovery/v1/apis', {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                results.push('<div class="success test">✅ CORS is working correctly</div>');
+            } catch (error) {
+                if (error.message.includes('CORS')) {
+                    results.push('<div class="error test">❌ CORS error detected<br>Your browser is blocking cross-origin requests to Google APIs</div>');
+                } else {
+                    results.push('<div class="error test">❌ Request blocked: ' + error.message + '</div>');
+                }
+            }
+            
+            // Test 4: Browser info
+            results.push('<h2>Test 4: Browser Information</h2>');
+            results.push('<div class="info test"><pre>' + 
+                'Browser: ' + navigator.userAgent + '\n' +
+                'Cookies Enabled: ' + navigator.cookieEnabled + '\n' +
+                'Do Not Track: ' + (navigator.doNotTrack || 'not set') + '\n' +
+                'Online: ' + navigator.onLine +
+                '</pre></div>');
+            
+            // Test 5: Tracking prevention check
+            results.push('<h2>Test 5: Tracking Prevention Check</h2>');
+            try {
+                // Try to use localStorage (often blocked by tracking prevention)
+                localStorage.setItem('test', 'test');
+                localStorage.removeItem('test');
+                results.push('<div class="success test">✅ localStorage accessible (tracking prevention not severe)</div>');
+            } catch (error) {
+                results.push('<div class="error test">❌ localStorage blocked<br>This indicates aggressive tracking prevention that may also block Google APIs</div>');
+            }
+            
+            // Final recommendation
+            results.push('<h2>Recommendation</h2>');
+            results.push('<div class="info test">' +
+                '<strong>If Test 2 failed:</strong><br>' +
+                '1. Try a different browser (Chrome or Firefox)<br>' +
+                '2. Disable browser tracking prevention/ad blockers<br>' +
+                '3. Try a different network<br>' +
+                '4. Use Firefox Storage instead of Google Drive<br><br>' +
+                '<strong>This is NOT a code problem - it\'s a network/browser configuration issue.</strong>' +
+                '</div>');
+            
+            resultsDiv.innerHTML = results.join('');
+        }
+    </script>
+</body>
+</html>

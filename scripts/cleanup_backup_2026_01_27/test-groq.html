@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Groq Integration</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        button {
+            background: #0ea5e9;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #0284c7;
+        }
+        button:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
+        #output {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8fafc;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .success {
+            color: #059669;
+        }
+        .error {
+            color: #dc2626;
+        }
+        .info {
+            color: #0284c7;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Groq Fallback Integration Test</h1>
+        <p>This page tests the Groq AI fallback implementation.</p>
+        
+        <div>
+            <button onclick="testGroqDirect()">Test Groq Direct</button>
+            <button onclick="testGeminiFallback()">Test Gemini → Groq Fallback</button>
+            <button onclick="clearOutput()">Clear Output</button>
+        </div>
+        
+        <div id="output"></div>
+    </div>
+
+    <script type="module">
+        import Groq from 'https://cdn.jsdelivr.net/npm/groq-sdk@0.34.0/+esm';
+
+        const GROQ_API_KEY = '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';
+        const GROQ_MODEL = 'llama-3.1-70b-versatile';
+
+        function log(message, type = 'info') {
+            const output = document.getElementById('output');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'success' ? 'success' : type === 'error' ? 'error' : 'info';
+            output.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+            output.scrollTop = output.scrollHeight;
+        }
+
+        window.testGroqDirect = async function() {
+            log('🔄 Testing Groq Direct Connection...', 'info');
+            
+            try {
+                const groq = new Groq({
+                    apiKey: GROQ_API_KEY,
+                    dangerouslyAllowBrowser: true
+                });
+
+                log('✓ Groq client initialized', 'success');
+                log('📤 Sending test request to Groq...', 'info');
+
+                const startTime = Date.now();
+                const result = await groq.chat.completions.create({
+                    messages: [
+                        {
+                            role: 'user',
+                            content: 'Parse this quiz: 1. What is 2+2? A) 3 B) 4 C) 5. Answer: B. Return as JSON with structure: {"questions": [{"question": "...", "answer": "..."}]}'
+                        }
+                    ],
+                    model: GROQ_MODEL,
+                    temperature: 0.1,
+                    max_tokens: 1024
+                });
+
+                const duration = Date.now() - startTime;
+                const response = result.choices[0]?.message?.content || '';
+
+                log(`✅ Groq responded in ${duration}ms`, 'success');
+                log(`📥 Response length: ${response.length} characters`, 'info');
+                log(`📄 Response preview:\n${response.substring(0, 500)}...`, 'info');
+
+                // Try to parse as JSON
+                try {
+                    const cleanText = response
+                        .replace(/```json\n?/g, '')
+                        .replace(/```\n?/g, '')
+                        .trim();
+                    const parsed = JSON.parse(cleanText);
+                    log(`✅ Valid JSON response with ${parsed.questions?.length || 0} questions`, 'success');
+                } catch (e) {
+                    log(`⚠️ Response is not valid JSON: ${e.message}`, 'error');
+                }
+
+            } catch (error) {
+                log(`❌ Groq test failed: ${error.message}`, 'error');
+                console.error('Groq error:', error);
+            }
+        };
+
+        window.testGeminiFallback = function() {
+            log('🔄 Testing Gemini → Groq Fallback Flow...', 'info');
+            log('ℹ️ This simulates what happens when Gemini fails (503 error)', 'info');
+            log('ℹ️ Open browser DevTools Console to see fallback logs', 'info');
+            log('⚠️ This test requires the actual app to be running', 'error');
+            log('📝 To test: Go to Create Quiz → Upload a file → Check console logs', 'info');
+        };
+
+        window.clearOutput = function() {
+            document.getElementById('output').innerHTML = '';
+        };
+
+        // Auto-run test on load
+        log('🚀 Groq Integration Test Page Loaded', 'success');
+        log('📌 Groq API Key: ' + GROQ_API_KEY.substring(0, 20) + '...', 'info');
+        log('📌 Groq Model: ' + GROQ_MODEL, 'info');
+        log('', 'info');
+        log('Click "Test Groq Direct" to verify Groq is working', 'info');
+    </script>
+</body>
+</html>

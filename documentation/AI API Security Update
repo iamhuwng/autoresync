@@ -1,0 +1,23 @@
+# API Key Security Fixes Walkthrough
+
+## Completed Changes
+
+As requested, I have implemented the immediate fixes for the vulnerabilities found in the AI API key administration feature.
+
+### 1. Secured Firestore Settings
+- **Added `firestore.rules`**: Created a new rules file at the root of the project to protect the `settings/api_keys` collection. The rule ensures that only authenticated users can read or write to the API keys collection, preventing unauthenticated public access.
+- **Updated `firebase.json`**: Linked the newly created `firestore.rules` to the `firebase.json` configuration so they get deployed properly.
+
+### 2. Obfuscated Encryption Key
+- **Refactored `api-keys.service.ts`**: Replaced the fully hardcoded encryption string (`mstu-kahoot-api-keys-2026`) with a dynamically generated key. The new key is derived from the `VITE_FIREBASE_PROJECT_ID` and `VITE_FIREBASE_APP_ID` environment variables. While client-side encryption is inherently reversible, this adds a layer of obfuscation that prevents simple string searches in the bundled code from revealing the key.
+
+### 3. Fixed Gemini Key Loading
+- **Updated `env.config.ts`**: Converted `loadAllGeminiApiKeys` to an asynchronous function. It now attempts to fetch decrypted Gemini keys from Firestore (using `api-keys.service.ts`) and aggregates them with any keys found in the `.env` file. This matches the behavior of the Groq provider.
+- **Updated `gemini.provider.ts`**: Modified the initialization process to `await` the new asynchronous `loadAllGeminiApiKeys` function, ensuring that dynamically added keys from the admin settings are properly utilized.
+
+## Validation Results
+- Verified there are no syntax errors or new TypeScript complaints (via `npm run build`).
+- Ensure that the security rules are correctly specified using the standard Firebase syntax. 
+
+> [!NOTE]
+> The architectural vulnerability (client-side exposure of API keys) remains present, as moving to a secure backend proxy would require significant structural changes to the application. If you decide to pursue that route in the future, these rules and obfuscation techniques will provide a baseline level of defense until the transition is made.

@@ -1,0 +1,137 @@
+/**
+ * Student View Design Standard v1.0 — CSS Override Layer
+ * 
+ * PURPOSE: This file NEUTRALIZES legacy glassmorphism and gradient patterns
+ * on ALL student-facing pages. It is imported in the student page wrapper
+ * and uses high-specificity selectors to guarantee the new design.
+ *
+ * This is the CODE-LEVEL enforcement that cannot be bypassed by
+ * documentation-ignorant AI agents copying old patterns.
+ *
+ * REFERENCE: documentation/design/student-view-design-standard.md
+ * CANONICAL: src/pages/StudentDashboardPage.jsx
+ */
+
+/* ═══════════════════════════════════════════════════════════════════
+   NUCLEAR OVERRIDE: Kill ALL legacy patterns on student pages
+   Applied when .student-view-root is present on the page wrapper
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Override body gradient when ANY student page is active */
+body:has(.student-view-root) {
+  background: #f3f4f6 !important;
+  background-image: none !important;
+  background-attachment: scroll !important;
+}
+
+/* Kill glassmorphism on all elements inside student pages */
+.student-view-root .glass,
+.student-view-root .glass-card,
+.student-view-root .glass-strong,
+.student-view-root .glass-subtle,
+.student-view-root .glass-panel-gradient,
+.student-view-root .glass-button,
+.student-view-root .glass-input,
+.student-view-root .glass-shimmer,
+.student-view-root .glass-float {
+  background: #ffffff !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
+}
+
+/* Kill gradient backgrounds on any element */
+.student-view-root .gradient-bg,
+.student-view-root .card-lavender,
+.student-view-root .card-rose,
+.student-view-root .card-sky,
+.student-view-root .card-mint {
+  background: #ffffff !important;
+  background-image: none !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
+}
+
+/* Kill colored shadows */
+.student-view-root .shadow-glass,
+.student-view-root .shadow-glass-strong {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+}
+
+/* Kill gradient text */
+.student-view-root .text-gradient,
+.student-view-root .text-gradient-lavender {
+  background: none !important;
+  -webkit-background-clip: unset !important;
+  -webkit-text-fill-color: #111827 !important;
+  background-clip: unset !important;
+}
+
+/* Kill gradient scrollbar on student pages */
+.student-view-root ::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.5) !important;
+}
+
+/* Kill card hover lift animation */
+.student-view-root .card:hover {
+  transform: none !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+}
+
+/* Kill float and shimmer animations */
+.student-view-root .animate-float,
+.student-view-root .glass-float {
+  animation: none !important;
+}
+
+.student-view-root .glass-shimmer::after {
+  display: none !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   STUDENT DESIGN TOKENS — CSS Custom Properties
+   Use these instead of hardcoded values in new student components
+   ═══════════════════════════════════════════════════════════════════ */
+
+.student-view-root {
+  /* Backgrounds */
+  --sv-bg-page: #f3f4f6;
+  --sv-bg-surface: #ffffff;
+  --sv-bg-surface-alt: #f9fafb;
+  --sv-bg-hover: #e5e7eb;
+  --sv-bg-input: #e5e7eb;
+
+  /* Text */
+  --sv-text-primary: #111827;
+  --sv-text-body: #374151;
+  --sv-text-muted: #6b7280;
+  --sv-text-dim: #9ca3af;
+
+  /* Borders */
+  --sv-border: #e5e7eb;
+  --sv-border-light: #f3f4f6;
+
+  /* Accent */
+  --sv-accent: #4f46e5;
+  --sv-accent-hover: #4338ca;
+  --sv-accent-light: #a5b4fc;
+  --sv-accent-badge: #6366f1;
+
+  /* Semantic */
+  --sv-success-bg: #d1fae5;
+  --sv-success-text: #059669;
+  --sv-info-bg: #dbeafe;
+  --sv-info-text: #2563eb;
+  --sv-warning-bg: #fef3c7;
+  --sv-warning-text: #d97706;
+  --sv-error-text: #dc2626;
+
+  /* Radius */
+  --sv-radius-pill: 999px;
+  --sv-radius-card: 16px;
+  --sv-radius-input: 12px;
+
+  /* Font */
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}

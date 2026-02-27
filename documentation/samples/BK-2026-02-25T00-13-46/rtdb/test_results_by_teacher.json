@@ -1,0 +1,314 @@
+{
+  "glMHCrzMnyS6AqFcb9I0nlOqQ6X2": {
+    "res_guest_01": {
+      "isGuest": true,
+      "percentage": 50,
+      "resultId": "res_guest_01",
+      "sessionCode": "MOCKGUEST01",
+      "studentId": "guest_user_999",
+      "studentName": "Guest User",
+      "submittedAt": 1769353200000
+    },
+    "res_listening_01": {
+      "isGuest": false,
+      "percentage": 80,
+      "resultId": "res_listening_01",
+      "sessionCode": "MOCKLIST01",
+      "studentId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+      "studentName": "Student Test",
+      "submittedAt": 1767623400000
+    },
+    "res_reading_01": {
+      "isGuest": false,
+      "percentage": 70,
+      "resultId": "res_reading_01",
+      "sessionCode": "MOCKREAD01",
+      "studentId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+      "studentName": "Student Test",
+      "submittedAt": 1767261600000
+    },
+    "res_reading_02": {
+      "isGuest": false,
+      "percentage": 90,
+      "resultId": "res_reading_02",
+      "sessionCode": "MOCKREAD02",
+      "studentId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+      "studentName": "Student Test",
+      "submittedAt": 1768892400000
+    },
+    "res_speaking_01": {
+      "isGuest": false,
+      "percentage": 77,
+      "resultId": "res_speaking_01",
+      "sessionCode": "MOCKSPEAK01",
+      "studentId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+      "studentName": "Student Test",
+      "submittedAt": 1768492800000
+    },
+    "res_writing_01": {
+      "isGuest": false,
+      "percentage": 0,
+      "resultId": "res_writing_01",
+      "sessionCode": "MOCKWRIT01",
+      "studentId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+      "studentName": "Student Test",
+      "submittedAt": 1768035600000
+    }
+  },
+  "teacher_1770526666033_serc30606": {
+    "-Okvbv1WAaMw61bGGEXV": {
+      "isGuest": false,
+      "percentage": 13,
+      "resultId": "-Okvbv1WAaMw61bGGEXV",
+      "sessionCode": "V1V1QE",
+      "studentId": "ILMbyeRrH4eJoJCjvW7eixHmH0v1",
+      "studentName": "Excandesco Jr.",
+      "submittedAt": 1770526844603
+    },
+    "-OkvxVQHkqv9_PwgsDHN": {
+      "isGuest": false,
+      "percentage": 0,
+      "resultId": "-OkvxVQHkqv9_PwgsDHN",
+      "sessionCode": "V1V1QE",
+      "studentId": "ILMbyeRrH4eJoJCjvW7eixHmH0v1",
+      "studentName": "Excandesco Jr.",
+      "submittedAt": 1770532502786
+    }
+  },
+  "teacher_1770630116483_9revk95n3": {
+    "-Ol18CSQ88orXiKp0Onx": {
+      "isGuest": false,
+      "percentage": 0,
+      "resultId": "-Ol18CSQ88orXiKp0Onx",
+      "sessionCode": "TDD4QH",
+      "studentId": "ILMbyeRrH4eJoJCjvW7eixHmH0v1",
+      "studentName": "Excandesco Jr.",
+      "submittedAt": 1770636237206
+    }
+  },
+  "teacher_1770730036908_rcdw2hlpg": {
+    "-Ol6x7okKfM5l8_WUx7-": {
+      "isGuest": false,
+      "percentage": 3,
+      "resultId": "-Ol6x7okKfM5l8_WUx7-",
+      "sessionCode": "KF2ADO",
+      "studentId": "ILMbyeRrH4eJoJCjvW7eixHmH0v1",
+      "studentName": "Excandesco Jr.",
+      "submittedAt": 1770733735664
+    },
+    "-Ol7Cq9VidZD-GLTXaFC": {
+      "isGuest": false,
+      "percentage": 0,
+      "resultId": "-Ol7Cq9VidZD-GLTXaFC",
+      "sessionCode": "KF2ADO",
+      "studentId": "ILMbyeRrH4eJoJCjvW7eixHmH0v1",
+      "studentName": "Excandesco Jr.",
+      "submittedAt": 1770738115682
+    }
+  },
+  "teacher_1770825859922_1ptpp4qds": {
+    "-OlHPcdrNKLsINQ1Z3Uo": {
+      "isGuest": false,
+      "percentage": 0,
+      "resultId": "-OlHPcdrNKLsINQ1Z3Uo",
+      "sessionCode": "USAKC0",
+      "studentId": "G5yDXmkDfsVhoKYTp7xTwbbggtB2",
+      "studentName": "Student G5yDXm",
+      "submittedAt": 1770909240796
+    },
+    "-OlHPcsHbthwt1j2Bp4N": {
+      "isGuest": false,
+      "percentage": 0,
+      "resultId": "-OlHPcsHbthwt1j2Bp4N",
+      "sessionCode": "USAKC0",
+      "studentId": "ILMbyeRrH4eJoJCjvW7eixHmH0v1",
+      "studentName": "Student ILMbye",
+      "submittedAt": 1770909241720
+    },
+    "-OlHQpa3YQXCpUdMmcuo": {
+      "isGuest": false,
+      "percentage": 0,
+      "resultId": "-OlHQpa3YQXCpUdMmcuo",
+      "sessionCode": "USAKC0",
+      "studentId": "G5yDXmkDfsVhoKYTp7xTwbbggtB2",
+      "studentName": "Student G5yDXm",
+      "submittedAt": 1770909555946
+    },
+    "-OlHQprl49Dg__rG7N-s": {
+      "isGuest": false,
+      "percentage": 0,
+      "resultId": "-OlHQprl49Dg__rG7N-s",
+      "sessionCode": "USAKC0",
+      "studentId": "ILMbyeRrH4eJoJCjvW7eixHmH0v1",
+      "studentName": "Student ILMbye",
+      "submittedAt": 1770909557079
+    },
+    "-OlHSaWGxabk9wAG5qR9": {
+      "isGuest": false,
+      "percentage": 0,
+      "resultId": "-OlHSaWGxabk9wAG5qR9",
+      "sessionCode": "USAKC0",
+      "studentId": "G5yDXmkDfsVhoKYTp7xTwbbggtB2",
+      "studentName": "Student G5yDXm",
+      "submittedAt": 1770910018487
+    },
+    "-OlHSajXeAF1Ec4pn9u9": {
+      "isGuest": false,
+      "percentage": 0,
+      "resultId": "-OlHSajXeAF1Ec4pn9u9",
+      "sessionCode": "USAKC0",
+      "studentId": "ILMbyeRrH4eJoJCjvW7eixHmH0v1",
+      "studentName": "Student ILMbye",
+      "submittedAt": 1770910019400
+    },
+    "-OlH_SOmO-5XvpOhAc_I": {
+      "isGuest": false,
+      "percentage": 5,
+      "resultId": "-OlH_SOmO-5XvpOhAc_I",
+      "sessionCode": "USAKC0",
+      "studentId": "G5yDXmkDfsVhoKYTp7xTwbbggtB2",
+      "studentName": "Nguyễn Đạt Hưng",
+      "submittedAt": 1770912078292
+    }
+  },
+  "teacher_1770999123966_47mqyalg4": {
+    "-OlMoVi-aQBiI46U_Ny7": {
+      "isGuest": false,
+      "percentage": 45,
+      "resultId": "-OlMoVi-aQBiI46U_Ny7",
+      "sessionCode": "54CVSF",
+      "studentId": "G5yDXmkDfsVhoKYTp7xTwbbggtB2",
+      "studentName": "Nguyễn Đạt Hưng",
+      "submittedAt": 1770999910425
+    }
+  },
+  "teacher_1771270476206_52ygzz7fc": {
+    "-OlbyH26NI2Z6KEn34ww": {
+      "isGuest": false,
+      "percentage": 60,
+      "resultId": "-OlbyH26NI2Z6KEn34ww",
+      "sessionCode": "UZDMFN",
+      "studentId": "G5yDXmkDfsVhoKYTp7xTwbbggtB2",
+      "studentName": "Nguyễn Đạt Hưng",
+      "submittedAt": 1771270907377
+    },
+    "-OlcO1nR2c-7KkthIYWa": {
+      "isGuest": false,
+      "percentage": 0,
+      "resultId": "-OlcO1nR2c-7KkthIYWa",
+      "sessionCode": "UZDMFN",
+      "studentId": "G5yDXmkDfsVhoKYTp7xTwbbggtB2",
+      "studentName": "Student G5yDXm",
+      "submittedAt": 1771277922761
+    },
+    "-OlcP-U2kdRsLpYmradY": {
+      "isGuest": false,
+      "percentage": 0,
+      "resultId": "-OlcP-U2kdRsLpYmradY",
+      "sessionCode": "UZDMFN",
+      "studentId": "G5yDXmkDfsVhoKYTp7xTwbbggtB2",
+      "studentName": "Student G5yDXm",
+      "submittedAt": 1771278175408
+    }
+  },
+  "teacher_1771580772696_atktkt5zg": {
+    "-OluTgakx9EM5Fqfg68I": {
+      "isGuest": false,
+      "percentage": 15,
+      "resultId": "-OluTgakx9EM5Fqfg68I",
+      "sessionCode": "PHBN2U",
+      "studentId": "G5yDXmkDfsVhoKYTp7xTwbbggtB2",
+      "studentName": "Student G5yDXm",
+      "submittedAt": 1771581392711
+    }
+  },
+  "teacher_1771597503610_0ssqd61lx": {
+    "-OlvRwayjWewGs86r9bR": {
+      "isGuest": false,
+      "percentage": 80,
+      "resultId": "-OlvRwayjWewGs86r9bR",
+      "sessionCode": "URHR2Q",
+      "studentId": "G5yDXmkDfsVhoKYTp7xTwbbggtB2",
+      "studentName": "Nguyễn Đạt Hưng",
+      "submittedAt": 1771597711065
+    },
+    "-OlvYi2vCCOLPDLqhGld": {
+      "isGuest": false,
+      "percentage": 88,
+      "resultId": "-OlvYi2vCCOLPDLqhGld",
+      "sessionCode": "URHR2Q",
+      "studentId": "G5yDXmkDfsVhoKYTp7xTwbbggtB2",
+      "studentName": "Nguyễn Đạt Hưng",
+      "submittedAt": 1771599486487
+    },
+    "-OlvqKj9yLUnTolwSc-Y": {
+      "isGuest": false,
+      "percentage": 0,
+      "resultId": "-OlvqKj9yLUnTolwSc-Y",
+      "sessionCode": "URHR2Q",
+      "studentId": "G5yDXmkDfsVhoKYTp7xTwbbggtB2",
+      "studentName": "Student G5yDXm",
+      "submittedAt": 1771604367506
+    },
+    "-OlvyekB3ApQPkqCWewp": {
+      "isGuest": false,
+      "percentage": 100,
+      "resultId": "-OlvyekB3ApQPkqCWewp",
+      "sessionCode": "URHR2Q",
+      "studentId": "G5yDXmkDfsVhoKYTp7xTwbbggtB2",
+      "studentName": "Nguyễn Đạt Hưng",
+      "submittedAt": 1771606550734
+    }
+  },
+  "teacher_1771720682657_onmn7uc8x": {
+    "-Om1mBfouGG-A7lRVVwb": {
+      "isGuest": false,
+      "percentage": 0,
+      "resultId": "-Om1mBfouGG-A7lRVVwb",
+      "sessionCode": "TQP2RN",
+      "studentId": "G5yDXmkDfsVhoKYTp7xTwbbggtB2",
+      "studentName": "Student G5yDXm",
+      "submittedAt": 1771720722624
+    }
+  },
+  "teacher_1771722687831_zt9077xi7": {
+    "-Om20eGgdJG6vJ3dKerE": {
+      "isGuest": false,
+      "percentage": 0,
+      "resultId": "-Om20eGgdJG6vJ3dKerE",
+      "sessionCode": "ZY7THT",
+      "studentId": "G5yDXmkDfsVhoKYTp7xTwbbggtB2",
+      "studentName": "Student G5yDXm",
+      "submittedAt": 1771724775982
+    },
+    "-Om26ECW41KdOXVAgk0t": {
+      "isGuest": false,
+      "percentage": 0,
+      "resultId": "-Om26ECW41KdOXVAgk0t",
+      "sessionCode": "ZY7THT",
+      "studentId": "G5yDXmkDfsVhoKYTp7xTwbbggtB2",
+      "studentName": "Student G5yDXm",
+      "submittedAt": 1771726237940
+    }
+  },
+  "teacher_1771776702460_0jlxjeesx": {
+    "-Om57ErCwi5Ru-gscyRK": {
+      "isGuest": false,
+      "percentage": 0,
+      "resultId": "-Om57ErCwi5Ru-gscyRK",
+      "sessionCode": "NJSW4I",
+      "studentId": "G5yDXmkDfsVhoKYTp7xTwbbggtB2",
+      "studentName": "Student G5yDXm",
+      "submittedAt": 1771776835199
+    },
+    "-Om5HVd3w22HVBNtEbZV": {
+      "isGuest": false,
+      "percentage": 3,
+      "resultId": "-Om5HVd3w22HVBNtEbZV",
+      "sessionCode": "NJSW4I",
+      "studentId": "G5yDXmkDfsVhoKYTp7xTwbbggtB2",
+      "studentName": "Nguyễn Đạt Hưng",
+      "submittedAt": 1771779525375
+    }
+  }
+}

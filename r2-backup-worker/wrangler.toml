@@ -1,0 +1,26 @@
+# r2-backup-worker — Cloudflare Worker for Backup & Disaster Recovery (PRD-0026)
+#
+# Secrets (set via `wrangler secret put <NAME>`):
+#   1. GOOGLE_SA_KEY         — Full Service Account JSON key (~2.3 KB)
+#   2. BACKUP_R2_ACCESS_KEY_ID    — S3-compatible API key ID for backup R2 bucket
+#   3. BACKUP_R2_SECRET_ACCESS_KEY — S3-compatible API secret for backup R2 bucket
+#   4. BACKUP_R2_BUCKET_NAME      — Backup R2 bucket name
+#   5. BACKUP_R2_ENDPOINT         — Backup R2 S3 endpoint (https://<account-id>.r2.cloudflarestorage.com)
+
+name = "r2-backup-worker"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[triggers]
+crons = ["0 3 * * 1"]  # Every Monday at 3:00 AM UTC
+
+[[r2_buckets]]
+binding = "PRIMARY_R2"
+bucket_name = "kahoot-media"
+
+[vars]
+FIREBASE_PROJECT_ID = "temp-a1437"
+FIREBASE_DB_URL = "https://temp-a1437-default-rtdb.firebaseio.com"
+BACKUP_RETENTION_COUNT = "10"
+MEDIA_CHECKPOINT_INTERVAL = "6"
+ADMIN_UID = "ADMIN_UID"  # Set to the super_admin's Firebase UID

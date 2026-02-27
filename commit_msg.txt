@@ -1,0 +1,8 @@
+feat: UI improvements & student view design standard migration
+
+- Refactored StudentHomeworkListPage Middle Column UI (fixed styling variables and Purple Ban violation).
+- Migrated Student Profile Page to Student View Design Standard v1.0, removing AppShell and legacy CSS.
+- Fixed duplicate page headers in Profile, Classes, and History tabs.
+- Added navigation to Result view from the Homework List 'Completed' card.
+- Addressed dashboard center column alignment issues and eliminated wide flex gaps.
+- Removed deprecated UI components.

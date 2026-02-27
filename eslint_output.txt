@@ -1,0 +1,10 @@
+
+C:\Users\Sanctuary\Desktop\Homework App\kahoot\src\pages\StudentDashboardPage.jsx
+  111:11  error  'isTablet' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u      no-unused-vars
+  218:23  error  'setShowMobileLeft' is not defined                                                            no-undef
+  231:11  error  'handleLogout' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+  501:57  error  'setShowMobileRight' is not defined                                                           no-undef
+  501:77  error  'showMobileRight' is not defined                                                              no-undef
+
+✖ 5 problems (5 errors, 0 warnings)
+

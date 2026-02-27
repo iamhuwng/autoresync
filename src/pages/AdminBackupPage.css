@@ -1,0 +1,591 @@
+/* AdminBackupPage.css — PRD-0026 Backup & Recovery Admin UI */
+
+.backup-page {
+    padding: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.backup-page h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 0.5rem;
+}
+
+.backup-page .page-subtitle {
+    color: #64748b;
+    font-size: 0.9rem;
+    margin-bottom: 2rem;
+}
+
+/* ─── Dashboard Cards ───────────────────────────────────────────────── */
+
+.backup-dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.backup-dashboard-card {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: 16px;
+    border: 1px solid rgba(203, 213, 225, 0.3);
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.backup-dashboard-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+}
+
+.backup-dashboard-card .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.backup-dashboard-card .card-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+}
+
+.backup-dashboard-card .card-icon.green {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(16, 185, 129, 0.05));
+}
+
+.backup-dashboard-card .card-icon.blue {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(59, 130, 246, 0.05));
+}
+
+.backup-dashboard-card .card-icon.amber {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(245, 158, 11, 0.05));
+}
+
+.backup-dashboard-card .card-icon.red {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(239, 68, 68, 0.05));
+}
+
+.backup-dashboard-card .card-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.backup-dashboard-card .card-label {
+    font-size: 0.8rem;
+    color: #94a3b8;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+}
+
+/* ─── Status Badge ──────────────────────────────────────────────────── */
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.65rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.status-badge.ok,
+.status-badge.complete {
+    background: rgba(16, 185, 129, 0.12);
+    color: #059669;
+}
+
+.status-badge.error,
+.status-badge.failed {
+    background: rgba(239, 68, 68, 0.12);
+    color: #dc2626;
+}
+
+.status-badge.warning,
+.status-badge.in_progress {
+    background: rgba(245, 158, 11, 0.12);
+    color: #d97706;
+}
+
+.status-badge.info {
+    background: rgba(59, 130, 246, 0.12);
+    color: #2563eb;
+}
+
+/* ─── Actions Bar ───────────────────────────────────────────────────── */
+
+.backup-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+}
+
+.backup-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.65rem 1.25rem;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.backup-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.backup-btn.primary {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: white;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+}
+
+.backup-btn.primary:hover:not(:disabled) {
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    box-shadow: 0 4px 16px rgba(37, 99, 235, 0.35);
+    transform: translateY(-1px);
+}
+
+.backup-btn.success {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+    box-shadow: 0 2px 8px rgba(5, 150, 105, 0.25);
+}
+
+.backup-btn.success:hover:not(:disabled) {
+    background: linear-gradient(135deg, #059669, #047857);
+}
+
+.backup-btn.danger {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: white;
+    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.25);
+}
+
+.backup-btn.danger:hover:not(:disabled) {
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
+}
+
+.backup-btn.glass {
+    background: rgba(255, 255, 255, 0.8);
+    color: #475569;
+    border: 1px solid rgba(203, 213, 225, 0.4);
+}
+
+.backup-btn.glass:hover:not(:disabled) {
+    background: rgba(241, 245, 249, 0.9);
+}
+
+/* ─── Section Cards ─────────────────────────────────────────────────── */
+
+.backup-section {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: 16px;
+    border: 1px solid rgba(203, 213, 225, 0.3);
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.backup-section h2 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* ─── History Table ─────────────────────────────────────────────────── */
+
+.backup-history-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0 0.35rem;
+}
+
+.backup-history-table th {
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.5rem 0.75rem;
+}
+
+.backup-history-table td {
+    padding: 0.75rem;
+    font-size: 0.875rem;
+    color: #334155;
+    background: rgba(248, 250, 252, 0.6);
+}
+
+.backup-history-table tr td:first-child {
+    border-radius: 8px 0 0 8px;
+}
+
+.backup-history-table tr td:last-child {
+    border-radius: 0 8px 8px 0;
+}
+
+.backup-history-table .row-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.backup-history-table .row-action-btn {
+    background: transparent;
+    border: 1px solid rgba(203, 213, 225, 0.4);
+    border-radius: 6px;
+    padding: 0.3rem 0.6rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+    color: #64748b;
+    transition: all 0.15s ease;
+}
+
+.backup-history-table .row-action-btn:hover {
+    border-color: #3b82f6;
+    color: #3b82f6;
+    background: rgba(59, 130, 246, 0.05);
+}
+
+/* ─── Progress Bar ──────────────────────────────────────────────────── */
+
+.backup-progress-bar {
+    width: 100%;
+    height: 8px;
+    background: rgba(203, 213, 225, 0.3);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.backup-progress-fill {
+    height: 100%;
+    border-radius: 4px;
+    background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+    transition: width 0.5s ease;
+    animation: progressShimmer 2s infinite;
+}
+
+@keyframes progressShimmer {
+    0% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.7;
+    }
+
+    100% {
+        opacity: 1;
+    }
+}
+
+.backup-progress-text {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    color: #64748b;
+    margin-top: 0.5rem;
+}
+
+/* ─── Toast Notifications ───────────────────────────────────────────── */
+
+.backup-toast {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    padding: 1rem 1.5rem;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    z-index: 9999;
+    animation: toastSlideIn 0.3s ease;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+}
+
+.backup-toast.success {
+    background: #10b981;
+    color: white;
+}
+
+.backup-toast.error {
+    background: #ef4444;
+    color: white;
+}
+
+.backup-toast.info {
+    background: #3b82f6;
+    color: white;
+}
+
+@keyframes toastSlideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* ─── Restore Preview Modal ─────────────────────────────────────────── */
+
+.restore-preview-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    animation: fadeIn 0.2s ease;
+}
+
+.restore-preview-modal {
+    background: white;
+    border-radius: 20px;
+    max-width: 720px;
+    width: 95%;
+    max-height: 85vh;
+    overflow-y: auto;
+    padding: 2rem;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+}
+
+.restore-preview-modal h2 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 1.5rem;
+}
+
+.restore-preview-modal .warning-banner {
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+    color: #92400e;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+
+.restore-preview-modal .category-grid {
+    display: grid;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.restore-preview-modal .category-row {
+    display: grid;
+    grid-template-columns: 1fr 80px 80px 80px 80px;
+    align-items: center;
+    padding: 0.6rem 0.75rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    background: rgba(248, 250, 252, 0.6);
+}
+
+.restore-preview-modal .category-row.header {
+    background: transparent;
+    font-weight: 600;
+    color: #94a3b8;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+}
+
+.restore-preview-modal .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(203, 213, 225, 0.3);
+}
+
+/* ─── Health Indicator ──────────────────────────────────────────────── */
+
+.health-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.health-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    animation: healthPulse 2s infinite;
+}
+
+.health-dot.green {
+    background: #10b981;
+}
+
+.health-dot.red {
+    background: #ef4444;
+}
+
+.health-dot.amber {
+    background: #f59e0b;
+}
+
+@keyframes healthPulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+/* ─── Empty State ───────────────────────────────────────────────────── */
+
+.backup-empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #94a3b8;
+}
+
+.backup-empty-state .empty-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.backup-empty-state p {
+    font-size: 0.9rem;
+    margin: 0;
+}
+
+/* ─── Media Chain ───────────────────────────────────────────────────── */
+
+.media-chain-pills {
+    display: flex;
+    gap: 0.35rem;
+    align-items: center;
+    flex-wrap: wrap;
+    margin: 0.75rem 0 1rem;
+}
+
+.media-chain-pill {
+    padding: 0.3rem 0.65rem;
+    border-radius: 20px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: transform 0.15s ease;
+}
+
+.media-chain-pill:hover {
+    transform: scale(1.05);
+}
+
+.media-chain-pill.full {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.14), rgba(59, 130, 246, 0.06));
+    color: #2563eb;
+}
+
+.media-chain-pill.delta {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.14), rgba(245, 158, 11, 0.06));
+    color: #d97706;
+}
+
+.media-chain-arrow {
+    color: #cbd5e1;
+    font-size: 0.75rem;
+}
+
+.media-chain-info {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+}
+
+.media-chain-stat {
+    font-size: 0.85rem;
+    color: #64748b;
+}
+
+.media-chain-stat strong {
+    color: #1e293b;
+    font-weight: 600;
+}
+
+/* ─── Responsive ────────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+    .backup-page {
+        padding: 1rem;
+    }
+
+    .backup-dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .backup-actions {
+        flex-direction: column;
+    }
+
+    .backup-history-table {
+        font-size: 0.8rem;
+    }
+
+    .restore-preview-modal .category-row {
+        grid-template-columns: 1fr 60px 60px 60px 60px;
+        font-size: 0.75rem;
+    }
+}

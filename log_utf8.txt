@@ -1,0 +1,289 @@
+﻿
+ RUN  v3.2.4 C:/Users/Sanctuary/Desktop/Homework App/kahoot
+
+stdout | src/pages/StudentDashboardPage.teachers.test.jsx
+≡ƒöÑ [Firebase] Initializing Firebase...
+≡ƒöÑ [Firebase] Config check:
+   - apiKey: Γ£à Present
+   - authDomain: Γ£à Present
+   - databaseURL: Γ£à https://temp-a1437-default-rtdb.firebaseio.com
+   - projectId: Γ£à temp-a1437
+≡ƒöÑ [Firebase] App initialized: [DEFAULT]
+≡ƒöÑ [Firebase] Database instance created
+≡ƒöÑ [Firebase] ΓÜá∩╕Å DISCONNECTED from Firebase Realtime Database
+
+stdout | src/pages/StudentDashboardPage.teachers.test.jsx > StudentDashboardPage - Activity Stream > should render the 3-column layout with sidebar navigation
+≡ƒöÑ [Firebase] Γ£à CONNECTED to Firebase Realtime Database
+
+ Γ¥» src/pages/StudentDashboardPage.teachers.test.jsx (11 tests | 1 failed) 1840ms
+   ├ù StudentDashboardPage - Activity Stream > should render the 3-column layout with sidebar navigation 1133ms
+     ΓåÆ Found multiple elements with the text: Classes
+
+Here are the matching elements:
+
+Ignored nodes: comments, script, style
+[36m<button[39m
+  [33mstyle[39m=[32m"display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8px; color: rgb(75, 85, 99); font-weight: 500; text-decoration: none; font-size: 0.95rem; transition: all 0.15s; cursor: pointer; border: medium; text-align: left; width: 100%; background: transparent;"[39m
+[36m>[39m
+  [36m<svg[39m
+    [33mfill[39m=[32m"none"[39m
+    [33mstroke[39m=[32m"currentColor"[39m
+    [33mstyle[39m=[32m"width: 24px; height: 24px;"[39m
+    [33mviewBox[39m=[32m"0 0 24 24"[39m
+  [36m>[39m
+    [36m<path[39m
+      [33md[39m=[32m"M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"[39m
+      [33mstroke-linecap[39m=[32m"round"[39m
+      [33mstroke-linejoin[39m=[32m"round"[39m
+      [33mstroke-width[39m=[32m"2"[39m
+    [36m/>[39m
+  [36m</svg>[39m
+  [0mClasses[0m
+[36m</button>[39m
+
+Ignored nodes: comments, script, style
+[36m<button[39m
+  [33mstyle[39m=[32m"padding: 12px 0px; font-weight: 500; font-size: 0.9rem; color: rgb(107, 114, 128); cursor: pointer; border-width: medium medium 2px; border-style: none none solid; border-color: currentcolor currentcolor transparent; border-image: none; background: transparent; transition: all 0.15s; white-space: nowrap; flex: 1 1 0%;"[39m
+[36m>[39m
+  [0mClasses[0m
+[36m</button>[39m
+
+(If this is intentional, then use the `*AllBy*` variant of the query (like `queryAllByText`, `getAllByText`, or `findAllByText`)).
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"student-view-root"[39m
+      [33mstyle[39m=[32m"min-height: 100vh; font-family: \"Inter\", sans-serif; color: rgb(17, 24, 39);"[39m
+    [36m>[39m
+      [36m<link[39m
+        [33mhref[39m=[32m"https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"[39m
+        [33mrel[39m=[32m"stylesheet"[39m
+      [36m/>[39m
+      [36m<div[39m
+        [33mstyle[39m=[32m"display: flex; max-width: 1400px; margin: 0px auto; min-height: 100vh;"[39m
+      [36m>[39m
+        [36m<header[39m
+          [33mstyle[39m=[32m"width: 256px; flex-shrink: 0; padding: 24px 16px; display: flex; flex-direction: column; position: sticky; top: 0px; height: 100vh; overflow-y: auto;"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mstyle[39m=[32m"display: flex; flex-direction: column; height: 100%;"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mstyle[39m=[32m"font-size: 1.25rem; font-weight: 800; color: rgb(79, 70, 229); margin-bottom: 32px; padding: 0px 12px; letter-spacing: -0.02em;"[39m
+            [36m>[39m
+              [0mStudentDash[0m
+            [36m</div>[39m
+            [36m<nav[39m
+              [33mstyle[39m=[32m"display: flex; flex-direction: column; gap: 4px; flex: 1 1 0%;"[39m
+            [36m>[39m
+              [36m<button[39m
+                [33mstyle[39m=[32m"display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8px; color: rgb(17, 24, 39); font-weight: 700; text-decoration: none; font-size: 0.95rem; transition: all 0.15s; cursor: pointer; border: medium; text-align: left; width: 100%; background: transparent;"[39m
+              [36m>[39m
+                [36m<svg[39m
+                  [33mfill[39m=[32m"currentColor"[39m
+                  [33mstyle[39m=[32m"width: 24px; height: 24px;"[39m
+                  [33mviewBox[39m=[32m"0 0 20 20"[39m
+                [36m>[39m
+                  [36m<path[39m
+                    [33md[39m=[32m"M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"[39m
+                  [36m/>[39m
+                [36m</svg>[39m
+                [0mFeed[0m
+              [36m</button>[39m
+              [36m<button[39m
+                [33mstyle[39m=[32m"display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8px; color: rgb(75, 85, 99); font-weight: 500; text-decoration: none; font-size: 0.95rem; transition: all 0.15s; cursor: pointer; border: medium; text-align: left; width: 100%; background: transparent;"[39m
+              [36m>[39m
+                [36m<svg[39m
+                  [33mfill[39m=[32m"none"[39m
+                  [33mstroke[39m=[32m"currentColor"[39m
+                  [33mstyle[39m=[32m"width: 24px; height: 24px;"[39m
+                  [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [36m>[39m
+                  [36m<path[39m
+                    [33md[39m=[32m"M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                  [36m/>[39m
+                [36m</svg>[39m
+                [0mClasses[0m
+              [36m</button>[39m
+              [36m<button[39m
+                [33mstyle[39m=[32m"display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8px; color: rgb(75, 85, 99); font-weight: 500; text-decoration: none; font-size: 0.95rem; transition: all 0.15s; cursor: pointer; border: medium; text-align: left; width: 100%; background: transparent;"[39m
+              [36m>[39m
+                [36m<svg[39m
+                  [33mfill[39m=[32m"none"[39m
+                  [33mstroke[39m=[32m"currentColor"[39m
+                  [33mstyle[39m=[32m"width: 24px; height: 24px;"[39m
+                  [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [36m>[39m
+                  [36m<path[39m
+                    [33md[39m=[32m"M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                  [36m/>[39m
+                [36m</svg>[39m
+                [0mHistory[0m
+              [36m</button>[39m
+              [36m<div[39m
+                [33mstyle[39m=[32m"margin: 12px 0px;"[39m
+              [36m/>[39m
+              [36m<button[39m
+                [33mstyle[39m=[32m"display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8px; color: rgb(75, 85, 99); font-weight: 500; text-decoration: none; font-size: 0.95rem; transition: all 0.15s; cursor: pointer; border: medium; text-align: left; width: 100%; background: transparent;"[39m
+              [36m>[39m
+                [36m<svg[39m
+                  [33mfill[39m=[32m"none"[39m
+                  [33mstroke[39m=[32m"currentColor"[39m
+                  [33mstyle[39m=[32m"width: 24px; height: 24px;"[39m
+                  [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [36m>[39m
+                  [36m<path[39m
+                    [33md[39m=[32m"M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                  [36m/>[39m
+                [36m</svg>[39m
+                [0mHomework[0m
+              [36m</button>[39m
+              [36m<button[39m
+                [33mstyle[39m=[32m"display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8px; color: rgb(75, 85, 99); font-weight: 500; text-decoration: none; font-size: 0.95rem; transition: all 0.15s; cursor: pointer; border: medium; text-align: left; width: 100%; background: transparent;"[39m
+              [36m>[39m
+                [36m<svg[39m
+                  [33mfill[39m=[32m"none"[39m
+                  [33mstroke[39m=[32m"currentColor"[39m
+                  [33mstyle[39m=[32m"width: 24px; height: 24px;"[39m
+                  [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [36m>[39m
+                  [36m<path[39m
+                    [33md[39m=[32m"M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.47...
+
+Ignored nodes: comments, script, style
+[36m<html[39m
+  [33mdata-mantine-color-scheme[39m=[32m"light"[39m
+[36m>[39m
+  [36m<head />[39m
+  [36m<body>[39m
+    [36m<div>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"student-view-root"[39m
+        [33mstyle[39m=[32m"min-height: 100vh; font-family: \"Inter\", sans-serif; color: rgb(17, 24, 39);"[39m
+      [36m>[39m
+        [36m<link[39m
+          [33mhref[39m=[32m"https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"[39m
+          [33mrel[39m=[32m"stylesheet"[39m
+        [36m/>[39m
+        [36m<div[39m
+          [33mstyle[39m=[32m"display: flex; max-width: 1400px; margin: 0px auto; min-height: 100vh;"[39m
+        [36m>[39m
+          [36m<header[39m
+            [33mstyle[39m=[32m"width: 256px; flex-shrink: 0; padding: 24px 16px; display: flex; flex-direction: column; position: sticky; top: 0px; height: 100vh; overflow-y: auto;"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mstyle[39m=[32m"display: flex; flex-direction: column; height: 100%;"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mstyle[39m=[32m"font-size: 1.25rem; font-weight: 800; color: rgb(79, 70, 229); margin-bottom: 32px; padding: 0px 12px; letter-spacing: -0.02em;"[39m
+              [36m>[39m
+                [0mStudentDash[0m
+              [36m</div>[39m
+              [36m<nav[39m
+                [33mstyle[39m=[32m"display: flex; flex-direction: column; gap: 4px; flex: 1 1 0%;"[39m
+              [36m>[39m
+                [36m<button[39m
+                  [33mstyle[39m=[32m"display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8px; color: rgb(17, 24, 39); font-weight: 700; text-decoration: none; font-size: 0.95rem; transition: all 0.15s; cursor: pointer; border: medium; text-align: left; width: 100%; background: transparent;"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33mfill[39m=[32m"currentColor"[39m
+                    [33mstyle[39m=[32m"width: 24px; height: 24px;"[39m
+                    [33mviewBox[39m=[32m"0 0 20 20"[39m
+                  [36m>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"[39m
+                    [36m/>[39m
+                  [36m</svg>[39m
+                  [0mFeed[0m
+                [36m</button>[39m
+                [36m<button[39m
+                  [33mstyle[39m=[32m"display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8px; color: rgb(75, 85, 99); font-weight: 500; text-decoration: none; font-size: 0.95rem; transition: all 0.15s; cursor: pointer; border: medium; text-align: left; width: 100%; background: transparent;"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstyle[39m=[32m"width: 24px; height: 24px;"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                  [36m>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"[39m
+                      [33mstroke-linecap[39m=[32m"round"[39m
+                      [33mstroke-linejoin[39m=[32m"round"[39m
+                      [33mstroke-width[39m=[32m"2"[39m
+                    [36m/>[39m
+                  [36m</svg>[39m
+                  [0mClasses[0m
+                [36m</button>[39m
+                [36m<button[39m
+                  [33mstyle[39m=[32m"display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8px; color: rgb(75, 85, 99); font-weight: 500; text-decoration: none; font-size: 0.95rem; transition: all 0.15s; cursor: pointer; border: medium; text-align: left; width: 100%; background: transparent;"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstyle[39m=[32m"width: 24px; height: 24px;"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                  [36m>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"[39m
+                      [33mstroke-linecap[39m=[32m"round"[39m
+                      [33mstroke-linejoin[39m=[32m"round"[39m
+                      [33mstroke-width[39m=[32m"2"[39m
+                    [36m/>[39m
+                  [36m</svg>[39m
+                  [0mHistory[0m
+                [36m</button>[39m
+                [36m<div[39m
+                  [33mstyle[39m=[32m"margin: 12px 0px;"[39m
+                [36m/>[39m
+                [36m<button[39m
+                  [33mstyle[39m=[32m"display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8px; color: rgb(75, 85, 99); font-weight: 500; text-decoration: none; font-size: 0.95rem; transition: all 0.15s; cursor: pointer; border: medium; text-align: left; width: 100%; background: transparent;"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstyle[39m=[32m"width: 24px; height: 24px;"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                  [36m>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"[39m
+                      [33mstroke-linecap[39m=[32m"round"[39m
+                      [33mstroke-linejoin[39m=[32m"round"[39m
+                      [33mstroke-width[39m=[32m"2"[39m
+                    [36m/>[39m
+                  [36m</svg>[39m
+                  [0mHomework[0m
+                [36m</button>[39m
+                [36m<button[39m
+                  [33mstyle[39m=[32m"display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8px; color: rgb(75, 85, 99); font-weight: 500; text-decoration: none; font-size: 0.95rem; transition: all 0.15s; cursor: pointer; border: medium; text-align: left; width: 100%; background: transparent;"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstyle[39m=[32m"width: 24...
+   Γ£ô StudentDashboardPage - Activity Stream > should show empty state when no notifications or classes 71ms
+   Γ£ô StudentDashboardPage - Activity Stream > should display feed items when notifications exist 70ms
+   Γ£ô StudentDashboardPage - Activity Stream > should display filter tabs in feed view 56ms
+   Γ£ô StudentDashboardPage - Activity Stream > should show "Load More" button when hasMoreNotifs is true 119ms
+   Γ£ô StudentDashboardPage - Activity Stream > should switch to classes view when sidebar "Classes" is clicked 74ms
+   Γ£ô StudentDashboardPage - Activity Stream > should render "Up Next" section in right panel 77ms
+   Γ£ô StudentDashboardPage - Activity Stream > should show empty "Up Next" state when no assignments 43ms
+   Γ£ô StudentDashboardPage - Activity Stream > should mark overdue assignments with red badge 54ms
+   Γ£ô StudentDashboardPage - Activity Stream > should render Join Class modal when button is clicked 83ms
+   Γ£ô StudentDashboardPage - Activity Stream > should show "Live Now" section when public sessions exist 58ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 10 passed (11)
+   Start at  05:17:24
+   Duration  6.50s (transform 242ms, setup 296ms, collect 2.40s, tests 1.84s, environment 1.33s, prepare 116ms)
+

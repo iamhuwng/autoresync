@@ -1,0 +1,570 @@
+.homework-card {
+    background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+    border: 1px solid #e5e7eb;
+    border-radius: 1rem;
+    padding: 1.5rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.homework-card.clickable {
+    cursor: pointer;
+}
+
+.homework-card.clickable:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+    border-color: #3b82f6;
+}
+
+.homework-card.overdue {
+    border-color: #f59e0b;
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+}
+
+.homework-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+    gap: 1rem;
+}
+
+.homework-title-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    flex: 1;
+}
+
+.homework-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #111827;
+    margin: 0;
+    line-height: 1.4;
+}
+
+.homework-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+
+.action-btn {
+    width: 2.5rem;
+    height: 2.5rem;
+    border: none;
+    border-radius: 0.5rem;
+    background: #f3f4f6;
+    cursor: pointer;
+    font-size: 1.125rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.action-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.edit-btn:hover {
+    background: #dbeafe;
+}
+
+.duplicate-btn:hover {
+    background: #e0e7ff;
+}
+
+.extend-btn:hover {
+    background: #fef3c7;
+}
+
+.delete-btn:hover {
+    background: #fee2e2;
+}
+
+.reset-student-btn:hover {
+    background: #fff7ed;
+}
+
+/* ========== Reset Student Modal ========== */
+
+.homework-reset-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: fadeIn 0.2s ease-out;
+}
+
+.homework-reset-modal {
+    background: #fff;
+    border-radius: 1rem;
+    padding: 1.5rem;
+    width: 90%;
+    max-width: 480px;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: slideUpModal 0.3s ease-out;
+}
+
+.reset-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.reset-modal-header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.reset-modal-close {
+    background: none;
+    border: none;
+    font-size: 1.25rem;
+    cursor: pointer;
+    color: #94a3b8;
+    padding: 0.25rem;
+    border-radius: 0.25rem;
+    transition: color 0.2s;
+}
+
+.reset-modal-close:hover {
+    color: #1e293b;
+}
+
+.reset-modal-subtitle {
+    font-size: 0.875rem;
+    color: #64748b;
+    margin: 0 0 1rem;
+    line-height: 1.5;
+}
+
+.reset-message {
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    margin-bottom: 1rem;
+}
+
+.reset-message.success {
+    background: #f0fdf4;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+}
+
+.reset-message.error {
+    background: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+}
+
+.reset-loading,
+.reset-empty {
+    text-align: center;
+    padding: 2rem 1rem;
+    color: #64748b;
+    font-size: 0.875rem;
+}
+
+/* Student List */
+.reset-student-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.reset-student-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    transition: background 0.2s;
+}
+
+.reset-student-row:hover {
+    background: #f1f5f9;
+}
+
+.reset-student-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+
+.reset-student-name {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.reset-student-meta {
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+.reset-student-btn {
+    background: #fff7ed;
+    color: #c2410c;
+    border: 1px solid #fed7aa;
+    border-radius: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.reset-student-btn:hover {
+    background: #ffedd5;
+    border-color: #fb923c;
+}
+
+/* Confirmation Section */
+.reset-confirm-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.reset-warning {
+    background: #fffbeb;
+    border: 1px solid #fef3c7;
+    border-left: 4px solid #f59e0b;
+    border-radius: 0.5rem;
+    padding: 1rem;
+}
+
+.reset-warning p {
+    margin: 0 0 0.5rem;
+    font-size: 0.875rem;
+    color: #92400e;
+}
+
+.reset-warning ul {
+    margin: 0.5rem 0;
+    padding-left: 1.25rem;
+    font-size: 0.8rem;
+    color: #92400e;
+}
+
+.reset-warning ul li {
+    margin-bottom: 0.25rem;
+}
+
+.reset-warning-note {
+    font-size: 0.75rem !important;
+    color: #b45309 !important;
+    font-weight: 600;
+    margin-top: 0.5rem !important;
+}
+
+.reset-confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+}
+
+.reset-btn-cancel {
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.reset-btn-cancel:hover {
+    background: #e2e8f0;
+}
+
+.reset-btn-confirm {
+    background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+    color: #fff;
+    border: none;
+    border-radius: 0.5rem;
+    padding: 0.5rem 1.25rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.reset-btn-confirm:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(249, 115, 22, 0.4);
+}
+
+.reset-btn-confirm:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.reset-btn-cancel:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes slideUpModal {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.homework-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.homework-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.75rem;
+}
+
+.info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.info-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #6b7280;
+}
+
+.info-value {
+    font-size: 0.875rem;
+    color: #111827;
+    font-weight: 500;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.time-remaining {
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-top: 0.25rem;
+}
+
+.time-plenty {
+    color: #059669;
+}
+
+.time-soon {
+    color: #d97706;
+}
+
+.time-urgent {
+    color: #dc2626;
+    animation: pulse-urgent 1.5s ease-in-out infinite;
+}
+
+.time-overdue {
+    color: #dc2626;
+    font-weight: 700;
+}
+
+@keyframes pulse-urgent {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.7;
+    }
+}
+
+.homework-instructions {
+    background: #f9fafb;
+    border-left: 3px solid #3b82f6;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+}
+
+.instructions-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #6b7280;
+    display: block;
+    margin-bottom: 0.5rem;
+}
+
+.instructions-text {
+    font-size: 0.875rem;
+    color: #374151;
+    margin: 0;
+    line-height: 1.6;
+}
+
+.submission-progress {
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+    border-radius: 0.75rem;
+    padding: 1rem;
+    border: 1px solid #bfdbfe;
+}
+
+.progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.progress-label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #1e40af;
+}
+
+.progress-stats {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #1e40af;
+}
+
+.average-score {
+    color: #059669;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 0.5rem;
+    background: #ffffff;
+    border-radius: 0.25rem;
+    overflow: hidden;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%);
+    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 0.25rem;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .homework-card {
+        background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+        border-color: #374151;
+    }
+
+    .homework-card.overdue {
+        background: linear-gradient(135deg, #451a03 0%, #78350f 100%);
+        border-color: #f59e0b;
+    }
+
+    .homework-title {
+        color: #f9fafb;
+    }
+
+    .action-btn {
+        background: #374151;
+    }
+
+    .info-label {
+        color: #9ca3af;
+    }
+
+    .info-value {
+        color: #f9fafb;
+    }
+
+    .homework-instructions {
+        background: #374151;
+        border-left-color: #60a5fa;
+    }
+
+    .instructions-text {
+        color: #d1d5db;
+    }
+
+    .submission-progress {
+        background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+        border-color: #3b82f6;
+    }
+
+    .progress-label,
+    .progress-stats {
+        color: #bfdbfe;
+    }
+
+    .progress-bar {
+        background: #374151;
+    }
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+    .homework-card {
+        padding: 1rem;
+    }
+
+    .homework-card-header {
+        flex-direction: column;
+    }
+
+    .homework-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    .homework-info-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .action-btn {
+        width: 2rem;
+        height: 2rem;
+        font-size: 1rem;
+    }
+}

@@ -1,0 +1,102 @@
+{
+  "api_keys": {
+    "updatedAt": {
+      "integerValue": "1770407041792"
+    },
+    "gemini": {
+      "mapValue": {
+        "fields": {
+          "gemini_1770403204432": {
+            "mapValue": {
+              "fields": {
+                "createdAt": {
+                  "integerValue": "1770403204432"
+                },
+                "encryptedKey": {
+                  "stringValue": "LDoOFH4SIwIZHQRrOSkEeCMdIzp0dgEDAQs7DDEcI1AHBFlNWUw9"
+                },
+                "id": {
+                  "stringValue": "gemini_1770403204432"
+                },
+                "requestCount": {
+                  "integerValue": "0"
+                },
+                "provider": {
+                  "stringValue": "gemini"
+                },
+                "keyPreview": {
+                  "stringValue": "AIza...1ok69t-M"
+                },
+                "errorCount": {
+                  "integerValue": "0"
+                },
+                "label": {
+                  "stringValue": "teacherscontact2025@gmail.com"
+                },
+                "createdBy": {
+                  "stringValue": "ADMIN_UID"
+                },
+                "isActive": {
+                  "booleanValue": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "groq": {
+      "mapValue": {
+        "fields": {
+          "groq_1770402706633": {
+            "mapValue": {
+              "fields": {
+                "requestCount": {
+                  "integerValue": "0"
+                },
+                "provider": {
+                  "stringValue": "groq"
+                },
+                "id": {
+                  "stringValue": "groq_1770402706633"
+                },
+                "encryptedKey": {
+                  "stringValue": "CgAfKkExMV4MIANaFwgMQVkoARVuXldeYSoXDRceLTgKGjsWGgBEHmwTHTsfGnNxf3sgAhUGaiw="
+                },
+                "createdAt": {
+                  "integerValue": "1770402706634"
+                },
+                "label": {
+                  "stringValue": "teacherscontact2025@gmail.com"
+                },
+                "createdBy": {
+                  "stringValue": "ADMIN_UID"
+                },
+                "isActive": {
+                  "booleanValue": true
+                },
+                "errorCount": {
+                  "integerValue": "0"
+                },
+                "keyPreview": {
+                  "stringValue": "gsk_...MMMqasGG"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "updatedBy": {
+      "stringValue": "ADMIN_UID"
+    }
+  },
+  "featureFlags": {
+    "feedbackManagementEnabled": {
+      "booleanValue": true
+    },
+    "studentManagementEnabled": {
+      "booleanValue": true
+    }
+  }
+}

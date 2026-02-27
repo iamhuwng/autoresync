@@ -1,0 +1,2063 @@
+{
+  "-OkT9Syg2l2I3GESCFx_": {
+    "action": "LOGOUT",
+    "details": {
+      "activeRole": "super_admin",
+      "reason": "manual"
+    },
+    "serverTime": 1770032587149,
+    "target": "session",
+    "targetId": "ADMIN_UID",
+    "timestamp": "2026-02-02T11:43:00.531Z",
+    "userId": "ADMIN_UID",
+    "userRole": "super_admin"
+  },
+  "-OkT9Vsc0KG_0eIBnylP": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770032599051,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-02T11:43:12.431Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkTVjeUqF5p_BHt8NIr": {
+    "action": "LOGOUT",
+    "details": {
+      "activeRole": "teacher",
+      "reason": "manual"
+    },
+    "serverTime": 1770038427099,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-02T13:20:26.427Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkTaO4WJ1PfM8iXSVUh": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "super_admin",
+      "email": "iamhuwng@gmail.com"
+    },
+    "serverTime": 1770039906874,
+    "target": "session",
+    "targetId": "ADMIN_UID",
+    "timestamp": "2026-02-02T13:45:06.880Z",
+    "userId": "ADMIN_UID",
+    "userRole": "super_admin"
+  },
+  "-OkUHz6kjpNKnKOxjdWt": {
+    "action": "LOGOUT",
+    "details": {
+      "activeRole": "super_admin",
+      "reason": "manual"
+    },
+    "serverTime": 1770051596945,
+    "target": "session",
+    "targetId": "ADMIN_UID",
+    "timestamp": "2026-02-02T16:59:53.647Z",
+    "userId": "ADMIN_UID",
+    "userRole": "super_admin"
+  },
+  "-OkUIB0_VLzb98Dr1vPK": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "hungnguyenzim@gmail.com"
+    },
+    "serverTime": 1770051649797,
+    "target": "session",
+    "targetId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "timestamp": "2026-02-02T17:00:46.502Z",
+    "userId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "userRole": "teacher"
+  },
+  "-OkYwJv5k9pJ_nOvIcTP": {
+    "action": "LOGOUT",
+    "details": {
+      "activeRole": "teacher",
+      "reason": "manual"
+    },
+    "serverTime": 1770129543082,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-03T14:39:03.424Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkYwTP7Al0mwvBNgxFD": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "student",
+      "email": "student@test.com"
+    },
+    "serverTime": 1770129581892,
+    "target": "session",
+    "targetId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "timestamp": "2026-02-03T14:39:42.274Z",
+    "userId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "userRole": "student"
+  },
+  "-OkYwuFBWM5XDK6jLFEO": {
+    "action": "ACCESS_DENIED",
+    "details": {
+      "activeRole": "student",
+      "reason": "role",
+      "userRole": "student"
+    },
+    "serverTime": 1770129695966,
+    "target": "route",
+    "targetId": "/lobby",
+    "timestamp": "2026-02-03T14:41:36.336Z",
+    "userId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "userRole": "student"
+  },
+  "-OkZDYF_IaB84JaSs-M6": {
+    "action": "ACCESS_DENIED",
+    "details": {
+      "activeRole": "student",
+      "reason": "role",
+      "userRole": "student"
+    },
+    "serverTime": 1770134321113,
+    "target": "route",
+    "targetId": "/teacher/homework",
+    "timestamp": "2026-02-03T15:58:40.930Z",
+    "userId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "userRole": "student"
+  },
+  "-OkZDowOnA5HwondW1qf": {
+    "action": "LOGOUT",
+    "details": {
+      "activeRole": "student",
+      "reason": "manual"
+    },
+    "serverTime": 1770134393100,
+    "target": "session",
+    "targetId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "timestamp": "2026-02-03T15:59:53.367Z",
+    "userId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "userRole": "student"
+  },
+  "-OkZEDYNPV_NkC6bkqtU": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770134498479,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-03T16:01:38.262Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkZOOd6IDL7d-VD7MQE": {
+    "action": "LOGOUT",
+    "details": {
+      "activeRole": "teacher",
+      "reason": "manual"
+    },
+    "serverTime": 1770137164568,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-03T16:46:04.488Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkZOeUQmqW3sfZXPabi": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "student",
+      "email": "student@test.com"
+    },
+    "serverTime": 1770137233580,
+    "target": "session",
+    "targetId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "timestamp": "2026-02-03T16:47:13.501Z",
+    "userId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "userRole": "student"
+  },
+  "-OkbDHrxkOAro8osusNy": {
+    "action": "LOGOUT",
+    "details": {
+      "activeRole": "teacher",
+      "reason": "manual"
+    },
+    "serverTime": 1770184584988,
+    "target": "session",
+    "targetId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "timestamp": "2026-02-04T05:56:22.028Z",
+    "userId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "userRole": "teacher"
+  },
+  "-OkbDKcCPRJVwp4zAqHa": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "student",
+      "email": "student@test.com"
+    },
+    "serverTime": 1770184596267,
+    "target": "session",
+    "targetId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "timestamp": "2026-02-04T05:56:33.309Z",
+    "userId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "userRole": "student"
+  },
+  "-OkcKYHbCAPVdqtKtB0h": {
+    "action": "LOGOUT",
+    "details": {
+      "activeRole": "student",
+      "reason": "manual"
+    },
+    "serverTime": 1770203264408,
+    "target": "session",
+    "targetId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "timestamp": "2026-02-04T11:07:44.886Z",
+    "userId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "userRole": "student"
+  },
+  "-OkcKabklrUT1Liv9Y2e": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770203278047,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-04T11:07:58.528Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkcNa94Vu3SwzdndFQT": {
+    "action": "LOGOUT",
+    "details": {
+      "activeRole": "teacher",
+      "reason": "manual"
+    },
+    "serverTime": 1770204062543,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-04T11:21:02.938Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkcQk8iJFB4iGD00U43": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "super_admin",
+      "email": "iamhuwng@gmail.com"
+    },
+    "serverTime": 1770204889934,
+    "target": "session",
+    "targetId": "ADMIN_UID",
+    "timestamp": "2026-02-04T11:34:50.252Z",
+    "userId": "ADMIN_UID",
+    "userRole": "super_admin"
+  },
+  "-OkcgUrJqQM3fQu47n5u": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "hungnguyenzim@gmail.com"
+    },
+    "serverTime": 1770209279685,
+    "target": "session",
+    "targetId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "timestamp": "2026-02-04T12:47:59.909Z",
+    "userId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "userRole": "teacher"
+  },
+  "-OkdyoBwiN0n4D0tKLWC": {
+    "action": "LOGOUT",
+    "details": {
+      "activeRole": "teacher",
+      "reason": "manual"
+    },
+    "serverTime": 1770230858841,
+    "target": "session",
+    "targetId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "timestamp": "2026-02-04T18:47:39.307Z",
+    "userId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "userRole": "teacher"
+  },
+  "-Okdz2SXfrmhSCTj4lWF": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "student",
+      "email": "hungunicenter@gmail.com"
+    },
+    "serverTime": 1770230921344,
+    "target": "session",
+    "targetId": "G5yDXmkDfsVhoKYTp7xTwbbggtB2",
+    "timestamp": "2026-02-04T18:48:41.809Z",
+    "userId": "G5yDXmkDfsVhoKYTp7xTwbbggtB2",
+    "userRole": "student"
+  },
+  "-Okfh8VkH6w_L2hGmv5f": {
+    "action": "LOGOUT",
+    "details": {
+      "activeRole": "teacher",
+      "reason": "manual"
+    },
+    "serverTime": 1770259781918,
+    "target": "session",
+    "targetId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "timestamp": "2026-02-05T02:49:41.897Z",
+    "userId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "userRole": "teacher"
+  },
+  "-OkfhGPAQHzuknP7zfVQ": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "student",
+      "email": "dathung0695@gmail.com"
+    },
+    "serverTime": 1770259814221,
+    "target": "session",
+    "targetId": "ILMbyeRrH4eJoJCjvW7eixHmH0v1",
+    "timestamp": "2026-02-05T02:50:14.243Z",
+    "userId": "ILMbyeRrH4eJoJCjvW7eixHmH0v1",
+    "userRole": "student"
+  },
+  "-OkfhoWBVFCzi_bloXLd": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "super_admin",
+      "email": "iamhuwng@gmail.com"
+    },
+    "serverTime": 1770259958049,
+    "target": "session",
+    "targetId": "ADMIN_UID",
+    "timestamp": "2026-02-05T02:52:38.076Z",
+    "userId": "ADMIN_UID",
+    "userRole": "super_admin"
+  },
+  "-Okg5ZGQG9NTLZSXbc-2": {
+    "action": "LOGOUT",
+    "details": {
+      "activeRole": "student",
+      "reason": "manual"
+    },
+    "serverTime": 1770266445091,
+    "target": "session",
+    "targetId": "G5yDXmkDfsVhoKYTp7xTwbbggtB2",
+    "timestamp": "2026-02-05T04:40:45.359Z",
+    "userId": "G5yDXmkDfsVhoKYTp7xTwbbggtB2",
+    "userRole": "student"
+  },
+  "-Okg5r7M-EDEVqXZ-fkf": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "hungnguyenzim@gmail.com"
+    },
+    "serverTime": 1770266522343,
+    "target": "session",
+    "targetId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "timestamp": "2026-02-05T04:42:02.604Z",
+    "userId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "userRole": "teacher"
+  },
+  "-OkgE9uMrCSdhtLuxfU2": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "super_admin",
+      "email": "iamhuwng@gmail.com"
+    },
+    "serverTime": 1770268700560,
+    "target": "session",
+    "targetId": "ADMIN_UID",
+    "timestamp": "2026-02-05T05:18:20.876Z",
+    "userId": "ADMIN_UID",
+    "userRole": "super_admin"
+  },
+  "-OkgqKHz3LE9PvE1sEpb": {
+    "action": "LOGOUT",
+    "details": {
+      "activeRole": "student",
+      "reason": "manual"
+    },
+    "serverTime": 1770278966976,
+    "target": "session",
+    "targetId": "ILMbyeRrH4eJoJCjvW7eixHmH0v1",
+    "timestamp": "2026-02-05T08:09:22.544Z",
+    "userId": "ILMbyeRrH4eJoJCjvW7eixHmH0v1",
+    "userRole": "student"
+  },
+  "-OkgqYKtOEEMm270t5TP": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "super_admin",
+      "email": "iamhuwng@gmail.com"
+    },
+    "serverTime": 1770279024316,
+    "target": "session",
+    "targetId": "ADMIN_UID",
+    "timestamp": "2026-02-05T08:10:20.076Z",
+    "userId": "ADMIN_UID",
+    "userRole": "super_admin"
+  },
+  "-Oklb-dnr8KZiCFDEbPW": {
+    "action": "LOGOUT",
+    "details": {
+      "activeRole": "student",
+      "reason": "manual"
+    },
+    "serverTime": 1770358836016,
+    "target": "session",
+    "targetId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "timestamp": "2026-02-06T06:20:35.943Z",
+    "userId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "userRole": "student"
+  },
+  "-Oklb6hZdw1NwvHkSWNM": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770358864926,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-06T06:21:04.857Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OklzZcR8JrRWh1Y-uEe": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770365274858,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-06T08:07:54.989Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkoCv_NxoV7ov9LX9uP": {
+    "action": "ACCESS_DENIED",
+    "details": {
+      "activeRole": "teacher",
+      "reason": "role",
+      "userRole": "teacher"
+    },
+    "serverTime": 1770402593305,
+    "target": "route",
+    "targetId": "/admin/settings",
+    "timestamp": "2026-02-06T18:29:53.621Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkpwkgyhWD9uZGAZzNT": {
+    "action": "LOGOUT",
+    "details": {
+      "activeRole": "teacher",
+      "reason": "manual"
+    },
+    "serverTime": 1770431646816,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:34:03.107Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okpx9hqhwhFz6zov4n6": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770431753364,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:35:49.659Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okpy54xWpmOsesxV3Oi": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770431996566,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:39:52.816Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okpy57XKNvihK2iBDGW": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770431996679,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:39:52.981Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okpy57Yaaou7P8SWL7Y": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770431996695,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:39:52.981Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okpy57e1RxvOb3yVY9y": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770431996677,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:39:52.984Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okpy58CwjE7a2vFcvbJ": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770431996749,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:39:53.025Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okpy77ESlvrmkscR1WX": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770432004841,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:40:01.146Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkpyBfsTAIiqETWSaBl": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770432023503,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:40:19.809Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkpyBhcheSBgGKyVAHE": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770432023630,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:40:19.927Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkpyBigXbM1m5_mAH7D": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770432023711,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:40:19.994Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkpyBlO41eDvThBDpMs": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770432023878,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:40:20.172Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkpyBlwuCFOp2-t7T2H": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770432023909,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:40:20.198Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkpyFfOY-tikZcYMg3E": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770432039937,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:40:36.217Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkpyFjBpuQD46BxnZF2": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770432040108,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:40:36.414Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkpyFk1JMvO_PeFue9N": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770432040204,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:40:36.467Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkpyFx13cmxVjGqjO4P": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770432041039,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:40:37.331Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkpyHTDAao8Kqj29skL": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770432047224,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:40:43.522Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkpyI9WAMGfjuHWqydt": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770432050104,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:40:46.373Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkpyKOEff9ctZwxJfoO": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770432059179,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:40:55.491Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkpzJp5rttWFR6MYqdy": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770432319299,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:45:15.590Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkpzP-LsuAPNaDWrAMa": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770432340565,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:45:36.548Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkpzUHgjPL8fYvKeyih": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770432361888,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:45:58.194Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkpzzDC6rNDdZvRKcdS": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770432492685,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:48:08.985Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq-1d156Vm3htlPiUj": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770432506724,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:48:23.015Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq-7EIUpKrYekWAiGy": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770432529606,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:48:45.909Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq-JWdeyesjHCUvvtJ": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770432579941,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:49:36.225Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq-MVe_qODo3p4Ydib": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770432592145,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:49:48.450Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq-X_9Q4pXChsNdQ5P": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770432637495,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:50:33.802Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq-h3U2rUvOrorlwXR": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770432680540,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:51:16.763Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq0amHOzM0Iz7HDpv5": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770432916881,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:55:13.177Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq0mDsH9EpEZTsfboN": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770432963781,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:56:00.090Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq0o8cn1iwLWNhW9Yr": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770432971577,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:56:07.923Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq0t4Ayz8qZ5GOPW6C": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770432991805,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:56:28.130Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq0t5TqEFZvz-XeqSn": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770432991868,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:56:28.208Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq0uXFOsmqm-0qD8S2": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770432997765,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:56:34.094Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq0yIyA0oQwec5d3ys": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770433013225,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:56:49.565Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq0zKeljk4Otfgs-zz": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770433017419,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:56:53.749Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq0zhnbT0FuuYMmErP": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770433019010,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:56:55.330Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq10XLDjMeR-r-xG2P": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770433026423,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:57:02.767Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq12a8YSzHrSoi7Yoh": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770433034870,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:57:11.210Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq14-cfieAcWWvyhMy": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770433040741,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:57:17.017Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq1S41J9cfxjkYf4TX": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770433139379,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:58:55.585Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq1Xgky6QM2IqZNwOt": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770433162271,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T02:59:18.601Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq1ugBcV2KXVM0LJNt": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770433260551,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T03:00:56.873Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq1wBsT3WMXZoy3Tc0": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770433267267,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T03:01:03.065Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq1yZCoYU2S8HgShQ4": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770433276501,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T03:01:12.749Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq2-Dv4dJdemvJEGmn": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770433283221,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T03:01:19.576Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq2-aFLXF8oIKmQHLz": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770433284740,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T03:01:21.070Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq2UF5IxNpq_n4wLGZ": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770433410289,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T03:03:26.624Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq3GSV8LGxbHgFNOgq": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770433615955,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T03:06:52.305Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq3m167-cwnT3rWQJn": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770433749348,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T03:09:05.718Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq5VdTzgRSSGkPMK5N": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770434202449,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T03:16:38.816Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq6NvNK3uvO3ACBnsJ": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770434432942,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T03:20:29.336Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq6egK18fogRmwjDu6": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770434505725,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T03:21:42.113Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq6z-3Vl6e3Ef2dELs": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770434589000,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T03:23:05.291Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq7FkUV9eR4yQzGZA7": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770434661626,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T03:24:18.023Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq7QPzUm1XYYc4CXC0": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770434705376,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T03:25:01.717Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq7n1JBtAk-kjfNzUK": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770434802030,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T03:26:38.434Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq7vjA6c6YjSSXDAJ9": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770434837706,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T03:27:14.078Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq7vjc-6ipIqXpr9in": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770434837708,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T03:27:14.109Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq7xyqskcMPlAIsd3s": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770434846916,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T03:27:23.313Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq8-7hFLJXzghCHehX": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770434855725,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T03:27:32.109Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq8-EOMQoHRg0bUQtv": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770434856284,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T03:27:32.676Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq80ocgKQysOluh_Cc": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770434862594,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T03:27:39.001Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq84NAOILrcQL8H14S": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770434877285,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T03:27:53.675Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq85TFcwcGMQVgEsKR": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770434881701,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T03:27:58.054Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq86owxOqOU4jBSibh": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770434887211,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T03:28:03.611Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq893GhR5DBaah7PND": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770434896385,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T03:28:12.777Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Okq895vefWjqxYXRmFQ": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770434896559,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T03:28:12.954Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkqJwkijLYtpp5lQCe6": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770437987610,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T04:19:44.123Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkqJy4Sesx0iMzpETwc": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770437993144,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T04:19:49.563Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkqKGF0dl2GruA1LE8t": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770438071535,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T04:21:08.047Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkqKIuO_5Z4h-9VgymA": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770438082483,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T04:21:18.950Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkqKOU2Tz23eQFj11w4": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770438105297,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T04:21:41.792Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkqKfercrYLFssvU3pC": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770438179746,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T04:22:56.264Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkqL1mAWJf9yNWO4CWl": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770438274439,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T04:24:30.947Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkqL66tN8_nBQ6VT0-J": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770438292200,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T04:24:48.721Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkqL7tOs1LIlAN-yFxJ": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770438299522,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T04:24:56.034Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkqLA4KHmmclMuNYYjE": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770438308415,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T04:25:04.939Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkqLBZJgKjsTZl84tr6": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770438314594,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T04:25:11.020Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkqLHf4_tVLwwTW8aKk": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770438339530,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T04:25:36.044Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkqLMNXCJjmzk6aRKpY": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770438358810,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T04:25:55.322Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkqLREIehMaY_0am6fy": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770438378696,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T04:26:15.216Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkqLSqowU1tBlxJIX6o": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770438385339,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T04:26:21.858Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkqLVDdpX7MmpH45yzp": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770438395081,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T04:26:31.545Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkqLXgVQbIQNR6mZVul": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770438405158,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T04:26:41.698Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkqLazS5wWZG7lVHE2P": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770438422740,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T04:26:59.266Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkqLgPBhiKUzghgxgNl": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770438445002,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-07T04:27:21.467Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OkqOz2bHobbitUks5tg": {
+    "action": "ACCESS_DENIED",
+    "details": {
+      "activeRole": "teacher",
+      "reason": "role",
+      "userRole": "teacher"
+    },
+    "serverTime": 1770439307862,
+    "target": "route",
+    "targetId": "/admin/materials",
+    "timestamp": "2026-02-07T04:41:44.364Z",
+    "userId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "userRole": "teacher"
+  },
+  "-Okr8NCGokcGLiCGeNgP": {
+    "action": "CREATE",
+    "details": {
+      "activeRole": "teacher",
+      "draftAction": "test_published",
+      "isPublic": false,
+      "sourceDraftId": "ejHK6YXQx8DYXqfO0Pkv"
+    },
+    "serverTime": 1770451731526,
+    "target": "test",
+    "targetId": "test-1770451729606-fdcat8h",
+    "timestamp": "2026-02-07T08:08:50.372Z",
+    "userId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "userRole": "teacher"
+  },
+  "-Okr8NDn9eD862jdQo2G": {
+    "action": "ACCESS_DENIED",
+    "details": {
+      "activeRole": "teacher",
+      "reason": "role",
+      "userRole": "teacher"
+    },
+    "serverTime": 1770451731623,
+    "target": "route",
+    "targetId": "/admin/materials",
+    "timestamp": "2026-02-07T08:08:50.470Z",
+    "userId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "userRole": "teacher"
+  },
+  "-Ol-RoUQSsDYehI1EeoM": {
+    "action": "CREATE",
+    "details": {
+      "activeRole": "teacher",
+      "draftAction": "test_published",
+      "isPublic": false,
+      "sourceDraftId": "4uml5OcNPuiIqlje78Tx"
+    },
+    "serverTime": 1770607823096,
+    "target": "test",
+    "targetId": "test-1770607823386-hjw6one",
+    "timestamp": "2026-02-09T03:30:23.937Z",
+    "userId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "userRole": "teacher"
+  },
+  "-Ol-VI4WGaHliy3_rG2l": {
+    "action": "LOGOUT",
+    "details": {
+      "activeRole": "teacher",
+      "reason": "manual"
+    },
+    "serverTime": 1770608735021,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-09T03:45:35.909Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Ol-WxAECtqWzCyrGtxk": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1770609169623,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-09T03:52:50.507Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Ol7L1h8LN5JsybfCDwT": {
+    "action": "CREATE",
+    "details": {
+      "activeRole": "teacher",
+      "draftAction": "test_published",
+      "isPublic": false,
+      "sourceDraftId": "xUvpWjVg485VGvUdAhjM"
+    },
+    "serverTime": 1770740264033,
+    "target": "test",
+    "targetId": "test-1770740263614-f5ra692",
+    "timestamp": "2026-02-10T16:17:44.551Z",
+    "userId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "userRole": "teacher"
+  },
+  "-OlCRYR50cHc-46uD3cs": {
+    "action": "CREATE",
+    "details": {
+      "activeRole": "teacher",
+      "draftAction": "test_published",
+      "isPublic": false,
+      "sourceDraftId": "rUUSaeonidIyDTH2Grpx"
+    },
+    "serverTime": 1770825857023,
+    "target": "test",
+    "targetId": "test-1770825852269-m74nn7v",
+    "timestamp": "2026-02-11T16:04:12.866Z",
+    "userId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "userRole": "teacher"
+  },
+  "-OlCapqoxSOVWZlfBMNC": {
+    "action": "CREATE",
+    "details": {
+      "activeRole": "teacher",
+      "draftAction": "test_published",
+      "isPublic": false,
+      "sourceDraftId": "xz3Hu5tCJvHta04iEY63"
+    },
+    "serverTime": 1770828554164,
+    "target": "test",
+    "targetId": "test-1770828549458-rwwep6u",
+    "timestamp": "2026-02-11T16:49:10.087Z",
+    "userId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "userRole": "teacher"
+  },
+  "-OlCbkrM9KkkJ5EpxtMB": {
+    "action": "CREATE",
+    "details": {
+      "activeRole": "teacher",
+      "draftAction": "test_published",
+      "isPublic": false,
+      "sourceDraftId": "nY5evu3Q4EhNTd4wQTSs"
+    },
+    "serverTime": 1770828795855,
+    "target": "test",
+    "targetId": "test-1770828791178-p9ouw06",
+    "timestamp": "2026-02-11T16:53:11.786Z",
+    "userId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "userRole": "teacher"
+  },
+  "-OlFqjcAqvk3BcjuW4pY": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "student",
+      "email": "hungunicenter@gmail.com"
+    },
+    "serverTime": 1770883054296,
+    "target": "session",
+    "targetId": "G5yDXmkDfsVhoKYTp7xTwbbggtB2",
+    "timestamp": "2026-02-12T07:57:34.091Z",
+    "userId": "G5yDXmkDfsVhoKYTp7xTwbbggtB2",
+    "userRole": "student"
+  },
+  "-OlFqsco-mjzCPSaT1P9": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "hungnguyenzim@gmail.com"
+    },
+    "serverTime": 1770883091205,
+    "target": "session",
+    "targetId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "timestamp": "2026-02-12T07:58:10.985Z",
+    "userId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "userRole": "teacher"
+  },
+  "-OlFrvgTjIJ2QY-G9d10": {
+    "action": "CREATE",
+    "details": {
+      "activeRole": "teacher",
+      "draftAction": "test_published",
+      "isPublic": false,
+      "sourceDraftId": "xqKuDcNE7gwxdUthEnnc"
+    },
+    "serverTime": 1770883365874,
+    "target": "test",
+    "targetId": "test-1770883365083-uep0vs6",
+    "timestamp": "2026-02-12T08:02:45.651Z",
+    "userId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "userRole": "teacher"
+  },
+  "-OlGBe8_ZMXRX_xL89gk": {
+    "action": "CREATE",
+    "details": {
+      "activeRole": "teacher",
+      "draftAction": "test_published",
+      "isPublic": false,
+      "sourceDraftId": "O3AnNMfd8aLkHeTPIS7t"
+    },
+    "serverTime": 1770888799034,
+    "target": "test",
+    "targetId": "test-1770888798048-vgb9fpe",
+    "timestamp": "2026-02-12T09:33:18.759Z",
+    "userId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "userRole": "teacher"
+  },
+  "-OluR530oX_QtQJ15zPw": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "super_admin",
+      "email": "iamhuwng@gmail.com"
+    },
+    "serverTime": 1771580711473,
+    "target": "session",
+    "targetId": "ADMIN_UID",
+    "timestamp": "2026-02-20T09:45:10.590Z",
+    "userId": "ADMIN_UID",
+    "userRole": "super_admin"
+  },
+  "-OlvR74Lh8LEw086ZuIE": {
+    "action": "CREATE",
+    "details": {
+      "activeRole": "teacher",
+      "draftAction": "test_published",
+      "isPublic": false,
+      "sourceDraftId": "svtcUz7EPOiW2ROJegLK"
+    },
+    "serverTime": 1771597497145,
+    "target": "test",
+    "targetId": "test-1771597495450-ex5stb2",
+    "timestamp": "2026-02-20T14:24:56.080Z",
+    "userId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "userRole": "teacher"
+  },
+  "-OlvXIePA8m3yL1At-B3": {
+    "action": "CREATE",
+    "details": {
+      "activeRole": "teacher",
+      "draftAction": "test_published",
+      "isPublic": false,
+      "sourceDraftId": "QFWMFvCHNcODGhIM6Ha6"
+    },
+    "serverTime": 1771599117255,
+    "target": "test",
+    "targetId": "test-1771599115560-gjhfvpf",
+    "timestamp": "2026-02-20T14:51:56.187Z",
+    "userId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "userRole": "teacher"
+  },
+  "-OlvmPDjOHVQVp4BzO4Y": {
+    "action": "CREATE",
+    "details": {
+      "activeRole": "teacher",
+      "draftAction": "test_published",
+      "isPublic": false,
+      "sourceDraftId": "jQPLAZN3Q6tD08RJCdgc"
+    },
+    "serverTime": 1771603338456,
+    "target": "test",
+    "targetId": "test-1771603336730-volk0i1",
+    "timestamp": "2026-02-20T16:02:17.336Z",
+    "userId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "userRole": "teacher"
+  },
+  "-Olvy63TWV7yGq70aoL6": {
+    "action": "CREATE",
+    "details": {
+      "activeRole": "teacher",
+      "draftAction": "test_published",
+      "isPublic": false,
+      "sourceDraftId": "Wrgt0gkQ8iwPINSqaLmG"
+    },
+    "serverTime": 1771606405708,
+    "target": "test",
+    "targetId": "test-1771606403860-a2vvdvy",
+    "timestamp": "2026-02-20T16:53:24.560Z",
+    "userId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "userRole": "teacher"
+  },
+  "-Om0u-87pli5xoUsNLw3": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "student",
+      "email": "student@test.com"
+    },
+    "serverTime": 1771705992037,
+    "target": "session",
+    "targetId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "timestamp": "2026-02-21T20:33:11.319Z",
+    "userId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "userRole": "student"
+  },
+  "-Om2XWehUbYC9g0JXdOi": {
+    "action": "LOGOUT",
+    "details": {
+      "activeRole": "teacher",
+      "reason": "manual"
+    },
+    "serverTime": 1771733392369,
+    "target": "session",
+    "targetId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "timestamp": "2026-02-22T04:09:51.378Z",
+    "userId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "userRole": "teacher"
+  },
+  "-Om2XYxeMjAuj27YWmS6": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1771733401774,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-22T04:10:00.783Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Om51z7Y1dRGSQg5-bOV": {
+    "action": "LOGOUT",
+    "details": {
+      "activeRole": "teacher",
+      "reason": "manual"
+    },
+    "serverTime": 1771775456091,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-22T15:50:55.964Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-Om522OgViVRKzDdbME6": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "hungnguyenzim@gmail.com"
+    },
+    "serverTime": 1771775473673,
+    "target": "session",
+    "targetId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "timestamp": "2026-02-22T15:51:13.446Z",
+    "userId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "userRole": "teacher"
+  },
+  "-Om56WpwDA3YB8vgW5DG": {
+    "action": "CREATE",
+    "details": {
+      "activeRole": "teacher",
+      "draftAction": "test_published",
+      "isPublic": false,
+      "sourceDraftId": "AONMpXx0ZUFKOY3gtaaG"
+    },
+    "serverTime": 1771776646859,
+    "target": "test",
+    "targetId": "test-1771776646061-6wjmnvh",
+    "timestamp": "2026-02-22T16:10:46.703Z",
+    "userId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "userRole": "teacher"
+  },
+  "-Om5rS7rF77Cy4xezUHc": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "super_admin",
+      "email": "iamhuwng@gmail.com"
+    },
+    "serverTime": 1771789210436,
+    "target": "session",
+    "targetId": "ADMIN_UID",
+    "timestamp": "2026-02-22T19:40:10.190Z",
+    "userId": "ADMIN_UID",
+    "userRole": "super_admin"
+  },
+  "-OmA7WbhliNBZGcJCeUr": {
+    "action": "LOGOUT",
+    "details": {
+      "activeRole": "student",
+      "reason": "manual"
+    },
+    "serverTime": 1771860794169,
+    "target": "session",
+    "targetId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "timestamp": "2026-02-23T15:33:13.711Z",
+    "userId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "userRole": "student"
+  },
+  "-OmA7mrCVPNv5wcuV_nE": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "student",
+      "email": "student@test.com"
+    },
+    "serverTime": 1771860864782,
+    "target": "session",
+    "targetId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "timestamp": "2026-02-23T15:34:24.330Z",
+    "userId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "userRole": "student"
+  },
+  "-OmAtJ6JZ4Y5rXfQbOoY": {
+    "action": "LOGOUT",
+    "details": {
+      "activeRole": "student",
+      "reason": "manual"
+    },
+    "serverTime": 1771873583844,
+    "target": "session",
+    "targetId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "timestamp": "2026-02-23T19:06:23.296Z",
+    "userId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "userRole": "student"
+  },
+  "-OmGUeKPw8NTjJkA_ug_": {
+    "action": "ACCESS_DENIED",
+    "details": {
+      "activeRole": "teacher",
+      "reason": "role",
+      "userRole": "teacher"
+    },
+    "serverTime": 1771967522415,
+    "target": "route",
+    "targetId": "/admin/backup",
+    "timestamp": "2026-02-24T21:12:02.817Z",
+    "userId": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "userRole": "teacher"
+  },
+  "-OmH-IjNT8-MjJNcFDNm": {
+    "action": "LOGIN",
+    "details": {
+      "activeRole": "teacher",
+      "email": "teacher@test.com"
+    },
+    "serverTime": 1771976080671,
+    "target": "session",
+    "targetId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "timestamp": "2026-02-24T23:34:40.987Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  },
+  "-OmH-Lhvb8hdfnifAkvC": {
+    "action": "ACCESS_DENIED",
+    "details": {
+      "activeRole": "teacher",
+      "reason": "role",
+      "userRole": "teacher"
+    },
+    "serverTime": 1771976092884,
+    "target": "route",
+    "targetId": "/admin/backup",
+    "timestamp": "2026-02-24T23:34:53.260Z",
+    "userId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "userRole": "teacher"
+  }
+}

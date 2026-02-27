@@ -1,0 +1,284 @@
+{
+  "5MSH7ZTEWxf4iqub0fkb": {
+    "avatarUrl": {
+      "stringValue": "https://placehold.co/100x100/?text=T"
+    },
+    "school": {
+      "stringValue": ""
+    },
+    "name": {
+      "stringValue": "Tùng"
+    },
+    "dob": {
+      "stringValue": "12.12.2012"
+    },
+    "email": {
+      "stringValue": "mdielts-2012-12-12-y4@mstu.work"
+    },
+    "class": {
+      "stringValue": "MDIELTS"
+    }
+  },
+  "ADMIN_UID": {
+    "avatarUrl": {
+      "stringValue": "https://res.cloudinary.com/dt7m5ysz1/image/upload/v1760527887/ddvkvtwzlcaxxgkikwks.jpg"
+    },
+    "email": {
+      "stringValue": "iamhuwng@gmail.com"
+    },
+    "class": {
+      "stringValue": "MDIELTS"
+    },
+    "name": {
+      "stringValue": "Admin"
+    },
+    "dob": {
+      "stringValue": "1995-06-08"
+    },
+    "comments": {
+      "arrayValue": {}
+    }
+  },
+  "JAWkcBofKfktXty2EA5K": {
+    "school": {
+      "stringValue": "Mỹ Đình High School"
+    },
+    "avatarUrl": {
+      "stringValue": "https://res.cloudinary.com/dt7m5ysz1/image/upload/v1760116508/e6ctfi5ohvsfukrz8rp5.jpg"
+    },
+    "class": {
+      "stringValue": "MDIELTS"
+    },
+    "email": {
+      "stringValue": "mdielts-2012-12-12-kd@mstu.work"
+    },
+    "dob": {
+      "stringValue": "2012-12-12"
+    },
+    "name": {
+      "stringValue": "Đức Anh"
+    }
+  },
+  "WIwBKM5GAU34oxywnyjN": {
+    "address": {
+      "stringValue": ""
+    },
+    "class": {
+      "stringValue": "MDIELTS"
+    },
+    "email": {
+      "stringValue": "mdielts-2012-12-12-wu@mstu.work"
+    },
+    "dob": {
+      "stringValue": "2012-12-12"
+    },
+    "name": {
+      "stringValue": "Linh"
+    },
+    "school": {
+      "stringValue": "Mỹ Đình High School"
+    },
+    "avatarUrl": {
+      "stringValue": "https://res.cloudinary.com/dt7m5ysz1/image/upload/v1760034105/c6couohgiybkafuora5j.jpg"
+    },
+    "phone": {
+      "stringValue": ""
+    }
+  },
+  "XO6Pe1KUd98DBgjZdUij": {
+    "school": {
+      "stringValue": ""
+    },
+    "phone": {
+      "stringValue": ""
+    },
+    "avatarUrl": {
+      "stringValue": "https://res.cloudinary.com/dt7m5ysz1/image/upload/v1760033544/vt7zqexk9xl4kn9r1oez.jpg"
+    },
+    "class": {
+      "stringValue": "MDIELTS"
+    },
+    "email": {
+      "stringValue": "mdielts-2012-12-12-hc@mstu.work"
+    },
+    "address": {
+      "stringValue": ""
+    },
+    "name": {
+      "stringValue": "Dương"
+    },
+    "dob": {
+      "stringValue": "2012-12-12"
+    }
+  },
+  "nV0anEhDlSuCLAR3vbrL": {
+    "name": {
+      "stringValue": "Chi"
+    },
+    "dob": {
+      "stringValue": "2008-11-11"
+    },
+    "address": {
+      "stringValue": ""
+    },
+    "class": {
+      "stringValue": "DDIELTS"
+    },
+    "email": {
+      "stringValue": "ddielts-2008-11-11-mp@mstu.work"
+    },
+    "phone": {
+      "stringValue": ""
+    },
+    "avatarUrl": {
+      "stringValue": "https://placehold.co/100x100/?text=C"
+    },
+    "school": {
+      "stringValue": ""
+    }
+  },
+  "pH2kPXFN2iaqGNFoFWwq": {
+    "name": {
+      "stringValue": "Đức"
+    },
+    "dob": {
+      "stringValue": "2008-11-11"
+    },
+    "class": {
+      "stringValue": "DDIELTS"
+    },
+    "email": {
+      "stringValue": "ddielts-2008-11-11-fn@mstu.work"
+    },
+    "address": {
+      "stringValue": "Hoàng "
+    },
+    "phone": {
+      "stringValue": ""
+    },
+    "avatarUrl": {
+      "stringValue": "https://placehold.co/100x100/?text=Đ"
+    },
+    "school": {
+      "stringValue": "HTK High School"
+    }
+  },
+  "pVkKTfOBtNq1F3QmfQYk": {
+    "phone": {
+      "stringValue": ""
+    },
+    "avatarUrl": {
+      "stringValue": "https://placehold.co/100x100/?text=N"
+    },
+    "school": {
+      "stringValue": "Đống Đa High School"
+    },
+    "name": {
+      "stringValue": "Nguyên"
+    },
+    "dob": {
+      "stringValue": "2009-11-11"
+    },
+    "class": {
+      "stringValue": "DDIELTS"
+    },
+    "email": {
+      "stringValue": "ddielts-2009-11-11-mx@mstu.work"
+    },
+    "address": {
+      "stringValue": "Nguyễn Lương Bằng"
+    }
+  },
+  "r3cPOZih9qKExzjvtVI3": {
+    "class": {
+      "stringValue": "MDIELTS"
+    },
+    "email": {
+      "stringValue": "mdielts-2012-12-12-zd@mstu.work"
+    },
+    "address": {
+      "stringValue": ""
+    },
+    "name": {
+      "stringValue": "Thư"
+    },
+    "dob": {
+      "stringValue": "2012-12-12"
+    },
+    "school": {
+      "stringValue": "Lê Quý Đôn"
+    },
+    "phone": {
+      "stringValue": ""
+    },
+    "avatarUrl": {
+      "stringValue": "https://res.cloudinary.com/dt7m5ysz1/image/upload/v1760034114/wptpai5ekeob1tyhqbkb.jpg"
+    }
+  },
+  "siaKNvbLusn4DI76LAbA": {
+    "phone": {
+      "stringValue": ""
+    },
+    "avatarUrl": {
+      "stringValue": "https://placehold.co/100x100/?text=N"
+    },
+    "school": {
+      "stringValue": ""
+    },
+    "name": {
+      "stringValue": "Nhi"
+    },
+    "dob": {
+      "stringValue": "2010-11-11"
+    },
+    "address": {
+      "stringValue": ""
+    },
+    "class": {
+      "stringValue": "DDIELTS"
+    },
+    "email": {
+      "stringValue": "ddielts-2010-11-11-br@mstu.work"
+    }
+  },
+  "yck8D9sqjSTh3CmHtB2S": {
+    "dob": {
+      "stringValue": "2012-12-12"
+    },
+    "name": {
+      "stringValue": "Bảo"
+    },
+    "class": {
+      "stringValue": "MDIELTS"
+    },
+    "email": {
+      "stringValue": "mdielts-2012-12-12-dm@mstu.work"
+    },
+    "avatarUrl": {
+      "stringValue": "https://res.cloudinary.com/dt7m5ysz1/image/upload/v1760034120/byu9igavhmahppm8gspu.jpg"
+    },
+    "school": {
+      "stringValue": "Đoàn Thị Điểm"
+    }
+  },
+  "zuvZZoHAha52xie4d6mD": {
+    "school": {
+      "stringValue": "Mỹ Đình High school"
+    },
+    "avatarUrl": {
+      "stringValue": "https://placehold.co/100x100/?text=C"
+    },
+    "class": {
+      "stringValue": "MDIELTS"
+    },
+    "email": {
+      "stringValue": "mdielts-0012-12-12-qq@mstu.work"
+    },
+    "name": {
+      "stringValue": "Cường"
+    },
+    "dob": {
+      "stringValue": "0012-12-12"
+    }
+  }
+}

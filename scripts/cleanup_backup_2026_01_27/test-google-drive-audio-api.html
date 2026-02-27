@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Drive Audio API Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 { color: #1a1a2e; margin-bottom: 8px; }
+        h2 { color: #16213e; margin-top: 0; }
+        h3 { color: #0f3460; }
+        .subtitle { color: #666; margin-bottom: 24px; }
+        
+        input, button {
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        input {
+            border: 1px solid #ddd;
+            width: 100%;
+            box-sizing: border-box;
+            margin-bottom: 12px;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin-right: 8px;
+            margin-bottom: 8px;
+        }
+        button:hover { background: #2563eb; }
+        button.secondary { background: #6b7280; }
+        button.success { background: #10b981; }
+        button.warning { background: #f59e0b; }
+        
+        .result {
+            padding: 16px;
+            border-radius: 8px;
+            margin-top: 16px;
+            font-family: monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .result.success { background: #d1fae5; border: 1px solid #10b981; }
+        .result.error { background: #fee2e2; border: 1px solid #ef4444; }
+        .result.info { background: #dbeafe; border: 1px solid #3b82f6; }
+        .result.warning { background: #fef3c7; border: 1px solid #f59e0b; }
+        
+        .test-section {
+            border: 2px dashed #e5e7eb;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 16px 0;
+        }
+        
+        audio {
+            width: 100%;
+            margin: 12px 0;
+        }
+        
+        .url-display {
+            background: #f3f4f6;
+            padding: 12px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 12px;
+            word-break: break-all;
+            margin: 8px 0;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 16px 0;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        th { background: #f9fafb; font-weight: 600; }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .status-badge.pending { background: #e5e7eb; color: #374151; }
+        .status-badge.testing { background: #fef3c7; color: #92400e; }
+        .status-badge.success { background: #d1fae5; color: #065f46; }
+        .status-badge.failed { background: #fee2e2; color: #991b1b; }
+    </style>
+</head>
+<body>
+    <h1>Google Drive Audio API Test</h1>
+    <p class="subtitle">Testing alt=media approach for HTML5 audio streaming</p>
+    
+    <!-- Configuration -->
+    <div class="card">
+        <h2>1. Configuration</h2>
+        <label><strong>Google API Key:</strong></label>
+        <input type="text" id="apiKey" placeholder="Enter your Google API Key (from Google Cloud Console)">
+        
+        <label><strong>Google Drive File ID:</strong></label>
+        <input type="text" id="fileId" placeholder="Enter the audio file ID from Google Drive">
+        
+        <p style="color: #666; font-size: 13px;">
+            <strong>How to get File ID:</strong> From URL like 
+            <code>https://drive.google.com/file/d/<strong>1ABC123xyz</strong>/view</code>, 
+            the File ID is the part in bold.
+        </p>
+        
+        <button onclick="loadFromEnv()">Load from .env (if available)</button>
+        <button class="secondary" onclick="clearAll()">Clear All</button>
+    </div>
+    
+    <!-- URL Methods Comparison -->
+    <div class="card">
+        <h2>2. URL Methods Comparison</h2>
+        <p>Click "Generate URLs" to see all possible streaming URL formats:</p>
+        <button onclick="generateUrls()">Generate URLs</button>
+        
+        <div id="urlsOutput"></div>
+    </div>
+    
+    <!-- Test Results Table -->
+    <div class="card">
+        <h2>3. Test Results</h2>
+        <button class="success" onclick="runAllTests()">Run All Tests</button>
+        
+        <table id="resultsTable">
+            <thead>
+                <tr>
+                    <th>Method</th>
+                    <th>Status</th>
+                    <th>CORS</th>
+                    <th>Playable</th>
+                    <th>Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr id="row-api-media">
+                    <td>API v3 (alt=media + key)</td>
+                    <td><span class="status-badge pending">Pending</span></td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>-</td>
+                </tr>
+                <tr id="row-direct-download">
+                    <td>Direct Download (uc?export=download)</td>
+                    <td><span class="status-badge pending">Pending</span></td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>-</td>
+                </tr>
+                <tr id="row-embed">
+                    <td>Embed (iframe preview)</td>
+                    <td><span class="status-badge pending">Pending</span></td>
+                    <td>N/A</td>
+                    <td>-</td>
+                    <td>-</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Individual Tests -->
+    <div class="card">
+        <h2>4. Individual Audio Player Tests</h2>
+        
+        <!-- Test 1: API v3 with alt=media -->
+        <div class="test-section">
+            <h3>Test A: Google Drive API v3 (alt=media + API Key)</h3>
+            <p><strong>URL Format:</strong> <code>https://www.googleapis.com/drive/v3/files/{fileId}?alt=media&key={API_KEY}</code></p>
+            <button onclick="testApiMedia()">Test This Method</button>
+            <div class="url-display" id="url-api-media">URL will appear here...</div>
+            <audio id="audio-api-media" controls></audio>
+            <div id="result-api-media" class="result info">Click "Test This Method" to begin</div>
+        </div>
+        
+        <!-- Test 2: Direct Download -->
+        <div class="test-section">
+            <h3>Test B: Direct Download URL (Current Method)</h3>
+            <p><strong>URL Format:</strong> <code>https://drive.google.com/uc?export=download&id={fileId}</code></p>
+            <button onclick="testDirectDownload()">Test This Method</button>
+            <div class="url-display" id="url-direct-download">URL will appear here...</div>
+            <audio id="audio-direct-download" controls></audio>
+            <div id="result-direct-download" class="result info">Click "Test This Method" to begin</div>
+        </div>
+        
+        <!-- Test 3: Embed iframe -->
+        <div class="test-section">
+            <h3>Test C: Embed (iframe) - Current Fallback</h3>
+            <p><strong>URL Format:</strong> <code>https://drive.google.com/file/d/{fileId}/preview</code></p>
+            <button onclick="testEmbed()">Test This Method</button>
+            <div class="url-display" id="url-embed">URL will appear here...</div>
+            <div id="embed-container"></div>
+            <div id="result-embed" class="result info">Click "Test This Method" to begin</div>
+        </div>
+    </div>
+    
+    <!-- Analysis -->
+    <div class="card">
+        <h2>5. Key Findings</h2>
+        <div id="findings" class="result info">
+Run tests above to see analysis...
+
+<strong>The Core Problem:</strong>
+- Google Drive does NOT send CORS headers for public file downloads
+- Browser blocks cross-origin audio streaming even with valid URLs
+- iframe embed works but is OPAQUE (no programmatic control)
+
+<strong>Potential Solutions to Test:</strong>
+1. API v3 with alt=media + API key (this test)
+2. Server-side proxy (fetch audio, serve with CORS headers)
+3. Service Worker proxy
+4. Alternative hosting (Firebase Storage, Cloudflare R2)
+        </div>
+    </div>
+    
+    <!-- Console Log -->
+    <div class="card">
+        <h2>6. Console Log</h2>
+        <div id="console" class="result info" style="max-height: 300px; overflow-y: auto;">
+Waiting for tests...
+        </div>
+    </div>
+
+    <script>
+        const consoleEl = document.getElementById('console');
+        
+        function log(msg, type = 'info') {
+            const time = new Date().toLocaleTimeString();
+            const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : type === 'warn' ? '⚠️' : 'ℹ️';
+            consoleEl.innerHTML += `\n[${time}] ${prefix} ${msg}`;
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+            console.log(`[${type}]`, msg);
+        }
+        
+        function getConfig() {
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const fileId = document.getElementById('fileId').value.trim();
+            
+            if (!fileId) {
+                alert('Please enter a Google Drive File ID');
+                return null;
+            }
+            
+            return { apiKey, fileId };
+        }
+        
+        function generateUrls() {
+            const config = getConfig();
+            if (!config) return;
+            
+            const { apiKey, fileId } = config;
+            
+            const urls = {
+                'API v3 (alt=media)': apiKey 
+                    ? `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${apiKey}`
+                    : '⚠️ API Key required',
+                'Direct Download': `https://drive.google.com/uc?export=download&id=${fileId}`,
+                'Direct View': `https://drive.google.com/uc?export=view&id=${fileId}`,
+                'Embed Preview': `https://drive.google.com/file/d/${fileId}/preview`,
+                'Web View Link': `https://drive.google.com/file/d/${fileId}/view`,
+            };
+            
+            let html = '<table>';
+            for (const [name, url] of Object.entries(urls)) {
+                html += `<tr><td><strong>${name}</strong></td><td class="url-display">${url}</td></tr>`;
+            }
+            html += '</table>';
+            
+            document.getElementById('urlsOutput').innerHTML = html;
+            log('Generated URL variants');
+        }
+        
+        function updateRow(rowId, status, cors, playable, notes) {
+            const row = document.getElementById(rowId);
+            if (!row) return;
+            
+            const statusClass = status === 'Success' ? 'success' : status === 'Failed' ? 'failed' : 'testing';
+            row.cells[1].innerHTML = `<span class="status-badge ${statusClass}">${status}</span>`;
+            row.cells[2].textContent = cors;
+            row.cells[3].textContent = playable;
+            row.cells[4].textContent = notes;
+        }
+        
+        async function testApiMedia() {
+            const config = getConfig();
+            if (!config) return;
+            
+            const { apiKey, fileId } = config;
+            
+            if (!apiKey) {
+                document.getElementById('result-api-media').className = 'result error';
+                document.getElementById('result-api-media').textContent = 'ERROR: API Key is required for this method';
+                updateRow('row-api-media', 'Failed', '-', '-', 'No API Key');
+                return;
+            }
+            
+            const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${apiKey}`;
+            document.getElementById('url-api-media').textContent = url;
+            
+            const audio = document.getElementById('audio-api-media');
+            const resultEl = document.getElementById('result-api-media');
+            
+            updateRow('row-api-media', 'Testing...', '-', '-', 'Loading...');
+            log('Testing API v3 alt=media method...');
+            
+            // First, test with fetch to check CORS
+            try {
+                log('Attempting fetch request to check CORS...');
+                const response = await fetch(url, { method: 'HEAD' });
+                log(`Fetch response: ${response.status} ${response.statusText}`, 'success');
+                log(`CORS headers present: ${response.headers.get('access-control-allow-origin') || 'NONE'}`, 
+                    response.headers.get('access-control-allow-origin') ? 'success' : 'warn');
+            } catch (err) {
+                log(`Fetch failed (CORS blocked): ${err.message}`, 'error');
+            }
+            
+            // Now test with audio element
+            audio.src = url;
+            
+            audio.onloadedmetadata = () => {
+                resultEl.className = 'result success';
+                resultEl.textContent = `SUCCESS! Audio loaded.\nDuration: ${audio.duration}s\nThis method WORKS for streaming!`;
+                updateRow('row-api-media', 'Success', 'OK', 'Yes', `Duration: ${Math.round(audio.duration)}s`);
+                log(`Audio loaded successfully! Duration: ${audio.duration}s`, 'success');
+            };
+            
+            audio.onerror = (e) => {
+                const errorCode = audio.error ? audio.error.code : 'unknown';
+                const errorMsg = {
+                    1: 'MEDIA_ERR_ABORTED',
+                    2: 'MEDIA_ERR_NETWORK',
+                    3: 'MEDIA_ERR_DECODE',
+                    4: 'MEDIA_ERR_SRC_NOT_SUPPORTED'
+                }[errorCode] || `Error code: ${errorCode}`;
+                
+                resultEl.className = 'result error';
+                resultEl.textContent = `FAILED: ${errorMsg}\n\nThis likely means CORS is blocking the request.`;
+                updateRow('row-api-media', 'Failed', 'Blocked', 'No', errorMsg);
+                log(`Audio error: ${errorMsg}`, 'error');
+            };
+            
+            audio.load();
+        }
+        
+        async function testDirectDownload() {
+            const config = getConfig();
+            if (!config) return;
+            
+            const { fileId } = config;
+            const url = `https://drive.google.com/uc?export=download&id=${fileId}`;
+            document.getElementById('url-direct-download').textContent = url;
+            
+            const audio = document.getElementById('audio-direct-download');
+            const resultEl = document.getElementById('result-direct-download');
+            
+            updateRow('row-direct-download', 'Testing...', '-', '-', 'Loading...');
+            log('Testing Direct Download method (current implementation)...');
+            
+            audio.src = url;
+            
+            audio.onloadedmetadata = () => {
+                resultEl.className = 'result success';
+                resultEl.textContent = `SUCCESS! Audio loaded.\nDuration: ${audio.duration}s`;
+                updateRow('row-direct-download', 'Success', 'OK', 'Yes', `Duration: ${Math.round(audio.duration)}s`);
+                log(`Direct download audio loaded! Duration: ${audio.duration}s`, 'success');
+            };
+            
+            audio.onerror = (e) => {
+                const errorCode = audio.error ? audio.error.code : 'unknown';
+                const errorMsg = {
+                    1: 'MEDIA_ERR_ABORTED',
+                    2: 'MEDIA_ERR_NETWORK',
+                    3: 'MEDIA_ERR_DECODE',
+                    4: 'MEDIA_ERR_SRC_NOT_SUPPORTED'
+                }[errorCode] || `Error code: ${errorCode}`;
+                
+                resultEl.className = 'result error';
+                resultEl.textContent = `FAILED: ${errorMsg}`;
+                updateRow('row-direct-download', 'Failed', 'Blocked', 'No', errorMsg);
+                log(`Direct download error: ${errorMsg}`, 'error');
+            };
+            
+            audio.load();
+        }
+        
+        function testEmbed() {
+            const config = getConfig();
+            if (!config) return;
+            
+            const { fileId } = config;
+            const url = `https://drive.google.com/file/d/${fileId}/preview`;
+            document.getElementById('url-embed').textContent = url;
+            
+            const container = document.getElementById('embed-container');
+            const resultEl = document.getElementById('result-embed');
+            
+            updateRow('row-embed', 'Testing...', 'N/A', '-', 'Loading...');
+            log('Testing Embed (iframe) method...');
+            
+            container.innerHTML = `
+                <iframe 
+                    src="${url}" 
+                    width="100%" 
+                    height="80" 
+                    allow="autoplay"
+                    style="border: none; border-radius: 8px;"
+                    onload="embedLoaded()"
+                    onerror="embedError()"
+                ></iframe>
+            `;
+            
+            // iframe onload fires even for errors, so we just mark it as loaded
+            setTimeout(() => {
+                resultEl.className = 'result warning';
+                resultEl.textContent = `EMBED LOADED (but with limitations):\n
+- ✅ Audio plays in Google's embedded player
+- ❌ No programmatic play/pause control
+- ❌ Cannot hide pause button
+- ❌ Cannot detect playback events
+- ❌ Cannot enforce "play once" rule
+
+This is the CURRENT FALLBACK but doesn't solve the test control problem.`;
+                updateRow('row-embed', 'Success', 'N/A', 'Limited', 'No programmatic control');
+                log('Embed loaded - but no control available', 'warn');
+            }, 2000);
+        }
+        
+        function embedLoaded() {
+            log('Embed iframe loaded');
+        }
+        
+        function embedError() {
+            log('Embed iframe error', 'error');
+        }
+        
+        async function runAllTests() {
+            log('=== Running All Tests ===');
+            await testApiMedia();
+            await new Promise(r => setTimeout(r, 1000));
+            await testDirectDownload();
+            await new Promise(r => setTimeout(r, 1000));
+            testEmbed();
+            
+            setTimeout(() => {
+                updateFindings();
+            }, 3000);
+        }
+        
+        function updateFindings() {
+            const findings = document.getElementById('findings');
+            
+            // Check results
+            const apiRow = document.getElementById('row-api-media');
+            const directRow = document.getElementById('row-direct-download');
+            
+            const apiWorks = apiRow.cells[1].textContent.includes('Success');
+            const directWorks = directRow.cells[1].textContent.includes('Success');
+            
+            let html = '<strong>Test Results Summary:</strong>\n\n';
+            
+            if (apiWorks) {
+                html += `✅ <strong>API v3 (alt=media + key) WORKS!</strong>
+This method can be used for programmatic audio control.
+
+<strong>Recommended Implementation:</strong>
+1. Store API Key in environment variable (VITE_GOOGLE_API_KEY)
+2. Files must be set to "Anyone with link can view"
+3. Use URL: https://www.googleapis.com/drive/v3/files/{fileId}?alt=media&key={API_KEY}
+4. Use in <audio src="..."> with full programmatic control
+`;
+            } else if (directWorks) {
+                html += `✅ <strong>Direct Download URL works!</strong>
+But API v3 method failed (likely CORS).
+
+<strong>Current Method Sufficient:</strong>
+The existing uc?export=download method already works.
+`;
+            } else {
+                html += `❌ <strong>Both methods blocked by CORS</strong>
+
+Google Drive does NOT send proper CORS headers for browser audio streaming.
+
+<strong>Alternative Solutions:</strong>
+1. <strong>Server-side Proxy:</strong> Create API endpoint that fetches audio and serves with CORS headers
+2. <strong>Firebase Storage:</strong> Upload audio to Firebase Storage (has proper CORS)
+3. <strong>Cloudflare R2:</strong> Free tier with proper CORS support
+4. <strong>Service Worker:</strong> Intercept requests and add CORS headers (complex)
+
+<strong>Recommended: Firebase Storage</strong>
+- Already integrated in your app
+- Proper CORS headers
+- 5GB free tier
+- Full <audio> tag support with programmatic control
+`;
+            }
+            
+            findings.innerHTML = html;
+        }
+        
+        function loadFromEnv() {
+            // This won't actually work in static HTML, but shows the intent
+            log('Note: Cannot read .env from static HTML. Copy values manually.', 'warn');
+            alert('Cannot read .env from static HTML.\n\nPlease copy your API key from:\n.env -> VITE_GOOGLE_API_KEY');
+        }
+        
+        function clearAll() {
+            document.getElementById('apiKey').value = '';
+            document.getElementById('fileId').value = '';
+            document.getElementById('audio-api-media').src = '';
+            document.getElementById('audio-direct-download').src = '';
+            document.getElementById('embed-container').innerHTML = '';
+            consoleEl.innerHTML = 'Cleared. Ready for new test.';
+            
+            // Reset table
+            ['row-api-media', 'row-direct-download', 'row-embed'].forEach(id => {
+                updateRow(id, 'Pending', '-', '-', '-');
+            });
+        }
+        
+        // Initial log
+        log('Test page loaded. Enter File ID and API Key to begin testing.');
+        log('Your app already has VITE_GOOGLE_API_KEY configured - copy it from .env file');
+    </script>
+</body>
+</html>

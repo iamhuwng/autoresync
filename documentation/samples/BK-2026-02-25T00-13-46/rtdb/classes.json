@@ -1,0 +1,181 @@
+{
+  "2NE3KY": {
+    "classCode": "2NE3KY",
+    "createdAt": 1769933988566,
+    "createdBy": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "description": "",
+    "id": "2NE3KY",
+    "mode": "class",
+    "name": "KKK",
+    "settings": {
+      "allowLateJoin": true,
+      "autoArchiveDays": 30,
+      "maxStudents": 50,
+      "requireEmail": false
+    },
+    "stats": {
+      "activeStudents": 0,
+      "completedAssignments": 0,
+      "totalAssignments": 0,
+      "totalStudents": 0
+    },
+    "status": "active",
+    "updatedAt": 1769933988566
+  },
+  "FN5U8C": {
+    "activeSessions": {
+      "54CVSF": {
+        "createdAt": 1770999123966,
+        "expiresAt": 1771085523966,
+        "mode": "test",
+        "status": "waiting"
+      },
+      "82Q8C5": {
+        "createdAt": 1768577534721,
+        "expiresAt": 1768663934721,
+        "mode": "test",
+        "status": "waiting"
+      },
+      "9LNLF0": {
+        "createdAt": 1769795419836,
+        "expiresAt": 1769881819836,
+        "mode": "test",
+        "status": "waiting"
+      },
+      "IKBJGI": {
+        "createdAt": 1769795358096,
+        "expiresAt": 1769881758096,
+        "mode": "test",
+        "status": "waiting"
+      },
+      "OLCSUK": {
+        "createdAt": 1768736960510,
+        "expiresAt": 1768823360510,
+        "mode": "test",
+        "status": "waiting"
+      },
+      "RGOXBN": {
+        "createdAt": 1768990172500,
+        "expiresAt": 1769076572500,
+        "mode": "test",
+        "status": "waiting"
+      },
+      "TDD4QH": {
+        "createdAt": 1770630116483,
+        "expiresAt": 1770716516483,
+        "mode": "test",
+        "status": "waiting"
+      },
+      "USAKC0": {
+        "createdAt": 1770825859922,
+        "expiresAt": 1770912259922,
+        "mode": "test",
+        "status": "waiting"
+      },
+      "UZDMFN": {
+        "createdAt": 1771270476206,
+        "expiresAt": 1771356876206,
+        "mode": "test",
+        "status": "waiting"
+      },
+      "W8DQ8V": {
+        "createdAt": 1770740277604,
+        "expiresAt": 1770826677604,
+        "mode": "test",
+        "status": "waiting"
+      }
+    },
+    "classCode": "FN5U8C",
+    "createdAt": 1768499119901,
+    "createdBy": "AkwZW3CT4AUvkMpJfgg9FwUh3ug2",
+    "description": "",
+    "id": "FN5U8C",
+    "mode": "class",
+    "name": "MD-IELTS-1",
+    "settings": {
+      "allowLateJoin": true,
+      "autoArchiveDays": 30,
+      "maxStudents": 50,
+      "requireEmail": false
+    },
+    "stats": {
+      "activeStudents": 3,
+      "completedAssignments": 0,
+      "totalAssignments": 0,
+      "totalStudents": 3
+    },
+    "status": "active",
+    "students": {
+      "G5yDXmkDfsVhoKYTp7xTwbbggtB2": {
+        "email": "hungunicenter@gmail.com",
+        "id": "G5yDXmkDfsVhoKYTp7xTwbbggtB2",
+        "isOnline": true,
+        "joinedAt": 1770206077336,
+        "lastActiveAt": 1770206077336,
+        "name": "Nguyen Dat Hung",
+        "uid": "G5yDXmkDfsVhoKYTp7xTwbbggtB2"
+      },
+      "ILMbyeRrH4eJoJCjvW7eixHmH0v1": {
+        "email": "dathung0695@gmail.com",
+        "id": "ILMbyeRrH4eJoJCjvW7eixHmH0v1",
+        "isOnline": true,
+        "joinedAt": 1768501481672,
+        "lastActiveAt": 1768501481672,
+        "name": "Excandesco Jr.",
+        "uid": "ILMbyeRrH4eJoJCjvW7eixHmH0v1"
+      },
+      "x3hDfjYVN7cJtSbwq0ChIjl1Bk62": {
+        "email": "student@test.com",
+        "id": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+        "isOnline": true,
+        "joinedAt": 1771869824466,
+        "lastActiveAt": 1771869824466,
+        "name": "Student Test",
+        "uid": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62"
+      }
+    },
+    "updatedAt": 1771869824466
+  },
+  "undefined": {
+    "stats": {
+      "activeStudents": 4,
+      "totalStudents": 4
+    },
+    "status": "deleted",
+    "students": {
+      "1769732367933-voun7b861": {
+        "email": "guest@test.com",
+        "id": "1769732367933-voun7b861",
+        "isOnline": true,
+        "joinedAt": 1769732367933,
+        "lastActiveAt": 1769732367933,
+        "name": "Guest Student"
+      },
+      "1769780890508-42rdzmb9i": {
+        "email": "guest@test.com",
+        "id": "1769780890508-42rdzmb9i",
+        "isOnline": true,
+        "joinedAt": 1769780890508,
+        "lastActiveAt": 1769780890508,
+        "name": "Guest Student"
+      },
+      "1769784928974-ten0bdcto": {
+        "email": "guest@test.com",
+        "id": "1769784928974-ten0bdcto",
+        "isOnline": true,
+        "joinedAt": 1769784928974,
+        "lastActiveAt": 1769784928974,
+        "name": "Guest Student"
+      },
+      "1769785000815-i457ioj71": {
+        "email": "guest@test.com",
+        "id": "1769785000815-i457ioj71",
+        "isOnline": true,
+        "joinedAt": 1769785000815,
+        "lastActiveAt": 1769785000815,
+        "name": "Guest Student"
+      }
+    },
+    "updatedAt": 1770021424335
+  }
+}

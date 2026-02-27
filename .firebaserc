@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "temp-a1437"
+  },
+  "targets": {
+    "temp-a1437": {
+      "hosting": {
+        "kahut1": [
+          "kahut1"
+        ]
+      }
+    }
+  }
+}

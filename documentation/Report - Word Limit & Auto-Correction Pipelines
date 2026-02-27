@@ -1,0 +1,76 @@
+# Final Reassessment Report: Word Limit & Auto-Correction Pipelines
+
+## Summary
+A complete end-to-end audit of both pipelines was performed. Both are confirmed **fully intact** with all Sessions 3-6 fixes correctly chained. No further structural gaps were found.
+
+---
+
+## 1. Word Limit Pipeline — ✅ FULLY INTACT
+
+Traced from type extraction to student UI enforcement:
+
+```mermaid
+flowchart TD
+  A["type-classifier.service.ts\nextractWordLimit(text)\nReturns WordLimitResult.maxWords"] --> B
+  B["classifyQuestion()\nReturns ClassificationResult\nwith wordLimit field"] --> C
+  C["test-creation/index.ts\nrulesQuestions mapping\nr.wordLimit.maxWords → max"] --> D
+  D["validator.service.ts\ncompareAIvsRules()\nmergedQ.wordLimit = rulesQ.wordLimit"] --> E
+  E["useTestCreation.ts\nparsedQ.wordLimit = q.wordLimit?.max\nstorageQ.wordLimit = q.wordLimit"] --> F
+  F["testStorage.ts\nformatted.wordLimit = question.wordLimit\nSaved to Firebase"] --> G
+  G["getTestFromFirebase()\nRaw Firebase passthrough"] --> H
+  H["IELTSQuestionsPanel.tsx\ngroupWordLimit = firstQ.wordLimit\ngetTaskInstructions(..., groupWordLimit)"] --> I
+  I["AuthenticAnswerInput.tsx\ngetMaxWordsForType(type, question.wordLimit)\nEnforces max on text input"]
+```
+
+**All 9 nodes confirmed connected and correct.**
+
+---
+
+## 2. Auto-Correction Pipeline — ✅ FULLY INTACT (Post-Session 6 Consolidation)
+
+All scoring now routes through a single `autoMarking.service.ts` engine:
+
+```mermaid
+flowchart TD
+  A["Student submits answer"] --> B
+  B["useTestSubmission.ts\nmarkTestWithAnswers()"] --> C
+  C["scoreQuestion(question as any, String(answer))\n→ autoMarking.service.ts"] --> D
+  D{Question Type}
+  D -->|"MCQ/True-False"| E["isAnswerCorrect()\n+ extractOptionPrefix()\nOption label resolution"]
+  D -->|"Completion/Short-Answer"| F["isAnswerCorrect()\nChecks question.acceptableAnswers\n(pre-compiled pipe variants)"]
+  D -->|"Matching Headings"| G["scoreMatching()\nString fallback path\n+ isAnswerCorrect()"]
+  E & F & G --> H["Results aggregated\nquestionResults[q.number] = isCorrect"]
+```
+
+**3 scoring paths previously diverged — now unified under `scoreQuestion()`.**
+
+---
+
+## 3. Verified Test Data Field Alignment
+
+| Field | Saved As | Read As | Status |
+|---|---|---|---|
+| `wordLimit` | `formatted.wordLimit` (testStorage:270) | `question.wordLimit` (IELTSQuestionsPanel:176) | ✅ |
+| `question` / `questionText` | Both set to same value (useTestCreation:573-574) | `question.question` (autoMarking) | ✅ |
+| `acceptableAnswers` | `formatted.acceptableAnswers` (testStorage:267) | `question.acceptableAnswers` (autoMarking:144) | ✅ |
+| `options` | `formatted.options` (testStorage:255) | `question.options` (autoMarking:154) | ✅ |
+| `answer` | `formatted.answer` (testStorage:248) | `question.answer` (autoMarking:230) | ✅ |
+
+---
+
+## 4. Known Limitation
+
+> [!IMPORTANT]
+> Tests **published before Session 5 fixes** (before word limit extraction was integrated into `classifyQuestion()`) will still have `wordLimit: undefined` in Firebase for completion questions. These tests must be **re-published** to get correct word limits.
+>
+> Tests published **after Session 5** will correctly enforce word limits.
+
+---
+
+## 5. Conclusion
+
+No further code changes are required. The system is architecturally sound:
+- Word limit enforcement chain: **9/9 nodes connected**
+- Scoring consolidation: **Complete** — single engine for all 3 scoring paths
+- Answer variant pre-compilation: **Complete** — `acceptableAnswers` built at save time
+- Option prefix resolution: **Complete** — `extractOptionPrefix()` handles MCQ/Matching label mismatches

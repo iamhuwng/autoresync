@@ -1,0 +1,13 @@
+﻿C:\Users\Sanctuary\.antigravity\extensions\mrd9999.antigravity-sync-0.4.7-universal\GEMINI.md  |  2057 bytes  |  02/12/2026 14:21:46
+C:\Users\Sanctuary\.antigravity\extensions\rodhayl.multi-purpose-agent-1.0.1-universal\GEMINI.md  |  191 bytes  |  02/12/2026 15:30:58
+C:\Users\Sanctuary\.gemini\GEMINI.md  |  5368 bytes  |  10/19/2025 06:15:08
+C:\Users\Sanctuary\.gemini\antigravity\.agent\GEMINI.md  |  1598 bytes  |  02/12/2026 14:33:49
+C:\Users\Sanctuary\.gemini\antigravity\.agent\rules\GEMINI.md  |  12613 bytes  |  02/12/2026 14:33:49
+C:\Users\Sanctuary\.gemini\antigravity\student-portal-vite\GEMINI.md  |  3809 bytes  |  02/12/2026 14:33:54
+C:\Users\Sanctuary\.gemini-sync-repo\.agent\GEMINI.md  |  1598 bytes  |  02/12/2026 14:33:49
+C:\Users\Sanctuary\.gemini-sync-repo\.agent\rules\GEMINI.md  |  12613 bytes  |  02/12/2026 14:33:49
+C:\Users\Sanctuary\.gemini-sync-repo\student-portal-vite\GEMINI.md  |  3809 bytes  |  02/12/2026 14:33:54
+C:\Users\Sanctuary\Desktop\Homework App\.agent\GEMINI.md  |  1598 bytes  |  02/12/2026 13:50:21
+C:\Users\Sanctuary\Desktop\Homework App\.agent\rules\GEMINI.md  |  12613 bytes  |  02/12/2026 13:50:21
+C:\Users\Sanctuary\Desktop\Homework App\student-portal-vite\GEMINI.md  |  3809 bytes  |  02/12/2026 13:50:26
+C:\Users\Sanctuary\OneDrive\Máy tính\mstu\student-portal-vite\GEMINI.md  |  816 bytes  |  10/13/2025 03:06:14

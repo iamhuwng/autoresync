@@ -1,0 +1,1083 @@
+/**
+ * Teacher Test Monitor Page
+ * Real-time monitoring dashboard for test sessions
+ */
+
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { database } from '../services/firebase';
+import { ref, onValue, get, update, push } from 'firebase/database';
+import { AppShell } from '@mantine/core';
+import { Card, CardBody, CardFooter } from '../components/modern';
+import { Button } from '../components/modern';
+import { getTestFromFirebase } from '../services/testStorage';
+import { isSessionOwner } from '../services/sessionManager';
+
+const TeacherTestMonitorPage = () => {
+  const { sessionCode } = useParams();
+  const navigate = useNavigate();
+  
+  // State
+  const [session, setSession] = useState(null);
+  const [test, setTest] = useState(null);
+  const [players, setPlayers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [timeElapsed, setTimeElapsed] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [showCorrectAnswers, setShowCorrectAnswers] = useState(false);
+  const [studentAnswers, setStudentAnswers] = useState({});
+  const [reMarkingMode, setReMarkingMode] = useState(null); // {studentId, modifiedScores}
+  const [studentSubmissions, setStudentSubmissions] = useState({});
+  const [error, setError] = useState(null);
+
+  // Session access is now allowed from multiple devices
+  // Firebase maintains the single source of truth for session state
+  useEffect(() => {
+    if (!sessionCode) return;
+    
+    // Session state is synchronized through Firebase
+    // Multiple devices can access the same session
+    console.log(`Teacher accessing session: ${sessionCode}`);
+  }, [sessionCode]);
+
+  // Fetch session and test data
+  useEffect(() => {
+    if (!sessionCode) return;
+
+    const sessionRef = ref(database, `game_sessions/${sessionCode}`);
+    const unsubscribe = onValue(sessionRef, (snapshot) => {
+      const data = snapshot.val();
+      if (!data) {
+        setLoading(false);
+        return;
+      }
+
+      setSession(data);
+      setIsPaused(data.isPaused || false);
+      setShowCorrectAnswers(data.showCorrectAnswers || false);
+      
+      // Get players with their answers - sort by join time
+      const playersList = Object.entries(data.players || {}).map(([id, player]) => ({
+        ...player,
+        id
+      })).sort((a, b) => (a.joinTime || 0) - (b.joinTime || 0));
+      setPlayers(playersList);
+      
+      // Extract all student answers and submissions
+      const answers = {};
+      const submissions = {};
+      playersList.forEach(player => {
+        if (player.answers) {
+          answers[player.id] = player.answers;
+        }
+        if (player.isSubmitted) {
+          submissions[player.id] = {
+            submittedAt: player.submittedAt,
+            score: player.score,
+            correctCount: player.correctCount
+          };
+        }
+      });
+      setStudentAnswers(answers);
+      setStudentSubmissions(submissions);
+
+      // Fetch test data if not already loaded
+      if (data.testId && !test) {
+        getTestFromFirebase(data.testId).then(testResult => {
+          if (testResult.success) {
+            setTest(testResult.data);
+          } else {
+            setError('Test data not found');
+          }
+        }).catch(err => {
+          console.error('Error loading test:', err);
+          setError('Failed to load test data');
+        });
+      }
+      
+      setLoading(false);
+    }, (error) => {
+      console.error('Firebase error:', error);
+      setError('Failed to connect to session');
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [sessionCode, test]);
+
+  // Timer - optimized to reduce performance impact
+  useEffect(() => {
+    if (!session || session.status !== 'in-progress' || isPaused) return;
+
+    let lastUpdate = Date.now();
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const delta = Math.floor((now - lastUpdate) / 1000);
+      if (delta > 0) {
+        setTimeElapsed(prev => prev + delta);
+        lastUpdate = now;
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [session, isPaused]);
+
+  // Start test
+  const handleStartTest = async () => {
+    try {
+      const sessionRef = ref(database, `game_sessions/${sessionCode}`);
+      await update(sessionRef, {
+        status: 'in-progress',
+        startTime: Date.now(),
+        isPaused: false
+      });
+    } catch (error) {
+      console.error('Error starting test:', error);
+      alert('Failed to start test');
+    }
+  };
+
+  // Pause/Resume test
+  const handleTogglePause = async () => {
+    try {
+      const sessionRef = ref(database, `game_sessions/${sessionCode}`);
+      await update(sessionRef, {
+        isPaused: !isPaused,
+        ...(isPaused ? { resumedAt: Date.now() } : { pausedAt: Date.now() })
+      });
+    } catch (error) {
+      console.error('Error toggling pause:', error);
+      alert('Failed to toggle pause');
+    }
+  };
+
+  // End test
+  const handleEndTest = async () => {
+    if (!window.confirm('Are you sure you want to end the test? Students will be redirected to results.')) {
+      return;
+    }
+
+    try {
+      const sessionRef = ref(database, `game_sessions/${sessionCode}`);
+      await update(sessionRef, {
+        status: 'completed',
+        endTime: Date.now(),
+        totalDuration: timeElapsed
+      });
+      
+      // Navigate to results page
+      navigate(`/teacher-test-results/${sessionCode}`);
+    } catch (error) {
+      console.error('Error ending test:', error);
+      alert('Failed to end test');
+    }
+  };
+
+  // Extend time
+  const handleExtendTime = async (minutes) => {
+    try {
+      const sessionRef = ref(database, `game_sessions/${sessionCode}`);
+      const currentDuration = test?.duration || 60;
+      await update(sessionRef, {
+        extendedDuration: currentDuration + minutes,
+        extensionLog: push(ref(database, `game_sessions/${sessionCode}/extensionLog`), {
+          minutes,
+          timestamp: Date.now(),
+          reason: 'Teacher extended time'
+        })
+      });
+      alert(`Added ${minutes} minutes to test duration`);
+    } catch (error) {
+      console.error('Error extending time:', error);
+      alert('Failed to extend time');
+    }
+  };
+
+  // Format time
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  };
+
+  // Get student progress with real-time answer details
+  const getStudentProgress = (player) => {
+    const totalQuestions = test?.questionCount || 0;
+    const answered = player.answers ? Object.keys(player.answers).length : 0;
+    const percentage = totalQuestions > 0 ? (answered / totalQuestions) * 100 : 0;
+
+    let currentQuestion = null;
+    if (player.answers && Object.keys(player.answers).length > 0) {
+      const latestAnswer = Object.entries(player.answers)
+        .sort(([, a], [, b]) => (b.timestamp || 0) - (a.timestamp || 0))[0];
+      if (latestAnswer) {
+        currentQuestion = parseInt(latestAnswer[0]);
+      }
+    }
+
+    return {
+      answered,
+      total: totalQuestions,
+      percentage: Math.round(percentage),
+      currentQuestion,
+      isSubmitted: player.isSubmitted || false,
+      score: player.score,
+      correctCount: player.correctCount
+    };
+  };
+  
+  // Toggle showing correct answers
+  const handleToggleShowAnswers = async () => {
+    try {
+      const sessionRef = ref(database, `game_sessions/${sessionCode}`);
+      await update(sessionRef, {
+        showCorrectAnswers: !showCorrectAnswers
+      });
+    } catch (error) {
+      console.error('Error toggling answer display:', error);
+    }
+  };
+  
+  // Start re-marking for a student
+  const handleStartReMark = (student) => {
+    if (!student.isSubmitted) return;
+    
+    // Initialize re-marking state with current scores
+    const currentScores = {};
+    if (test?.questions) {
+      test.questions.forEach(q => {
+        const studentAnswer = student.answers?.[q.number];
+        currentScores[q.number] = studentAnswer?.isCorrect ? q.points : 0;
+      });
+    }
+    
+    setReMarkingMode({
+      studentId: student.id,
+      studentName: student.name,
+      originalScores: {...currentScores},
+      modifiedScores: {...currentScores},
+      hasChanges: false
+    });
+  };
+  
+  // Update a question's score during re-marking
+  const handleUpdateQuestionScore = (questionNumber, newScore) => {
+    if (!reMarkingMode) return;
+    
+    setReMarkingMode(prev => ({
+      ...prev,
+      modifiedScores: {
+        ...prev.modifiedScores,
+        [questionNumber]: newScore
+      },
+      hasChanges: true
+    }));
+  };
+  
+  // Send re-marked scores to student
+  const handleSendReMark = async () => {
+    if (!reMarkingMode || !reMarkingMode.hasChanges) return;
+    
+    try {
+      const totalScore = Object.values(reMarkingMode.modifiedScores)
+        .reduce((sum, score) => sum + score, 0);
+      const maxScore = test?.questions?.reduce((sum, q) => sum + q.points, 0) || 0;
+      const correctCount = Object.values(reMarkingMode.modifiedScores)
+        .filter(score => score > 0).length;
+        
+      // Update student's score in Firebase
+      const playerRef = ref(database, `game_sessions/${sessionCode}/players/${reMarkingMode.studentId}`);
+      await update(playerRef, {
+        score: totalScore,
+        maxScore: maxScore,
+        correctCount: correctCount,
+        isReMarked: true,
+        reMarkTimestamp: Date.now(),
+        reMarkDetails: reMarkingMode.modifiedScores
+      });
+      
+      alert(`Re-marking sent to ${reMarkingMode.studentName}`);
+      setReMarkingMode(null);
+    } catch (error) {
+      console.error('Error sending re-mark:', error);
+      alert('Failed to send re-marking');
+    }
+  };
+
+  // Loading state
+  if (loading) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'linear-gradient(135deg, #faf5ff 0%, #f0f9ff 25%, #f0fdfa 50%, #fff7ed 75%, #faf5ff 100%)'
+      }}>
+        <Card variant="glass">
+          <CardBody>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⏳</div>
+              <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>Loading Test Session...</h2>
+              <p style={{ color: '#64748b' }}>Session Code: {sessionCode}</p>
+            </div>
+          </CardBody>
+        </Card>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'linear-gradient(135deg, #faf5ff 0%, #f0f9ff 25%, #f0fdfa 50%, #fff7ed 75%, #faf5ff 100%)'
+      }}>
+        <Card variant="rose">
+          <CardBody>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>❌</div>
+              <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>{error}</h2>
+              <Button variant="primary" onClick={() => navigate('/sessions')}>
+                Back to Dashboard
+              </Button>
+            </div>
+          </CardBody>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #faf5ff 0%, #f0f9ff 25%, #f0fdfa 50%, #fff7ed 75%, #faf5ff 100%)',
+      backgroundAttachment: 'fixed'
+    }}>
+      <AppShell header={{ height: 70 }} padding="md">
+        <AppShell.Header style={{
+          background: 'rgba(255, 255, 255, 0.8)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          borderBottom: '1px solid rgba(203, 213, 225, 0.3)'
+        }}>
+          <div style={{ 
+            height: '100%', 
+            padding: '0 1.5rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}>
+            <div>
+              <h2 style={{ 
+                fontSize: '1.5rem',
+                fontWeight: '700',
+                color: '#1e293b',
+                margin: 0
+              }}>
+                Test Monitor: {test?.title || 'Loading...'}
+              </h2>
+              <p style={{ margin: 0, fontSize: '0.875rem', color: '#64748b' }}>
+                Session Code: <strong>{sessionCode}</strong> | {players.length} Students
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+              {/* Back to Lobby Button */}
+              <Button 
+                variant="glass"
+                onClick={() => navigate(`/teacher-lobby/${sessionCode}`)}
+                style={{ marginRight: '0.5rem' }}
+              >
+                ← Back to Lobby
+              </Button>
+              
+              {/* Timer Display */}
+              <div style={{
+                padding: '0.5rem 1rem',
+                background: 'rgba(34, 197, 94, 0.1)',
+                borderRadius: '0.5rem',
+                border: '1px solid rgba(34, 197, 94, 0.3)'
+              }}>
+                <span style={{ fontSize: '1.25rem', fontWeight: '700', color: '#16a34a' }}>
+                  ⏱ {formatTime(timeElapsed)}
+                </span>
+                {test?.duration && (
+                  <span style={{ fontSize: '0.875rem', color: '#64748b', marginLeft: '0.5rem' }}>
+                    / {test.duration} min
+                  </span>
+                )}
+              </div>
+              
+              {/* Show Correct Answers Toggle */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.5rem 1rem',
+                background: showCorrectAnswers ? 'rgba(16, 185, 129, 0.1)' : 'rgba(156, 163, 175, 0.1)',
+                borderRadius: '0.5rem',
+                border: `1px solid ${showCorrectAnswers ? 'rgba(16, 185, 129, 0.3)' : 'rgba(156, 163, 175, 0.3)'}`
+              }}>
+                <input
+                  type="checkbox"
+                  id="showAnswers"
+                  checked={showCorrectAnswers}
+                  onChange={handleToggleShowAnswers}
+                  style={{ cursor: 'pointer' }}
+                />
+                <label 
+                  htmlFor="showAnswers" 
+                  style={{ 
+                    cursor: 'pointer',
+                    fontSize: '0.875rem',
+                    fontWeight: '600',
+                    color: showCorrectAnswers ? '#16a34a' : '#6b7280'
+                  }}
+                >
+                  Show Correct Answers
+                </label>
+              </div>
+              
+              {session?.status === 'waiting' ? (
+                <Button 
+                  variant="primary" 
+                  onClick={handleStartTest}
+                  style={{
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    border: 'none'
+                  }}
+                >
+                  Start Test
+                </Button>
+              ) : (
+                <>
+                  <Button 
+                    variant={isPaused ? 'success' : 'warning'}
+                    onClick={handleTogglePause}
+                  >
+                    {isPaused ? '▶ Resume' : '⏸ Pause'}
+                  </Button>
+                  <Button 
+                    variant="danger"
+                    onClick={handleEndTest}
+                  >
+                    End Test
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        </AppShell.Header>
+
+        <AppShell.Main>
+          <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '2rem 1rem' }}>
+            {/* Test Info Cards */}
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+              gap: '1rem',
+              marginBottom: '2rem'
+            }}>
+              <Card variant="lavender">
+                <CardBody>
+                  <div style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '0.25rem' }}>
+                    Test Type
+                  </div>
+                  <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#8b5cf6' }}>
+                    {test?.type} - {test?.skill}
+                  </div>
+                </CardBody>
+              </Card>
+
+              <Card variant="sky">
+                <CardBody>
+                  <div style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '0.25rem' }}>
+                    Duration
+                  </div>
+                  <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#0ea5e9' }}>
+                    {test?.duration} minutes
+                  </div>
+                </CardBody>
+              </Card>
+
+              <Card variant="mint">
+                <CardBody>
+                  <div style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '0.25rem' }}>
+                    Questions
+                  </div>
+                  <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#14b8a6' }}>
+                    {test?.questionCount || 0}
+                  </div>
+                </CardBody>
+              </Card>
+
+              <Card variant="rose">
+                <CardBody>
+                  <div style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '0.25rem' }}>
+                    Status
+                  </div>
+                  <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#f43f5e' }}>
+                    {session?.status === 'waiting' ? 'Waiting' :
+                     session?.status === 'in-progress' ? (isPaused ? 'Paused' : 'In Progress') :
+                     'Completed'}
+                  </div>
+                </CardBody>
+              </Card>
+            </div>
+
+            {/* Session Controls */}
+            {session?.status === 'in-progress' && (
+              <Card variant="glass" style={{ marginBottom: '2rem' }}>
+                <CardBody>
+                  <h3 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '1rem' }}>
+                    Session Controls
+                  </h3>
+                  <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                    <Button 
+                      variant="info" 
+                      size="sm"
+                      onClick={() => handleExtendTime(5)}
+                    >
+                      +5 minutes
+                    </Button>
+                    <Button 
+                      variant="info" 
+                      size="sm"
+                      onClick={() => handleExtendTime(10)}
+                    >
+                      +10 minutes
+                    </Button>
+                    <Button 
+                      variant="info" 
+                      size="sm"
+                      onClick={() => handleExtendTime(15)}
+                    >
+                      +15 minutes
+                    </Button>
+                  </div>
+                </CardBody>
+              </Card>
+            )}
+
+            {/* Student Grid */}
+            <Card variant="default">
+              <CardBody>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: '700', marginBottom: '1.5rem' }}>
+                  Student Progress
+                </h3>
+                
+                {players.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '3rem' }}>
+                    <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>👥</div>
+                    <p style={{ fontSize: '1.125rem', color: '#64748b' }}>
+                      No students have joined yet
+                    </p>
+                    <p style={{ fontSize: '0.875rem', color: '#94a3b8' }}>
+                      Share the session code: <strong>{sessionCode}</strong>
+                    </p>
+                  </div>
+                ) : (
+                  <div style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', 
+                    gap: '1rem' 
+                  }}>
+                    {players.map((player, index) => {
+                      const progress = getStudentProgress(player);
+                      const variants = ['lavender', 'sky', 'mint', 'rose', 'peach'];
+                      const variant = variants[index % variants.length];
+                      const isSubmitted = progress.isSubmitted;
+                      
+                      return (
+                        <Card 
+                          key={player.id || index} 
+                          variant={variant}
+                          hover
+                          style={{ 
+                            cursor: 'pointer',
+                            position: 'relative',
+                            border: isSubmitted ? '2px solid #10b981' : undefined
+                          }}
+                          onClick={() => setSelectedStudent(player)}
+                        >
+                          <CardBody>
+                            <div style={{ marginBottom: '1rem' }}>
+                              <h4 style={{ 
+                                fontSize: '1.125rem', 
+                                fontWeight: '600',
+                                marginBottom: '0.25rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem'
+                              }}>
+                                {player.name || 'Anonymous'}
+                                {isSubmitted && (
+                                  <span style={{
+                                    fontSize: '0.75rem',
+                                    padding: '2px 6px',
+                                    background: 'linear-gradient(135deg, #10b981, #059669)',
+                                    color: 'white',
+                                    borderRadius: '4px',
+                                    fontWeight: '600'
+                                  }}>
+                                    SUBMITTED
+                                  </span>
+                                )}
+                              </h4>
+                              <div style={{ fontSize: '0.875rem', color: '#64748b' }}>
+                                Class: {player.class || 'N/A'}
+                                {progress.currentQuestion && !isSubmitted && (
+                                  <span style={{ marginLeft: '0.5rem', color: '#8b5cf6' }}>
+                                    📝 Q{progress.currentQuestion}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {/* Progress Bar with highlight animation */}
+                            <div style={{ marginBottom: '0.5rem' }}>
+                              <div style={{
+                                width: '100%',
+                                height: '8px',
+                                background: 'rgba(203, 213, 225, 0.3)',
+                                borderRadius: '4px',
+                                overflow: 'hidden',
+                                position: 'relative'
+                              }}>
+                                <div style={{
+                                  width: `${progress.percentage}%`,
+                                  height: '100%',
+                                  background: isSubmitted
+                                    ? 'linear-gradient(90deg, #10b981 0%, #059669 100%)'
+                                    : progress.percentage === 100 
+                                    ? 'linear-gradient(90deg, #10b981 0%, #059669 100%)'
+                                    : 'linear-gradient(90deg, #3b82f6 0%, #2563eb 100%)',
+                                  transition: 'width 0.3s ease',
+                                  animation: !isSubmitted && progress.currentQuestion ? 'pulse 2s infinite' : 'none'
+                                }} />
+                              </div>
+                            </div>
+                            
+                            <div style={{ 
+                              display: 'flex', 
+                              justifyContent: 'space-between',
+                              fontSize: '0.875rem',
+                              marginBottom: '0.5rem'
+                            }}>
+                              <span style={{ color: '#64748b' }}>
+                                {progress.answered}/{progress.total} answered
+                              </span>
+                              <span style={{ fontWeight: '600', color: isSubmitted ? '#10b981' : '#1e293b' }}>
+                                {isSubmitted && progress.correctCount !== undefined 
+                                  ? `${progress.correctCount} correct (${Math.round((progress.correctCount / progress.total) * 100)}%)`
+                                  : `${progress.percentage}%`}
+                              </span>
+                            </div>
+                            
+                            {/* Real-time answer display */}
+                            {player.answers && Object.keys(player.answers).length > 0 && (
+                              <div style={{
+                                marginTop: '0.5rem',
+                                padding: '0.5rem',
+                                background: 'rgba(99, 102, 241, 0.05)',
+                                borderRadius: '4px',
+                                fontSize: '0.75rem'
+                              }}>
+                                <div style={{ 
+                                  color: '#6366f1', 
+                                  fontWeight: '600', 
+                                  marginBottom: '0.25rem',
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center'
+                                }}>
+                                  <span>Recent Answers:</span>
+                                  <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
+                                    {Object.keys(player.answers).length} total
+                                  </span>
+                                </div>
+                                <div style={{
+                                  display: 'flex',
+                                  gap: '4px',
+                                  flexWrap: 'wrap',
+                                  maxHeight: '40px',
+                                  overflow: 'hidden'
+                                }}>
+                                  {Object.entries(player.answers)
+                                    .sort(([, a], [, b]) => (b.timestamp || 0) - (a.timestamp || 0))
+                                    .slice(0, 8)
+                                    .map(([qNum, answerData]) => (
+                                      <span
+                                        key={qNum}
+                                        title={`Question ${qNum}: ${answerData.answer}`}
+                                        style={{
+                                          padding: '2px 6px',
+                                          background: answerData.isCorrect === true
+                                            ? '#10b981'
+                                            : answerData.isCorrect === false
+                                            ? '#ef4444'
+                                            : '#94a3b8',
+                                          color: 'white',
+                                          borderRadius: '3px',
+                                          fontSize: '0.7rem',
+                                          cursor: 'help'
+                                        }}
+                                      >
+                                        Q{qNum}
+                                      </span>
+                                    ))
+                                  }
+                                </div>
+                              </div>
+                            )}
+                            
+                            {/* Status Badge and Re-mark Button */}
+                            <div style={{ 
+                              marginTop: '0.75rem',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center'
+                            }}>
+                              <span style={{
+                                padding: '0.25rem 0.5rem',
+                                borderRadius: '9999px',
+                                fontSize: '0.75rem',
+                                fontWeight: '600',
+                                background: player.isActive ? 'rgba(34, 197, 94, 0.1)' : 'rgba(156, 163, 175, 0.1)',
+                                color: player.isActive ? '#16a34a' : '#6b7280'
+                              }}>
+                                {player.isActive ? '🟢 Active' : '⚫ Inactive'}
+                              </span>
+                              
+                              {isSubmitted && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleStartReMark(player);
+                                  }}
+                                  style={{
+                                    fontSize: '0.75rem',
+                                    padding: '0.25rem 0.5rem',
+                                    background: 'rgba(139, 92, 246, 0.1)',
+                                    color: '#7c3aed',
+                                    border: '1px solid rgba(139, 92, 246, 0.3)'
+                                  }}
+                                >
+                                  ✏️ Re-mark
+                                </Button>
+                              )}
+                            </div>
+                          </CardBody>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardBody>
+            </Card>
+
+            {/* Student Detail Modal */}
+            {selectedStudent && (
+              <div style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'rgba(0, 0, 0, 0.5)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 1000
+              }}
+              onClick={() => setSelectedStudent(null)}
+              >
+                <Card 
+                  variant="glass" 
+                  style={{ 
+                    maxWidth: '600px', 
+                    width: '90%',
+                    maxHeight: '80vh',
+                    overflow: 'auto'
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <CardBody>
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: '700', marginBottom: '1rem' }}>
+                      Student Details: {selectedStudent.name}
+                    </h3>
+                    
+                    <h4 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+                      Answer Progress
+                    </h4>
+                    <div style={{ 
+                      display: 'grid', 
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(40px, 1fr))',
+                      gap: '0.5rem'
+                    }}>
+                      {Array.from({ length: test?.questionCount || 0 }, (_, i) => {
+                        const answered = selectedStudent.answers?.[`q${i + 1}`];
+                        return (
+                          <div
+                            key={i}
+                            style={{
+                              width: '40px',
+                              height: '40px',
+                              borderRadius: '0.25rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontWeight: '600',
+                              fontSize: '0.875rem',
+                              background: answered 
+                                ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+                                : 'rgba(203, 213, 225, 0.3)',
+                              color: answered ? 'white' : '#94a3b8'
+                            }}
+                          >
+                            {i + 1}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardBody>
+                  <CardFooter>
+                    <Button variant="glass" onClick={() => setSelectedStudent(null)}>
+                      Close
+                    </Button>
+                  </CardFooter>
+                </Card>
+              </div>
+            )}
+            
+            {/* Re-marking Modal */}
+            {reMarkingMode && (
+              <div style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'rgba(0, 0, 0, 0.6)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 2000
+              }}
+              onClick={() => setReMarkingMode(null)}
+              >
+                <Card 
+                  variant="glass" 
+                  style={{ 
+                    maxWidth: '800px', 
+                    width: '90%',
+                    maxHeight: '90vh',
+                    overflow: 'auto'
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <CardBody>
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: '1.5rem',
+                      borderBottom: '2px solid #e5e7eb',
+                      paddingBottom: '1rem'
+                    }}>
+                      <h2 style={{ 
+                        fontSize: '1.5rem', 
+                        fontWeight: '700',
+                        background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        backgroundClip: 'text'
+                      }}>
+                        ✏️ Re-mark: {reMarkingMode.studentName}
+                      </h2>
+                      <Button
+                        variant="ghost"
+                        onClick={() => setReMarkingMode(null)}
+                      >
+                        ✕
+                      </Button>
+                    </div>
+                    
+                    <div style={{
+                      background: 'rgba(139, 92, 246, 0.05)',
+                      padding: '1rem',
+                      borderRadius: '0.5rem',
+                      marginBottom: '1.5rem'
+                    }}>
+                      <p style={{ fontSize: '0.875rem', color: '#6366f1', margin: 0 }}>
+                        📌 Adjust individual question scores below. Changes will be sent to the student when you click "Send Re-marking".
+                      </p>
+                    </div>
+                    
+                    {/* Questions Grid */}
+                    <div style={{ marginBottom: '1.5rem' }}>
+                      <h3 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '1rem' }}>
+                        Question Scores
+                      </h3>
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+                        gap: '1rem'
+                      }}>
+                        {test?.questions?.map((question) => {
+                          const qNum = question.number;
+                          const currentScore = reMarkingMode.modifiedScores[qNum] || 0;
+                          const maxScore = question.points || 1;
+                          const studentAnswer = studentAnswers[reMarkingMode.studentId]?.[qNum];
+                          
+                          return (
+                            <div
+                              key={qNum}
+                              style={{
+                                padding: '1rem',
+                                border: '1px solid #e5e7eb',
+                                borderRadius: '0.5rem',
+                                background: currentScore > 0 
+                                  ? 'rgba(16, 185, 129, 0.05)'
+                                  : 'rgba(239, 68, 68, 0.05)'
+                              }}
+                            >
+                              <div style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                marginBottom: '0.5rem'
+                              }}>
+                                <span style={{
+                                  fontWeight: '600',
+                                  fontSize: '0.875rem'
+                                }}>
+                                  Q{qNum}
+                                </span>
+                                <span style={{
+                                  fontSize: '0.75rem',
+                                  color: '#64748b'
+                                }}>
+                                  Max: {maxScore}
+                                </span>
+                              </div>
+                              
+                              {studentAnswer && (
+                                <div style={{
+                                  fontSize: '0.75rem',
+                                  color: '#64748b',
+                                  marginBottom: '0.5rem',
+                                  padding: '0.25rem',
+                                  background: 'rgba(0,0,0,0.03)',
+                                  borderRadius: '3px'
+                                }}>
+                                  Answer: {typeof studentAnswer.answer === 'string' 
+                                    ? studentAnswer.answer 
+                                    : JSON.stringify(studentAnswer.answer)}
+                                </div>
+                              )}
+                              
+                              <div style={{
+                                display: 'flex',
+                                gap: '0.25rem',
+                                alignItems: 'center'
+                              }}>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max={maxScore}
+                                  value={currentScore}
+                                  onChange={(e) => handleUpdateQuestionScore(qNum, Number(e.target.value))}
+                                  style={{
+                                    width: '60px',
+                                    padding: '0.25rem',
+                                    border: '1px solid #cbd5e1',
+                                    borderRadius: '0.25rem',
+                                    fontSize: '0.875rem',
+                                    textAlign: 'center'
+                                  }}
+                                />
+                                <span style={{ fontSize: '0.875rem', color: '#64748b' }}>pts</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    
+                    {/* Total Score Summary */}
+                    <div style={{
+                      padding: '1rem',
+                      background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(99, 102, 241, 0.1) 100%)',
+                      borderRadius: '0.5rem',
+                      marginBottom: '1.5rem'
+                    }}>
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}>
+                        <div>
+                          <div style={{ fontSize: '0.875rem', color: '#64748b' }}>
+                            Total Score
+                          </div>
+                          <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#7c3aed' }}>
+                            {Object.values(reMarkingMode.modifiedScores).reduce((sum, score) => sum + score, 0)} / 
+                            {test?.questions?.reduce((sum, q) => sum + (q.points || 1), 0) || 0}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: '0.875rem', color: '#64748b' }}>
+                            Correct Answers
+                          </div>
+                          <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#7c3aed' }}>
+                            {Object.values(reMarkingMode.modifiedScores).filter(score => score > 0).length} / 
+                            {test?.questions?.length || 0}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </CardBody>
+                  
+                  <CardFooter>
+                    <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+                      <Button
+                        variant="ghost"
+                        onClick={() => setReMarkingMode(null)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        variant="primary"
+                        onClick={handleSendReMark}
+                        disabled={!reMarkingMode.hasChanges}
+                        style={{
+                          background: reMarkingMode.hasChanges
+                            ? 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)'
+                            : '#cbd5e1',
+                          border: 'none',
+                          cursor: reMarkingMode.hasChanges ? 'pointer' : 'not-allowed'
+                        }}
+                      >
+                        Send Re-marking
+                      </Button>
+                    </div>
+                  </CardFooter>
+                </Card>
+              </div>
+            )}
+          </div>
+        </AppShell.Main>
+      </AppShell>
+    </div>
+  );
+};
+
+export default TeacherTestMonitorPage;

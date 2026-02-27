@@ -1,0 +1,193 @@
+﻿{
+  "config": {
+    "configFile": "C:\\Users\\The Lord\\Desktop\\Homework App\\kahoot\\playwright.config.js",
+    "rootDir": "C:/Users/The Lord/Desktop/Homework App/kahoot/e2e",
+    "forbidOnly": false,
+    "fullyParallel": true,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "C:/Users/The Lord/Desktop/Homework App/kahoot/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "C:/Users/The Lord/Desktop/Homework App/kahoot/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 60000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "json"
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "runAgents": "none",
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.58.1",
+    "workers": 1,
+    "webServer": {
+      "command": "npm run dev",
+      "url": "http://localhost:5173",
+      "reuseExistingServer": true
+    }
+  },
+  "suites": [
+    {
+      "title": "debug-login.spec.ts",
+      "file": "debug-login.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "full wizard flow - debug Start Parsing issue",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 12908,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32mtrue\u001b[39m\nReceived: \u001b[31mfalse\u001b[39m",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32mtrue\u001b[39m\nReceived: \u001b[31mfalse\u001b[39m\n    at C:\\Users\\The Lord\\Desktop\\Homework App\\kahoot\\e2e\\debug-login.spec.ts:162:27",
+                    "location": {
+                      "file": "C:\\Users\\The Lord\\Desktop\\Homework App\\kahoot\\e2e\\debug-login.spec.ts",
+                      "column": 27,
+                      "line": 162
+                    },
+                    "snippet": "\u001b[0m \u001b[90m 160 |\u001b[39m     }\n \u001b[90m 161 |\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 162 |\u001b[39m     expect(reviewVisible)\u001b[33m.\u001b[39mtoBe(\u001b[36mtrue\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m     |\u001b[39m                           \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 163 |\u001b[39m })\u001b[33m;\u001b[39m\n \u001b[90m 164 |\u001b[39m\u001b[0m"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "C:\\Users\\The Lord\\Desktop\\Homework App\\kahoot\\e2e\\debug-login.spec.ts",
+                        "column": 27,
+                        "line": 162
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32mtrue\u001b[39m\nReceived: \u001b[31mfalse\u001b[39m\n\n  160 |     }\n  161 |\n> 162 |     expect(reviewVisible).toBe(true);\n      |                           ^\n  163 | });\n  164 |\n    at C:\\Users\\The Lord\\Desktop\\Homework App\\kahoot\\e2e\\debug-login.spec.ts:162:27"
+                    }
+                  ],
+                  "stdout": [
+                    {
+                      "text": "[0] Starting test...\n"
+                    },
+                    {
+                      "text": "[1] Logged in. URL: http://localhost:5173/lobby\n"
+                    },
+                    {
+                      "text": "[2] Modal open\n"
+                    },
+                    {
+                      "text": "[3] IELTS selected\n"
+                    },
+                    {
+                      "text": "[4] Reading selected\n"
+                    },
+                    {
+                      "text": "[5] Continue clicked ΓåÆ should be on upload step\n"
+                    },
+                    {
+                      "text": "[6] All buttons in dialog:\n[0] text=\"\" visible=true disabled=false\n[1] text=\"Academic\" visible=true disabled=false\n[2] text=\"General\" visible=true disabled=false\n[3] text=\"Upload\" visible=true disabled=false\n[4] text=\"Paste\" visible=true disabled=false\n[5] text=\"Cancel\" visible=true disabled=false\n[6] text=\"Start Parsing\" visible=true disabled=true\n[7] text=\"Back\" visible=true disabled=false\n[8] text=\"Cancel\" visible=true disabled=false\n[9] text=\"Start Parsing\" visible=true disabled=true\n"
+                    },
+                    {
+                      "text": "[7] Paste button count: \u001b[33m1\u001b[39m\n"
+                    },
+                    {
+                      "text": "[7b] Clicked Paste\n"
+                    },
+                    {
+                      "text": "[8] Textarea visible: \u001b[33mtrue\u001b[39m\n"
+                    },
+                    {
+                      "text": "[9] Filled textarea\n"
+                    },
+                    {
+                      "text": "[10] All buttons after fill:\n[0] text=\"\" visible=true disabled=false\n[1] text=\"Academic\" visible=true disabled=false\n[2] text=\"General\" visible=true disabled=false\n[3] text=\"Upload\" visible=true disabled=false\n[4] text=\"Paste\" visible=true disabled=false\n[5] text=\"Cancel\" visible=true disabled=false\n[6] text=\"Start Parsing\" visible=true disabled=false\n[7] text=\"Back\" visible=true disabled=false\n[8] text=\"Cancel\" visible=true disabled=false\n[9] text=\"Start Parsing\" visible=true disabled=true\n"
+                    },
+                    {
+                      "text": "[11] Start Parsing buttons count: \u001b[33m2\u001b[39m\n"
+                    },
+                    {
+                      "text": "[11b] Start Parsing #0: visible=true, disabled=false\n"
+                    },
+                    {
+                      "text": "[11b] Start Parsing #1: visible=true, disabled=true\n"
+                    },
+                    {
+                      "text": "[12] Clicked Start Parsing #0\n"
+                    },
+                    {
+                      "text": "[13] Continue to Review visible: \u001b[33mfalse\u001b[39m\n"
+                    }
+                  ],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-02-07T03:20:25.240Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\The Lord\\Desktop\\Homework App\\kahoot\\test-results\\debug-login-full-wizard-flow---debug-Start-Parsing-issue-chromium\\error-context.md"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "C:\\Users\\The Lord\\Desktop\\Homework App\\kahoot\\e2e\\debug-login.spec.ts",
+                    "column": 27,
+                    "line": 162
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "5f1889fdd7b10a4db9e9-06b0b76de935571f165a",
+          "file": "debug-login.spec.ts",
+          "line": 34,
+          "column": 1
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-02-07T03:20:23.068Z",
+    "duration": 15601.028,
+    "expected": 0,
+    "skipped": 0,
+    "unexpected": 1,
+    "flaky": 0
+  }
+}

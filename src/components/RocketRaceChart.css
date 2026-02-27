@@ -1,0 +1,505 @@
+/* Rocket Race Chart - Space Theme Animations */
+
+/* Stars background - 3 layers for depth effect */
+.stars,
+.stars2,
+.stars3 {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.stars {
+  background: transparent;
+  box-shadow:
+    1240px 600px #fff, 780px 920px #fff, 1520px 1440px #fff,
+    320px 280px #fff, 1840px 1080px #fff, 680px 1600px #fff,
+    1160px 200px #fff, 440px 1400px #fff, 1960px 760px #fff,
+    200px 1120px #fff, 1400px 360px #fff, 920px 1880px #fff,
+    560px 640px #fff, 1680px 1200px #fff, 1000px 80px #fff,
+    1800px 520px #fff, 360px 1760px #fff, 1280px 1520px #fff,
+    640px 400px #fff, 1920px 1640px #fff;
+  animation: twinkle-stars 100s linear infinite;
+}
+
+.stars::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 2px;
+  height: 2px;
+  background: transparent;
+  box-shadow:
+    1240px 600px #fff, 780px 920px #fff, 1520px 1440px #fff,
+    320px 280px #fff, 1840px 1080px #fff, 680px 1600px #fff,
+    1160px 200px #fff, 440px 1400px #fff, 1960px 760px #fff,
+    200px 1120px #fff, 1400px 360px #fff, 920px 1880px #fff,
+    560px 640px #fff, 1680px 1200px #fff, 1000px 80px #fff,
+    1800px 520px #fff, 360px 1760px #fff, 1280px 1520px #fff,
+    640px 400px #fff, 1920px 1640px #fff;
+}
+
+.stars2 {
+  background: transparent;
+  box-shadow:
+    620px 300px #fff, 390px 460px #fff, 760px 720px #fff,
+    160px 140px #fff, 920px 540px #fff, 340px 800px #fff,
+    580px 100px #fff, 220px 700px #fff, 980px 380px #fff,
+    100px 560px #fff, 700px 180px #fff, 460px 940px #fff,
+    280px 320px #fff, 840px 600px #fff, 500px 40px #fff,
+    900px 260px #fff, 180px 880px #fff, 640px 760px #fff,
+    320px 200px #fff, 960px 820px #fff;
+  animation: twinkle-stars 150s linear infinite;
+}
+
+.stars2::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  background: transparent;
+  box-shadow:
+    620px 300px #fff, 390px 460px #fff, 760px 720px #fff,
+    160px 140px #fff, 920px 540px #fff, 340px 800px #fff,
+    580px 100px #fff, 220px 700px #fff, 980px 380px #fff,
+    100px 560px #fff, 700px 180px #fff, 460px 940px #fff,
+    280px 320px #fff, 840px 600px #fff, 500px 40px #fff,
+    900px 260px #fff, 180px 880px #fff, 640px 760px #fff,
+    320px 200px #fff, 960px 820px #fff;
+}
+
+.stars3 {
+  background: transparent;
+  box-shadow:
+    1860px 900px #fff, 1170px 1380px #fff, 2280px 2160px #fff,
+    480px 420px #fff, 2760px 1620px #fff, 1020px 2400px #fff,
+    1740px 300px #fff, 660px 2100px #fff, 2940px 1140px #fff,
+    300px 1680px #fff, 2100px 540px #fff, 1380px 2820px #fff,
+    840px 960px #fff, 2520px 1800px #fff, 1500px 120px #fff,
+    2700px 780px #fff, 540px 2640px #fff, 1920px 2280px #fff,
+    960px 600px #fff, 2880px 2460px #fff;
+  animation: twinkle-stars 200s linear infinite;
+}
+
+.stars3::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 3px;
+  background: transparent;
+  box-shadow:
+    1860px 900px #fff, 1170px 1380px #fff, 2280px 2160px #fff,
+    480px 420px #fff, 2760px 1620px #fff, 1020px 2400px #fff,
+    1740px 300px #fff, 660px 2100px #fff, 2940px 1140px #fff,
+    300px 1680px #fff, 2100px 540px #fff, 1380px 2820px #fff,
+    840px 960px #fff, 2520px 1800px #fff, 1500px 120px #fff,
+    2700px 780px #fff, 540px 2640px #fff, 1920px 2280px #fff,
+    960px 600px #fff, 2880px 2460px #fff;
+}
+
+@keyframes twinkle-stars {
+  0%, 100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Nebula clouds - Colorful gas clouds */
+.nebula {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.15;
+  pointer-events: none;
+  animation: nebula-flow 30s ease-in-out infinite;
+}
+
+.nebula-pink {
+  top: 20%;
+  right: 15%;
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, rgba(255, 20, 147, 0.6) 0%, transparent 70%);
+}
+
+.nebula-cyan {
+  bottom: 25%;
+  left: 10%;
+  width: 250px;
+  height: 250px;
+  background: radial-gradient(circle, rgba(0, 255, 255, 0.5) 0%, transparent 70%);
+  animation-delay: -15s;
+}
+
+@keyframes nebula-flow {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.15;
+  }
+  50% {
+    transform: translate(20px, -20px) scale(1.1);
+    opacity: 0.25;
+  }
+}
+
+/* Planets */
+.planet {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.planet-destination {
+  top: 50%;
+  right: 5%;
+  width: 120px;
+  height: 120px;
+  background: radial-gradient(circle at 30% 30%, #ff6b35, #ff4500);
+  box-shadow: inset -10px -10px 20px rgba(0, 0, 0, 0.5),
+              0 0 40px rgba(255, 69, 0, 0.3);
+  transform: translateY(-50%);
+  animation: planet-orbit 60s linear infinite;
+}
+
+.planet-mars {
+  top: 15%;
+  left: 20%;
+  width: 60px;
+  height: 60px;
+  background: radial-gradient(circle at 35% 35%, #ff8c42, #c1440e);
+  box-shadow: inset -5px -5px 10px rgba(0, 0, 0, 0.4),
+              0 0 20px rgba(255, 140, 66, 0.2);
+  animation: planet-orbit 90s linear infinite reverse;
+}
+
+.planet-small {
+  bottom: 20%;
+  right: 30%;
+  width: 40px;
+  height: 40px;
+  background: radial-gradient(circle at 40% 40%, #4a90e2, #2e5c8a);
+  box-shadow: inset -3px -3px 8px rgba(0, 0, 0, 0.3),
+              0 0 15px rgba(74, 144, 226, 0.2);
+  animation: planet-orbit 120s linear infinite;
+}
+
+@keyframes planet-orbit {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Rocket sprite animations */
+.rocket-sprite {
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* SVG flame flicker animation */
+.rocket-flame {
+  transform-origin: 30px 80px;
+  animation: flame-flicker-svg 0.15s ease-in-out infinite alternate;
+}
+
+@keyframes flame-flicker-svg {
+  0% {
+    transform: scaleY(0.95) scaleX(1.05);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scaleY(1.05) scaleX(0.95);
+    opacity: 1;
+  }
+  100% {
+    transform: scaleY(0.98) scaleX(1.02);
+    opacity: 0.9;
+  }
+}
+
+/* Rocket horizontal container */
+.rocket-horizontal {
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+  position: relative;
+  z-index: 10;
+}
+
+/* Leader pulse for horizontal */
+.rocket-horizontal.rocket-leader {
+  animation: rocket-pulse-horizontal 1s ease-in-out infinite;
+}
+
+@keyframes rocket-pulse-horizontal {
+  0%, 100% {
+    transform: translateY(-50%) rotate(-90deg) scale(1);
+  }
+  50% {
+    transform: translateY(-50%) rotate(-90deg) scale(1.15);
+  }
+}
+
+/* Particle trail */
+.rocket-trail {
+  position: absolute;
+  right: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  gap: 8px;
+  pointer-events: none;
+}
+
+/* Rocket exhaust flame animation */
+.rocket-exhaust {
+  animation: exhaust-flicker 0.15s ease-in-out infinite alternate;
+}
+
+@keyframes exhaust-flicker {
+  0% {
+    transform: scaleY(0.95) scaleX(1.05);
+    opacity: 0.9;
+  }
+  50% {
+    transform: scaleY(1.05) scaleX(0.95);
+    opacity: 1;
+  }
+  100% {
+    transform: scaleY(0.98) scaleX(1.02);
+    opacity: 0.95;
+  }
+}
+
+/* Floating score animation */
+@keyframes floatUp {
+  0% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-60px);
+  }
+}
+
+.particle {
+  display: inline-block;
+  animation: particle-float 1.5s ease-in-out infinite;
+  opacity: 0;
+  font-size: 0.8rem;
+}
+
+.particle:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.particle:nth-child(2) {
+  animation-delay: 0.3s;
+}
+
+.particle:nth-child(3) {
+  animation-delay: 0.6s;
+}
+
+@keyframes particle-float {
+  0% {
+    opacity: 0;
+    transform: translateX(0) scale(1);
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-30px) scale(0.3);
+  }
+}
+
+/* Explosion burst effects */
+.explosion-burst {
+  position: absolute;
+  width: 100px;
+  height: 100px;
+  animation: burst-fade 2s ease-out forwards;
+}
+
+.burst-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 20px;
+  border: 3px solid rgba(255, 200, 0, 0.8);
+  border-radius: 50%;
+  animation: burst-expand 0.6s ease-out forwards;
+}
+
+@keyframes burst-expand {
+  0% {
+    width: 20px;
+    height: 20px;
+    opacity: 1;
+  }
+  100% {
+    width: 100px;
+    height: 100px;
+    opacity: 0;
+    border-width: 1px;
+  }
+}
+
+.burst-particles {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.burst-particle {
+  position: absolute;
+  font-size: 1.5rem;
+  animation: particle-burst 0.8s ease-out forwards;
+}
+
+.burst-particle:nth-child(1) {
+  animation-delay: 0s;
+  --angle: 0deg;
+}
+
+.burst-particle:nth-child(2) {
+  animation-delay: 0.1s;
+  --angle: 120deg;
+}
+
+.burst-particle:nth-child(3) {
+  animation-delay: 0.2s;
+  --angle: 240deg;
+}
+
+@keyframes particle-burst {
+  0% {
+    transform: translate(0, 0) rotate(var(--angle, 0deg)) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(40px, 0) rotate(var(--angle, 0deg)) scale(0.3);
+    opacity: 0;
+  }
+}
+
+.score-popup {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #4ade80;
+  text-shadow: 0 0 10px rgba(74, 222, 128, 0.8);
+  animation: score-float-up 2s ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes score-float-up {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -70px) scale(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -90px) scale(0.8);
+  }
+}
+
+@keyframes burst-fade {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Race lane effects */
+.race-lane {
+  transition: background 0.3s ease;
+}
+
+.race-lane:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* Finish line animation */
+.finish-line {
+  animation: finish-pulse 2s ease-in-out infinite;
+}
+
+@keyframes finish-pulse {
+  0%, 100% {
+    opacity: 0.3;
+    transform: translateY(-50%) scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: translateY(-50%) scale(1.1);
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .rocket {
+    font-size: 1.5rem !important;
+  }
+
+  .rocket-leader {
+    font-size: 1.8rem !important;
+  }
+
+  .particle {
+    font-size: 0.6rem;
+  }
+
+  .flame {
+    font-size: 0.9rem;
+  }
+}
+
+/* Container animation on mount */
+.rocket-race-container {
+  animation: fade-in 0.5s ease-in-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
