@@ -28,6 +28,7 @@ import { ref, push, set } from 'firebase/database';
 import { database } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import { getStudentClasses, getClass } from '../../services/classManager';
+import { getUserById } from '../../services/userService';
 import { createSubmission } from '../../services/writingSubmissionService';
 import { notifyWritingSubmitted } from '../../services/notificationService';
 import { deepRemoveUndefined } from '../../services/draftCloudService';
@@ -170,23 +171,25 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
         const loadTeachers = async () => {
             try {
                 const classes = await getStudentClasses(studentId);
-                const teacherMap = new Map<string, string>();
+                const teacherIds = new Set<string>();
 
+                // Collect unique teacher IDs from enrolled classes
                 for (const cls of classes) {
                     const fullClass = await getClass(cls.id);
                     if (fullClass?.createdBy) {
-                        // Use class name as proxy teacher name, or "Teacher" fallback
-                        const teacherName = fullClass.name || `Teacher (${cls.classCode})`;
-                        if (!teacherMap.has(fullClass.createdBy)) {
-                            teacherMap.set(fullClass.createdBy, teacherName);
-                        }
+                        teacherIds.add(fullClass.createdBy);
                     }
                 }
 
+                // Fetch actual teacher profiles for displayName
                 const teacherList: TeacherInfo[] = [];
-                teacherMap.forEach((name, id) => {
-                    teacherList.push({ id, name });
-                });
+                for (const teacherId of teacherIds) {
+                    const profile = await getUserById(teacherId);
+                    teacherList.push({
+                        id: teacherId,
+                        name: profile?.displayName || profile?.email || 'Teacher',
+                    });
+                }
 
                 setTeachers(teacherList);
             } catch (err) {
@@ -400,6 +403,13 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
                 },
             });
 
+            // Write main result record (academic record service reads from here)
+            await set(
+                ref(database, `test_results/${resultId}`),
+                resultRecord
+            );
+
+            // Write student index (for efficient per-student queries)
             await set(
                 ref(database, `test_results_by_student/${studentId}/${resultId}`),
                 resultRecord
@@ -409,9 +419,24 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
             clearPracticeState(saveKey);
             setSubmitted(true);
 
-            // Homework: navigate to homework page instead of generic back
+            // Show brief confirmation, then navigate
+            const teacherName = data.teacherId
+                ? teachers.find(t => t.id === data.teacherId)?.name || 'your teacher'
+                : null;
+
+            const confirmMsg = teacherName
+                ? `✅ Essay submitted to ${teacherName} for review!`
+                : '✅ Essay saved for self-review!';
+
+            // Use a brief visible confirmation before navigating
+            alert(confirmMsg);
+
             if (isHomework) {
-                setTimeout(() => navigate('/student/homework', { replace: true }), 1500);
+                console.log('✅ [WritingPracticeView] Homework submitted — redirecting to homework page');
+                navigate('/student/homework', { replace: true });
+            } else {
+                console.log('✅ [WritingPracticeView] Solo essay submitted — redirecting to dashboard');
+                navigate('/student/dashboard', { replace: true });
             }
         } catch (err) {
             console.error('[WritingPracticeView] Submit failed:', err);
@@ -450,25 +475,8 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
             wordCount: getWordCount(essays[t.taskNumber as 1 | 2] || ''),
         }));
 
-    // ── Submitted overlay ───────────────────────────────────
-    if (submitted) {
-        return (
-            <div className="wpv-submitted-overlay">
-                <div style={{ fontSize: 64 }}>✅</div>
-                <h1>{isHomework ? 'Homework Submitted!' : 'Essay Submitted!'}</h1>
-                <p>
-                    {isHomework
-                        ? 'Your homework has been submitted. Redirecting to homework page...'
-                        : 'Your writing has been submitted for review. You can check the status in your Academic Record.'}
-                </p>
-                {!isHomework && (
-                    <button className="wpv-done-btn" onClick={() => navigate(-1)}>
-                        ← Back to Practice
-                    </button>
-                )}
-            </div>
-        );
-    }
+    // NOTE: No submitted overlay — after submit, we navigate immediately
+    // (see handleSubmit above). The submitted state is only used to disable inputs.
 
     // ── Homework: deadline check (hard block) ────────────────
     if (isHomework && homeworkDueDate && !homeworkLateAllowed && Date.now() > homeworkDueDate) {
