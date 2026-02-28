@@ -1,0 +1,104 @@
+{
+  "taskId": "nm12eh",
+  "currentVersion": 2,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "nm12eh",
+      "version": 1,
+      "timestamp": "2026-02-27T21:20:02.221Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Install TipTap dependencies — prerequisite for grading",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing"
+        ],
+        "acceptanceCriteria": []
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "nm12eh",
+      "version": 2,
+      "timestamp": "2026-02-27T22:29:34.026Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Install TipTap dependencies: @tiptap/react, @tiptap/starter-kit, @tiptap/extension-color, @tiptap/extension-text-style, @tiptap/extension-highlight, @tiptap/extension-underline, @tiptap/pm. No code changes."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-5",
+            "dependency",
+            "setup",
+            "npm"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "All TipTap packages installed",
+              "completed": false
+            },
+            {
+              "text": "No version conflicts",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Run npm install with all packages 2. Verify package.json 3. Check no conflicts"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "TipTap used ONLY for teacher grading feedback. Student uses plain textarea. TipTap is ALLOWED  Mantine is BANNED."
+        }
+      ],
+      "snapshot": {
+        "title": "Install TipTap dependencies — prerequisite for grading",
+        "description": "Install TipTap dependencies: @tiptap/react, @tiptap/starter-kit, @tiptap/extension-color, @tiptap/extension-text-style, @tiptap/extension-highlight, @tiptap/extension-underline, @tiptap/pm. No code changes.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-5",
+          "dependency",
+          "setup",
+          "npm"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "All TipTap packages installed",
+            "completed": false
+          },
+          {
+            "text": "No version conflicts",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Run npm install with all packages 2. Verify package.json 3. Check no conflicts",
+        "implementationNotes": "TipTap used ONLY for teacher grading feedback. Student uses plain textarea. TipTap is ALLOWED  Mantine is BANNED."
+      }
+    }
+  ]
+}

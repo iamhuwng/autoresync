@@ -1,0 +1,134 @@
+{
+  "taskId": "15ujyy",
+  "currentVersion": 2,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "15ujyy",
+      "version": 1,
+      "timestamp": "2026-02-27T21:20:28.108Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Create AnnotationToolbar.tsx — text annotation tools",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing"
+        ],
+        "acceptanceCriteria": []
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "15ujyy",
+      "version": 2,
+      "timestamp": "2026-02-27T22:30:12.249Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Create AnnotationToolbar.tsx  floating toolbar on text selection in essay. Tools: highlight, comment, strikethrough, correction, text color with category-based colors. Custom categories from writingAnnotationService. Creates annotation with startOffset, endOffset, type, color, categoryId."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-5",
+            "component",
+            "teacher",
+            "grading",
+            "annotations",
+            "new-file",
+            "no-mantine"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Floating toolbar on text selection",
+              "completed": false
+            },
+            {
+              "text": "5 annotation types supported",
+              "completed": false
+            },
+            {
+              "text": "Custom categories loaded",
+              "completed": false
+            },
+            {
+              "text": "Creates annotation with offset positions",
+              "completed": false
+            },
+            {
+              "text": "Hides on deselection",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Create src/components/writing-grading/AnnotationToolbar.tsx + CSS 2. Detect text selection via window.getSelection 3. Position toolbar near selection 4. Render tool buttons 5. Load custom categories 6. Create annotation on click 7. Hide on deselection"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Offsets are character positions in plain text. Multiple annotations can overlap. Comment has additional text field. Categories from annotationService."
+        }
+      ],
+      "snapshot": {
+        "title": "Create AnnotationToolbar.tsx — text annotation tools",
+        "description": "Create AnnotationToolbar.tsx  floating toolbar on text selection in essay. Tools: highlight, comment, strikethrough, correction, text color with category-based colors. Custom categories from writingAnnotationService. Creates annotation with startOffset, endOffset, type, color, categoryId.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-5",
+          "component",
+          "teacher",
+          "grading",
+          "annotations",
+          "new-file",
+          "no-mantine"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Floating toolbar on text selection",
+            "completed": false
+          },
+          {
+            "text": "5 annotation types supported",
+            "completed": false
+          },
+          {
+            "text": "Custom categories loaded",
+            "completed": false
+          },
+          {
+            "text": "Creates annotation with offset positions",
+            "completed": false
+          },
+          {
+            "text": "Hides on deselection",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Create src/components/writing-grading/AnnotationToolbar.tsx + CSS 2. Detect text selection via window.getSelection 3. Position toolbar near selection 4. Render tool buttons 5. Load custom categories 6. Create annotation on click 7. Hide on deselection",
+        "implementationNotes": "Offsets are character positions in plain text. Multiple annotations can overlap. Comment has additional text field. Categories from annotationService."
+      }
+    }
+  ]
+}

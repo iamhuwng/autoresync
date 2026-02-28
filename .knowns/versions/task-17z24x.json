@@ -1,0 +1,259 @@
+{
+  "taskId": "17z24x",
+  "currentVersion": 4,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "17z24x",
+      "version": 1,
+      "timestamp": "2026-02-27T22:34:55.755Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Update StudentLibraryPage.tsx  display writing tests with pen icon and Writing skill label. Show format info (Task 1 Only / Task 2 Only / Full Test). Click navigates to practice page with materialId."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-7",
+            "page",
+            "student",
+            "library",
+            "modify-file",
+            "safety-rule-1"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Writing tests displayed with pen icon",
+              "completed": false
+            },
+            {
+              "text": "Format info shown",
+              "completed": false
+            },
+            {
+              "text": "Click navigates to practice page",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Ensure writing tests in fetch 2. Add Writing icon mapping 3. Add Writing label 4. Add format info display 5. Wire click navigation"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Tests from RTDB where skill===Writing. Navigate to practice page not live session. Safety Rule 1: route from routes.ts."
+        }
+      ],
+      "snapshot": {
+        "title": "Update StudentLibraryPage.tsx — writing test display + icon",
+        "description": "Update StudentLibraryPage.tsx  display writing tests with pen icon and Writing skill label. Show format info (Task 1 Only / Task 2 Only / Full Test). Click navigates to practice page with materialId.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-7",
+          "page",
+          "student",
+          "library",
+          "modify-file",
+          "safety-rule-1"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Writing tests displayed with pen icon",
+            "completed": false
+          },
+          {
+            "text": "Format info shown",
+            "completed": false
+          },
+          {
+            "text": "Click navigates to practice page",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Ensure writing tests in fetch 2. Add Writing icon mapping 3. Add Writing label 4. Add format info display 5. Wire click navigation",
+        "implementationNotes": "Tests from RTDB where skill===Writing. Navigate to practice page not live session. Safety Rule 1: route from routes.ts."
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "17z24x",
+      "version": 2,
+      "timestamp": "2026-02-28T03:10:18.740Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        }
+      ],
+      "snapshot": {
+        "title": "Update StudentLibraryPage.tsx — writing test display + icon",
+        "description": "Update StudentLibraryPage.tsx  display writing tests with pen icon and Writing skill label. Show format info (Task 1 Only / Task 2 Only / Full Test). Click navigates to practice page with materialId.",
+        "status": "in-progress",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-7",
+          "page",
+          "student",
+          "library",
+          "modify-file",
+          "safety-rule-1"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Writing tests displayed with pen icon"
+          },
+          {
+            "completed": false,
+            "text": "Format info shown"
+          },
+          {
+            "completed": false,
+            "text": "Click navigates to practice page"
+          }
+        ],
+        "implementationPlan": "1. Ensure writing tests in fetch 2. Add Writing icon mapping 3. Add Writing label 4. Add format info display 5. Wire click navigation",
+        "implementationNotes": "Tests from RTDB where skill===Writing. Navigate to practice page not live session. Safety Rule 1: route from routes.ts."
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "17z24x",
+      "version": 3,
+      "timestamp": "2026-02-28T03:11:19.745Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Writing tests displayed with pen icon"
+            },
+            {
+              "completed": false,
+              "text": "Format info shown"
+            },
+            {
+              "completed": false,
+              "text": "Click navigates to practice page"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Writing tests displayed with pen icon"
+            },
+            {
+              "completed": true,
+              "text": "Format info shown"
+            },
+            {
+              "completed": true,
+              "text": "Click navigates to practice page"
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Update StudentLibraryPage.tsx — writing test display + icon",
+        "description": "Update StudentLibraryPage.tsx  display writing tests with pen icon and Writing skill label. Show format info (Task 1 Only / Task 2 Only / Full Test). Click navigates to practice page with materialId.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-7",
+          "page",
+          "student",
+          "library",
+          "modify-file",
+          "safety-rule-1"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Writing tests displayed with pen icon"
+          },
+          {
+            "completed": true,
+            "text": "Format info shown"
+          },
+          {
+            "completed": true,
+            "text": "Click navigates to practice page"
+          }
+        ],
+        "implementationPlan": "1. Ensure writing tests in fetch 2. Add Writing icon mapping 3. Add Writing label 4. Add format info display 5. Wire click navigation",
+        "implementationNotes": "Tests from RTDB where skill===Writing. Navigate to practice page not live session. Safety Rule 1: route from routes.ts."
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "17z24x",
+      "version": 4,
+      "timestamp": "2026-02-28T03:11:22.830Z",
+      "changes": [
+        {
+          "field": "implementationNotes",
+          "oldValue": "Tests from RTDB where skill===Writing. Navigate to practice page not live session. Safety Rule 1: route from routes.ts.",
+          "newValue": "Tests from RTDB where skill===Writing. Navigate to practice page not live session. Safety Rule 1: route from routes.ts.\n\nImplemented 2026-02-28: Added SvgPen icon, purple badge for writing skill, format badge (Full Test/Task 1/Task 2) from material.format, SvgPen in stat row instead of question count. Navigation already worked via /student/practice/:materialId."
+        }
+      ],
+      "snapshot": {
+        "title": "Update StudentLibraryPage.tsx — writing test display + icon",
+        "description": "Update StudentLibraryPage.tsx  display writing tests with pen icon and Writing skill label. Show format info (Task 1 Only / Task 2 Only / Full Test). Click navigates to practice page with materialId.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-7",
+          "page",
+          "student",
+          "library",
+          "modify-file",
+          "safety-rule-1"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Writing tests displayed with pen icon"
+          },
+          {
+            "completed": true,
+            "text": "Format info shown"
+          },
+          {
+            "completed": true,
+            "text": "Click navigates to practice page"
+          }
+        ],
+        "implementationPlan": "1. Ensure writing tests in fetch 2. Add Writing icon mapping 3. Add Writing label 4. Add format info display 5. Wire click navigation",
+        "implementationNotes": "Tests from RTDB where skill===Writing. Navigate to practice page not live session. Safety Rule 1: route from routes.ts.\n\nImplemented 2026-02-28: Added SvgPen icon, purple badge for writing skill, format badge (Full Test/Task 1/Task 2) from material.format, SvgPen in stat row instead of question count. Navigation already worked via /student/practice/:materialId."
+      }
+    }
+  ]
+}

@@ -18,7 +18,7 @@
  * - Settings cascade: material > module > course > defaults
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { ref, get } from 'firebase/database';
 import { database } from '../services/firebase';
@@ -29,6 +29,10 @@ import { TestErrorBoundary } from '../components/test/TestErrorBoundary';
 import { IELTSPracticeView } from '../components/practice/IELTSPracticeView';
 import { THCSPracticeView } from '../components/practice/THCSPracticeView';
 import type { PracticeContext } from '../components/practice/IELTSPracticeView';
+import type { IELTSWritingTest } from '../types/ielts-writing.types';
+
+// Lazy import for Writing practice (code-split)
+const WritingPracticeView = lazy(() => import('../components/writing-practice/WritingPracticeView'));
 
 // ── Location State Shape ───────────────────────────────────────────────────────
 
@@ -42,6 +46,8 @@ interface PracticeLocationState {
     // Homework context
     homeworkId?: string;
     submissionId?: string;
+    dueDate?: number;
+    lateSubmissionAllowed?: boolean;
     // Resume hint
     resumeFrom?: any;
     // Generic context (from library/course entry points)
@@ -63,6 +69,8 @@ const StudentPracticePageContent: React.FC = () => {
     // ── State ──────────────────────────────────────────────────────────────────
     const [resolvedSettings, setResolvedSettings] = useState<ResolvedPracticeSettings | null>(null);
     const [testType, setTestType] = useState<'IELTS' | 'THCS' | null>(null);
+    const [testSkill, setTestSkill] = useState<string | null>(null);
+    const [writingTestData, setWritingTestData] = useState<IELTSWritingTest | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -79,10 +87,15 @@ const StudentPracticePageContent: React.FC = () => {
             setError(null);
 
             try {
-                // 1. Detect test type from Firebase
+                // 1. Detect test type + skill from Firebase
                 const testTypeRef = ref(database, `tests/${materialId}/testType`);
                 const testTypeSnap = await get(testTypeRef);
                 const rawTestType = testTypeSnap.val();
+
+                const skillRef = ref(database, `tests/${materialId}/skill`);
+                const skillSnap = await get(skillRef);
+                const rawSkill = skillSnap.val() || null;
+                setTestSkill(rawSkill);
 
                 if (rawTestType === 'THCS-THPT') {
                     setTestType('THCS');
@@ -90,7 +103,19 @@ const StudentPracticePageContent: React.FC = () => {
                     setTestType('IELTS');
                 }
 
-                // 2. Resolve practice settings
+                // 2. If Writing test, load full test data for WritingPracticeView
+                if (rawTestType === 'IELTS' && rawSkill === 'Writing') {
+                    const fullTestSnap = await get(ref(database, `tests/${materialId}`));
+                    if (fullTestSnap.exists()) {
+                        setWritingTestData(fullTestSnap.val() as IELTSWritingTest);
+                    } else {
+                        setError('Writing test data not found');
+                        setLoading(false);
+                        return;
+                    }
+                }
+
+                // 3. Resolve practice settings (for non-Writing IELTS tests)
                 if (locationState.courseId && locationState.moduleId) {
                     const settings = await resolvePracticeSettings(
                         locationState.courseId,
@@ -164,6 +189,33 @@ const StudentPracticePageContent: React.FC = () => {
     }
 
     // ── Route to correct view ──────────────────────────────────────────────────
+
+    // Writing branch: IELTS + skill=Writing → WritingPracticeView
+    if (testType === 'IELTS' && testSkill === 'Writing' && writingTestData) {
+        return (
+            <Suspense fallback={
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#f8fafc' }}>
+                    <div style={{ textAlign: 'center' }}>
+                        <div className="wpv-spinner" style={{ width: 40, height: 40, border: '4px solid #e2e8f0', borderTopColor: '#8b5cf6', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 1rem' }} />
+                        <div style={{ fontSize: '1rem', color: '#64748b' }}>Loading writing practice...</div>
+                    </div>
+                    <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                </div>
+            }>
+                <WritingPracticeView
+                    materialId={materialId}
+                    testData={writingTestData}
+                    homeworkContext={locationState.isHomework ? {
+                        homeworkId: locationState.homeworkId || '',
+                        dueDate: locationState.dueDate,
+                        lateSubmissionAllowed: locationState.lateSubmissionAllowed ?? false,
+                        previousEssay: locationState.resumeFrom?.essays,
+                    } : undefined}
+                />
+            </Suspense>
+        );
+    }
+
     switch (testType) {
         case 'IELTS':
             return (

@@ -316,7 +316,7 @@ const TestTypeSelectionModal: React.FC<TestTypeSelectionModalProps> = ({
                         >
                             {currentTestType?.skills.map((skill) => {
                                 const colors = SKILL_COLORS[skill];
-                                const isAvailable = skill === 'Reading' || skill === 'Listening'; // Only Reading and Listening are available
+                                const isAvailable = skill === 'Reading' || skill === 'Listening' || skill === 'Writing'; // Reading, Listening, and Writing are available
 
                                 return (
                                     <Card

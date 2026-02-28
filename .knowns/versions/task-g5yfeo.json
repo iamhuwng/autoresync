@@ -1,0 +1,124 @@
+{
+  "taskId": "g5yfeo",
+  "currentVersion": 2,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "g5yfeo",
+      "version": 1,
+      "timestamp": "2026-02-27T21:39:06.581Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Update firestore.rules — add rules for writing_submissions and writing_drafts",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing"
+        ],
+        "acceptanceCriteria": []
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "g5yfeo",
+      "version": 2,
+      "timestamp": "2026-02-27T22:25:05.236Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Update firestore.rules  add rules for writing_submissions (read if student or teacher, write if auth), writing_drafts (read/write if owner), and GAP-02: users/userId/settings for annotation categories."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-1",
+            "firestore-rules",
+            "security",
+            "modify-file",
+            "safety-rule-12",
+            "gap-02"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "writing_submissions rules added",
+              "completed": false
+            },
+            {
+              "text": "writing_drafts rules with owner check",
+              "completed": false
+            },
+            {
+              "text": "users/userId/settings rules added (GAP-02)",
+              "completed": false
+            },
+            {
+              "text": "firebase deploy --only firestore:rules succeeds",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Open firestore.rules 2. Add writing_submissions rules 3. Add writing_drafts rules 4. Add users/userId/settings rules (GAP-02) 5. Test deploy"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "GAP-02: users/uid/settings path for annotation categories. Safety Rule 12: verify not in FIRESTORE_EXCLUDE backup. Submissions need teacher read for grading."
+        }
+      ],
+      "snapshot": {
+        "title": "Update firestore.rules — add rules for writing_submissions and writing_drafts",
+        "description": "Update firestore.rules  add rules for writing_submissions (read if student or teacher, write if auth), writing_drafts (read/write if owner), and GAP-02: users/userId/settings for annotation categories.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-1",
+          "firestore-rules",
+          "security",
+          "modify-file",
+          "safety-rule-12",
+          "gap-02"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "writing_submissions rules added",
+            "completed": false
+          },
+          {
+            "text": "writing_drafts rules with owner check",
+            "completed": false
+          },
+          {
+            "text": "users/userId/settings rules added (GAP-02)",
+            "completed": false
+          },
+          {
+            "text": "firebase deploy --only firestore:rules succeeds",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Open firestore.rules 2. Add writing_submissions rules 3. Add writing_drafts rules 4. Add users/userId/settings rules (GAP-02) 5. Test deploy",
+        "implementationNotes": "GAP-02: users/uid/settings path for annotation categories. Safety Rule 12: verify not in FIRESTORE_EXCLUDE backup. Submissions need teacher read for grading."
+      }
+    }
+  ]
+}

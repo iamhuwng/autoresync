@@ -1,0 +1,242 @@
+{
+  "taskId": "oz6wo6",
+  "currentVersion": 3,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "oz6wo6",
+      "version": 1,
+      "timestamp": "2026-02-27T22:28:48.021Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Create WritingMonitorCard.tsx  per-student card subscribing to RTDB writing data. Shows: student name, connection status, active task, word count per task with color coding, last saved time. Peek button and Reopen Essay button."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-4",
+            "component",
+            "teacher",
+            "monitor",
+            "rtdb",
+            "new-file",
+            "no-mantine"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Subscribes to RTDB writing data",
+              "completed": false
+            },
+            {
+              "text": "Word count color coding",
+              "completed": false
+            },
+            {
+              "text": "Peek and Reopen buttons present",
+              "completed": false
+            },
+            {
+              "text": "RTDB cleanup on unmount",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Create src/components/writing-monitor/WritingMonitorCard.tsx + CSS 2. Subscribe to RTDB 3. Display student info and task status 4. Color-code word counts 5. Add Peek and Reopen buttons 6. Cleanup subscription on unmount"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Reopen only works if timer not expired. Peek is invisible to student. Word count: orange below min, green above. RTDB sub: onValue with off cleanup."
+        }
+      ],
+      "snapshot": {
+        "title": "Create WritingMonitorCard.tsx — per-student monitor card",
+        "description": "Create WritingMonitorCard.tsx  per-student card subscribing to RTDB writing data. Shows: student name, connection status, active task, word count per task with color coding, last saved time. Peek button and Reopen Essay button.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-4",
+          "component",
+          "teacher",
+          "monitor",
+          "rtdb",
+          "new-file",
+          "no-mantine"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Subscribes to RTDB writing data",
+            "completed": false
+          },
+          {
+            "text": "Word count color coding",
+            "completed": false
+          },
+          {
+            "text": "Peek and Reopen buttons present",
+            "completed": false
+          },
+          {
+            "text": "RTDB cleanup on unmount",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Create src/components/writing-monitor/WritingMonitorCard.tsx + CSS 2. Subscribe to RTDB 3. Display student info and task status 4. Color-code word counts 5. Add Peek and Reopen buttons 6. Cleanup subscription on unmount",
+        "implementationNotes": "Reopen only works if timer not expired. Peek is invisible to student. Word count: orange below min, green above. RTDB sub: onValue with off cleanup."
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "oz6wo6",
+      "version": 2,
+      "timestamp": "2026-02-27T23:29:58.770Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Subscribes to RTDB writing data"
+            },
+            {
+              "completed": false,
+              "text": "Word count color coding"
+            },
+            {
+              "completed": false,
+              "text": "Peek and Reopen buttons present"
+            },
+            {
+              "completed": false,
+              "text": "RTDB cleanup on unmount"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Subscribes to RTDB writing data"
+            },
+            {
+              "completed": true,
+              "text": "Word count color coding"
+            },
+            {
+              "completed": true,
+              "text": "Peek and Reopen buttons present"
+            },
+            {
+              "completed": true,
+              "text": "RTDB cleanup on unmount"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "oldValue": "Reopen only works if timer not expired. Peek is invisible to student. Word count: orange below min, green above. RTDB sub: onValue with off cleanup.",
+          "newValue": "Reopen only works if timer not expired. Peek is invisible to student. Word count: orange below min, green above. RTDB sub: onValue with off cleanup.\n\nAll ACs verified. WritingMonitorCard.tsx fully implemented: subscribes to RTDB writing data via onValue, word count color coding (orange below min, green above  150 for Task 1, 250 for Task 2), Peek button (when not submitted) and Reopen button (when submitted), RTDB cleanup via unsub() on unmount. Also shows connection status (Active/Idle/Submitted) and tab switch warnings."
+        }
+      ],
+      "snapshot": {
+        "title": "Create WritingMonitorCard.tsx — per-student monitor card",
+        "description": "Create WritingMonitorCard.tsx  per-student card subscribing to RTDB writing data. Shows: student name, connection status, active task, word count per task with color coding, last saved time. Peek button and Reopen Essay button.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-4",
+          "component",
+          "teacher",
+          "monitor",
+          "rtdb",
+          "new-file",
+          "no-mantine"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Subscribes to RTDB writing data"
+          },
+          {
+            "completed": true,
+            "text": "Word count color coding"
+          },
+          {
+            "completed": true,
+            "text": "Peek and Reopen buttons present"
+          },
+          {
+            "completed": true,
+            "text": "RTDB cleanup on unmount"
+          }
+        ],
+        "implementationPlan": "1. Create src/components/writing-monitor/WritingMonitorCard.tsx + CSS 2. Subscribe to RTDB 3. Display student info and task status 4. Color-code word counts 5. Add Peek and Reopen buttons 6. Cleanup subscription on unmount",
+        "implementationNotes": "Reopen only works if timer not expired. Peek is invisible to student. Word count: orange below min, green above. RTDB sub: onValue with off cleanup.\n\nAll ACs verified. WritingMonitorCard.tsx fully implemented: subscribes to RTDB writing data via onValue, word count color coding (orange below min, green above  150 for Task 1, 250 for Task 2), Peek button (when not submitted) and Reopen button (when submitted), RTDB cleanup via unsub() on unmount. Also shows connection status (Active/Idle/Submitted) and tab switch warnings."
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "oz6wo6",
+      "version": 3,
+      "timestamp": "2026-02-27T23:30:41.077Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Create WritingMonitorCard.tsx — per-student monitor card",
+        "description": "Create WritingMonitorCard.tsx  per-student card subscribing to RTDB writing data. Shows: student name, connection status, active task, word count per task with color coding, last saved time. Peek button and Reopen Essay button.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-4",
+          "component",
+          "teacher",
+          "monitor",
+          "rtdb",
+          "new-file",
+          "no-mantine"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Subscribes to RTDB writing data"
+          },
+          {
+            "completed": true,
+            "text": "Word count color coding"
+          },
+          {
+            "completed": true,
+            "text": "Peek and Reopen buttons present"
+          },
+          {
+            "completed": true,
+            "text": "RTDB cleanup on unmount"
+          }
+        ],
+        "implementationPlan": "1. Create src/components/writing-monitor/WritingMonitorCard.tsx + CSS 2. Subscribe to RTDB 3. Display student info and task status 4. Color-code word counts 5. Add Peek and Reopen buttons 6. Cleanup subscription on unmount",
+        "implementationNotes": "Reopen only works if timer not expired. Peek is invisible to student. Word count: orange below min, green above. RTDB sub: onValue with off cleanup.\n\nAll ACs verified. WritingMonitorCard.tsx fully implemented: subscribes to RTDB writing data via onValue, word count color coding (orange below min, green above  150 for Task 1, 250 for Task 2), Peek button (when not submitted) and Reopen button (when submitted), RTDB cleanup via unsub() on unmount. Also shows connection status (Active/Idle/Submitted) and tab switch warnings."
+      }
+    }
+  ]
+}

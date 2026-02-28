@@ -130,10 +130,14 @@ export interface DraftListItem {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Steps in the test creation modal */
-export type ModalStep = 'type' | 'skill' | 'metadata' | 'upload' | 'parsing';
+export type ModalStep = 'type' | 'skill' | 'metadata' | 'upload' | 'parsing'
+    | 'writing-metadata' | 'writing-format' | 'writing-content';
 
-/** Step order for navigation */
+/** Step order for navigation (Reading/Listening) */
 export const MODAL_STEP_ORDER: ModalStep[] = ['type', 'skill', 'metadata', 'upload', 'parsing'];
+
+/** Step order for Writing skill — stays in-modal for all steps */
+export const WRITING_STEP_ORDER: ModalStep[] = ['type', 'skill', 'writing-metadata', 'writing-format', 'writing-content'];
 
 /** Data collected across all modal steps */
 export interface ModalStepData {
@@ -151,6 +155,36 @@ export interface ModalStepData {
     inputMethod: 'upload' | 'paste';
     sourceContent: string | null;
     sourceFile: File | null;
+
+    // Writing-specific data (for in-modal writing wizard)
+    writingMetadata?: {
+        title: string;
+        description?: string;
+        duration: number;
+        difficulty?: 'beginner' | 'intermediate' | 'advanced';
+        targetBand?: number;
+        tags?: string[];
+    };
+    writingFormat?: 'task1-only' | 'task2-only' | 'full-test';
+    writingTasks?: {
+        task1: {
+            taskType: string;
+            promptText: string;
+            promptImageUrl?: string;
+            wordMinimum: number;
+            recommendedTimeMinutes: number;
+            modelAnswer?: string;
+            showModelAnswerToStudent: boolean;
+        };
+        task2: {
+            taskType: string;
+            promptText: string;
+            wordMinimum: number;
+            recommendedTimeMinutes: number;
+            modelAnswer?: string;
+            showModelAnswerToStudent: boolean;
+        };
+    };
 }
 
 /** Initial state for modal */
@@ -162,6 +196,9 @@ export const INITIAL_MODAL_DATA: ModalStepData = {
     inputMethod: 'upload',
     sourceContent: null,
     sourceFile: null,
+    writingMetadata: undefined,
+    writingFormat: undefined,
+    writingTasks: undefined,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

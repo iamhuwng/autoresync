@@ -1,0 +1,262 @@
+{
+  "taskId": "cijjj3",
+  "currentVersion": 3,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "cijjj3",
+      "version": 1,
+      "timestamp": "2026-02-27T22:27:15.269Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Create useExternalPastePrevention.ts  returns pasteAttemptCount and attachToTextarea function. Copy/cut sets lastInternalCopy. Paste checks against lastInternalCopy within 60s. Drop always blocked. Input monitoring for >10 char insertions."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-3",
+            "hook",
+            "student",
+            "security",
+            "paste-prevention",
+            "new-file"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Returns pasteAttemptCount and attachToTextarea",
+              "completed": false
+            },
+            {
+              "text": "Internal copy/paste allowed",
+              "completed": false
+            },
+            {
+              "text": "External paste blocked with toast",
+              "completed": false
+            },
+            {
+              "text": "Drop events blocked",
+              "completed": false
+            },
+            {
+              "text": "attachToTextarea returns cleanup function",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Create src/hooks/useExternalPastePrevention.ts 2. Track lastInternalCopy on copy/cut 3. Paste handler: compare clipboard to lastInternalCopy 4. Drop handler: preventDefault 5. Input monitoring: >10 chars without copy flag 6. Return cleanup function from attachToTextarea"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "60s window for internal copy. >10 char threshold for IME compatibility. Best-effort ~95%. pasteAttemptCount stored in submission. Used by both live session and solo practice."
+        }
+      ],
+      "snapshot": {
+        "title": "Create useExternalPastePrevention.ts — paste/drop blocking hook",
+        "description": "Create useExternalPastePrevention.ts  returns pasteAttemptCount and attachToTextarea function. Copy/cut sets lastInternalCopy. Paste checks against lastInternalCopy within 60s. Drop always blocked. Input monitoring for >10 char insertions.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-3",
+          "hook",
+          "student",
+          "security",
+          "paste-prevention",
+          "new-file"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Returns pasteAttemptCount and attachToTextarea",
+            "completed": false
+          },
+          {
+            "text": "Internal copy/paste allowed",
+            "completed": false
+          },
+          {
+            "text": "External paste blocked with toast",
+            "completed": false
+          },
+          {
+            "text": "Drop events blocked",
+            "completed": false
+          },
+          {
+            "text": "attachToTextarea returns cleanup function",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Create src/hooks/useExternalPastePrevention.ts 2. Track lastInternalCopy on copy/cut 3. Paste handler: compare clipboard to lastInternalCopy 4. Drop handler: preventDefault 5. Input monitoring: >10 chars without copy flag 6. Return cleanup function from attachToTextarea",
+        "implementationNotes": "60s window for internal copy. >10 char threshold for IME compatibility. Best-effort ~95%. pasteAttemptCount stored in submission. Used by both live session and solo practice."
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "cijjj3",
+      "version": 2,
+      "timestamp": "2026-02-27T23:01:54.430Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Returns pasteAttemptCount and attachToTextarea"
+            },
+            {
+              "completed": false,
+              "text": "Internal copy/paste allowed"
+            },
+            {
+              "completed": false,
+              "text": "External paste blocked with toast"
+            },
+            {
+              "completed": false,
+              "text": "Drop events blocked"
+            },
+            {
+              "completed": false,
+              "text": "attachToTextarea returns cleanup function"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Returns pasteAttemptCount and attachToTextarea"
+            },
+            {
+              "completed": true,
+              "text": "Internal copy/paste allowed"
+            },
+            {
+              "completed": true,
+              "text": "External paste blocked with toast"
+            },
+            {
+              "completed": true,
+              "text": "Drop events blocked"
+            },
+            {
+              "completed": true,
+              "text": "attachToTextarea returns cleanup function"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "oldValue": "60s window for internal copy. >10 char threshold for IME compatibility. Best-effort ~95%. pasteAttemptCount stored in submission. Used by both live session and solo practice.",
+          "newValue": "60s window for internal copy. >10 char threshold for IME compatibility. Best-effort ~95%. pasteAttemptCount stored in submission. Used by both live session and solo practice.\n\nAll ACs verified. useExternalPastePrevention.ts fully implemented: returns {pasteAttemptCount, attachToTextarea}. Internal copy/paste tracked via lastInternalCopyRef with 60s window. External paste blocked with red toast + counter increment. Drop events blocked with amber toast. attachToTextarea returns cleanup function removing all listeners. No TS errors."
+        }
+      ],
+      "snapshot": {
+        "title": "Create useExternalPastePrevention.ts — paste/drop blocking hook",
+        "description": "Create useExternalPastePrevention.ts  returns pasteAttemptCount and attachToTextarea function. Copy/cut sets lastInternalCopy. Paste checks against lastInternalCopy within 60s. Drop always blocked. Input monitoring for >10 char insertions.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-3",
+          "hook",
+          "student",
+          "security",
+          "paste-prevention",
+          "new-file"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Returns pasteAttemptCount and attachToTextarea"
+          },
+          {
+            "completed": true,
+            "text": "Internal copy/paste allowed"
+          },
+          {
+            "completed": true,
+            "text": "External paste blocked with toast"
+          },
+          {
+            "completed": true,
+            "text": "Drop events blocked"
+          },
+          {
+            "completed": true,
+            "text": "attachToTextarea returns cleanup function"
+          }
+        ],
+        "implementationPlan": "1. Create src/hooks/useExternalPastePrevention.ts 2. Track lastInternalCopy on copy/cut 3. Paste handler: compare clipboard to lastInternalCopy 4. Drop handler: preventDefault 5. Input monitoring: >10 chars without copy flag 6. Return cleanup function from attachToTextarea",
+        "implementationNotes": "60s window for internal copy. >10 char threshold for IME compatibility. Best-effort ~95%. pasteAttemptCount stored in submission. Used by both live session and solo practice.\n\nAll ACs verified. useExternalPastePrevention.ts fully implemented: returns {pasteAttemptCount, attachToTextarea}. Internal copy/paste tracked via lastInternalCopyRef with 60s window. External paste blocked with red toast + counter increment. Drop events blocked with amber toast. attachToTextarea returns cleanup function removing all listeners. No TS errors."
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "cijjj3",
+      "version": 3,
+      "timestamp": "2026-02-27T23:02:08.116Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Create useExternalPastePrevention.ts — paste/drop blocking hook",
+        "description": "Create useExternalPastePrevention.ts  returns pasteAttemptCount and attachToTextarea function. Copy/cut sets lastInternalCopy. Paste checks against lastInternalCopy within 60s. Drop always blocked. Input monitoring for >10 char insertions.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-3",
+          "hook",
+          "student",
+          "security",
+          "paste-prevention",
+          "new-file"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Returns pasteAttemptCount and attachToTextarea"
+          },
+          {
+            "completed": true,
+            "text": "Internal copy/paste allowed"
+          },
+          {
+            "completed": true,
+            "text": "External paste blocked with toast"
+          },
+          {
+            "completed": true,
+            "text": "Drop events blocked"
+          },
+          {
+            "completed": true,
+            "text": "attachToTextarea returns cleanup function"
+          }
+        ],
+        "implementationPlan": "1. Create src/hooks/useExternalPastePrevention.ts 2. Track lastInternalCopy on copy/cut 3. Paste handler: compare clipboard to lastInternalCopy 4. Drop handler: preventDefault 5. Input monitoring: >10 chars without copy flag 6. Return cleanup function from attachToTextarea",
+        "implementationNotes": "60s window for internal copy. >10 char threshold for IME compatibility. Best-effort ~95%. pasteAttemptCount stored in submission. Used by both live session and solo practice.\n\nAll ACs verified. useExternalPastePrevention.ts fully implemented: returns {pasteAttemptCount, attachToTextarea}. Internal copy/paste tracked via lastInternalCopyRef with 60s window. External paste blocked with red toast + counter increment. Drop events blocked with amber toast. attachToTextarea returns cleanup function removing all listeners. No TS errors."
+      }
+    }
+  ]
+}

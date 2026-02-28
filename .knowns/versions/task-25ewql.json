@@ -1,0 +1,134 @@
+{
+  "taskId": "25ewql",
+  "currentVersion": 2,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "25ewql",
+      "version": 1,
+      "timestamp": "2026-02-27T21:39:49.868Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Create WritingTaskPanel.tsx — task prompt editor with image upload",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing"
+        ],
+        "acceptanceCriteria": []
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "25ewql",
+      "version": 2,
+      "timestamp": "2026-02-27T22:25:43.275Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Create WritingTaskPanel.tsx  task type dropdown, prompt textarea with 2000 char counter, image upload for Task 1 only via r2StorageService.uploadImage, URL paste option, word minimum defaults (150/250), model answer section. NEVER use Firebase Storage."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-2",
+            "component",
+            "teacher",
+            "builder",
+            "new-file",
+            "r2-storage",
+            "no-mantine"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Image upload via r2StorageService only",
+              "completed": false
+            },
+            {
+              "text": "Prompt textarea limited to 2000 chars with counter",
+              "completed": false
+            },
+            {
+              "text": "Image section only for Task 1",
+              "completed": false
+            },
+            {
+              "text": "Word min defaults: 150 Task1, 250 Task2",
+              "completed": false
+            },
+            {
+              "text": "Model answer with visibility checkbox",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Create src/components/writing-builder/WritingTaskPanel.tsx 2. Task type dropdown 3. Prompt textarea with counter 4. Image section for Task 1 only 5. R2 upload via r2StorageService 6. Word min defaults: 150 Task1, 250 Task2 7. Model answer + visibility checkbox"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "CRITICAL: import r2StorageService from services/r2Storage  NOT imageUploadService. _imageKey is UI-only, stripped on publish. Task 2 has NO image upload."
+        }
+      ],
+      "snapshot": {
+        "title": "Create WritingTaskPanel.tsx — task prompt editor with image upload",
+        "description": "Create WritingTaskPanel.tsx  task type dropdown, prompt textarea with 2000 char counter, image upload for Task 1 only via r2StorageService.uploadImage, URL paste option, word minimum defaults (150/250), model answer section. NEVER use Firebase Storage.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-2",
+          "component",
+          "teacher",
+          "builder",
+          "new-file",
+          "r2-storage",
+          "no-mantine"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Image upload via r2StorageService only",
+            "completed": false
+          },
+          {
+            "text": "Prompt textarea limited to 2000 chars with counter",
+            "completed": false
+          },
+          {
+            "text": "Image section only for Task 1",
+            "completed": false
+          },
+          {
+            "text": "Word min defaults: 150 Task1, 250 Task2",
+            "completed": false
+          },
+          {
+            "text": "Model answer with visibility checkbox",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Create src/components/writing-builder/WritingTaskPanel.tsx 2. Task type dropdown 3. Prompt textarea with counter 4. Image section for Task 1 only 5. R2 upload via r2StorageService 6. Word min defaults: 150 Task1, 250 Task2 7. Model answer + visibility checkbox",
+        "implementationNotes": "CRITICAL: import r2StorageService from services/r2Storage  NOT imageUploadService. _imageKey is UI-only, stripped on publish. Task 2 has NO image upload."
+      }
+    }
+  ]
+}

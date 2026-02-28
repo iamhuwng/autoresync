@@ -1,0 +1,136 @@
+{
+  "taskId": "ypbjvf",
+  "currentVersion": 2,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "ypbjvf",
+      "version": 1,
+      "timestamp": "2026-02-27T21:39:52.795Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Create WritingTestBuilder.tsx — main builder page assembly",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing"
+        ],
+        "acceptanceCriteria": []
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "ypbjvf",
+      "version": 2,
+      "timestamp": "2026-02-27T22:25:57.062Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Create WritingTestBuilder.tsx main page. GAP-07: useParams draftId. GAP-06: auto-save debounce with useRef not useState. Task panels shown/hidden by format using display:none CSS. Edit mode loads draft on mount."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-2",
+            "page",
+            "teacher",
+            "builder",
+            "new-file",
+            "gap-06",
+            "gap-07",
+            "safety-rule-6"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Uses useParams for draftId (GAP-07)",
+              "completed": false
+            },
+            {
+              "text": "Auto-save uses useRef not useState (GAP-06)",
+              "completed": false
+            },
+            {
+              "text": "Hidden panels use display:none not unmount",
+              "completed": false
+            },
+            {
+              "text": "Edit mode loads draft on mount",
+              "completed": false
+            },
+            {
+              "text": "Save status indicator shown",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Create src/pages/WritingTestBuilder.tsx + CSS 2. Get draftId from useParams 3. Layout: header + metadata + tasks + validation 4. Format-based visibility via display:none 5. Auto-save with useRef timer 6. Edit mode: load draft on mount 7. Wire publish button"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "GAP-06: useRef for timer  Safety Rule 6. GAP-07: param is draftId. Hidden panels preserve state. Save status: idle/saving/saved/error."
+        }
+      ],
+      "snapshot": {
+        "title": "Create WritingTestBuilder.tsx — main builder page assembly",
+        "description": "Create WritingTestBuilder.tsx main page. GAP-07: useParams draftId. GAP-06: auto-save debounce with useRef not useState. Task panels shown/hidden by format using display:none CSS. Edit mode loads draft on mount.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-2",
+          "page",
+          "teacher",
+          "builder",
+          "new-file",
+          "gap-06",
+          "gap-07",
+          "safety-rule-6"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Uses useParams for draftId (GAP-07)",
+            "completed": false
+          },
+          {
+            "text": "Auto-save uses useRef not useState (GAP-06)",
+            "completed": false
+          },
+          {
+            "text": "Hidden panels use display:none not unmount",
+            "completed": false
+          },
+          {
+            "text": "Edit mode loads draft on mount",
+            "completed": false
+          },
+          {
+            "text": "Save status indicator shown",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Create src/pages/WritingTestBuilder.tsx + CSS 2. Get draftId from useParams 3. Layout: header + metadata + tasks + validation 4. Format-based visibility via display:none 5. Auto-save with useRef timer 6. Edit mode: load draft on mount 7. Wire publish button",
+        "implementationNotes": "GAP-06: useRef for timer  Safety Rule 6. GAP-07: param is draftId. Hidden panels preserve state. Save status: idle/saving/saved/error."
+      }
+    }
+  ]
+}

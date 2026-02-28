@@ -1,0 +1,231 @@
+{
+  "taskId": "y9kr8j",
+  "currentVersion": 4,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "y9kr8j",
+      "version": 1,
+      "timestamp": "2026-02-27T22:35:39.769Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Update StudentDashboardPage.jsx  import and render PendingReviewsWidget. Widget is self-contained, handles own data fetching and conditional rendering."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-8",
+            "page",
+            "student",
+            "dashboard",
+            "modify-file",
+            "safety-rule-8"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "PendingReviewsWidget imported and rendered",
+              "completed": false
+            },
+            {
+              "text": "Existing dashboard layout preserved",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Import PendingReviewsWidget 2. Add to dashboard layout 3. Verify rendering"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Widget handles conditional rendering (null when empty). No props needed. Safety Rule 8: must be rendered."
+        }
+      ],
+      "snapshot": {
+        "title": "Add PendingReviewsWidget to StudentDashboardPage.jsx",
+        "description": "Update StudentDashboardPage.jsx  import and render PendingReviewsWidget. Widget is self-contained, handles own data fetching and conditional rendering.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-8",
+          "page",
+          "student",
+          "dashboard",
+          "modify-file",
+          "safety-rule-8"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "PendingReviewsWidget imported and rendered",
+            "completed": false
+          },
+          {
+            "text": "Existing dashboard layout preserved",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Import PendingReviewsWidget 2. Add to dashboard layout 3. Verify rendering",
+        "implementationNotes": "Widget handles conditional rendering (null when empty). No props needed. Safety Rule 8: must be rendered."
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "y9kr8j",
+      "version": 2,
+      "timestamp": "2026-02-28T03:14:42.157Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        }
+      ],
+      "snapshot": {
+        "title": "Add PendingReviewsWidget to StudentDashboardPage.jsx",
+        "description": "Update StudentDashboardPage.jsx  import and render PendingReviewsWidget. Widget is self-contained, handles own data fetching and conditional rendering.",
+        "status": "in-progress",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-8",
+          "page",
+          "student",
+          "dashboard",
+          "modify-file",
+          "safety-rule-8"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "PendingReviewsWidget imported and rendered"
+          },
+          {
+            "completed": false,
+            "text": "Existing dashboard layout preserved"
+          }
+        ],
+        "implementationPlan": "1. Import PendingReviewsWidget 2. Add to dashboard layout 3. Verify rendering",
+        "implementationNotes": "Widget handles conditional rendering (null when empty). No props needed. Safety Rule 8: must be rendered."
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "y9kr8j",
+      "version": 3,
+      "timestamp": "2026-02-28T03:16:27.769Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "PendingReviewsWidget imported and rendered"
+            },
+            {
+              "completed": false,
+              "text": "Existing dashboard layout preserved"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "PendingReviewsWidget imported and rendered"
+            },
+            {
+              "completed": true,
+              "text": "Existing dashboard layout preserved"
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Add PendingReviewsWidget to StudentDashboardPage.jsx",
+        "description": "Update StudentDashboardPage.jsx  import and render PendingReviewsWidget. Widget is self-contained, handles own data fetching and conditional rendering.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-8",
+          "page",
+          "student",
+          "dashboard",
+          "modify-file",
+          "safety-rule-8"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "PendingReviewsWidget imported and rendered"
+          },
+          {
+            "completed": true,
+            "text": "Existing dashboard layout preserved"
+          }
+        ],
+        "implementationPlan": "1. Import PendingReviewsWidget 2. Add to dashboard layout 3. Verify rendering",
+        "implementationNotes": "Widget handles conditional rendering (null when empty). No props needed. Safety Rule 8: must be rendered."
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "y9kr8j",
+      "version": 4,
+      "timestamp": "2026-02-28T03:16:30.839Z",
+      "changes": [
+        {
+          "field": "implementationNotes",
+          "oldValue": "Widget handles conditional rendering (null when empty). No props needed. Safety Rule 8: must be rendered.",
+          "newValue": "Widget handles conditional rendering (null when empty). No props needed. Safety Rule 8: must be rendered.\n\nImplemented 2026-02-28: Imported PendingReviewsWidget in StudentDashboardPage and rendered it at the bottom of the right panel. Widget is self-contained and returns null when empty."
+        }
+      ],
+      "snapshot": {
+        "title": "Add PendingReviewsWidget to StudentDashboardPage.jsx",
+        "description": "Update StudentDashboardPage.jsx  import and render PendingReviewsWidget. Widget is self-contained, handles own data fetching and conditional rendering.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-8",
+          "page",
+          "student",
+          "dashboard",
+          "modify-file",
+          "safety-rule-8"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "PendingReviewsWidget imported and rendered"
+          },
+          {
+            "completed": true,
+            "text": "Existing dashboard layout preserved"
+          }
+        ],
+        "implementationPlan": "1. Import PendingReviewsWidget 2. Add to dashboard layout 3. Verify rendering",
+        "implementationNotes": "Widget handles conditional rendering (null when empty). No props needed. Safety Rule 8: must be rendered.\n\nImplemented 2026-02-28: Imported PendingReviewsWidget in StudentDashboardPage and rendered it at the bottom of the right panel. Widget is self-contained and returns null when empty."
+      }
+    }
+  ]
+}

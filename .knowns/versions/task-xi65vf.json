@@ -1,0 +1,238 @@
+{
+  "taskId": "xi65vf",
+  "currentVersion": 3,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "xi65vf",
+      "version": 1,
+      "timestamp": "2026-02-27T22:27:56.100Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Create WritingSubmitModal.tsx  native HTML/CSS confirmation dialog. Shows word counts per task. Cancel and Submit buttons. No word count warnings in live session."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-3",
+            "component",
+            "student",
+            "modal",
+            "new-file",
+            "no-mantine"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Native HTML/CSS modal",
+              "completed": false
+            },
+            {
+              "text": "Word count per task displayed",
+              "completed": false
+            },
+            {
+              "text": "Submit and Cancel buttons work",
+              "completed": false
+            },
+            {
+              "text": "No submit blocking on word count",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Create src/components/writing-student/WritingSubmitModal.tsx 2. Render modal with backdrop 3. Display confirmation and word counts 4. Cancel and Submit buttons 5. Style with CSS"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "In live session word count displayed but NOT enforced. Auto-submit on timer skips this modal. Keep simple  just confirmation."
+        }
+      ],
+      "snapshot": {
+        "title": "Create WritingSubmitModal.tsx — submit confirmation dialog",
+        "description": "Create WritingSubmitModal.tsx  native HTML/CSS confirmation dialog. Shows word counts per task. Cancel and Submit buttons. No word count warnings in live session.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-3",
+          "component",
+          "student",
+          "modal",
+          "new-file",
+          "no-mantine"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Native HTML/CSS modal",
+            "completed": false
+          },
+          {
+            "text": "Word count per task displayed",
+            "completed": false
+          },
+          {
+            "text": "Submit and Cancel buttons work",
+            "completed": false
+          },
+          {
+            "text": "No submit blocking on word count",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Create src/components/writing-student/WritingSubmitModal.tsx 2. Render modal with backdrop 3. Display confirmation and word counts 4. Cancel and Submit buttons 5. Style with CSS",
+        "implementationNotes": "In live session word count displayed but NOT enforced. Auto-submit on timer skips this modal. Keep simple  just confirmation."
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "xi65vf",
+      "version": 2,
+      "timestamp": "2026-02-27T23:14:33.827Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Native HTML/CSS modal"
+            },
+            {
+              "completed": false,
+              "text": "Word count per task displayed"
+            },
+            {
+              "completed": false,
+              "text": "Submit and Cancel buttons work"
+            },
+            {
+              "completed": false,
+              "text": "No submit blocking on word count"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Native HTML/CSS modal"
+            },
+            {
+              "completed": true,
+              "text": "Word count per task displayed"
+            },
+            {
+              "completed": true,
+              "text": "Submit and Cancel buttons work"
+            },
+            {
+              "completed": true,
+              "text": "No submit blocking on word count"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "oldValue": "In live session word count displayed but NOT enforced. Auto-submit on timer skips this modal. Keep simple  just confirmation.",
+          "newValue": "In live session word count displayed but NOT enforced. Auto-submit on timer skips this modal. Keep simple  just confirmation.\n\nAll ACs verified. WritingSubmitModal.tsx fully implemented: native HTML/CSS modal (no Mantine), word count per task displayed with color coding, Cancel/Submit buttons wired to onClose/onConfirm, no submit blocking on word count. CSS in WritingTestPage.css."
+        }
+      ],
+      "snapshot": {
+        "title": "Create WritingSubmitModal.tsx — submit confirmation dialog",
+        "description": "Create WritingSubmitModal.tsx  native HTML/CSS confirmation dialog. Shows word counts per task. Cancel and Submit buttons. No word count warnings in live session.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-3",
+          "component",
+          "student",
+          "modal",
+          "new-file",
+          "no-mantine"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Native HTML/CSS modal"
+          },
+          {
+            "completed": true,
+            "text": "Word count per task displayed"
+          },
+          {
+            "completed": true,
+            "text": "Submit and Cancel buttons work"
+          },
+          {
+            "completed": true,
+            "text": "No submit blocking on word count"
+          }
+        ],
+        "implementationPlan": "1. Create src/components/writing-student/WritingSubmitModal.tsx 2. Render modal with backdrop 3. Display confirmation and word counts 4. Cancel and Submit buttons 5. Style with CSS",
+        "implementationNotes": "In live session word count displayed but NOT enforced. Auto-submit on timer skips this modal. Keep simple  just confirmation.\n\nAll ACs verified. WritingSubmitModal.tsx fully implemented: native HTML/CSS modal (no Mantine), word count per task displayed with color coding, Cancel/Submit buttons wired to onClose/onConfirm, no submit blocking on word count. CSS in WritingTestPage.css."
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "xi65vf",
+      "version": 3,
+      "timestamp": "2026-02-27T23:15:01.679Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Create WritingSubmitModal.tsx — submit confirmation dialog",
+        "description": "Create WritingSubmitModal.tsx  native HTML/CSS confirmation dialog. Shows word counts per task. Cancel and Submit buttons. No word count warnings in live session.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-3",
+          "component",
+          "student",
+          "modal",
+          "new-file",
+          "no-mantine"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Native HTML/CSS modal"
+          },
+          {
+            "completed": true,
+            "text": "Word count per task displayed"
+          },
+          {
+            "completed": true,
+            "text": "Submit and Cancel buttons work"
+          },
+          {
+            "completed": true,
+            "text": "No submit blocking on word count"
+          }
+        ],
+        "implementationPlan": "1. Create src/components/writing-student/WritingSubmitModal.tsx 2. Render modal with backdrop 3. Display confirmation and word counts 4. Cancel and Submit buttons 5. Style with CSS",
+        "implementationNotes": "In live session word count displayed but NOT enforced. Auto-submit on timer skips this modal. Keep simple  just confirmation.\n\nAll ACs verified. WritingSubmitModal.tsx fully implemented: native HTML/CSS modal (no Mantine), word count per task displayed with color coding, Cancel/Submit buttons wired to onClose/onConfirm, no submit blocking on word count. CSS in WritingTestPage.css."
+      }
+    }
+  ]
+}

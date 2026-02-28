@@ -1,0 +1,128 @@
+{
+  "taskId": "zrnpte",
+  "currentVersion": 2,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "zrnpte",
+      "version": 1,
+      "timestamp": "2026-02-27T21:32:54.940Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Session 2026-02-28: Phase 6 completed. Created: AnnotatedEssayReadOnly (reuses renderAnnotatedText), CriteriaScoreChart (CSS-only bars), WritingResultView (3-state student view), WritingResultDetailModal (teacher modal), WritingTestResultsSection (teacher results table). Added getSubmissionsBySession() to writingSubmissionService. Integrated into TeacherTestResultsPage via conditional branch. WebMCP tools: get_writing_test_results, open_writing_result_detail, get_writing_result_state. Remaining: 6.1.1 integrate into StudentTestResultsPage."
+        }
+      ],
+      "snapshot": {
+        "title": "PRD-0030: Results & Review",
+        "status": "done",
+        "priority": "high",
+        "labels": [
+          "prd-0030",
+          "ielts-writing"
+        ],
+        "acceptanceCriteria": [],
+        "implementationNotes": "Session 2026-02-28: Phase 6 completed. Created: AnnotatedEssayReadOnly (reuses renderAnnotatedText), CriteriaScoreChart (CSS-only bars), WritingResultView (3-state student view), WritingResultDetailModal (teacher modal), WritingTestResultsSection (teacher results table). Added getSubmissionsBySession() to writingSubmissionService. Integrated into TeacherTestResultsPage via conditional branch. WebMCP tools: get_writing_test_results, open_writing_result_detail, get_writing_result_state. Remaining: 6.1.1 integrate into StudentTestResultsPage."
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "zrnpte",
+      "version": 2,
+      "timestamp": "2026-02-27T22:31:48.999Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Phase 6 epic. Student and teacher views for graded writing submissions. Student: 3-state view (pending/graded/error), annotated essay read-only, criteria chart, feedback. Teacher: result detail modal with audit trail and re-grade option. WARNING: Task 6.1.1 is MISSING from Knowns  needs creation."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-6",
+            "epic",
+            "student",
+            "teacher",
+            "results"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "All subtasks completed including 6.1.1",
+              "completed": false
+            },
+            {
+              "text": "Student 3-state result view works",
+              "completed": false
+            },
+            {
+              "text": "Teacher result modal with audit trail",
+              "completed": false
+            },
+            {
+              "text": "Task 6.1.1 created and completed",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. WritingResultView (6.1) 2. Integrate into StudentTestResultsPage (6.1.1 MISSING) 3. AnnotatedEssayReadOnly (6.2) 4. CriteriaScoreChart (6.3) 5. WritingResultDetailModal (6.4) 6. TeacherTestResultsPage (6.5) 7. WebMCP tools (6.6)"
+        },
+        {
+          "field": "implementationNotes",
+          "oldValue": "Session 2026-02-28: Phase 6 completed. Created: AnnotatedEssayReadOnly (reuses renderAnnotatedText), CriteriaScoreChart (CSS-only bars), WritingResultView (3-state student view), WritingResultDetailModal (teacher modal), WritingTestResultsSection (teacher results table). Added getSubmissionsBySession() to writingSubmissionService. Integrated into TeacherTestResultsPage via conditional branch. WebMCP tools: get_writing_test_results, open_writing_result_detail, get_writing_result_state. Remaining: 6.1.1 integrate into StudentTestResultsPage.",
+          "newValue": "Task 6.1.1 MISSING from Knowns  needs creation. Student sees only latest grading. Model answer shown post-grading if enabled. Reuses annotationRenderer from Phase 5."
+        }
+      ],
+      "snapshot": {
+        "title": "PRD-0030: Results & Review",
+        "description": "Phase 6 epic. Student and teacher views for graded writing submissions. Student: 3-state view (pending/graded/error), annotated essay read-only, criteria chart, feedback. Teacher: result detail modal with audit trail and re-grade option. WARNING: Task 6.1.1 is MISSING from Knowns  needs creation.",
+        "status": "done",
+        "priority": "high",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-6",
+          "epic",
+          "student",
+          "teacher",
+          "results"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "All subtasks completed including 6.1.1",
+            "completed": false
+          },
+          {
+            "text": "Student 3-state result view works",
+            "completed": false
+          },
+          {
+            "text": "Teacher result modal with audit trail",
+            "completed": false
+          },
+          {
+            "text": "Task 6.1.1 created and completed",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. WritingResultView (6.1) 2. Integrate into StudentTestResultsPage (6.1.1 MISSING) 3. AnnotatedEssayReadOnly (6.2) 4. CriteriaScoreChart (6.3) 5. WritingResultDetailModal (6.4) 6. TeacherTestResultsPage (6.5) 7. WebMCP tools (6.6)",
+        "implementationNotes": "Task 6.1.1 MISSING from Knowns  needs creation. Student sees only latest grading. Model answer shown post-grading if enabled. Reuses annotationRenderer from Phase 5."
+      }
+    }
+  ]
+}

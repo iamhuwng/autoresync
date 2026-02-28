@@ -1,0 +1,262 @@
+{
+  "taskId": "hb9gdo",
+  "currentVersion": 3,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "hb9gdo",
+      "version": 1,
+      "timestamp": "2026-02-27T22:28:10.049Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Implement submit flow in WritingTestPage. Flushes auto-save, calls autoSubmitFromRTDB from writingSubmissionService. Creates Firestore submission + RTDB result. Shows submitted overlay. Timer expiry uses same flow without modal. GAP-14: logic in service, not component."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-3",
+            "feature",
+            "student",
+            "submit-flow",
+            "gap-14",
+            "safety-rule-14"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Calls autoSubmitFromRTDB from service",
+              "completed": false
+            },
+            {
+              "text": "Flushes auto-save before submit",
+              "completed": false
+            },
+            {
+              "text": "Creates Firestore and RTDB entries",
+              "completed": false
+            },
+            {
+              "text": "Timer expiry auto-submits without modal",
+              "completed": false
+            },
+            {
+              "text": "Submitted overlay shown after success",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Add submit handler 2. Flush auto-save 3. Call autoSubmitFromRTDB 4. Show submitted overlay 5. Wire timer expiry 6. Disable textarea after submit"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "GAP-14: submit logic in writingSubmissionService.autoSubmitFromRTDB  NOT inline. Shared with teacher monitor. Safety Rule 14: never regenerate resultId."
+        }
+      ],
+      "snapshot": {
+        "title": "Implement submit flow — Firestore + RTDB result creation",
+        "description": "Implement submit flow in WritingTestPage. Flushes auto-save, calls autoSubmitFromRTDB from writingSubmissionService. Creates Firestore submission + RTDB result. Shows submitted overlay. Timer expiry uses same flow without modal. GAP-14: logic in service, not component.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-3",
+          "feature",
+          "student",
+          "submit-flow",
+          "gap-14",
+          "safety-rule-14"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Calls autoSubmitFromRTDB from service",
+            "completed": false
+          },
+          {
+            "text": "Flushes auto-save before submit",
+            "completed": false
+          },
+          {
+            "text": "Creates Firestore and RTDB entries",
+            "completed": false
+          },
+          {
+            "text": "Timer expiry auto-submits without modal",
+            "completed": false
+          },
+          {
+            "text": "Submitted overlay shown after success",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Add submit handler 2. Flush auto-save 3. Call autoSubmitFromRTDB 4. Show submitted overlay 5. Wire timer expiry 6. Disable textarea after submit",
+        "implementationNotes": "GAP-14: submit logic in writingSubmissionService.autoSubmitFromRTDB  NOT inline. Shared with teacher monitor. Safety Rule 14: never regenerate resultId."
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "hb9gdo",
+      "version": 2,
+      "timestamp": "2026-02-27T23:23:12.552Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Calls autoSubmitFromRTDB from service"
+            },
+            {
+              "completed": false,
+              "text": "Flushes auto-save before submit"
+            },
+            {
+              "completed": false,
+              "text": "Creates Firestore and RTDB entries"
+            },
+            {
+              "completed": false,
+              "text": "Timer expiry auto-submits without modal"
+            },
+            {
+              "completed": false,
+              "text": "Submitted overlay shown after success"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Calls autoSubmitFromRTDB from service"
+            },
+            {
+              "completed": true,
+              "text": "Flushes auto-save before submit"
+            },
+            {
+              "completed": true,
+              "text": "Creates Firestore and RTDB entries"
+            },
+            {
+              "completed": true,
+              "text": "Timer expiry auto-submits without modal"
+            },
+            {
+              "completed": true,
+              "text": "Submitted overlay shown after success"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "oldValue": "GAP-14: submit logic in writingSubmissionService.autoSubmitFromRTDB  NOT inline. Shared with teacher monitor. Safety Rule 14: never regenerate resultId.",
+          "newValue": "GAP-14: submit logic in writingSubmissionService.autoSubmitFromRTDB  NOT inline. Shared with teacher monitor. Safety Rule 14: never regenerate resultId.\n\nAll ACs verified. Submit flow fully implemented: autoSubmitFromRTDB imported from writingSubmissionService (GAP-14 compliant, not inline), auto-save flushed before submit, creates Firestore submission + RTDB result index, timer can call handleSubmit directly without modal, submitted overlay shown on success. Service uses withRestoreGuard (Safety Rule 11) and push-key for resultId (Safety Rule 14)."
+        }
+      ],
+      "snapshot": {
+        "title": "Implement submit flow — Firestore + RTDB result creation",
+        "description": "Implement submit flow in WritingTestPage. Flushes auto-save, calls autoSubmitFromRTDB from writingSubmissionService. Creates Firestore submission + RTDB result. Shows submitted overlay. Timer expiry uses same flow without modal. GAP-14: logic in service, not component.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-3",
+          "feature",
+          "student",
+          "submit-flow",
+          "gap-14",
+          "safety-rule-14"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Calls autoSubmitFromRTDB from service"
+          },
+          {
+            "completed": true,
+            "text": "Flushes auto-save before submit"
+          },
+          {
+            "completed": true,
+            "text": "Creates Firestore and RTDB entries"
+          },
+          {
+            "completed": true,
+            "text": "Timer expiry auto-submits without modal"
+          },
+          {
+            "completed": true,
+            "text": "Submitted overlay shown after success"
+          }
+        ],
+        "implementationPlan": "1. Add submit handler 2. Flush auto-save 3. Call autoSubmitFromRTDB 4. Show submitted overlay 5. Wire timer expiry 6. Disable textarea after submit",
+        "implementationNotes": "GAP-14: submit logic in writingSubmissionService.autoSubmitFromRTDB  NOT inline. Shared with teacher monitor. Safety Rule 14: never regenerate resultId.\n\nAll ACs verified. Submit flow fully implemented: autoSubmitFromRTDB imported from writingSubmissionService (GAP-14 compliant, not inline), auto-save flushed before submit, creates Firestore submission + RTDB result index, timer can call handleSubmit directly without modal, submitted overlay shown on success. Service uses withRestoreGuard (Safety Rule 11) and push-key for resultId (Safety Rule 14)."
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "hb9gdo",
+      "version": 3,
+      "timestamp": "2026-02-27T23:23:37.102Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Implement submit flow — Firestore + RTDB result creation",
+        "description": "Implement submit flow in WritingTestPage. Flushes auto-save, calls autoSubmitFromRTDB from writingSubmissionService. Creates Firestore submission + RTDB result. Shows submitted overlay. Timer expiry uses same flow without modal. GAP-14: logic in service, not component.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-3",
+          "feature",
+          "student",
+          "submit-flow",
+          "gap-14",
+          "safety-rule-14"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Calls autoSubmitFromRTDB from service"
+          },
+          {
+            "completed": true,
+            "text": "Flushes auto-save before submit"
+          },
+          {
+            "completed": true,
+            "text": "Creates Firestore and RTDB entries"
+          },
+          {
+            "completed": true,
+            "text": "Timer expiry auto-submits without modal"
+          },
+          {
+            "completed": true,
+            "text": "Submitted overlay shown after success"
+          }
+        ],
+        "implementationPlan": "1. Add submit handler 2. Flush auto-save 3. Call autoSubmitFromRTDB 4. Show submitted overlay 5. Wire timer expiry 6. Disable textarea after submit",
+        "implementationNotes": "GAP-14: submit logic in writingSubmissionService.autoSubmitFromRTDB  NOT inline. Shared with teacher monitor. Safety Rule 14: never regenerate resultId.\n\nAll ACs verified. Submit flow fully implemented: autoSubmitFromRTDB imported from writingSubmissionService (GAP-14 compliant, not inline), auto-save flushed before submit, creates Firestore submission + RTDB result index, timer can call handleSubmit directly without modal, submitted overlay shown on success. Service uses withRestoreGuard (Safety Rule 11) and push-key for resultId (Safety Rule 14)."
+      }
+    }
+  ]
+}

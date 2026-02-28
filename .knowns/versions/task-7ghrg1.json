@@ -1,0 +1,112 @@
+{
+  "taskId": "7ghrg1",
+  "currentVersion": 2,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "7ghrg1",
+      "version": 1,
+      "timestamp": "2026-02-27T21:39:56.053Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Update TestBuilderRouter.tsx — enable Writing skill",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing"
+        ],
+        "acceptanceCriteria": []
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "7ghrg1",
+      "version": 2,
+      "timestamp": "2026-02-27T22:26:33.462Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Update TestBuilderRouter.tsx  set Writing in skillAvailability to available:true, component:WritingTestBuilder, status:production. Add lazy import."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-2",
+            "routing",
+            "modify-file",
+            "safety-rule-8"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Writing skill set to available:true",
+              "completed": false
+            },
+            {
+              "text": "Component and status configured",
+              "completed": false
+            },
+            {
+              "text": "Writing tests creatable via skill selection",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Add lazy import 2. Update skillAvailability for Writing 3. Verify rendering"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Safety Rule 8: component must be imported AND rendered. Follow existing skill entry pattern."
+        }
+      ],
+      "snapshot": {
+        "title": "Update TestBuilderRouter.tsx — enable Writing skill",
+        "description": "Update TestBuilderRouter.tsx  set Writing in skillAvailability to available:true, component:WritingTestBuilder, status:production. Add lazy import.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-2",
+          "routing",
+          "modify-file",
+          "safety-rule-8"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Writing skill set to available:true",
+            "completed": false
+          },
+          {
+            "text": "Component and status configured",
+            "completed": false
+          },
+          {
+            "text": "Writing tests creatable via skill selection",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Add lazy import 2. Update skillAvailability for Writing 3. Verify rendering",
+        "implementationNotes": "Safety Rule 8: component must be imported AND rendered. Follow existing skill entry pattern."
+      }
+    }
+  ]
+}

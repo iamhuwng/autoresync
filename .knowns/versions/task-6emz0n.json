@@ -1,0 +1,309 @@
+{
+  "taskId": "6emz0n",
+  "currentVersion": 5,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "6emz0n",
+      "version": 1,
+      "timestamp": "2026-02-27T21:53:07.426Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Phase 7 epic for IELTS Writing Test System (PRD-0030). Covers solo writing practice with teacher submission flow, homework integration with configurable policies, and student library updates. Students can practice writing tests independently, submit essays to enrolled teachers for grading, and complete writing homework assignments with pre-loaded previous attempts. Key components: WritingPracticeView (solo practice with localStorage auto-save, paste prevention, active time tracking), SubmitToTeacherModal (teacher selection dropdown for solo submissions), HomeworkCreateModal updates (writing-specific config fields), StudentPracticePage updates (Writing branch routing), homework writing view (isHomework flag + navigation), and StudentLibraryPage updates (writing test display with icon)."
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "All 6 subtasks completed and verified: WritingPracticeView.tsx created with solo practice layout, SubmitToTeacherModal.tsx created with teacher dropdown, StudentPracticePage.tsx updated with Writing branch, HomeworkCreateModal.tsx updated with writing config, homework writing view implemented with isHomework flag, StudentLibraryPage.tsx updated with writing icon",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "PRD-0030: Solo Practice & Homework Integration",
+        "description": "Phase 7 epic for IELTS Writing Test System (PRD-0030). Covers solo writing practice with teacher submission flow, homework integration with configurable policies, and student library updates. Students can practice writing tests independently, submit essays to enrolled teachers for grading, and complete writing homework assignments with pre-loaded previous attempts. Key components: WritingPracticeView (solo practice with localStorage auto-save, paste prevention, active time tracking), SubmitToTeacherModal (teacher selection dropdown for solo submissions), HomeworkCreateModal updates (writing-specific config fields), StudentPracticePage updates (Writing branch routing), homework writing view (isHomework flag + navigation), and StudentLibraryPage updates (writing test display with icon).",
+        "status": "todo",
+        "priority": "high",
+        "labels": [
+          "prd-0030",
+          "ielts-writing"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "All 6 subtasks completed and verified: WritingPracticeView.tsx created with solo practice layout, SubmitToTeacherModal.tsx created with teacher dropdown, StudentPracticePage.tsx updated with Writing branch, HomeworkCreateModal.tsx updated with writing config, homework writing view implemented with isHomework flag, StudentLibraryPage.tsx updated with writing icon",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "6emz0n",
+      "version": 2,
+      "timestamp": "2026-02-27T22:33:38.567Z",
+      "changes": [
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-7",
+            "epic",
+            "student",
+            "solo-practice",
+            "homework"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "All 6 subtasks completed and verified: WritingPracticeView.tsx created with solo practice layout, SubmitToTeacherModal.tsx created with teacher dropdown, StudentPracticePage.tsx updated with Writing branch, HomeworkCreateModal.tsx updated with writing config, homework writing view implemented with isHomework flag, StudentLibraryPage.tsx updated with writing icon"
+            }
+          ],
+          "newValue": [
+            {
+              "text": "All 6 subtasks completed",
+              "completed": false
+            },
+            {
+              "text": "Solo practice with localStorage auto-save",
+              "completed": false
+            },
+            {
+              "text": "SubmitToTeacherModal shows enrolled teachers",
+              "completed": false
+            },
+            {
+              "text": "Homework config in HomeworkCreateModal",
+              "completed": false
+            },
+            {
+              "text": "StudentLibraryPage shows writing tests",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. WritingPracticeView (7.1) 2. SubmitToTeacherModal (7.2) 3. StudentPracticePage (7.3) 4. HomeworkCreateModal (7.4) 5. Homework writing view (7.5) 6. StudentLibraryPage (7.6)"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Solo practice uses localStorage not RTDB. Unlimited resubmissions. Enrolled teachers via getStudentClasses. Homework = solo + deadline enforcement. Safety Rule 16: WebMCP tools for new features."
+        }
+      ],
+      "snapshot": {
+        "title": "PRD-0030: Solo Practice & Homework Integration",
+        "description": "Phase 7 epic for IELTS Writing Test System (PRD-0030). Covers solo writing practice with teacher submission flow, homework integration with configurable policies, and student library updates. Students can practice writing tests independently, submit essays to enrolled teachers for grading, and complete writing homework assignments with pre-loaded previous attempts. Key components: WritingPracticeView (solo practice with localStorage auto-save, paste prevention, active time tracking), SubmitToTeacherModal (teacher selection dropdown for solo submissions), HomeworkCreateModal updates (writing-specific config fields), StudentPracticePage updates (Writing branch routing), homework writing view (isHomework flag + navigation), and StudentLibraryPage updates (writing test display with icon).",
+        "status": "todo",
+        "priority": "high",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-7",
+          "epic",
+          "student",
+          "solo-practice",
+          "homework"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "All 6 subtasks completed",
+            "completed": false
+          },
+          {
+            "text": "Solo practice with localStorage auto-save",
+            "completed": false
+          },
+          {
+            "text": "SubmitToTeacherModal shows enrolled teachers",
+            "completed": false
+          },
+          {
+            "text": "Homework config in HomeworkCreateModal",
+            "completed": false
+          },
+          {
+            "text": "StudentLibraryPage shows writing tests",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. WritingPracticeView (7.1) 2. SubmitToTeacherModal (7.2) 3. StudentPracticePage (7.3) 4. HomeworkCreateModal (7.4) 5. Homework writing view (7.5) 6. StudentLibraryPage (7.6)",
+        "implementationNotes": "Solo practice uses localStorage not RTDB. Unlimited resubmissions. Enrolled teachers via getStudentClasses. Homework = solo + deadline enforcement. Safety Rule 16: WebMCP tools for new features."
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "6emz0n",
+      "version": 3,
+      "timestamp": "2026-02-28T02:36:28.798Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        },
+        {
+          "field": "assignee",
+          "newValue": "@me"
+        }
+      ],
+      "snapshot": {
+        "title": "PRD-0030: Solo Practice & Homework Integration",
+        "description": "Phase 7 epic for IELTS Writing Test System (PRD-0030). Covers solo writing practice with teacher submission flow, homework integration with configurable policies, and student library updates. Students can practice writing tests independently, submit essays to enrolled teachers for grading, and complete writing homework assignments with pre-loaded previous attempts. Key components: WritingPracticeView (solo practice with localStorage auto-save, paste prevention, active time tracking), SubmitToTeacherModal (teacher selection dropdown for solo submissions), HomeworkCreateModal updates (writing-specific config fields), StudentPracticePage updates (Writing branch routing), homework writing view (isHomework flag + navigation), and StudentLibraryPage updates (writing test display with icon).",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-7",
+          "epic",
+          "student",
+          "solo-practice",
+          "homework"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "All 6 subtasks completed"
+          },
+          {
+            "completed": false,
+            "text": "Solo practice with localStorage auto-save"
+          },
+          {
+            "completed": false,
+            "text": "SubmitToTeacherModal shows enrolled teachers"
+          },
+          {
+            "completed": false,
+            "text": "Homework config in HomeworkCreateModal"
+          },
+          {
+            "completed": false,
+            "text": "StudentLibraryPage shows writing tests"
+          }
+        ],
+        "implementationPlan": "1. WritingPracticeView (7.1) 2. SubmitToTeacherModal (7.2) 3. StudentPracticePage (7.3) 4. HomeworkCreateModal (7.4) 5. Homework writing view (7.5) 6. StudentLibraryPage (7.6)",
+        "implementationNotes": "Solo practice uses localStorage not RTDB. Unlimited resubmissions. Enrolled teachers via getStudentClasses. Homework = solo + deadline enforcement. Safety Rule 16: WebMCP tools for new features."
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "6emz0n",
+      "version": 4,
+      "timestamp": "2026-02-28T02:40:49.226Z",
+      "changes": [
+        {
+          "field": "implementationPlan",
+          "oldValue": "1. WritingPracticeView (7.1) 2. SubmitToTeacherModal (7.2) 3. StudentPracticePage (7.3) 4. HomeworkCreateModal (7.4) 5. Homework writing view (7.5) 6. StudentLibraryPage (7.6)",
+          "newValue": "## Phase 7 Epic Implementation Plan\n\n### Execution Order & Dependencies\n\n```mermaid\ngraph TD\n  A[\\\"7.1 WritingPracticeView (jxyli5)\\\"] --> C[\\\"7.3 StudentPracticePage (rkow2c)\\\"]\n  B[\\\"7.2 SubmitToTeacherModal (6ibc3h)\\\"] --> A\n  A --> D[\\\"7.5 Homework writing view (7i9edq)\\\"]\n  E[\\\"7.4 HomeworkCreateModal (dlfg5s)\\\"] --> D\n  F[\\\"7.6 StudentLibraryPage (17z24x)\\\"]\n```\n\n### Build Order\n\n**Step 1: @task-6ibc3h — SubmitToTeacherModal (dependency-free)**\n- New file: `src/components/writing-practice/SubmitToTeacherModal.tsx` + `.css`\n- Native HTML/CSS modal (NO Mantine)\n- Props: `isOpen, onClose, onSubmit, studentTeachers, tasks`\n- Teacher `<select>` dropdown (auto-select if single)\n- Optional note `<textarea>`\n- Word count summary per task\n- Submit returns `{ teacherId, note }` to parent\n- Safety Rule 16: register WebMCP tools\n\n**Step 2: @task-jxyli5 — WritingPracticeView (depends on SubmitToTeacherModal)**\n- New file: `src/components/writing-practice/WritingPracticeView.tsx` + `.css`\n- Same 40/60 split layout as WritingTestPage\n- Reuse hooks: `useExternalPastePrevention`, `useActiveTimeTracking`\n- localStorage auto-save (key: `writing_practice_{materialId}_{studentUid}`)\n- SoloResumeModal for session recovery\n- Fetch teachers: `getStudentClasses(user.uid)` → for each class, `getClass(classId)` to get `createdBy` + class name → deduplicate teachers → pass to SubmitToTeacherModal\n- Optional timer from testData.soloConfig\n- Unlimited submissions (no dedup)\n- No-teacher fallback: save for self-review\n- Safety Rule 11: withRestoreGuard on writes\n- Safety Rule 16: WebMCP tools\n\n**Step 3: @task-rkow2c — StudentPracticePage Writing branch**\n- Modify `src/pages/StudentPracticePage.tsx`\n- Detect `skill === 'Writing'` from test metadata\n- Add `testType: 'Writing'` detection in initialize()\n- Lazy import WritingPracticeView\n- Render with Suspense + CSS spinner (GAP-13)\n- Safety Rule 8: verify rendered + props\n\n**Step 4: @task-dlfg5s — HomeworkCreateModal writing config**\n- Modify `src/components/homework/HomeworkCreateModal.tsx`\n- When selected material `skill === 'writing'`: show config section\n- `<input type=\\\"datetime-local\\\">` for due date\n- Late policy radio buttons (allow-late/hard-deadline)\n- Word minimum toggle + input\n- Re-attempt config\n- No Mantine DatePicker\n\n**Step 5: @task-7i9edq — Homework writing view**\n- Modify WritingPracticeView to support `isHomework` flag\n- Detect from location.state.isHomework\n- Display deadline header\n- Strict word minimum enforcement\n- Pre-load previous essay from Firestore on re-attempt\n- Late check: hard-deadline blocks, allow-late marks late\n- Post-submit: navigate to homework page\n- Safety Rules 1 & 2: verify routes + state prerequisites\n\n**Step 6: @task-17z24x — StudentLibraryPage writing tests**\n- Modify `src/pages/StudentLibraryPage.tsx`\n- Verify writing tests load from RTDB\n- Add ✍️ icon for writing tests in cards\n- Format info display (Task 1/2/Full)\n- Practice button → `/student/practice/{testId}`\n- Safety Rule 1: route from routes.ts\n\n### Key Patterns & API Notes\n- **Teacher IDs:** `getStudentClasses()` returns `ClassSummary[]` (no `createdBy`). Must call `getClass(classId)` per class to get `createdBy` for teacherId. Use `cls.name` as proxy for teacherName context.\n- **localStorage key:** `writing_practice_{materialId}_{studentUid}`\n- **Submission context.type:** `'solo-practice'` (not `'live-session'`)\n- **Hooks reuse:** `useExternalPastePrevention`, `useActiveTimeTracking` from existing writing hooks\n- **Auto-save:** localStorage-backed (NOT RTDB, unlike live sessions)\n- **Safety Rule 16:** Each new component needs WebMCP tool registration in registry.ts"
+        }
+      ],
+      "snapshot": {
+        "title": "PRD-0030: Solo Practice & Homework Integration",
+        "description": "Phase 7 epic for IELTS Writing Test System (PRD-0030). Covers solo writing practice with teacher submission flow, homework integration with configurable policies, and student library updates. Students can practice writing tests independently, submit essays to enrolled teachers for grading, and complete writing homework assignments with pre-loaded previous attempts. Key components: WritingPracticeView (solo practice with localStorage auto-save, paste prevention, active time tracking), SubmitToTeacherModal (teacher selection dropdown for solo submissions), HomeworkCreateModal updates (writing-specific config fields), StudentPracticePage updates (Writing branch routing), homework writing view (isHomework flag + navigation), and StudentLibraryPage updates (writing test display with icon).",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-7",
+          "epic",
+          "student",
+          "solo-practice",
+          "homework"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "All 6 subtasks completed"
+          },
+          {
+            "completed": false,
+            "text": "Solo practice with localStorage auto-save"
+          },
+          {
+            "completed": false,
+            "text": "SubmitToTeacherModal shows enrolled teachers"
+          },
+          {
+            "completed": false,
+            "text": "Homework config in HomeworkCreateModal"
+          },
+          {
+            "completed": false,
+            "text": "StudentLibraryPage shows writing tests"
+          }
+        ],
+        "implementationPlan": "## Phase 7 Epic Implementation Plan\n\n### Execution Order & Dependencies\n\n```mermaid\ngraph TD\n  A[\\\"7.1 WritingPracticeView (jxyli5)\\\"] --> C[\\\"7.3 StudentPracticePage (rkow2c)\\\"]\n  B[\\\"7.2 SubmitToTeacherModal (6ibc3h)\\\"] --> A\n  A --> D[\\\"7.5 Homework writing view (7i9edq)\\\"]\n  E[\\\"7.4 HomeworkCreateModal (dlfg5s)\\\"] --> D\n  F[\\\"7.6 StudentLibraryPage (17z24x)\\\"]\n```\n\n### Build Order\n\n**Step 1: @task-6ibc3h — SubmitToTeacherModal (dependency-free)**\n- New file: `src/components/writing-practice/SubmitToTeacherModal.tsx` + `.css`\n- Native HTML/CSS modal (NO Mantine)\n- Props: `isOpen, onClose, onSubmit, studentTeachers, tasks`\n- Teacher `<select>` dropdown (auto-select if single)\n- Optional note `<textarea>`\n- Word count summary per task\n- Submit returns `{ teacherId, note }` to parent\n- Safety Rule 16: register WebMCP tools\n\n**Step 2: @task-jxyli5 — WritingPracticeView (depends on SubmitToTeacherModal)**\n- New file: `src/components/writing-practice/WritingPracticeView.tsx` + `.css`\n- Same 40/60 split layout as WritingTestPage\n- Reuse hooks: `useExternalPastePrevention`, `useActiveTimeTracking`\n- localStorage auto-save (key: `writing_practice_{materialId}_{studentUid}`)\n- SoloResumeModal for session recovery\n- Fetch teachers: `getStudentClasses(user.uid)` → for each class, `getClass(classId)` to get `createdBy` + class name → deduplicate teachers → pass to SubmitToTeacherModal\n- Optional timer from testData.soloConfig\n- Unlimited submissions (no dedup)\n- No-teacher fallback: save for self-review\n- Safety Rule 11: withRestoreGuard on writes\n- Safety Rule 16: WebMCP tools\n\n**Step 3: @task-rkow2c — StudentPracticePage Writing branch**\n- Modify `src/pages/StudentPracticePage.tsx`\n- Detect `skill === 'Writing'` from test metadata\n- Add `testType: 'Writing'` detection in initialize()\n- Lazy import WritingPracticeView\n- Render with Suspense + CSS spinner (GAP-13)\n- Safety Rule 8: verify rendered + props\n\n**Step 4: @task-dlfg5s — HomeworkCreateModal writing config**\n- Modify `src/components/homework/HomeworkCreateModal.tsx`\n- When selected material `skill === 'writing'`: show config section\n- `<input type=\\\"datetime-local\\\">` for due date\n- Late policy radio buttons (allow-late/hard-deadline)\n- Word minimum toggle + input\n- Re-attempt config\n- No Mantine DatePicker\n\n**Step 5: @task-7i9edq — Homework writing view**\n- Modify WritingPracticeView to support `isHomework` flag\n- Detect from location.state.isHomework\n- Display deadline header\n- Strict word minimum enforcement\n- Pre-load previous essay from Firestore on re-attempt\n- Late check: hard-deadline blocks, allow-late marks late\n- Post-submit: navigate to homework page\n- Safety Rules 1 & 2: verify routes + state prerequisites\n\n**Step 6: @task-17z24x — StudentLibraryPage writing tests**\n- Modify `src/pages/StudentLibraryPage.tsx`\n- Verify writing tests load from RTDB\n- Add ✍️ icon for writing tests in cards\n- Format info display (Task 1/2/Full)\n- Practice button → `/student/practice/{testId}`\n- Safety Rule 1: route from routes.ts\n\n### Key Patterns & API Notes\n- **Teacher IDs:** `getStudentClasses()` returns `ClassSummary[]` (no `createdBy`). Must call `getClass(classId)` per class to get `createdBy` for teacherId. Use `cls.name` as proxy for teacherName context.\n- **localStorage key:** `writing_practice_{materialId}_{studentUid}`\n- **Submission context.type:** `'solo-practice'` (not `'live-session'`)\n- **Hooks reuse:** `useExternalPastePrevention`, `useActiveTimeTracking` from existing writing hooks\n- **Auto-save:** localStorage-backed (NOT RTDB, unlike live sessions)\n- **Safety Rule 16:** Each new component needs WebMCP tool registration in registry.ts",
+        "implementationNotes": "Solo practice uses localStorage not RTDB. Unlimited resubmissions. Enrolled teachers via getStudentClasses. Homework = solo + deadline enforcement. Safety Rule 16: WebMCP tools for new features."
+      }
+    },
+    {
+      "id": "v5",
+      "taskId": "6emz0n",
+      "version": 5,
+      "timestamp": "2026-02-28T03:18:07.310Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "PRD-0030: Solo Practice & Homework Integration",
+        "description": "Phase 7 epic for IELTS Writing Test System (PRD-0030). Covers solo writing practice with teacher submission flow, homework integration with configurable policies, and student library updates. Students can practice writing tests independently, submit essays to enrolled teachers for grading, and complete writing homework assignments with pre-loaded previous attempts. Key components: WritingPracticeView (solo practice with localStorage auto-save, paste prevention, active time tracking), SubmitToTeacherModal (teacher selection dropdown for solo submissions), HomeworkCreateModal updates (writing-specific config fields), StudentPracticePage updates (Writing branch routing), homework writing view (isHomework flag + navigation), and StudentLibraryPage updates (writing test display with icon).",
+        "status": "done",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-7",
+          "epic",
+          "student",
+          "solo-practice",
+          "homework"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "All 6 subtasks completed"
+          },
+          {
+            "completed": false,
+            "text": "Solo practice with localStorage auto-save"
+          },
+          {
+            "completed": false,
+            "text": "SubmitToTeacherModal shows enrolled teachers"
+          },
+          {
+            "completed": false,
+            "text": "Homework config in HomeworkCreateModal"
+          },
+          {
+            "completed": false,
+            "text": "StudentLibraryPage shows writing tests"
+          }
+        ],
+        "implementationPlan": "## Phase 7 Epic Implementation Plan\n\n### Execution Order & Dependencies\n\n```mermaid\ngraph TD\n  A[\\\"7.1 WritingPracticeView (jxyli5)\\\"] --> C[\\\"7.3 StudentPracticePage (rkow2c)\\\"]\n  B[\\\"7.2 SubmitToTeacherModal (6ibc3h)\\\"] --> A\n  A --> D[\\\"7.5 Homework writing view (7i9edq)\\\"]\n  E[\\\"7.4 HomeworkCreateModal (dlfg5s)\\\"] --> D\n  F[\\\"7.6 StudentLibraryPage (17z24x)\\\"]\n```\n\n### Build Order\n\n**Step 1: @task-6ibc3h — SubmitToTeacherModal (dependency-free)**\n- New file: `src/components/writing-practice/SubmitToTeacherModal.tsx` + `.css`\n- Native HTML/CSS modal (NO Mantine)\n- Props: `isOpen, onClose, onSubmit, studentTeachers, tasks`\n- Teacher `<select>` dropdown (auto-select if single)\n- Optional note `<textarea>`\n- Word count summary per task\n- Submit returns `{ teacherId, note }` to parent\n- Safety Rule 16: register WebMCP tools\n\n**Step 2: @task-jxyli5 — WritingPracticeView (depends on SubmitToTeacherModal)**\n- New file: `src/components/writing-practice/WritingPracticeView.tsx` + `.css`\n- Same 40/60 split layout as WritingTestPage\n- Reuse hooks: `useExternalPastePrevention`, `useActiveTimeTracking`\n- localStorage auto-save (key: `writing_practice_{materialId}_{studentUid}`)\n- SoloResumeModal for session recovery\n- Fetch teachers: `getStudentClasses(user.uid)` → for each class, `getClass(classId)` to get `createdBy` + class name → deduplicate teachers → pass to SubmitToTeacherModal\n- Optional timer from testData.soloConfig\n- Unlimited submissions (no dedup)\n- No-teacher fallback: save for self-review\n- Safety Rule 11: withRestoreGuard on writes\n- Safety Rule 16: WebMCP tools\n\n**Step 3: @task-rkow2c — StudentPracticePage Writing branch**\n- Modify `src/pages/StudentPracticePage.tsx`\n- Detect `skill === 'Writing'` from test metadata\n- Add `testType: 'Writing'` detection in initialize()\n- Lazy import WritingPracticeView\n- Render with Suspense + CSS spinner (GAP-13)\n- Safety Rule 8: verify rendered + props\n\n**Step 4: @task-dlfg5s — HomeworkCreateModal writing config**\n- Modify `src/components/homework/HomeworkCreateModal.tsx`\n- When selected material `skill === 'writing'`: show config section\n- `<input type=\\\"datetime-local\\\">` for due date\n- Late policy radio buttons (allow-late/hard-deadline)\n- Word minimum toggle + input\n- Re-attempt config\n- No Mantine DatePicker\n\n**Step 5: @task-7i9edq — Homework writing view**\n- Modify WritingPracticeView to support `isHomework` flag\n- Detect from location.state.isHomework\n- Display deadline header\n- Strict word minimum enforcement\n- Pre-load previous essay from Firestore on re-attempt\n- Late check: hard-deadline blocks, allow-late marks late\n- Post-submit: navigate to homework page\n- Safety Rules 1 & 2: verify routes + state prerequisites\n\n**Step 6: @task-17z24x — StudentLibraryPage writing tests**\n- Modify `src/pages/StudentLibraryPage.tsx`\n- Verify writing tests load from RTDB\n- Add ✍️ icon for writing tests in cards\n- Format info display (Task 1/2/Full)\n- Practice button → `/student/practice/{testId}`\n- Safety Rule 1: route from routes.ts\n\n### Key Patterns & API Notes\n- **Teacher IDs:** `getStudentClasses()` returns `ClassSummary[]` (no `createdBy`). Must call `getClass(classId)` per class to get `createdBy` for teacherId. Use `cls.name` as proxy for teacherName context.\n- **localStorage key:** `writing_practice_{materialId}_{studentUid}`\n- **Submission context.type:** `'solo-practice'` (not `'live-session'`)\n- **Hooks reuse:** `useExternalPastePrevention`, `useActiveTimeTracking` from existing writing hooks\n- **Auto-save:** localStorage-backed (NOT RTDB, unlike live sessions)\n- **Safety Rule 16:** Each new component needs WebMCP tool registration in registry.ts",
+        "implementationNotes": "Solo practice uses localStorage not RTDB. Unlimited resubmissions. Enrolled teachers via getStudentClasses. Homework = solo + deadline enforcement. Safety Rule 16: WebMCP tools for new features."
+      }
+    }
+  ]
+}

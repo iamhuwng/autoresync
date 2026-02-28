@@ -1,0 +1,415 @@
+{
+  "taskId": "jxyli5",
+  "currentVersion": 5,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "jxyli5",
+      "version": 1,
+      "timestamp": "2026-02-27T21:53:39.895Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Create WritingPracticeView.tsx  same layout as WritingTestPage (split panel: prompt left 40%, editor right 60%). Differences from live session: timer optional (from testData.soloConfig?.defaults?.timerMinutes), word minimum enforcement on submit (warning only in solo), auto-save to localStorage key writing_practice_{materialId}_{studentUid}, resume via SoloResumeModal (import from src/components/test/SoloResumeModal.tsx), submit button opens SubmitToTeacherModal. External paste prevention + active time tracking: same hooks as live session. Unlimited submissions  never check for existing ones. Fetch enrolled teachers: before rendering SubmitToTeacherModal, load the student's enrolled classes by explicitly importing getStudentClasses from src/services/classManager.ts and calling getStudentClasses(user.uid). Map the results to extract the teacherId and teacherName from each class document. Create an Array<{ id: string; name: string }> and pass as studentTeachers prop to SubmitToTeacherModal. No-teacher case: save without selectedTeacherId, show saved for self-review message."
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "WritingPracticeView.tsx created at src/components/writing-practice/WritingPracticeView.tsx|Same layout as WritingTestPage with split panel (prompt 40%/editor 60%)|Timer is optional, sourced from soloConfig.defaults.timerMinutes|Word minimum shows warning on submit but does NOT block|Auto-save uses localStorage with key writing_practice_{materialId}_{uid}|SoloResumeModal imported from src/components/test/SoloResumeModal.tsx and used for session resume|useExternalPastePrevention and useActiveTimeTracking hooks wired correctly|getStudentClasses imported from src/services/classManager.ts to fetch enrolled teachers|Teachers array passed as studentTeachers prop to SubmitToTeacherModal|No-teacher fallback saves submission without selectedTeacherId with self-review message|Unlimited submissions  no dedup check|No Mantine components used",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Create WritingPracticeView.tsx — solo practice writing view",
+        "description": "Create WritingPracticeView.tsx  same layout as WritingTestPage (split panel: prompt left 40%, editor right 60%). Differences from live session: timer optional (from testData.soloConfig?.defaults?.timerMinutes), word minimum enforcement on submit (warning only in solo), auto-save to localStorage key writing_practice_{materialId}_{studentUid}, resume via SoloResumeModal (import from src/components/test/SoloResumeModal.tsx), submit button opens SubmitToTeacherModal. External paste prevention + active time tracking: same hooks as live session. Unlimited submissions  never check for existing ones. Fetch enrolled teachers: before rendering SubmitToTeacherModal, load the student's enrolled classes by explicitly importing getStudentClasses from src/services/classManager.ts and calling getStudentClasses(user.uid). Map the results to extract the teacherId and teacherName from each class document. Create an Array<{ id: string; name: string }> and pass as studentTeachers prop to SubmitToTeacherModal. No-teacher case: save without selectedTeacherId, show saved for self-review message.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "WritingPracticeView.tsx created at src/components/writing-practice/WritingPracticeView.tsx|Same layout as WritingTestPage with split panel (prompt 40%/editor 60%)|Timer is optional, sourced from soloConfig.defaults.timerMinutes|Word minimum shows warning on submit but does NOT block|Auto-save uses localStorage with key writing_practice_{materialId}_{uid}|SoloResumeModal imported from src/components/test/SoloResumeModal.tsx and used for session resume|useExternalPastePrevention and useActiveTimeTracking hooks wired correctly|getStudentClasses imported from src/services/classManager.ts to fetch enrolled teachers|Teachers array passed as studentTeachers prop to SubmitToTeacherModal|No-teacher fallback saves submission without selectedTeacherId with self-review message|Unlimited submissions  no dedup check|No Mantine components used",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "jxyli5",
+      "version": 2,
+      "timestamp": "2026-02-27T22:34:05.182Z",
+      "changes": [
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-7",
+            "component",
+            "student",
+            "solo-practice",
+            "new-file",
+            "no-mantine",
+            "safety-rule-11"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "WritingPracticeView.tsx created at src/components/writing-practice/WritingPracticeView.tsx|Same layout as WritingTestPage with split panel (prompt 40%/editor 60%)|Timer is optional, sourced from soloConfig.defaults.timerMinutes|Word minimum shows warning on submit but does NOT block|Auto-save uses localStorage with key writing_practice_{materialId}_{uid}|SoloResumeModal imported from src/components/test/SoloResumeModal.tsx and used for session resume|useExternalPastePrevention and useActiveTimeTracking hooks wired correctly|getStudentClasses imported from src/services/classManager.ts to fetch enrolled teachers|Teachers array passed as studentTeachers prop to SubmitToTeacherModal|No-teacher fallback saves submission without selectedTeacherId with self-review message|Unlimited submissions  no dedup check|No Mantine components used"
+            }
+          ],
+          "newValue": [
+            {
+              "text": "Same 40/60 layout as WritingTestPage",
+              "completed": false
+            },
+            {
+              "text": "Optional timer from soloConfig",
+              "completed": false
+            },
+            {
+              "text": "localStorage auto-save with materialId+uid key",
+              "completed": false
+            },
+            {
+              "text": "SoloResumeModal for session recovery",
+              "completed": false
+            },
+            {
+              "text": "Enrolled teachers from getStudentClasses",
+              "completed": false
+            },
+            {
+              "text": "Unlimited submissions  no dedup",
+              "completed": false
+            },
+            {
+              "text": "No-teacher fallback saves for self-review",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Create src/components/writing-practice/WritingPracticeView.tsx + CSS 2. Build 40/60 split layout 3. Setup optional timer from soloConfig 4. Wire localStorage auto-save 5. Integrate SoloResumeModal 6. Wire paste prevention + time tracking hooks 7. Fetch teachers via getStudentClasses 8. Wire submit to SubmitToTeacherModal 9. Handle no-teacher case"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "localStorage not RTDB. SoloResumeModal from src/components/test/SoloResumeModal.tsx. Teachers from getStudentClasses in classManager.ts. context.type=solo-practice. Safety Rule 11: withRestoreGuard."
+        }
+      ],
+      "snapshot": {
+        "title": "Create WritingPracticeView.tsx — solo practice writing view",
+        "description": "Create WritingPracticeView.tsx  same layout as WritingTestPage (split panel: prompt left 40%, editor right 60%). Differences from live session: timer optional (from testData.soloConfig?.defaults?.timerMinutes), word minimum enforcement on submit (warning only in solo), auto-save to localStorage key writing_practice_{materialId}_{studentUid}, resume via SoloResumeModal (import from src/components/test/SoloResumeModal.tsx), submit button opens SubmitToTeacherModal. External paste prevention + active time tracking: same hooks as live session. Unlimited submissions  never check for existing ones. Fetch enrolled teachers: before rendering SubmitToTeacherModal, load the student's enrolled classes by explicitly importing getStudentClasses from src/services/classManager.ts and calling getStudentClasses(user.uid). Map the results to extract the teacherId and teacherName from each class document. Create an Array<{ id: string; name: string }> and pass as studentTeachers prop to SubmitToTeacherModal. No-teacher case: save without selectedTeacherId, show saved for self-review message.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-7",
+          "component",
+          "student",
+          "solo-practice",
+          "new-file",
+          "no-mantine",
+          "safety-rule-11"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Same 40/60 layout as WritingTestPage",
+            "completed": false
+          },
+          {
+            "text": "Optional timer from soloConfig",
+            "completed": false
+          },
+          {
+            "text": "localStorage auto-save with materialId+uid key",
+            "completed": false
+          },
+          {
+            "text": "SoloResumeModal for session recovery",
+            "completed": false
+          },
+          {
+            "text": "Enrolled teachers from getStudentClasses",
+            "completed": false
+          },
+          {
+            "text": "Unlimited submissions  no dedup",
+            "completed": false
+          },
+          {
+            "text": "No-teacher fallback saves for self-review",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Create src/components/writing-practice/WritingPracticeView.tsx + CSS 2. Build 40/60 split layout 3. Setup optional timer from soloConfig 4. Wire localStorage auto-save 5. Integrate SoloResumeModal 6. Wire paste prevention + time tracking hooks 7. Fetch teachers via getStudentClasses 8. Wire submit to SubmitToTeacherModal 9. Handle no-teacher case",
+        "implementationNotes": "localStorage not RTDB. SoloResumeModal from src/components/test/SoloResumeModal.tsx. Teachers from getStudentClasses in classManager.ts. context.type=solo-practice. Safety Rule 11: withRestoreGuard."
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "jxyli5",
+      "version": 3,
+      "timestamp": "2026-02-28T02:50:41.825Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        }
+      ],
+      "snapshot": {
+        "title": "Create WritingPracticeView.tsx — solo practice writing view",
+        "description": "Create WritingPracticeView.tsx  same layout as WritingTestPage (split panel: prompt left 40%, editor right 60%). Differences from live session: timer optional (from testData.soloConfig?.defaults?.timerMinutes), word minimum enforcement on submit (warning only in solo), auto-save to localStorage key writing_practice_{materialId}_{studentUid}, resume via SoloResumeModal (import from src/components/test/SoloResumeModal.tsx), submit button opens SubmitToTeacherModal. External paste prevention + active time tracking: same hooks as live session. Unlimited submissions  never check for existing ones. Fetch enrolled teachers: before rendering SubmitToTeacherModal, load the student's enrolled classes by explicitly importing getStudentClasses from src/services/classManager.ts and calling getStudentClasses(user.uid). Map the results to extract the teacherId and teacherName from each class document. Create an Array<{ id: string; name: string }> and pass as studentTeachers prop to SubmitToTeacherModal. No-teacher case: save without selectedTeacherId, show saved for self-review message.",
+        "status": "in-progress",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-7",
+          "component",
+          "student",
+          "solo-practice",
+          "new-file",
+          "no-mantine",
+          "safety-rule-11"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Same 40/60 layout as WritingTestPage"
+          },
+          {
+            "completed": false,
+            "text": "Optional timer from soloConfig"
+          },
+          {
+            "completed": false,
+            "text": "localStorage auto-save with materialId+uid key"
+          },
+          {
+            "completed": false,
+            "text": "SoloResumeModal for session recovery"
+          },
+          {
+            "completed": false,
+            "text": "Enrolled teachers from getStudentClasses"
+          },
+          {
+            "completed": false,
+            "text": "Unlimited submissions  no dedup"
+          },
+          {
+            "completed": false,
+            "text": "No-teacher fallback saves for self-review"
+          }
+        ],
+        "implementationPlan": "1. Create src/components/writing-practice/WritingPracticeView.tsx + CSS 2. Build 40/60 split layout 3. Setup optional timer from soloConfig 4. Wire localStorage auto-save 5. Integrate SoloResumeModal 6. Wire paste prevention + time tracking hooks 7. Fetch teachers via getStudentClasses 8. Wire submit to SubmitToTeacherModal 9. Handle no-teacher case",
+        "implementationNotes": "localStorage not RTDB. SoloResumeModal from src/components/test/SoloResumeModal.tsx. Teachers from getStudentClasses in classManager.ts. context.type=solo-practice. Safety Rule 11: withRestoreGuard."
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "jxyli5",
+      "version": 4,
+      "timestamp": "2026-02-28T02:55:43.624Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Same 40/60 layout as WritingTestPage"
+            },
+            {
+              "completed": false,
+              "text": "Optional timer from soloConfig"
+            },
+            {
+              "completed": false,
+              "text": "localStorage auto-save with materialId+uid key"
+            },
+            {
+              "completed": false,
+              "text": "SoloResumeModal for session recovery"
+            },
+            {
+              "completed": false,
+              "text": "Enrolled teachers from getStudentClasses"
+            },
+            {
+              "completed": false,
+              "text": "Unlimited submissions  no dedup"
+            },
+            {
+              "completed": false,
+              "text": "No-teacher fallback saves for self-review"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Same 40/60 layout as WritingTestPage"
+            },
+            {
+              "completed": true,
+              "text": "Optional timer from soloConfig"
+            },
+            {
+              "completed": true,
+              "text": "localStorage auto-save with materialId+uid key"
+            },
+            {
+              "completed": true,
+              "text": "SoloResumeModal for session recovery"
+            },
+            {
+              "completed": true,
+              "text": "Enrolled teachers from getStudentClasses"
+            },
+            {
+              "completed": true,
+              "text": "Unlimited submissions  no dedup"
+            },
+            {
+              "completed": true,
+              "text": "No-teacher fallback saves for self-review"
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Create WritingPracticeView.tsx — solo practice writing view",
+        "description": "Create WritingPracticeView.tsx  same layout as WritingTestPage (split panel: prompt left 40%, editor right 60%). Differences from live session: timer optional (from testData.soloConfig?.defaults?.timerMinutes), word minimum enforcement on submit (warning only in solo), auto-save to localStorage key writing_practice_{materialId}_{studentUid}, resume via SoloResumeModal (import from src/components/test/SoloResumeModal.tsx), submit button opens SubmitToTeacherModal. External paste prevention + active time tracking: same hooks as live session. Unlimited submissions  never check for existing ones. Fetch enrolled teachers: before rendering SubmitToTeacherModal, load the student's enrolled classes by explicitly importing getStudentClasses from src/services/classManager.ts and calling getStudentClasses(user.uid). Map the results to extract the teacherId and teacherName from each class document. Create an Array<{ id: string; name: string }> and pass as studentTeachers prop to SubmitToTeacherModal. No-teacher case: save without selectedTeacherId, show saved for self-review message.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-7",
+          "component",
+          "student",
+          "solo-practice",
+          "new-file",
+          "no-mantine",
+          "safety-rule-11"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Same 40/60 layout as WritingTestPage"
+          },
+          {
+            "completed": true,
+            "text": "Optional timer from soloConfig"
+          },
+          {
+            "completed": true,
+            "text": "localStorage auto-save with materialId+uid key"
+          },
+          {
+            "completed": true,
+            "text": "SoloResumeModal for session recovery"
+          },
+          {
+            "completed": true,
+            "text": "Enrolled teachers from getStudentClasses"
+          },
+          {
+            "completed": true,
+            "text": "Unlimited submissions  no dedup"
+          },
+          {
+            "completed": true,
+            "text": "No-teacher fallback saves for self-review"
+          }
+        ],
+        "implementationPlan": "1. Create src/components/writing-practice/WritingPracticeView.tsx + CSS 2. Build 40/60 split layout 3. Setup optional timer from soloConfig 4. Wire localStorage auto-save 5. Integrate SoloResumeModal 6. Wire paste prevention + time tracking hooks 7. Fetch teachers via getStudentClasses 8. Wire submit to SubmitToTeacherModal 9. Handle no-teacher case",
+        "implementationNotes": "localStorage not RTDB. SoloResumeModal from src/components/test/SoloResumeModal.tsx. Teachers from getStudentClasses in classManager.ts. context.type=solo-practice. Safety Rule 11: withRestoreGuard."
+      }
+    },
+    {
+      "id": "v5",
+      "taskId": "jxyli5",
+      "version": 5,
+      "timestamp": "2026-02-28T02:55:46.779Z",
+      "changes": [
+        {
+          "field": "implementationNotes",
+          "oldValue": "localStorage not RTDB. SoloResumeModal from src/components/test/SoloResumeModal.tsx. Teachers from getStudentClasses in classManager.ts. context.type=solo-practice. Safety Rule 11: withRestoreGuard.",
+          "newValue": "localStorage not RTDB. SoloResumeModal from src/components/test/SoloResumeModal.tsx. Teachers from getStudentClasses in classManager.ts. context.type=solo-practice. Safety Rule 11: withRestoreGuard.\n\nImplemented 2026-02-28: Created WritingPracticeView.tsx + CSS in src/components/writing-practice/. 40/60 split layout reusing WritingPromptPanel + WritingEditor. localStorage auto-save (2s debounce, 72h expiry). Native resume modal (no Mantine). Teacher fetch via getStudentClassesgetClass chain. createSubmission with context.type=solo-practice (already wrapped with withRestoreGuard). RTDB result index for Academic Record. Zero TS errors."
+        }
+      ],
+      "snapshot": {
+        "title": "Create WritingPracticeView.tsx — solo practice writing view",
+        "description": "Create WritingPracticeView.tsx  same layout as WritingTestPage (split panel: prompt left 40%, editor right 60%). Differences from live session: timer optional (from testData.soloConfig?.defaults?.timerMinutes), word minimum enforcement on submit (warning only in solo), auto-save to localStorage key writing_practice_{materialId}_{studentUid}, resume via SoloResumeModal (import from src/components/test/SoloResumeModal.tsx), submit button opens SubmitToTeacherModal. External paste prevention + active time tracking: same hooks as live session. Unlimited submissions  never check for existing ones. Fetch enrolled teachers: before rendering SubmitToTeacherModal, load the student's enrolled classes by explicitly importing getStudentClasses from src/services/classManager.ts and calling getStudentClasses(user.uid). Map the results to extract the teacherId and teacherName from each class document. Create an Array<{ id: string; name: string }> and pass as studentTeachers prop to SubmitToTeacherModal. No-teacher case: save without selectedTeacherId, show saved for self-review message.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-7",
+          "component",
+          "student",
+          "solo-practice",
+          "new-file",
+          "no-mantine",
+          "safety-rule-11"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Same 40/60 layout as WritingTestPage"
+          },
+          {
+            "completed": true,
+            "text": "Optional timer from soloConfig"
+          },
+          {
+            "completed": true,
+            "text": "localStorage auto-save with materialId+uid key"
+          },
+          {
+            "completed": true,
+            "text": "SoloResumeModal for session recovery"
+          },
+          {
+            "completed": true,
+            "text": "Enrolled teachers from getStudentClasses"
+          },
+          {
+            "completed": true,
+            "text": "Unlimited submissions  no dedup"
+          },
+          {
+            "completed": true,
+            "text": "No-teacher fallback saves for self-review"
+          }
+        ],
+        "implementationPlan": "1. Create src/components/writing-practice/WritingPracticeView.tsx + CSS 2. Build 40/60 split layout 3. Setup optional timer from soloConfig 4. Wire localStorage auto-save 5. Integrate SoloResumeModal 6. Wire paste prevention + time tracking hooks 7. Fetch teachers via getStudentClasses 8. Wire submit to SubmitToTeacherModal 9. Handle no-teacher case",
+        "implementationNotes": "localStorage not RTDB. SoloResumeModal from src/components/test/SoloResumeModal.tsx. Teachers from getStudentClasses in classManager.ts. context.type=solo-practice. Safety Rule 11: withRestoreGuard.\n\nImplemented 2026-02-28: Created WritingPracticeView.tsx + CSS in src/components/writing-practice/. 40/60 split layout reusing WritingPromptPanel + WritingEditor. localStorage auto-save (2s debounce, 72h expiry). Native resume modal (no Mantine). Teacher fetch via getStudentClassesgetClass chain. createSubmission with context.type=solo-practice (already wrapped with withRestoreGuard). RTDB result index for Academic Record. Zero TS errors."
+      }
+    }
+  ]
+}

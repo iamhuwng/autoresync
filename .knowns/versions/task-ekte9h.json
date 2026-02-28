@@ -1,0 +1,189 @@
+{
+  "taskId": "ekte9h",
+  "currentVersion": 3,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "ekte9h",
+      "version": 1,
+      "timestamp": "2026-02-27T21:53:20.045Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Phase 8 epic for IELTS Writing Test System (PRD-0030). Covers writing-specific notification functions, academic record writing progress section with criteria trend charts, and student dashboard pending reviews widget. Implements 5 notification triggers (submitted, graded, partially graded, reopened, re-graded) wrapped in withRestoreGuard(), a WritingProgressSection with CSS line chart for graded results and per-criteria averages, AcademicRecordPage updates with new Writing tab, PendingReviewsWidget showing max 5 pending items, and StudentDashboardPage integration."
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "All 5 subtasks completed and verified: notification functions added to notificationService.ts, WritingProgressSection.tsx created with chart and stats, AcademicRecordPage.tsx updated with Writing tab, PendingReviewsWidget.tsx created, PendingReviewsWidget added to StudentDashboardPage.jsx",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "PRD-0030: Notifications & Academic Record",
+        "description": "Phase 8 epic for IELTS Writing Test System (PRD-0030). Covers writing-specific notification functions, academic record writing progress section with criteria trend charts, and student dashboard pending reviews widget. Implements 5 notification triggers (submitted, graded, partially graded, reopened, re-graded) wrapped in withRestoreGuard(), a WritingProgressSection with CSS line chart for graded results and per-criteria averages, AcademicRecordPage updates with new Writing tab, PendingReviewsWidget showing max 5 pending items, and StudentDashboardPage integration.",
+        "status": "todo",
+        "priority": "high",
+        "labels": [
+          "prd-0030",
+          "ielts-writing"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "All 5 subtasks completed and verified: notification functions added to notificationService.ts, WritingProgressSection.tsx created with chart and stats, AcademicRecordPage.tsx updated with Writing tab, PendingReviewsWidget.tsx created, PendingReviewsWidget added to StudentDashboardPage.jsx",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "ekte9h",
+      "version": 2,
+      "timestamp": "2026-02-27T22:33:41.978Z",
+      "changes": [
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-8",
+            "epic",
+            "student",
+            "notifications",
+            "academic-record",
+            "dashboard"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "All 5 subtasks completed and verified: notification functions added to notificationService.ts, WritingProgressSection.tsx created with chart and stats, AcademicRecordPage.tsx updated with Writing tab, PendingReviewsWidget.tsx created, PendingReviewsWidget added to StudentDashboardPage.jsx"
+            }
+          ],
+          "newValue": [
+            {
+              "text": "All 5 subtasks completed",
+              "completed": false
+            },
+            {
+              "text": "5 notification functions with withRestoreGuard",
+              "completed": false
+            },
+            {
+              "text": "Writing progress chart in academic record",
+              "completed": false
+            },
+            {
+              "text": "PendingReviewsWidget on dashboard",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Notification functions (8.1) 2. WritingProgressSection (8.2) 3. AcademicRecordPage tab (8.3) 4. PendingReviewsWidget (8.4) 5. Dashboard integration (8.5)"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Notifications wrapped in withRestoreGuard. Band trend: CSS-only chart. Per-criteria averages from graded submissions. PendingReviewsWidget: pending-review submissions."
+        }
+      ],
+      "snapshot": {
+        "title": "PRD-0030: Notifications & Academic Record",
+        "description": "Phase 8 epic for IELTS Writing Test System (PRD-0030). Covers writing-specific notification functions, academic record writing progress section with criteria trend charts, and student dashboard pending reviews widget. Implements 5 notification triggers (submitted, graded, partially graded, reopened, re-graded) wrapped in withRestoreGuard(), a WritingProgressSection with CSS line chart for graded results and per-criteria averages, AcademicRecordPage updates with new Writing tab, PendingReviewsWidget showing max 5 pending items, and StudentDashboardPage integration.",
+        "status": "todo",
+        "priority": "high",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-8",
+          "epic",
+          "student",
+          "notifications",
+          "academic-record",
+          "dashboard"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "All 5 subtasks completed",
+            "completed": false
+          },
+          {
+            "text": "5 notification functions with withRestoreGuard",
+            "completed": false
+          },
+          {
+            "text": "Writing progress chart in academic record",
+            "completed": false
+          },
+          {
+            "text": "PendingReviewsWidget on dashboard",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Notification functions (8.1) 2. WritingProgressSection (8.2) 3. AcademicRecordPage tab (8.3) 4. PendingReviewsWidget (8.4) 5. Dashboard integration (8.5)",
+        "implementationNotes": "Notifications wrapped in withRestoreGuard. Band trend: CSS-only chart. Per-criteria averages from graded submissions. PendingReviewsWidget: pending-review submissions."
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "ekte9h",
+      "version": 3,
+      "timestamp": "2026-02-28T03:18:04.074Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "PRD-0030: Notifications & Academic Record",
+        "description": "Phase 8 epic for IELTS Writing Test System (PRD-0030). Covers writing-specific notification functions, academic record writing progress section with criteria trend charts, and student dashboard pending reviews widget. Implements 5 notification triggers (submitted, graded, partially graded, reopened, re-graded) wrapped in withRestoreGuard(), a WritingProgressSection with CSS line chart for graded results and per-criteria averages, AcademicRecordPage updates with new Writing tab, PendingReviewsWidget showing max 5 pending items, and StudentDashboardPage integration.",
+        "status": "done",
+        "priority": "high",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-8",
+          "epic",
+          "student",
+          "notifications",
+          "academic-record",
+          "dashboard"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "All 5 subtasks completed"
+          },
+          {
+            "completed": false,
+            "text": "5 notification functions with withRestoreGuard"
+          },
+          {
+            "completed": false,
+            "text": "Writing progress chart in academic record"
+          },
+          {
+            "completed": false,
+            "text": "PendingReviewsWidget on dashboard"
+          }
+        ],
+        "implementationPlan": "1. Notification functions (8.1) 2. WritingProgressSection (8.2) 3. AcademicRecordPage tab (8.3) 4. PendingReviewsWidget (8.4) 5. Dashboard integration (8.5)",
+        "implementationNotes": "Notifications wrapped in withRestoreGuard. Band trend: CSS-only chart. Per-criteria averages from graded submissions. PendingReviewsWidget: pending-review submissions."
+      }
+    }
+  ]
+}

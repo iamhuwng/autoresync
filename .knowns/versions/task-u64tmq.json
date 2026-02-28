@@ -1,0 +1,148 @@
+{
+  "taskId": "u64tmq",
+  "currentVersion": 2,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "u64tmq",
+      "version": 1,
+      "timestamp": "2026-02-27T21:37:23.155Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Phase 1 completed in prior session. All types and data model files created."
+        }
+      ],
+      "snapshot": {
+        "title": "PRD-0030: Data Model & Type Foundation",
+        "status": "done",
+        "priority": "high",
+        "labels": [
+          "prd-0030",
+          "ielts-writing"
+        ],
+        "acceptanceCriteria": [],
+        "implementationNotes": "Phase 1 completed in prior session. All types and data model files created."
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "u64tmq",
+      "version": 2,
+      "timestamp": "2026-02-27T22:23:40.480Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Phase 1 epic. Establishes all TypeScript types, band score calculator with tests, route/security configs, Firestore rules, and service layers for writing test CRUD, submission management, and annotation categories. Foundation for ALL subsequent phases."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-1",
+            "epic",
+            "data-model"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "All 10 subtasks completed",
+              "completed": false
+            },
+            {
+              "text": "Types match PRD 4.1.1 and 4.1.2 exactly",
+              "completed": false
+            },
+            {
+              "text": "Band calculator implements IELTS rounding rules",
+              "completed": false
+            },
+            {
+              "text": "Unit tests pass for all edge cases",
+              "completed": false
+            },
+            {
+              "text": "4 routes in routes.ts and routeSecurity.ts",
+              "completed": false
+            },
+            {
+              "text": "Services follow draftCloudService pattern",
+              "completed": false
+            },
+            {
+              "text": "Firestore rules cover writing_submissions, writing_drafts, users/settings",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Create types (1.1) 2. Band calculator + tests (1.2, 1.3) 3. Extend results types (1.4) 4. Routes + security (1.5, 1.6) 5. Services (1.7, 1.8, 1.10) 6. Firestore rules (1.9)"
+        },
+        {
+          "field": "implementationNotes",
+          "oldValue": "Phase 1 completed in prior session. All types and data model files created.",
+          "newValue": "Safety Rule 11: withRestoreGuard on all writes. Safety Rule 12: verify backup coverage. Safety Rule 14: never regenerate shared IDs. GAP-03: draft ID via Firestore auto-ID. GAP-08: test ID via Firebase push ID. GAP-24: annotation categories at users/teacherId/settings."
+        }
+      ],
+      "snapshot": {
+        "title": "PRD-0030: Data Model & Type Foundation",
+        "description": "Phase 1 epic. Establishes all TypeScript types, band score calculator with tests, route/security configs, Firestore rules, and service layers for writing test CRUD, submission management, and annotation categories. Foundation for ALL subsequent phases.",
+        "status": "done",
+        "priority": "high",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-1",
+          "epic",
+          "data-model"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "All 10 subtasks completed",
+            "completed": false
+          },
+          {
+            "text": "Types match PRD 4.1.1 and 4.1.2 exactly",
+            "completed": false
+          },
+          {
+            "text": "Band calculator implements IELTS rounding rules",
+            "completed": false
+          },
+          {
+            "text": "Unit tests pass for all edge cases",
+            "completed": false
+          },
+          {
+            "text": "4 routes in routes.ts and routeSecurity.ts",
+            "completed": false
+          },
+          {
+            "text": "Services follow draftCloudService pattern",
+            "completed": false
+          },
+          {
+            "text": "Firestore rules cover writing_submissions, writing_drafts, users/settings",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Create types (1.1) 2. Band calculator + tests (1.2, 1.3) 3. Extend results types (1.4) 4. Routes + security (1.5, 1.6) 5. Services (1.7, 1.8, 1.10) 6. Firestore rules (1.9)",
+        "implementationNotes": "Safety Rule 11: withRestoreGuard on all writes. Safety Rule 12: verify backup coverage. Safety Rule 14: never regenerate shared IDs. GAP-03: draft ID via Firestore auto-ID. GAP-08: test ID via Firebase push ID. GAP-24: annotation categories at users/teacherId/settings."
+      }
+    }
+  ]
+}

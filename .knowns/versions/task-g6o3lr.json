@@ -1,0 +1,264 @@
+{
+  "taskId": "g6o3lr",
+  "currentVersion": 4,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "g6o3lr",
+      "version": 1,
+      "timestamp": "2026-02-27T22:35:26.797Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Update AcademicRecordPage.tsx  add Writing tab alongside existing tabs. Renders WritingProgressSection when active. Lazy import with Suspense CSS spinner."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-8",
+            "page",
+            "student",
+            "academic-record",
+            "modify-file",
+            "safety-rule-8",
+            "gap-13"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Writing tab added",
+              "completed": false
+            },
+            {
+              "text": "WritingProgressSection rendered when active",
+              "completed": false
+            },
+            {
+              "text": "Existing tabs preserved",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Add Writing tab definition 2. Lazy import WritingProgressSection 3. Add conditional rendering 4. Wrap in Suspense with CSS spinner"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Follow existing tab pattern. GAP-13: no Mantine in Suspense. Safety Rule 8: must be rendered."
+        }
+      ],
+      "snapshot": {
+        "title": "Update AcademicRecordPage.tsx — add Writing tab",
+        "description": "Update AcademicRecordPage.tsx  add Writing tab alongside existing tabs. Renders WritingProgressSection when active. Lazy import with Suspense CSS spinner.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-8",
+          "page",
+          "student",
+          "academic-record",
+          "modify-file",
+          "safety-rule-8",
+          "gap-13"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Writing tab added",
+            "completed": false
+          },
+          {
+            "text": "WritingProgressSection rendered when active",
+            "completed": false
+          },
+          {
+            "text": "Existing tabs preserved",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Add Writing tab definition 2. Lazy import WritingProgressSection 3. Add conditional rendering 4. Wrap in Suspense with CSS spinner",
+        "implementationNotes": "Follow existing tab pattern. GAP-13: no Mantine in Suspense. Safety Rule 8: must be rendered."
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "g6o3lr",
+      "version": 2,
+      "timestamp": "2026-02-28T03:11:36.415Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        }
+      ],
+      "snapshot": {
+        "title": "Update AcademicRecordPage.tsx — add Writing tab",
+        "description": "Update AcademicRecordPage.tsx  add Writing tab alongside existing tabs. Renders WritingProgressSection when active. Lazy import with Suspense CSS spinner.",
+        "status": "in-progress",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-8",
+          "page",
+          "student",
+          "academic-record",
+          "modify-file",
+          "safety-rule-8",
+          "gap-13"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Writing tab added"
+          },
+          {
+            "completed": false,
+            "text": "WritingProgressSection rendered when active"
+          },
+          {
+            "completed": false,
+            "text": "Existing tabs preserved"
+          }
+        ],
+        "implementationPlan": "1. Add Writing tab definition 2. Lazy import WritingProgressSection 3. Add conditional rendering 4. Wrap in Suspense with CSS spinner",
+        "implementationNotes": "Follow existing tab pattern. GAP-13: no Mantine in Suspense. Safety Rule 8: must be rendered."
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "g6o3lr",
+      "version": 3,
+      "timestamp": "2026-02-28T03:13:09.114Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Writing tab added"
+            },
+            {
+              "completed": false,
+              "text": "WritingProgressSection rendered when active"
+            },
+            {
+              "completed": false,
+              "text": "Existing tabs preserved"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Writing tab added"
+            },
+            {
+              "completed": true,
+              "text": "WritingProgressSection rendered when active"
+            },
+            {
+              "completed": true,
+              "text": "Existing tabs preserved"
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Update AcademicRecordPage.tsx — add Writing tab",
+        "description": "Update AcademicRecordPage.tsx  add Writing tab alongside existing tabs. Renders WritingProgressSection when active. Lazy import with Suspense CSS spinner.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-8",
+          "page",
+          "student",
+          "academic-record",
+          "modify-file",
+          "safety-rule-8",
+          "gap-13"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Writing tab added"
+          },
+          {
+            "completed": true,
+            "text": "WritingProgressSection rendered when active"
+          },
+          {
+            "completed": true,
+            "text": "Existing tabs preserved"
+          }
+        ],
+        "implementationPlan": "1. Add Writing tab definition 2. Lazy import WritingProgressSection 3. Add conditional rendering 4. Wrap in Suspense with CSS spinner",
+        "implementationNotes": "Follow existing tab pattern. GAP-13: no Mantine in Suspense. Safety Rule 8: must be rendered."
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "g6o3lr",
+      "version": 4,
+      "timestamp": "2026-02-28T03:13:12.292Z",
+      "changes": [
+        {
+          "field": "implementationNotes",
+          "oldValue": "Follow existing tab pattern. GAP-13: no Mantine in Suspense. Safety Rule 8: must be rendered.",
+          "newValue": "Follow existing tab pattern. GAP-13: no Mantine in Suspense. Safety Rule 8: must be rendered.\n\nImplemented 2026-02-28: Added Writing tab to AcademicRecordPage TABS array. Lazy-imported WritingProgressSection with Suspense CSS spinner fallback. Switch case renders component when tab active. All existing tabs preserved."
+        }
+      ],
+      "snapshot": {
+        "title": "Update AcademicRecordPage.tsx — add Writing tab",
+        "description": "Update AcademicRecordPage.tsx  add Writing tab alongside existing tabs. Renders WritingProgressSection when active. Lazy import with Suspense CSS spinner.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-8",
+          "page",
+          "student",
+          "academic-record",
+          "modify-file",
+          "safety-rule-8",
+          "gap-13"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Writing tab added"
+          },
+          {
+            "completed": true,
+            "text": "WritingProgressSection rendered when active"
+          },
+          {
+            "completed": true,
+            "text": "Existing tabs preserved"
+          }
+        ],
+        "implementationPlan": "1. Add Writing tab definition 2. Lazy import WritingProgressSection 3. Add conditional rendering 4. Wrap in Suspense with CSS spinner",
+        "implementationNotes": "Follow existing tab pattern. GAP-13: no Mantine in Suspense. Safety Rule 8: must be rendered.\n\nImplemented 2026-02-28: Added Writing tab to AcademicRecordPage TABS array. Lazy-imported WritingProgressSection with Suspense CSS spinner fallback. Switch case renders component when tab active. All existing tabs preserved."
+      }
+    }
+  ]
+}

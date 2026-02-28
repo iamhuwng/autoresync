@@ -26,6 +26,7 @@ import { QuestionResult } from '../types/results.types';
 import { FeedbackEditor } from '../components/feedback/FeedbackEditor';
 import { saveQuestionFeedback, saveOverallFeedback } from '../services/feedbackService';
 import { Modal, Stack, Title, Text, Tabs, Badge, Group } from '@mantine/core';
+import WritingTestResultsSection from '../components/writing-results/WritingTestResultsSection';
 
 interface StudentResult {
   resultId?: string; // Link to backend record
@@ -609,6 +610,18 @@ export const TeacherTestResultsPage: React.FC = () => {
           Return to Sessions
         </Button>
       </Center>
+    );
+  }
+
+  /**
+   * PRD-0030: Writing test — render dedicated writing results section
+   */
+  if (testData.skill === 'Writing') {
+    return (
+      <WritingTestResultsSection
+        sessionCode={sessionCode || ''}
+        testTitle={testData.title}
+      />
     );
   }
 

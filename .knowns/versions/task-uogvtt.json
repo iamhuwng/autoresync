@@ -1,0 +1,238 @@
+{
+  "taskId": "uogvtt",
+  "currentVersion": 3,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "uogvtt",
+      "version": 1,
+      "timestamp": "2026-02-27T22:28:35.797Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Update TestPageRouter.tsx  add case Writing with lazy import. Fetch test from RTDB tests/testId (same as THCS pattern). GAP-13: Suspense fallback uses pure CSS spinner  NOT Mantine Center/Loader or LoadingState component."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-3",
+            "routing",
+            "modify-file",
+            "gap-13",
+            "safety-rule-8",
+            "no-mantine"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Lazy import for WritingTestPage",
+              "completed": false
+            },
+            {
+              "text": "Case Writing fetches from RTDB",
+              "completed": false
+            },
+            {
+              "text": "Suspense fallback uses pure CSS spinner",
+              "completed": false
+            },
+            {
+              "text": "Does NOT use LoadingState component",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Add lazy import for WritingTestPage 2. Add case Writing 3. Fetch from RTDB 4. Wrap in Suspense with CSS spinner 5. Pass testData and sessionCode props"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "GAP-13: Mantine ban absolute  even LoadingState wraps Mantine. Use pure CSS spinner pattern already used in 3+ places. THCS pattern at line ~86."
+        }
+      ],
+      "snapshot": {
+        "title": "Update TestPageRouter.tsx — add Writing case with lazy import",
+        "description": "Update TestPageRouter.tsx  add case Writing with lazy import. Fetch test from RTDB tests/testId (same as THCS pattern). GAP-13: Suspense fallback uses pure CSS spinner  NOT Mantine Center/Loader or LoadingState component.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-3",
+          "routing",
+          "modify-file",
+          "gap-13",
+          "safety-rule-8",
+          "no-mantine"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Lazy import for WritingTestPage",
+            "completed": false
+          },
+          {
+            "text": "Case Writing fetches from RTDB",
+            "completed": false
+          },
+          {
+            "text": "Suspense fallback uses pure CSS spinner",
+            "completed": false
+          },
+          {
+            "text": "Does NOT use LoadingState component",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Add lazy import for WritingTestPage 2. Add case Writing 3. Fetch from RTDB 4. Wrap in Suspense with CSS spinner 5. Pass testData and sessionCode props",
+        "implementationNotes": "GAP-13: Mantine ban absolute  even LoadingState wraps Mantine. Use pure CSS spinner pattern already used in 3+ places. THCS pattern at line ~86."
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "uogvtt",
+      "version": 2,
+      "timestamp": "2026-02-27T23:25:06.831Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Lazy import for WritingTestPage"
+            },
+            {
+              "completed": false,
+              "text": "Case Writing fetches from RTDB"
+            },
+            {
+              "completed": false,
+              "text": "Suspense fallback uses pure CSS spinner"
+            },
+            {
+              "completed": false,
+              "text": "Does NOT use LoadingState component"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Lazy import for WritingTestPage"
+            },
+            {
+              "completed": true,
+              "text": "Case Writing fetches from RTDB"
+            },
+            {
+              "completed": true,
+              "text": "Suspense fallback uses pure CSS spinner"
+            },
+            {
+              "completed": true,
+              "text": "Does NOT use LoadingState component"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "oldValue": "GAP-13: Mantine ban absolute  even LoadingState wraps Mantine. Use pure CSS spinner pattern already used in 3+ places. THCS pattern at line ~86.",
+          "newValue": "GAP-13: Mantine ban absolute  even LoadingState wraps Mantine. Use pure CSS spinner pattern already used in 3+ places. THCS pattern at line ~86.\n\nAll ACs verified. TestPageRouter.tsx has: lazy import for WritingTestPage (L26), case 'Writing' fetches full test from RTDB tests/{testId} (L118-124), Suspense fallback uses pure CSS spinner with @keyframes spin (L196-201, GAP-13 compliant), does NOT use LoadingState or Mantine for the Writing case. Note: existing loading/error/THCS states still use Mantine Center/Loader  separate cleanup task."
+        }
+      ],
+      "snapshot": {
+        "title": "Update TestPageRouter.tsx — add Writing case with lazy import",
+        "description": "Update TestPageRouter.tsx  add case Writing with lazy import. Fetch test from RTDB tests/testId (same as THCS pattern). GAP-13: Suspense fallback uses pure CSS spinner  NOT Mantine Center/Loader or LoadingState component.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-3",
+          "routing",
+          "modify-file",
+          "gap-13",
+          "safety-rule-8",
+          "no-mantine"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Lazy import for WritingTestPage"
+          },
+          {
+            "completed": true,
+            "text": "Case Writing fetches from RTDB"
+          },
+          {
+            "completed": true,
+            "text": "Suspense fallback uses pure CSS spinner"
+          },
+          {
+            "completed": true,
+            "text": "Does NOT use LoadingState component"
+          }
+        ],
+        "implementationPlan": "1. Add lazy import for WritingTestPage 2. Add case Writing 3. Fetch from RTDB 4. Wrap in Suspense with CSS spinner 5. Pass testData and sessionCode props",
+        "implementationNotes": "GAP-13: Mantine ban absolute  even LoadingState wraps Mantine. Use pure CSS spinner pattern already used in 3+ places. THCS pattern at line ~86.\n\nAll ACs verified. TestPageRouter.tsx has: lazy import for WritingTestPage (L26), case 'Writing' fetches full test from RTDB tests/{testId} (L118-124), Suspense fallback uses pure CSS spinner with @keyframes spin (L196-201, GAP-13 compliant), does NOT use LoadingState or Mantine for the Writing case. Note: existing loading/error/THCS states still use Mantine Center/Loader  separate cleanup task."
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "uogvtt",
+      "version": 3,
+      "timestamp": "2026-02-27T23:25:30.224Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Update TestPageRouter.tsx — add Writing case with lazy import",
+        "description": "Update TestPageRouter.tsx  add case Writing with lazy import. Fetch test from RTDB tests/testId (same as THCS pattern). GAP-13: Suspense fallback uses pure CSS spinner  NOT Mantine Center/Loader or LoadingState component.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-3",
+          "routing",
+          "modify-file",
+          "gap-13",
+          "safety-rule-8",
+          "no-mantine"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Lazy import for WritingTestPage"
+          },
+          {
+            "completed": true,
+            "text": "Case Writing fetches from RTDB"
+          },
+          {
+            "completed": true,
+            "text": "Suspense fallback uses pure CSS spinner"
+          },
+          {
+            "completed": true,
+            "text": "Does NOT use LoadingState component"
+          }
+        ],
+        "implementationPlan": "1. Add lazy import for WritingTestPage 2. Add case Writing 3. Fetch from RTDB 4. Wrap in Suspense with CSS spinner 5. Pass testData and sessionCode props",
+        "implementationNotes": "GAP-13: Mantine ban absolute  even LoadingState wraps Mantine. Use pure CSS spinner pattern already used in 3+ places. THCS pattern at line ~86.\n\nAll ACs verified. TestPageRouter.tsx has: lazy import for WritingTestPage (L26), case 'Writing' fetches full test from RTDB tests/{testId} (L118-124), Suspense fallback uses pure CSS spinner with @keyframes spin (L196-201, GAP-13 compliant), does NOT use LoadingState or Mantine for the Writing case. Note: existing loading/error/THCS states still use Mantine Center/Loader  separate cleanup task."
+      }
+    }
+  ]
+}

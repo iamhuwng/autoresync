@@ -11,7 +11,7 @@
  * - Answer comparison
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ref, get } from 'firebase/database';
 // @ts-ignore
@@ -33,6 +33,11 @@ import { WritingSpeakingPlaceholder } from '../components/test/WritingSpeakingPl
 import { sessionService } from '../services/sessionService';
 import { getCourseAverage } from '../services/resultsService';
 import { FeedbackDisplay } from '../components/feedback/FeedbackDisplay';
+import { getSubmissionsBySession } from '../services/writingSubmissionService';
+import type { WritingSubmission } from '../types/ielts-writing.types';
+
+// PRD-0030 Task 6.1.1: Lazy-load WritingResultView for Writing tests
+const WritingResultView = lazy(() => import('../components/writing-results/WritingResultView'));
 
 interface TestSession {
   sessionCode: string;
@@ -66,6 +71,8 @@ export const StudentTestResultsPage: React.FC = () => {
   const [courseAverage, setCourseAverage] = useState<number | null>(null);
   const [expandedQuestions, setExpandedQuestions] = useState<Set<number>>(new Set());
   const [pdfAvailable, setPdfAvailable] = useState(false);
+  // PRD-0030 Task 6.1.1: Writing submission for WritingResultView
+  const [writingSubmission, setWritingSubmission] = useState<WritingSubmission | null>(null);
 
   /**
    * Load session and calculate results
@@ -158,6 +165,28 @@ export const StudentTestResultsPage: React.FC = () => {
             })) as any,
             duration: permanentResult.testDuration || 0,
           });
+
+          // PRD-0030 Task 6.1.1: Writing skill → fetch WritingSubmission from Firestore
+          if ((permanentResult.testSkill || '').toLowerCase() === 'writing') {
+            console.log('[Results] Writing test detected — fetching writing submission');
+            try {
+              const subResult = await getSubmissionsBySession(sessionCode!);
+              if (subResult.success && subResult.data) {
+                // Find this student's submission
+                const mySubmission = subResult.data.find(
+                  s => s.studentId === studentId
+                );
+                if (mySubmission) {
+                  setWritingSubmission(mySubmission);
+                  setLoading(false);
+                  return;
+                }
+              }
+              console.warn('[Results] Writing submission not found in Firestore, falling back to standard results');
+            } catch (writingErr) {
+              console.warn('[Results] Failed to fetch writing submission:', writingErr);
+            }
+          }
 
           // Adapt TestResultRecord to TestMarkingResult for UI
           const adaptedResult: TestMarkingResult = {
@@ -352,7 +381,7 @@ export const StudentTestResultsPage: React.FC = () => {
   /**
    * Render error state
    */
-  if (error || !session || !testData || !results) {
+  if (error || !session || !testData || (!results && !writingSubmission)) {
     return (
       <Center style={{ height: '100vh', flexDirection: 'column', gap: '1rem' }}>
         <div style={{ fontSize: '3rem' }}>⚠️</div>
@@ -366,8 +395,74 @@ export const StudentTestResultsPage: React.FC = () => {
     );
   }
 
-  const bandScore = calculateBandScore(results.percentage);
-  const feedback = generatePerformanceFeedback(results.percentage);
+  // PRD-0030 Task 6.1.1: Writing test — render WritingResultView
+  if (writingSubmission && testData.skill === 'Writing') {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          background: 'linear-gradient(135deg, rgba(250, 245, 255, 0.95) 0%, rgba(240, 249, 255, 0.95) 50%, rgba(240, 253, 250, 0.95) 100%)',
+          padding: '2rem',
+        }}
+      >
+        <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
+          {/* Header */}
+          <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
+            <h1
+              style={{
+                margin: 0,
+                fontSize: '2.5rem',
+                fontWeight: 800,
+                background: 'linear-gradient(135deg, #8b5cf6 0%, #06b6d4 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                marginBottom: '0.5rem',
+              }}
+            >
+              Writing Test Results
+            </h1>
+            <div style={{ fontSize: '1.125rem', color: '#64748b', fontWeight: 500 }}>
+              {testData.title}
+            </div>
+          </div>
+
+          {/* WritingResultView — lazy loaded with CSS spinner */}
+          <Suspense
+            fallback={
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '3rem 0', gap: '0.5rem' }}>
+                <div style={{
+                  width: '2rem', height: '2rem',
+                  border: '3px solid #e2e8f0',
+                  borderTop: '3px solid #8b5cf6',
+                  borderRadius: '50%',
+                  animation: 'spin 0.8s linear infinite',
+                }} />
+                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+              </div>
+            }
+          >
+            <WritingResultView submission={writingSubmission} />
+          </Suspense>
+
+          {/* Action Buttons */}
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '2rem', flexWrap: 'wrap' }}>
+            <Button variant="primary" onClick={() => navigate('/')}>
+              🏠 Return to Home
+            </Button>
+            <Button variant="glass" onClick={() => window.print()}>
+              🖨️ Print Results
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // At this point, results is guaranteed non-null (error guard + writing branch returned above)
+  const safeResults = results!;
+  const bandScore = calculateBandScore(safeResults.percentage);
+  const feedback = generatePerformanceFeedback(safeResults.percentage);
 
   return (
     <div
@@ -411,10 +506,10 @@ export const StudentTestResultsPage: React.FC = () => {
                 Your Score
               </div>
               <div style={{ fontSize: '3rem', fontWeight: 800, color: '#8b5cf6', marginBottom: '0.5rem' }}>
-                {results.totalScore}/{results.maxScore}
+                {safeResults.totalScore}/{safeResults.maxScore}
               </div>
               <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#64748b' }}>
-                {results.percentage.toFixed(1)}%
+                {safeResults.percentage.toFixed(1)}%
               </div>
             </CardBody>
           </Card>
@@ -443,19 +538,19 @@ export const StudentTestResultsPage: React.FC = () => {
               <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '1rem' }}>
                 <div>
                   <div style={{ fontSize: '2rem', fontWeight: 800, color: '#10b981' }}>
-                    {results.summary.correct}
+                    {safeResults.summary.correct}
                   </div>
                   <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Correct</div>
                 </div>
                 <div>
                   <div style={{ fontSize: '2rem', fontWeight: 800, color: '#f59e0b' }}>
-                    {results.summary.partialCredit}
+                    {safeResults.summary.partialCredit}
                   </div>
                   <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Partial</div>
                 </div>
                 <div>
                   <div style={{ fontSize: '2rem', fontWeight: 800, color: '#ef4444' }}>
-                    {results.summary.incorrect}
+                    {safeResults.summary.incorrect}
                   </div>
                   <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Incorrect</div>
                 </div>
@@ -475,10 +570,10 @@ export const StudentTestResultsPage: React.FC = () => {
                 </div>
                 <div style={{
                   fontSize: '0.875rem',
-                  color: results.percentage >= courseAverage ? '#10b981' : '#ef4444',
+                  color: safeResults.percentage >= courseAverage ? '#10b981' : '#ef4444',
                   fontWeight: 700
                 }}>
-                  {results.percentage >= courseAverage ? 'Above Average' : 'Below Average'}
+                  {safeResults.percentage >= courseAverage ? 'Above Average' : 'Below Average'}
                 </div>
               </CardBody>
             </Card>
@@ -490,7 +585,7 @@ export const StudentTestResultsPage: React.FC = () => {
           <CardBody style={{ padding: '2rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
               <div style={{ fontSize: '3rem' }}>
-                {results.percentage >= 80 ? '🎉' : results.percentage >= 60 ? '👍' : '📚'}
+                {safeResults.percentage >= 80 ? '🎉' : safeResults.percentage >= 60 ? '👍' : '📚'}
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: '1.125rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.5rem' }}>
@@ -541,7 +636,7 @@ export const StudentTestResultsPage: React.FC = () => {
           </h2>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {results.questionResults.map((result) => {
+            {safeResults.questionResults.map((result) => {
               const isExpanded = expandedQuestions.has(result.questionNumber);
               const statusColor = result.isCorrect
                 ? { bg: 'rgba(16, 185, 129, 0.1)', border: '#10b981', text: '#059669' }
@@ -716,7 +811,7 @@ export const StudentTestResultsPage: React.FC = () => {
                 }
 
                 // Scenario B: Legacy Fallback (Reconstruct from Session)
-                if (!session || !testData || !results || !sessionCode) return;
+                if (!session || !testData || !safeResults || !sessionCode) return;
                 if (!session.players || Object.keys(session.players).length === 0) return;
 
                 const studentId = Object.keys(session.players)[0];
@@ -731,11 +826,11 @@ export const StudentTestResultsPage: React.FC = () => {
                   testId: session.testId,
                   studentId,
                   studentName: studentData?.name || 'Student',
-                  totalScore: results.totalScore,
-                  maxScore: results.maxScore,
-                  percentage: results.percentage,
-                  bandScore: calculateBandScore(results.percentage),
-                  questionResults: results.questionResults.map(qr => ({
+                  totalScore: safeResults.totalScore,
+                  maxScore: safeResults.maxScore,
+                  percentage: safeResults.percentage,
+                  bandScore: calculateBandScore(safeResults.percentage),
+                  questionResults: safeResults.questionResults.map(qr => ({
                     questionNumber: qr.questionNumber,
                     questionType: qr.questionType,
                     isCorrect: qr.isCorrect,
@@ -745,11 +840,11 @@ export const StudentTestResultsPage: React.FC = () => {
                     correctAnswer: qr.correctAnswer,
                     feedback: qr.feedback,
                   })),
-                  correct: results.summary.correct,
-                  incorrect: results.summary.incorrect,
-                  partialCredit: results.summary.partialCredit,
-                  totalQuestions: results.summary.totalQuestions,
-                  submittedAt: results.completedAt,
+                  correct: safeResults.summary.correct,
+                  incorrect: safeResults.summary.incorrect,
+                  partialCredit: safeResults.summary.partialCredit,
+                  totalQuestions: safeResults.summary.totalQuestions,
+                  submittedAt: safeResults.completedAt,
                   timeElapsed: 0,
                   testDuration: testData.duration,
                   createdAt: Date.now(),

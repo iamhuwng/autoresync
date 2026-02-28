@@ -1,0 +1,282 @@
+{
+  "taskId": "x9gzyt",
+  "currentVersion": 4,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "x9gzyt",
+      "version": 1,
+      "timestamp": "2026-02-27T22:35:01.902Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Add 5 writing notification functions to notificationService.ts: notifyWritingSubmitted, notifyWritingGraded, notifyWritingPartiallyGraded, notifyWritingReopened, notifyWritingReGraded. ALL wrapped in withRestoreGuard. Follow existing notification patterns."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-8",
+            "services",
+            "notifications",
+            "modify-file",
+            "safety-rule-11"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "5 notification functions added",
+              "completed": false
+            },
+            {
+              "text": "All wrapped in withRestoreGuard",
+              "completed": false
+            },
+            {
+              "text": "Follow existing notification patterns",
+              "completed": false
+            },
+            {
+              "text": "Correct notification messages",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Open notificationService.ts 2. Study existing patterns 3. Add 5 new functions 4. Wrap each in withRestoreGuard 5. Export all"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Safety Rule 11: withRestoreGuard on ALL notification writes. Notifications to correct RTDB paths. notifyWritingPartiallyGraded for single-task graded in full test."
+        }
+      ],
+      "snapshot": {
+        "title": "Add writing notification functions to notificationService.ts",
+        "description": "Add 5 writing notification functions to notificationService.ts: notifyWritingSubmitted, notifyWritingGraded, notifyWritingPartiallyGraded, notifyWritingReopened, notifyWritingReGraded. ALL wrapped in withRestoreGuard. Follow existing notification patterns.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-8",
+          "services",
+          "notifications",
+          "modify-file",
+          "safety-rule-11"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "5 notification functions added",
+            "completed": false
+          },
+          {
+            "text": "All wrapped in withRestoreGuard",
+            "completed": false
+          },
+          {
+            "text": "Follow existing notification patterns",
+            "completed": false
+          },
+          {
+            "text": "Correct notification messages",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Open notificationService.ts 2. Study existing patterns 3. Add 5 new functions 4. Wrap each in withRestoreGuard 5. Export all",
+        "implementationNotes": "Safety Rule 11: withRestoreGuard on ALL notification writes. Notifications to correct RTDB paths. notifyWritingPartiallyGraded for single-task graded in full test."
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "x9gzyt",
+      "version": 2,
+      "timestamp": "2026-02-28T03:16:42.837Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        }
+      ],
+      "snapshot": {
+        "title": "Add writing notification functions to notificationService.ts",
+        "description": "Add 5 writing notification functions to notificationService.ts: notifyWritingSubmitted, notifyWritingGraded, notifyWritingPartiallyGraded, notifyWritingReopened, notifyWritingReGraded. ALL wrapped in withRestoreGuard. Follow existing notification patterns.",
+        "status": "in-progress",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-8",
+          "services",
+          "notifications",
+          "modify-file",
+          "safety-rule-11"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "5 notification functions added"
+          },
+          {
+            "completed": false,
+            "text": "All wrapped in withRestoreGuard"
+          },
+          {
+            "completed": false,
+            "text": "Follow existing notification patterns"
+          },
+          {
+            "completed": false,
+            "text": "Correct notification messages"
+          }
+        ],
+        "implementationPlan": "1. Open notificationService.ts 2. Study existing patterns 3. Add 5 new functions 4. Wrap each in withRestoreGuard 5. Export all",
+        "implementationNotes": "Safety Rule 11: withRestoreGuard on ALL notification writes. Notifications to correct RTDB paths. notifyWritingPartiallyGraded for single-task graded in full test."
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "x9gzyt",
+      "version": 3,
+      "timestamp": "2026-02-28T03:17:48.902Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "5 notification functions added"
+            },
+            {
+              "completed": false,
+              "text": "All wrapped in withRestoreGuard"
+            },
+            {
+              "completed": false,
+              "text": "Follow existing notification patterns"
+            },
+            {
+              "completed": false,
+              "text": "Correct notification messages"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "5 notification functions added"
+            },
+            {
+              "completed": true,
+              "text": "All wrapped in withRestoreGuard"
+            },
+            {
+              "completed": true,
+              "text": "Follow existing notification patterns"
+            },
+            {
+              "completed": true,
+              "text": "Correct notification messages"
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Add writing notification functions to notificationService.ts",
+        "description": "Add 5 writing notification functions to notificationService.ts: notifyWritingSubmitted, notifyWritingGraded, notifyWritingPartiallyGraded, notifyWritingReopened, notifyWritingReGraded. ALL wrapped in withRestoreGuard. Follow existing notification patterns.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-8",
+          "services",
+          "notifications",
+          "modify-file",
+          "safety-rule-11"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "5 notification functions added"
+          },
+          {
+            "completed": true,
+            "text": "All wrapped in withRestoreGuard"
+          },
+          {
+            "completed": true,
+            "text": "Follow existing notification patterns"
+          },
+          {
+            "completed": true,
+            "text": "Correct notification messages"
+          }
+        ],
+        "implementationPlan": "1. Open notificationService.ts 2. Study existing patterns 3. Add 5 new functions 4. Wrap each in withRestoreGuard 5. Export all",
+        "implementationNotes": "Safety Rule 11: withRestoreGuard on ALL notification writes. Notifications to correct RTDB paths. notifyWritingPartiallyGraded for single-task graded in full test."
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "x9gzyt",
+      "version": 4,
+      "timestamp": "2026-02-28T03:17:51.993Z",
+      "changes": [
+        {
+          "field": "implementationNotes",
+          "oldValue": "Safety Rule 11: withRestoreGuard on ALL notification writes. Notifications to correct RTDB paths. notifyWritingPartiallyGraded for single-task graded in full test.",
+          "newValue": "Safety Rule 11: withRestoreGuard on ALL notification writes. Notifications to correct RTDB paths. notifyWritingPartiallyGraded for single-task graded in full test.\n\nImplemented 2026-02-28: Added 5 writing notification functions to notificationService.ts. All use createNotification (already withRestoreGuard). Functions: notifyWritingSubmitted, notifyWritingGraded, notifyWritingPartiallyGraded, notifyWritingReopened, notifyWritingReGraded. All follow existing notification patterns with proper messages, metadata, and links."
+        }
+      ],
+      "snapshot": {
+        "title": "Add writing notification functions to notificationService.ts",
+        "description": "Add 5 writing notification functions to notificationService.ts: notifyWritingSubmitted, notifyWritingGraded, notifyWritingPartiallyGraded, notifyWritingReopened, notifyWritingReGraded. ALL wrapped in withRestoreGuard. Follow existing notification patterns.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-8",
+          "services",
+          "notifications",
+          "modify-file",
+          "safety-rule-11"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "5 notification functions added"
+          },
+          {
+            "completed": true,
+            "text": "All wrapped in withRestoreGuard"
+          },
+          {
+            "completed": true,
+            "text": "Follow existing notification patterns"
+          },
+          {
+            "completed": true,
+            "text": "Correct notification messages"
+          }
+        ],
+        "implementationPlan": "1. Open notificationService.ts 2. Study existing patterns 3. Add 5 new functions 4. Wrap each in withRestoreGuard 5. Export all",
+        "implementationNotes": "Safety Rule 11: withRestoreGuard on ALL notification writes. Notifications to correct RTDB paths. notifyWritingPartiallyGraded for single-task graded in full test.\n\nImplemented 2026-02-28: Added 5 writing notification functions to notificationService.ts. All use createNotification (already withRestoreGuard). Functions: notifyWritingSubmitted, notifyWritingGraded, notifyWritingPartiallyGraded, notifyWritingReopened, notifyWritingReGraded. All follow existing notification patterns with proper messages, metadata, and links."
+      }
+    }
+  ]
+}

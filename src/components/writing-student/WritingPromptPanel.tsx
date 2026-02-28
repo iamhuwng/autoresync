@@ -20,9 +20,9 @@ export default function WritingPromptPanel({ task, taskNumber }: WritingPromptPa
     const content = (
         <>
             <div className="wtp-prompt-header">
-                <span className="wtp-task-label">Task {taskNumber}</span>
+                <span className="wtp-task-label">WRITING TASK {taskNumber}</span>
                 <span className="wtp-rec-time">
-                    ⏱ {task.recommendedTimeMinutes || 20} min recommended
+                    You should spend about {task.recommendedTimeMinutes || 20} minutes on this task
                 </span>
             </div>
 

@@ -15,6 +15,7 @@ import { StudentSidebar } from '../components/layout/StudentSidebar';
 import { S } from '../components/layout/studentLayoutStyles';
 import { IconCheck, IconBriefcase } from '../components/layout/StudentIcons';
 import { cleanupExpiredProgress } from '../hooks/solo/useSoloAutoSave';
+import { PendingReviewsWidget } from '../components/dashboard/PendingReviewsWidget';
 
 const localStyles = {
     article: { background: 'white', padding: '16px 24px', borderBottom: '1px solid #e5e7eb', cursor: 'pointer', transition: 'background 0.2s' },
@@ -613,6 +614,8 @@ const StudentDashboardPage = () => {
                         </div>
                     </div>
                 )}
+                {/* ── Pending Writing Reviews ────────────────── */}
+                <PendingReviewsWidget />
             </div>
         );
     };

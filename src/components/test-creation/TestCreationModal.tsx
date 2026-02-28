@@ -20,12 +20,21 @@ import MetadataStep from './MetadataStep';
 import { TestUploadWizard } from './TestUploadWizard';
 import { ParsingProgressScreen, type ParsingStage } from './ParsingProgressScreen';
 import {
+    WritingMetadataStep,
+    WritingFormatStep,
+    WritingContentStep,
+    type WritingMetadataFields,
+    type WritingTaskFields,
+    type WritingFormat,
+} from './WritingStepsContent';
+import {
     type TestType,
     type SkillType,
     type ModalStep,
     type ModalStepData,
     type DraftMetadata,
     MODAL_STEP_ORDER,
+    WRITING_STEP_ORDER,
     INITIAL_MODAL_DATA,
     DEFAULT_DRAFT_METADATA,
     generateDefaultTitle,
@@ -33,6 +42,11 @@ import {
 import { useAuth } from '../../hooks/useAuth';
 import { testDraftService } from '../../services/draftCloudService';
 import testCreationService from '../../services/test-creation';
+import {
+    saveWritingDraft,
+    publishWritingTest,
+} from '../../services/writingTestService';
+import type { WritingTask, WritingTestMetadata } from '../../types/ielts-writing.types';
 
 // ═══════════════════════════════════════════════════════════════
 // TYPES
@@ -94,6 +108,57 @@ const STEP_CONFIGS: StepConfig[] = [
         icon: '⚙️',
     },
 ];
+
+/** Writing-specific step configs */
+const WRITING_STEP_CONFIGS: StepConfig[] = [
+    {
+        id: 'type',
+        label: 'Test Type',
+        description: 'Choose the exam format',
+        icon: '📋',
+    },
+    {
+        id: 'skill',
+        label: 'Skill',
+        description: 'Select the skill to test',
+        icon: '🎯',
+    },
+    {
+        id: 'writing-metadata',
+        label: 'Details',
+        description: 'Add test information',
+        icon: '📝',
+    },
+    {
+        id: 'writing-format',
+        label: 'Format',
+        description: 'Choose test format',
+        icon: '📐',
+    },
+    {
+        id: 'writing-content',
+        label: 'Content',
+        description: 'Add prompts & tasks',
+        icon: '✍️',
+    },
+];
+
+/** Default writing task fields */
+const DEFAULT_WRITING_TASK1: WritingTaskFields = {
+    taskType: 'line-graph',
+    promptText: '',
+    wordMinimum: 150,
+    recommendedTimeMinutes: 20,
+    showModelAnswerToStudent: false,
+};
+
+const DEFAULT_WRITING_TASK2: WritingTaskFields = {
+    taskType: 'opinion',
+    promptText: '',
+    wordMinimum: 250,
+    recommendedTimeMinutes: 40,
+    showModelAnswerToStudent: false,
+};
 
 // ═══════════════════════════════════════════════════════════════
 // STYLES
@@ -195,10 +260,25 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
     const [parsingError, setParsingError] = useState<string | undefined>();
     const [draftId, setDraftId] = useState<string | null>(null);
 
+    // ─── Writing-specific State ───────────────────────────────────
+    const [writingMeta, setWritingMeta] = useState<WritingMetadataFields>({
+        title: '',
+        duration: 60,
+    });
+    const [writingFormat, setWritingFormat] = useState<WritingFormat | undefined>(undefined);
+    const [writingTask1, setWritingTask1] = useState<WritingTaskFields>({ ...DEFAULT_WRITING_TASK1 });
+    const [writingTask2, setWritingTask2] = useState<WritingTaskFields>({ ...DEFAULT_WRITING_TASK2 });
+    const [writingPublishing, setWritingPublishing] = useState(false);
+    const [writingSaving, setWritingSaving] = useState(false);
+    const [writingDraftId, setWritingDraftId] = useState<string | undefined>(undefined);
+
     // ─── Derived State ───────────────────────────────────────────
-    const currentStepIndex = MODAL_STEP_ORDER.indexOf(currentStep);
-    const totalSteps = MODAL_STEP_ORDER.length;
-    const currentStepConfig = STEP_CONFIGS.find(s => s.id === currentStep);
+    const isWritingFlow = stepData.skillType === 'writing';
+    const activeStepOrder = isWritingFlow ? WRITING_STEP_ORDER : MODAL_STEP_ORDER;
+    const activeStepConfigs = isWritingFlow ? WRITING_STEP_CONFIGS : STEP_CONFIGS;
+    const currentStepIndex = activeStepOrder.indexOf(currentStep);
+    const totalSteps = activeStepOrder.length;
+    const currentStepConfig = activeStepConfigs.find(s => s.id === currentStep);
     const isParsing = currentStep === 'parsing';
 
     // ─── Validation Logic ────────────────────────────────────────
@@ -213,16 +293,27 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             case 'upload':
                 return stepData.sourceContent !== null || stepData.sourceFile !== null;
             case 'parsing':
-                return false; // Cannot proceed during parsing - handled by callback
+                return false;
+            // Writing-specific steps
+            case 'writing-metadata':
+                return writingMeta.title.trim().length > 0 && writingMeta.duration > 0;
+            case 'writing-format':
+                return writingFormat !== undefined;
+            case 'writing-content': {
+                // At least one active task must have prompt text
+                if (writingFormat === 'task1-only') return writingTask1.promptText.trim().length > 0;
+                if (writingFormat === 'task2-only') return writingTask2.promptText.trim().length > 0;
+                return writingTask1.promptText.trim().length > 0 && writingTask2.promptText.trim().length > 0;
+            }
             default:
                 return false;
         }
-    }, [currentStep, stepData]);
+    }, [currentStep, stepData, writingMeta, writingFormat, writingTask1, writingTask2]);
 
     // ─── Navigation Handlers ─────────────────────────────────────
     const handleBack = useCallback(() => {
         const prevIndex = currentStepIndex - 1;
-        const prevStep = MODAL_STEP_ORDER[prevIndex];
+        const prevStep = activeStepOrder[prevIndex];
         if (prevIndex >= 0 && prevStep) {
             setIsAnimating(true);
             setTimeout(() => {
@@ -230,11 +321,11 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                 setIsAnimating(false);
             }, 150);
         }
-    }, [currentStepIndex]);
+    }, [currentStepIndex, activeStepOrder]);
 
     const handleNext = useCallback(() => {
         const nextIndex = currentStepIndex + 1;
-        const nextStep = MODAL_STEP_ORDER[nextIndex];
+        const nextStep = activeStepOrder[nextIndex];
         if (canProceed() && nextIndex < totalSteps && nextStep) {
             setIsAnimating(true);
             setTimeout(() => {
@@ -242,7 +333,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                 setIsAnimating(false);
             }, 150);
         }
-    }, [canProceed, currentStepIndex, totalSteps]);
+    }, [canProceed, currentStepIndex, totalSteps, activeStepOrder]);
 
     // ─── Step Data Handlers ──────────────────────────────────────
     const updateStepData = useCallback((updates: Partial<ModalStepData>) => {
@@ -277,6 +368,25 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             navigate(`/create-test?type=${stepData.testType}&skill=Listening`, {
                 state: { metadata: { type: stepData.testType } }
             });
+            return;
+        }
+
+        // PRD-0030: Writing stays in-modal — advance to writing-metadata step
+        if (skillType === 'writing') {
+            // Pre-populate writing metadata with default title
+            const now = new Date();
+            const month = now.toLocaleString('en-US', { month: 'long' });
+            setWritingMeta(prev => ({
+                ...prev,
+                title: prev.title || `IELTS Writing Test - ${month} ${now.getFullYear()}`,
+            }));
+            setTimeout(() => {
+                setIsAnimating(true);
+                setTimeout(() => {
+                    setCurrentStep('writing-metadata');
+                    setIsAnimating(false);
+                }, 150);
+            }, 100);
             return;
         }
 
@@ -354,6 +464,14 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             setParsingMessage(undefined);
             setParsingError(undefined);
             setDraftId(null);
+            // Reset writing state
+            setWritingMeta({ title: '', duration: 60 });
+            setWritingFormat(undefined);
+            setWritingTask1({ ...DEFAULT_WRITING_TASK1 });
+            setWritingTask2({ ...DEFAULT_WRITING_TASK2 });
+            setWritingPublishing(false);
+            setWritingSaving(false);
+            setWritingDraftId(undefined);
             // Note: parsingAbortRef and isParsingRef are reset in startRealParsing
         }
     }, [opened, initialStep, initialData]);
@@ -555,7 +673,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
 
     const renderStepIndicator = () => (
         <div style={stepIndicatorStyles.container}>
-            {STEP_CONFIGS.map((step, index) => (
+            {activeStepConfigs.map((step, index) => (
                 <div
                     key={step.id}
                     style={stepIndicatorStyles.step(
@@ -705,10 +823,136 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                         />
                     </div>
                 );
+            // ─── Writing-specific steps ────────────────────────────
+            case 'writing-metadata':
+                return (
+                    <div style={contentStyle}>
+                        <WritingMetadataStep
+                            metadata={writingMeta}
+                            onChange={setWritingMeta}
+                        />
+                    </div>
+                );
+            case 'writing-format':
+                return (
+                    <div style={contentStyle}>
+                        <WritingFormatStep
+                            selectedFormat={writingFormat}
+                            onSelect={setWritingFormat}
+                        />
+                    </div>
+                );
+            case 'writing-content':
+                return (
+                    <div style={contentStyle}>
+                        <WritingContentStep
+                            format={writingFormat || 'full-test'}
+                            task1={writingTask1}
+                            task2={writingTask2}
+                            onTask1Change={setWritingTask1}
+                            onTask2Change={setWritingTask2}
+                        />
+                    </div>
+                );
             default:
                 return null;
         }
     };
+
+    // ─── Writing Save / Publish ─────────────────────────────────
+    const handleWritingSave = useCallback(async () => {
+        const userId = user?.uid;
+        if (!userId) return;
+        setWritingSaving(true);
+        try {
+            const activeTasks: WritingTask[] = [];
+            if (writingFormat !== 'task2-only') {
+                const { _imageKey, ...t1 } = writingTask1;
+                activeTasks.push({ ...t1, taskNumber: 1, taskType: t1.taskType as any } as WritingTask);
+            }
+            if (writingFormat !== 'task1-only') {
+                const { _imageKey, ...t2 } = writingTask2;
+                activeTasks.push({ ...t2, taskNumber: 2, taskType: t2.taskType as any } as WritingTask);
+            }
+            const meta: WritingTestMetadata = {
+                title: writingMeta.title,
+                description: writingMeta.description,
+                duration: writingMeta.duration,
+                format: writingFormat || 'full-test',
+                difficulty: writingMeta.difficulty,
+                targetBand: writingMeta.targetBand,
+                tags: writingMeta.tags,
+            };
+            const result = await saveWritingDraft(userId, {
+                id: writingDraftId,
+                metadata: meta,
+                tasks: activeTasks,
+            });
+            if (result.success && result.draftId) {
+                setWritingDraftId(result.draftId);
+            }
+        } catch (err) {
+            console.error('Writing save error:', err);
+        } finally {
+            setWritingSaving(false);
+        }
+    }, [user, writingMeta, writingFormat, writingTask1, writingTask2, writingDraftId]);
+
+    const handleWritingPublish = useCallback(async () => {
+        const userId = user?.uid;
+        if (!userId) return;
+        setWritingPublishing(true);
+        try {
+            const activeTasks: WritingTask[] = [];
+            if (writingFormat !== 'task2-only') {
+                const { _imageKey, ...t1 } = writingTask1;
+                activeTasks.push({ ...t1, taskNumber: 1, taskType: t1.taskType as any } as WritingTask);
+            }
+            if (writingFormat !== 'task1-only') {
+                const { _imageKey, ...t2 } = writingTask2;
+                activeTasks.push({ ...t2, taskNumber: 2, taskType: t2.taskType as any } as WritingTask);
+            }
+            const meta: WritingTestMetadata = {
+                title: writingMeta.title,
+                description: writingMeta.description,
+                duration: writingMeta.duration,
+                format: writingFormat || 'full-test',
+                difficulty: writingMeta.difficulty,
+                targetBand: writingMeta.targetBand,
+                tags: writingMeta.tags,
+            };
+            const result = await publishWritingTest({
+                id: writingDraftId || '',
+                userId,
+                testType: 'IELTS',
+                skill: 'Writing',
+                metadata: meta,
+                tasks: activeTasks,
+                status: 'published',
+                createdAt: new Date(),
+                updatedAt: new Date(),
+            });
+            if (result.success) {
+                onClose();
+                // Reset all state
+                setCurrentStep('type');
+                setStepData({ ...INITIAL_MODAL_DATA });
+                setWritingMeta({ title: '', duration: 60 });
+                setWritingFormat(undefined);
+                setWritingTask1({ ...DEFAULT_WRITING_TASK1 });
+                setWritingTask2({ ...DEFAULT_WRITING_TASK2 });
+                setWritingDraftId(undefined);
+                navigate('/teacher/grading/writing');
+            } else {
+                alert('Failed to publish: ' + (result.error || 'Unknown error'));
+            }
+        } catch (err) {
+            console.error('Writing publish error:', err);
+            alert('An error occurred while publishing.');
+        } finally {
+            setWritingPublishing(false);
+        }
+    }, [user, writingMeta, writingFormat, writingTask1, writingTask2, writingDraftId, onClose, navigate]);
 
     const renderFooter = () => {
         if (currentStep === 'parsing') {
@@ -724,6 +968,41 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                     >
                         Cancel Parsing
                     </Button>
+                </div>
+            );
+        }
+
+        // Writing content step — special footer with Save Draft + Publish
+        if (currentStep === 'writing-content') {
+            return (
+                <div style={modalStyles.footer as React.CSSProperties}>
+                    <div>
+                        <Button
+                            variant="glass"
+                            onClick={handleBack}
+                            style={{ marginRight: '0.5rem' }}
+                        >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '0.5rem' }}>
+                                <polyline points="15 18 9 12 15 6" />
+                            </svg>
+                            Back
+                        </Button>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                        {writingSaving && (
+                            <Text size="xs" c="dimmed" style={{ fontStyle: 'italic' }}>Saving...</Text>
+                        )}
+                        <Button variant="glass" onClick={handleWritingSave} disabled={writingSaving}>
+                            💾 Save Draft
+                        </Button>
+                        <Button
+                            variant="primary"
+                            onClick={handleWritingPublish}
+                            disabled={writingPublishing || !canProceed()}
+                        >
+                            {writingPublishing ? 'Publishing...' : '🚀 Publish Test'}
+                        </Button>
+                    </div>
                 </div>
             );
         }
@@ -750,19 +1029,20 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                         Cancel
                     </Button>
 
-                    {/* Show Continue for metadata and upload steps */}
-                    {(currentStep === 'metadata' || currentStep === 'upload') && (
-                        <Button
-                            variant="primary"
-                            onClick={handleNext}
-                            disabled={!canProceed()}
-                        >
-                            {currentStep === 'upload' ? 'Start Parsing' : 'Continue'}
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginLeft: '0.5rem' }}>
-                                <polyline points="9 18 15 12 9 6" />
-                            </svg>
-                        </Button>
-                    )}
+                    {/* Show Continue for metadata, upload, and writing steps */}
+                    {(currentStep === 'metadata' || currentStep === 'upload'
+                        || currentStep === 'writing-metadata' || currentStep === 'writing-format') && (
+                            <Button
+                                variant="primary"
+                                onClick={handleNext}
+                                disabled={!canProceed()}
+                            >
+                                {currentStep === 'upload' ? 'Start Parsing' : 'Continue'}
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginLeft: '0.5rem' }}>
+                                    <polyline points="9 18 15 12 9 6" />
+                                </svg>
+                            </Button>
+                        )}
                 </div>
             </div>
         );
@@ -980,7 +1260,7 @@ const SKILL_OPTIONS: Record<TestType, { skill: SkillType; label: string; icon: s
     'IELTS': [
         { skill: 'reading', label: 'Reading', icon: '📖', available: true, color: { bg: 'rgba(34, 197, 94, 0.1)', text: '#16a34a', border: 'rgba(34, 197, 94, 0.3)' } },
         { skill: 'listening', label: 'Listening', icon: '🎧', available: true, color: { bg: 'rgba(59, 130, 246, 0.1)', text: '#2563eb', border: 'rgba(59, 130, 246, 0.3)' } },
-        { skill: 'writing', label: 'Writing', icon: '✍️', available: false, color: { bg: 'rgba(249, 115, 22, 0.1)', text: '#ea580c', border: 'rgba(249, 115, 22, 0.3)' } },
+        { skill: 'writing', label: 'Writing', icon: '✍️', available: true, color: { bg: 'rgba(249, 115, 22, 0.1)', text: '#ea580c', border: 'rgba(249, 115, 22, 0.3)' } },
         { skill: 'speaking', label: 'Speaking', icon: '🎙️', available: false, color: { bg: 'rgba(168, 85, 247, 0.1)', text: '#9333ea', border: 'rgba(168, 85, 247, 0.3)' } },
         { skill: 'mixed', label: 'Mixed Test', icon: '🔀', available: false, color: { bg: 'rgba(107, 114, 128, 0.1)', text: '#4b5563', border: 'rgba(107, 114, 128, 0.3)' } },
     ],

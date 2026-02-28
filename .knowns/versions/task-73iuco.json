@@ -1,0 +1,114 @@
+{
+  "taskId": "73iuco",
+  "currentVersion": 2,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "73iuco",
+      "version": 1,
+      "timestamp": "2026-02-27T21:39:04.985Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Update routeSecurity.ts — add security config for new routes",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing"
+        ],
+        "acceptanceCriteria": []
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "73iuco",
+      "version": 2,
+      "timestamp": "2026-02-27T22:24:30.925Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Update src/config/routeSecurity.ts  add security config for 4 new writing routes following existing teacher route patterns."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-1",
+            "routing",
+            "security",
+            "modify-file",
+            "safety-rule-1"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Security config for all 4 writing routes",
+              "completed": false
+            },
+            {
+              "text": "Follows existing pattern",
+              "completed": false
+            },
+            {
+              "text": "Correct role assignments",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Open routeSecurity.ts 2. Study existing patterns 3. Add 4 entries 4. Set roles: teacher for builder, teacher+super_admin for grading"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Safety Rule 1: must be done alongside routes.ts. Grading routes allow teacher and super_admin."
+        }
+      ],
+      "snapshot": {
+        "title": "Update routeSecurity.ts — add security config for new routes",
+        "description": "Update src/config/routeSecurity.ts  add security config for 4 new writing routes following existing teacher route patterns.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-1",
+          "routing",
+          "security",
+          "modify-file",
+          "safety-rule-1"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Security config for all 4 writing routes",
+            "completed": false
+          },
+          {
+            "text": "Follows existing pattern",
+            "completed": false
+          },
+          {
+            "text": "Correct role assignments",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Open routeSecurity.ts 2. Study existing patterns 3. Add 4 entries 4. Set roles: teacher for builder, teacher+super_admin for grading",
+        "implementationNotes": "Safety Rule 1: must be done alongside routes.ts. Grading routes allow teacher and super_admin."
+      }
+    }
+  ]
+}

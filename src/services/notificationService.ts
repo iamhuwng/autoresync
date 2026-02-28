@@ -1126,3 +1126,202 @@ export async function sendThcsLateSubmissionNotification(
         return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
 }
+
+// ============================================================================
+// IELTS WRITING NOTIFICATIONS (PRD-0030: IELTS Writing Test System)
+// ============================================================================
+
+/**
+ * Notify student that their writing submission was received.
+ * Sent after the student submits a writing practice or homework.
+ *
+ * createNotification is already wrapped in withRestoreGuard (Safety Rule 11).
+ */
+export async function notifyWritingSubmitted(
+    studentId: string,
+    submissionId: string,
+    testTitle: string,
+    contextType: 'solo-practice' | 'homework' | 'class-session'
+): Promise<{ success: boolean; notificationId?: string; error?: string }> {
+    try {
+        if (!studentId || !submissionId || !testTitle) {
+            return { success: false, error: 'Missing required parameters' };
+        }
+
+        const contextLabel = contextType === 'homework' ? 'homework' : contextType === 'class-session' ? 'class session' : 'solo practice';
+
+        const result = await createNotification({
+            userId: studentId,
+            type: 'success',
+            title: '✍️ Writing Submitted',
+            message: `Your ${contextLabel} essay for "${testTitle}" has been submitted. A teacher will review it soon.`,
+            link: `/student/academic-record`,
+            metadata: { submissionId, testTitle, contextType, submittedAt: Date.now() }
+        });
+
+        if (result.success) {
+            console.log(`✅ [Notification] Writing submitted notification sent to ${studentId}`);
+        }
+        return result;
+    } catch (error) {
+        console.error('Error sending writing submitted notification:', error);
+        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+}
+
+/**
+ * Notify student that their writing has been fully graded.
+ * Sent when all tasks have received band scores from the teacher.
+ */
+export async function notifyWritingGraded(
+    studentId: string,
+    submissionId: string,
+    testTitle: string,
+    overallBand: number,
+    teacherName?: string
+): Promise<{ success: boolean; notificationId?: string; error?: string }> {
+    try {
+        if (!studentId || !submissionId || !testTitle) {
+            return { success: false, error: 'Missing required parameters' };
+        }
+
+        const teacherPrefix = teacherName ? `${teacherName} has` : 'Your teacher has';
+
+        const result = await createNotification({
+            userId: studentId,
+            type: 'success',
+            title: '📊 Writing Graded',
+            message: `${teacherPrefix} graded your essay "${testTitle}". Overall Band: ${overallBand.toFixed(1)}`,
+            link: `/student/academic-record`,
+            metadata: { submissionId, testTitle, overallBand, teacherName, gradedAt: Date.now() }
+        });
+
+        if (result.success) {
+            console.log(`✅ [Notification] Writing graded notification sent to ${studentId} (band ${overallBand})`);
+        }
+        return result;
+    } catch (error) {
+        console.error('Error sending writing graded notification:', error);
+        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+}
+
+/**
+ * Notify student that one task in a full test has been graded.
+ * Used when a teacher grades Task 1 but hasn't graded Task 2 yet (or vice versa).
+ */
+export async function notifyWritingPartiallyGraded(
+    studentId: string,
+    submissionId: string,
+    testTitle: string,
+    gradedTaskNumber: 1 | 2,
+    taskBand: number,
+    teacherName?: string
+): Promise<{ success: boolean; notificationId?: string; error?: string }> {
+    try {
+        if (!studentId || !submissionId || !testTitle) {
+            return { success: false, error: 'Missing required parameters' };
+        }
+
+        const teacherPrefix = teacherName ? `${teacherName} has` : 'Your teacher has';
+
+        const result = await createNotification({
+            userId: studentId,
+            type: 'info',
+            title: `✍️ Task ${gradedTaskNumber} Graded`,
+            message: `${teacherPrefix} graded Task ${gradedTaskNumber} of "${testTitle}". Band: ${taskBand.toFixed(1)}. Waiting for remaining task.`,
+            link: `/student/academic-record`,
+            metadata: { submissionId, testTitle, gradedTaskNumber, taskBand, teacherName, gradedAt: Date.now() }
+        });
+
+        if (result.success) {
+            console.log(`✅ [Notification] Writing partially graded notification sent to ${studentId} (Task ${gradedTaskNumber})`);
+        }
+        return result;
+    } catch (error) {
+        console.error('Error sending writing partially graded notification:', error);
+        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+}
+
+/**
+ * Notify student that their writing submission has been reopened for re-attempt.
+ * Used when a teacher sends the essay back for the student to rewrite.
+ */
+export async function notifyWritingReopened(
+    studentId: string,
+    submissionId: string,
+    testTitle: string,
+    teacherNote?: string,
+    teacherName?: string
+): Promise<{ success: boolean; notificationId?: string; error?: string }> {
+    try {
+        if (!studentId || !submissionId || !testTitle) {
+            return { success: false, error: 'Missing required parameters' };
+        }
+
+        const teacherPrefix = teacherName ? `${teacherName} has` : 'Your teacher has';
+        let message = `${teacherPrefix} sent "${testTitle}" back for revision.`;
+        if (teacherNote) {
+            message += ` Note: "${teacherNote}"`;
+        }
+
+        const result = await createNotification({
+            userId: studentId,
+            type: 'warning',
+            title: '🔄 Writing Reopened',
+            message,
+            link: `/student/academic-record`,
+            metadata: { submissionId, testTitle, teacherNote, teacherName, reopenedAt: Date.now() }
+        });
+
+        if (result.success) {
+            console.log(`✅ [Notification] Writing reopened notification sent to ${studentId}`);
+        }
+        return result;
+    } catch (error) {
+        console.error('Error sending writing reopened notification:', error);
+        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+}
+
+/**
+ * Notify student that their writing has been re-graded (band score updated).
+ * Used when a teacher updates the band score after initial grading.
+ */
+export async function notifyWritingReGraded(
+    studentId: string,
+    submissionId: string,
+    testTitle: string,
+    newOverallBand: number,
+    previousBand?: number,
+    teacherName?: string
+): Promise<{ success: boolean; notificationId?: string; error?: string }> {
+    try {
+        if (!studentId || !submissionId || !testTitle) {
+            return { success: false, error: 'Missing required parameters' };
+        }
+
+        const teacherPrefix = teacherName ? `${teacherName} has` : 'Your teacher has';
+        const bandChange = previousBand !== undefined
+            ? ` (${previousBand.toFixed(1)} → ${newOverallBand.toFixed(1)})`
+            : `: ${newOverallBand.toFixed(1)}`;
+
+        const result = await createNotification({
+            userId: studentId,
+            type: 'info',
+            title: '📝 Writing Re-Graded',
+            message: `${teacherPrefix} updated your grade for "${testTitle}"${bandChange}`,
+            link: `/student/academic-record`,
+            metadata: { submissionId, testTitle, newOverallBand, previousBand, teacherName, reGradedAt: Date.now() }
+        });
+
+        if (result.success) {
+            console.log(`✅ [Notification] Writing re-graded notification sent to ${studentId}`);
+        }
+        return result;
+    } catch (error) {
+        console.error('Error sending writing re-graded notification:', error);
+        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+}

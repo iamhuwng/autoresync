@@ -1,0 +1,128 @@
+{
+  "taskId": "hnsly3",
+  "currentVersion": 2,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "hnsly3",
+      "version": 1,
+      "timestamp": "2026-02-27T21:20:42.093Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Create FeedbackPanel.tsx — TipTap rich text feedback per criterion",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing"
+        ],
+        "acceptanceCriteria": []
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "hnsly3",
+      "version": 2,
+      "timestamp": "2026-02-27T22:30:21.611Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Create FeedbackPanel.tsx  TipTap rich text editor for per-criterion feedback. Extensions: StarterKit, Color, TextStyle, Highlight, Underline. Toolbar: bold, italic, underline, lists, highlight, text color. Content stored as HTML string."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-5",
+            "component",
+            "teacher",
+            "grading",
+            "feedback",
+            "tiptap",
+            "new-file",
+            "no-mantine"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "TipTap editor with all extensions",
+              "completed": false
+            },
+            {
+              "text": "Toolbar with all formatting options",
+              "completed": false
+            },
+            {
+              "text": "Content returned as HTML string",
+              "completed": false
+            },
+            {
+              "text": "One instance per criterion",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Create src/components/writing-grading/FeedbackPanel.tsx + CSS 2. Initialize TipTap with extensions 3. Build toolbar 4. Wire onChange 5. Handle initial value"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "TipTap ONLY here for teacher feedback. HTML stored in Firestore as-is. One instance per criterion plus general feedback."
+        }
+      ],
+      "snapshot": {
+        "title": "Create FeedbackPanel.tsx — TipTap rich text feedback per criterion",
+        "description": "Create FeedbackPanel.tsx  TipTap rich text editor for per-criterion feedback. Extensions: StarterKit, Color, TextStyle, Highlight, Underline. Toolbar: bold, italic, underline, lists, highlight, text color. Content stored as HTML string.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-5",
+          "component",
+          "teacher",
+          "grading",
+          "feedback",
+          "tiptap",
+          "new-file",
+          "no-mantine"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "TipTap editor with all extensions",
+            "completed": false
+          },
+          {
+            "text": "Toolbar with all formatting options",
+            "completed": false
+          },
+          {
+            "text": "Content returned as HTML string",
+            "completed": false
+          },
+          {
+            "text": "One instance per criterion",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Create src/components/writing-grading/FeedbackPanel.tsx + CSS 2. Initialize TipTap with extensions 3. Build toolbar 4. Wire onChange 5. Handle initial value",
+        "implementationNotes": "TipTap ONLY here for teacher feedback. HTML stored in Firestore as-is. One instance per criterion plus general feedback."
+      }
+    }
+  ]
+}

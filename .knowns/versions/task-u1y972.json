@@ -1,0 +1,112 @@
+{
+  "taskId": "u1y972",
+  "currentVersion": 2,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "u1y972",
+      "version": 1,
+      "timestamp": "2026-02-27T21:21:34.312Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Update TeacherNavigation.tsx — add Writing Grading nav item",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing"
+        ],
+        "acceptanceCriteria": []
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "u1y972",
+      "version": 2,
+      "timestamp": "2026-02-27T22:31:43.070Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Update TeacherNavigation.tsx  add Writing Grading nav item linking to /teacher/grading/writing. Follow existing nav item pattern. Active state highlights on grading routes."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-5",
+            "navigation",
+            "modify-file",
+            "safety-rule-1"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Writing Grading nav item added",
+              "completed": false
+            },
+            {
+              "text": "Links to correct route",
+              "completed": false
+            },
+            {
+              "text": "Active state on grading routes",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Open TeacherNavigation.tsx 2. Add nav item following existing pattern 3. Set correct route from routes.ts 4. Verify active state"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Route: TEACHER_GRADING_QUEUE from routes.ts. Active: path starts with /teacher/grading/writing."
+        }
+      ],
+      "snapshot": {
+        "title": "Update TeacherNavigation.tsx — add Writing Grading nav item",
+        "description": "Update TeacherNavigation.tsx  add Writing Grading nav item linking to /teacher/grading/writing. Follow existing nav item pattern. Active state highlights on grading routes.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-5",
+          "navigation",
+          "modify-file",
+          "safety-rule-1"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Writing Grading nav item added",
+            "completed": false
+          },
+          {
+            "text": "Links to correct route",
+            "completed": false
+          },
+          {
+            "text": "Active state on grading routes",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Open TeacherNavigation.tsx 2. Add nav item following existing pattern 3. Set correct route from routes.ts 4. Verify active state",
+        "implementationNotes": "Route: TEACHER_GRADING_QUEUE from routes.ts. Active: path starts with /teacher/grading/writing."
+      }
+    }
+  ]
+}

@@ -1,0 +1,266 @@
+/**
+ * SubmitToTeacherModal — PRD-0030 Phase 7 (Task 7.2)
+ * Native HTML/CSS modal for solo practice teacher submission.
+ * NO MANTINE.
+ */
+
+/* ── Overlay ─────────────────────────────────────────────── */
+.stm-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: stm-fadeIn 0.2s ease-out;
+}
+
+@keyframes stm-fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+/* ── Modal Card ──────────────────────────────────────────── */
+.stm-modal {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+    width: 480px;
+    max-width: 90vw;
+    max-height: 85vh;
+    overflow-y: auto;
+    padding: 2rem;
+    animation: stm-slideUp 0.25s ease-out;
+}
+
+@keyframes stm-slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(16px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.stm-modal h2 {
+    margin: 0 0 0.5rem;
+    font-size: 1.375rem;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.stm-modal .stm-subtitle {
+    margin: 0 0 1.5rem;
+    font-size: 0.875rem;
+    color: #64748b;
+    line-height: 1.5;
+}
+
+/* ── Teacher Select ──────────────────────────────────────── */
+.stm-field {
+    margin-bottom: 1.25rem;
+}
+
+.stm-label {
+    display: block;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #475569;
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.stm-select {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 0.75rem;
+    font-size: 0.9375rem;
+    color: #1e293b;
+    background: #f8fafc;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%2364748b' d='M1.41 0L6 4.58 10.59 0 12 1.41l-6 6-6-6z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 1rem center;
+    padding-right: 2.5rem;
+}
+
+.stm-select:focus {
+    border-color: #8b5cf6;
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+}
+
+.stm-select:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    background: #f1f5f9;
+}
+
+.stm-no-teachers {
+    padding: 1rem;
+    border-radius: 0.75rem;
+    background: #fefce8;
+    border: 1px solid #fde68a;
+    color: #92400e;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+
+/* ── Note Textarea ───────────────────────────────────────── */
+.stm-textarea {
+    width: 100%;
+    min-height: 80px;
+    padding: 0.75rem 1rem;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 0.75rem;
+    font-size: 0.875rem;
+    font-family: inherit;
+    color: #1e293b;
+    background: #f8fafc;
+    outline: none;
+    resize: vertical;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    box-sizing: border-box;
+}
+
+.stm-textarea:focus {
+    border-color: #8b5cf6;
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+}
+
+.stm-textarea::placeholder {
+    color: #94a3b8;
+}
+
+/* ── Word Count Summary ──────────────────────────────────── */
+.stm-word-summary {
+    margin-bottom: 1.5rem;
+    border-radius: 0.75rem;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+}
+
+.stm-word-summary-header {
+    padding: 0.625rem 1rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid #e2e8f0;
+    background: #f1f5f9;
+}
+
+.stm-word-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+}
+
+.stm-word-row+.stm-word-row {
+    border-top: 1px solid #f1f5f9;
+}
+
+.stm-word-row-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #334155;
+}
+
+.stm-word-row-count {
+    font-size: 0.875rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.stm-word-row-count--low {
+    color: #f59e0b;
+}
+
+.stm-word-row-count--ok {
+    color: #10b981;
+}
+
+/* ── Action Buttons ──────────────────────────────────────── */
+.stm-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+}
+
+.stm-btn {
+    flex: 1;
+    padding: 0.75rem 1.25rem;
+    border-radius: 999px;
+    font-size: 0.875rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border: none;
+    text-align: center;
+}
+
+.stm-btn--cancel {
+    background: white;
+    color: #475569;
+    border: 1px solid #d1d5db;
+}
+
+.stm-btn--cancel:hover {
+    background: #f9fafb;
+    border-color: #9ca3af;
+}
+
+.stm-btn--submit {
+    background: #8b5cf6;
+    color: white;
+}
+
+.stm-btn--submit:hover {
+    background: #7c3aed;
+}
+
+.stm-btn--submit:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.stm-btn--self-review {
+    background: #f59e0b;
+    color: white;
+}
+
+.stm-btn--self-review:hover {
+    background: #d97706;
+}
+
+/* ── Responsive ──────────────────────────────────────────── */
+@media (max-width: 640px) {
+    .stm-modal {
+        padding: 1.5rem;
+        width: 95vw;
+    }
+
+    .stm-actions {
+        flex-direction: column;
+    }
+}

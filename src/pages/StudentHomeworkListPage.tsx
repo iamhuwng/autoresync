@@ -165,6 +165,8 @@ export const StudentHomeworkListPage: React.FC = () => {
                     isHomework: true,
                     homeworkId: homework.id,
                     submissionId: latestSubmission.id,
+                    dueDate: homework.scheduling?.dueDate,
+                    lateSubmissionAllowed: homework.config?.lateSubmissionAllowed ?? false,
                 },
             });
             return;
@@ -183,6 +185,8 @@ export const StudentHomeworkListPage: React.FC = () => {
                         isHomework: true,
                         homeworkId: homework.id,
                         submissionId: submission.id,
+                        dueDate: homework.scheduling?.dueDate,
+                        lateSubmissionAllowed: homework.config?.lateSubmissionAllowed ?? false,
                     },
                 });
             } catch (err) {

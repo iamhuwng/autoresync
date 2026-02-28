@@ -1,0 +1,318 @@
+{
+  "taskId": "34kty1",
+  "currentVersion": 3,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "34kty1",
+      "version": 1,
+      "timestamp": "2026-02-27T22:28:02.664Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Create WritingTestPage.tsx  main student writing page. GAP-11: props testData+sessionCode. GAP-12: auth from useAuth. GAP-10: taskCount from format. Layout: TestHeader+TestTimer+tabs+split panel. Wires all 3 hooks. Timer expiry auto-submits. Reconnect restores. Teacher reopen subscribes to RTDB."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-3",
+            "page",
+            "student",
+            "live-session",
+            "new-file",
+            "gap-10",
+            "gap-11",
+            "gap-12"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Props: testData and sessionCode (GAP-11)",
+              "completed": false
+            },
+            {
+              "text": "Auth from useAuth (GAP-12)",
+              "completed": false
+            },
+            {
+              "text": "taskCount derived from format (GAP-10)",
+              "completed": false
+            },
+            {
+              "text": "All 3 hooks wired correctly",
+              "completed": false
+            },
+            {
+              "text": "Timer expiry auto-submits",
+              "completed": false
+            },
+            {
+              "text": "Reconnect restores from RTDB",
+              "completed": false
+            },
+            {
+              "text": "Teacher reopen subscribes to RTDB flag",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Create src/components/writing-student/WritingTestPage.tsx + CSS 2. Define props (GAP-11) 3. Get auth (GAP-12) 4. Derive taskCount (GAP-10) 5. Wire 3 hooks 6. Build layout 7. Handle tab switching 8. Wire submit via autoSubmitFromRTDB 9. Timer expiry auto-submit 10. beforeunload warning 11. Reconnect via loadSavedState 12. Teacher reopen RTDB subscription"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "GAP-11: props are testData+sessionCode. GAP-12: user from useAuth not Mantine. GAP-10: taskCount is constant. Submit uses autoSubmitFromRTDB. Each session = separate submission."
+        }
+      ],
+      "snapshot": {
+        "title": "Create WritingTestPage.tsx — main student writing page",
+        "description": "Create WritingTestPage.tsx  main student writing page. GAP-11: props testData+sessionCode. GAP-12: auth from useAuth. GAP-10: taskCount from format. Layout: TestHeader+TestTimer+tabs+split panel. Wires all 3 hooks. Timer expiry auto-submits. Reconnect restores. Teacher reopen subscribes to RTDB.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-3",
+          "page",
+          "student",
+          "live-session",
+          "new-file",
+          "gap-10",
+          "gap-11",
+          "gap-12"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Props: testData and sessionCode (GAP-11)",
+            "completed": false
+          },
+          {
+            "text": "Auth from useAuth (GAP-12)",
+            "completed": false
+          },
+          {
+            "text": "taskCount derived from format (GAP-10)",
+            "completed": false
+          },
+          {
+            "text": "All 3 hooks wired correctly",
+            "completed": false
+          },
+          {
+            "text": "Timer expiry auto-submits",
+            "completed": false
+          },
+          {
+            "text": "Reconnect restores from RTDB",
+            "completed": false
+          },
+          {
+            "text": "Teacher reopen subscribes to RTDB flag",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Create src/components/writing-student/WritingTestPage.tsx + CSS 2. Define props (GAP-11) 3. Get auth (GAP-12) 4. Derive taskCount (GAP-10) 5. Wire 3 hooks 6. Build layout 7. Handle tab switching 8. Wire submit via autoSubmitFromRTDB 9. Timer expiry auto-submit 10. beforeunload warning 11. Reconnect via loadSavedState 12. Teacher reopen RTDB subscription",
+        "implementationNotes": "GAP-11: props are testData+sessionCode. GAP-12: user from useAuth not Mantine. GAP-10: taskCount is constant. Submit uses autoSubmitFromRTDB. Each session = separate submission."
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "34kty1",
+      "version": 2,
+      "timestamp": "2026-02-27T23:21:19.471Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Props: testData and sessionCode (GAP-11)"
+            },
+            {
+              "completed": false,
+              "text": "Auth from useAuth (GAP-12)"
+            },
+            {
+              "completed": false,
+              "text": "taskCount derived from format (GAP-10)"
+            },
+            {
+              "completed": false,
+              "text": "All 3 hooks wired correctly"
+            },
+            {
+              "completed": false,
+              "text": "Timer expiry auto-submits"
+            },
+            {
+              "completed": false,
+              "text": "Reconnect restores from RTDB"
+            },
+            {
+              "completed": false,
+              "text": "Teacher reopen subscribes to RTDB flag"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Props: testData and sessionCode (GAP-11)"
+            },
+            {
+              "completed": true,
+              "text": "Auth from useAuth (GAP-12)"
+            },
+            {
+              "completed": true,
+              "text": "taskCount derived from format (GAP-10)"
+            },
+            {
+              "completed": true,
+              "text": "All 3 hooks wired correctly"
+            },
+            {
+              "completed": true,
+              "text": "Timer expiry auto-submits"
+            },
+            {
+              "completed": true,
+              "text": "Reconnect restores from RTDB"
+            },
+            {
+              "completed": true,
+              "text": "Teacher reopen subscribes to RTDB flag"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "oldValue": "GAP-11: props are testData+sessionCode. GAP-12: user from useAuth not Mantine. GAP-10: taskCount is constant. Submit uses autoSubmitFromRTDB. Each session = separate submission.",
+          "newValue": "GAP-11: props are testData+sessionCode. GAP-12: user from useAuth not Mantine. GAP-10: taskCount is constant. Submit uses autoSubmitFromRTDB. Each session = separate submission.\n\nAll 7 ACs verified. WritingTestPage.tsx fully implemented: props testData+sessionCode (GAP-11), auth from useAuth (GAP-12), taskCount from format (GAP-10), all 3 hooks wired (activeTime, autoSave, pastePrevention delegated to WritingEditor), submit via autoSubmitFromRTDB with flush, reconnect via loadSavedState on mount, teacher reopen via RTDB onValue subscription."
+        }
+      ],
+      "snapshot": {
+        "title": "Create WritingTestPage.tsx — main student writing page",
+        "description": "Create WritingTestPage.tsx  main student writing page. GAP-11: props testData+sessionCode. GAP-12: auth from useAuth. GAP-10: taskCount from format. Layout: TestHeader+TestTimer+tabs+split panel. Wires all 3 hooks. Timer expiry auto-submits. Reconnect restores. Teacher reopen subscribes to RTDB.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-3",
+          "page",
+          "student",
+          "live-session",
+          "new-file",
+          "gap-10",
+          "gap-11",
+          "gap-12"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Props: testData and sessionCode (GAP-11)"
+          },
+          {
+            "completed": true,
+            "text": "Auth from useAuth (GAP-12)"
+          },
+          {
+            "completed": true,
+            "text": "taskCount derived from format (GAP-10)"
+          },
+          {
+            "completed": true,
+            "text": "All 3 hooks wired correctly"
+          },
+          {
+            "completed": true,
+            "text": "Timer expiry auto-submits"
+          },
+          {
+            "completed": true,
+            "text": "Reconnect restores from RTDB"
+          },
+          {
+            "completed": true,
+            "text": "Teacher reopen subscribes to RTDB flag"
+          }
+        ],
+        "implementationPlan": "1. Create src/components/writing-student/WritingTestPage.tsx + CSS 2. Define props (GAP-11) 3. Get auth (GAP-12) 4. Derive taskCount (GAP-10) 5. Wire 3 hooks 6. Build layout 7. Handle tab switching 8. Wire submit via autoSubmitFromRTDB 9. Timer expiry auto-submit 10. beforeunload warning 11. Reconnect via loadSavedState 12. Teacher reopen RTDB subscription",
+        "implementationNotes": "GAP-11: props are testData+sessionCode. GAP-12: user from useAuth not Mantine. GAP-10: taskCount is constant. Submit uses autoSubmitFromRTDB. Each session = separate submission.\n\nAll 7 ACs verified. WritingTestPage.tsx fully implemented: props testData+sessionCode (GAP-11), auth from useAuth (GAP-12), taskCount from format (GAP-10), all 3 hooks wired (activeTime, autoSave, pastePrevention delegated to WritingEditor), submit via autoSubmitFromRTDB with flush, reconnect via loadSavedState on mount, teacher reopen via RTDB onValue subscription."
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "34kty1",
+      "version": 3,
+      "timestamp": "2026-02-27T23:21:43.560Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Create WritingTestPage.tsx — main student writing page",
+        "description": "Create WritingTestPage.tsx  main student writing page. GAP-11: props testData+sessionCode. GAP-12: auth from useAuth. GAP-10: taskCount from format. Layout: TestHeader+TestTimer+tabs+split panel. Wires all 3 hooks. Timer expiry auto-submits. Reconnect restores. Teacher reopen subscribes to RTDB.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-3",
+          "page",
+          "student",
+          "live-session",
+          "new-file",
+          "gap-10",
+          "gap-11",
+          "gap-12"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Props: testData and sessionCode (GAP-11)"
+          },
+          {
+            "completed": true,
+            "text": "Auth from useAuth (GAP-12)"
+          },
+          {
+            "completed": true,
+            "text": "taskCount derived from format (GAP-10)"
+          },
+          {
+            "completed": true,
+            "text": "All 3 hooks wired correctly"
+          },
+          {
+            "completed": true,
+            "text": "Timer expiry auto-submits"
+          },
+          {
+            "completed": true,
+            "text": "Reconnect restores from RTDB"
+          },
+          {
+            "completed": true,
+            "text": "Teacher reopen subscribes to RTDB flag"
+          }
+        ],
+        "implementationPlan": "1. Create src/components/writing-student/WritingTestPage.tsx + CSS 2. Define props (GAP-11) 3. Get auth (GAP-12) 4. Derive taskCount (GAP-10) 5. Wire 3 hooks 6. Build layout 7. Handle tab switching 8. Wire submit via autoSubmitFromRTDB 9. Timer expiry auto-submit 10. beforeunload warning 11. Reconnect via loadSavedState 12. Teacher reopen RTDB subscription",
+        "implementationNotes": "GAP-11: props are testData+sessionCode. GAP-12: user from useAuth not Mantine. GAP-10: taskCount is constant. Submit uses autoSubmitFromRTDB. Each session = separate submission.\n\nAll 7 ACs verified. WritingTestPage.tsx fully implemented: props testData+sessionCode (GAP-11), auth from useAuth (GAP-12), taskCount from format (GAP-10), all 3 hooks wired (activeTime, autoSave, pastePrevention delegated to WritingEditor), submit via autoSubmitFromRTDB with flush, reconnect via loadSavedState on mount, teacher reopen via RTDB onValue subscription."
+      }
+    }
+  ]
+}

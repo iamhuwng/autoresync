@@ -105,11 +105,65 @@ export function useExternalPastePrevention(): PastePreventionResult {
             setTimeout(() => toast.remove(), 3000);
         };
 
+        // PRD §4.3.4 item 4: Input monitoring fallback
+        // Detects bulk character insertion (>10 chars) without internal copy flag.
+        // Threshold of 10 allows normal Vietnamese IME composition bursts.
+        let previousValue = textarea.value;
+
+        const handleBeforeInput = () => {
+            // Capture pre-edit state for reliable reversion
+            previousValue = textarea.value;
+        };
+
+        const handleInput = () => {
+            const currentValue = textarea.value;
+            const delta = currentValue.length - previousValue.length;
+
+            // Only check insertions, not deletions
+            if (delta > 10) {
+                // Check if internal copy flag is active (within 60s)
+                const internal = lastInternalCopyRef.current;
+                const hasInternalCopy = internal && (Date.now() - internal.timestamp < 60_000);
+
+                if (!hasInternalCopy) {
+                    // Suspicious bulk insertion — revert
+                    textarea.value = previousValue;
+                    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                    pasteCountRef.current += 1;
+
+                    const toast = document.createElement('div');
+                    toast.textContent = '⚠️ Bulk text insertion is not allowed during the writing test.';
+                    Object.assign(toast.style, {
+                        position: 'fixed',
+                        bottom: '24px',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        padding: '12px 24px',
+                        background: '#ef4444',
+                        color: '#fff',
+                        borderRadius: '8px',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        zIndex: '9999',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                    });
+                    document.body.appendChild(toast);
+                    setTimeout(() => toast.remove(), 3000);
+                    return;
+                }
+            }
+
+            // Update previousValue for next comparison
+            previousValue = currentValue;
+        };
+
         textarea.addEventListener('copy', handleCopy);
         textarea.addEventListener('cut', handleCut);
         textarea.addEventListener('paste', handlePaste);
         textarea.addEventListener('drop', handleDrop);
         textarea.addEventListener('dragover', (e) => e.preventDefault());
+        textarea.addEventListener('beforeinput', handleBeforeInput);
+        textarea.addEventListener('input', handleInput);
 
         // Return cleanup function
         return () => {
@@ -117,6 +171,8 @@ export function useExternalPastePrevention(): PastePreventionResult {
             textarea.removeEventListener('cut', handleCut);
             textarea.removeEventListener('paste', handlePaste);
             textarea.removeEventListener('drop', handleDrop);
+            textarea.removeEventListener('beforeinput', handleBeforeInput);
+            textarea.removeEventListener('input', handleInput);
         };
     }, []);
 

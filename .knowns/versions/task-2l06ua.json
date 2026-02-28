@@ -1,0 +1,128 @@
+{
+  "taskId": "2l06ua",
+  "currentVersion": 2,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "2l06ua",
+      "version": 1,
+      "timestamp": "2026-02-27T21:38:52.215Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Create ielts-writing.types.ts — all Writing interfaces from PRD §4.1",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing"
+        ],
+        "acceptanceCriteria": []
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "2l06ua",
+      "version": 2,
+      "timestamp": "2026-02-27T22:23:48.126Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Create src/types/ielts-writing.types.ts with all interfaces from PRD 4.1.1 and 4.1.2. Import MaterialSoloConfig from solo.types.ts. Copy exact definitions  do NOT modify field names or types."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-1",
+            "types",
+            "data-model",
+            "new-file"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "File at src/types/ielts-writing.types.ts",
+              "completed": false
+            },
+            {
+              "text": "All type/interface names match PRD exactly",
+              "completed": false
+            },
+            {
+              "text": "MaterialSoloConfig imported from solo.types",
+              "completed": false
+            },
+            {
+              "text": "WritingSubmission self-contained with embedded prompts",
+              "completed": false
+            },
+            {
+              "text": "Criteria scores typed as whole numbers 0-9",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Create file 2. Add WritingTask1Type, WritingTask2Type unions 3. Add WritingTask, WritingTestFormat, WritingTestMetadata, IELTSWritingTest, WritingTestDraft 4. Add WritingSubmission, WritingSubmissionTask 5. Add WritingGradingResult, WritingTaskGradingResult 6. Add WritingAnnotation, AnnotationCategory, WritingGradingAudit 7. Export all"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Type foundation  all files import from here. Task 1 uses TA, Task 2 uses TR  different criteria names. WritingSubmission is self-contained with embedded task prompts. Criteria scores are whole numbers 0-9 only. AnnotationCategory stored at users/teacherId/settings/writingAnnotationCategories."
+        }
+      ],
+      "snapshot": {
+        "title": "Create ielts-writing.types.ts — all Writing interfaces from PRD §4.1",
+        "description": "Create src/types/ielts-writing.types.ts with all interfaces from PRD 4.1.1 and 4.1.2. Import MaterialSoloConfig from solo.types.ts. Copy exact definitions  do NOT modify field names or types.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-1",
+          "types",
+          "data-model",
+          "new-file"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "File at src/types/ielts-writing.types.ts",
+            "completed": false
+          },
+          {
+            "text": "All type/interface names match PRD exactly",
+            "completed": false
+          },
+          {
+            "text": "MaterialSoloConfig imported from solo.types",
+            "completed": false
+          },
+          {
+            "text": "WritingSubmission self-contained with embedded prompts",
+            "completed": false
+          },
+          {
+            "text": "Criteria scores typed as whole numbers 0-9",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Create file 2. Add WritingTask1Type, WritingTask2Type unions 3. Add WritingTask, WritingTestFormat, WritingTestMetadata, IELTSWritingTest, WritingTestDraft 4. Add WritingSubmission, WritingSubmissionTask 5. Add WritingGradingResult, WritingTaskGradingResult 6. Add WritingAnnotation, AnnotationCategory, WritingGradingAudit 7. Export all",
+        "implementationNotes": "Type foundation  all files import from here. Task 1 uses TA, Task 2 uses TR  different criteria names. WritingSubmission is self-contained with embedded task prompts. Criteria scores are whole numbers 0-9 only. AnnotationCategory stored at users/teacherId/settings/writingAnnotationCategories."
+      }
+    }
+  ]
+}

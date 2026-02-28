@@ -1,0 +1,136 @@
+{
+  "taskId": "71xjnx",
+  "currentVersion": 2,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "71xjnx",
+      "version": 1,
+      "timestamp": "2026-02-27T21:38:54.291Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Create ieltsWritingBandCalculator.ts — band score calculation utilities",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing"
+        ],
+        "acceptanceCriteria": []
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "71xjnx",
+      "version": 2,
+      "timestamp": "2026-02-27T22:23:54.407Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Create src/utils/ieltsWritingBandCalculator.ts with 4 functions: roundDownToHalf, roundOverallBand, calculateTaskBand, calculateOverallBand. Implements exact IELTS rounding rules from PRD 4.1.3."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-1",
+            "utils",
+            "band-calculator",
+            "new-file"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "File at src/utils/ieltsWritingBandCalculator.ts",
+              "completed": false
+            },
+            {
+              "text": "roundDownToHalf rounds DOWN to nearest 0.5",
+              "completed": false
+            },
+            {
+              "text": "roundOverallBand rounds UP from remainder >=0.25",
+              "completed": false
+            },
+            {
+              "text": "calculateTaskBand averages 4 criteria then rounds down",
+              "completed": false
+            },
+            {
+              "text": "calculateOverallBand uses 1/3 + 2/3 weighting for full test",
+              "completed": false
+            },
+            {
+              "text": "Voided tasks filtered out before calculation",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Create file 2. roundDownToHalf: Math.floor(value*2)/2 3. roundOverallBand: remainder >=0.25 rounds up 4. calculateTaskBand: avg 4 criteria, apply roundDownToHalf 5. calculateOverallBand: weighted avg for full test 6. Handle voided tasks 7. JSDoc all functions"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Per-task: round DOWN (6.25->6.0). Overall: round UP from >=0.25 (6.25->6.5). Task 1 uses TA field, Task 2 uses TR field. All tasks voided = returns 0."
+        }
+      ],
+      "snapshot": {
+        "title": "Create ieltsWritingBandCalculator.ts — band score calculation utilities",
+        "description": "Create src/utils/ieltsWritingBandCalculator.ts with 4 functions: roundDownToHalf, roundOverallBand, calculateTaskBand, calculateOverallBand. Implements exact IELTS rounding rules from PRD 4.1.3.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-1",
+          "utils",
+          "band-calculator",
+          "new-file"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "File at src/utils/ieltsWritingBandCalculator.ts",
+            "completed": false
+          },
+          {
+            "text": "roundDownToHalf rounds DOWN to nearest 0.5",
+            "completed": false
+          },
+          {
+            "text": "roundOverallBand rounds UP from remainder >=0.25",
+            "completed": false
+          },
+          {
+            "text": "calculateTaskBand averages 4 criteria then rounds down",
+            "completed": false
+          },
+          {
+            "text": "calculateOverallBand uses 1/3 + 2/3 weighting for full test",
+            "completed": false
+          },
+          {
+            "text": "Voided tasks filtered out before calculation",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Create file 2. roundDownToHalf: Math.floor(value*2)/2 3. roundOverallBand: remainder >=0.25 rounds up 4. calculateTaskBand: avg 4 criteria, apply roundDownToHalf 5. calculateOverallBand: weighted avg for full test 6. Handle voided tasks 7. JSDoc all functions",
+        "implementationNotes": "Per-task: round DOWN (6.25->6.0). Overall: round UP from >=0.25 (6.25->6.5). Task 1 uses TA field, Task 2 uses TR field. All tasks voided = returns 0."
+      }
+    }
+  ]
+}

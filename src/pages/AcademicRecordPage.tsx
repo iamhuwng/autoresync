@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Loader } from '@mantine/core';
 import { useAuth } from '../hooks/useAuth';
@@ -13,6 +13,9 @@ import { StudentSidebar } from '../components/layout/StudentSidebar';
 import { S } from '../components/layout/studentLayoutStyles';
 import { IconAlertCircle } from '../components/layout/StudentIcons';
 import { ResultDetailModal } from '../components/results/ResultDetailModal';
+
+// Lazy import for Writing progress (code-split)
+const WritingProgressSection = lazy(() => import('../components/writing-practice/WritingProgressSection'));
 
 /**
  * ╔══════════════════════════════════════════════════════════╗
@@ -65,6 +68,7 @@ const TABS = [
     { value: 'course', label: 'By Course' },
     { value: 'skill', label: 'By Skill' },
     { value: 'type', label: 'By Type' },
+    { value: 'writing', label: '✍️ Writing' },
     { value: 'thcs', label: 'THCS/THPT' },
     { value: 'statistics', label: 'Statistics' },
     { value: 'badges', label: 'Badges' },
@@ -120,6 +124,10 @@ export const AcademicRecordPage: React.FC = () => {
     useEffect(() => {
         if (location.state?.resultId && location.state?.showResult) {
             setSelectedResultId(location.state.resultId);
+        }
+        // Auto-switch tab when navigating with state.tab (e.g., PendingReviewsWidget "See all")
+        if (location.state?.tab) {
+            setActiveTab(location.state.tab);
         }
     }, [location.state]);
 
@@ -184,6 +192,17 @@ export const AcademicRecordPage: React.FC = () => {
                 );
             case 'thcs':
                 return <THCSProgressTab userId={user?.uid || ''} />;
+            case 'writing':
+                return user?.uid ? (
+                    <Suspense fallback={
+                        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '64px 16px' }}>
+                            <div style={{ width: 32, height: 32, border: '3px solid #e2e8f0', borderTopColor: '#8b5cf6', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                        </div>
+                    }>
+                        <WritingProgressSection studentId={user.uid} />
+                    </Suspense>
+                ) : null;
             case 'badges':
                 return user?.uid ? (
                     <BadgeShowcase

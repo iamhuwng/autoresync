@@ -1,0 +1,266 @@
+{
+  "taskId": "gg82bg",
+  "currentVersion": 3,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "gg82bg",
+      "version": 1,
+      "timestamp": "2026-02-27T22:29:23.150Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Update TeacherTestMonitorPage.tsx  detect skill===Writing, render WritingMonitorCard. End session: loop un-submitted students, call autoSubmitFromRTDB for each with progress indicator. Error handling: continue on failure."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-4",
+            "page",
+            "teacher",
+            "monitor",
+            "modify-file",
+            "gap-14",
+            "auto-submit"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Detects Writing skill for conditional rendering",
+              "completed": false
+            },
+            {
+              "text": "Renders WritingMonitorCard per student",
+              "completed": false
+            },
+            {
+              "text": "End session auto-submits un-submitted students",
+              "completed": false
+            },
+            {
+              "text": "Progress indicator during auto-submit",
+              "completed": false
+            },
+            {
+              "text": "Existing non-Writing behavior preserved",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Add skill===Writing check 2. Render WritingMonitorCard per student 3. Add peek modal state 4. Wire end-session auto-submit loop 5. Show progress: Auto-submitting X/Y 6. Error per-student handling"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "GAP-14: uses autoSubmitFromRTDB. Sequential auto-submit per student. Un-submitted = no Firestore doc. Preserve existing skill behavior."
+        }
+      ],
+      "snapshot": {
+        "title": "Update TeacherTestMonitorPage.tsx — Writing monitor + auto-submit",
+        "description": "Update TeacherTestMonitorPage.tsx  detect skill===Writing, render WritingMonitorCard. End session: loop un-submitted students, call autoSubmitFromRTDB for each with progress indicator. Error handling: continue on failure.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-4",
+          "page",
+          "teacher",
+          "monitor",
+          "modify-file",
+          "gap-14",
+          "auto-submit"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Detects Writing skill for conditional rendering",
+            "completed": false
+          },
+          {
+            "text": "Renders WritingMonitorCard per student",
+            "completed": false
+          },
+          {
+            "text": "End session auto-submits un-submitted students",
+            "completed": false
+          },
+          {
+            "text": "Progress indicator during auto-submit",
+            "completed": false
+          },
+          {
+            "text": "Existing non-Writing behavior preserved",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Add skill===Writing check 2. Render WritingMonitorCard per student 3. Add peek modal state 4. Wire end-session auto-submit loop 5. Show progress: Auto-submitting X/Y 6. Error per-student handling",
+        "implementationNotes": "GAP-14: uses autoSubmitFromRTDB. Sequential auto-submit per student. Un-submitted = no Firestore doc. Preserve existing skill behavior."
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "gg82bg",
+      "version": 2,
+      "timestamp": "2026-02-27T23:34:09.349Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Detects Writing skill for conditional rendering"
+            },
+            {
+              "completed": false,
+              "text": "Renders WritingMonitorCard per student"
+            },
+            {
+              "completed": false,
+              "text": "End session auto-submits un-submitted students"
+            },
+            {
+              "completed": false,
+              "text": "Progress indicator during auto-submit"
+            },
+            {
+              "completed": false,
+              "text": "Existing non-Writing behavior preserved"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Detects Writing skill for conditional rendering"
+            },
+            {
+              "completed": true,
+              "text": "Renders WritingMonitorCard per student"
+            },
+            {
+              "completed": true,
+              "text": "End session auto-submits un-submitted students"
+            },
+            {
+              "completed": true,
+              "text": "Progress indicator during auto-submit"
+            },
+            {
+              "completed": true,
+              "text": "Existing non-Writing behavior preserved"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "oldValue": "GAP-14: uses autoSubmitFromRTDB. Sequential auto-submit per student. Un-submitted = no Firestore doc. Preserve existing skill behavior.",
+          "newValue": "GAP-14: uses autoSubmitFromRTDB. Sequential auto-submit per student. Un-submitted = no Firestore doc. Preserve existing skill behavior.\n\nAll 5 ACs verified. TeacherTestMonitorPage.tsx has full Writing integration: detects skill=Writing via testData.skill, renders WritingMonitorCard per student with peek+reopen, end-session auto-submits unsubmitted students via autoSubmitFromRTDB (GAP-14), shows notification on completion, existing THCS/Reading/Listening behavior fully preserved. WritingPeekModal rendered at bottom of page."
+        }
+      ],
+      "snapshot": {
+        "title": "Update TeacherTestMonitorPage.tsx — Writing monitor + auto-submit",
+        "description": "Update TeacherTestMonitorPage.tsx  detect skill===Writing, render WritingMonitorCard. End session: loop un-submitted students, call autoSubmitFromRTDB for each with progress indicator. Error handling: continue on failure.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-4",
+          "page",
+          "teacher",
+          "monitor",
+          "modify-file",
+          "gap-14",
+          "auto-submit"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Detects Writing skill for conditional rendering"
+          },
+          {
+            "completed": true,
+            "text": "Renders WritingMonitorCard per student"
+          },
+          {
+            "completed": true,
+            "text": "End session auto-submits un-submitted students"
+          },
+          {
+            "completed": true,
+            "text": "Progress indicator during auto-submit"
+          },
+          {
+            "completed": true,
+            "text": "Existing non-Writing behavior preserved"
+          }
+        ],
+        "implementationPlan": "1. Add skill===Writing check 2. Render WritingMonitorCard per student 3. Add peek modal state 4. Wire end-session auto-submit loop 5. Show progress: Auto-submitting X/Y 6. Error per-student handling",
+        "implementationNotes": "GAP-14: uses autoSubmitFromRTDB. Sequential auto-submit per student. Un-submitted = no Firestore doc. Preserve existing skill behavior.\n\nAll 5 ACs verified. TeacherTestMonitorPage.tsx has full Writing integration: detects skill=Writing via testData.skill, renders WritingMonitorCard per student with peek+reopen, end-session auto-submits unsubmitted students via autoSubmitFromRTDB (GAP-14), shows notification on completion, existing THCS/Reading/Listening behavior fully preserved. WritingPeekModal rendered at bottom of page."
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "gg82bg",
+      "version": 3,
+      "timestamp": "2026-02-27T23:34:29.865Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Update TeacherTestMonitorPage.tsx — Writing monitor + auto-submit",
+        "description": "Update TeacherTestMonitorPage.tsx  detect skill===Writing, render WritingMonitorCard. End session: loop un-submitted students, call autoSubmitFromRTDB for each with progress indicator. Error handling: continue on failure.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-4",
+          "page",
+          "teacher",
+          "monitor",
+          "modify-file",
+          "gap-14",
+          "auto-submit"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Detects Writing skill for conditional rendering"
+          },
+          {
+            "completed": true,
+            "text": "Renders WritingMonitorCard per student"
+          },
+          {
+            "completed": true,
+            "text": "End session auto-submits un-submitted students"
+          },
+          {
+            "completed": true,
+            "text": "Progress indicator during auto-submit"
+          },
+          {
+            "completed": true,
+            "text": "Existing non-Writing behavior preserved"
+          }
+        ],
+        "implementationPlan": "1. Add skill===Writing check 2. Render WritingMonitorCard per student 3. Add peek modal state 4. Wire end-session auto-submit loop 5. Show progress: Auto-submitting X/Y 6. Error per-student handling",
+        "implementationNotes": "GAP-14: uses autoSubmitFromRTDB. Sequential auto-submit per student. Un-submitted = no Firestore doc. Preserve existing skill behavior.\n\nAll 5 ACs verified. TeacherTestMonitorPage.tsx has full Writing integration: detects skill=Writing via testData.skill, renders WritingMonitorCard per student with peek+reopen, end-session auto-submits unsubmitted students via autoSubmitFromRTDB (GAP-14), shows notification on completion, existing THCS/Reading/Listening behavior fully preserved. WritingPeekModal rendered at bottom of page."
+      }
+    }
+  ]
+}

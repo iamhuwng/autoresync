@@ -22,6 +22,7 @@ const SvgSearch = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="no
 const SvgChevronRight = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>;
 const SvgAlertTriangle = ({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>;
 const SvgBookLarge = ({ size = 48, color = '#6b7280' }: { size?: number; color?: string }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>;
+const SvgPen = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>;
 
 const localStyles = {
     card: { background: 'white', border: '1px solid #e5e7eb', borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'column' as const, height: '100%', transition: 'box-shadow 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' },
@@ -114,16 +115,28 @@ export const StudentLibraryPage: React.FC = () => {
                     <div>
                         <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#111827', margin: '0 0 12px', letterSpacing: '-0.01em', lineHeight: 1.3 }}>{material.title}</h3>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                            <span style={{ ...localStyles.badge, background: '#e0e7ff', color: '#4338ca' }}>{material.skill}</span>
+                            <span style={{ ...localStyles.badge, background: material.skill === 'writing' ? '#f5f3ff' : '#e0e7ff', color: material.skill === 'writing' ? '#7c3aed' : '#4338ca' }}>
+                                {material.skill === 'writing' && <span style={{ marginRight: 4 }}>✍️</span>}
+                                {material.skill}
+                            </span>
                             <span style={{ ...localStyles.badge, background: '#f3f4f6', color: '#374151' }}>{material.type}</span>
                             {material.difficulty && (
                                 <span style={{ ...localStyles.badge, background: diffColor.bg, color: diffColor.text }}>{material.difficulty}</span>
+                            )}
+                            {material.skill === 'writing' && material.format && (
+                                <span style={{ ...localStyles.badge, background: '#faf5ff', color: '#7c3aed', border: '1px solid #e9d5ff' }}>
+                                    {material.format === 'full-test' ? 'Full Test' : material.format === 'task1-only' ? 'Task 1' : 'Task 2'}
+                                </span>
                             )}
                         </div>
                     </div>
 
                     <div style={localStyles.statRow}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><SvgBook /> {material.questionCount} questions</div>
+                        {material.skill === 'writing' ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><SvgPen /> Writing Practice</div>
+                        ) : (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><SvgBook /> {material.questionCount} questions</div>
+                        )}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><SvgClock /> {material.estimatedDuration} min</div>
                     </div>
 

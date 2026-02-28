@@ -1,0 +1,266 @@
+{
+  "taskId": "ujov0v",
+  "currentVersion": 3,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "ujov0v",
+      "version": 1,
+      "timestamp": "2026-02-27T22:27:07.536Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Create WritingEditor.tsx  plain textarea with spellCheck=false, min-height 400px, Inter 16px, line-height 1.8. Live word counter via regex. GAP-09: paste prevention hook must be called inside useEffect, return attachToTextarea directly as cleanup."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-3",
+            "component",
+            "student",
+            "editor",
+            "new-file",
+            "no-mantine",
+            "gap-09"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Plain textarea with spellCheck=false",
+              "completed": false
+            },
+            {
+              "text": "Word counter using regex split",
+              "completed": false
+            },
+            {
+              "text": "GAP-09: attachToTextarea called inside useEffect",
+              "completed": false
+            },
+            {
+              "text": "Min-height 400px, Inter 16px, line-height 1.8",
+              "completed": false
+            },
+            {
+              "text": "Disabled state when disabled prop is true",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Create src/components/writing-student/WritingEditor.tsx + CSS 2. Render textarea with spellCheck=false 3. Add word counter 4. Wire paste prevention in useEffect (GAP-09) 5. Style with Inter font"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "GAP-09 CRITICAL: attachToTextarea MUST be in useEffect. Return value IS the cleanup. No format buttons. Undo/redo via native Ctrl+Z."
+        }
+      ],
+      "snapshot": {
+        "title": "Create WritingEditor.tsx — plain textarea with word counter",
+        "description": "Create WritingEditor.tsx  plain textarea with spellCheck=false, min-height 400px, Inter 16px, line-height 1.8. Live word counter via regex. GAP-09: paste prevention hook must be called inside useEffect, return attachToTextarea directly as cleanup.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-3",
+          "component",
+          "student",
+          "editor",
+          "new-file",
+          "no-mantine",
+          "gap-09"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Plain textarea with spellCheck=false",
+            "completed": false
+          },
+          {
+            "text": "Word counter using regex split",
+            "completed": false
+          },
+          {
+            "text": "GAP-09: attachToTextarea called inside useEffect",
+            "completed": false
+          },
+          {
+            "text": "Min-height 400px, Inter 16px, line-height 1.8",
+            "completed": false
+          },
+          {
+            "text": "Disabled state when disabled prop is true",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Create src/components/writing-student/WritingEditor.tsx + CSS 2. Render textarea with spellCheck=false 3. Add word counter 4. Wire paste prevention in useEffect (GAP-09) 5. Style with Inter font",
+        "implementationNotes": "GAP-09 CRITICAL: attachToTextarea MUST be in useEffect. Return value IS the cleanup. No format buttons. Undo/redo via native Ctrl+Z."
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "ujov0v",
+      "version": 2,
+      "timestamp": "2026-02-27T22:58:37.845Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Plain textarea with spellCheck=false"
+            },
+            {
+              "completed": false,
+              "text": "Word counter using regex split"
+            },
+            {
+              "completed": false,
+              "text": "GAP-09: attachToTextarea called inside useEffect"
+            },
+            {
+              "completed": false,
+              "text": "Min-height 400px, Inter 16px, line-height 1.8"
+            },
+            {
+              "completed": false,
+              "text": "Disabled state when disabled prop is true"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Plain textarea with spellCheck=false"
+            },
+            {
+              "completed": true,
+              "text": "Word counter using regex split"
+            },
+            {
+              "completed": true,
+              "text": "GAP-09: attachToTextarea called inside useEffect"
+            },
+            {
+              "completed": true,
+              "text": "Min-height 400px, Inter 16px, line-height 1.8"
+            },
+            {
+              "completed": true,
+              "text": "Disabled state when disabled prop is true"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "oldValue": "GAP-09 CRITICAL: attachToTextarea MUST be in useEffect. Return value IS the cleanup. No format buttons. Undo/redo via native Ctrl+Z.",
+          "newValue": "GAP-09 CRITICAL: attachToTextarea MUST be in useEffect. Return value IS the cleanup. No format buttons. Undo/redo via native Ctrl+Z.\n\nAll ACs verified against existing implementation. WritingEditor.tsx already fully implemented with: plain textarea (spellCheck=false), word counter using regex split, paste prevention via useEffect with attachToTextarea (GAP-09 compliant), min-height 400px + Inter 16px + line-height 1.8 in CSS, disabled state support. No TS errors."
+        }
+      ],
+      "snapshot": {
+        "title": "Create WritingEditor.tsx — plain textarea with word counter",
+        "description": "Create WritingEditor.tsx  plain textarea with spellCheck=false, min-height 400px, Inter 16px, line-height 1.8. Live word counter via regex. GAP-09: paste prevention hook must be called inside useEffect, return attachToTextarea directly as cleanup.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-3",
+          "component",
+          "student",
+          "editor",
+          "new-file",
+          "no-mantine",
+          "gap-09"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Plain textarea with spellCheck=false"
+          },
+          {
+            "completed": true,
+            "text": "Word counter using regex split"
+          },
+          {
+            "completed": true,
+            "text": "GAP-09: attachToTextarea called inside useEffect"
+          },
+          {
+            "completed": true,
+            "text": "Min-height 400px, Inter 16px, line-height 1.8"
+          },
+          {
+            "completed": true,
+            "text": "Disabled state when disabled prop is true"
+          }
+        ],
+        "implementationPlan": "1. Create src/components/writing-student/WritingEditor.tsx + CSS 2. Render textarea with spellCheck=false 3. Add word counter 4. Wire paste prevention in useEffect (GAP-09) 5. Style with Inter font",
+        "implementationNotes": "GAP-09 CRITICAL: attachToTextarea MUST be in useEffect. Return value IS the cleanup. No format buttons. Undo/redo via native Ctrl+Z.\n\nAll ACs verified against existing implementation. WritingEditor.tsx already fully implemented with: plain textarea (spellCheck=false), word counter using regex split, paste prevention via useEffect with attachToTextarea (GAP-09 compliant), min-height 400px + Inter 16px + line-height 1.8 in CSS, disabled state support. No TS errors."
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "ujov0v",
+      "version": 3,
+      "timestamp": "2026-02-27T22:58:51.225Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Create WritingEditor.tsx — plain textarea with word counter",
+        "description": "Create WritingEditor.tsx  plain textarea with spellCheck=false, min-height 400px, Inter 16px, line-height 1.8. Live word counter via regex. GAP-09: paste prevention hook must be called inside useEffect, return attachToTextarea directly as cleanup.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-3",
+          "component",
+          "student",
+          "editor",
+          "new-file",
+          "no-mantine",
+          "gap-09"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Plain textarea with spellCheck=false"
+          },
+          {
+            "completed": true,
+            "text": "Word counter using regex split"
+          },
+          {
+            "completed": true,
+            "text": "GAP-09: attachToTextarea called inside useEffect"
+          },
+          {
+            "completed": true,
+            "text": "Min-height 400px, Inter 16px, line-height 1.8"
+          },
+          {
+            "completed": true,
+            "text": "Disabled state when disabled prop is true"
+          }
+        ],
+        "implementationPlan": "1. Create src/components/writing-student/WritingEditor.tsx + CSS 2. Render textarea with spellCheck=false 3. Add word counter 4. Wire paste prevention in useEffect (GAP-09) 5. Style with Inter font",
+        "implementationNotes": "GAP-09 CRITICAL: attachToTextarea MUST be in useEffect. Return value IS the cleanup. No format buttons. Undo/redo via native Ctrl+Z.\n\nAll ACs verified against existing implementation. WritingEditor.tsx already fully implemented with: plain textarea (spellCheck=false), word counter using regex split, paste prevention via useEffect with attachToTextarea (GAP-09 compliant), min-height 400px + Inter 16px + line-height 1.8 in CSS, disabled state support. No TS errors."
+      }
+    }
+  ]
+}

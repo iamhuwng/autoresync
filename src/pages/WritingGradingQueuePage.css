@@ -1,0 +1,252 @@
+/**
+ * WritingGradingQueuePage Styles
+ * PRD-0030 Task 5.1
+ */
+
+.wgq-page {
+    min-height: 100vh;
+    background: linear-gradient(135deg, rgba(250, 245, 255, 0.95) 0%, rgba(240, 249, 255, 0.95) 50%, rgba(240, 253, 250, 0.95) 100%);
+    padding: 2rem;
+}
+
+.wgq-container {
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+.wgq-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+}
+
+.wgq-header h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0;
+}
+
+.wgq-header-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    background: #fef3c7;
+    color: #d97706;
+}
+
+.wgq-filters {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.wgq-filter-select {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    background: #fff;
+    color: #334155;
+    cursor: pointer;
+    outline: none;
+}
+
+.wgq-filter-select:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Submission Card */
+.wgq-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.wgq-card:hover {
+    border-color: #93c5fd;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.08);
+    transform: translateY(-1px);
+}
+
+.wgq-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+}
+
+.wgq-card-student {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.wgq-card-student--deleted {
+    color: #94a3b8;
+    font-style: italic;
+}
+
+.wgq-card-context {
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.wgq-card-context--live {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.wgq-card-context--solo {
+    background: #f0fdf4;
+    color: #15803d;
+}
+
+.wgq-card-context--homework {
+    background: #fef3c7;
+    color: #d97706;
+}
+
+.wgq-card-meta {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.wgq-card-meta-item {
+    font-size: 0.8rem;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.wgq-card-format {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.wgq-card-paste-warn {
+    color: #f59e0b;
+    font-weight: 600;
+}
+
+.wgq-card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 0.75rem;
+}
+
+.wgq-card-time {
+    font-size: 0.75rem;
+    color: #94a3b8;
+}
+
+.wgq-card-action {
+    padding: 0.4rem 1rem;
+    border-radius: 8px;
+    border: none;
+    background: #3b82f6;
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.wgq-card-action:hover {
+    background: #2563eb;
+}
+
+/* Empty state */
+.wgq-empty {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: #94a3b8;
+}
+
+.wgq-empty-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.wgq-empty h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #475569;
+    margin: 0 0 0.5rem;
+}
+
+.wgq-empty p {
+    font-size: 0.875rem;
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+/* Load More */
+.wgq-load-more {
+    display: flex;
+    justify-content: center;
+    margin-top: 1.5rem;
+}
+
+.wgq-load-more button {
+    padding: 0.6rem 2rem;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    color: #475569;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.wgq-load-more button:hover {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+}
+
+/* Loading spinner */
+.wgq-loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 60vh;
+}
+
+.wgq-spinner {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 4px solid rgba(59, 130, 246, 0.15);
+    border-top-color: #3b82f6;
+    animation: wgq-spin 1s linear infinite;
+}
+
+@keyframes wgq-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}

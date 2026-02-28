@@ -1,0 +1,126 @@
+{
+  "taskId": "q3fvh1",
+  "currentVersion": 2,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "q3fvh1",
+      "version": 1,
+      "timestamp": "2026-02-27T21:20:20.430Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Create CriteriaScoringPanel.tsx — 0-9 criteria scoring buttons",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing"
+        ],
+        "acceptanceCriteria": []
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "q3fvh1",
+      "version": 2,
+      "timestamp": "2026-02-27T22:30:06.036Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Create CriteriaScoringPanel.tsx  per-task scoring with 10 buttons (0-9) per criterion. Task 1: TA,CC,LR,GRA. Task 2: TR,CC,LR,GRA. Live band calculation display. Voided state disables all buttons with VOIDED overlay."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-5",
+            "component",
+            "teacher",
+            "grading",
+            "scoring",
+            "new-file",
+            "no-mantine"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Correct criteria per task (TA vs TR)",
+              "completed": false
+            },
+            {
+              "text": "10 buttons per criterion with highlighting",
+              "completed": false
+            },
+            {
+              "text": "Live band calculation shown",
+              "completed": false
+            },
+            {
+              "text": "Voided state with overlay",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Create src/components/writing-grading/CriteriaScoringPanel.tsx + CSS 2. Define criteria per task number 3. Render 10 buttons per criterion 4. Wire active highlighting 5. Calculate and display band 6. Handle void state 7. Include VoidTaskButton"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "TA for Task 1, TR for Task 2  different names. Scores WHOLE NUMBERS 0-9. Band updates live. VoidTaskButton at bottom."
+        }
+      ],
+      "snapshot": {
+        "title": "Create CriteriaScoringPanel.tsx — 0-9 criteria scoring buttons",
+        "description": "Create CriteriaScoringPanel.tsx  per-task scoring with 10 buttons (0-9) per criterion. Task 1: TA,CC,LR,GRA. Task 2: TR,CC,LR,GRA. Live band calculation display. Voided state disables all buttons with VOIDED overlay.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-5",
+          "component",
+          "teacher",
+          "grading",
+          "scoring",
+          "new-file",
+          "no-mantine"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Correct criteria per task (TA vs TR)",
+            "completed": false
+          },
+          {
+            "text": "10 buttons per criterion with highlighting",
+            "completed": false
+          },
+          {
+            "text": "Live band calculation shown",
+            "completed": false
+          },
+          {
+            "text": "Voided state with overlay",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Create src/components/writing-grading/CriteriaScoringPanel.tsx + CSS 2. Define criteria per task number 3. Render 10 buttons per criterion 4. Wire active highlighting 5. Calculate and display band 6. Handle void state 7. Include VoidTaskButton",
+        "implementationNotes": "TA for Task 1, TR for Task 2  different names. Scores WHOLE NUMBERS 0-9. Band updates live. VoidTaskButton at bottom."
+      }
+    }
+  ]
+}

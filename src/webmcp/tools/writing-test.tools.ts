@@ -298,4 +298,327 @@ export const writingTestTools: ToolRegistration[] = [
             },
         },
     },
+    {
+        category: 'teacher',
+        activeRoutes: ['/teacher/grading/writing'],
+        allowedRoles: ['teacher', 'super_admin'],
+        tool: {
+            name: 'get_writing_grading_queue',
+            description: 'Get the list of pending writing submissions displayed on the grading queue page. Returns submission cards with student name, word count, format, and status.',
+            inputSchema: {
+                type: 'object',
+                properties: {},
+            },
+            annotations: { readOnlyHint: 'true' },
+            execute: async () => {
+                try {
+                    const cards = document.querySelectorAll('.wgq-card');
+                    const submissions = Array.from(cards).map(card => ({
+                        studentName: card.querySelector('.wgq-card-name')?.textContent || '',
+                        format: card.querySelector('.wgq-card-format')?.textContent || '',
+                        wordCount: card.querySelector('.wgq-card-words')?.textContent || '',
+                        context: card.querySelector('.wgq-card-context')?.textContent || '',
+                    }));
+                    const filterValue = (document.querySelector('.wgq-filter-select') as HTMLSelectElement)?.value || 'all';
+                    return {
+                        content: [{
+                            type: 'text',
+                            text: JSON.stringify({ total: submissions.length, filter: filterValue, submissions }),
+                        }],
+                    };
+                } catch (error: unknown) {
+                    const message = error instanceof Error ? error.message : 'Unknown error';
+                    return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true };
+                }
+            },
+        },
+    },
+    {
+        category: 'teacher',
+        activeRoutes: ['/teacher/grading/writing/:submissionId'],
+        allowedRoles: ['teacher', 'super_admin'],
+        tool: {
+            name: 'navigate_writing_grading_detail',
+            description: 'Navigate to the Writing Grading page for a specific submission to start grading.',
+            inputSchema: {
+                type: 'object',
+                properties: {
+                    submissionId: { type: 'string', description: 'The Firestore submission ID to grade.' },
+                },
+                required: ['submissionId'],
+            },
+            execute: async ({ submissionId }) => {
+                window.history.pushState({}, '', `/teacher/grading/writing/${submissionId}`);
+                window.dispatchEvent(new PopStateEvent('popstate'));
+                return { content: [{ type: 'text', text: `Navigated to grading page for submission ${submissionId}.` }] };
+            },
+        },
+    },
+    {
+        category: 'teacher',
+        activeRoutes: ['/teacher/grading/writing/:submissionId'],
+        allowedRoles: ['teacher', 'super_admin'],
+        tool: {
+            name: 'get_writing_grading_state',
+            description: 'Get the current state of the grading page: active task, scores per criterion, overall band, annotations count, void status, and essay preview.',
+            inputSchema: {
+                type: 'object',
+                properties: {},
+            },
+            annotations: { readOnlyHint: 'true' },
+            execute: async () => {
+                try {
+                    const studentName = document.querySelector('.wgp-student-name')?.textContent || '';
+                    const activeTab = document.querySelector('.wgp-tab--active')?.textContent || 'Task 1';
+                    const overallBand = document.querySelector('.wgp-overall-band')?.textContent || '—';
+                    const annotationCount = document.querySelectorAll('.annotation-group').length;
+
+                    // Read score buttons - find selected ones
+                    const scoreButtons = document.querySelectorAll('button[style*="border: 2px"]');
+                    const selectedScores = Array.from(scoreButtons).map(btn => btn.textContent?.trim());
+
+                    return {
+                        content: [{
+                            type: 'text',
+                            text: JSON.stringify({
+                                studentName,
+                                activeTab,
+                                overallBand,
+                                annotationCount,
+                                selectedScores,
+                            }),
+                        }],
+                    };
+                } catch (error: unknown) {
+                    const message = error instanceof Error ? error.message : 'Unknown error';
+                    return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true };
+                }
+            },
+        },
+    },
+    {
+        category: 'teacher',
+        activeRoutes: ['/teacher/grading/writing/:submissionId'],
+        allowedRoles: ['teacher', 'super_admin'],
+        tool: {
+            name: 'save_writing_grading_draft',
+            description: 'Click the Save Draft button to save current grading progress without submitting.',
+            inputSchema: {
+                type: 'object',
+                properties: {},
+            },
+            execute: async () => {
+                try {
+                    const btns = Array.from(document.querySelectorAll('button'));
+                    const saveBtn = btns.find(b => b.textContent?.includes('Save Draft'));
+                    if (!saveBtn) return { content: [{ type: 'text', text: 'Save Draft button not found.' }], isError: true };
+                    saveBtn.click();
+                    return { content: [{ type: 'text', text: 'Save Draft clicked.' }] };
+                } catch (error: unknown) {
+                    const message = error instanceof Error ? error.message : 'Unknown error';
+                    return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true };
+                }
+            },
+        },
+    },
+    {
+        category: 'teacher',
+        activeRoutes: ['/teacher/grading/writing/:submissionId'],
+        allowedRoles: ['teacher', 'super_admin'],
+        tool: {
+            name: 'submit_writing_grading',
+            description: 'Click the Submit Grading button to finalize and submit the grading for this writing submission. Will validate that at least one task has all 4 criteria scored.',
+            inputSchema: {
+                type: 'object',
+                properties: {},
+            },
+            execute: async () => {
+                try {
+                    const btns = Array.from(document.querySelectorAll('button'));
+                    const submitBtn = btns.find(b => b.textContent?.includes('Submit Grading'));
+                    if (!submitBtn) return { content: [{ type: 'text', text: 'Submit Grading button not found.' }], isError: true };
+                    submitBtn.click();
+                    return { content: [{ type: 'text', text: 'Submit Grading clicked. Will validate and submit.' }] };
+                } catch (error: unknown) {
+                    const message = error instanceof Error ? error.message : 'Unknown error';
+                    return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true };
+                }
+            },
+        },
+    },
+
+    // ── Teacher: Results & Review ──────────────────────────────
+    {
+        category: 'teacher',
+        activeRoutes: ['/teacher/results/:sessionCode'],
+        allowedRoles: ['teacher', 'super_admin'],
+        tool: {
+            name: 'get_writing_test_results',
+            description: 'Get the writing test results summary table when viewing a writing test session. Returns list of students with their overall band, task bands, and status.',
+            inputSchema: {
+                type: 'object',
+                properties: {},
+            },
+            annotations: { readOnlyHint: 'true' },
+            execute: async () => {
+                try {
+                    const rows = document.querySelectorAll('table tbody tr');
+                    const results = Array.from(rows).map(row => {
+                        const cells = row.querySelectorAll('td');
+                        return {
+                            student: cells[0]?.textContent?.trim() || '',
+                            overallBand: cells[1]?.textContent?.trim() || '',
+                            t1Band: cells[2]?.textContent?.trim() || '',
+                            t2Band: cells[3]?.textContent?.trim() || '',
+                            status: cells[4]?.textContent?.trim() || '',
+                            submitted: cells[5]?.textContent?.trim() || '',
+                        };
+                    });
+                    return {
+                        content: [{
+                            type: 'text',
+                            text: JSON.stringify({ total: results.length, results }),
+                        }],
+                    };
+                } catch (error: unknown) {
+                    const message = error instanceof Error ? error.message : 'Unknown error';
+                    return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true };
+                }
+            },
+        },
+    },
+    {
+        category: 'teacher',
+        activeRoutes: ['/teacher/results/:sessionCode'],
+        allowedRoles: ['teacher', 'super_admin'],
+        tool: {
+            name: 'open_writing_result_detail',
+            description: 'Click on a student row in the writing results table to open their result detail modal.',
+            inputSchema: {
+                type: 'object',
+                properties: {
+                    studentName: {
+                        type: 'string',
+                        description: 'Name of the student whose result to view.',
+                    },
+                },
+                required: ['studentName'],
+            },
+            execute: async ({ studentName }) => {
+                try {
+                    const name_q = String(studentName);
+                    const rows = document.querySelectorAll('table tbody tr');
+                    for (const row of Array.from(rows)) {
+                        const name = row.querySelector('td')?.textContent?.trim();
+                        if (name && name.includes(name_q)) {
+                            (row as HTMLElement).click();
+                            return { content: [{ type: 'text', text: `Opened result detail for ${name}.` }] };
+                        }
+                    }
+                    return { content: [{ type: 'text', text: `Student "${studentName}" not found in results.` }], isError: true };
+                } catch (error: unknown) {
+                    const message = error instanceof Error ? error.message : 'Unknown error';
+                    return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true };
+                }
+            },
+        },
+    },
+    {
+        category: 'teacher',
+        activeRoutes: ['/teacher/results/:sessionCode'],
+        allowedRoles: ['teacher', 'super_admin'],
+        tool: {
+            name: 'close_writing_result_detail',
+            description: 'Close the currently open WritingResultDetailModal by clicking the backdrop or close button.',
+            inputSchema: {
+                type: 'object',
+                properties: {},
+            },
+            execute: async () => {
+                try {
+                    // Modal has a close button with ✕ text
+                    const buttons = document.querySelectorAll('button');
+                    for (const btn of Array.from(buttons)) {
+                        if (btn.textContent?.trim() === '✕') {
+                            btn.click();
+                            return { content: [{ type: 'text', text: 'Closed result detail modal.' }] };
+                        }
+                    }
+                    return { content: [{ type: 'text', text: 'No modal close button found.' }], isError: true };
+                } catch (error: unknown) {
+                    const message = error instanceof Error ? error.message : 'Unknown error';
+                    return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true };
+                }
+            },
+        },
+    },
+    {
+        category: 'teacher',
+        activeRoutes: ['/teacher/results/:sessionCode'],
+        allowedRoles: ['teacher', 'super_admin'],
+        tool: {
+            name: 'navigate_edit_grades',
+            description: 'Click the "Edit Grades" button in the WritingResultDetailModal to navigate to the grading page for this submission.',
+            inputSchema: {
+                type: 'object',
+                properties: {},
+            },
+            execute: async () => {
+                try {
+                    const buttons = document.querySelectorAll('button');
+                    for (const btn of Array.from(buttons)) {
+                        if (btn.textContent?.includes('Edit Grades')) {
+                            btn.click();
+                            return { content: [{ type: 'text', text: 'Navigating to grading page.' }] };
+                        }
+                    }
+                    return { content: [{ type: 'text', text: 'Edit Grades button not found. Is the modal open?' }], isError: true };
+                } catch (error: unknown) {
+                    const message = error instanceof Error ? error.message : 'Unknown error';
+                    return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true };
+                }
+            },
+        },
+    },
+
+    // ── Student: Result View ───────────────────────────────────
+    {
+        category: 'student',
+        activeRoutes: ['/student/results/*', '/student/academic-record'],
+        allowedRoles: ['student'],
+        tool: {
+            name: 'get_writing_result_state',
+            description: 'Get the current state of a student writing result view: grading status, overall band, per-task bands.',
+            inputSchema: {
+                type: 'object',
+                properties: {},
+            },
+            annotations: { readOnlyHint: 'true' },
+            execute: async () => {
+                try {
+                    const bandEl = document.querySelector('[style*="3.5rem"]');
+                    const band = bandEl?.textContent?.trim() || null;
+                    const statusBanner = document.querySelector('[style*="fef3c7"]');
+                    const isPending = !!statusBanner;
+                    const taskBands = Array.from(document.querySelectorAll('[style*="eff6ff"]'))
+                        .map(el => el.textContent?.trim())
+                        .filter(t => t?.startsWith('Band'));
+                    return {
+                        content: [{
+                            type: 'text',
+                            text: JSON.stringify({
+                                isPending,
+                                overallBand: band,
+                                taskBands,
+                            }),
+                        }],
+                    };
+                } catch (error: unknown) {
+                    const message = error instanceof Error ? error.message : 'Unknown error';
+                    return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true };
+                }
+            },
+        },
+    },
 ];
+

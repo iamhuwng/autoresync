@@ -1,0 +1,134 @@
+{
+  "taskId": "hf16fy",
+  "currentVersion": 2,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "hf16fy",
+      "version": 1,
+      "timestamp": "2026-02-27T21:37:34.045Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Phase 2 completed in prior session. WritingTestBuilder, WritingMetadataPanel, WritingTaskPanel, WritingValidationSummary all created."
+        }
+      ],
+      "snapshot": {
+        "title": "PRD-0030: Writing Test Builder (Teacher)",
+        "status": "done",
+        "priority": "high",
+        "labels": [
+          "prd-0030",
+          "ielts-writing"
+        ],
+        "acceptanceCriteria": [],
+        "implementationNotes": "Phase 2 completed in prior session. WritingTestBuilder, WritingMetadataPanel, WritingTaskPanel, WritingValidationSummary all created."
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "hf16fy",
+      "version": 2,
+      "timestamp": "2026-02-27T22:25:15.919Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Phase 2 epic. Teacher writing test builder with metadata panel, task panels (R2 image upload for Task 1), validation summary, auto-save drafts to Firestore with 2s debounce, and publish flow to RTDB. Format selection shows/hides panels via display:none."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-2",
+            "epic",
+            "teacher",
+            "builder"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "All 7 subtasks completed",
+              "completed": false
+            },
+            {
+              "text": "R2 storage used for images  NOT Firebase Storage",
+              "completed": false
+            },
+            {
+              "text": "Auto-save debounce uses useRef",
+              "completed": false
+            },
+            {
+              "text": "Format toggle hides panels without unmounting",
+              "completed": false
+            },
+            {
+              "text": "Publish validates then moves R2 temp images to permanent",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. MetadataPanel (2.1) 2. TaskPanel with R2 upload (2.2) 3. ValidationSummary (2.3) 4. TestBuilder assembly (2.4) 5. Publish flow (2.5) 6. App routes (2.6) 7. TestBuilderRouter (2.7)"
+        },
+        {
+          "field": "implementationNotes",
+          "oldValue": "Phase 2 completed in prior session. WritingTestBuilder, WritingMetadataPanel, WritingTaskPanel, WritingValidationSummary all created.",
+          "newValue": "NEVER use Firebase Storage  all uploads via r2Storage.ts. GAP-06: useRef for debounce timer. GAP-07: URL param is draftId. Hidden panels use display:none not unmount. Route guard: PrivateRoute not TeacherGuard."
+        }
+      ],
+      "snapshot": {
+        "title": "PRD-0030: Writing Test Builder (Teacher)",
+        "description": "Phase 2 epic. Teacher writing test builder with metadata panel, task panels (R2 image upload for Task 1), validation summary, auto-save drafts to Firestore with 2s debounce, and publish flow to RTDB. Format selection shows/hides panels via display:none.",
+        "status": "done",
+        "priority": "high",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-2",
+          "epic",
+          "teacher",
+          "builder"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "All 7 subtasks completed",
+            "completed": false
+          },
+          {
+            "text": "R2 storage used for images  NOT Firebase Storage",
+            "completed": false
+          },
+          {
+            "text": "Auto-save debounce uses useRef",
+            "completed": false
+          },
+          {
+            "text": "Format toggle hides panels without unmounting",
+            "completed": false
+          },
+          {
+            "text": "Publish validates then moves R2 temp images to permanent",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. MetadataPanel (2.1) 2. TaskPanel with R2 upload (2.2) 3. ValidationSummary (2.3) 4. TestBuilder assembly (2.4) 5. Publish flow (2.5) 6. App routes (2.6) 7. TestBuilderRouter (2.7)",
+        "implementationNotes": "NEVER use Firebase Storage  all uploads via r2Storage.ts. GAP-06: useRef for debounce timer. GAP-07: URL param is draftId. Hidden panels use display:none not unmount. Route guard: PrivateRoute not TeacherGuard."
+      }
+    }
+  ]
+}

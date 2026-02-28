@@ -1,0 +1,242 @@
+{
+  "taskId": "ozfki4",
+  "currentVersion": 3,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "ozfki4",
+      "version": 1,
+      "timestamp": "2026-02-27T22:27:48.498Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Create useWritingAutoSave.ts  debounced 3s RTDB sync for essay text. RTDB paths: game_sessions/code/students/uid/writing/task1,task2,activeTask,tabSwitches. On tab switch: flush pending save immediately. loadSavedState for reconnect."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-3",
+            "hook",
+            "student",
+            "rtdb",
+            "auto-save",
+            "new-file",
+            "gap-06"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Debounced 3s RTDB sync",
+              "completed": false
+            },
+            {
+              "text": "Tab switch flushes pending save",
+              "completed": false
+            },
+            {
+              "text": "loadSavedState restores essays and tab",
+              "completed": false
+            },
+            {
+              "text": "Cleanup timer on unmount",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Create src/hooks/useWritingAutoSave.ts 2. useRef for debounce timer 3. saveTask: debounce 3s to RTDB 4. saveActiveTab: immediate write 5. addTabSwitch: append to array 6. loadSavedState: read all fields 7. Flush before tab switch 8. Cleanup on unmount"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Save only active task text on change. Flush BEFORE switching tabs. lastSavedAt uses Date.now(). Reconnect: loadSavedState on mount. GAP-06: useRef for timer."
+        }
+      ],
+      "snapshot": {
+        "title": "Create useWritingAutoSave.ts — debounced RTDB sync",
+        "description": "Create useWritingAutoSave.ts  debounced 3s RTDB sync for essay text. RTDB paths: game_sessions/code/students/uid/writing/task1,task2,activeTask,tabSwitches. On tab switch: flush pending save immediately. loadSavedState for reconnect.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-3",
+          "hook",
+          "student",
+          "rtdb",
+          "auto-save",
+          "new-file",
+          "gap-06"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Debounced 3s RTDB sync",
+            "completed": false
+          },
+          {
+            "text": "Tab switch flushes pending save",
+            "completed": false
+          },
+          {
+            "text": "loadSavedState restores essays and tab",
+            "completed": false
+          },
+          {
+            "text": "Cleanup timer on unmount",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Create src/hooks/useWritingAutoSave.ts 2. useRef for debounce timer 3. saveTask: debounce 3s to RTDB 4. saveActiveTab: immediate write 5. addTabSwitch: append to array 6. loadSavedState: read all fields 7. Flush before tab switch 8. Cleanup on unmount",
+        "implementationNotes": "Save only active task text on change. Flush BEFORE switching tabs. lastSavedAt uses Date.now(). Reconnect: loadSavedState on mount. GAP-06: useRef for timer."
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "ozfki4",
+      "version": 2,
+      "timestamp": "2026-02-27T23:04:26.797Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Debounced 3s RTDB sync"
+            },
+            {
+              "completed": false,
+              "text": "Tab switch flushes pending save"
+            },
+            {
+              "completed": false,
+              "text": "loadSavedState restores essays and tab"
+            },
+            {
+              "completed": false,
+              "text": "Cleanup timer on unmount"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Debounced 3s RTDB sync"
+            },
+            {
+              "completed": true,
+              "text": "Tab switch flushes pending save"
+            },
+            {
+              "completed": true,
+              "text": "loadSavedState restores essays and tab"
+            },
+            {
+              "completed": true,
+              "text": "Cleanup timer on unmount"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "oldValue": "Save only active task text on change. Flush BEFORE switching tabs. lastSavedAt uses Date.now(). Reconnect: loadSavedState on mount. GAP-06: useRef for timer.",
+          "newValue": "Save only active task text on change. Flush BEFORE switching tabs. lastSavedAt uses Date.now(). Reconnect: loadSavedState on mount. GAP-06: useRef for timer.\n\nAll ACs verified. useWritingAutoSave.ts fully implemented: debounced 3s RTDB sync via setTimeout, tab switch flushes pendingSaveRef before writing activeTask, loadSavedState reads all fields from RTDB and returns {task1Text, task2Text, activeTask, tabSwitches}, timer cleaned on unmount. Also exposes flushPendingSave for submit flow."
+        }
+      ],
+      "snapshot": {
+        "title": "Create useWritingAutoSave.ts — debounced RTDB sync",
+        "description": "Create useWritingAutoSave.ts  debounced 3s RTDB sync for essay text. RTDB paths: game_sessions/code/students/uid/writing/task1,task2,activeTask,tabSwitches. On tab switch: flush pending save immediately. loadSavedState for reconnect.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-3",
+          "hook",
+          "student",
+          "rtdb",
+          "auto-save",
+          "new-file",
+          "gap-06"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Debounced 3s RTDB sync"
+          },
+          {
+            "completed": true,
+            "text": "Tab switch flushes pending save"
+          },
+          {
+            "completed": true,
+            "text": "loadSavedState restores essays and tab"
+          },
+          {
+            "completed": true,
+            "text": "Cleanup timer on unmount"
+          }
+        ],
+        "implementationPlan": "1. Create src/hooks/useWritingAutoSave.ts 2. useRef for debounce timer 3. saveTask: debounce 3s to RTDB 4. saveActiveTab: immediate write 5. addTabSwitch: append to array 6. loadSavedState: read all fields 7. Flush before tab switch 8. Cleanup on unmount",
+        "implementationNotes": "Save only active task text on change. Flush BEFORE switching tabs. lastSavedAt uses Date.now(). Reconnect: loadSavedState on mount. GAP-06: useRef for timer.\n\nAll ACs verified. useWritingAutoSave.ts fully implemented: debounced 3s RTDB sync via setTimeout, tab switch flushes pendingSaveRef before writing activeTask, loadSavedState reads all fields from RTDB and returns {task1Text, task2Text, activeTask, tabSwitches}, timer cleaned on unmount. Also exposes flushPendingSave for submit flow."
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "ozfki4",
+      "version": 3,
+      "timestamp": "2026-02-27T23:04:40.247Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Create useWritingAutoSave.ts — debounced RTDB sync",
+        "description": "Create useWritingAutoSave.ts  debounced 3s RTDB sync for essay text. RTDB paths: game_sessions/code/students/uid/writing/task1,task2,activeTask,tabSwitches. On tab switch: flush pending save immediately. loadSavedState for reconnect.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-3",
+          "hook",
+          "student",
+          "rtdb",
+          "auto-save",
+          "new-file",
+          "gap-06"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Debounced 3s RTDB sync"
+          },
+          {
+            "completed": true,
+            "text": "Tab switch flushes pending save"
+          },
+          {
+            "completed": true,
+            "text": "loadSavedState restores essays and tab"
+          },
+          {
+            "completed": true,
+            "text": "Cleanup timer on unmount"
+          }
+        ],
+        "implementationPlan": "1. Create src/hooks/useWritingAutoSave.ts 2. useRef for debounce timer 3. saveTask: debounce 3s to RTDB 4. saveActiveTab: immediate write 5. addTabSwitch: append to array 6. loadSavedState: read all fields 7. Flush before tab switch 8. Cleanup on unmount",
+        "implementationNotes": "Save only active task text on change. Flush BEFORE switching tabs. lastSavedAt uses Date.now(). Reconnect: loadSavedState on mount. GAP-06: useRef for timer.\n\nAll ACs verified. useWritingAutoSave.ts fully implemented: debounced 3s RTDB sync via setTimeout, tab switch flushes pendingSaveRef before writing activeTask, loadSavedState reads all fields from RTDB and returns {task1Text, task2Text, activeTask, tabSwitches}, timer cleaned on unmount. Also exposes flushPendingSave for submit flow."
+      }
+    }
+  ]
+}

@@ -1,0 +1,315 @@
+{
+  "taskId": "dlfg5s",
+  "currentVersion": 4,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "dlfg5s",
+      "version": 1,
+      "timestamp": "2026-02-27T22:34:25.018Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Update HomeworkCreateModal.tsx  when skill is Writing, show: due date (native datetime-local input), late policy radios (allow-late/hard-deadline), word minimum toggle, re-attempt config. NO Mantine DatePicker."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-7",
+            "component",
+            "teacher",
+            "homework",
+            "modify-file",
+            "no-mantine"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Writing-specific config section appears",
+              "completed": false
+            },
+            {
+              "text": "Native datetime-local for due date",
+              "completed": false
+            },
+            {
+              "text": "Late policy radio buttons",
+              "completed": false
+            },
+            {
+              "text": "Re-attempt config",
+              "completed": false
+            },
+            {
+              "text": "Existing non-Writing behavior preserved",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Add skill detection 2. Add writing config section 3. Due date: input type=datetime-local 4. Late policy radios 5. Word min toggle 6. Re-attempt select 7. Wire to homework creation"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "NO Mantine DatePicker  use native input. Late: allow-late marks as late, hard-deadline blocks. Re-attempts pre-load previous essay."
+        }
+      ],
+      "snapshot": {
+        "title": "Update HomeworkCreateModal.tsx — writing homework config",
+        "description": "Update HomeworkCreateModal.tsx  when skill is Writing, show: due date (native datetime-local input), late policy radios (allow-late/hard-deadline), word minimum toggle, re-attempt config. NO Mantine DatePicker.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-7",
+          "component",
+          "teacher",
+          "homework",
+          "modify-file",
+          "no-mantine"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Writing-specific config section appears",
+            "completed": false
+          },
+          {
+            "text": "Native datetime-local for due date",
+            "completed": false
+          },
+          {
+            "text": "Late policy radio buttons",
+            "completed": false
+          },
+          {
+            "text": "Re-attempt config",
+            "completed": false
+          },
+          {
+            "text": "Existing non-Writing behavior preserved",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Add skill detection 2. Add writing config section 3. Due date: input type=datetime-local 4. Late policy radios 5. Word min toggle 6. Re-attempt select 7. Wire to homework creation",
+        "implementationNotes": "NO Mantine DatePicker  use native input. Late: allow-late marks as late, hard-deadline blocks. Re-attempts pre-load previous essay."
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "dlfg5s",
+      "version": 2,
+      "timestamp": "2026-02-28T03:00:19.409Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        }
+      ],
+      "snapshot": {
+        "title": "Update HomeworkCreateModal.tsx — writing homework config",
+        "description": "Update HomeworkCreateModal.tsx  when skill is Writing, show: due date (native datetime-local input), late policy radios (allow-late/hard-deadline), word minimum toggle, re-attempt config. NO Mantine DatePicker.",
+        "status": "in-progress",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-7",
+          "component",
+          "teacher",
+          "homework",
+          "modify-file",
+          "no-mantine"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Writing-specific config section appears"
+          },
+          {
+            "completed": false,
+            "text": "Native datetime-local for due date"
+          },
+          {
+            "completed": false,
+            "text": "Late policy radio buttons"
+          },
+          {
+            "completed": false,
+            "text": "Re-attempt config"
+          },
+          {
+            "completed": false,
+            "text": "Existing non-Writing behavior preserved"
+          }
+        ],
+        "implementationPlan": "1. Add skill detection 2. Add writing config section 3. Due date: input type=datetime-local 4. Late policy radios 5. Word min toggle 6. Re-attempt select 7. Wire to homework creation",
+        "implementationNotes": "NO Mantine DatePicker  use native input. Late: allow-late marks as late, hard-deadline blocks. Re-attempts pre-load previous essay."
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "dlfg5s",
+      "version": 3,
+      "timestamp": "2026-02-28T03:03:06.233Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Writing-specific config section appears"
+            },
+            {
+              "completed": false,
+              "text": "Native datetime-local for due date"
+            },
+            {
+              "completed": false,
+              "text": "Late policy radio buttons"
+            },
+            {
+              "completed": false,
+              "text": "Re-attempt config"
+            },
+            {
+              "completed": false,
+              "text": "Existing non-Writing behavior preserved"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Writing-specific config section appears"
+            },
+            {
+              "completed": true,
+              "text": "Native datetime-local for due date"
+            },
+            {
+              "completed": true,
+              "text": "Late policy radio buttons"
+            },
+            {
+              "completed": true,
+              "text": "Re-attempt config"
+            },
+            {
+              "completed": true,
+              "text": "Existing non-Writing behavior preserved"
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Update HomeworkCreateModal.tsx — writing homework config",
+        "description": "Update HomeworkCreateModal.tsx  when skill is Writing, show: due date (native datetime-local input), late policy radios (allow-late/hard-deadline), word minimum toggle, re-attempt config. NO Mantine DatePicker.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-7",
+          "component",
+          "teacher",
+          "homework",
+          "modify-file",
+          "no-mantine"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Writing-specific config section appears"
+          },
+          {
+            "completed": true,
+            "text": "Native datetime-local for due date"
+          },
+          {
+            "completed": true,
+            "text": "Late policy radio buttons"
+          },
+          {
+            "completed": true,
+            "text": "Re-attempt config"
+          },
+          {
+            "completed": true,
+            "text": "Existing non-Writing behavior preserved"
+          }
+        ],
+        "implementationPlan": "1. Add skill detection 2. Add writing config section 3. Due date: input type=datetime-local 4. Late policy radios 5. Word min toggle 6. Re-attempt select 7. Wire to homework creation",
+        "implementationNotes": "NO Mantine DatePicker  use native input. Late: allow-late marks as late, hard-deadline blocks. Re-attempts pre-load previous essay."
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "dlfg5s",
+      "version": 4,
+      "timestamp": "2026-02-28T03:03:09.380Z",
+      "changes": [
+        {
+          "field": "implementationNotes",
+          "oldValue": "NO Mantine DatePicker  use native input. Late: allow-late marks as late, hard-deadline blocks. Re-attempts pre-load previous essay.",
+          "newValue": "NO Mantine DatePicker  use native input. Late: allow-late marks as late, hard-deadline blocks. Re-attempts pre-load previous essay.\n\nImplemented 2026-02-28: Added Writing-specific homework config to HomeworkCreateModal. When skill=writing, shows: native datetime-local due date, late policy radio buttons (allow-late vs hard-deadline), word minimum enforcement toggle, re-attempt select (1/2/3/unlimited), and Writing-specific timer. Non-Writing materials use existing HomeworkConfigPanel unchanged. Added CSS for .writing-config-section with purple accent, .radio-group, .radio-option, and datetime input styles. Zero TS errors."
+        }
+      ],
+      "snapshot": {
+        "title": "Update HomeworkCreateModal.tsx — writing homework config",
+        "description": "Update HomeworkCreateModal.tsx  when skill is Writing, show: due date (native datetime-local input), late policy radios (allow-late/hard-deadline), word minimum toggle, re-attempt config. NO Mantine DatePicker.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-7",
+          "component",
+          "teacher",
+          "homework",
+          "modify-file",
+          "no-mantine"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Writing-specific config section appears"
+          },
+          {
+            "completed": true,
+            "text": "Native datetime-local for due date"
+          },
+          {
+            "completed": true,
+            "text": "Late policy radio buttons"
+          },
+          {
+            "completed": true,
+            "text": "Re-attempt config"
+          },
+          {
+            "completed": true,
+            "text": "Existing non-Writing behavior preserved"
+          }
+        ],
+        "implementationPlan": "1. Add skill detection 2. Add writing config section 3. Due date: input type=datetime-local 4. Late policy radios 5. Word min toggle 6. Re-attempt select 7. Wire to homework creation",
+        "implementationNotes": "NO Mantine DatePicker  use native input. Late: allow-late marks as late, hard-deadline blocks. Re-attempts pre-load previous essay.\n\nImplemented 2026-02-28: Added Writing-specific homework config to HomeworkCreateModal. When skill=writing, shows: native datetime-local due date, late policy radio buttons (allow-late vs hard-deadline), word minimum enforcement toggle, re-attempt select (1/2/3/unlimited), and Writing-specific timer. Non-Writing materials use existing HomeworkConfigPanel unchanged. Added CSS for .writing-config-section with purple accent, .radio-group, .radio-option, and datetime input styles. Zero TS errors."
+      }
+    }
+  ]
+}

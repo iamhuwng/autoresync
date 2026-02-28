@@ -1,0 +1,262 @@
+{
+  "taskId": "837knl",
+  "currentVersion": 3,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "837knl",
+      "version": 1,
+      "timestamp": "2026-02-27T22:27:22.645Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Create useActiveTimeTracking.ts  per-task active time tracking via keystroke gap detection. GAP-10: taskCount is constant derived from format. All state in useRef. 5-minute gap pauses counting. Returns getActiveTime, onKeystroke, switchTask."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-3",
+            "hook",
+            "student",
+            "time-tracking",
+            "new-file",
+            "gap-10"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "All tracking state in useRef",
+              "completed": false
+            },
+            {
+              "text": "5-minute gap pauses counting",
+              "completed": false
+            },
+            {
+              "text": "switchTask saves previous task time",
+              "completed": false
+            },
+            {
+              "text": "Returns getActiveTime, onKeystroke, switchTask",
+              "completed": false
+            },
+            {
+              "text": "Intervals cleaned on unmount",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Create src/hooks/useActiveTimeTracking.ts 2. useRef for all state 3. onKeystroke: start interval, update lastKeystrokeAt 4. 5-min gap check every 1s 5. switchTask: save previous time 6. Cleanup intervals on unmount"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "GAP-10: taskCount derived by parent from format. 5-min threshold. Students dont see time  teacher only. All state in useRef to avoid re-renders."
+        }
+      ],
+      "snapshot": {
+        "title": "Create useActiveTimeTracking.ts — per-task active time tracking",
+        "description": "Create useActiveTimeTracking.ts  per-task active time tracking via keystroke gap detection. GAP-10: taskCount is constant derived from format. All state in useRef. 5-minute gap pauses counting. Returns getActiveTime, onKeystroke, switchTask.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-3",
+          "hook",
+          "student",
+          "time-tracking",
+          "new-file",
+          "gap-10"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "All tracking state in useRef",
+            "completed": false
+          },
+          {
+            "text": "5-minute gap pauses counting",
+            "completed": false
+          },
+          {
+            "text": "switchTask saves previous task time",
+            "completed": false
+          },
+          {
+            "text": "Returns getActiveTime, onKeystroke, switchTask",
+            "completed": false
+          },
+          {
+            "text": "Intervals cleaned on unmount",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Create src/hooks/useActiveTimeTracking.ts 2. useRef for all state 3. onKeystroke: start interval, update lastKeystrokeAt 4. 5-min gap check every 1s 5. switchTask: save previous time 6. Cleanup intervals on unmount",
+        "implementationNotes": "GAP-10: taskCount derived by parent from format. 5-min threshold. Students dont see time  teacher only. All state in useRef to avoid re-renders."
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "837knl",
+      "version": 2,
+      "timestamp": "2026-02-27T23:02:56.714Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "All tracking state in useRef"
+            },
+            {
+              "completed": false,
+              "text": "5-minute gap pauses counting"
+            },
+            {
+              "completed": false,
+              "text": "switchTask saves previous task time"
+            },
+            {
+              "completed": false,
+              "text": "Returns getActiveTime, onKeystroke, switchTask"
+            },
+            {
+              "completed": false,
+              "text": "Intervals cleaned on unmount"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "All tracking state in useRef"
+            },
+            {
+              "completed": true,
+              "text": "5-minute gap pauses counting"
+            },
+            {
+              "completed": true,
+              "text": "switchTask saves previous task time"
+            },
+            {
+              "completed": true,
+              "text": "Returns getActiveTime, onKeystroke, switchTask"
+            },
+            {
+              "completed": true,
+              "text": "Intervals cleaned on unmount"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "oldValue": "GAP-10: taskCount derived by parent from format. 5-min threshold. Students dont see time  teacher only. All state in useRef to avoid re-renders.",
+          "newValue": "GAP-10: taskCount derived by parent from format. 5-min threshold. Students dont see time  teacher only. All state in useRef to avoid re-renders.\n\nAll ACs verified. useActiveTimeTracking.ts fully implemented: all state in useRef (6 refs, zero useState), 5-min idle timeout pauses counting, switchTask saves previous task elapsed time, returns {getActiveTime, onKeystroke, switchTask}, interval cleaned on unmount via useEffect."
+        }
+      ],
+      "snapshot": {
+        "title": "Create useActiveTimeTracking.ts — per-task active time tracking",
+        "description": "Create useActiveTimeTracking.ts  per-task active time tracking via keystroke gap detection. GAP-10: taskCount is constant derived from format. All state in useRef. 5-minute gap pauses counting. Returns getActiveTime, onKeystroke, switchTask.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-3",
+          "hook",
+          "student",
+          "time-tracking",
+          "new-file",
+          "gap-10"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "All tracking state in useRef"
+          },
+          {
+            "completed": true,
+            "text": "5-minute gap pauses counting"
+          },
+          {
+            "completed": true,
+            "text": "switchTask saves previous task time"
+          },
+          {
+            "completed": true,
+            "text": "Returns getActiveTime, onKeystroke, switchTask"
+          },
+          {
+            "completed": true,
+            "text": "Intervals cleaned on unmount"
+          }
+        ],
+        "implementationPlan": "1. Create src/hooks/useActiveTimeTracking.ts 2. useRef for all state 3. onKeystroke: start interval, update lastKeystrokeAt 4. 5-min gap check every 1s 5. switchTask: save previous time 6. Cleanup intervals on unmount",
+        "implementationNotes": "GAP-10: taskCount derived by parent from format. 5-min threshold. Students dont see time  teacher only. All state in useRef to avoid re-renders.\n\nAll ACs verified. useActiveTimeTracking.ts fully implemented: all state in useRef (6 refs, zero useState), 5-min idle timeout pauses counting, switchTask saves previous task elapsed time, returns {getActiveTime, onKeystroke, switchTask}, interval cleaned on unmount via useEffect."
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "837knl",
+      "version": 3,
+      "timestamp": "2026-02-27T23:03:08.859Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Create useActiveTimeTracking.ts — per-task active time tracking",
+        "description": "Create useActiveTimeTracking.ts  per-task active time tracking via keystroke gap detection. GAP-10: taskCount is constant derived from format. All state in useRef. 5-minute gap pauses counting. Returns getActiveTime, onKeystroke, switchTask.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-3",
+          "hook",
+          "student",
+          "time-tracking",
+          "new-file",
+          "gap-10"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "All tracking state in useRef"
+          },
+          {
+            "completed": true,
+            "text": "5-minute gap pauses counting"
+          },
+          {
+            "completed": true,
+            "text": "switchTask saves previous task time"
+          },
+          {
+            "completed": true,
+            "text": "Returns getActiveTime, onKeystroke, switchTask"
+          },
+          {
+            "completed": true,
+            "text": "Intervals cleaned on unmount"
+          }
+        ],
+        "implementationPlan": "1. Create src/hooks/useActiveTimeTracking.ts 2. useRef for all state 3. onKeystroke: start interval, update lastKeystrokeAt 4. 5-min gap check every 1s 5. switchTask: save previous time 6. Cleanup intervals on unmount",
+        "implementationNotes": "GAP-10: taskCount derived by parent from format. 5-min threshold. Students dont see time  teacher only. All state in useRef to avoid re-renders.\n\nAll ACs verified. useActiveTimeTracking.ts fully implemented: all state in useRef (6 refs, zero useState), 5-min idle timeout pauses counting, switchTask saves previous task elapsed time, returns {getActiveTime, onKeystroke, switchTask}, interval cleaned on unmount via useEffect."
+      }
+    }
+  ]
+}

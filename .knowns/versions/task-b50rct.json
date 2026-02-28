@@ -1,0 +1,266 @@
+{
+  "taskId": "b50rct",
+  "currentVersion": 2,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "b50rct",
+      "version": 1,
+      "timestamp": "2026-02-27T22:26:59.893Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Create WritingPromptPanel.tsx  left panel (40%, flex-shrink:0) showing task header, recommended time, image for Task 1, prompt text, word minimum. Mobile: collapsible with floating Show Prompt button."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-3",
+            "component",
+            "student",
+            "new-file",
+            "no-mantine",
+            "mobile-responsive"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Panel width 40% with flex-shrink:0",
+              "completed": false
+            },
+            {
+              "text": "Shows task header, time, image, prompt, word min",
+              "completed": false
+            },
+            {
+              "text": "Mobile collapsible at 768px",
+              "completed": false
+            },
+            {
+              "text": "NO Mantine",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Create src/components/writing-student/WritingPromptPanel.tsx + CSS 2. Layout: vertical stack 3. Render all prompt fields 4. Add mobile collapse with media query"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Read-only display panel. Image from R2 URL. Mobile collapses at 768px."
+        }
+      ],
+      "snapshot": {
+        "title": "Create WritingPromptPanel.tsx — left panel with task prompt",
+        "description": "Create WritingPromptPanel.tsx  left panel (40%, flex-shrink:0) showing task header, recommended time, image for Task 1, prompt text, word minimum. Mobile: collapsible with floating Show Prompt button.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-3",
+          "component",
+          "student",
+          "new-file",
+          "no-mantine",
+          "mobile-responsive"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Panel width 40% with flex-shrink:0",
+            "completed": false
+          },
+          {
+            "text": "Shows task header, time, image, prompt, word min",
+            "completed": false
+          },
+          {
+            "text": "Mobile collapsible at 768px",
+            "completed": false
+          },
+          {
+            "text": "NO Mantine",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Create src/components/writing-student/WritingPromptPanel.tsx + CSS 2. Layout: vertical stack 3. Render all prompt fields 4. Add mobile collapse with media query",
+        "implementationNotes": "Read-only display panel. Image from R2 URL. Mobile collapses at 768px."
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "b50rct",
+      "version": 2,
+      "timestamp": "2026-02-27T22:48:51.839Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Panel width 40% with flex-shrink:0"
+            },
+            {
+              "completed": false,
+              "text": "Shows task header, time, image, prompt, word min"
+            },
+            {
+              "completed": false,
+              "text": "Mobile collapsible at 768px"
+            },
+            {
+              "completed": false,
+              "text": "NO Mantine"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": false,
+              "text": "Panel width 40% with flex-shrink:0"
+            },
+            {
+              "completed": false,
+              "text": "Shows task header, time, image, prompt, word min"
+            },
+            {
+              "completed": false,
+              "text": "Mobile collapsible at 768px"
+            },
+            {
+              "completed": false,
+              "text": "NO Mantine"
+            },
+            {
+              "text": "File at src/components/writing-student/WritingPromptPanel.tsx with companion CSS",
+              "completed": false
+            },
+            {
+              "text": "Panel width: 40% with flex-shrink: 0",
+              "completed": false
+            },
+            {
+              "text": "Displays task header (e.g., WRITING TASK 1)",
+              "completed": false
+            },
+            {
+              "text": "Shows recommended time",
+              "completed": false
+            },
+            {
+              "text": "Shows img for Task 1 image when promptImageUrl exists",
+              "completed": false
+            },
+            {
+              "text": "Displays prompt text",
+              "completed": false
+            },
+            {
+              "text": "Shows word minimum (e.g., Write at least 150 words)",
+              "completed": false
+            },
+            {
+              "text": "Mobile collapsible with Show Prompt floating button",
+              "completed": false
+            },
+            {
+              "text": "NO Mantine components",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "oldValue": "Read-only display panel. Image from R2 URL. Mobile collapses at 768px.",
+          "newValue": "Read-only display panel. Image from R2 URL. Mobile collapses at 768px.\n\nImplementation complete. File existed from prior work. Fixed task header to match IELTS format (WRITING TASK 1). Updated recommended time text to match IELTS standard phrasing. All ACs verified. No Mantine. CSS in shared WritingTestPage.css. TypeScript compiles clean."
+        }
+      ],
+      "snapshot": {
+        "title": "Create WritingPromptPanel.tsx — left panel with task prompt",
+        "description": "Create WritingPromptPanel.tsx  left panel (40%, flex-shrink:0) showing task header, recommended time, image for Task 1, prompt text, word minimum. Mobile: collapsible with floating Show Prompt button.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-3",
+          "component",
+          "student",
+          "new-file",
+          "no-mantine",
+          "mobile-responsive"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Panel width 40% with flex-shrink:0"
+          },
+          {
+            "completed": false,
+            "text": "Shows task header, time, image, prompt, word min"
+          },
+          {
+            "completed": false,
+            "text": "Mobile collapsible at 768px"
+          },
+          {
+            "completed": false,
+            "text": "NO Mantine"
+          },
+          {
+            "text": "File at src/components/writing-student/WritingPromptPanel.tsx with companion CSS",
+            "completed": false
+          },
+          {
+            "text": "Panel width: 40% with flex-shrink: 0",
+            "completed": false
+          },
+          {
+            "text": "Displays task header (e.g., WRITING TASK 1)",
+            "completed": false
+          },
+          {
+            "text": "Shows recommended time",
+            "completed": false
+          },
+          {
+            "text": "Shows img for Task 1 image when promptImageUrl exists",
+            "completed": false
+          },
+          {
+            "text": "Displays prompt text",
+            "completed": false
+          },
+          {
+            "text": "Shows word minimum (e.g., Write at least 150 words)",
+            "completed": false
+          },
+          {
+            "text": "Mobile collapsible with Show Prompt floating button",
+            "completed": false
+          },
+          {
+            "text": "NO Mantine components",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Create src/components/writing-student/WritingPromptPanel.tsx + CSS 2. Layout: vertical stack 3. Render all prompt fields 4. Add mobile collapse with media query",
+        "implementationNotes": "Read-only display panel. Image from R2 URL. Mobile collapses at 768px.\n\nImplementation complete. File existed from prior work. Fixed task header to match IELTS format (WRITING TASK 1). Updated recommended time text to match IELTS standard phrasing. All ACs verified. No Mantine. CSS in shared WritingTestPage.css. TypeScript compiles clean."
+      }
+    }
+  ]
+}

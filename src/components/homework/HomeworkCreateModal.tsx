@@ -88,6 +88,9 @@ export function HomeworkCreateModal({
         lateSubmissionAllowed: false,
     });
 
+    // Writing-specific config state
+    const [wordMinEnforced, setWordMinEnforced] = useState(true);
+
     const [availableFrom, setAvailableFrom] = useState<string>('');
     const [dueDate, setDueDate] = useState<string>('');
     const [instructions, setInstructions] = useState('');
@@ -492,12 +495,136 @@ export function HomeworkCreateModal({
                         <div className="step-content">
                             <h3 className="step-title">⚙️ Configure Settings</h3>
 
-                            <HomeworkConfigPanel
-                                config={config}
-                                onChange={setConfig}
-                                materialDefaults={selectedMaterial?.soloConfig}
-                                onSaveAsTemplate={handleSaveAsTemplate}
-                            />
+                            {/* ── Scheduling (all materials) ─────────────── */}
+                            <div className="additional-fields">
+                                <div className="field-group">
+                                    <label className="field-label">📅 Available From</label>
+                                    <input
+                                        type="datetime-local"
+                                        className="config-input"
+                                        value={availableFrom}
+                                        onChange={(e) => setAvailableFrom(e.target.value)}
+                                    />
+                                    <p className="config-hint">Leave empty to make available immediately</p>
+                                </div>
+                                <div className="field-group">
+                                    <label className="field-label">⏰ Due Date *</label>
+                                    <input
+                                        type="datetime-local"
+                                        className="config-input"
+                                        value={dueDate}
+                                        onChange={(e) => setDueDate(e.target.value)}
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            {/* ── Writing-specific config ────────────────── */}
+                            {selectedMaterial?.skill === 'writing' && (
+                                <div className="writing-config-section">
+                                    <div className="writing-config-header">
+                                        <span>✍️ Writing-Specific Settings</span>
+                                    </div>
+
+                                    {/* Late Policy Radios */}
+                                    <div className="config-section">
+                                        <label className="config-label">
+                                            <span className="label-text">📋 Late Submission Policy</span>
+                                        </label>
+                                        <div className="radio-group">
+                                            <label className="radio-option">
+                                                <input
+                                                    type="radio"
+                                                    name="latePolicy"
+                                                    checked={config.lateSubmissionAllowed}
+                                                    onChange={() => setConfig({ ...config, lateSubmissionAllowed: true })}
+                                                />
+                                                <span className="radio-label">Allow late — mark as late</span>
+                                                <span className="radio-hint">Students can still submit after the deadline, but it will be flagged</span>
+                                            </label>
+                                            <label className="radio-option">
+                                                <input
+                                                    type="radio"
+                                                    name="latePolicy"
+                                                    checked={!config.lateSubmissionAllowed}
+                                                    onChange={() => setConfig({ ...config, lateSubmissionAllowed: false })}
+                                                />
+                                                <span className="radio-label">Hard deadline — block submissions</span>
+                                                <span className="radio-hint">No submissions accepted after the due date</span>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    {/* Word Minimum Toggle */}
+                                    <div className="config-section">
+                                        <label className="config-checkbox">
+                                            <input
+                                                type="checkbox"
+                                                checked={wordMinEnforced}
+                                                onChange={(e) => setWordMinEnforced(e.target.checked)}
+                                            />
+                                            <span className="checkbox-label">📝 Enforce word minimum</span>
+                                        </label>
+                                        <p className="config-hint">
+                                            {wordMinEnforced
+                                                ? 'Students must meet Task 1 (150) / Task 2 (250) word minimums to submit'
+                                                : 'Students can submit regardless of word count (warning shown)'}
+                                        </p>
+                                    </div>
+
+                                    {/* Re-attempt Config */}
+                                    <div className="config-section">
+                                        <label className="config-label">
+                                            <span className="label-text">🔄 Re-attempts</span>
+                                        </label>
+                                        <select
+                                            className="config-select"
+                                            value={config.maxAttempts ?? ''}
+                                            onChange={(e) => {
+                                                const v = e.target.value;
+                                                setConfig({ ...config, maxAttempts: v === '' ? null : parseInt(v, 10) });
+                                            }}
+                                        >
+                                            <option value="1">1 attempt only</option>
+                                            <option value="2">2 attempts</option>
+                                            <option value="3">3 attempts</option>
+                                            <option value="">Unlimited</option>
+                                        </select>
+                                        <p className="config-hint">
+                                            Re-attempts pre-load the student's previous essay for revision
+                                        </p>
+                                    </div>
+
+                                    {/* Timer (Writing) */}
+                                    <div className="config-section">
+                                        <label className="config-label">
+                                            <span className="label-text">⏱️ Time Limit (minutes)</span>
+                                        </label>
+                                        <input
+                                            type="number"
+                                            className="config-input"
+                                            value={config.timerMinutes ?? ''}
+                                            onChange={(e) => {
+                                                const v = e.target.value;
+                                                setConfig({ ...config, timerMinutes: v === '' ? null : parseInt(v, 10) });
+                                            }}
+                                            placeholder="No time limit (recommended: 60)"
+                                            min="1"
+                                        />
+                                        <p className="config-hint">Recommended: 60 minutes for full-test, 20-40 for single task</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* ── Standard config (non-Writing) ─────────── */}
+                            {selectedMaterial?.skill !== 'writing' && (
+                                <HomeworkConfigPanel
+                                    config={config}
+                                    onChange={setConfig}
+                                    materialDefaults={selectedMaterial?.soloConfig}
+                                    onSaveAsTemplate={handleSaveAsTemplate}
+                                />
+                            )}
 
                             <div className="additional-fields">
                                 <div className="field-group">
@@ -510,6 +637,18 @@ export function HomeworkCreateModal({
                                         rows={4}
                                     />
                                 </div>
+
+                                {/* Save as Template (all materials) */}
+                                {selectedMaterial?.skill !== 'writing' && (
+                                    <button
+                                        type="button"
+                                        className="save-template-btn"
+                                        onClick={handleSaveAsTemplate}
+                                        style={{ marginTop: '0.5rem' }}
+                                    >
+                                        💾 Save as Template
+                                    </button>
+                                )}
                             </div>
                         </div>
                     )}

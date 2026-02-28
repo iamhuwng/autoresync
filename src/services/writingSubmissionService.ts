@@ -30,6 +30,7 @@ import type {
     WritingAnnotation,
     IELTSWritingTest,
 } from '../types/ielts-writing.types';
+import { notifyWritingSubmitted } from './notificationService';
 
 // ═══════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -180,6 +181,36 @@ export async function getSubmissionsForStudent(
     }
 }
 
+/**
+ * Get all submissions for a specific session code.
+ * Used by TeacherTestResultsPage when viewing writing test results.
+ */
+export async function getSubmissionsBySession(
+    sessionCode: string
+): Promise<{ success: boolean; data?: WritingSubmission[]; error?: string }> {
+    try {
+        const q = query(
+            collection(db, SUBMISSIONS_COLLECTION),
+            where('context.sessionCode', '==', sessionCode),
+            orderBy('submittedAt', 'desc')
+        );
+        const snap = await getDocs(q);
+        const submissions: WritingSubmission[] = [];
+
+        snap.forEach((docSnap) => {
+            submissions.push(docSnap.data() as WritingSubmission);
+        });
+
+        return { success: true, data: submissions };
+    } catch (error) {
+        console.error('❌ Failed to get session submissions:', error);
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to get session submissions',
+        };
+    }
+}
+
 // ═══════════════════════════════════════════════════════════════
 // AUTO-SUBMIT FROM RTDB
 // [GAP-14] Standalone function used by both WritingTestPage and 
@@ -307,6 +338,14 @@ export const autoSubmitFromRTDB = withRestoreGuard(
         );
 
         console.log('✅ Writing auto-submitted:', resultId, 'for student:', studentName);
+
+        // Fire notification (non-blocking)
+        notifyWritingSubmitted(
+            studentUid,
+            resultId,
+            testData.metadata.title,
+            'class-session'
+        ).catch(err => console.warn('[autoSubmitFromRTDB] Notification failed:', err));
     } catch (error) {
         console.error('❌ Failed to auto-submit writing:', error);
     }
@@ -319,6 +358,7 @@ const writingSubmissionService = {
     updateGrading,
     getPendingSubmissions,
     getSubmissionsForStudent,
+    getSubmissionsBySession,
     autoSubmitFromRTDB,
 };
 

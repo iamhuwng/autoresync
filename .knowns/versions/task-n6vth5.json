@@ -1,0 +1,140 @@
+{
+  "taskId": "n6vth5",
+  "currentVersion": 2,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "n6vth5",
+      "version": 1,
+      "timestamp": "2026-02-27T21:38:58.115Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Create writingTestService.ts — CRUD for writing drafts and tests",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing"
+        ],
+        "acceptanceCriteria": []
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "n6vth5",
+      "version": 2,
+      "timestamp": "2026-02-27T22:24:37.675Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Create src/services/writingTestService.ts following draftCloudService.ts pattern. Methods: saveWritingDraft, getWritingDraft, updateWritingDraft, deleteWritingDraft, getUserWritingDrafts, publishWritingTest. GAP-03: draft ID via Firestore auto-ID. GAP-08: test ID via Firebase push ID."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-1",
+            "services",
+            "firestore",
+            "rtdb",
+            "new-file",
+            "safety-rule-11"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "File at src/services/writingTestService.ts",
+              "completed": false
+            },
+            {
+              "text": "saveWritingDraft with auto-ID generation",
+              "completed": false
+            },
+            {
+              "text": "publishWritingTest writes to RTDB with skill Writing",
+              "completed": false
+            },
+            {
+              "text": "deepRemoveUndefined before all Firestore writes",
+              "completed": false
+            },
+            {
+              "text": "All writes wrapped in withRestoreGuard",
+              "completed": false
+            },
+            {
+              "text": "Follows draftCloudService pattern",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Create file 2. Import Firebase SDK, withRestoreGuard, deepRemoveUndefined 3. Study draftCloudService.ts lines 351-588 4. Implement CRUD methods 5. Implement publishWritingTest with RTDB write 6. Wrap all writes in withRestoreGuard 7. Export all"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "GAP-03: doc(collection(db, writing_drafts)).id for draft ID. GAP-08: push(ref(database, tests)).key for test ID. Safety Rule 11: withRestoreGuard on all writes. Safety Rule 14: never regenerate IDs."
+        }
+      ],
+      "snapshot": {
+        "title": "Create writingTestService.ts — CRUD for writing drafts and tests",
+        "description": "Create src/services/writingTestService.ts following draftCloudService.ts pattern. Methods: saveWritingDraft, getWritingDraft, updateWritingDraft, deleteWritingDraft, getUserWritingDrafts, publishWritingTest. GAP-03: draft ID via Firestore auto-ID. GAP-08: test ID via Firebase push ID.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-1",
+          "services",
+          "firestore",
+          "rtdb",
+          "new-file",
+          "safety-rule-11"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "File at src/services/writingTestService.ts",
+            "completed": false
+          },
+          {
+            "text": "saveWritingDraft with auto-ID generation",
+            "completed": false
+          },
+          {
+            "text": "publishWritingTest writes to RTDB with skill Writing",
+            "completed": false
+          },
+          {
+            "text": "deepRemoveUndefined before all Firestore writes",
+            "completed": false
+          },
+          {
+            "text": "All writes wrapped in withRestoreGuard",
+            "completed": false
+          },
+          {
+            "text": "Follows draftCloudService pattern",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Create file 2. Import Firebase SDK, withRestoreGuard, deepRemoveUndefined 3. Study draftCloudService.ts lines 351-588 4. Implement CRUD methods 5. Implement publishWritingTest with RTDB write 6. Wrap all writes in withRestoreGuard 7. Export all",
+        "implementationNotes": "GAP-03: doc(collection(db, writing_drafts)).id for draft ID. GAP-08: push(ref(database, tests)).key for test ID. Safety Rule 11: withRestoreGuard on all writes. Safety Rule 14: never regenerate IDs."
+      }
+    }
+  ]
+}

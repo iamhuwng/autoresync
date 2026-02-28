@@ -188,6 +188,8 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                 isHomework: true,
                 homeworkId,
                 submissionId: submission?.id || currentSubmission?.id,
+                dueDate: homework.scheduling?.dueDate,
+                lateSubmissionAllowed: homework.config?.lateSubmissionAllowed ?? false,
             },
         });
     };

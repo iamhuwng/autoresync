@@ -1,0 +1,252 @@
+{
+  "taskId": "fbtwz4",
+  "currentVersion": 3,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "fbtwz4",
+      "version": 1,
+      "timestamp": "2026-02-27T21:37:43.060Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Phase 3 completed in prior session. WritingTestPage, WritingEditor, WritingPromptPanel, WritingSubmitModal, useWritingAutoSave, useExternalPastePrevention, useActiveTimeTracking all created."
+        }
+      ],
+      "snapshot": {
+        "title": "PRD-0030: Student Writing Test Page (Live Session)",
+        "status": "done",
+        "priority": "high",
+        "labels": [
+          "prd-0030",
+          "ielts-writing"
+        ],
+        "acceptanceCriteria": [],
+        "implementationNotes": "Phase 3 completed in prior session. WritingTestPage, WritingEditor, WritingPromptPanel, WritingSubmitModal, useWritingAutoSave, useExternalPastePrevention, useActiveTimeTracking all created."
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "fbtwz4",
+      "version": 2,
+      "timestamp": "2026-02-27T22:26:40.106Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Phase 3 epic. Student live session writing test: split-panel layout (prompt 40%/editor 60%), plain textarea with word counter, external paste prevention, per-task active time tracking (5min gap), debounced RTDB auto-save, submit flow, timer auto-submit, reconnect/resume, teacher reopen."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-3",
+            "epic",
+            "student",
+            "live-session"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "All 9 subtasks completed",
+              "completed": false
+            },
+            {
+              "text": "Split panel 40/60 layout",
+              "completed": false
+            },
+            {
+              "text": "External paste blocked, internal allowed",
+              "completed": false
+            },
+            {
+              "text": "RTDB auto-save debounced 3s",
+              "completed": false
+            },
+            {
+              "text": "Timer expiry auto-submits",
+              "completed": false
+            },
+            {
+              "text": "Reconnect resumes from saved state",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. PromptPanel (3.1) 2. Editor (3.2) 3. Paste prevention hook (3.3) 4. Time tracking hook (3.4) 5. Auto-save hook (3.5) 6. Submit modal (3.6) 7. Main page assembly (3.7) 8. Submit flow (3.8) 9. TestPageRouter (3.9)"
+        },
+        {
+          "field": "implementationNotes",
+          "oldValue": "Phase 3 completed in prior session. WritingTestPage, WritingEditor, WritingPromptPanel, WritingSubmitModal, useWritingAutoSave, useExternalPastePrevention, useActiveTimeTracking all created.",
+          "newValue": "GAP-09: paste hook in useEffect. GAP-10: taskCount constant. GAP-11: props are testData+sessionCode. GAP-12: auth from useAuth. GAP-13: no Mantine in Suspense. GAP-14: submit via autoSubmitFromRTDB."
+        }
+      ],
+      "snapshot": {
+        "title": "PRD-0030: Student Writing Test Page (Live Session)",
+        "description": "Phase 3 epic. Student live session writing test: split-panel layout (prompt 40%/editor 60%), plain textarea with word counter, external paste prevention, per-task active time tracking (5min gap), debounced RTDB auto-save, submit flow, timer auto-submit, reconnect/resume, teacher reopen.",
+        "status": "done",
+        "priority": "high",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-3",
+          "epic",
+          "student",
+          "live-session"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "All 9 subtasks completed",
+            "completed": false
+          },
+          {
+            "text": "Split panel 40/60 layout",
+            "completed": false
+          },
+          {
+            "text": "External paste blocked, internal allowed",
+            "completed": false
+          },
+          {
+            "text": "RTDB auto-save debounced 3s",
+            "completed": false
+          },
+          {
+            "text": "Timer expiry auto-submits",
+            "completed": false
+          },
+          {
+            "text": "Reconnect resumes from saved state",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. PromptPanel (3.1) 2. Editor (3.2) 3. Paste prevention hook (3.3) 4. Time tracking hook (3.4) 5. Auto-save hook (3.5) 6. Submit modal (3.6) 7. Main page assembly (3.7) 8. Submit flow (3.8) 9. TestPageRouter (3.9)",
+        "implementationNotes": "GAP-09: paste hook in useEffect. GAP-10: taskCount constant. GAP-11: props are testData+sessionCode. GAP-12: auth from useAuth. GAP-13: no Mantine in Suspense. GAP-14: submit via autoSubmitFromRTDB."
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "fbtwz4",
+      "version": 3,
+      "timestamp": "2026-02-27T23:26:01.671Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "All 9 subtasks completed"
+            },
+            {
+              "completed": false,
+              "text": "Split panel 40/60 layout"
+            },
+            {
+              "completed": false,
+              "text": "External paste blocked, internal allowed"
+            },
+            {
+              "completed": false,
+              "text": "RTDB auto-save debounced 3s"
+            },
+            {
+              "completed": false,
+              "text": "Timer expiry auto-submits"
+            },
+            {
+              "completed": false,
+              "text": "Reconnect resumes from saved state"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "All 9 subtasks completed"
+            },
+            {
+              "completed": false,
+              "text": "Split panel 40/60 layout"
+            },
+            {
+              "completed": false,
+              "text": "External paste blocked, internal allowed"
+            },
+            {
+              "completed": false,
+              "text": "RTDB auto-save debounced 3s"
+            },
+            {
+              "completed": false,
+              "text": "Timer expiry auto-submits"
+            },
+            {
+              "completed": false,
+              "text": "Reconnect resumes from saved state"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "oldValue": "GAP-09: paste hook in useEffect. GAP-10: taskCount constant. GAP-11: props are testData+sessionCode. GAP-12: auth from useAuth. GAP-13: no Mantine in Suspense. GAP-14: submit via autoSubmitFromRTDB.",
+          "newValue": "GAP-09: paste hook in useEffect. GAP-10: taskCount constant. GAP-11: props are testData+sessionCode. GAP-12: auth from useAuth. GAP-13: no Mantine in Suspense. GAP-14: submit via autoSubmitFromRTDB.\n\nAll 9 subtasks completed and verified: WritingPromptPanel, WritingEditor, useExternalPastePrevention, useActiveTimeTracking, useWritingAutoSave, WritingSubmitModal, WritingTestPage, submit flow, TestPageRouter."
+        }
+      ],
+      "snapshot": {
+        "title": "PRD-0030: Student Writing Test Page (Live Session)",
+        "description": "Phase 3 epic. Student live session writing test: split-panel layout (prompt 40%/editor 60%), plain textarea with word counter, external paste prevention, per-task active time tracking (5min gap), debounced RTDB auto-save, submit flow, timer auto-submit, reconnect/resume, teacher reopen.",
+        "status": "done",
+        "priority": "high",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-3",
+          "epic",
+          "student",
+          "live-session"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "All 9 subtasks completed"
+          },
+          {
+            "completed": false,
+            "text": "Split panel 40/60 layout"
+          },
+          {
+            "completed": false,
+            "text": "External paste blocked, internal allowed"
+          },
+          {
+            "completed": false,
+            "text": "RTDB auto-save debounced 3s"
+          },
+          {
+            "completed": false,
+            "text": "Timer expiry auto-submits"
+          },
+          {
+            "completed": false,
+            "text": "Reconnect resumes from saved state"
+          }
+        ],
+        "implementationPlan": "1. PromptPanel (3.1) 2. Editor (3.2) 3. Paste prevention hook (3.3) 4. Time tracking hook (3.4) 5. Auto-save hook (3.5) 6. Submit modal (3.6) 7. Main page assembly (3.7) 8. Submit flow (3.8) 9. TestPageRouter (3.9)",
+        "implementationNotes": "GAP-09: paste hook in useEffect. GAP-10: taskCount constant. GAP-11: props are testData+sessionCode. GAP-12: auth from useAuth. GAP-13: no Mantine in Suspense. GAP-14: submit via autoSubmitFromRTDB.\n\nAll 9 subtasks completed and verified: WritingPromptPanel, WritingEditor, useExternalPastePrevention, useActiveTimeTracking, useWritingAutoSave, WritingSubmitModal, WritingTestPage, submit flow, TestPageRouter."
+      }
+    }
+  ]
+}

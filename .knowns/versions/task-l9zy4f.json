@@ -1,0 +1,126 @@
+{
+  "taskId": "l9zy4f",
+  "currentVersion": 2,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "l9zy4f",
+      "version": 1,
+      "timestamp": "2026-02-27T21:21:03.603Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Create GradingAuditTrail.tsx — previous grades history",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing"
+        ],
+        "acceptanceCriteria": []
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "l9zy4f",
+      "version": 2,
+      "timestamp": "2026-02-27T22:30:59.793Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Create GradingAuditTrail.tsx  displays re-grading history. Each entry: version, timestamp, previous scores, reason, teacher. Collapsed accordion by default. Only visible when auditTrail has entries."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-5",
+            "component",
+            "teacher",
+            "grading",
+            "audit",
+            "new-file",
+            "no-mantine"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Collapsed accordion by default",
+              "completed": false
+            },
+            {
+              "text": "Shows version, timestamp, scores, reason",
+              "completed": false
+            },
+            {
+              "text": "Only visible when entries exist",
+              "completed": false
+            },
+            {
+              "text": "Most recent entry at top",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Create component + CSS 2. Check if auditTrail has entries 3. Render collapsible section 4. Display entries in reverse chronological order"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Created on re-grading (task 5.10). Reason mandatory for re-grading. Only teacher sees audit trail  student sees latest only."
+        }
+      ],
+      "snapshot": {
+        "title": "Create GradingAuditTrail.tsx — previous grades history",
+        "description": "Create GradingAuditTrail.tsx  displays re-grading history. Each entry: version, timestamp, previous scores, reason, teacher. Collapsed accordion by default. Only visible when auditTrail has entries.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-5",
+          "component",
+          "teacher",
+          "grading",
+          "audit",
+          "new-file",
+          "no-mantine"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Collapsed accordion by default",
+            "completed": false
+          },
+          {
+            "text": "Shows version, timestamp, scores, reason",
+            "completed": false
+          },
+          {
+            "text": "Only visible when entries exist",
+            "completed": false
+          },
+          {
+            "text": "Most recent entry at top",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Create component + CSS 2. Check if auditTrail has entries 3. Render collapsible section 4. Display entries in reverse chronological order",
+        "implementationNotes": "Created on re-grading (task 5.10). Reason mandatory for re-grading. Only teacher sees audit trail  student sees latest only."
+      }
+    }
+  ]
+}

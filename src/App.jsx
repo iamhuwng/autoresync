@@ -259,7 +259,7 @@ function App() {
           {/* PRD-0030: IELTS Writing Test System */}
           <Route path="/teacher/writing-test/create" element={<PrivateRoute allowedRoles={['teacher', 'super_admin']}><ErrorBoundary><WritingTestBuilder /></ErrorBoundary></PrivateRoute>} />
           <Route path="/teacher/writing-test/edit/:draftId" element={<PrivateRoute allowedRoles={['teacher', 'super_admin']}><ErrorBoundary><WritingTestBuilder /></ErrorBoundary></PrivateRoute>} />
-          <Route path="/teacher/grading/writing" element={<PrivateRoute allowedRoles={['teacher', 'super_admin']}><ErrorBoundary><WritingGradingQueuePage /></ErrorBoundary></PrivateRoute>} />
+          <Route path="/teacher/grading/writing" element={<PrivateRoute allowedRoles={['teacher', 'super_admin']}><ErrorBoundary><TeacherGradingPage /></ErrorBoundary></PrivateRoute>} />
           <Route path="/teacher/grading/writing/:submissionId" element={<PrivateRoute allowedRoles={['teacher', 'super_admin']}><ErrorBoundary><WritingGradingPage /></ErrorBoundary></PrivateRoute>} />
 
           {/* Student Routes */}

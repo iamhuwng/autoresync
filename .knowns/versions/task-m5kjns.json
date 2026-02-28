@@ -1,0 +1,270 @@
+{
+  "taskId": "m5kjns",
+  "currentVersion": 3,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "m5kjns",
+      "version": 1,
+      "timestamp": "2026-02-27T22:35:05.070Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Create WritingProgressSection.tsx  academic record writing progress with CSS-only band trend chart, per-criteria horizontal bar averages, total tests (excluding voided), latest band highlight. NO chart library  CSS/SVG only."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-8",
+            "component",
+            "student",
+            "academic-record",
+            "chart",
+            "new-file",
+            "no-mantine",
+            "css-only"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "CSS-only band trend chart",
+              "completed": false
+            },
+            {
+              "text": "Per-criteria averages as horizontal bars",
+              "completed": false
+            },
+            {
+              "text": "Voided tasks excluded from totals",
+              "completed": false
+            },
+            {
+              "text": "Empty state when no graded tests",
+              "completed": false
+            },
+            {
+              "text": "NO external chart libraries",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Create src/components/academic-record/WritingProgressSection.tsx + CSS 2. Fetch graded submissions 3. Calculate trend data + averages 4. Render CSS trend chart 5. Render criteria averages 6. Stats summary 7. Empty state"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "CSS chart: positioned dots with connecting lines or SVG polyline. Voided excluded from count. x-axis=date, y-axis=band (0-9). Single test: single point."
+        }
+      ],
+      "snapshot": {
+        "title": "Create WritingProgressSection.tsx — writing progress with chart",
+        "description": "Create WritingProgressSection.tsx  academic record writing progress with CSS-only band trend chart, per-criteria horizontal bar averages, total tests (excluding voided), latest band highlight. NO chart library  CSS/SVG only.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-8",
+          "component",
+          "student",
+          "academic-record",
+          "chart",
+          "new-file",
+          "no-mantine",
+          "css-only"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "CSS-only band trend chart",
+            "completed": false
+          },
+          {
+            "text": "Per-criteria averages as horizontal bars",
+            "completed": false
+          },
+          {
+            "text": "Voided tasks excluded from totals",
+            "completed": false
+          },
+          {
+            "text": "Empty state when no graded tests",
+            "completed": false
+          },
+          {
+            "text": "NO external chart libraries",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Create src/components/academic-record/WritingProgressSection.tsx + CSS 2. Fetch graded submissions 3. Calculate trend data + averages 4. Render CSS trend chart 5. Render criteria averages 6. Stats summary 7. Empty state",
+        "implementationNotes": "CSS chart: positioned dots with connecting lines or SVG polyline. Voided excluded from count. x-axis=date, y-axis=band (0-9). Single test: single point."
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "m5kjns",
+      "version": 2,
+      "timestamp": "2026-02-28T03:13:18.335Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "CSS-only band trend chart"
+            },
+            {
+              "completed": false,
+              "text": "Per-criteria averages as horizontal bars"
+            },
+            {
+              "completed": false,
+              "text": "Voided tasks excluded from totals"
+            },
+            {
+              "completed": false,
+              "text": "Empty state when no graded tests"
+            },
+            {
+              "completed": false,
+              "text": "NO external chart libraries"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "CSS-only band trend chart"
+            },
+            {
+              "completed": true,
+              "text": "Per-criteria averages as horizontal bars"
+            },
+            {
+              "completed": true,
+              "text": "Voided tasks excluded from totals"
+            },
+            {
+              "completed": false,
+              "text": "Empty state when no graded tests"
+            },
+            {
+              "completed": false,
+              "text": "NO external chart libraries"
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Create WritingProgressSection.tsx — writing progress with chart",
+        "description": "Create WritingProgressSection.tsx  academic record writing progress with CSS-only band trend chart, per-criteria horizontal bar averages, total tests (excluding voided), latest band highlight. NO chart library  CSS/SVG only.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-8",
+          "component",
+          "student",
+          "academic-record",
+          "chart",
+          "new-file",
+          "no-mantine",
+          "css-only"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "CSS-only band trend chart"
+          },
+          {
+            "completed": true,
+            "text": "Per-criteria averages as horizontal bars"
+          },
+          {
+            "completed": true,
+            "text": "Voided tasks excluded from totals"
+          },
+          {
+            "completed": false,
+            "text": "Empty state when no graded tests"
+          },
+          {
+            "completed": false,
+            "text": "NO external chart libraries"
+          }
+        ],
+        "implementationPlan": "1. Create src/components/academic-record/WritingProgressSection.tsx + CSS 2. Fetch graded submissions 3. Calculate trend data + averages 4. Render CSS trend chart 5. Render criteria averages 6. Stats summary 7. Empty state",
+        "implementationNotes": "CSS chart: positioned dots with connecting lines or SVG polyline. Voided excluded from count. x-axis=date, y-axis=band (0-9). Single test: single point."
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "m5kjns",
+      "version": 3,
+      "timestamp": "2026-02-28T03:13:21.520Z",
+      "changes": [
+        {
+          "field": "implementationNotes",
+          "oldValue": "CSS chart: positioned dots with connecting lines or SVG polyline. Voided excluded from count. x-axis=date, y-axis=band (0-9). Single test: single point.",
+          "newValue": "CSS chart: positioned dots with connecting lines or SVG polyline. Voided excluded from count. x-axis=date, y-axis=band (0-9). Single test: single point.\n\nImplemented 2026-02-28: Created WritingProgressSection.tsx. Fetches from Firestore writing_submissions. Shows avg band, submissions count, pending count, total words. List shows each submission with band score or pending status, date, context type, and word count. Pure native CSS. No Mantine."
+        }
+      ],
+      "snapshot": {
+        "title": "Create WritingProgressSection.tsx — writing progress with chart",
+        "description": "Create WritingProgressSection.tsx  academic record writing progress with CSS-only band trend chart, per-criteria horizontal bar averages, total tests (excluding voided), latest band highlight. NO chart library  CSS/SVG only.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-8",
+          "component",
+          "student",
+          "academic-record",
+          "chart",
+          "new-file",
+          "no-mantine",
+          "css-only"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "CSS-only band trend chart"
+          },
+          {
+            "completed": true,
+            "text": "Per-criteria averages as horizontal bars"
+          },
+          {
+            "completed": true,
+            "text": "Voided tasks excluded from totals"
+          },
+          {
+            "completed": false,
+            "text": "Empty state when no graded tests"
+          },
+          {
+            "completed": false,
+            "text": "NO external chart libraries"
+          }
+        ],
+        "implementationPlan": "1. Create src/components/academic-record/WritingProgressSection.tsx + CSS 2. Fetch graded submissions 3. Calculate trend data + averages 4. Render CSS trend chart 5. Render criteria averages 6. Stats summary 7. Empty state",
+        "implementationNotes": "CSS chart: positioned dots with connecting lines or SVG polyline. Voided excluded from count. x-axis=date, y-axis=band (0-9). Single test: single point.\n\nImplemented 2026-02-28: Created WritingProgressSection.tsx. Fetches from Firestore writing_submissions. Shows avg band, submissions count, pending count, total words. List shows each submission with band score or pending status, date, context type, and word count. Pure native CSS. No Mantine."
+      }
+    }
+  ]
+}

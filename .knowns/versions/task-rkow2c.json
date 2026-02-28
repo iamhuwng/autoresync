@@ -1,0 +1,259 @@
+{
+  "taskId": "rkow2c",
+  "currentVersion": 4,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "rkow2c",
+      "version": 1,
+      "timestamp": "2026-02-27T22:34:18.822Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Update StudentPracticePage.tsx  add case Writing that renders WritingPracticeView. Lazy import. Suspense with CSS spinner (no Mantine/LoadingState). Follow existing skill routing pattern."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-7",
+            "routing",
+            "modify-file",
+            "safety-rule-8",
+            "gap-13",
+            "no-mantine"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Writing case renders WritingPracticeView",
+              "completed": false
+            },
+            {
+              "text": "Lazy import with CSS spinner",
+              "completed": false
+            },
+            {
+              "text": "Existing skill cases preserved",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Add lazy import 2. Add Writing case 3. Wrap in Suspense with CSS spinner 4. Pass testData and materialId 5. Preserve existing cases"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Follow existing skill case pattern. GAP-13: no Mantine in Suspense. Safety Rule 8: must be rendered."
+        }
+      ],
+      "snapshot": {
+        "title": "Update StudentPracticePage.tsx — add Writing branch",
+        "description": "Update StudentPracticePage.tsx  add case Writing that renders WritingPracticeView. Lazy import. Suspense with CSS spinner (no Mantine/LoadingState). Follow existing skill routing pattern.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-7",
+          "routing",
+          "modify-file",
+          "safety-rule-8",
+          "gap-13",
+          "no-mantine"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Writing case renders WritingPracticeView",
+            "completed": false
+          },
+          {
+            "text": "Lazy import with CSS spinner",
+            "completed": false
+          },
+          {
+            "text": "Existing skill cases preserved",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Add lazy import 2. Add Writing case 3. Wrap in Suspense with CSS spinner 4. Pass testData and materialId 5. Preserve existing cases",
+        "implementationNotes": "Follow existing skill case pattern. GAP-13: no Mantine in Suspense. Safety Rule 8: must be rendered."
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "rkow2c",
+      "version": 2,
+      "timestamp": "2026-02-28T02:56:47.821Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        }
+      ],
+      "snapshot": {
+        "title": "Update StudentPracticePage.tsx — add Writing branch",
+        "description": "Update StudentPracticePage.tsx  add case Writing that renders WritingPracticeView. Lazy import. Suspense with CSS spinner (no Mantine/LoadingState). Follow existing skill routing pattern.",
+        "status": "in-progress",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-7",
+          "routing",
+          "modify-file",
+          "safety-rule-8",
+          "gap-13",
+          "no-mantine"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Writing case renders WritingPracticeView"
+          },
+          {
+            "completed": false,
+            "text": "Lazy import with CSS spinner"
+          },
+          {
+            "completed": false,
+            "text": "Existing skill cases preserved"
+          }
+        ],
+        "implementationPlan": "1. Add lazy import 2. Add Writing case 3. Wrap in Suspense with CSS spinner 4. Pass testData and materialId 5. Preserve existing cases",
+        "implementationNotes": "Follow existing skill case pattern. GAP-13: no Mantine in Suspense. Safety Rule 8: must be rendered."
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "rkow2c",
+      "version": 3,
+      "timestamp": "2026-02-28T02:58:43.657Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Writing case renders WritingPracticeView"
+            },
+            {
+              "completed": false,
+              "text": "Lazy import with CSS spinner"
+            },
+            {
+              "completed": false,
+              "text": "Existing skill cases preserved"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Writing case renders WritingPracticeView"
+            },
+            {
+              "completed": true,
+              "text": "Lazy import with CSS spinner"
+            },
+            {
+              "completed": true,
+              "text": "Existing skill cases preserved"
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Update StudentPracticePage.tsx — add Writing branch",
+        "description": "Update StudentPracticePage.tsx  add case Writing that renders WritingPracticeView. Lazy import. Suspense with CSS spinner (no Mantine/LoadingState). Follow existing skill routing pattern.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-7",
+          "routing",
+          "modify-file",
+          "safety-rule-8",
+          "gap-13",
+          "no-mantine"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Writing case renders WritingPracticeView"
+          },
+          {
+            "completed": true,
+            "text": "Lazy import with CSS spinner"
+          },
+          {
+            "completed": true,
+            "text": "Existing skill cases preserved"
+          }
+        ],
+        "implementationPlan": "1. Add lazy import 2. Add Writing case 3. Wrap in Suspense with CSS spinner 4. Pass testData and materialId 5. Preserve existing cases",
+        "implementationNotes": "Follow existing skill case pattern. GAP-13: no Mantine in Suspense. Safety Rule 8: must be rendered."
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "rkow2c",
+      "version": 4,
+      "timestamp": "2026-02-28T02:58:46.834Z",
+      "changes": [
+        {
+          "field": "implementationNotes",
+          "oldValue": "Follow existing skill case pattern. GAP-13: no Mantine in Suspense. Safety Rule 8: must be rendered.",
+          "newValue": "Follow existing skill case pattern. GAP-13: no Mantine in Suspense. Safety Rule 8: must be rendered.\n\nImplemented 2026-02-28: Added Writing branch to StudentPracticePage. Reads skill field from RTDB alongside testType. When IELTS+Writing detected, loads full test data and renders WritingPracticeView via lazy import with Suspense + CSS spinner. Existing IELTS/THCS branches preserved. Zero TS errors."
+        }
+      ],
+      "snapshot": {
+        "title": "Update StudentPracticePage.tsx — add Writing branch",
+        "description": "Update StudentPracticePage.tsx  add case Writing that renders WritingPracticeView. Lazy import. Suspense with CSS spinner (no Mantine/LoadingState). Follow existing skill routing pattern.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-7",
+          "routing",
+          "modify-file",
+          "safety-rule-8",
+          "gap-13",
+          "no-mantine"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Writing case renders WritingPracticeView"
+          },
+          {
+            "completed": true,
+            "text": "Lazy import with CSS spinner"
+          },
+          {
+            "completed": true,
+            "text": "Existing skill cases preserved"
+          }
+        ],
+        "implementationPlan": "1. Add lazy import 2. Add Writing case 3. Wrap in Suspense with CSS spinner 4. Pass testData and materialId 5. Preserve existing cases",
+        "implementationNotes": "Follow existing skill case pattern. GAP-13: no Mantine in Suspense. Safety Rule 8: must be rendered.\n\nImplemented 2026-02-28: Added Writing branch to StudentPracticePage. Reads skill field from RTDB alongside testType. When IELTS+Writing detected, loads full test data and renders WritingPracticeView via lazy import with Suspense + CSS spinner. Existing IELTS/THCS branches preserved. Zero TS errors."
+      }
+    }
+  ]
+}

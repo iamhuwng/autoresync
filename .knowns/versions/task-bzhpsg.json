@@ -1,0 +1,130 @@
+{
+  "taskId": "bzhpsg",
+  "currentVersion": 2,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "bzhpsg",
+      "version": 1,
+      "timestamp": "2026-02-27T21:20:48.256Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Create CategoryManager.tsx — annotation category management",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing"
+        ],
+        "acceptanceCriteria": []
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "bzhpsg",
+      "version": 2,
+      "timestamp": "2026-02-27T22:30:46.006Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Create CategoryManager.tsx  manages custom annotation categories per teacher. Auto-populates 4 defaults (TA/red, CC/blue, LR/green, GRA/purple) on first load. Add/edit/delete custom categories. Saves via writingAnnotationService."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-5",
+            "component",
+            "teacher",
+            "grading",
+            "annotations",
+            "categories",
+            "new-file",
+            "no-mantine",
+            "gap-24"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Auto-populates 4 defaults on first use",
+              "completed": false
+            },
+            {
+              "text": "Default categories not deletable",
+              "completed": false
+            },
+            {
+              "text": "Add/edit/delete custom categories",
+              "completed": false
+            },
+            {
+              "text": "Saves via annotationService",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Create component + CSS 2. Load categories on mount 3. Auto-populate defaults if empty 4. Render list with edit controls 5. Add category button 6. Wire save 7. Prevent default deletion"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "GAP-24: per-teacher storage. Default colors: TA=#ef4444, CC=#3b82f6, LR=#22c55e, GRA=#8b5cf6. Custom suggestions: SPL, FMT, VOC."
+        }
+      ],
+      "snapshot": {
+        "title": "Create CategoryManager.tsx — annotation category management",
+        "description": "Create CategoryManager.tsx  manages custom annotation categories per teacher. Auto-populates 4 defaults (TA/red, CC/blue, LR/green, GRA/purple) on first load. Add/edit/delete custom categories. Saves via writingAnnotationService.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-5",
+          "component",
+          "teacher",
+          "grading",
+          "annotations",
+          "categories",
+          "new-file",
+          "no-mantine",
+          "gap-24"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Auto-populates 4 defaults on first use",
+            "completed": false
+          },
+          {
+            "text": "Default categories not deletable",
+            "completed": false
+          },
+          {
+            "text": "Add/edit/delete custom categories",
+            "completed": false
+          },
+          {
+            "text": "Saves via annotationService",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Create component + CSS 2. Load categories on mount 3. Auto-populate defaults if empty 4. Render list with edit controls 5. Add category button 6. Wire save 7. Prevent default deletion",
+        "implementationNotes": "GAP-24: per-teacher storage. Default colors: TA=#ef4444, CC=#3b82f6, LR=#22c55e, GRA=#8b5cf6. Custom suggestions: SPL, FMT, VOC."
+      }
+    }
+  ]
+}

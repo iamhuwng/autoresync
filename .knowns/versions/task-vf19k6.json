@@ -1,0 +1,212 @@
+{
+  "taskId": "vf19k6",
+  "currentVersion": 3,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "vf19k6",
+      "version": 1,
+      "timestamp": "2026-02-27T21:37:50.765Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Phase 4 completed in prior session. WritingMonitorCard, WritingPeekModal, TeacherTestMonitorPage updated."
+        }
+      ],
+      "snapshot": {
+        "title": "PRD-0030: Teacher Test Monitor (Writing-Specific)",
+        "status": "done",
+        "priority": "high",
+        "labels": [
+          "prd-0030",
+          "ielts-writing"
+        ],
+        "acceptanceCriteria": [],
+        "implementationNotes": "Phase 4 completed in prior session. WritingMonitorCard, WritingPeekModal, TeacherTestMonitorPage updated."
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "vf19k6",
+      "version": 2,
+      "timestamp": "2026-02-27T22:28:41.802Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Phase 4 epic. Writing-specific additions to TeacherTestMonitorPage: per-student WritingMonitorCard with word count and active task, WritingPeekModal for real-time essay viewing, end-session auto-submit for all un-submitted students."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-4",
+            "epic",
+            "teacher",
+            "monitor"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "All 3 subtasks completed",
+              "completed": false
+            },
+            {
+              "text": "Per-student cards with writing data",
+              "completed": false
+            },
+            {
+              "text": "Peek modal with real-time essay",
+              "completed": false
+            },
+            {
+              "text": "End session auto-submits all students",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Create WritingMonitorCard (4.1) 2. Create WritingPeekModal (4.2) 3. Update TeacherTestMonitorPage (4.3)"
+        },
+        {
+          "field": "implementationNotes",
+          "oldValue": "Phase 4 completed in prior session. WritingMonitorCard, WritingPeekModal, TeacherTestMonitorPage updated.",
+          "newValue": "Adds to existing monitor  not a separate page. Monitor subscribes to RTDB. End-session uses autoSubmitFromRTDB. Peek is invisible to student."
+        }
+      ],
+      "snapshot": {
+        "title": "PRD-0030: Teacher Test Monitor (Writing-Specific)",
+        "description": "Phase 4 epic. Writing-specific additions to TeacherTestMonitorPage: per-student WritingMonitorCard with word count and active task, WritingPeekModal for real-time essay viewing, end-session auto-submit for all un-submitted students.",
+        "status": "done",
+        "priority": "high",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-4",
+          "epic",
+          "teacher",
+          "monitor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "All 3 subtasks completed",
+            "completed": false
+          },
+          {
+            "text": "Per-student cards with writing data",
+            "completed": false
+          },
+          {
+            "text": "Peek modal with real-time essay",
+            "completed": false
+          },
+          {
+            "text": "End session auto-submits all students",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Create WritingMonitorCard (4.1) 2. Create WritingPeekModal (4.2) 3. Update TeacherTestMonitorPage (4.3)",
+        "implementationNotes": "Adds to existing monitor  not a separate page. Monitor subscribes to RTDB. End-session uses autoSubmitFromRTDB. Peek is invisible to student."
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "vf19k6",
+      "version": 3,
+      "timestamp": "2026-02-27T23:34:43.983Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "All 3 subtasks completed"
+            },
+            {
+              "completed": false,
+              "text": "Per-student cards with writing data"
+            },
+            {
+              "completed": false,
+              "text": "Peek modal with real-time essay"
+            },
+            {
+              "completed": false,
+              "text": "End session auto-submits all students"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "All 3 subtasks completed"
+            },
+            {
+              "completed": false,
+              "text": "Per-student cards with writing data"
+            },
+            {
+              "completed": false,
+              "text": "Peek modal with real-time essay"
+            },
+            {
+              "completed": false,
+              "text": "End session auto-submits all students"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "oldValue": "Adds to existing monitor  not a separate page. Monitor subscribes to RTDB. End-session uses autoSubmitFromRTDB. Peek is invisible to student.",
+          "newValue": "Adds to existing monitor  not a separate page. Monitor subscribes to RTDB. End-session uses autoSubmitFromRTDB. Peek is invisible to student.\n\nAll 3 subtasks completed: WritingMonitorCard (oz6wo6), WritingPeekModal (ofz7n9), TeacherTestMonitorPage integration (gg82bg)."
+        }
+      ],
+      "snapshot": {
+        "title": "PRD-0030: Teacher Test Monitor (Writing-Specific)",
+        "description": "Phase 4 epic. Writing-specific additions to TeacherTestMonitorPage: per-student WritingMonitorCard with word count and active task, WritingPeekModal for real-time essay viewing, end-session auto-submit for all un-submitted students.",
+        "status": "done",
+        "priority": "high",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-4",
+          "epic",
+          "teacher",
+          "monitor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "All 3 subtasks completed"
+          },
+          {
+            "completed": false,
+            "text": "Per-student cards with writing data"
+          },
+          {
+            "completed": false,
+            "text": "Peek modal with real-time essay"
+          },
+          {
+            "completed": false,
+            "text": "End session auto-submits all students"
+          }
+        ],
+        "implementationPlan": "1. Create WritingMonitorCard (4.1) 2. Create WritingPeekModal (4.2) 3. Update TeacherTestMonitorPage (4.3)",
+        "implementationNotes": "Adds to existing monitor  not a separate page. Monitor subscribes to RTDB. End-session uses autoSubmitFromRTDB. Peek is invisible to student.\n\nAll 3 subtasks completed: WritingMonitorCard (oz6wo6), WritingPeekModal (ofz7n9), TeacherTestMonitorPage integration (gg82bg)."
+      }
+    }
+  ]
+}

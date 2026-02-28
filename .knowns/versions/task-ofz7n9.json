@@ -1,0 +1,246 @@
+{
+  "taskId": "ofz7n9",
+  "currentVersion": 3,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "ofz7n9",
+      "version": 1,
+      "timestamp": "2026-02-27T22:28:54.159Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Create WritingPeekModal.tsx  native HTML/CSS modal showing real-time essay text from RTDB. Read-only display. Tab switching for full test. Word count and active time shown."
+        },
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-4",
+            "component",
+            "teacher",
+            "monitor",
+            "modal",
+            "rtdb",
+            "new-file",
+            "no-mantine"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Real-time RTDB subscription",
+              "completed": false
+            },
+            {
+              "text": "Read-only essay display",
+              "completed": false
+            },
+            {
+              "text": "Tab switching for full test",
+              "completed": false
+            },
+            {
+              "text": "Cleanup on close/unmount",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Create src/components/writing-monitor/WritingPeekModal.tsx + CSS 2. Subscribe to RTDB on open 3. Display read-only essay 4. Add tab bar for multi-task 5. Show stats 6. Cleanup on close"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Peek invisible to student  no RTDB write for peek. Essay updates real-time. Modal ~80% viewport width."
+        }
+      ],
+      "snapshot": {
+        "title": "Create WritingPeekModal.tsx — real-time essay peek modal",
+        "description": "Create WritingPeekModal.tsx  native HTML/CSS modal showing real-time essay text from RTDB. Read-only display. Tab switching for full test. Word count and active time shown.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-4",
+          "component",
+          "teacher",
+          "monitor",
+          "modal",
+          "rtdb",
+          "new-file",
+          "no-mantine"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Real-time RTDB subscription",
+            "completed": false
+          },
+          {
+            "text": "Read-only essay display",
+            "completed": false
+          },
+          {
+            "text": "Tab switching for full test",
+            "completed": false
+          },
+          {
+            "text": "Cleanup on close/unmount",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Create src/components/writing-monitor/WritingPeekModal.tsx + CSS 2. Subscribe to RTDB on open 3. Display read-only essay 4. Add tab bar for multi-task 5. Show stats 6. Cleanup on close",
+        "implementationNotes": "Peek invisible to student  no RTDB write for peek. Essay updates real-time. Modal ~80% viewport width."
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "ofz7n9",
+      "version": 2,
+      "timestamp": "2026-02-27T23:32:20.834Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Real-time RTDB subscription"
+            },
+            {
+              "completed": false,
+              "text": "Read-only essay display"
+            },
+            {
+              "completed": false,
+              "text": "Tab switching for full test"
+            },
+            {
+              "completed": false,
+              "text": "Cleanup on close/unmount"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Real-time RTDB subscription"
+            },
+            {
+              "completed": true,
+              "text": "Read-only essay display"
+            },
+            {
+              "completed": true,
+              "text": "Tab switching for full test"
+            },
+            {
+              "completed": true,
+              "text": "Cleanup on close/unmount"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "oldValue": "Peek invisible to student  no RTDB write for peek. Essay updates real-time. Modal ~80% viewport width.",
+          "newValue": "Peek invisible to student  no RTDB write for peek. Essay updates real-time. Modal ~80% viewport width.\n\nAll ACs verified. WritingPeekModal.tsx fully implemented: real-time RTDB subscription via onValue (only when open), read-only essay display in pre-wrap div, tab switching for full-test format, cleanup via unsub() on close/unmount. No RTDB writes (invisible to student). Word count shown in footer with color coding."
+        }
+      ],
+      "snapshot": {
+        "title": "Create WritingPeekModal.tsx — real-time essay peek modal",
+        "description": "Create WritingPeekModal.tsx  native HTML/CSS modal showing real-time essay text from RTDB. Read-only display. Tab switching for full test. Word count and active time shown.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-4",
+          "component",
+          "teacher",
+          "monitor",
+          "modal",
+          "rtdb",
+          "new-file",
+          "no-mantine"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Real-time RTDB subscription"
+          },
+          {
+            "completed": true,
+            "text": "Read-only essay display"
+          },
+          {
+            "completed": true,
+            "text": "Tab switching for full test"
+          },
+          {
+            "completed": true,
+            "text": "Cleanup on close/unmount"
+          }
+        ],
+        "implementationPlan": "1. Create src/components/writing-monitor/WritingPeekModal.tsx + CSS 2. Subscribe to RTDB on open 3. Display read-only essay 4. Add tab bar for multi-task 5. Show stats 6. Cleanup on close",
+        "implementationNotes": "Peek invisible to student  no RTDB write for peek. Essay updates real-time. Modal ~80% viewport width.\n\nAll ACs verified. WritingPeekModal.tsx fully implemented: real-time RTDB subscription via onValue (only when open), read-only essay display in pre-wrap div, tab switching for full-test format, cleanup via unsub() on close/unmount. No RTDB writes (invisible to student). Word count shown in footer with color coding."
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "ofz7n9",
+      "version": 3,
+      "timestamp": "2026-02-27T23:32:44.153Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Create WritingPeekModal.tsx — real-time essay peek modal",
+        "description": "Create WritingPeekModal.tsx  native HTML/CSS modal showing real-time essay text from RTDB. Read-only display. Tab switching for full test. Word count and active time shown.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-4",
+          "component",
+          "teacher",
+          "monitor",
+          "modal",
+          "rtdb",
+          "new-file",
+          "no-mantine"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Real-time RTDB subscription"
+          },
+          {
+            "completed": true,
+            "text": "Read-only essay display"
+          },
+          {
+            "completed": true,
+            "text": "Tab switching for full test"
+          },
+          {
+            "completed": true,
+            "text": "Cleanup on close/unmount"
+          }
+        ],
+        "implementationPlan": "1. Create src/components/writing-monitor/WritingPeekModal.tsx + CSS 2. Subscribe to RTDB on open 3. Display read-only essay 4. Add tab bar for multi-task 5. Show stats 6. Cleanup on close",
+        "implementationNotes": "Peek invisible to student  no RTDB write for peek. Essay updates real-time. Modal ~80% viewport width.\n\nAll ACs verified. WritingPeekModal.tsx fully implemented: real-time RTDB subscription via onValue (only when open), read-only essay display in pre-wrap div, tab switching for full-test format, cleanup via unsub() on close/unmount. No RTDB writes (invisible to student). Word count shown in footer with color coding."
+      }
+    }
+  ]
+}

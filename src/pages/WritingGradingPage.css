@@ -1,0 +1,222 @@
+/**
+ * WritingGradingPage CSS — PRD-0030 Task 5.9
+ */
+
+.wgp-page {
+    min-height: 100vh;
+    background: #f8fafc;
+}
+
+.wgp-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 2rem;
+    background: #fff;
+    border-bottom: 1px solid #e2e8f0;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.wgp-header-left {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.wgp-back-btn {
+    padding: 6px 14px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: #475569;
+}
+
+.wgp-back-btn:hover {
+    background: #f1f5f9;
+}
+
+.wgp-student-name {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.wgp-header-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.wgp-tab-bar {
+    display: flex;
+    gap: 4px;
+    padding: 0.75rem 2rem;
+    background: #fff;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.wgp-tab {
+    padding: 8px 20px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #64748b;
+    transition: all 0.15s;
+}
+
+.wgp-tab--active {
+    background: #3b82f6;
+    color: #fff;
+    border-color: #3b82f6;
+}
+
+.wgp-content {
+    display: flex;
+    gap: 1.5rem;
+    padding: 1.5rem 2rem;
+    max-width: 1600px;
+    margin: 0 auto;
+}
+
+.wgp-left {
+    flex: 0 0 55%;
+    min-width: 0;
+}
+
+.wgp-right {
+    flex: 0 0 calc(45% - 1.5rem);
+    min-width: 0;
+}
+
+.wgp-section {
+    margin-bottom: 1rem;
+}
+
+.wgp-section-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.5rem;
+}
+
+.wgp-prompt-toggle {
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: #64748b;
+    width: 100%;
+    text-align: left;
+}
+
+.wgp-prompt-content {
+    padding: 1rem;
+    background: #f8fafc;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    color: #334155;
+    line-height: 1.6;
+}
+
+.wgp-meta-line {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.75rem;
+    color: #94a3b8;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #f1f5f9;
+    flex-wrap: wrap;
+}
+
+.wgp-model-toggle {
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    cursor: pointer;
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+.wgp-model-answer {
+    padding: 1rem;
+    background: #f0fdf4;
+    border-radius: 8px;
+    border: 1px solid #bbf7d0;
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    color: #15803d;
+    line-height: 1.6;
+    white-space: pre-wrap;
+}
+
+/* Bottom bar */
+.wgp-bottom-bar {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 2rem;
+    background: #fff;
+    border-top: 1px solid #e2e8f0;
+    z-index: 10;
+}
+
+.wgp-overall-band {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #1d4ed8;
+}
+
+.wgp-nav-buttons {
+    display: flex;
+    gap: 0.5rem;
+}
+
+/* Loading */
+.wgp-loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 60vh;
+}
+
+.wgp-spinner {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 4px solid rgba(59, 130, 246, 0.15);
+    border-top-color: #3b82f6;
+    animation: wgp-spin 1s linear infinite;
+}
+
+@keyframes wgp-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (max-width: 1024px) {
+    .wgp-content {
+        flex-direction: column;
+    }
+
+    .wgp-left,
+    .wgp-right {
+        flex: 1 1 100%;
+    }
+}

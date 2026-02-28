@@ -1,0 +1,329 @@
+{
+  "taskId": "6ibc3h",
+  "currentVersion": 4,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "6ibc3h",
+      "version": 1,
+      "timestamp": "2026-02-27T21:53:57.922Z",
+      "changes": [
+        {
+          "field": "description",
+          "newValue": "Create SubmitToTeacherModal.tsx  native HTML/CSS modal (NO Mantine). Props: isOpen, onClose, onSubmit, studentTeachers: Array<{ id: string; name: string }>, tasks: Array<{ taskNumber: number; wordCount: number }>. Contains: <select> dropdown of enrolled teachers (auto-selected if only 1 teacher, still shown disabled), optional note textarea for student message to teacher, word count summary per task, Submit and Cancel buttons. On submit: parent component saves to Firestore as context.type 'solo-practice' with selectedTeacherId, creates RTDB result index, sends notification to teacher via writingSubmissionService, clears localStorage practice data, shows success toast. No-teacher case: save without selectedTeacherId, show 'saved for self-review' message instead of teacher selection."
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "SubmitToTeacherModal.tsx created at src/components/writing-practice/SubmitToTeacherModal.tsx|Uses native HTML/CSS modal  NO Mantine components|Props interface includes isOpen, onClose, onSubmit, studentTeachers, tasks|<select> dropdown shows enrolled teachers|Auto-selects if only 1 teacher (shown disabled)|Optional note textarea for student message|Word count summary displayed per task|Submit triggers parent callback which handles Firestore/RTDB/notification|No-teacher fallback shows self-review message|Cancel button closes modal",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Create SubmitToTeacherModal.tsx — teacher selection for submission",
+        "description": "Create SubmitToTeacherModal.tsx  native HTML/CSS modal (NO Mantine). Props: isOpen, onClose, onSubmit, studentTeachers: Array<{ id: string; name: string }>, tasks: Array<{ taskNumber: number; wordCount: number }>. Contains: <select> dropdown of enrolled teachers (auto-selected if only 1 teacher, still shown disabled), optional note textarea for student message to teacher, word count summary per task, Submit and Cancel buttons. On submit: parent component saves to Firestore as context.type 'solo-practice' with selectedTeacherId, creates RTDB result index, sends notification to teacher via writingSubmissionService, clears localStorage practice data, shows success toast. No-teacher case: save without selectedTeacherId, show 'saved for self-review' message instead of teacher selection.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "SubmitToTeacherModal.tsx created at src/components/writing-practice/SubmitToTeacherModal.tsx|Uses native HTML/CSS modal  NO Mantine components|Props interface includes isOpen, onClose, onSubmit, studentTeachers, tasks|<select> dropdown shows enrolled teachers|Auto-selects if only 1 teacher (shown disabled)|Optional note textarea for student message|Word count summary displayed per task|Submit triggers parent callback which handles Firestore/RTDB/notification|No-teacher fallback shows self-review message|Cancel button closes modal",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "6ibc3h",
+      "version": 2,
+      "timestamp": "2026-02-27T22:34:12.771Z",
+      "changes": [
+        {
+          "field": "labels",
+          "oldValue": [
+            "prd-0030",
+            "ielts-writing"
+          ],
+          "newValue": [
+            "prd-0030",
+            "ielts-writing",
+            "phase-7",
+            "component",
+            "student",
+            "solo-practice",
+            "modal",
+            "new-file",
+            "no-mantine"
+          ]
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "SubmitToTeacherModal.tsx created at src/components/writing-practice/SubmitToTeacherModal.tsx|Uses native HTML/CSS modal  NO Mantine components|Props interface includes isOpen, onClose, onSubmit, studentTeachers, tasks|<select> dropdown shows enrolled teachers|Auto-selects if only 1 teacher (shown disabled)|Optional note textarea for student message|Word count summary displayed per task|Submit triggers parent callback which handles Firestore/RTDB/notification|No-teacher fallback shows self-review message|Cancel button closes modal"
+            }
+          ],
+          "newValue": [
+            {
+              "text": "Native HTML/CSS modal",
+              "completed": false
+            },
+            {
+              "text": "Teacher select dropdown",
+              "completed": false
+            },
+            {
+              "text": "Auto-selects single teacher",
+              "completed": false
+            },
+            {
+              "text": "Optional note textarea",
+              "completed": false
+            },
+            {
+              "text": "Word count summary per task",
+              "completed": false
+            },
+            {
+              "text": "Submit returns teacherId and note to parent",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Create src/components/writing-practice/SubmitToTeacherModal.tsx + CSS 2. Render native HTML modal 3. Teacher select dropdown 4. Auto-select single teacher 5. Optional note textarea 6. Word count summary 7. Wire buttons"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Native HTML/CSS  NO Mantine. Submit callback: { teacherId, note }. Parent handles Firestore/RTDB/notification. After submit: parent clears localStorage."
+        }
+      ],
+      "snapshot": {
+        "title": "Create SubmitToTeacherModal.tsx — teacher selection for submission",
+        "description": "Create SubmitToTeacherModal.tsx  native HTML/CSS modal (NO Mantine). Props: isOpen, onClose, onSubmit, studentTeachers: Array<{ id: string; name: string }>, tasks: Array<{ taskNumber: number; wordCount: number }>. Contains: <select> dropdown of enrolled teachers (auto-selected if only 1 teacher, still shown disabled), optional note textarea for student message to teacher, word count summary per task, Submit and Cancel buttons. On submit: parent component saves to Firestore as context.type 'solo-practice' with selectedTeacherId, creates RTDB result index, sends notification to teacher via writingSubmissionService, clears localStorage practice data, shows success toast. No-teacher case: save without selectedTeacherId, show 'saved for self-review' message instead of teacher selection.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-7",
+          "component",
+          "student",
+          "solo-practice",
+          "modal",
+          "new-file",
+          "no-mantine"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Native HTML/CSS modal",
+            "completed": false
+          },
+          {
+            "text": "Teacher select dropdown",
+            "completed": false
+          },
+          {
+            "text": "Auto-selects single teacher",
+            "completed": false
+          },
+          {
+            "text": "Optional note textarea",
+            "completed": false
+          },
+          {
+            "text": "Word count summary per task",
+            "completed": false
+          },
+          {
+            "text": "Submit returns teacherId and note to parent",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Create src/components/writing-practice/SubmitToTeacherModal.tsx + CSS 2. Render native HTML modal 3. Teacher select dropdown 4. Auto-select single teacher 5. Optional note textarea 6. Word count summary 7. Wire buttons",
+        "implementationNotes": "Native HTML/CSS  NO Mantine. Submit callback: { teacherId, note }. Parent handles Firestore/RTDB/notification. After submit: parent clears localStorage."
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "6ibc3h",
+      "version": 3,
+      "timestamp": "2026-02-28T02:50:02.220Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Native HTML/CSS modal"
+            },
+            {
+              "completed": false,
+              "text": "Teacher select dropdown"
+            },
+            {
+              "completed": false,
+              "text": "Auto-selects single teacher"
+            },
+            {
+              "completed": false,
+              "text": "Optional note textarea"
+            },
+            {
+              "completed": false,
+              "text": "Word count summary per task"
+            },
+            {
+              "completed": false,
+              "text": "Submit returns teacherId and note to parent"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Native HTML/CSS modal"
+            },
+            {
+              "completed": true,
+              "text": "Teacher select dropdown"
+            },
+            {
+              "completed": true,
+              "text": "Auto-selects single teacher"
+            },
+            {
+              "completed": true,
+              "text": "Optional note textarea"
+            },
+            {
+              "completed": true,
+              "text": "Word count summary per task"
+            },
+            {
+              "completed": true,
+              "text": "Submit returns teacherId and note to parent"
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Create SubmitToTeacherModal.tsx — teacher selection for submission",
+        "description": "Create SubmitToTeacherModal.tsx  native HTML/CSS modal (NO Mantine). Props: isOpen, onClose, onSubmit, studentTeachers: Array<{ id: string; name: string }>, tasks: Array<{ taskNumber: number; wordCount: number }>. Contains: <select> dropdown of enrolled teachers (auto-selected if only 1 teacher, still shown disabled), optional note textarea for student message to teacher, word count summary per task, Submit and Cancel buttons. On submit: parent component saves to Firestore as context.type 'solo-practice' with selectedTeacherId, creates RTDB result index, sends notification to teacher via writingSubmissionService, clears localStorage practice data, shows success toast. No-teacher case: save without selectedTeacherId, show 'saved for self-review' message instead of teacher selection.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-7",
+          "component",
+          "student",
+          "solo-practice",
+          "modal",
+          "new-file",
+          "no-mantine"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Native HTML/CSS modal"
+          },
+          {
+            "completed": true,
+            "text": "Teacher select dropdown"
+          },
+          {
+            "completed": true,
+            "text": "Auto-selects single teacher"
+          },
+          {
+            "completed": true,
+            "text": "Optional note textarea"
+          },
+          {
+            "completed": true,
+            "text": "Word count summary per task"
+          },
+          {
+            "completed": true,
+            "text": "Submit returns teacherId and note to parent"
+          }
+        ],
+        "implementationPlan": "1. Create src/components/writing-practice/SubmitToTeacherModal.tsx + CSS 2. Render native HTML modal 3. Teacher select dropdown 4. Auto-select single teacher 5. Optional note textarea 6. Word count summary 7. Wire buttons",
+        "implementationNotes": "Native HTML/CSS  NO Mantine. Submit callback: { teacherId, note }. Parent handles Firestore/RTDB/notification. After submit: parent clears localStorage."
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "6ibc3h",
+      "version": 4,
+      "timestamp": "2026-02-28T02:50:12.919Z",
+      "changes": [
+        {
+          "field": "implementationNotes",
+          "oldValue": "Native HTML/CSS  NO Mantine. Submit callback: { teacherId, note }. Parent handles Firestore/RTDB/notification. After submit: parent clears localStorage.",
+          "newValue": "Native HTML/CSS  NO Mantine. Submit callback: { teacherId, note }. Parent handles Firestore/RTDB/notification. After submit: parent clears localStorage.\n\nImplemented 2026-02-28: Created SubmitToTeacherModal.tsx + CSS in src/components/writing-practice/. Native HTML/CSS (NO Mantine). Teacher select, auto-select single teacher, optional note textarea, word count summary per task, no-teacher self-review fallback. Returns {teacherId, note} to parent. Zero TS errors."
+        }
+      ],
+      "snapshot": {
+        "title": "Create SubmitToTeacherModal.tsx — teacher selection for submission",
+        "description": "Create SubmitToTeacherModal.tsx  native HTML/CSS modal (NO Mantine). Props: isOpen, onClose, onSubmit, studentTeachers: Array<{ id: string; name: string }>, tasks: Array<{ taskNumber: number; wordCount: number }>. Contains: <select> dropdown of enrolled teachers (auto-selected if only 1 teacher, still shown disabled), optional note textarea for student message to teacher, word count summary per task, Submit and Cancel buttons. On submit: parent component saves to Firestore as context.type 'solo-practice' with selectedTeacherId, creates RTDB result index, sends notification to teacher via writingSubmissionService, clears localStorage practice data, shows success toast. No-teacher case: save without selectedTeacherId, show 'saved for self-review' message instead of teacher selection.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "phase-7",
+          "component",
+          "student",
+          "solo-practice",
+          "modal",
+          "new-file",
+          "no-mantine"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Native HTML/CSS modal"
+          },
+          {
+            "completed": true,
+            "text": "Teacher select dropdown"
+          },
+          {
+            "completed": true,
+            "text": "Auto-selects single teacher"
+          },
+          {
+            "completed": true,
+            "text": "Optional note textarea"
+          },
+          {
+            "completed": true,
+            "text": "Word count summary per task"
+          },
+          {
+            "completed": true,
+            "text": "Submit returns teacherId and note to parent"
+          }
+        ],
+        "implementationPlan": "1. Create src/components/writing-practice/SubmitToTeacherModal.tsx + CSS 2. Render native HTML modal 3. Teacher select dropdown 4. Auto-select single teacher 5. Optional note textarea 6. Word count summary 7. Wire buttons",
+        "implementationNotes": "Native HTML/CSS  NO Mantine. Submit callback: { teacherId, note }. Parent handles Firestore/RTDB/notification. After submit: parent clears localStorage.\n\nImplemented 2026-02-28: Created SubmitToTeacherModal.tsx + CSS in src/components/writing-practice/. Native HTML/CSS (NO Mantine). Teacher select, auto-select single teacher, optional note textarea, word count summary per task, no-teacher self-review fallback. Returns {teacherId, note} to parent. Zero TS errors."
+      }
+    }
+  ]
+}
