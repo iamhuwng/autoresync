@@ -1,15 +1,16 @@
 ---
 title: Integration Safety Rules
 createdAt: '2026-02-27T15:25:29.996Z'
-updatedAt: '2026-02-27T15:25:31.435Z'
+updatedAt: '2026-02-28T16:41:02.373Z'
 description: >-
-  12 critical integration safety rules derived from production bugs - MUST READ
+  17 critical integration safety rules derived from production bugs - MUST READ
   before coding
 tags:
-  - safety
   - rules
   - integration
-  - critical
+  - safety
+  - production-bugs
+  - data-integrity
 ---
 # Integration Safety Rules
 

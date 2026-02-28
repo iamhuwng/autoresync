@@ -1,0 +1,222 @@
+{
+  "taskId": "faw3f0",
+  "currentVersion": 4,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "faw3f0",
+      "version": 1,
+      "timestamp": "2026-02-28T17:01:31.889Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Textarea usable on landscape phone viewports (375px height)",
+              "completed": false
+            },
+            {
+              "text": "No content overflow or double scrollbar on landscape",
+              "completed": false
+            },
+            {
+              "text": "Mobile prompt overlay max-height adjusted for landscape",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Add `@media (max-height: 500px) and (orientation: landscape)` query to WritingTestPage.css\n2. Reduce `.wtp-editor-textarea { min-height }` to ~150px in landscape\n3. Adjust `.wtp-prompt-mobile-content { max-height }` to 50vh in landscape\n4. Add same landscape handling to WritingPracticeView.css\n\nFiles: `src/components/writing-student/WritingTestPage.css`, `src/components/writing-practice/WritingPracticeView.css`"
+        }
+      ],
+      "snapshot": {
+        "title": "Add landscape-safe textarea constraints",
+        "description": "On landscape mobile (e.g., 667×375), the 300px `min-height` textarea + header (48px) + tabs (40px) + word counter (30px) = 418px, which overflows a 375px viewport. Need a landscape media query to reduce textarea min-height and ensure no overflow. Also adjust mobile prompt overlay `max-height` for landscape.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "mobile",
+          "css"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Textarea usable on landscape phone viewports (375px height)",
+            "completed": false
+          },
+          {
+            "text": "No content overflow or double scrollbar on landscape",
+            "completed": false
+          },
+          {
+            "text": "Mobile prompt overlay max-height adjusted for landscape",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Add `@media (max-height: 500px) and (orientation: landscape)` query to WritingTestPage.css\n2. Reduce `.wtp-editor-textarea { min-height }` to ~150px in landscape\n3. Adjust `.wtp-prompt-mobile-content { max-height }` to 50vh in landscape\n4. Add same landscape handling to WritingPracticeView.css\n\nFiles: `src/components/writing-student/WritingTestPage.css`, `src/components/writing-practice/WritingPracticeView.css`"
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "faw3f0",
+      "version": 2,
+      "timestamp": "2026-02-28T17:03:52.666Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        },
+        {
+          "field": "assignee",
+          "newValue": "@me"
+        }
+      ],
+      "snapshot": {
+        "title": "Add landscape-safe textarea constraints",
+        "description": "On landscape mobile (e.g., 667×375), the 300px `min-height` textarea + header (48px) + tabs (40px) + word counter (30px) = 418px, which overflows a 375px viewport. Need a landscape media query to reduce textarea min-height and ensure no overflow. Also adjust mobile prompt overlay `max-height` for landscape.",
+        "status": "in-progress",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "mobile",
+          "css"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Textarea usable on landscape phone viewports (375px height)"
+          },
+          {
+            "completed": false,
+            "text": "No content overflow or double scrollbar on landscape"
+          },
+          {
+            "completed": false,
+            "text": "Mobile prompt overlay max-height adjusted for landscape"
+          }
+        ],
+        "implementationPlan": "1. Add `@media (max-height: 500px) and (orientation: landscape)` query to WritingTestPage.css\n2. Reduce `.wtp-editor-textarea { min-height }` to ~150px in landscape\n3. Adjust `.wtp-prompt-mobile-content { max-height }` to 50vh in landscape\n4. Add same landscape handling to WritingPracticeView.css\n\nFiles: `src/components/writing-student/WritingTestPage.css`, `src/components/writing-practice/WritingPracticeView.css`"
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "faw3f0",
+      "version": 3,
+      "timestamp": "2026-02-28T17:06:21.034Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Textarea usable on landscape phone viewports (375px height)"
+            },
+            {
+              "completed": false,
+              "text": "No content overflow or double scrollbar on landscape"
+            },
+            {
+              "completed": false,
+              "text": "Mobile prompt overlay max-height adjusted for landscape"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Textarea usable on landscape phone viewports (375px height)"
+            },
+            {
+              "completed": true,
+              "text": "No content overflow or double scrollbar on landscape"
+            },
+            {
+              "completed": true,
+              "text": "Mobile prompt overlay max-height adjusted for landscape"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "✅ Added `@media (max-width: 900px) and (max-height: 500px) and (orientation: landscape)` to both WritingTestPage.css and WritingPracticeView.css. Textarea min-height reduced to 120px, header shrunk to 40px, prompt overlay max-height set to 50vh."
+        }
+      ],
+      "snapshot": {
+        "title": "Add landscape-safe textarea constraints",
+        "description": "On landscape mobile (e.g., 667×375), the 300px `min-height` textarea + header (48px) + tabs (40px) + word counter (30px) = 418px, which overflows a 375px viewport. Need a landscape media query to reduce textarea min-height and ensure no overflow. Also adjust mobile prompt overlay `max-height` for landscape.",
+        "status": "in-progress",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "mobile",
+          "css"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Textarea usable on landscape phone viewports (375px height)"
+          },
+          {
+            "completed": true,
+            "text": "No content overflow or double scrollbar on landscape"
+          },
+          {
+            "completed": true,
+            "text": "Mobile prompt overlay max-height adjusted for landscape"
+          }
+        ],
+        "implementationPlan": "1. Add `@media (max-height: 500px) and (orientation: landscape)` query to WritingTestPage.css\n2. Reduce `.wtp-editor-textarea { min-height }` to ~150px in landscape\n3. Adjust `.wtp-prompt-mobile-content { max-height }` to 50vh in landscape\n4. Add same landscape handling to WritingPracticeView.css\n\nFiles: `src/components/writing-student/WritingTestPage.css`, `src/components/writing-practice/WritingPracticeView.css`",
+        "implementationNotes": "✅ Added `@media (max-width: 900px) and (max-height: 500px) and (orientation: landscape)` to both WritingTestPage.css and WritingPracticeView.css. Textarea min-height reduced to 120px, header shrunk to 40px, prompt overlay max-height set to 50vh."
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "faw3f0",
+      "version": 4,
+      "timestamp": "2026-02-28T17:06:51.254Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Add landscape-safe textarea constraints",
+        "description": "On landscape mobile (e.g., 667×375), the 300px `min-height` textarea + header (48px) + tabs (40px) + word counter (30px) = 418px, which overflows a 375px viewport. Need a landscape media query to reduce textarea min-height and ensure no overflow. Also adjust mobile prompt overlay `max-height` for landscape.",
+        "status": "done",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "mobile",
+          "css"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Textarea usable on landscape phone viewports (375px height)"
+          },
+          {
+            "completed": true,
+            "text": "No content overflow or double scrollbar on landscape"
+          },
+          {
+            "completed": true,
+            "text": "Mobile prompt overlay max-height adjusted for landscape"
+          }
+        ],
+        "implementationPlan": "1. Add `@media (max-height: 500px) and (orientation: landscape)` query to WritingTestPage.css\n2. Reduce `.wtp-editor-textarea { min-height }` to ~150px in landscape\n3. Adjust `.wtp-prompt-mobile-content { max-height }` to 50vh in landscape\n4. Add same landscape handling to WritingPracticeView.css\n\nFiles: `src/components/writing-student/WritingTestPage.css`, `src/components/writing-practice/WritingPracticeView.css`",
+        "implementationNotes": "✅ Added `@media (max-width: 900px) and (max-height: 500px) and (orientation: landscape)` to both WritingTestPage.css and WritingPracticeView.css. Textarea min-height reduced to 120px, header shrunk to 40px, prompt overlay max-height set to 50vh."
+      }
+    }
+  ]
+}

@@ -2,8 +2,9 @@
 
 > Derived from real production bugs discovered on **2026-02-22**.
 > Updated **2026-02-25** with backup system rules (Rules 11-14).
+> Updated **2026-02-28** with data contract rule (Rule 17).
 > These rules apply to ALL navigation, notification, session-entry, data-service, and **serverless Worker** code in this project.
-> **Load this file when:** you are writing or reviewing any `navigate()` call, stored link value, new entry point into a session/test page, **new RTDB/Firestore node**, **new service with write side-effects**, **serverless function with heavy workloads**, or **code that shares IDs between creator and consumer**.
+> **Load this file when:** you are writing or reviewing any `navigate()` call, stored link value, new entry point into a session/test page, **new RTDB/Firestore node**, **new service with write side-effects**, **serverless function with heavy workloads**, **code that shares IDs between creator and consumer**, or **new code that writes data to a location where existing code already reads from**.
 
 ---
 
@@ -621,6 +622,132 @@ If no → create `src/webmcp/tools/{feature}.tools.ts` before considering the fe
 
 ---
 
+## Rule 17 — Producer-Consumer Contract: New Writers Must Satisfy All Existing Readers
+
+> **Added:** 2026-02-28 | **Trigger:** Writing new code that creates/saves data to a domain where other code already reads from
+
+**Why it exists:**
+On 2026-02-28, the IELTS Writing Test System (PRD-0030) implemented a new submission flow in `writingSubmissionService.ts`. The code wrote to `test_results_by_student/{studentId}/{resultId}` (the index) but never wrote to `test_results/{resultId}` (the main record). The existing academic record system uses a two-step lookup:
+
+1. Read result IDs from `test_results_by_student/{studentId}` (index)
+2. Fetch full record from `test_results/{resultId}` (main record)
+
+Because step 2 returned `null` for writing results, all writing test records were **silently dropped** from the student's academic record. No error was thrown — the consumer's `getTestResult()` simply returned `null` and the result was filtered out.
+
+The root cause was at the **PRD level**: the storage map only documented `test_results_by_student` and never mentioned the primary `test_results/{resultId}` node. The task faithfully followed the incomplete spec. The code faithfully followed the task. Nobody traced how the existing consumers actually read the data.
+
+**The rule:**
+When writing new code that produces data consumed by existing code, you MUST trace all existing consumers BEFORE writing.
+
+### The Consumer-Trace Protocol
+
+**Step 1 — Identify the data domain:**
+What kind of data are you producing? (test results, submissions, notifications, user records, etc.)
+
+**Step 2 — Find all existing readers:**
+```bash
+# Example: writing to test_results_by_student
+# Find everything that READS from this path or related paths:
+grep -rn "test_results" src/services/ --include="*.ts" --include="*.tsx"
+grep -rn "test_results" src/pages/ --include="*.ts" --include="*.tsx"
+grep -rn "getTestResult\|getStudentResults\|getSessionResults" src/
+```
+
+**Step 3 — Trace the read path end-to-end:**
+For each consumer found, trace the full read chain:
+- What path does it read from?
+- Does it do a multi-step lookup (index → main record)?
+- What happens when a step returns `null`?
+- Does it silently skip, or throw an error?
+
+**Step 4 — Ensure your write satisfies ALL consumers:**
+Your new write path must produce data at every location that every existing consumer reads from.
+
+### Example: The Bug
+
+```typescript
+// ❌ WRONG — writingSubmissionService.ts (original)
+// Only wrote to the index:
+await set(
+  ref(database, `test_results_by_student/${studentId}/${resultId}`),
+  resultRecord
+);
+// 💥 academicRecordService reads test_results/{resultId} → null → silently dropped
+
+// ✅ CORRECT — must write to BOTH locations:
+// Step 1: Main record (what getTestResult() reads)
+await set(
+  ref(database, `test_results/${resultId}`),
+  resultRecord
+);
+// Step 2: Student index (what getStudentResults() iterates)
+await set(
+  ref(database, `test_results_by_student/${studentId}/${resultId}`),
+  resultRecord
+);
+```
+
+### Example: How to Catch It
+
+```bash
+# Before writing writingSubmissionService.ts, you should have run:
+grep -rn "test_results" src/services/ --include="*.ts"
+
+# This would have revealed testResults.service.ts writes to 4 locations:
+# 1. test_results/{resultId}              ← main record
+# 2. test_results_by_student/{sid}/{rid}  ← student index
+# 3. test_results_by_session/{code}/{rid} ← session index
+# 4. test_results_by_teacher/{tid}/{rid}  ← teacher index
+
+# And academicRecordService.ts reads:
+# 1. test_results_by_student/{sid}        ← get result IDs
+# 2. test_results/{resultId}              ← fetch full record  ← THIS IS WHAT WAS MISSED
+```
+
+### Common Patterns Where This Rule Applies
+
+| Scenario | Existing Consumer | What New Producer Must Do |
+|----------|-------------------|-------------------------|
+| New test type submission | `academicRecordService` reads `test_results/{id}` | Write to ALL result paths, not just the index |
+| New notification type | `NotificationFeed` reads from notification collection | Match the exact document shape existing notifications use |
+| New user data write | Profile pages read from `users/{uid}` | Write to all sub-paths the profile expects |
+| New homework submission | Homework list reads status from specific fields | Set ALL status fields the list component checks |
+
+### PRD/Spec-Level Application
+
+This rule also applies at the **PRD/specification level**. When designing a new data flow:
+
+1. Document the EXISTING read paths that consume this data type
+2. Explicitly list ALL write locations the new feature must target
+3. Call out the existing service function (e.g., `saveTestResult()`) as the canonical reference
+4. If the new feature diverges from the existing pattern, explain WHY
+
+```markdown
+<!-- ✅ CORRECT — PRD explicitly references existing pattern -->
+> ⚠️ Writing test submissions MUST follow the same result storage
+> pattern as `saveTestResult()` in `testResults.service.ts:124-338`.
+> Write to: test_results/{id}, test_results_by_student/,
+> test_results_by_session/, test_results_by_teacher/.
+
+<!-- ❌ WRONG — PRD only shows one write location -->
+> Submit → RTDB test_results_by_student/{studentId}/{resultId}
+```
+
+**Self-check (for code):**
+*"Does existing code already read the kind of data I'm about to write? Have I traced every reader and confirmed my write satisfies all of them?"*
+If no → run the grep commands above BEFORE writing any data-layer code.
+
+**Self-check (for PRDs/specs):**
+*"Am I designing a new write path for data that existing code already consumes? Have I documented the existing read pattern and confirmed my design writes to all required locations?"*
+If no → search the codebase for existing consumers before finalizing the spec.
+
+**Canonical reference:**
+- Existing multi-write pattern: `src/services/testResults.service.ts` → `saveTestResult()` (lines 124-338)
+- Existing multi-read pattern: `src/services/academicRecordService.ts` (index lookup → main record fetch)
+- Bug report: PRD-0030 gap analysis artifact
+
+---
+
 ## Quick Reference Card
 
 | Situation | Rule | Action |
@@ -645,3 +772,4 @@ If no → create `src/webmcp/tools/{feature}.tools.ts` before considering the fe
 | **ID shared with client/DB/external system** | **Rule 14** | **Never regenerate; treat as immutable contract** |
 | **Writing ANY import statement** | **Rule 15** | **NO `@mantine/*` imports. Use native HTML/CSS.** |
 | **Creating new user-facing feature** | **Rule 16** | **Add WebMCP tools in `src/webmcp/tools/`. See skill doc.** |
+| **Writing data to a path existing code reads** | **Rule 17** | **Trace ALL consumers; write to ALL locations they expect** |

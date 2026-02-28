@@ -62,7 +62,7 @@ The canonical example is `src/pages/StudentDashboardPage.jsx`. All student pages
 
 ## 🔴 Integration Safety Rules (ZERO BYPASS — Enforced 2026-02-22, Updated 2026-02-27)
 
-16 rules from real production bugs. **When you hit a trigger condition, STOP and read the full rule before writing code:**
+17 rules from real production bugs. **When you hit a trigger condition, STOP and read the full rule before writing code:**
 
 | # | When you are... | Rule | Full details → READ before coding |
 |---|---|---|---|
@@ -82,6 +82,7 @@ The canonical example is `src/pages/StudentDashboardPage.jsx`. All student pages
 | 14 | Using an ID shared between creator and consumer (client, DB, webhook) | Never Regenerate Shared IDs | [`integration-safety-rules.md#rule-14`](./documentation/integration-safety-rules.md#rule-14) |
 | 15 | Writing ANY `import` statement or `npm install` | No Mantine — Absolute Import Ban | [`integration-safety-rules.md#rule-15`](./documentation/integration-safety-rules.md#rule-15) |
 | 16 | Creating ANY new user-facing feature (page, modal, form, action) | WebMCP Tool Registration | [`integration-safety-rules.md#rule-16`](./documentation/integration-safety-rules.md#rule-16) |
+| 17 | Writing new data to a path where existing code already reads | Producer-Consumer Contract | [`integration-safety-rules.md#rule-17`](./documentation/integration-safety-rules.md#rule-17) |
 
 <!-- KNOWNS GUIDELINES START -->
 # Knowns Guidelines

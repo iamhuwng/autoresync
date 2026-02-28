@@ -1,7 +1,7 @@
 ---
 title: 'Pattern: Firestore Query Safety'
 createdAt: '2026-02-28T03:44:07.332Z'
-updatedAt: '2026-02-28T03:44:55.585Z'
+updatedAt: '2026-02-28T11:52:21.551Z'
 description: >-
   Common bug class where Firestore where() queries use field names or values
   that don't match the TypeScript interface — silent failures returning empty
@@ -98,3 +98,48 @@ When writing or reviewing Firestore queries:
 
 - @doc/integration-safety-rules — Rule 12 (Backup Coverage Check) covers related data integrity patterns
 - @doc/patterns/pattern-prd-integration-audit-checklist — Section 3 (Type Alignment)
+
+
+
+## Composite Index Requirements
+
+Firestore composite queries (multiple `where()` or `where()` + `orderBy()` on different fields) require **explicit composite indexes**. Without them, queries fail at runtime with: `FirebaseError: The query requires an index`.
+
+### When You Need a Composite Index
+
+| Query Pattern | Needs Composite Index? |
+|---|---|
+| Single `where()` on one field | ❌ No (auto-indexed) |
+| Single `orderBy()` on one field | ❌ No (auto-indexed) |
+| `where('fieldA') + orderBy('fieldA')` | ❌ No (same field) |
+| `where('fieldA') + orderBy('fieldB')` | ✅ **Yes** |
+| `where('fieldA') + where('fieldB')` | ✅ **Yes** |
+| `where('fieldA') + where('fieldB') + orderBy('fieldC')` | ✅ **Yes** |
+
+### How to Add
+
+1. **Immediate**: Click the link in the Firebase error message → creates in Console
+2. **Declarative**: Add to `firestore.indexes.json` → deploy with `firebase deploy --only firestore:indexes`
+
+```json
+{
+    "collectionGroup": "writing_submissions",
+    "queryScope": "COLLECTION",
+    "fields": [
+        { "fieldPath": "studentId", "order": "ASCENDING" },
+        { "fieldPath": "submittedAt", "order": "DESCENDING" }
+    ]
+}
+```
+
+### Important Notes
+
+- **Single-field indexes** should NOT be in `firestore.indexes.json` — Firestore auto-manages them. Including them causes deploy errors (`HTTP 400: this index is not necessary`).
+- Indexes take **several minutes** to build after creation.
+- Always deploy indexes **before** deploying code that depends on them.
+
+### Self-Check (Index)
+
+- [ ] Every multi-field query has a corresponding composite index in `firestore.indexes.json`
+- [ ] No single-field indexes in the file (Firestore auto-creates these)
+- [ ] Indexes deployed before code using them goes live

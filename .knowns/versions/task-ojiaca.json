@@ -1,0 +1,250 @@
+{
+  "taskId": "ojiaca",
+  "currentVersion": 4,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "ojiaca",
+      "version": 1,
+      "timestamp": "2026-02-28T17:01:30.033Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "\"Submit Test\" text wrapped in <span> in WritingTestPage.tsx",
+              "completed": false
+            },
+            {
+              "text": "On mobile (<768px), only the 📤 icon visible, text hidden",
+              "completed": false
+            },
+            {
+              "text": "Button still functional (click triggers submit modal)",
+              "completed": false
+            },
+            {
+              "text": "Desktop view unchanged (icon + text both visible)",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Edit WritingTestPage.tsx line ~285: wrap button text in `<span>` so CSS can target it\n2. Verify existing CSS `.wtp-submit-btn-header span { display: none }` now works\n3. Test desktop (text + icon visible) and mobile (icon only)\n\nFiles: `src/components/writing-student/WritingTestPage.tsx` (line 285)"
+        }
+      ],
+      "snapshot": {
+        "title": "Fix submit button mobile rendering",
+        "description": "The CSS `.wtp-submit-btn-header span { display: none }` targets a `<span>` that doesn't exist in the JSX. The button renders `📤 Submit Test` as a single text node, so the text is never hidden on mobile. Need to wrap text in `<span>` and keep only the icon visible on mobile.",
+        "status": "todo",
+        "priority": "high",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "mobile",
+          "bug-fix"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "\"Submit Test\" text wrapped in <span> in WritingTestPage.tsx",
+            "completed": false
+          },
+          {
+            "text": "On mobile (<768px), only the 📤 icon visible, text hidden",
+            "completed": false
+          },
+          {
+            "text": "Button still functional (click triggers submit modal)",
+            "completed": false
+          },
+          {
+            "text": "Desktop view unchanged (icon + text both visible)",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Edit WritingTestPage.tsx line ~285: wrap button text in `<span>` so CSS can target it\n2. Verify existing CSS `.wtp-submit-btn-header span { display: none }` now works\n3. Test desktop (text + icon visible) and mobile (icon only)\n\nFiles: `src/components/writing-student/WritingTestPage.tsx` (line 285)"
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "ojiaca",
+      "version": 2,
+      "timestamp": "2026-02-28T17:03:51.900Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        },
+        {
+          "field": "assignee",
+          "newValue": "@me"
+        }
+      ],
+      "snapshot": {
+        "title": "Fix submit button mobile rendering",
+        "description": "The CSS `.wtp-submit-btn-header span { display: none }` targets a `<span>` that doesn't exist in the JSX. The button renders `📤 Submit Test` as a single text node, so the text is never hidden on mobile. Need to wrap text in `<span>` and keep only the icon visible on mobile.",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "mobile",
+          "bug-fix"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "\"Submit Test\" text wrapped in <span> in WritingTestPage.tsx"
+          },
+          {
+            "completed": false,
+            "text": "On mobile (<768px), only the 📤 icon visible, text hidden"
+          },
+          {
+            "completed": false,
+            "text": "Button still functional (click triggers submit modal)"
+          },
+          {
+            "completed": false,
+            "text": "Desktop view unchanged (icon + text both visible)"
+          }
+        ],
+        "implementationPlan": "1. Edit WritingTestPage.tsx line ~285: wrap button text in `<span>` so CSS can target it\n2. Verify existing CSS `.wtp-submit-btn-header span { display: none }` now works\n3. Test desktop (text + icon visible) and mobile (icon only)\n\nFiles: `src/components/writing-student/WritingTestPage.tsx` (line 285)"
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "ojiaca",
+      "version": 3,
+      "timestamp": "2026-02-28T17:06:15.447Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "\"Submit Test\" text wrapped in <span> in WritingTestPage.tsx"
+            },
+            {
+              "completed": false,
+              "text": "On mobile (<768px), only the 📤 icon visible, text hidden"
+            },
+            {
+              "completed": false,
+              "text": "Button still functional (click triggers submit modal)"
+            },
+            {
+              "completed": false,
+              "text": "Desktop view unchanged (icon + text both visible)"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "\"Submit Test\" text wrapped in <span> in WritingTestPage.tsx"
+            },
+            {
+              "completed": true,
+              "text": "On mobile (<768px), only the 📤 icon visible, text hidden"
+            },
+            {
+              "completed": true,
+              "text": "Button still functional (click triggers submit modal)"
+            },
+            {
+              "completed": true,
+              "text": "Desktop view unchanged (icon + text both visible)"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "✅ Wrapped button text in <span> at line 285. CSS rule `.wtp-submit-btn-header span { display: none }` now correctly targets the text. Icon emoji rendered outside span so it stays visible on mobile."
+        }
+      ],
+      "snapshot": {
+        "title": "Fix submit button mobile rendering",
+        "description": "The CSS `.wtp-submit-btn-header span { display: none }` targets a `<span>` that doesn't exist in the JSX. The button renders `📤 Submit Test` as a single text node, so the text is never hidden on mobile. Need to wrap text in `<span>` and keep only the icon visible on mobile.",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "mobile",
+          "bug-fix"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "\"Submit Test\" text wrapped in <span> in WritingTestPage.tsx"
+          },
+          {
+            "completed": true,
+            "text": "On mobile (<768px), only the 📤 icon visible, text hidden"
+          },
+          {
+            "completed": true,
+            "text": "Button still functional (click triggers submit modal)"
+          },
+          {
+            "completed": true,
+            "text": "Desktop view unchanged (icon + text both visible)"
+          }
+        ],
+        "implementationPlan": "1. Edit WritingTestPage.tsx line ~285: wrap button text in `<span>` so CSS can target it\n2. Verify existing CSS `.wtp-submit-btn-header span { display: none }` now works\n3. Test desktop (text + icon visible) and mobile (icon only)\n\nFiles: `src/components/writing-student/WritingTestPage.tsx` (line 285)",
+        "implementationNotes": "✅ Wrapped button text in <span> at line 285. CSS rule `.wtp-submit-btn-header span { display: none }` now correctly targets the text. Icon emoji rendered outside span so it stays visible on mobile."
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "ojiaca",
+      "version": 4,
+      "timestamp": "2026-02-28T17:06:44.657Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Fix submit button mobile rendering",
+        "description": "The CSS `.wtp-submit-btn-header span { display: none }` targets a `<span>` that doesn't exist in the JSX. The button renders `📤 Submit Test` as a single text node, so the text is never hidden on mobile. Need to wrap text in `<span>` and keep only the icon visible on mobile.",
+        "status": "done",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "mobile",
+          "bug-fix"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "\"Submit Test\" text wrapped in <span> in WritingTestPage.tsx"
+          },
+          {
+            "completed": true,
+            "text": "On mobile (<768px), only the 📤 icon visible, text hidden"
+          },
+          {
+            "completed": true,
+            "text": "Button still functional (click triggers submit modal)"
+          },
+          {
+            "completed": true,
+            "text": "Desktop view unchanged (icon + text both visible)"
+          }
+        ],
+        "implementationPlan": "1. Edit WritingTestPage.tsx line ~285: wrap button text in `<span>` so CSS can target it\n2. Verify existing CSS `.wtp-submit-btn-header span { display: none }` now works\n3. Test desktop (text + icon visible) and mobile (icon only)\n\nFiles: `src/components/writing-student/WritingTestPage.tsx` (line 285)",
+        "implementationNotes": "✅ Wrapped button text in <span> at line 285. CSS rule `.wtp-submit-btn-header span { display: none }` now correctly targets the text. Icon emoji rendered outside span so it stays visible on mobile."
+      }
+    }
+  ]
+}

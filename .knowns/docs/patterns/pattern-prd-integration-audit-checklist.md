@@ -1,7 +1,7 @@
 ---
 title: 'Pattern: PRD Integration Audit Checklist'
 createdAt: '2026-02-28T03:44:06.356Z'
-updatedAt: '2026-02-28T03:44:33.108Z'
+updatedAt: '2026-02-28T16:41:20.583Z'
 description: >-
   Reusable checklist for verifying that a PRD is fully integrated into the
   codebase — covers routes, service call-sites, type alignment, navigation
@@ -78,3 +78,19 @@ where('markingStatus', '==', 'pending-review')  // ✅ Correct (matches WritingS
 
 // Result: Widget was permanently invisible — returned 0 results
 ```
+
+
+
+### 7. Data Path Coverage (Rule 17 — Producer-Consumer Contract)
+- [ ] If new code writes to RTDB/Firestore, identify ALL existing read paths for that data type
+- [ ] Trace each reader's full lookup chain (e.g., index → main record two-step)
+- [ ] Verify new write path populates ALL locations existing readers expect
+- [ ] Check what happens when a read returns `null` — silent drop = invisible bug
+- [ ] Cross-reference with canonical write function (e.g., `saveTestResult()` for test results)
+
+**Source:** PRD-0030 gap where `writingSubmissionService` only wrote to `test_results_by_student` (index) but not `test_results/{resultId}` (main record), causing academic records to silently drop writing results.
+
+## Related
+
+- @doc/integration-safety-rules — Rules 3 (Pattern-First), 12 (New Collection Security), 17 (Producer-Consumer Contract)
+- @doc/patterns/pattern-rtdb-multi-path-write-obligation — RTDB-specific instance of Producer-Consumer Contract

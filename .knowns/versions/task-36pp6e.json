@@ -1,0 +1,222 @@
+{
+  "taskId": "36pp6e",
+  "currentVersion": 4,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "36pp6e",
+      "version": 1,
+      "timestamp": "2026-02-28T17:01:32.118Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Tab buttons have ≥44px touch height on mobile",
+              "completed": false
+            },
+            {
+              "text": "Visual appearance still clean (no oversized look)",
+              "completed": false
+            },
+            {
+              "text": "Both WritingTestPage and WritingPracticeView tabs updated",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Update `.wtp-tab` mobile padding to `12px 16px` (gives ~44px height)\n2. Update `.wpv-tab` mobile padding similarly\n3. Test on mobile viewport to verify touch targets\n\nFiles: `src/components/writing-student/WritingTestPage.css`, `src/components/writing-practice/WritingPracticeView.css`"
+        }
+      ],
+      "snapshot": {
+        "title": "Increase mobile touch targets for tab buttons",
+        "description": "Tab buttons currently have `8px 16px` padding on mobile, giving ~36px touch height. Apple HIG recommends minimum 44px touch targets. Increase padding to meet accessibility standards. Affects both WritingTestPage and WritingPracticeView tabs.",
+        "status": "todo",
+        "priority": "low",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "mobile",
+          "accessibility"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Tab buttons have ≥44px touch height on mobile",
+            "completed": false
+          },
+          {
+            "text": "Visual appearance still clean (no oversized look)",
+            "completed": false
+          },
+          {
+            "text": "Both WritingTestPage and WritingPracticeView tabs updated",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Update `.wtp-tab` mobile padding to `12px 16px` (gives ~44px height)\n2. Update `.wpv-tab` mobile padding similarly\n3. Test on mobile viewport to verify touch targets\n\nFiles: `src/components/writing-student/WritingTestPage.css`, `src/components/writing-practice/WritingPracticeView.css`"
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "36pp6e",
+      "version": 2,
+      "timestamp": "2026-02-28T17:03:52.993Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        },
+        {
+          "field": "assignee",
+          "newValue": "@me"
+        }
+      ],
+      "snapshot": {
+        "title": "Increase mobile touch targets for tab buttons",
+        "description": "Tab buttons currently have `8px 16px` padding on mobile, giving ~36px touch height. Apple HIG recommends minimum 44px touch targets. Increase padding to meet accessibility standards. Affects both WritingTestPage and WritingPracticeView tabs.",
+        "status": "in-progress",
+        "priority": "low",
+        "assignee": "@me",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "mobile",
+          "accessibility"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Tab buttons have ≥44px touch height on mobile"
+          },
+          {
+            "completed": false,
+            "text": "Visual appearance still clean (no oversized look)"
+          },
+          {
+            "completed": false,
+            "text": "Both WritingTestPage and WritingPracticeView tabs updated"
+          }
+        ],
+        "implementationPlan": "1. Update `.wtp-tab` mobile padding to `12px 16px` (gives ~44px height)\n2. Update `.wpv-tab` mobile padding similarly\n3. Test on mobile viewport to verify touch targets\n\nFiles: `src/components/writing-student/WritingTestPage.css`, `src/components/writing-practice/WritingPracticeView.css`"
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "36pp6e",
+      "version": 3,
+      "timestamp": "2026-02-28T17:06:26.615Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Tab buttons have ≥44px touch height on mobile"
+            },
+            {
+              "completed": false,
+              "text": "Visual appearance still clean (no oversized look)"
+            },
+            {
+              "completed": false,
+              "text": "Both WritingTestPage and WritingPracticeView tabs updated"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Tab buttons have ≥44px touch height on mobile"
+            },
+            {
+              "completed": true,
+              "text": "Visual appearance still clean (no oversized look)"
+            },
+            {
+              "completed": true,
+              "text": "Both WritingTestPage and WritingPracticeView tabs updated"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "✅ Updated `.wtp-tab` and `.wpv-tab` in mobile media query: padding 12px 16px + min-height 44px + display flex + align-items center. Landscape override reduces to 32px min-height since landscape has less vertical space."
+        }
+      ],
+      "snapshot": {
+        "title": "Increase mobile touch targets for tab buttons",
+        "description": "Tab buttons currently have `8px 16px` padding on mobile, giving ~36px touch height. Apple HIG recommends minimum 44px touch targets. Increase padding to meet accessibility standards. Affects both WritingTestPage and WritingPracticeView tabs.",
+        "status": "in-progress",
+        "priority": "low",
+        "assignee": "@me",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "mobile",
+          "accessibility"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Tab buttons have ≥44px touch height on mobile"
+          },
+          {
+            "completed": true,
+            "text": "Visual appearance still clean (no oversized look)"
+          },
+          {
+            "completed": true,
+            "text": "Both WritingTestPage and WritingPracticeView tabs updated"
+          }
+        ],
+        "implementationPlan": "1. Update `.wtp-tab` mobile padding to `12px 16px` (gives ~44px height)\n2. Update `.wpv-tab` mobile padding similarly\n3. Test on mobile viewport to verify touch targets\n\nFiles: `src/components/writing-student/WritingTestPage.css`, `src/components/writing-practice/WritingPracticeView.css`",
+        "implementationNotes": "✅ Updated `.wtp-tab` and `.wpv-tab` in mobile media query: padding 12px 16px + min-height 44px + display flex + align-items center. Landscape override reduces to 32px min-height since landscape has less vertical space."
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "36pp6e",
+      "version": 4,
+      "timestamp": "2026-02-28T17:06:57.502Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Increase mobile touch targets for tab buttons",
+        "description": "Tab buttons currently have `8px 16px` padding on mobile, giving ~36px touch height. Apple HIG recommends minimum 44px touch targets. Increase padding to meet accessibility standards. Affects both WritingTestPage and WritingPracticeView tabs.",
+        "status": "done",
+        "priority": "low",
+        "assignee": "@me",
+        "labels": [
+          "prd-0030",
+          "ielts-writing",
+          "mobile",
+          "accessibility"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Tab buttons have ≥44px touch height on mobile"
+          },
+          {
+            "completed": true,
+            "text": "Visual appearance still clean (no oversized look)"
+          },
+          {
+            "completed": true,
+            "text": "Both WritingTestPage and WritingPracticeView tabs updated"
+          }
+        ],
+        "implementationPlan": "1. Update `.wtp-tab` mobile padding to `12px 16px` (gives ~44px height)\n2. Update `.wpv-tab` mobile padding similarly\n3. Test on mobile viewport to verify touch targets\n\nFiles: `src/components/writing-student/WritingTestPage.css`, `src/components/writing-practice/WritingPracticeView.css`",
+        "implementationNotes": "✅ Updated `.wtp-tab` and `.wpv-tab` in mobile media query: padding 12px 16px + min-height 44px + display flex + align-items center. Landscape override reduces to 32px min-height since landscape has less vertical space."
+      }
+    }
+  ]
+}
