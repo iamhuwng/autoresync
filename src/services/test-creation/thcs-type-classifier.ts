@@ -256,5 +256,47 @@ export function reclassifyByContent(sections: ParsedSection[]): void {
                 continue;
             }
         }
+
+        // ── Pattern 5: sentence-rewrite + 4 MCQ options + A-D answer → closest-meaning ──
+        // Vietnamese D2: AI misclassifies MCQ sentence-transformation as 'sentence-rewrite'.
+        // All questions having 4 non-empty options + single A-D answer is the tell.
+        if (
+            (section.detectedType === 'sentence-rewrite' || section.detectedType === 'sentence-rewrite-keyword') &&
+            questions.length > 0 &&
+            questions.every(q => {
+                const opts = q.options || [];
+                const hasOpts = opts.filter((o: string) => o && o.trim().length > 0).length === 4;
+                const hasValidAnswer = /^[A-Da-d]$/.test(q.correctAnswer || '');
+                return hasOpts && hasValidAnswer;
+            })
+        ) {
+            console.log(`[reclassifyByContent] Pattern 5: "${section.name}" ${section.detectedType} → closest-meaning (MCQ sentence transformation)`);
+            section.detectedType = 'closest-meaning';
+            section.typeConfidence = 88;
+            for (const q of questions) q.type = 'closest-meaning';
+            continue;
+        }
+
+        // ── Pattern 6: reading-cloze-mcq + word-bank instruction → reading-cloze-wordbank ──
+        // AI sometimes classifies word-bank fill-in sections as reading-cloze-mcq and
+        // hallucinates A/B/C/D options. Word-bank markers in instruction/passage are the tell.
+        if (section.detectedType === 'reading-cloze-mcq') {
+            const hasWordBankMarker =
+                /word(?:s)?\s+(?:in|from)\s+(?:the\s+)?(?:box|bank)|fill\s+in.*\bbox\b|\bword\s+bank\b|\[word\s*bank\s*[:\uff1a]/i
+                    .test(section.instructionText || '') ||
+                /\[word\s*bank\s*[:\uff1a]/i.test((section as any).passageText || '');
+
+            if (hasWordBankMarker) {
+                console.log(`[reclassifyByContent] Pattern 6: "${section.name}" reading-cloze-mcq → reading-cloze-wordbank (word bank detected)`);
+                section.detectedType = 'reading-cloze-wordbank';
+                section.typeConfidence = 85;
+                for (const q of questions) {
+                    q.type = 'reading-cloze-wordbank';
+                    // Strip hallucinated MCQ options — word bank = fill-in, not A/B/C/D
+                    q.options = ['', '', '', ''] as [string, string, string, string];
+                }
+                continue;
+            }
+        }
     }
 }

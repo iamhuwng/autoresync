@@ -9,7 +9,7 @@
  */
 
 import type { THCSQuestionType } from '../../types/thcs-test.types';
-import { classifyQuestionTypes } from './thcs-type-classifier';
+import { classifyQuestionTypes, reclassifyByContent } from './thcs-type-classifier';
 import { extractJSON } from './ai-json-repair';
 export { convertParsedToThcsDraft } from './thcs-draft-converter';
 
@@ -559,28 +559,6 @@ function validateAIResult(raw: any): ParsedTest {
 
         const realQuestions = allQuestions.filter((q: any) => q.questionNumber > 0);
 
-        // ── Smart reclassification: sentence-rewrite with MCQ options → closest-meaning ──
-        // Vietnamese exams have two forms of "sentence transformation":
-        //   D2 (closest-meaning) = MCQ: pick A/B/C/D sentence closest in meaning
-        //   E1 (sentence-rewrite) = Writing: rewrite with given start (no options)
-        // AI often classifies both as 'sentence-rewrite'. Detect and fix by checking
-        // if ALL questions have 4 non-empty options and single-letter A-D correct answers.
-        if (
-            (sectionType === 'sentence-rewrite' || sectionType === 'sentence-rewrite-keyword') &&
-            realQuestions.length > 0 &&
-            realQuestions.every((q: any) => {
-                const opts = q.options || [];
-                const nonEmptyOpts = opts.filter((o: string) => o && o.trim().length > 0);
-                const hasValidAnswer = /^[A-Da-d]$/.test(q.correctAnswer || '');
-                return nonEmptyOpts.length === 4 && hasValidAnswer;
-            })
-        ) {
-            console.log(`[Parser] Auto-reclassified section "${s.name}" from ${sectionType} → closest-meaning (MCQ sentence transformation detected)`);
-            sectionType = 'closest-meaning';
-            // Update all question types too
-            realQuestions.forEach((q: any) => { q.type = 'closest-meaning'; });
-        }
-
         // Extract passage text from questionNumber 0 entries (AI stores passages this way)
         const passageEntry = allQuestions.find((q: any) => q.questionNumber === 0);
 
@@ -899,6 +877,9 @@ async function callGroqDirect(prompt: string): Promise<ParsedTest | null> {
 
                 const parsed = extractJSON(text);
                 const result = validateAIResult(parsed);
+                // Run classifier pipeline — sole authority for type assignment
+                classifyQuestionTypes(result.sections);
+                reclassifyByContent(result.sections);
 
                 const totalQ = result.sections.reduce((sum, s) => sum + s.questions.length, 0);
                 console.log(`✅ [THCS AI Parse] Groq succeeded: ${totalQ} questions, ${Object.keys(result.answerKey).length} answers`);
@@ -965,6 +946,9 @@ async function callGeminiDirect(prompt: string): Promise<ParsedTest | null> {
 
                 const parsed = extractJSON(text);
                 const validResult = validateAIResult(parsed);
+                // Run classifier pipeline — sole authority for type assignment
+                classifyQuestionTypes(validResult.sections);
+                reclassifyByContent(validResult.sections);
 
                 const totalQ = validResult.sections.reduce((sum, s) => sum + s.questions.length, 0);
                 console.log(`✅ [THCS AI Parse] Gemini succeeded: ${totalQ} questions`);

@@ -77,21 +77,20 @@ export function convertParsedToThcsDraft(parsedTest: ParsedTest): {
     let runningPointsTotal = 0;
 
     const sections = parsedTest.sections.map((ps, si) => {
-        // â”€â”€ Safety net: re-check sentence-rewrite with MCQ options â”€â”€
-        // In case validateAIResult didn't catch it, double-check here at draft conversion time.
-        let effectiveType = ps.detectedType;
+        // ── Safety net: warn if sentence-rewrite with MCQ options reaches converter ──
+        // reclassifyByContent (Pattern 5 in thcs-type-classifier.ts) should have caught this.
+        // If it reaches here, log a warning but do NOT mutate — keep the classifier as sole authority.
+        const effectiveType = ps.detectedType;
         if (
             (effectiveType === 'sentence-rewrite' || effectiveType === 'sentence-rewrite-keyword') &&
             ps.questions.length > 0 &&
             ps.questions.every(q => {
                 const opts = q.options || [];
                 const nonEmptyOpts = opts.filter((o: string) => o && o.trim().length > 0);
-                const hasValidAnswer = /^[A-Da-d]$/.test(q.correctAnswer || '');
-                return nonEmptyOpts.length === 4 && hasValidAnswer;
+                return nonEmptyOpts.length === 4 && /^[A-Da-d]$/.test(q.correctAnswer || '');
             })
         ) {
-            console.log(`[convertParsedToThcsDraft] Safety reclassify "${ps.name}" from ${effectiveType} â†’ closest-meaning`);
-            effectiveType = 'closest-meaning';
+            console.warn(`[convertParsedToThcsDraft] Safety check: "${ps.name}" looks like closest-meaning but was not reclassified. Check reclassifyByContent Pattern 5.`);
         }
 
         const isPronunciationType = effectiveType === 'pronunciation' || effectiveType === 'word-stress';
