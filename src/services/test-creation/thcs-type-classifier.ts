@@ -12,6 +12,16 @@
 import type { THCSQuestionType } from '../../types/thcs-test.types';
 import type { ParsedSection, AmbiguousItem } from './thcsDocumentParser.service';
 
+// ── Reclassification Event (for diagnostic logging) ──
+
+export interface ReclassificationEvent {
+    sectionName: string;
+    from: string;
+    to: string;
+    reason: string;
+    questionNumbers: number[];
+}
+
 // ── Instruction-to-Type Classifier (Layer 2) ──
 
 export const INSTRUCTION_TYPE_MAP: Array<{ pattern: RegExp; type: THCSQuestionType; confidence: number }> = [
@@ -181,13 +191,17 @@ export function classifyQuestionTypes(sections: ParsedSection[]): AmbiguousItem[
  * This handles cases where the instruction text is generic (e.g. "Choose the best answer")
  * but the content reveals the true question type.
  */
-export function reclassifyByContent(sections: ParsedSection[]): void {
+export function reclassifyByContent(sections: ParsedSection[]): ReclassificationEvent[] {
+    const events: ReclassificationEvent[] = [];
+
     for (const section of sections) {
         // Only reclassify low-confidence or generic mcq-grammar results
         if (section.typeConfidence >= 90) continue;
 
         const questions = section.questions;
         if (questions.length === 0) continue;
+
+        const qNums = questions.map(q => q.questionNumber);
 
         // ── Pattern 1: Ordering options (sentence-arrangement) ──
         // Options contain letter-dash patterns like "a-b-c-d-e", "b-a-c-e-d"
@@ -196,10 +210,12 @@ export function reclassifyByContent(sections: ParsedSection[]): void {
             return opts.some((opt: string) => /^[a-e](?:-[a-e]){2,}$/i.test(opt.trim()));
         });
         if (hasOrderingOptions && section.detectedType !== 'sentence-arrangement') {
+            const from = section.detectedType;
             console.log(`[reclassifyByContent] "${section.name}" → sentence-arrangement (ordering options detected)`);
             section.detectedType = 'sentence-arrangement';
             section.typeConfidence = 88;
             for (const q of questions) q.type = 'sentence-arrangement';
+            events.push({ sectionName: section.name, from, to: 'sentence-arrangement', reason: 'ordering options detected', questionNumbers: qNums });
             continue;
         }
 
@@ -213,10 +229,12 @@ export function reclassifyByContent(sections: ParsedSection[]): void {
             return segments.length >= 3 && text.length < 200;
         });
         if (hasCuePattern && section.detectedType === 'mcq-grammar') {
+            const from = section.detectedType;
             console.log(`[reclassifyByContent] "${section.name}" → sentence-arrangement (cue pattern detected)`);
             section.detectedType = 'sentence-arrangement';
             section.typeConfidence = 85;
             for (const q of questions) q.type = 'sentence-arrangement';
+            events.push({ sectionName: section.name, from, to: 'sentence-arrangement', reason: 'cue pattern detected', questionNumbers: qNums });
             continue;
         }
 
@@ -229,10 +247,12 @@ export function reclassifyByContent(sections: ParsedSection[]): void {
                 return /\b(?:according to|what|when|where|which|who|why|how|the (?:passage|text|author|writer))\b/i.test(text);
             });
             if (hasComprehensionIndicators) {
+                const from = section.detectedType;
                 console.log(`[reclassifyByContent] "${section.name}" → reading-comprehension (passage + comprehension questions)`);
                 section.detectedType = 'reading-comprehension';
                 section.typeConfidence = 82;
                 for (const q of questions) q.type = 'reading-comprehension';
+                events.push({ sectionName: section.name, from, to: 'reading-comprehension', reason: 'passage + comprehension questions', questionNumbers: qNums });
                 continue;
             }
         }
@@ -249,10 +269,12 @@ export function reclassifyByContent(sections: ParsedSection[]): void {
                 );
             });
             if (hasFullSentenceOptions) {
+                const from = section.detectedType;
                 console.log(`[reclassifyByContent] "${section.name}" → closest-meaning (full sentence options)`);
                 section.detectedType = 'closest-meaning';
                 section.typeConfidence = 88;
                 for (const q of questions) q.type = 'closest-meaning';
+                events.push({ sectionName: section.name, from, to: 'closest-meaning', reason: 'full sentence options', questionNumbers: qNums });
                 continue;
             }
         }
@@ -270,10 +292,12 @@ export function reclassifyByContent(sections: ParsedSection[]): void {
                 return hasOpts && hasValidAnswer;
             })
         ) {
+            const from = section.detectedType;
             console.log(`[reclassifyByContent] Pattern 5: "${section.name}" ${section.detectedType} → closest-meaning (MCQ sentence transformation)`);
             section.detectedType = 'closest-meaning';
             section.typeConfidence = 88;
             for (const q of questions) q.type = 'closest-meaning';
+            events.push({ sectionName: section.name, from, to: 'closest-meaning', reason: 'MCQ sentence transformation', questionNumbers: qNums });
             continue;
         }
 
@@ -287,6 +311,7 @@ export function reclassifyByContent(sections: ParsedSection[]): void {
                 /\[word\s*bank\s*[:\uff1a]/i.test((section as any).passageText || '');
 
             if (hasWordBankMarker) {
+                const from = section.detectedType;
                 console.log(`[reclassifyByContent] Pattern 6: "${section.name}" reading-cloze-mcq → reading-cloze-wordbank (word bank detected)`);
                 section.detectedType = 'reading-cloze-wordbank';
                 section.typeConfidence = 85;
@@ -295,8 +320,11 @@ export function reclassifyByContent(sections: ParsedSection[]): void {
                     // Strip hallucinated MCQ options — word bank = fill-in, not A/B/C/D
                     q.options = ['', '', '', ''] as [string, string, string, string];
                 }
+                events.push({ sectionName: section.name, from, to: 'reading-cloze-wordbank', reason: 'word bank detected', questionNumbers: qNums });
                 continue;
             }
         }
     }
+
+    return events;
 }

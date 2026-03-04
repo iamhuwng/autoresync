@@ -10,8 +10,12 @@
 
 import type { THCSQuestionType } from '../../types/thcs-test.types';
 import { classifyQuestionTypes, reclassifyByContent } from './thcs-type-classifier';
+import type { ReclassificationEvent } from './thcs-type-classifier';
 import { extractJSON } from './ai-json-repair';
 export { convertParsedToThcsDraft } from './thcs-draft-converter';
+
+// Module-level capture for reclassification events (set by provider functions, read by parseThcsText)
+let _lastReclassifications: ReclassificationEvent[] = [];
 
 // ── Types ──
 
@@ -98,6 +102,7 @@ const PATTERNS = {
 };
 
 // ── Layer 1: Regex Structural Parser ──
+// (used by parseThcsTextRegex fallback — kept after upload pipeline removal)
 
 function detectSections(lines: string[]): ParsedSection[] {
     const sections: ParsedSection[] = [];
@@ -124,7 +129,6 @@ function detectSections(lines: string[]): ParsedSection[] {
                 currentSection.endLine = i - 1;
                 sections.push(currentSection as ParsedSection);
             }
-            // New regex has 3 groups: [1]=prefix-style text, [2]=Roman numeral, [3]=Roman-style text
             const sectionName = (sectionMatch[1] || sectionMatch[3] || '').trim() || `Section ${sections.length + 1}`;
             currentSection = {
                 name: sectionName,
@@ -163,8 +167,6 @@ function detectSections(lines: string[]): ParsedSection[] {
 function parseQuestions(lines: string[], sections: ParsedSection[]): void {
     for (const section of sections) {
         let currentQ: Partial<ParsedQuestion> | null = null;
-
-        // Extract instruction text (lines between section header and first question)
         let instructionLines: string[] = [];
         let foundFirstQuestion = false;
 
@@ -172,10 +174,7 @@ function parseQuestions(lines: string[], sections: ParsedSection[]): void {
             const line = lines[i]?.trim() || '';
             if (!line) continue;
 
-            // Stop parsing questions if we hit the answer key section
-            if (PATTERNS.answerKeyHeader.test(line) || /ANSWER\s*KEY|ĐÁP\s*ÁN/i.test(line)) {
-                break;
-            }
+            if (PATTERNS.answerKeyHeader.test(line) || /ANSWER\s*KEY|ĐÁP\s*ÁN/i.test(line)) break;
 
             const questionMatch = line.match(PATTERNS.question);
             const optionMatch = line.match(PATTERNS.optionLine);
@@ -185,26 +184,15 @@ function parseQuestions(lines: string[], sections: ParsedSection[]): void {
                 section.instructionText = instructionLines.join(' ').trim();
             }
 
-            if (!foundFirstQuestion) {
-                instructionLines.push(line);
-                continue;
-            }
+            if (!foundFirstQuestion) { instructionLines.push(line); continue; }
 
             if (questionMatch) {
-                // Extract number and text from either capture group pattern
                 const qNum = questionMatch[1] || questionMatch[3];
                 const qText = questionMatch[2] || questionMatch[4];
                 if (qNum && qText) {
-                    // Double-check: skip if text is just a single answer letter (e.g., "B", "C")
                     const cleanText = qText.trim();
-                    if (cleanText.length <= 2 && /^[A-H]$/i.test(cleanText)) {
-                        // This is an answer key line, not a question — skip
-                        continue;
-                    }
-                    // Flush previous question
-                    if (currentQ && currentQ.text) {
-                        section.questions.push(currentQ as ParsedQuestion);
-                    }
+                    if (cleanText.length <= 2 && /^[A-H]$/i.test(cleanText)) continue;
+                    if (currentQ && currentQ.text) section.questions.push(currentQ as ParsedQuestion);
                     currentQ = {
                         questionNumber: parseInt(qNum, 10),
                         text: cleanText,
@@ -216,77 +204,56 @@ function parseQuestions(lines: string[], sections: ParsedSection[]): void {
                 if (!currentQ.options) currentQ.options = [];
                 currentQ.options.push(optionMatch[2]!.trim());
             } else if (currentQ && (!currentQ.options || currentQ.options.length === 0)) {
-                // Continuation of question text (but skip noise lines)
-                if (line.length > 2 && !/^[-=_~*]{3,}$/.test(line)) {
-                    currentQ.text += ' ' + line;
-                }
+                if (line.length > 2 && !/^[-=_~*]{3,}$/.test(line)) currentQ.text += ' ' + line;
             }
         }
 
-        // Flush last question
-        if (currentQ && currentQ.text) {
-            section.questions.push(currentQ as ParsedQuestion);
-        }
-
-        // If no instruction text was extracted, use the first line after header
-        if (!section.instructionText && instructionLines.length > 0) {
+        if (currentQ && currentQ.text) section.questions.push(currentQ as ParsedQuestion);
+        if (!section.instructionText && instructionLines.length > 0)
             section.instructionText = instructionLines.join(' ').trim();
-        }
     }
 }
 
 function extractMetadata(lines: string[]): ParsedMetadata {
     const metadata: ParsedMetadata = {};
-    // Check first 30 lines for metadata (some tests have long headers)
     const headerLines = lines.slice(0, 30).join('\n');
 
-    // Grade: "Grade 9", "Lớp 10", "10TH GRADE"
     const gradeMatch = headerLines.match(PATTERNS.gradeLevel);
     if (gradeMatch) {
-        // Group 1 = "Grade 9" style, Group 2 = "10TH GRADE" style
         const gradeNum = gradeMatch[1] || gradeMatch[2];
         if (gradeNum) metadata.gradeLevel = parseInt(gradeNum, 10);
     }
 
-    // Duration
     const durationMatch = headerLines.match(PATTERNS.duration);
     if (durationMatch) metadata.duration = parseInt(durationMatch[1]!, 10);
 
-    // Title: check for explicit TITLE: prefix first, then first meaningful line
     const titlePrefixMatch = headerLines.match(/^TITLE:\s*(.+)/im);
     if (titlePrefixMatch) {
         metadata.title = titlePrefixMatch[1]!.trim();
     } else {
-        // Look for the most title-like line in first 10 lines
         for (const line of lines.slice(0, 10)) {
             const trimmed = line?.trim();
             if (!trimmed || trimmed.length <= 5) continue;
-            // Skip lines that are pure metadata
             if (/^(?:TITLE|GRADE|DURATION|EXAM|TIME|SCHOOL|SUBJECT|TEST\s*CODE):/i.test(trimmed)) continue;
             if (PATTERNS.gradeLevel.test(trimmed) && trimmed.length < 20) continue;
             if (PATTERNS.duration.test(trimmed) && trimmed.length < 25) continue;
-            // Skip section headers
             if (PATTERNS.sectionHeader.test(trimmed)) continue;
             metadata.title = trimmed;
             break;
         }
     }
 
-    // Exam type detection — expanded patterns
     if (/giữa\s*kì|mid[- ]?term|giữa.*học.*kì/i.test(headerLines)) metadata.examType = 'giữa kì';
     else if (/cuối\s*kì|final|end[- ]?of|cuối.*học.*kì/i.test(headerLines)) metadata.examType = 'cuối kì';
     else if (/thi\s*vào\s*10|entrance|tuyển\s*sinh/i.test(headerLines)) metadata.examType = 'thi vào 10';
     else if (/ôn\s*tập|review|practice/i.test(headerLines)) metadata.examType = 'ôn tập';
     else if (/kiểm tra|test|quiz|exam/i.test(headerLines)) metadata.examType = 'giữa kì';
 
-    // Exam type from explicit prefix
     const examTypePrefixMatch = headerLines.match(/^EXAM\s*TYPE:\s*(.+)/im);
     if (examTypePrefixMatch) metadata.examType = examTypePrefixMatch[1]!.trim();
 
     return metadata;
 }
-
-// ── Task 10.5: Answer Key Extraction ──
 
 function extractAnswerKey(lines: string[]): Record<number, string> {
     const answers: Record<number, string> = {};
@@ -342,165 +309,6 @@ function extractAnswerKey(lines: string[]): Record<number, string> {
 
     return answers;
 }
-
-// ── Main Parser Function ──
-
-/**
- * Sub-function: AI polish pass for ambiguous section type classifications.
- * Tries to resolve low-confidence items via a single AI classification call.
- * Non-fatal — warnings populated if AI is unavailable.
- */
-async function runAIPolish(
-    sections: ParsedSection[],
-    ambiguous: AmbiguousItem[],
-    warnings: ParseWarning[]
-): Promise<void> {
-    try {
-        const { aiService } = await import('../ai/router.service');
-        const validTypes: THCSQuestionType[] = [
-            'pronunciation', 'word-stress', 'mcq-grammar', 'mcq-vocabulary',
-            'mcq-sign-notice', 'dialogue-response', 'reading-cloze-mcq',
-            'reading-comprehension', 'reading-announcement', 'sentence-arrangement',
-            'closest-meaning', 'error-identification', 'synonym-mcq', 'antonym-mcq',
-            'verb-form', 'word-form', 'sentence-rewrite', 'sentence-rewrite-keyword',
-            'reading-cloze-wordbank',
-        ];
-        const prompt = `Classify these Vietnamese THCS-THPT test instructions into question types.
-Valid types: ${validTypes.join(', ')}
-
-Items to classify:
-${JSON.stringify(ambiguous.map(a => ({ id: a.id, instructionText: a.instructionText, currentType: a.currentType, confidence: a.confidence })))}
-
-Return JSON only: { "classifications": [{ "id": "...", "type": "...", "confidence": 0-100 }] }`;
-
-        const classifyChunk = {
-            id: 'thcs-classify', text: prompt, type: 'combined' as const, number: 0,
-            wordCount: prompt.split(/\s+/).length, startIndex: 0, endIndex: prompt.length,
-            isLast: true, metadata: { source: 'thcs-classifier', chunkIndex: 0, totalChunks: 1 },
-        };
-        const aiResult = await aiService.parseChunk(classifyChunk as any);
-
-        if (aiResult.success && aiResult.data) {
-            const classifications = (aiResult.data as any).classifications;
-            if (Array.isArray(classifications)) {
-                for (const cls of classifications) {
-                    const item = ambiguous.find(a => a.id === cls.id);
-                    if (item && cls.confidence > item.confidence && validTypes.includes(cls.type)) {
-                        const section = sections[item.sectionIndex];
-                        if (section) {
-                            section.detectedType = cls.type;
-                            section.typeConfidence = cls.confidence;
-                            for (const q of section.questions) q.type = cls.type;
-                        }
-                    }
-                }
-            }
-        }
-    } catch (aiErr) {
-        console.warn('[parseThcsDocument] AI polish failed, using regex results:', aiErr);
-        warnings.push({ type: 'skipped-content', message: 'AI verification unavailable — please review flagged items manually.' });
-    }
-}
-
-/**
- * Sub-function: Apply extracted answer key to questions across all sections.
- */
-function applyAnswerKey(sections: ParsedSection[], answerKey: Record<number, string>): void {
-    for (const section of sections) {
-        for (const q of section.questions) {
-            if (answerKey[q.questionNumber]) {
-                q.correctAnswer = answerKey[q.questionNumber];
-            }
-        }
-    }
-}
-
-/**
- * Sub-function: Detect document-level warnings (images, multi-variant, answer coverage).
- * Returns overall confidence score and populates the warnings array.
- */
-function detectDocumentWarnings(
-    text: string,
-    sections: ParsedSection[],
-    warnings: ParseWarning[]
-): number {
-    if (/\[image\]|!\[/i.test(text))
-        warnings.push({ type: 'images-detected', message: 'Images detected but not imported.' });
-    if (/mã\s*đề/i.test(text))
-        warnings.push({ type: 'multi-variant', message: 'Multiple test variants detected. Only the first variant was parsed.' });
-    const totalSections = sections.length;
-    const avgConfidence = totalSections > 0
-        ? sections.reduce((sum, s) => sum + s.typeConfidence, 0) / totalSections
-        : 0;
-    return Math.round(avgConfidence);
-}
-
-export async function parseThcsDocument(
-    file: File,
-    onProgress?: (progress: ParseProgress) => void
-): Promise<Result<ParsedTest>> {
-    try {
-        const warnings: ParseWarning[] = [];
-
-        // Stage 1: Extract text
-        onProgress?.({ stage: 'extracting', percent: 10, message: 'Extracting text...' });
-        let text: string;
-        if (file.name.endsWith('.txt')) {
-            text = await file.text();
-        } else {
-            try {
-                const { extractTextFromFile } = await import('../file-extractor/file.extractor');
-                const extractResult = await extractTextFromFile(file);
-                if (!extractResult.success) return { success: false, error: 'Failed to extract text from document.' };
-                text = extractResult.data;
-            } catch {
-                return { success: false, error: 'Failed to extract text from document. Only .txt is supported without the file extractor library.' };
-            }
-        }
-
-        // Stage 2: Parse structure
-        onProgress?.({ stage: 'parsing', percent: 30, message: 'Detecting sections...' });
-        const lines = text.split('\n');
-        const metadata = extractMetadata(lines);
-        const sections = detectSections(lines);
-        if (sections.length === 1 && sections[0]!.name === 'General')
-            warnings.push({ type: 'no-sections', message: 'No section headers detected. All questions grouped under "General".' });
-        parseQuestions(lines, sections);
-
-        // Stage 3: Classify types
-        onProgress?.({ stage: 'classifying', percent: 60, message: 'Classifying question types...' });
-        const ambiguous = classifyQuestionTypes(sections);
-
-        // Stage 3b: AI Polish for ambiguous items
-        if (ambiguous.length > 0) {
-            onProgress?.({ stage: 'ai-polish', percent: 75, message: `AI verifying ${ambiguous.length} ambiguous classification(s)...` });
-            await runAIPolish(sections, ambiguous, warnings);
-        }
-
-        // Stage 4: Apply answers + detect warnings
-        const answerKey = extractAnswerKey(lines);
-        applyAnswerKey(sections, answerKey);
-        const overallConfidence = detectDocumentWarnings(text, sections, warnings);
-
-        onProgress?.({ stage: 'done', percent: 100, message: 'Parsing complete!' });
-        return {
-            success: true,
-            data: { metadata, sections, answerKey, warnings, overallConfidence },
-        };
-    } catch (error) {
-        return { success: false, error: error instanceof Error ? error.message : 'Document parsing failed' };
-    }
-}
-
-// ── Parse from Raw Text (Paste Text feature) ──
-// PRD §4.12.3: Three-Layer Architecture
-//   Layer 1: Regex structural parser (instant, no API)
-//   Layer 2: Instruction-to-type classifier (local, no API)
-//   Layer 3: AI polish for ambiguous items (1 API call, only if needed)
-
-// THCS_AI_PROMPT is lazy-loaded inside parseThcsText (paste-text path only)
-
-// extractJSON is imported from ./ai-json-repair (shared with groq.provider.ts)
 
 /**
  * Validate and normalize the AI-parsed result into our ParsedTest format.
@@ -562,7 +370,7 @@ function validateAIResult(raw: any): ParsedTest {
         for (const [key, value] of Object.entries(raw.answerKey)) {
             const qNum = parseInt(key, 10);
             if (!isNaN(qNum) && typeof value === 'string') {
-                answerKey[qNum] = value.toUpperCase();
+                answerKey[qNum] = /^[A-Ha-h]$/.test(value) ? value.toUpperCase() : value;
             }
         }
     }
@@ -610,6 +418,9 @@ export async function parseThcsText(
 ): Promise<Result<ParsedTest>> {
     try {
         const warnings: ParseWarning[] = [];
+        const parseStart = Date.now();
+        let usedProvider: 'groq' | 'gemini' | 'regex-fallback' = 'regex-fallback';
+        let reclassifications: ReclassificationEvent[] = [];
 
         // ─── Stage 1: Pre-clean ─────────────────────────────────────
         onProgress?.({ stage: 'extracting', percent: 5, message: 'Cleaning text...' });
@@ -630,19 +441,22 @@ export async function parseThcsText(
             // Build the prompt: system prompt + user text
             const fullPrompt = THCS_AI_PROMPT + '\n\n"""\n' + cleaned + '\n"""';
 
-
             // Use the router's parseChunk — which tries Gemini first, then Groq
             // But we need a custom prompt, so we'll call the providers directly
             const groqResult = await attemptAIParse(fullPrompt, 'groq');
 
             if (groqResult) {
                 parsedTest = groqResult;
+                usedProvider = 'groq';
+                reclassifications = _lastReclassifications;
                 onProgress?.({ stage: 'parsing', percent: 60, message: '✅ AI extraction succeeded!' });
             } else {
                 // Try Gemini as fallback
                 const geminiResult = await attemptAIParse(fullPrompt, 'gemini');
                 if (geminiResult) {
                     parsedTest = geminiResult;
+                    usedProvider = 'gemini';
+                    reclassifications = _lastReclassifications;
                     onProgress?.({ stage: 'parsing', percent: 60, message: '✅ AI extraction succeeded (Gemini)!' });
                 }
             }
@@ -771,6 +585,8 @@ export async function parseThcsText(
             (window as any).__PARSE_DEBUG = {
                 timestamp: new Date().toISOString(),
                 pipeline: 'AI-first',
+                provider: usedProvider,
+                parseDurationMs: Date.now() - parseStart,
                 inputLength: rawText.length,
                 cleanedLength: cleaned.length,
                 metadata: parsedTest.metadata,
@@ -779,6 +595,7 @@ export async function parseThcsText(
                 answeredCount,
                 overallConfidence: parsedTest.overallConfidence,
                 warnings: parsedTest.warnings,
+                reclassifications,
             };
         }
 
@@ -861,7 +678,7 @@ async function callGroqDirect(prompt: string): Promise<ParsedTest | null> {
                 const result = validateAIResult(parsed);
                 // Run classifier pipeline — sole authority for type assignment
                 classifyQuestionTypes(result.sections);
-                reclassifyByContent(result.sections);
+                _lastReclassifications = reclassifyByContent(result.sections);
 
                 const totalQ = result.sections.reduce((sum, s) => sum + s.questions.length, 0);
                 console.log(`✅ [THCS AI Parse] Groq succeeded: ${totalQ} questions, ${Object.keys(result.answerKey).length} answers`);
@@ -930,7 +747,7 @@ async function callGeminiDirect(prompt: string): Promise<ParsedTest | null> {
                 const validResult = validateAIResult(parsed);
                 // Run classifier pipeline — sole authority for type assignment
                 classifyQuestionTypes(validResult.sections);
-                reclassifyByContent(validResult.sections);
+                _lastReclassifications = reclassifyByContent(validResult.sections);
 
                 const totalQ = validResult.sections.reduce((sum, s) => sum + s.questions.length, 0);
                 console.log(`✅ [THCS AI Parse] Gemini succeeded: ${totalQ} questions`);
@@ -1032,5 +849,3 @@ async function parseThcsTextRegex(
         };
     }
 }
-
-

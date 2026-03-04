@@ -158,7 +158,7 @@ export function THCSParseReviewPanel({ parsedTest, onBack, onProceed }: THCSPars
 
             {/* Answer Key Grid */}
             <Group justify="space-between">
-                <Text fw={700} size="sm">
+                <Text fw={700} size="sm" component="span">
                     Answer Key ({answeredCount}/{totalQuestions})
                     {missingAnswers > 0 && (
                         <Badge size="xs" color="orange" ml={4}>⚠️ {missingAnswers} missing</Badge>
@@ -215,55 +215,7 @@ export function THCSParseReviewPanel({ parsedTest, onBack, onProceed }: THCSPars
                 })}
             </SimpleGrid>
 
-            {/* 🔍 DEBUG: Export diagnostic data */}
-            <div style={{
-                padding: '0.75rem', background: 'rgba(245,158,11,0.06)', borderRadius: '0.5rem',
-                border: '1px dashed rgba(245,158,11,0.3)', marginTop: '0.5rem',
-            }}>
-                <Text size="xs" fw={700} c="orange" mb={4}>🔍 Debug Tools (Temporary)</Text>
-                <Group gap={4} wrap="wrap">
-                    <button
-                        onClick={() => {
-                            const data = (window as any).__PARSE_DEBUG;
-                            if (data) {
-                                navigator.clipboard.writeText(JSON.stringify(data, null, 2));
-                                alert('✅ Parser diagnostics copied to clipboard');
-                            } else {
-                                alert('⚠️ No parser debug data found');
-                            }
-                        }}
-                        style={{
-                            padding: '0.25rem 0.5rem', border: '1px solid rgba(245,158,11,0.3)',
-                            borderRadius: '0.375rem', background: 'transparent',
-                            color: '#d97706', fontWeight: 600, fontSize: '0.7rem', cursor: 'pointer',
-                        }}
-                    >📊 Copy Parser Debug</button>
-                    <button
-                        onClick={() => {
-                            navigator.clipboard.writeText(JSON.stringify(editedTest, null, 2));
-                            alert('✅ Full parsed result copied to clipboard');
-                        }}
-                        style={{
-                            padding: '0.25rem 0.5rem', border: '1px solid rgba(245,158,11,0.3)',
-                            borderRadius: '0.375rem', background: 'transparent',
-                            color: '#d97706', fontWeight: 600, fontSize: '0.7rem', cursor: 'pointer',
-                        }}
-                    >📋 Copy Parsed Result</button>
-                    <button
-                        onClick={() => {
-                            const data = (window as any).__PARSE_DEBUG;
-                            const summary = data ? `Sections: ${data.totalQuestions} questions across ${data.sections?.length} sections\n${data.questions?.map((q: any) => `  ${q.section}: ${q.questionCount} questions (${q.questionNumbers?.join(',')})`).join('\n')}` : 'No debug data';
-                            navigator.clipboard.writeText(summary);
-                            alert('✅ Quick summary copied to clipboard');
-                        }}
-                        style={{
-                            padding: '0.25rem 0.5rem', border: '1px solid rgba(245,158,11,0.3)',
-                            borderRadius: '0.375rem', background: 'transparent',
-                            color: '#d97706', fontWeight: 600, fontSize: '0.7rem', cursor: 'pointer',
-                        }}
-                    >📝 Copy Summary</button>
-                </Group>
-            </div>
+
 
             {/* Actions */}
             <Group justify="space-between" mt="md">

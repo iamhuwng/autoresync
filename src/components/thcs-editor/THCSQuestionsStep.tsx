@@ -8,11 +8,14 @@ import React, { useState } from 'react';
 import { Alert } from '@mantine/core';
 import THCSSectionBlock from './THCSSectionBlock';
 import { THCSDndSectionsContainer } from './THCSDndSectionsContainer';
-import type { THCSSection } from '../../types/thcs-test.types';
+import type { THCSSection, THCSTestMetadata } from '../../types/thcs-test.types';
+import { generateDiagnosticLog } from '../../services/test-creation/thcs-diagnostic-log';
+import type { ParseDebugData } from '../../services/test-creation/thcs-diagnostic-log';
 
 export interface THCSQuestionsStepProps {
     sections: THCSSection[];
     draftId: string | null;
+    metadata: THCSTestMetadata;
     onSectionUpdate: (index: number, section: THCSSection) => void;
     onSectionDelete: (index: number) => void;
     onSectionMove: (index: number, direction: -1 | 1) => void;
@@ -23,6 +26,7 @@ export interface THCSQuestionsStepProps {
 const THCSQuestionsStep: React.FC<THCSQuestionsStepProps> = ({
     sections,
     draftId,
+    metadata,
     onSectionUpdate,
     onSectionDelete,
     onSectionMove,
@@ -32,6 +36,8 @@ const THCSQuestionsStep: React.FC<THCSQuestionsStepProps> = ({
     const [activeSectionId, setActiveSectionId] = useState<string | null>(
         sections.length > 0 ? sections[0]!.id : null
     );
+    const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+    const [logCopied, setLogCopied] = useState(false);
 
     const totalQuestions = sections.reduce((sum, s) => sum + s.questions.length, 0);
     const answeredCount = sections.reduce((sum, s) =>
@@ -171,6 +177,87 @@ const THCSQuestionsStep: React.FC<THCSQuestionsStepProps> = ({
                             + Add Section
                         </button>
                     </div>
+
+                    {/* ── Diagnostics Accordion ── */}
+                    <div style={{ marginTop: '0.75rem', borderTop: '1px solid rgba(139,92,246,0.1)', paddingTop: '0.5rem' }}>
+                        <button
+                            onClick={() => setDiagnosticsOpen(prev => !prev)}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.375rem',
+                                width: '100%',
+                                padding: '0.375rem 0.5rem',
+                                border: 'none',
+                                borderRadius: '0.375rem',
+                                background: diagnosticsOpen ? 'rgba(245,158,11,0.08)' : 'transparent',
+                                cursor: 'pointer',
+                                fontSize: '0.6875rem',
+                                fontWeight: 600,
+                                color: '#94a3b8',
+                                textAlign: 'left',
+                                transition: 'background 0.15s',
+                            }}
+                        >
+                            <span style={{
+                                display: 'inline-block',
+                                transform: diagnosticsOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+                                transition: 'transform 0.15s',
+                                fontSize: '0.5rem',
+                            }}>▶</span>
+                            🔍 Diagnostics
+                        </button>
+
+                        {diagnosticsOpen && (
+                            <div style={{ marginTop: '0.375rem', display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+                                <button
+                                    onClick={() => {
+                                        const parseDebug = (window as any).__PARSE_DEBUG as ParseDebugData | undefined;
+                                        const log = generateDiagnosticLog({ parseDebug: parseDebug || null, sections, metadata });
+                                        navigator.clipboard.writeText(log).then(() => {
+                                            setLogCopied(true);
+                                            setTimeout(() => setLogCopied(false), 2000);
+                                        });
+                                    }}
+                                    style={{
+                                        padding: '0.375rem 0.5rem',
+                                        border: '1px solid rgba(139,92,246,0.2)',
+                                        borderRadius: '0.375rem',
+                                        background: logCopied ? 'rgba(16,185,129,0.1)' : 'rgba(139,92,246,0.06)',
+                                        color: logCopied ? '#059669' : '#7c3aed',
+                                        fontWeight: 600,
+                                        fontSize: '0.6875rem',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.15s',
+                                        width: '100%',
+                                        textAlign: 'center',
+                                    }}
+                                >
+                                    {logCopied ? '✅ Copied!' : '📋 Copy Full Log'}
+                                </button>
+                                <pre style={{
+                                    margin: 0,
+                                    padding: '0.5rem',
+                                    background: 'rgba(15,23,42,0.04)',
+                                    borderRadius: '0.375rem',
+                                    fontSize: '0.5625rem',
+                                    lineHeight: 1.4,
+                                    color: '#475569',
+                                    whiteSpace: 'pre-wrap',
+                                    wordBreak: 'break-word',
+                                    maxHeight: '300px',
+                                    overflowY: 'auto',
+                                    border: '1px solid rgba(0,0,0,0.05)',
+                                }}>
+                                    {generateDiagnosticLog({
+                                        parseDebug: (window as any).__PARSE_DEBUG as ParseDebugData | undefined || null,
+                                        sections,
+                                        metadata,
+                                    })}
+                                </pre>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* Main Content — Sections */}
@@ -224,62 +311,7 @@ const THCSQuestionsStep: React.FC<THCSQuestionsStepProps> = ({
                         + Add Section
                     </button>
 
-                    {/* 🔍 DEBUG: Editor diagnostic tools (Temporary) */}
-                    <div style={{
-                        padding: '0.75rem', background: 'rgba(245,158,11,0.06)', borderRadius: '0.5rem',
-                        border: '1px dashed rgba(245,158,11,0.3)', marginTop: '1rem',
-                    }}>
-                        <p style={{ fontSize: '0.7rem', fontWeight: 700, color: '#d97706', marginBottom: '0.35rem' }}>
-                            🔍 Debug Tools — Step 2 Editor (Temporary)
-                        </p>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
-                            <button
-                                onClick={() => {
-                                    navigator.clipboard.writeText(JSON.stringify(sections, null, 2));
-                                    alert('✅ Full sections JSON copied to clipboard');
-                                }}
-                                style={{
-                                    padding: '0.2rem 0.5rem', border: '1px solid rgba(245,158,11,0.3)',
-                                    borderRadius: '0.375rem', background: 'transparent',
-                                    color: '#d97706', fontWeight: 600, fontSize: '0.65rem', cursor: 'pointer',
-                                }}
-                            >📋 Copy Sections JSON</button>
-                            <button
-                                onClick={() => {
-                                    const summary = sections.map((s, si) => {
-                                        const qs = s.questions.map(q =>
-                                            `  Q${q.questionNumber}: type=${q.type} intent=${q.intent || 'none'} answer=${q.correctAnswer || '⚠️ MISSING'} opts=${q.options.filter(o => o).length}`
-                                        ).join('\n');
-                                        return `[${si}] ${s.name} (${s.questions[0]?.type || '?'}) — ${s.questions.length} questions\n${qs}`;
-                                    }).join('\n\n');
-                                    navigator.clipboard.writeText(summary);
-                                    alert('✅ Answer key summary copied to clipboard');
-                                }}
-                                style={{
-                                    padding: '0.2rem 0.5rem', border: '1px solid rgba(245,158,11,0.3)',
-                                    borderRadius: '0.375rem', background: 'transparent',
-                                    color: '#d97706', fontWeight: 600, fontSize: '0.65rem', cursor: 'pointer',
-                                }}
-                            >🔑 Copy Answer Key Summary</button>
-                            <button
-                                onClick={() => {
-                                    const breakdown = sections.map((s, si) => {
-                                        const types = [...new Set(s.questions.map(q => q.type))];
-                                        const intents = [...new Set(s.questions.map(q => q.intent).filter(Boolean))];
-                                        const missingAnswers = s.questions.filter(q => !q.correctAnswer).length;
-                                        return `[${si}] "${s.name}"\n  sectionType: ${s.questions[0]?.type || '?'}\n  qTypes: [${types.join(', ')}]\n  intents: [${intents.join(', ')}]\n  questions: ${s.questions.length}\n  missingAnswers: ${missingAnswers}\n  layout: ${s.layout || 'single-column'}`;
-                                    }).join('\n\n');
-                                    navigator.clipboard.writeText(breakdown);
-                                    alert('✅ Section type breakdown copied to clipboard');
-                                }}
-                                style={{
-                                    padding: '0.2rem 0.5rem', border: '1px solid rgba(245,158,11,0.3)',
-                                    borderRadius: '0.375rem', background: 'transparent',
-                                    color: '#d97706', fontWeight: 600, fontSize: '0.65rem', cursor: 'pointer',
-                                }}
-                            >📊 Copy Section Breakdown</button>
-                        </div>
-                    </div>
+
                 </div>
             </div>
         </div>

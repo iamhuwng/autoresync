@@ -147,11 +147,6 @@ export default function THCSTestEditorPage() {
         notifications.show({ color: 'green', title: 'Template Applied', message: `Created ${templateSections.length} sections from template "${template.name}".` });
     }, []);
 
-    // Phase 3 Task 10.9: Handle parsed document result → convert to editor state
-    const handleDocumentParsed = useCallback((_parsedResult: any) => {
-        // parsedTestData managed inside THCSSetupStep
-    }, []);
-
     const handleParsedProceed = useCallback((finalParsed: any) => {
         try {
             const draft = convertParsedToThcsDraft(finalParsed);
@@ -546,7 +541,6 @@ export default function THCSTestEditorPage() {
                         onMetadataChange={handleMetadataChange}
                         onIsPublicChange={handleIsPublicChange}
                         onTemplateSelect={handleTemplateSelect}
-                        onDocumentParsed={handleDocumentParsed}
                         onParsedProceed={handleParsedProceed}
                         onStartBlank={() => setCurrentStep(1)}
                     />
@@ -556,6 +550,7 @@ export default function THCSTestEditorPage() {
                     <THCSQuestionsStep
                         sections={sections}
                         draftId={draftId}
+                        metadata={metadata}
                         onSectionUpdate={handleSectionUpdate}
                         onSectionDelete={handleSectionDelete}
                         onSectionMove={handleSectionMove}
