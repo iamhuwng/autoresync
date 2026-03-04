@@ -702,6 +702,63 @@ export async function parseThcsText(
             return parseThcsTextRegex(cleaned, onProgress, true);
         }
 
+        // ─── Stage 3b: Section Reconciliation (Q# overlap matching) ───
+        // Run the regex parser to get structural info (answer key, line ranges).
+        // Match AI sections to regex sections by question-number set overlap, NOT by name.
+        // This prevents silent question drops when AI renames sections (e.g.
+        // AI: "PHONETICS" vs regex: "Part A: PHONETICS").
+        try {
+            const regexResult = await parseThcsTextRegex(cleaned, undefined, true);
+            if (regexResult.success && regexResult.data) {
+                const regexSections = regexResult.data.sections;
+
+                // Build a Q#-set for each regex section
+                const regexQSets = regexSections.map(rs => ({
+                    section: rs,
+                    qNums: new Set(rs.questions.map(q => q.questionNumber)),
+                }));
+
+                // For each AI section, find the best-matching regex section by overlap
+                for (const aiSection of parsedTest.sections) {
+                    const aiQNums = new Set(aiSection.questions.map(q => q.questionNumber));
+                    if (aiQNums.size === 0) continue;
+
+                    let bestMatch: typeof regexQSets[0] | null = null;
+                    let bestOverlap = 0;
+
+                    for (const rqs of regexQSets) {
+                        if (rqs.qNums.size === 0) continue;
+                        // Count intersection
+                        let intersection = 0;
+                        for (const n of aiQNums) {
+                            if (rqs.qNums.has(n)) intersection++;
+                        }
+                        // Overlap relative to the smaller set (covers partial-section AI groupings)
+                        const smaller = Math.min(aiQNums.size, rqs.qNums.size);
+                        const ratio = intersection / smaller;
+                        if (ratio > bestOverlap) {
+                            bestOverlap = ratio;
+                            bestMatch = rqs;
+                        }
+                    }
+
+                    // AC#4: ≥80% threshold check
+                    if (bestMatch && bestOverlap >= 0.8) {
+                        // Fill in missing correctAnswers from regex answer key
+                        const regexAnswerKey = regexResult.data.answerKey;
+                        for (const q of aiSection.questions) {
+                            if (!q.correctAnswer && regexAnswerKey[q.questionNumber]) {
+                                q.correctAnswer = regexAnswerKey[q.questionNumber];
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (reconcileErr) {
+            // Non-fatal — AI result is still usable without reconciliation
+            console.warn('[parseThcsText] Reconciliation failed, using AI result as-is:', reconcileErr);
+        }
+
         // ─── Stage 4: Post-Processing ───────────────────────────────
         onProgress?.({ stage: 'classifying', percent: 70, message: 'Validating and applying answer key...' });
 
