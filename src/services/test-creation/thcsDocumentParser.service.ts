@@ -10,6 +10,7 @@
 
 import type { THCSQuestionType } from '../../types/thcs-test.types';
 import { classifyQuestionTypes } from './thcs-type-classifier';
+import { extractJSON } from './ai-json-repair';
 export { convertParsedToThcsDraft } from './thcs-draft-converter';
 
 // ── Types ──
@@ -517,23 +518,7 @@ Return JSON only: { "classifications": [{ "id": "...", "type": "...", "confidenc
 
 // THCS_AI_PROMPT is lazy-loaded inside parseThcsText (paste-text path only)
 
-/**
- * Extract JSON from AI response (strips markdown fences, finds JSON object)
- */
-function extractJSON(text: string): any {
-    // Strip markdown code fences
-    let cleaned = text.replace(/```(?:json)?\s*/gi, '').replace(/```\s*$/gi, '');
-
-    // Find the outermost JSON object
-    const start = cleaned.indexOf('{');
-    const end = cleaned.lastIndexOf('}');
-    if (start === -1 || end === -1 || end <= start) {
-        throw new Error('No JSON object found in AI response');
-    }
-
-    cleaned = cleaned.substring(start, end + 1);
-    return JSON.parse(cleaned);
-}
+// extractJSON is imported from ./ai-json-repair (shared with groq.provider.ts)
 
 /**
  * Validate and normalize the AI-parsed result into our ParsedTest format.

@@ -1,9 +1,10 @@
-import type { Chunk } from '../../types/document.types';
+﻿import type { Chunk } from '../../types/document.types';
 import type { Result } from '../../types/result.types';
 import type { IAIService, AIParseResult, ProviderStatus } from './ai.service';
 import { getEnv } from '../../config/env.config';
 import { validateAIResponse, validatePassagesOnly, validateQuestionsAndAnswers, normalizeQuestionType, normalizeAnswer } from './response.validator';
 import { getDecryptedKeys } from '../api-keys.service';
+import { extractJSON } from '../test-creation/ai-json-repair';
 
 // Type-only import to avoid eager loading
 type Groq = any;
@@ -309,7 +310,7 @@ export class GroqProvider implements IAIService {
         return { success: false, error: 'Empty response from Groq' };
       }
 
-      const parsed = this.extractJSON(text);
+      const parsed = extractJSON(text);
 
       // Log parsed structure for debugging
       const parsedObj = parsed as Record<string, any>;
@@ -816,208 +817,8 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
 }`;
   }
 
-  /**
-   * Extract JSON from response
-   * 
-   * Handles malformed JSON from LLMs with multiple recovery strategies:
-   * 1. Direct parse
-   * 2. Control character sanitization
-   * 3. Trailing comma removal
-   * 4. Aggressive structural repair
-   * 5. Truncation repair (close unclosed brackets/braces)
-   */
-  private extractJSON(text: string): unknown {
-    let cleaned = text
-      .replace(/```json\n?/g, '')
-      .replace(/```\n?/g, '')
-      .trim();
-
-    // Strategy 1: try parsing as-is
-    try {
-      return JSON.parse(cleaned);
-    } catch (e1) {
-      // Extract JSON object
-      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error('No valid JSON found in response');
-      }
-      let jsonStr = jsonMatch[0];
-
-      // Strategy 2: Sanitize control characters inside string values
-      const sanitized = this.sanitizeJsonControlChars(jsonStr);
-      try {
-        return JSON.parse(sanitized);
-      } catch (e2) {
-        // Strategy 3: Remove trailing commas (common LLM mistake)
-        const noTrailingCommas = sanitized
-          .replace(/,\s*([\]}])/g, '$1');
-        try {
-          return JSON.parse(noTrailingCommas);
-        } catch (e3) {
-          // Strategy 4: Aggressive repair — fix common structural issues
-          try {
-            const repaired = this.aggressiveJsonRepair(noTrailingCommas);
-            return JSON.parse(repaired);
-          } catch (e4) {
-            // Strategy 5: Truncation repair — close unclosed structures
-            try {
-              const truncRepaired = this.repairTruncatedJson(noTrailingCommas);
-              return JSON.parse(truncRepaired);
-            } catch (e5) {
-              console.warn('[Groq] All JSON recovery strategies failed:', {
-                strategy1: (e1 as Error).message,
-                strategy2: (e2 as Error).message,
-                strategy3: (e3 as Error).message,
-                strategy4: (e4 as Error).message,
-                strategy5: (e5 as Error).message,
-                // Show context around the error position for debugging
-                responseLength: jsonStr.length,
-              });
-              throw new Error('No valid JSON found in response');
-            }
-          }
-        }
-      }
-    }
-  }
-
-  /**
-   * Aggressively repair malformed JSON
-   * Handles unescaped quotes, missing commas between properties, etc.
-   */
-  private aggressiveJsonRepair(jsonStr: string): string {
-    let result = jsonStr;
-
-    // Fix: missing comma between properties (e.g., "a": 1 "b": 2 → "a": 1, "b": 2)
-    result = result.replace(/(")\s*\n\s*(")/g, '$1,\n$2');
-
-    // Fix: missing comma after closing brace/bracket before next key
-    result = result.replace(/([\]}])\s*\n\s*(")/g, '$1,\n$2');
-
-    // Fix: unescaped newlines in string values — re-run sanitization on the repaired string
-    result = this.sanitizeJsonControlChars(result);
-
-    return result;
-  }
-
-  /**
-   * Repair truncated JSON by closing unclosed brackets and braces
-   * Handles responses that were cut off mid-generation
-   */
-  private repairTruncatedJson(jsonStr: string): string {
-    let result = jsonStr;
-
-    // Remove any trailing incomplete string value (ends mid-string)
-    // Look for unclosed string at the end
-    const lastQuoteIdx = result.lastIndexOf('"');
-    if (lastQuoteIdx > 0) {
-      // Count unescaped quotes to see if we're inside a string
-      let quoteCount = 0;
-      let escaped = false;
-      for (let i = 0; i < result.length; i++) {
-        if (escaped) { escaped = false; continue; }
-        if (result[i] === '\\') { escaped = true; continue; }
-        if (result[i] === '"') quoteCount++;
-      }
-      if (quoteCount % 2 !== 0) {
-        // Odd number of quotes — we're inside an unclosed string
-        // Close the string and add a placeholder value
-        result += '"';
-      }
-    }
-
-    // Remove trailing comma if present
-    result = result.replace(/,\s*$/, '');
-
-    // Count unclosed brackets and braces
-    let openBraces = 0;
-    let openBrackets = 0;
-    let inString = false;
-    let esc = false;
-
-    for (let i = 0; i < result.length; i++) {
-      const ch = result[i];
-      if (esc) { esc = false; continue; }
-      if (ch === '\\' && inString) { esc = true; continue; }
-      if (ch === '"') { inString = !inString; continue; }
-      if (inString) continue;
-      if (ch === '{') openBraces++;
-      else if (ch === '}') openBraces--;
-      else if (ch === '[') openBrackets++;
-      else if (ch === ']') openBrackets--;
-    }
-
-    // Close any unclosed structures
-    while (openBrackets > 0) { result += ']'; openBrackets--; }
-    while (openBraces > 0) { result += '}'; openBraces--; }
-
-    return result;
-  }
-
-  /**
-   * Sanitize control characters in JSON string values
-   * 
-   * LLMs sometimes return JSON with literal newlines, tabs, etc.
-   * inside string values instead of proper escape sequences.
-   */
-  private sanitizeJsonControlChars(jsonStr: string): string {
-    // Replace control characters that break JSON parsing
-    // We need to be careful to only replace inside string values, not structural characters
-
-    // Strategy: Replace problematic control characters with their escape sequences
-    // This handles: \n (newline), \r (carriage return), \t (tab), and other control chars
-
-    let result = '';
-    let inString = false;
-    let escaped = false;
-
-    for (let i = 0; i < jsonStr.length; i++) {
-      const char = jsonStr[i];
-      if (!char) continue; // Guard against undefined
-      const charCode = char.charCodeAt(0);
-
-      if (escaped) {
-        // Previous char was backslash, this char is escaped
-        result += char;
-        escaped = false;
-        continue;
-      }
-
-      if (char === '\\' && inString) {
-        // Backslash in string - next char is escaped
-        result += char;
-        escaped = true;
-        continue;
-      }
-
-      if (char === '"' && !escaped) {
-        // Toggle string mode
-        inString = !inString;
-        result += char;
-        continue;
-      }
-
-      if (inString) {
-        // Inside a string - escape control characters
-        if (charCode < 32) {
-          // Control character - escape it
-          switch (charCode) {
-            case 9: result += '\\t'; break;   // Tab
-            case 10: result += '\\n'; break;  // Newline
-            case 13: result += '\\r'; break;  // Carriage return
-            default: result += `\\u${charCode.toString(16).padStart(4, '0')}`; break;
-          }
-        } else {
-          result += char;
-        }
-      } else {
-        // Outside string - keep as-is
-        result += char;
-      }
-    }
-
-    return result;
-  }
+  // extractJSON, sanitizeJsonControlChars, aggressiveJsonRepair, repairTruncatedJson
+  // are now imported from ../test-creation/ai-json-repair.ts
 
   /**
    * Normalize result (question types, answers)
@@ -1138,7 +939,7 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
         throw new Error('Empty response from Groq');
       }
 
-      const parsed = this.extractJSON(text_response);
+      const parsed = extractJSON(text_response);
       const validation = validatePassagesOnly(parsed);
 
       if (!validation.success) {
@@ -1268,7 +1069,7 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
         throw new Error('Empty response from Groq');
       }
 
-      const parsed = this.extractJSON(text_response);
+      const parsed = extractJSON(text_response);
       const validation = validateQuestionsAndAnswers(parsed);
 
       if (!validation.success) {
@@ -1356,7 +1157,7 @@ Respond with JSON only:
       const text = completion.choices[0]?.message?.content;
       if (!text) throw new Error('Empty response from Groq');
 
-      const parsed = this.extractJSON(text) as { score: number; confidence: number; feedback: string };
+      const parsed = extractJSON(text) as { score: number; confidence: number; feedback: string };
 
       return {
         success: true,
