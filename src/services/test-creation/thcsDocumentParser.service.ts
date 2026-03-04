@@ -345,6 +345,96 @@ function extractAnswerKey(lines: string[]): Record<number, string> {
 
 // ── Main Parser Function ──
 
+/**
+ * Sub-function: AI polish pass for ambiguous section type classifications.
+ * Tries to resolve low-confidence items via a single AI classification call.
+ * Non-fatal — warnings populated if AI is unavailable.
+ */
+async function runAIPolish(
+    sections: ParsedSection[],
+    ambiguous: AmbiguousItem[],
+    warnings: ParseWarning[]
+): Promise<void> {
+    try {
+        const { aiService } = await import('../ai/router.service');
+        const validTypes: THCSQuestionType[] = [
+            'pronunciation', 'word-stress', 'mcq-grammar', 'mcq-vocabulary',
+            'mcq-sign-notice', 'dialogue-response', 'reading-cloze-mcq',
+            'reading-comprehension', 'reading-announcement', 'sentence-arrangement',
+            'closest-meaning', 'error-identification', 'synonym-mcq', 'antonym-mcq',
+            'verb-form', 'word-form', 'sentence-rewrite', 'sentence-rewrite-keyword',
+            'reading-cloze-wordbank',
+        ];
+        const prompt = `Classify these Vietnamese THCS-THPT test instructions into question types.
+Valid types: ${validTypes.join(', ')}
+
+Items to classify:
+${JSON.stringify(ambiguous.map(a => ({ id: a.id, instructionText: a.instructionText, currentType: a.currentType, confidence: a.confidence })))}
+
+Return JSON only: { "classifications": [{ "id": "...", "type": "...", "confidence": 0-100 }] }`;
+
+        const classifyChunk = {
+            id: 'thcs-classify', text: prompt, type: 'combined' as const, number: 0,
+            wordCount: prompt.split(/\s+/).length, startIndex: 0, endIndex: prompt.length,
+            isLast: true, metadata: { source: 'thcs-classifier', chunkIndex: 0, totalChunks: 1 },
+        };
+        const aiResult = await aiService.parseChunk(classifyChunk as any);
+
+        if (aiResult.success && aiResult.data) {
+            const classifications = (aiResult.data as any).classifications;
+            if (Array.isArray(classifications)) {
+                for (const cls of classifications) {
+                    const item = ambiguous.find(a => a.id === cls.id);
+                    if (item && cls.confidence > item.confidence && validTypes.includes(cls.type)) {
+                        const section = sections[item.sectionIndex];
+                        if (section) {
+                            section.detectedType = cls.type;
+                            section.typeConfidence = cls.confidence;
+                            for (const q of section.questions) q.type = cls.type;
+                        }
+                    }
+                }
+            }
+        }
+    } catch (aiErr) {
+        console.warn('[parseThcsDocument] AI polish failed, using regex results:', aiErr);
+        warnings.push({ type: 'skipped-content', message: 'AI verification unavailable — please review flagged items manually.' });
+    }
+}
+
+/**
+ * Sub-function: Apply extracted answer key to questions across all sections.
+ */
+function applyAnswerKey(sections: ParsedSection[], answerKey: Record<number, string>): void {
+    for (const section of sections) {
+        for (const q of section.questions) {
+            if (answerKey[q.questionNumber]) {
+                q.correctAnswer = answerKey[q.questionNumber];
+            }
+        }
+    }
+}
+
+/**
+ * Sub-function: Detect document-level warnings (images, multi-variant, answer coverage).
+ * Returns overall confidence score and populates the warnings array.
+ */
+function detectDocumentWarnings(
+    text: string,
+    sections: ParsedSection[],
+    warnings: ParseWarning[]
+): number {
+    if (/\[image\]|!\[/i.test(text))
+        warnings.push({ type: 'images-detected', message: 'Images detected but not imported.' });
+    if (/mã\s*đề/i.test(text))
+        warnings.push({ type: 'multi-variant', message: 'Multiple test variants detected. Only the first variant was parsed.' });
+    const totalSections = sections.length;
+    const avgConfidence = totalSections > 0
+        ? sections.reduce((sum, s) => sum + s.typeConfidence, 0) / totalSections
+        : 0;
+    return Math.round(avgConfidence);
+}
+
 export async function parseThcsDocument(
     file: File,
     onProgress?: (progress: ParseProgress) => void
@@ -354,7 +444,6 @@ export async function parseThcsDocument(
 
         // Stage 1: Extract text
         onProgress?.({ stage: 'extracting', percent: 10, message: 'Extracting text...' });
-
         let text: string;
         if (file.name.endsWith('.txt')) {
             text = await file.text();
@@ -362,151 +451,44 @@ export async function parseThcsDocument(
             try {
                 const { extractTextFromFile } = await import('../file-extractor/file.extractor');
                 const extractResult = await extractTextFromFile(file);
-                if (!extractResult.success) {
-                    return { success: false, error: 'Failed to extract text from document.' };
-                }
+                if (!extractResult.success) return { success: false, error: 'Failed to extract text from document.' };
                 text = extractResult.data;
             } catch {
                 return { success: false, error: 'Failed to extract text from document. Only .txt is supported without the file extractor library.' };
             }
         }
 
-        const lines = text.split('\n');
-
         // Stage 2: Parse structure
         onProgress?.({ stage: 'parsing', percent: 30, message: 'Detecting sections...' });
-
+        const lines = text.split('\n');
         const metadata = extractMetadata(lines);
         const sections = detectSections(lines);
-
-        // EC13: Warning if no section headers found
-        if (sections.length === 1 && sections[0]!.name === 'General') {
+        if (sections.length === 1 && sections[0]!.name === 'General')
             warnings.push({ type: 'no-sections', message: 'No section headers detected. All questions grouped under "General".' });
-        }
-
         parseQuestions(lines, sections);
 
         // Stage 3: Classify types
         onProgress?.({ stage: 'classifying', percent: 60, message: 'Classifying question types...' });
-
         const ambiguous = classifyQuestionTypes(sections);
 
-        // Stage 3b: AI Polish for ambiguous items (Task 10.4)
+        // Stage 3b: AI Polish for ambiguous items
         if (ambiguous.length > 0) {
             onProgress?.({ stage: 'ai-polish', percent: 75, message: `AI verifying ${ambiguous.length} ambiguous classification(s)...` });
-
-            try {
-                const { aiService } = await import('../ai/router.service');
-                const validTypes: THCSQuestionType[] = [
-                    'pronunciation', 'word-stress', 'mcq-grammar', 'mcq-vocabulary',
-                    'mcq-sign-notice', 'dialogue-response', 'reading-cloze-mcq',
-                    'reading-comprehension', 'reading-announcement', 'sentence-arrangement',
-                    'closest-meaning', 'error-identification', 'synonym-mcq', 'antonym-mcq',
-                    'verb-form', 'word-form', 'sentence-rewrite', 'sentence-rewrite-keyword',
-                    'reading-cloze-wordbank',
-                ];
-
-                const prompt = `Classify these Vietnamese THCS-THPT test instructions into question types.
-Valid types: ${validTypes.join(', ')}
-
-Items to classify:
-${JSON.stringify(ambiguous.map(a => ({
-                    id: a.id,
-                    instructionText: a.instructionText,
-                    currentType: a.currentType,
-                    confidence: a.confidence,
-                })))}
-
-Return JSON only: { "classifications": [{ "id": "...", "type": "...", "confidence": 0-100 }] }`;
-
-                // Use parseChunk with a classification-focused chunk
-                const classifyChunk = {
-                    id: 'thcs-classify',
-                    text: prompt,
-                    type: 'combined' as const,
-                    number: 0,
-                    wordCount: prompt.split(/\s+/).length,
-                    startIndex: 0,
-                    endIndex: prompt.length,
-                    isLast: true,
-                    metadata: { source: 'thcs-classifier', chunkIndex: 0, totalChunks: 1 },
-                };
-                const aiResult = await aiService.parseChunk(classifyChunk as any);
-
-                if (aiResult.success && aiResult.data) {
-                    const raw = aiResult.data as any;
-                    const classifications = raw.classifications;
-                    if (classifications && Array.isArray(classifications)) {
-                        for (const cls of classifications) {
-                            const item = ambiguous.find(a => a.id === cls.id);
-                            if (item && cls.confidence > item.confidence && validTypes.includes(cls.type)) {
-                                const section = sections[item.sectionIndex];
-                                if (section) {
-                                    section.detectedType = cls.type;
-                                    section.typeConfidence = cls.confidence;
-                                    for (const q of section.questions) {
-                                        q.type = cls.type;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            } catch (aiErr) {
-                console.warn('[parseThcsDocument] AI polish failed, using regex results:', aiErr);
-                warnings.push({
-                    type: 'skipped-content',
-                    message: 'AI verification unavailable — please review flagged items manually.',
-                });
-            }
+            await runAIPolish(sections, ambiguous, warnings);
         }
 
-        // Extract answer key
+        // Stage 4: Apply answers + detect warnings
         const answerKey = extractAnswerKey(lines);
+        applyAnswerKey(sections, answerKey);
+        const overallConfidence = detectDocumentWarnings(text, sections, warnings);
 
-        // Apply answer key to questions
-        for (const section of sections) {
-            for (const q of section.questions) {
-                if (answerKey[q.questionNumber]) {
-                    q.correctAnswer = answerKey[q.questionNumber];
-                }
-            }
-        }
-
-        // EC14: Image detection warning
-        if (/\[image\]|!\[/i.test(text)) {
-            warnings.push({ type: 'images-detected', message: 'Images detected but not imported.' });
-        }
-
-        // EC17: Multi-variant detection
-        if (/mã\s*đề/i.test(text)) {
-            warnings.push({ type: 'multi-variant', message: 'Multiple test variants detected. Only the first variant was parsed.' });
-        }
-
-        // Calculate overall confidence
-        const totalSections = sections.length;
-        const avgConfidence = totalSections > 0
-            ? sections.reduce((sum, s) => sum + s.typeConfidence, 0) / totalSections
-            : 0;
-
-        // Stage 4: Done
         onProgress?.({ stage: 'done', percent: 100, message: 'Parsing complete!' });
-
         return {
             success: true,
-            data: {
-                metadata,
-                sections,
-                answerKey,
-                warnings,
-                overallConfidence: Math.round(avgConfidence),
-            },
+            data: { metadata, sections, answerKey, warnings, overallConfidence },
         };
     } catch (error) {
-        return {
-            success: false,
-            error: error instanceof Error ? error.message : 'Document parsing failed',
-        };
+        return { success: false, error: error instanceof Error ? error.message : 'Document parsing failed' };
     }
 }
 
