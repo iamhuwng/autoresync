@@ -515,11 +515,7 @@ Return JSON only: { "classifications": [{ "id": "...", "type": "...", "confidenc
 //   Layer 2: Instruction-to-type classifier (local, no API)
 //   Layer 3: AI polish for ambiguous items (1 API call, only if needed)
 
-/**
- * THCS AI Extraction Prompt — loaded from companion file.
- * This is imported as a raw string at build time.
- */
-import THCS_AI_PROMPT from './thcs-ai-extraction-prompt.txt?raw';
+// THCS_AI_PROMPT is lazy-loaded inside parseThcsText (paste-text path only)
 
 /**
  * Extract JSON from AI response (strips markdown fences, finds JSON object)
@@ -684,6 +680,8 @@ export async function parseThcsText(
         let parsedTest: ParsedTest | null = null;
 
         try {
+            // Lazy-load the prompt (only needed for paste-text path, not file-upload)
+            const { default: THCS_AI_PROMPT } = await import('./thcs-ai-extraction-prompt.txt?raw');
             // Build the prompt: system prompt + user text
             const fullPrompt = THCS_AI_PROMPT + '\n\n"""\n' + cleaned + '\n"""';
 
@@ -716,7 +714,7 @@ export async function parseThcsText(
             console.warn('[parseThcsText] AI failed — using regex fallback');
             onProgress?.({ stage: 'parsing', percent: 40, message: 'AI unavailable, using regex parser...' });
 
-            return parseThcsTextRegex(rawText, onProgress);
+            return parseThcsTextRegex(cleaned, onProgress, true);
         }
 
         // ─── Stage 4: Post-Processing ───────────────────────────────
@@ -954,14 +952,15 @@ async function callGeminiDirect(prompt: string): Promise<ParsedTest | null> {
  */
 async function parseThcsTextRegex(
     rawText: string,
-    onProgress?: (progress: ParseProgress) => void
+    onProgress?: (progress: ParseProgress) => void,
+    alreadyCleaned = false
 ): Promise<Result<ParsedTest>> {
     try {
         const warnings: ParseWarning[] = [];
         warnings.push({ type: 'skipped-content', message: 'Using fallback regex parser. Results may be less accurate.' });
 
-        // Pre-clean
-        const cleaned = rawText
+        // Pre-clean (skip if caller already cleaned the text)
+        const cleaned = alreadyCleaned ? rawText : rawText
             .replace(/\[cite_start\]/gi, '')
             .replace(/\[cite:\s*[\d,\s]*\]/gi, '')
             .replace(/^#+\s*/gm, '')
