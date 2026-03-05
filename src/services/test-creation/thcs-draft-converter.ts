@@ -163,6 +163,14 @@ export function convertParsedToThcsDraft(parsedTest: ParsedTest): {
                 q.questionText = stripBraces(pq.text);
             }
 
+            // ── Catch-all: {{}} in question text not already handled ──
+            // For word-reference and general reading-comprehension questions with {{}} markers
+            // (e.g., "The word {{they}} in paragraph 2 refers to...", "The phrase {{no holds barred}}...")
+            if (!isErrorType && !isSynonymAntonym && !isPronunciationType && pq.text && pq.text.includes('{{')) {
+                // Keep {{}} in questionText — the renderer handles display via renderUnderlines
+                q.questionText = pq.text;
+            }
+
             // â”€â”€ Writing question decomposition (sentence-rewrite / sentence-rewrite-keyword) â”€â”€
             // AI returns flat text like "Original sentence. => Start..." in `text` field.
             // THCSWritingBlock/THCSWritingRenderer expect structured fields:

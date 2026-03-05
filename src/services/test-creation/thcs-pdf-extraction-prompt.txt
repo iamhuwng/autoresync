@@ -182,6 +182,12 @@ PASSAGE FORMATTING (inside PASSAGE: blocks ONLY):
 READING-CLOZE-MCQ:
 Include the full passage with numbered blanks BEFORE the questions.
 
+CRITICAL — CLOZE BLANK MARKERS:
+Every blank in the passage MUST keep its question number in parentheses: (N)______
+The number tells students which question corresponds to which blank.
+Do NOT strip the number — without it, students cannot match questions to blanks.
+
+Word-level cloze example (blanks replace single words):
   IX. READING CLOZE [TYPE: reading-cloze-mcq]
   Read the passage and choose the correct word for each blank.
 
@@ -193,6 +199,22 @@ Include the full passage with numbered blanks BEFORE the questions.
   B. using
   C. use
   D. to use
+
+Sentence-level cloze example (blanks replace clauses/sentences):
+  II. READING [TYPE: reading-cloze-mcq]
+  Read the passage and choose the best option for each blank.
+
+  PASSAGE:
+  Collaborative journalism represents a paradigm shift. The philosophy underpinning this approach, (18)______.
+  (19)______, is that collaborative journalism redefines reporters' roles. Editorial decisions are made with input; (20)______.
+  (21)______, participatory news initiatives continue to gain traction. Funding mechanisms (22)______.
+
+  Question 18.
+  A. ...
+
+Do NOT write the passage like this (WRONG — missing numbered markers):
+  PASSAGE:
+  Collaborative journalism represents a paradigm shift. The philosophy underpinning this approach, **.
 
 READING-CLOZE-WORDBANK:
 Include the word bank on the line immediately after the instruction, tagged with [WORD BANK:].

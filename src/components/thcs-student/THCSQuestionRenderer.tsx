@@ -142,7 +142,7 @@ const THCSQuestionRenderer: React.FC<THCSQuestionRendererProps> = ({
                 </div>
             ) : (
                 <div style={{ fontSize: '1rem', lineHeight: 1.6, marginBottom: '0.5rem', color: '#1e293b' }}>
-                    {question.questionText}
+                    {question.questionText?.includes('{{') ? renderUnderlines(question.questionText) : question.questionText}
                 </div>
             )}
 

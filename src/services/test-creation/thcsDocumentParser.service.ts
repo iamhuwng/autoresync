@@ -123,7 +123,8 @@ const PATTERNS = {
     // BUG FIX: Changed (.+) to (.*) so "Question 1." with no trailing text (cloze questions) still matches.
     question: /^(?:(?:C[aâ]u\s*|Question\s*|Q\.?\s*)(?:s?\s*)?(\d+)[.):\s]*(.*)|([0-9]+)[.):\s]+(.{3,}))/i,
     // Option: "A. text", "A) text", "A: text"
-    optionLine: /^([A-H])[.):\s]+(.+)/i,
+    // CASE-SENSITIVE — lowercase a.-e. are sub-items in sentence-arrangement, NOT options
+    optionLine: /^([A-H])[.):\s]+(.+)/,
     // Answer key header: many Vietnamese variants
     // Allow optional leading decorators: "=== 4. ", "V. ", "VI.", Roman numerals, etc.
     answerKeyHeader: /^(?:[=\-*#\s]*(?:[IVXLCDM]+\.?\s*|\d+\.?\s*)?)?(?:ANSWER\s*KEY|ĐÁP\s*ÁN|KEY|KEYS|BẢNG\s*ĐÁP\s*ÁN|MÃ\s*Đ[ÊỀ].*ĐÁP\s*ÁN)[:\s=\-*]*/i,
