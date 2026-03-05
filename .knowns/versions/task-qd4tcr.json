@@ -1,0 +1,216 @@
+{
+  "taskId": "qd4tcr",
+  "currentVersion": 2,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "qd4tcr",
+      "version": 1,
+      "timestamp": "2026-03-01T17:39:22.377Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Auto-save debounced at 20s per question on score/feedback change",
+              "completed": false
+            },
+            {
+              "text": "Auto-save writes to BOTH RTDB and permanent (same dual-write)",
+              "completed": false
+            },
+            {
+              "text": "Save-on-blur triggers for individual questions",
+              "completed": false
+            },
+            {
+              "text": "Visual indicator: 'Auto-saving...' / 'Auto-saved ✓' per question",
+              "completed": false
+            },
+            {
+              "text": "'Save All Grades' button in footer saves all questions with current data",
+              "completed": false
+            },
+            {
+              "text": "Timer cleanup on unmount via useRef + useEffect cleanup",
+              "completed": false
+            },
+            {
+              "text": "Build succeeds",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Sub-C: Auto-save (20s debounce) + Save All Grades button",
+        "description": "Add auto-save and 'Save All Grades' to InlineWritingGrader.\n\nAuto-save:\n- Debounced 20s (not 5s — too aggressive per assessment)\n- Triggers on score slider change or feedback text change\n- Writes to BOTH RTDB AND permanent record (same dual-write as Sub-B to avoid split state)\n- Save-on-blur also triggers for individual questions\n- Visual indicator: small 'Saving...' / 'Saved ✓' text near each question\n\n'Save All Grades' button:\n- At bottom of grading view\n- Saves ALL writing questions with current scores/feedback\n- Same dual-write per question\n- Success toast: 'All grades saved'\n\nKey design decision: Auto-save writes to BOTH stores (not just RTDB draft) to prevent split state between session data and permanent record.",
+        "status": "in-progress",
+        "priority": "medium",
+        "labels": [
+          "writing-grading",
+          "ui",
+          "teacher"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Auto-save debounced at 20s per question on score/feedback change",
+            "completed": false
+          },
+          {
+            "text": "Auto-save writes to BOTH RTDB and permanent (same dual-write)",
+            "completed": false
+          },
+          {
+            "text": "Save-on-blur triggers for individual questions",
+            "completed": false
+          },
+          {
+            "text": "Visual indicator: 'Auto-saving...' / 'Auto-saved ✓' per question",
+            "completed": false
+          },
+          {
+            "text": "'Save All Grades' button in footer saves all questions with current data",
+            "completed": false
+          },
+          {
+            "text": "Timer cleanup on unmount via useRef + useEffect cleanup",
+            "completed": false
+          },
+          {
+            "text": "Build succeeds",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "qd4tcr",
+      "version": 2,
+      "timestamp": "2026-03-01T17:42:09.450Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Auto-save debounced at 20s per question on score/feedback change"
+            },
+            {
+              "completed": false,
+              "text": "Auto-save writes to BOTH RTDB and permanent (same dual-write)"
+            },
+            {
+              "completed": false,
+              "text": "Save-on-blur triggers for individual questions"
+            },
+            {
+              "completed": false,
+              "text": "Visual indicator: 'Auto-saving...' / 'Auto-saved ✓' per question"
+            },
+            {
+              "completed": false,
+              "text": "'Save All Grades' button in footer saves all questions with current data"
+            },
+            {
+              "completed": false,
+              "text": "Timer cleanup on unmount via useRef + useEffect cleanup"
+            },
+            {
+              "completed": false,
+              "text": "Build succeeds"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Auto-save debounced at 20s per question on score/feedback change"
+            },
+            {
+              "completed": true,
+              "text": "Auto-save writes to BOTH RTDB and permanent (same dual-write)"
+            },
+            {
+              "completed": true,
+              "text": "Save-on-blur triggers for individual questions"
+            },
+            {
+              "completed": true,
+              "text": "Visual indicator: 'Auto-saving...' / 'Auto-saved ✓' per question"
+            },
+            {
+              "completed": true,
+              "text": "'Save All Grades' button in footer saves all questions with current data"
+            },
+            {
+              "completed": true,
+              "text": "Timer cleanup on unmount via useRef + useEffect cleanup"
+            },
+            {
+              "completed": true,
+              "text": "Build succeeds"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "2026-03-02: Implemented. Added:\n- 20s per-question debounce auto-save via useRef timers + cleanup on unmount\n- handleScoreChange / handleFeedbackChange wrappers that update state + schedule auto-save\n- Auto-save uses same dual-write (RTDB + permanent) as manual save\n- Auto-save status indicator per question: 'Auto-saving...' / '✓ Auto-saved'\n- Save All Grades button in footer — saves every question sequentially\n- Timer cleanup in useEffect cleanup returning\n- scoresRef/feedbacksRef for avoiding stale closures\nBuild clean."
+        }
+      ],
+      "snapshot": {
+        "title": "Sub-C: Auto-save (20s debounce) + Save All Grades button",
+        "description": "Add auto-save and 'Save All Grades' to InlineWritingGrader.\n\nAuto-save:\n- Debounced 20s (not 5s — too aggressive per assessment)\n- Triggers on score slider change or feedback text change\n- Writes to BOTH RTDB AND permanent record (same dual-write as Sub-B to avoid split state)\n- Save-on-blur also triggers for individual questions\n- Visual indicator: small 'Saving...' / 'Saved ✓' text near each question\n\n'Save All Grades' button:\n- At bottom of grading view\n- Saves ALL writing questions with current scores/feedback\n- Same dual-write per question\n- Success toast: 'All grades saved'\n\nKey design decision: Auto-save writes to BOTH stores (not just RTDB draft) to prevent split state between session data and permanent record.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "writing-grading",
+          "ui",
+          "teacher"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Auto-save debounced at 20s per question on score/feedback change"
+          },
+          {
+            "completed": true,
+            "text": "Auto-save writes to BOTH RTDB and permanent (same dual-write)"
+          },
+          {
+            "completed": true,
+            "text": "Save-on-blur triggers for individual questions"
+          },
+          {
+            "completed": true,
+            "text": "Visual indicator: 'Auto-saving...' / 'Auto-saved ✓' per question"
+          },
+          {
+            "completed": true,
+            "text": "'Save All Grades' button in footer saves all questions with current data"
+          },
+          {
+            "completed": true,
+            "text": "Timer cleanup on unmount via useRef + useEffect cleanup"
+          },
+          {
+            "completed": true,
+            "text": "Build succeeds"
+          }
+        ],
+        "implementationNotes": "2026-03-02: Implemented. Added:\n- 20s per-question debounce auto-save via useRef timers + cleanup on unmount\n- handleScoreChange / handleFeedbackChange wrappers that update state + schedule auto-save\n- Auto-save uses same dual-write (RTDB + permanent) as manual save\n- Auto-save status indicator per question: 'Auto-saving...' / '✓ Auto-saved'\n- Save All Grades button in footer — saves every question sequentially\n- Timer cleanup in useEffect cleanup returning\n- scoresRef/feedbacksRef for avoiding stale closures\nBuild clean."
+      }
+    }
+  ]
+}

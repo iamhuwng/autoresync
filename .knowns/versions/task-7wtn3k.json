@@ -1,0 +1,294 @@
+{
+  "taskId": "7wtn3k",
+  "currentVersion": 4,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "7wtn3k",
+      "version": 1,
+      "timestamp": "2026-03-01T06:44:21.971Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Popup appears near selected text when Correction is clicked in toolbar or BubbleMenu",
+              "completed": false
+            },
+            {
+              "text": "Input field labeled 'Correct to:' with Apply button and ✕ close button",
+              "completed": false
+            },
+            {
+              "text": "Enter key submits correction, Escape dismisses without applying",
+              "completed": false
+            },
+            {
+              "text": "Clicking Apply creates correctionMark: strikethrough + → + green correction text inline",
+              "completed": false
+            },
+            {
+              "text": "Click outside popup dismisses without applying",
+              "completed": false
+            },
+            {
+              "text": "Popup positioned below selection (or above if no space below)",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Correction Popup Component",
+        "description": "Build CorrectionPopup.tsx \\u2014 small inline popup near text selection for entering correction text. Appears when teacher clicks Correction in toolbar/BubbleMenu. Input field 'Correct to:' + Apply button + close. Positioned near selection. Enter submits, Escape dismisses. Creates correctionMark on the selected text. See @doc/specs/grading-editor-redesign FR-9, FR-10.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Popup appears near selected text when Correction is clicked in toolbar or BubbleMenu",
+            "completed": false
+          },
+          {
+            "text": "Input field labeled 'Correct to:' with Apply button and ✕ close button",
+            "completed": false
+          },
+          {
+            "text": "Enter key submits correction, Escape dismisses without applying",
+            "completed": false
+          },
+          {
+            "text": "Clicking Apply creates correctionMark: strikethrough + → + green correction text inline",
+            "completed": false
+          },
+          {
+            "text": "Click outside popup dismisses without applying",
+            "completed": false
+          },
+          {
+            "text": "Popup positioned below selection (or above if no space below)",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "7wtn3k",
+      "version": 2,
+      "timestamp": "2026-03-01T07:47:09.097Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        },
+        {
+          "field": "assignee",
+          "newValue": "@me"
+        }
+      ],
+      "snapshot": {
+        "title": "Correction Popup Component",
+        "description": "Build CorrectionPopup.tsx \\u2014 small inline popup near text selection for entering correction text. Appears when teacher clicks Correction in toolbar/BubbleMenu. Input field 'Correct to:' + Apply button + close. Positioned near selection. Enter submits, Escape dismisses. Creates correctionMark on the selected text. See @doc/specs/grading-editor-redesign FR-9, FR-10.",
+        "status": "in-progress",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Popup appears near selected text when Correction is clicked in toolbar or BubbleMenu"
+          },
+          {
+            "completed": false,
+            "text": "Input field labeled 'Correct to:' with Apply button and ✕ close button"
+          },
+          {
+            "completed": false,
+            "text": "Enter key submits correction, Escape dismisses without applying"
+          },
+          {
+            "completed": false,
+            "text": "Clicking Apply creates correctionMark: strikethrough + → + green correction text inline"
+          },
+          {
+            "completed": false,
+            "text": "Click outside popup dismisses without applying"
+          },
+          {
+            "completed": false,
+            "text": "Popup positioned below selection (or above if no space below)"
+          }
+        ]
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "7wtn3k",
+      "version": 3,
+      "timestamp": "2026-03-01T07:48:28.674Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Popup appears near selected text when Correction is clicked in toolbar or BubbleMenu"
+            },
+            {
+              "completed": false,
+              "text": "Input field labeled 'Correct to:' with Apply button and ✕ close button"
+            },
+            {
+              "completed": false,
+              "text": "Enter key submits correction, Escape dismisses without applying"
+            },
+            {
+              "completed": false,
+              "text": "Clicking Apply creates correctionMark: strikethrough + → + green correction text inline"
+            },
+            {
+              "completed": false,
+              "text": "Click outside popup dismisses without applying"
+            },
+            {
+              "completed": false,
+              "text": "Popup positioned below selection (or above if no space below)"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Popup appears near selected text when Correction is clicked in toolbar or BubbleMenu"
+            },
+            {
+              "completed": true,
+              "text": "Input field labeled 'Correct to:' with Apply button and ✕ close button"
+            },
+            {
+              "completed": true,
+              "text": "Enter key submits correction, Escape dismisses without applying"
+            },
+            {
+              "completed": true,
+              "text": "Clicking Apply creates correctionMark: strikethrough + → + green correction text inline"
+            },
+            {
+              "completed": true,
+              "text": "Click outside popup dismisses without applying"
+            },
+            {
+              "completed": true,
+              "text": "Popup positioned below selection (or above if no space below)"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "## Implementation Log\n\n### CorrectionPopup.tsx created (156 lines)\n- Absolutely positioned popup with position prop from parent\n- Input with autofocus on open, auto-clear on re-open\n- Live preview: shows strikethrough original → green correction in real-time as you type\n- Enter submits, Escape dismisses\n- Click-outside detection with 50ms delay to avoid capturing triggering click\n- Close button in header\n- Apply button disabled when input empty\n- All interactive elements have unique IDs\n\n### CorrectionPopup.css created\n- Floating card with 10px radius, 8px shadow, slide-in animation\n- Preview area with f8fafc background\n- Blue-focused input, green Apply button\n- Responsive to content length via flex-wrap\n\n### Integration notes\n- Parent (EssayEditor → WritingGradingModal) manages isOpen state\n- Parent receives onApply(correctionText) → calls editor.chain().setCorrectionMark({ correctionText }).run()\n- Position calculated from editor coordsAtPos in parent\n\n### Build: Zero new TS errors\""
+        }
+      ],
+      "snapshot": {
+        "title": "Correction Popup Component",
+        "description": "Build CorrectionPopup.tsx \\u2014 small inline popup near text selection for entering correction text. Appears when teacher clicks Correction in toolbar/BubbleMenu. Input field 'Correct to:' + Apply button + close. Positioned near selection. Enter submits, Escape dismisses. Creates correctionMark on the selected text. See @doc/specs/grading-editor-redesign FR-9, FR-10.",
+        "status": "in-progress",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Popup appears near selected text when Correction is clicked in toolbar or BubbleMenu"
+          },
+          {
+            "completed": true,
+            "text": "Input field labeled 'Correct to:' with Apply button and ✕ close button"
+          },
+          {
+            "completed": true,
+            "text": "Enter key submits correction, Escape dismisses without applying"
+          },
+          {
+            "completed": true,
+            "text": "Clicking Apply creates correctionMark: strikethrough + → + green correction text inline"
+          },
+          {
+            "completed": true,
+            "text": "Click outside popup dismisses without applying"
+          },
+          {
+            "completed": true,
+            "text": "Popup positioned below selection (or above if no space below)"
+          }
+        ],
+        "implementationNotes": "## Implementation Log\n\n### CorrectionPopup.tsx created (156 lines)\n- Absolutely positioned popup with position prop from parent\n- Input with autofocus on open, auto-clear on re-open\n- Live preview: shows strikethrough original → green correction in real-time as you type\n- Enter submits, Escape dismisses\n- Click-outside detection with 50ms delay to avoid capturing triggering click\n- Close button in header\n- Apply button disabled when input empty\n- All interactive elements have unique IDs\n\n### CorrectionPopup.css created\n- Floating card with 10px radius, 8px shadow, slide-in animation\n- Preview area with f8fafc background\n- Blue-focused input, green Apply button\n- Responsive to content length via flex-wrap\n\n### Integration notes\n- Parent (EssayEditor → WritingGradingModal) manages isOpen state\n- Parent receives onApply(correctionText) → calls editor.chain().setCorrectionMark({ correctionText }).run()\n- Position calculated from editor coordsAtPos in parent\n\n### Build: Zero new TS errors\""
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "7wtn3k",
+      "version": 4,
+      "timestamp": "2026-03-01T07:48:34.298Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Correction Popup Component",
+        "description": "Build CorrectionPopup.tsx \\u2014 small inline popup near text selection for entering correction text. Appears when teacher clicks Correction in toolbar/BubbleMenu. Input field 'Correct to:' + Apply button + close. Positioned near selection. Enter submits, Escape dismisses. Creates correctionMark on the selected text. See @doc/specs/grading-editor-redesign FR-9, FR-10.",
+        "status": "done",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Popup appears near selected text when Correction is clicked in toolbar or BubbleMenu"
+          },
+          {
+            "completed": true,
+            "text": "Input field labeled 'Correct to:' with Apply button and ✕ close button"
+          },
+          {
+            "completed": true,
+            "text": "Enter key submits correction, Escape dismisses without applying"
+          },
+          {
+            "completed": true,
+            "text": "Clicking Apply creates correctionMark: strikethrough + → + green correction text inline"
+          },
+          {
+            "completed": true,
+            "text": "Click outside popup dismisses without applying"
+          },
+          {
+            "completed": true,
+            "text": "Popup positioned below selection (or above if no space below)"
+          }
+        ],
+        "implementationNotes": "## Implementation Log\n\n### CorrectionPopup.tsx created (156 lines)\n- Absolutely positioned popup with position prop from parent\n- Input with autofocus on open, auto-clear on re-open\n- Live preview: shows strikethrough original → green correction in real-time as you type\n- Enter submits, Escape dismisses\n- Click-outside detection with 50ms delay to avoid capturing triggering click\n- Close button in header\n- Apply button disabled when input empty\n- All interactive elements have unique IDs\n\n### CorrectionPopup.css created\n- Floating card with 10px radius, 8px shadow, slide-in animation\n- Preview area with f8fafc background\n- Blue-focused input, green Apply button\n- Responsive to content length via flex-wrap\n\n### Integration notes\n- Parent (EssayEditor → WritingGradingModal) manages isOpen state\n- Parent receives onApply(correctionText) → calls editor.chain().setCorrectionMark({ correctionText }).run()\n- Position calculated from editor coordsAtPos in parent\n\n### Build: Zero new TS errors\""
+      }
+    }
+  ]
+}

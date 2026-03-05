@@ -1,0 +1,217 @@
+{
+  "taskId": "hx8soj",
+  "currentVersion": 3,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "hx8soj",
+      "version": 1,
+      "timestamp": "2026-03-04T04:07:05.498Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Create src/services/test-creation/ai-json-repair.ts with 4 exported functions",
+              "completed": false
+            },
+            {
+              "text": "Replace inline definitions in thcsDocumentParser.service.ts with imports",
+              "completed": false
+            },
+            {
+              "text": "Replace inline definitions in groq.provider.ts with imports",
+              "completed": false
+            },
+            {
+              "text": "Verify both THCS and IELTS parsing produce identical results",
+              "completed": false
+            },
+            {
+              "text": "npx tsc --noEmit passes cleanly",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Extract JSON repair to shared ai-json-repair.ts module",
+        "description": "FR-2: Extract `sanitizeJsonControlChars`, `aggressiveJsonRepair`, `repairTruncatedJson`, `extractJSON` from `thcsDocumentParser.service.ts` (L448-637) into a new `src/services/test-creation/ai-json-repair.ts`. Update both `thcsDocumentParser.service.ts` and `groq.provider.ts` to import from the shared module instead of maintaining duplicate implementations.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "from-spec",
+          "refactor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Create src/services/test-creation/ai-json-repair.ts with 4 exported functions",
+            "completed": false
+          },
+          {
+            "text": "Replace inline definitions in thcsDocumentParser.service.ts with imports",
+            "completed": false
+          },
+          {
+            "text": "Replace inline definitions in groq.provider.ts with imports",
+            "completed": false
+          },
+          {
+            "text": "Verify both THCS and IELTS parsing produce identical results",
+            "completed": false
+          },
+          {
+            "text": "npx tsc --noEmit passes cleanly",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "hx8soj",
+      "version": 2,
+      "timestamp": "2026-03-04T10:04:11.936Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        }
+      ],
+      "snapshot": {
+        "title": "Extract JSON repair to shared ai-json-repair.ts module",
+        "description": "FR-2: Extract `sanitizeJsonControlChars`, `aggressiveJsonRepair`, `repairTruncatedJson`, `extractJSON` from `thcsDocumentParser.service.ts` (L448-637) into a new `src/services/test-creation/ai-json-repair.ts`. Update both `thcsDocumentParser.service.ts` and `groq.provider.ts` to import from the shared module instead of maintaining duplicate implementations.",
+        "status": "in-progress",
+        "priority": "medium",
+        "labels": [
+          "from-spec",
+          "refactor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Create src/services/test-creation/ai-json-repair.ts with 4 exported functions"
+          },
+          {
+            "completed": false,
+            "text": "Replace inline definitions in thcsDocumentParser.service.ts with imports"
+          },
+          {
+            "completed": false,
+            "text": "Replace inline definitions in groq.provider.ts with imports"
+          },
+          {
+            "completed": false,
+            "text": "Verify both THCS and IELTS parsing produce identical results"
+          },
+          {
+            "completed": false,
+            "text": "npx tsc --noEmit passes cleanly"
+          }
+        ]
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "hx8soj",
+      "version": 3,
+      "timestamp": "2026-03-04T10:14:21.949Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Create src/services/test-creation/ai-json-repair.ts with 4 exported functions"
+            },
+            {
+              "completed": false,
+              "text": "Replace inline definitions in thcsDocumentParser.service.ts with imports"
+            },
+            {
+              "completed": false,
+              "text": "Replace inline definitions in groq.provider.ts with imports"
+            },
+            {
+              "completed": false,
+              "text": "Verify both THCS and IELTS parsing produce identical results"
+            },
+            {
+              "completed": false,
+              "text": "npx tsc --noEmit passes cleanly"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": false,
+              "text": "Create src/services/test-creation/ai-json-repair.ts with 4 exported functions"
+            },
+            {
+              "completed": false,
+              "text": "Replace inline definitions in thcsDocumentParser.service.ts with imports"
+            },
+            {
+              "completed": false,
+              "text": "Replace inline definitions in groq.provider.ts with imports"
+            },
+            {
+              "completed": false,
+              "text": "Verify both THCS and IELTS parsing produce identical results"
+            },
+            {
+              "completed": false,
+              "text": "npx tsc --noEmit passes cleanly"
+            },
+            {
+              "text": "1,2,3,5",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Extract JSON repair to shared ai-json-repair.ts module",
+        "description": "FR-2: Extract `sanitizeJsonControlChars`, `aggressiveJsonRepair`, `repairTruncatedJson`, `extractJSON` from `thcsDocumentParser.service.ts` (L448-637) into a new `src/services/test-creation/ai-json-repair.ts`. Update both `thcsDocumentParser.service.ts` and `groq.provider.ts` to import from the shared module instead of maintaining duplicate implementations.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "from-spec",
+          "refactor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Create src/services/test-creation/ai-json-repair.ts with 4 exported functions"
+          },
+          {
+            "completed": false,
+            "text": "Replace inline definitions in thcsDocumentParser.service.ts with imports"
+          },
+          {
+            "completed": false,
+            "text": "Replace inline definitions in groq.provider.ts with imports"
+          },
+          {
+            "completed": false,
+            "text": "Verify both THCS and IELTS parsing produce identical results"
+          },
+          {
+            "completed": false,
+            "text": "npx tsc --noEmit passes cleanly"
+          },
+          {
+            "text": "1,2,3,5",
+            "completed": false
+          }
+        ]
+      }
+    }
+  ]
+}

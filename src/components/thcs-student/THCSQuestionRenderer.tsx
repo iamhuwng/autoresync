@@ -3,7 +3,6 @@
  * Renders individual MCQ questions with option cards, flag toggle, review mode.
  */
 import React, { useState } from 'react';
-import { Modal } from '@mantine/core';
 import type { THCSQuestion, BlankResult, WritingGradingResult } from '../../types/thcs-test.types';
 import THCSFillInRenderer from './THCSFillInRenderer';
 import THCSWritingRenderer from './THCSWritingRenderer';
@@ -131,18 +130,35 @@ const THCSQuestionRenderer: React.FC<THCSQuestionRendererProps> = ({
                         }}
                         onClick={() => setShowImageModal(true)}
                     />
-                    <Modal
-                        opened={showImageModal}
-                        onClose={() => setShowImageModal(false)}
-                        size="xl"
-                        centered
-                    >
-                        <img
-                            src={question.imageUrl}
-                            alt={question.imageCaption || question.questionText}
-                            style={{ width: '100%', borderRadius: '0.5rem' }}
-                        />
-                    </Modal>
+                    {showImageModal && (
+                        <div
+                            onClick={() => setShowImageModal(false)}
+                            style={{
+                                position: 'fixed',
+                                top: 0, left: 0, right: 0, bottom: 0,
+                                backgroundColor: 'rgba(0,0,0,0.7)',
+                                zIndex: 9999,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                padding: '2rem'
+                            }}
+                        >
+                            <img
+                                src={question.imageUrl}
+                                alt={question.imageCaption || question.questionText}
+                                onClick={(e) => e.stopPropagation()}
+                                style={{
+                                    maxWidth: '100%',
+                                    maxHeight: '100%',
+                                    objectFit: 'contain',
+                                    borderRadius: '0.5rem',
+                                    backgroundColor: 'white',
+                                    padding: '0.5rem'
+                                }}
+                            />
+                        </div>
+                    )}
                 </>
             )}
             {/* Phase 2: Fill-in renderer */}

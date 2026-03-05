@@ -1,0 +1,114 @@
+Extract ALL content from this Vietnamese English test PDF into this EXACT plain-text format. Do NOT skip questions. Do NOT invent content.
+
+## OUTPUT FORMAT
+
+TITLE: [exact test title]
+GRADE: [6-12]
+DURATION: [minutes]
+EXAM TYPE: [giữa kì / cuối kì / thi vào 10 / ôn tập]
+
+---
+
+PART A: [NAME] ([X.X] points)
+
+I. [TYPE: pronunciation] [Full instruction text]
+
+1. A. h{{a}}nd   B. {{a}}gree   C. c{{a}}rry   D. h{{a}}ng
+
+II. [TYPE: word-stress] [Full instruction text]
+
+4. A. village   B. person   C. travel   D. around
+
+---
+
+PART B: [NAME] ([X.X] points)
+
+I. [TYPE: verb-form] [e.g. "Supply the correct form of the verbs in brackets."]
+
+6. Jeremy usually (go) ______ to school by bus.
+
+II. [TYPE: word-form] [e.g. "Supply the correct form of the words in CAPITAL."]
+
+11. The garbage ______ arrives early. (COLLECT)
+
+III. [TYPE: mcq-grammar] [e.g. "Choose the best answer."]
+
+16. I am ______ that you are working hard.
+A. please   B. pleased   C. pleasing   D. pleasure
+
+---
+
+[Continue PART C, D, E...]
+
+---
+
+ANSWER KEY
+1.A  2.D  3.A  4.D  5.D
+6. goes
+7. hasn't spoken / has not spoken
+41. Camping is not as expensive as staying in a hotel.
+
+## TYPE TAG — REQUIRED
+
+Every sub-section instruction MUST start with `[TYPE: xxx]` where xxx is ONE of these:
+
+MCQ types (has A/B/C/D options):
+  pronunciation — "underlined part pronounced differently", "phát âm"
+  word-stress — "stress pattern", "trọng âm"
+  mcq-grammar — grammar gap-fill, tense, preposition, general "choose the best/correct answer"
+  mcq-vocabulary — vocabulary, phrasal verbs, word meaning in context
+  dialogue-response — complete the dialogue/exchange, situational response
+  reading-cloze-mcq — passage with numbered blanks + A/B/C/D per blank
+  reading-comprehension — passage + questions ABOUT the passage
+  sentence-arrangement — arrange words/sentences in order, OR choose sentence from given cues
+  closest-meaning — sentence closest in meaning
+  error-identification — find the underlined part that needs correction
+  synonym-mcq — word CLOSEST in meaning
+  antonym-mcq — word OPPOSITE in meaning
+
+Non-MCQ types (NO A/B/C/D options):
+  verb-form — supply correct verb form, verb in brackets e.g. (go)
+  word-form — supply correct word form, word in CAPS e.g. (COLLECT)
+  reading-cloze-wordbank — fill blanks from a word box
+  sentence-rewrite — rewrite sentence with given start
+  sentence-rewrite-keyword — rewrite sentence using keyword
+
+If unsure, use `mcq-grammar` for any MCQ question.
+
+## RULES
+
+**Headers**: `PART [A-Z]: [NAME]` for sections, `I.` `II.` `III.` for sub-sections. Separate PARTs with `---`.
+
+**MCQ**: Options on ONE line with 3 spaces: `A. x   B. y   C. z   D. w`
+
+**Fill-in (verb/word-form)**: `[num]. [sentence with ______] (WORD)` — NO A/B/C/D options.
+
+**Pronunciation**: Mark tested phonemes: `A. h{{a}}nd   B. {{a}}gree`
+
+**Sentence rewrite (Type 1 — given start)**:
+```
+41. Original sentence here.
+=> Starting words ______
+```
+
+**Sentence rewrite (Type 2 — keyword)**:
+```
+46. Original sentence here. (KEYWORD)
+=> Starting words ______
+```
+⚠️ NEVER drop the `=> ...` line or keyword `(WORD)` — they are ESSENTIAL.
+
+**Reading passages**: Include FULL passage text BEFORE the questions. Break into paragraphs with blank lines.
+
+**Cloze/Word bank**: Keep numbered blanks `(26)______`. Word bank: `[WORD BANK: word1 / word2 / ...]`
+
+**Answer key**: MCQs compact `1.A  2.B  3.C`. Fill-in/writing one per line `6. goes`.
+
+## DO NOT
+- Add A/B/C/D to fill-in or writing questions
+- Skip questions or reorder them
+- Merge sub-sections with different instructions
+- Add markdown (**, ##, bullets), explanations, or translations
+- Drop `=> starter` lines or `(KEYWORD)` from writing questions
+- Return passage as one giant block — use paragraph breaks
+- Invent content — extract VERBATIM from the original document

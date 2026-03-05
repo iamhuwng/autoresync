@@ -1,0 +1,293 @@
+/**
+ * QuickCommentsDialog Styles
+ *
+ * FAB button, speech-bubble dialog with tail, categorized preset chips,
+ * and inline "add new preset" form.
+ *
+ * @module components/writing-grading/QuickCommentsDialog.css
+ */
+
+/* ═══════════════════════════════════════════════════════════════
+   WRAPPER (positioned in bottom-right of editor panel)
+   ═══════════════════════════════════════════════════════════════ */
+
+.quick-comments-wrapper {
+    position: absolute;
+    bottom: 48px;
+    right: 16px;
+    z-index: 40;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   FAB BUTTON
+   ═══════════════════════════════════════════════════════════════ */
+
+.quick-comments-fab {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: none;
+    background: linear-gradient(135deg, #3b82f6, #6366f1);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(59, 130, 246, 0.35);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.quick-comments-fab:hover {
+    transform: scale(1.08);
+    box-shadow: 0 6px 20px rgba(59, 130, 246, 0.45);
+}
+
+.quick-comments-fab:active {
+    transform: scale(0.95);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TOOLTIP (no selection)
+   ═══════════════════════════════════════════════════════════════ */
+
+.quick-comments-tooltip {
+    position: absolute;
+    bottom: 52px;
+    right: 0;
+    white-space: nowrap;
+    padding: 6px 12px;
+    background: #1e293b;
+    color: #f1f5f9;
+    font-size: 12px;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    animation: tooltipFadeIn 0.15s ease-out;
+    pointer-events: none;
+}
+
+.quick-comments-tooltip::after {
+    content: '';
+    position: absolute;
+    bottom: -5px;
+    right: 18px;
+    width: 10px;
+    height: 10px;
+    background: #1e293b;
+    transform: rotate(45deg);
+}
+
+@keyframes tooltipFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   DIALOG (speech bubble)
+   ═══════════════════════════════════════════════════════════════ */
+
+.quick-comments-dialog {
+    position: absolute;
+    bottom: 52px;
+    right: 0;
+    width: 320px;
+    max-height: 420px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06);
+    overflow: hidden;
+    animation: dialogSlideUp 0.2s ease-out;
+}
+
+@keyframes dialogSlideUp {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Speech-bubble tail */
+.quick-comments-tail {
+    position: absolute;
+    bottom: -6px;
+    right: 18px;
+    width: 12px;
+    height: 12px;
+    background: #ffffff;
+    border-right: 1px solid #e2e8f0;
+    border-bottom: 1px solid #e2e8f0;
+    transform: rotate(45deg);
+}
+
+/* ─── Header ─────────────────────────────────────────────── */
+
+.quick-comments-header {
+    padding: 10px 14px;
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc;
+}
+
+.quick-comments-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1e293b;
+}
+
+/* ─── Body (scrollable) ──────────────────────────────────── */
+
+.quick-comments-body {
+    max-height: 340px;
+    overflow-y: auto;
+    padding: 8px;
+}
+
+/* ─── Category Group ─────────────────────────────────────── */
+
+.quick-comments-group {
+    margin-bottom: 12px;
+}
+
+.quick-comments-group:last-of-type {
+    margin-bottom: 8px;
+}
+
+.quick-comments-group-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 4px 8px;
+    border-left: 3px solid transparent;
+    margin-bottom: 6px;
+}
+
+.group-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+/* ─── Preset Chips ───────────────────────────────────────── */
+
+.quick-comments-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 0 4px;
+}
+
+.quick-comment-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    font-size: 12px;
+    color: #475569;
+    cursor: pointer;
+    transition: all 0.12s ease;
+    white-space: nowrap;
+}
+
+.quick-comment-chip:hover {
+    background: #e2e8f0;
+    border-color: #cbd5e1;
+    color: #1e293b;
+}
+
+.chip-delete {
+    font-size: 9px;
+    color: #94a3b8;
+    margin-left: 2px;
+    cursor: pointer;
+    transition: color 0.12s ease;
+}
+
+.chip-delete:hover {
+    color: #ef4444;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ADD NEW PRESET
+   ═══════════════════════════════════════════════════════════════ */
+
+.quick-comments-add {
+    padding: 8px 4px 4px;
+    border-top: 1px solid #f1f5f9;
+}
+
+.quick-comments-add-row {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.quick-comments-add-input {
+    flex: 1;
+    padding: 5px 8px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 12px;
+    color: #1e293b;
+    outline: none;
+}
+
+.quick-comments-add-input:focus {
+    border-color: #3b82f6;
+}
+
+.quick-comments-add-input::placeholder {
+    color: #94a3b8;
+}
+
+.quick-comments-add-category {
+    padding: 5px 6px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 11px;
+    color: #475569;
+    background: #ffffff;
+    cursor: pointer;
+    outline: none;
+}
+
+.quick-comments-add-btn {
+    padding: 5px 10px;
+    border: none;
+    background: #3b82f6;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 500;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.12s ease;
+}
+
+.quick-comments-add-btn:hover:not(:disabled) {
+    background: #2563eb;
+}
+
+.quick-comments-add-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}

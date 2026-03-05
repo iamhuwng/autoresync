@@ -431,3 +431,72 @@ export interface THCSTestTemplate {
         shuffleOptions: boolean;
     }>;
 }
+
+// ═══════════════════════════════════════════════════════════════
+// Formative Feedback Types (used by formativeFeedback.service + FormativeFeedbackPanel)
+// ═══════════════════════════════════════════════════════════════
+
+/** Skill-level analysis entry for a single intent/question-type */
+export interface SkillAnalysis {
+    intent: THCSQuestionType;
+    skillName: string;
+    correct: number;
+    total: number;
+    percentage: number;
+    questionNumbers: number[];
+    wrongQuestionNumbers: number[];
+}
+
+/** Complete formative feedback stored at test_results/{id}/formativeFeedback */
+export interface FormativeFeedback {
+    analysis: {
+        strengths: SkillAnalysis[];
+        revision: SkillAnalysis[];
+        critical: SkillAnalysis[];
+    };
+    deterministicFeedback: string;
+    generatedAt: number;
+    totalCorrect: number;
+    totalQuestions: number;
+    scaledScore: number;
+    /** AI-generated per-question topics (optional, from AI enrichment) */
+    questionTopics?: Record<string, { topic: string; category: string }>;
+    /** AI-generated per-question explanations (optional, from AI enrichment) */
+    questionExplanations?: Record<string, string>;
+    /** AI-generated narrative feedback (optional, from AI enrichment) */
+    aiFeedback?: {
+        summary: string;
+        strengths: string;
+        revision: string;
+        critical: string;
+    };
+    /** Which AI model produced the enrichment */
+    aiModel?: string;
+}
+
+/**
+ * Maps question intent → human-readable skill name + category.
+ * Used by formativeFeedback.service for skill analysis bucketing.
+ */
+export const INTENT_SKILL_MAP: Record<string, { name: string; category: string }> = {
+    'pronunciation': { name: 'Pronunciation', category: 'Phonetics' },
+    'word-stress': { name: 'Word Stress', category: 'Phonetics' },
+    'mcq-grammar': { name: 'Grammar', category: 'Language Use' },
+    'mcq-vocabulary': { name: 'Vocabulary', category: 'Language Use' },
+    'mcq-sign-notice': { name: 'Signs & Notices', category: 'Reading' },
+    'dialogue-response': { name: 'Dialogue Response', category: 'Communication' },
+    'reading-cloze-mcq': { name: 'Reading Cloze (MCQ)', category: 'Reading' },
+    'reading-comprehension': { name: 'Reading Comprehension', category: 'Reading' },
+    'reading-announcement': { name: 'Reading Announcements', category: 'Reading' },
+    'sentence-arrangement': { name: 'Sentence Arrangement', category: 'Writing' },
+    'closest-meaning': { name: 'Closest Meaning', category: 'Language Use' },
+    'error-identification': { name: 'Error Identification', category: 'Language Use' },
+    'synonym-mcq': { name: 'Synonyms', category: 'Vocabulary' },
+    'antonym-mcq': { name: 'Antonyms', category: 'Vocabulary' },
+    'word-reference': { name: 'Word Reference', category: 'Reading' },
+    'verb-form': { name: 'Verb Form', category: 'Grammar' },
+    'word-form': { name: 'Word Form', category: 'Grammar' },
+    'reading-cloze-wordbank': { name: 'Reading Cloze (Word Bank)', category: 'Reading' },
+    'sentence-rewrite': { name: 'Sentence Rewriting', category: 'Writing' },
+    'sentence-rewrite-keyword': { name: 'Sentence Rewriting (Keyword)', category: 'Writing' },
+};

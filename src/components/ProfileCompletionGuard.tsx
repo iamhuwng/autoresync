@@ -8,7 +8,26 @@
 
 import { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Center, Loader } from '@mantine/core';
+
+const Center: React.FC<{ style?: React.CSSProperties, children: React.ReactNode }> = ({ style, children }) => (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', ...style }}>
+        {children}
+    </div>
+);
+
+const Loader: React.FC<{ size?: string }> = () => (
+    <div style={{
+        width: '3rem', height: '3rem',
+        border: '4px solid rgba(139, 92, 246, 0.2)',
+        borderTopColor: '#8b5cf6',
+        borderRadius: '50%',
+        animation: 'spin 1s linear infinite'
+    }}>
+        <style>{`
+            @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        `}</style>
+    </div>
+);
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfileCompletion } from '../hooks/useProfileCompletion';
 

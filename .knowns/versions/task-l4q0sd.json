@@ -1,0 +1,277 @@
+{
+  "taskId": "l4q0sd",
+  "currentVersion": 3,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "l4q0sd",
+      "version": 1,
+      "timestamp": "2026-03-01T17:34:52.871Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        }
+      ],
+      "snapshot": {
+        "title": "Sub-A: InlineWritingGrader UI — slider + read-only + all-at-once",
+        "description": "Visual-only refactor of InlineWritingGrader. No persistence changes.\n\n1. Add `teacherUid` and `teacherName` to props (wire from TeacherTestMonitorPage via useAuth)\n2. Replace SCORE_PRESETS buttons with HTML `<input type=\"range\">` slider (0 to pointsMax, step 0.25)\n3. Show all writing Qs simultaneously (remove currentIndex stepper, render all in a scrollable list)\n4. Student answer rendered read-only (gray bg, lock icon, no editing)\n5. Feedback: full marks → auto \"✓ Correct\" text, partial/zero → editable textarea\n6. Save button per question (existing handleSubmitGrade, no dual-write yet)\n\nDo NOT change persistence layer. Do NOT add auto-save. Do NOT add question results table.",
+        "status": "in-progress",
+        "priority": "high",
+        "labels": [
+          "writing-grading",
+          "ui",
+          "teacher"
+        ],
+        "acceptanceCriteria": []
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "l4q0sd",
+      "version": 2,
+      "timestamp": "2026-03-01T17:37:35.180Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Add teacherUid and teacherName to InlineWritingGraderProps",
+              "completed": false
+            },
+            {
+              "text": "Replace stepper with all-at-once scrollable list",
+              "completed": false
+            },
+            {
+              "text": "Both preset buttons AND slider for score input",
+              "completed": false
+            },
+            {
+              "text": "Student answer rendered read-only with lock icon",
+              "completed": false
+            },
+            {
+              "text": "Conditional feedback: full marks → auto correct, partial/zero → editable",
+              "completed": false
+            },
+            {
+              "text": "Per-question Save button (not global yet)",
+              "completed": false
+            },
+            {
+              "text": "Progress pills and counter in header",
+              "completed": false
+            },
+            {
+              "text": "Visual distinction: green border + bg for saved, neutral for pending",
+              "completed": false
+            },
+            {
+              "text": "TeacherTestMonitorPage wires useAuth() for teacher identity",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "2026-03-02: Implemented. Full rewrite of InlineWritingGrader.tsx:\n- Removed stepper (currentIndex), now shows all writing Qs simultaneously\n- Added teacherUid/teacherName props, wired from TeacherTestMonitorPage via useAuth()\n- Score: preset buttons (0/25/50/75/100%) + continuous range slider\n- Student answer: read-only div with lock icon (not editable)\n- Feedback: conditional — full marks shows '✓ Correct', partial/zero shows textarea\n- Per-question Save button with 'Saved'/'Update' state\n- Progress pills (green dots) + counter in header\n- Saved cards: green border + subtle green bg + '✓ Saved' badge\n- Modal widened from 700px to 900px for better content fit\n- Build clean (no new TS errors)"
+        }
+      ],
+      "snapshot": {
+        "title": "Sub-A: InlineWritingGrader UI — slider + read-only + all-at-once",
+        "description": "Visual-only refactor of InlineWritingGrader. No persistence changes.\n\n1. Add `teacherUid` and `teacherName` to props (wire from TeacherTestMonitorPage via useAuth)\n2. Replace SCORE_PRESETS buttons with HTML `<input type=\"range\">` slider (0 to pointsMax, step 0.25)\n3. Show all writing Qs simultaneously (remove currentIndex stepper, render all in a scrollable list)\n4. Student answer rendered read-only (gray bg, lock icon, no editing)\n5. Feedback: full marks → auto \"✓ Correct\" text, partial/zero → editable textarea\n6. Save button per question (existing handleSubmitGrade, no dual-write yet)\n\nDo NOT change persistence layer. Do NOT add auto-save. Do NOT add question results table.",
+        "status": "done",
+        "priority": "high",
+        "labels": [
+          "writing-grading",
+          "ui",
+          "teacher"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Add teacherUid and teacherName to InlineWritingGraderProps",
+            "completed": false
+          },
+          {
+            "text": "Replace stepper with all-at-once scrollable list",
+            "completed": false
+          },
+          {
+            "text": "Both preset buttons AND slider for score input",
+            "completed": false
+          },
+          {
+            "text": "Student answer rendered read-only with lock icon",
+            "completed": false
+          },
+          {
+            "text": "Conditional feedback: full marks → auto correct, partial/zero → editable",
+            "completed": false
+          },
+          {
+            "text": "Per-question Save button (not global yet)",
+            "completed": false
+          },
+          {
+            "text": "Progress pills and counter in header",
+            "completed": false
+          },
+          {
+            "text": "Visual distinction: green border + bg for saved, neutral for pending",
+            "completed": false
+          },
+          {
+            "text": "TeacherTestMonitorPage wires useAuth() for teacher identity",
+            "completed": false
+          }
+        ],
+        "implementationNotes": "2026-03-02: Implemented. Full rewrite of InlineWritingGrader.tsx:\n- Removed stepper (currentIndex), now shows all writing Qs simultaneously\n- Added teacherUid/teacherName props, wired from TeacherTestMonitorPage via useAuth()\n- Score: preset buttons (0/25/50/75/100%) + continuous range slider\n- Student answer: read-only div with lock icon (not editable)\n- Feedback: conditional — full marks shows '✓ Correct', partial/zero shows textarea\n- Per-question Save button with 'Saved'/'Update' state\n- Progress pills (green dots) + counter in header\n- Saved cards: green border + subtle green bg + '✓ Saved' badge\n- Modal widened from 700px to 900px for better content fit\n- Build clean (no new TS errors)"
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "l4q0sd",
+      "version": 3,
+      "timestamp": "2026-03-01T17:37:40.946Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Add teacherUid and teacherName to InlineWritingGraderProps"
+            },
+            {
+              "completed": false,
+              "text": "Replace stepper with all-at-once scrollable list"
+            },
+            {
+              "completed": false,
+              "text": "Both preset buttons AND slider for score input"
+            },
+            {
+              "completed": false,
+              "text": "Student answer rendered read-only with lock icon"
+            },
+            {
+              "completed": false,
+              "text": "Conditional feedback: full marks → auto correct, partial/zero → editable"
+            },
+            {
+              "completed": false,
+              "text": "Per-question Save button (not global yet)"
+            },
+            {
+              "completed": false,
+              "text": "Progress pills and counter in header"
+            },
+            {
+              "completed": false,
+              "text": "Visual distinction: green border + bg for saved, neutral for pending"
+            },
+            {
+              "completed": false,
+              "text": "TeacherTestMonitorPage wires useAuth() for teacher identity"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Add teacherUid and teacherName to InlineWritingGraderProps"
+            },
+            {
+              "completed": true,
+              "text": "Replace stepper with all-at-once scrollable list"
+            },
+            {
+              "completed": true,
+              "text": "Both preset buttons AND slider for score input"
+            },
+            {
+              "completed": true,
+              "text": "Student answer rendered read-only with lock icon"
+            },
+            {
+              "completed": true,
+              "text": "Conditional feedback: full marks → auto correct, partial/zero → editable"
+            },
+            {
+              "completed": true,
+              "text": "Per-question Save button (not global yet)"
+            },
+            {
+              "completed": true,
+              "text": "Progress pills and counter in header"
+            },
+            {
+              "completed": true,
+              "text": "Visual distinction: green border + bg for saved, neutral for pending"
+            },
+            {
+              "completed": true,
+              "text": "TeacherTestMonitorPage wires useAuth() for teacher identity"
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Sub-A: InlineWritingGrader UI — slider + read-only + all-at-once",
+        "description": "Visual-only refactor of InlineWritingGrader. No persistence changes.\n\n1. Add `teacherUid` and `teacherName` to props (wire from TeacherTestMonitorPage via useAuth)\n2. Replace SCORE_PRESETS buttons with HTML `<input type=\"range\">` slider (0 to pointsMax, step 0.25)\n3. Show all writing Qs simultaneously (remove currentIndex stepper, render all in a scrollable list)\n4. Student answer rendered read-only (gray bg, lock icon, no editing)\n5. Feedback: full marks → auto \"✓ Correct\" text, partial/zero → editable textarea\n6. Save button per question (existing handleSubmitGrade, no dual-write yet)\n\nDo NOT change persistence layer. Do NOT add auto-save. Do NOT add question results table.",
+        "status": "done",
+        "priority": "high",
+        "labels": [
+          "writing-grading",
+          "ui",
+          "teacher"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Add teacherUid and teacherName to InlineWritingGraderProps"
+          },
+          {
+            "completed": true,
+            "text": "Replace stepper with all-at-once scrollable list"
+          },
+          {
+            "completed": true,
+            "text": "Both preset buttons AND slider for score input"
+          },
+          {
+            "completed": true,
+            "text": "Student answer rendered read-only with lock icon"
+          },
+          {
+            "completed": true,
+            "text": "Conditional feedback: full marks → auto correct, partial/zero → editable"
+          },
+          {
+            "completed": true,
+            "text": "Per-question Save button (not global yet)"
+          },
+          {
+            "completed": true,
+            "text": "Progress pills and counter in header"
+          },
+          {
+            "completed": true,
+            "text": "Visual distinction: green border + bg for saved, neutral for pending"
+          },
+          {
+            "completed": true,
+            "text": "TeacherTestMonitorPage wires useAuth() for teacher identity"
+          }
+        ],
+        "implementationNotes": "2026-03-02: Implemented. Full rewrite of InlineWritingGrader.tsx:\n- Removed stepper (currentIndex), now shows all writing Qs simultaneously\n- Added teacherUid/teacherName props, wired from TeacherTestMonitorPage via useAuth()\n- Score: preset buttons (0/25/50/75/100%) + continuous range slider\n- Student answer: read-only div with lock icon (not editable)\n- Feedback: conditional — full marks shows '✓ Correct', partial/zero shows textarea\n- Per-question Save button with 'Saved'/'Update' state\n- Progress pills (green dots) + counter in header\n- Saved cards: green border + subtle green bg + '✓ Saved' badge\n- Modal widened from 700px to 900px for better content fit\n- Build clean (no new TS errors)"
+      }
+    }
+  ]
+}

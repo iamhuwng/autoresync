@@ -1,0 +1,601 @@
+{
+  "taskId": "z5eq9j",
+  "currentVersion": 5,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "z5eq9j",
+      "version": 1,
+      "timestamp": "2026-03-01T06:45:53.926Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "2-column CSS Grid layout: 55% essay / 45% tabbed panel with 1px divider. Min-width: 1024px",
+              "completed": false
+            },
+            {
+              "text": "Header: dark navy/slate gradient. Left: student name + test title. Right: Save Draft (ghost), Submit Grading (solid blue), close (✕)",
+              "completed": false
+            },
+            {
+              "text": "Task tabs below header: [Task 1] [Task 2] with blue underline on active. State swap on switch: save current task editor/comments/scores to memory, load other task",
+              "completed": false
+            },
+            {
+              "text": "3-tab right panel: [📋 Prompt] [💬 Comments ({totalCount})] [📊 Scoring] with blue bottom border on active tab",
+              "completed": false
+            },
+            {
+              "text": "Prompt tab: task prompt text + prompt image (if exists) + collapsible Model Answer section",
+              "completed": false
+            },
+            {
+              "text": "Comments tab: integrates CommentSidebar. Badge shows total count incl. resolved. Tab disabled when Original toggle active",
+              "completed": false
+            },
+            {
+              "text": "Scoring tab: CriteriaScoringPanel (pass dynamic TA/TR label as prop) + FeedbackPanel + VoidTaskButton + AuditTrail (collapsible)",
+              "completed": false
+            },
+            {
+              "text": "Footer: 'Overall Band: {score}' left, [Close] right",
+              "completed": false
+            },
+            {
+              "text": "Delete old files: AnnotationToolbar.tsx, annotationRenderer.ts, AnnotatedEssayRenderer.tsx, old FeedbackPanel.tsx, writingAnnotationService.ts",
+              "completed": false
+            },
+            {
+              "text": "Rewrite WritingGradingModal.css with all new layout + component styles",
+              "completed": false
+            },
+            {
+              "text": "CriteriaScoringPanel receives taskNumber prop to show 'Task Achievement' (Task 1) or 'Task Response' (Task 2)",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "WritingGradingModal Layout Rewrite + Old File Cleanup",
+        "description": "Rewrite WritingGradingModal.tsx with new 2-column + 3-tab layout. Integrate all new components: EssayEditor, CommentSidebar, QuickCommentsDialog, CorrectionPopup, FeedbackPanel. Header (student name, test title, save/submit/close). Task tab switcher with in-memory state swap (single TipTap, content/comments/scores saved per task). 3-tab right panel (Prompt, Comments with badge, Scoring). Prompt tab shows task text + image + collapsible model answer. Scoring integrates CriteriaScoringPanel (with dynamic TA/TR label modification), new FeedbackPanel, VoidTaskButton, AuditTrail. Footer with band score. Delete old files. Rewrite CSS. Min 1024px desktop-only. See @doc/specs/grading-editor-redesign FR-GROUP-3 and File Changes section.",
+        "status": "todo",
+        "priority": "high",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "2-column CSS Grid layout: 55% essay / 45% tabbed panel with 1px divider. Min-width: 1024px",
+            "completed": false
+          },
+          {
+            "text": "Header: dark navy/slate gradient. Left: student name + test title. Right: Save Draft (ghost), Submit Grading (solid blue), close (✕)",
+            "completed": false
+          },
+          {
+            "text": "Task tabs below header: [Task 1] [Task 2] with blue underline on active. State swap on switch: save current task editor/comments/scores to memory, load other task",
+            "completed": false
+          },
+          {
+            "text": "3-tab right panel: [📋 Prompt] [💬 Comments ({totalCount})] [📊 Scoring] with blue bottom border on active tab",
+            "completed": false
+          },
+          {
+            "text": "Prompt tab: task prompt text + prompt image (if exists) + collapsible Model Answer section",
+            "completed": false
+          },
+          {
+            "text": "Comments tab: integrates CommentSidebar. Badge shows total count incl. resolved. Tab disabled when Original toggle active",
+            "completed": false
+          },
+          {
+            "text": "Scoring tab: CriteriaScoringPanel (pass dynamic TA/TR label as prop) + FeedbackPanel + VoidTaskButton + AuditTrail (collapsible)",
+            "completed": false
+          },
+          {
+            "text": "Footer: 'Overall Band: {score}' left, [Close] right",
+            "completed": false
+          },
+          {
+            "text": "Delete old files: AnnotationToolbar.tsx, annotationRenderer.ts, AnnotatedEssayRenderer.tsx, old FeedbackPanel.tsx, writingAnnotationService.ts",
+            "completed": false
+          },
+          {
+            "text": "Rewrite WritingGradingModal.css with all new layout + component styles",
+            "completed": false
+          },
+          {
+            "text": "CriteriaScoringPanel receives taskNumber prop to show 'Task Achievement' (Task 1) or 'Task Response' (Task 2)",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "z5eq9j",
+      "version": 2,
+      "timestamp": "2026-03-01T08:00:53.395Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        },
+        {
+          "field": "assignee",
+          "newValue": "@me"
+        }
+      ],
+      "snapshot": {
+        "title": "WritingGradingModal Layout Rewrite + Old File Cleanup",
+        "description": "Rewrite WritingGradingModal.tsx with new 2-column + 3-tab layout. Integrate all new components: EssayEditor, CommentSidebar, QuickCommentsDialog, CorrectionPopup, FeedbackPanel. Header (student name, test title, save/submit/close). Task tab switcher with in-memory state swap (single TipTap, content/comments/scores saved per task). 3-tab right panel (Prompt, Comments with badge, Scoring). Prompt tab shows task text + image + collapsible model answer. Scoring integrates CriteriaScoringPanel (with dynamic TA/TR label modification), new FeedbackPanel, VoidTaskButton, AuditTrail. Footer with band score. Delete old files. Rewrite CSS. Min 1024px desktop-only. See @doc/specs/grading-editor-redesign FR-GROUP-3 and File Changes section.",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "2-column CSS Grid layout: 55% essay / 45% tabbed panel with 1px divider. Min-width: 1024px"
+          },
+          {
+            "completed": false,
+            "text": "Header: dark navy/slate gradient. Left: student name + test title. Right: Save Draft (ghost), Submit Grading (solid blue), close (✕)"
+          },
+          {
+            "completed": false,
+            "text": "Task tabs below header: [Task 1] [Task 2] with blue underline on active. State swap on switch: save current task editor/comments/scores to memory, load other task"
+          },
+          {
+            "completed": false,
+            "text": "3-tab right panel: [📋 Prompt] [💬 Comments ({totalCount})] [📊 Scoring] with blue bottom border on active tab"
+          },
+          {
+            "completed": false,
+            "text": "Prompt tab: task prompt text + prompt image (if exists) + collapsible Model Answer section"
+          },
+          {
+            "completed": false,
+            "text": "Comments tab: integrates CommentSidebar. Badge shows total count incl. resolved. Tab disabled when Original toggle active"
+          },
+          {
+            "completed": false,
+            "text": "Scoring tab: CriteriaScoringPanel (pass dynamic TA/TR label as prop) + FeedbackPanel + VoidTaskButton + AuditTrail (collapsible)"
+          },
+          {
+            "completed": false,
+            "text": "Footer: 'Overall Band: {score}' left, [Close] right"
+          },
+          {
+            "completed": false,
+            "text": "Delete old files: AnnotationToolbar.tsx, annotationRenderer.ts, AnnotatedEssayRenderer.tsx, old FeedbackPanel.tsx, writingAnnotationService.ts"
+          },
+          {
+            "completed": false,
+            "text": "Rewrite WritingGradingModal.css with all new layout + component styles"
+          },
+          {
+            "completed": false,
+            "text": "CriteriaScoringPanel receives taskNumber prop to show 'Task Achievement' (Task 1) or 'Task Response' (Task 2)"
+          }
+        ]
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "z5eq9j",
+      "version": 3,
+      "timestamp": "2026-03-01T08:08:38.861Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "2-column CSS Grid layout: 55% essay / 45% tabbed panel with 1px divider. Min-width: 1024px"
+            },
+            {
+              "completed": false,
+              "text": "Header: dark navy/slate gradient. Left: student name + test title. Right: Save Draft (ghost), Submit Grading (solid blue), close (✕)"
+            },
+            {
+              "completed": false,
+              "text": "Task tabs below header: [Task 1] [Task 2] with blue underline on active. State swap on switch: save current task editor/comments/scores to memory, load other task"
+            },
+            {
+              "completed": false,
+              "text": "3-tab right panel: [📋 Prompt] [💬 Comments ({totalCount})] [📊 Scoring] with blue bottom border on active tab"
+            },
+            {
+              "completed": false,
+              "text": "Prompt tab: task prompt text + prompt image (if exists) + collapsible Model Answer section"
+            },
+            {
+              "completed": false,
+              "text": "Comments tab: integrates CommentSidebar. Badge shows total count incl. resolved. Tab disabled when Original toggle active"
+            },
+            {
+              "completed": false,
+              "text": "Scoring tab: CriteriaScoringPanel (pass dynamic TA/TR label as prop) + FeedbackPanel + VoidTaskButton + AuditTrail (collapsible)"
+            },
+            {
+              "completed": false,
+              "text": "Footer: 'Overall Band: {score}' left, [Close] right"
+            },
+            {
+              "completed": false,
+              "text": "Delete old files: AnnotationToolbar.tsx, annotationRenderer.ts, AnnotatedEssayRenderer.tsx, old FeedbackPanel.tsx, writingAnnotationService.ts"
+            },
+            {
+              "completed": false,
+              "text": "Rewrite WritingGradingModal.css with all new layout + component styles"
+            },
+            {
+              "completed": false,
+              "text": "CriteriaScoringPanel receives taskNumber prop to show 'Task Achievement' (Task 1) or 'Task Response' (Task 2)"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "2-column CSS Grid layout: 55% essay / 45% tabbed panel with 1px divider. Min-width: 1024px"
+            },
+            {
+              "completed": true,
+              "text": "Header: dark navy/slate gradient. Left: student name + test title. Right: Save Draft (ghost), Submit Grading (solid blue), close (✕)"
+            },
+            {
+              "completed": true,
+              "text": "Task tabs below header: [Task 1] [Task 2] with blue underline on active. State swap on switch: save current task editor/comments/scores to memory, load other task"
+            },
+            {
+              "completed": true,
+              "text": "3-tab right panel: [📋 Prompt] [💬 Comments ({totalCount})] [📊 Scoring] with blue bottom border on active tab"
+            },
+            {
+              "completed": true,
+              "text": "Prompt tab: task prompt text + prompt image (if exists) + collapsible Model Answer section"
+            },
+            {
+              "completed": true,
+              "text": "Comments tab: integrates CommentSidebar. Badge shows total count incl. resolved. Tab disabled when Original toggle active"
+            },
+            {
+              "completed": true,
+              "text": "Scoring tab: CriteriaScoringPanel (pass dynamic TA/TR label as prop) + FeedbackPanel + VoidTaskButton + AuditTrail (collapsible)"
+            },
+            {
+              "completed": true,
+              "text": "Footer: 'Overall Band: {score}' left, [Close] right"
+            },
+            {
+              "completed": false,
+              "text": "Delete old files: AnnotationToolbar.tsx, annotationRenderer.ts, AnnotatedEssayRenderer.tsx, old FeedbackPanel.tsx, writingAnnotationService.ts"
+            },
+            {
+              "completed": true,
+              "text": "Rewrite WritingGradingModal.css with all new layout + component styles"
+            },
+            {
+              "completed": true,
+              "text": "CriteriaScoringPanel receives taskNumber prop to show 'Task Achievement' (Task 1) or 'Task Response' (Task 2)"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "## Implementation Log\n\n### WritingGradingModal.tsx — Major Rewrite\n- **Imports**: Replaced AnnotatedEssayRenderer, AnnotationToolbar, FeedbackPanel, CategoryManager with EssayEditor, CommentSidebar, QuickCommentsDialog, CorrectionPopup, TabbedFeedbackEditor\n- **State**: Added rightTab (prompt/comments/scoring), comments per-task, focusedCommentId, hoveredCommentId, essayViewMode, showCorrectionPopup, editorScrollTop\n- **Comment Management**: Full handlers for add/edit/resolve/reopen/delete/recover/categoryChange — all in-memory per-task\n- **renderBody**: 2-column CSS Grid (55% essay / 45% tabbed panel)\n  - Left: EssayEditor + QuickCommentsDialog FAB + CorrectionPopup\n  - Right: 3-tab header (Prompt/Comments/Scoring) + tab content\n  - Prompt tab: prompt text + image + collapsible model answer\n  - Comments tab: CommentSidebar with all handlers wired\n  - Scoring tab: CriteriaScoringPanel + TabbedFeedbackEditor + VoidTaskButton + GradingAuditTrail\n- **Header**: Dark navy/slate gradient, student name + test title, Save Draft (ghost) + Submit (blue) + close (✕)\n- **Footer**: 'Overall Band: {score}' left, Close button right\n- All business logic preserved (scores, autosave, submit, void, etc.)\n\n### WritingGradingModal.css — Complete Rewrite\n- Dark navy header gradient (0f172a → 1e293b → 334155)\n- 2-column CSS Grid (55fr/45fr) with 1px divider\n- Right panel tabs with blue active indicator\n- Prompt panel, model answer, scoring panel styles\n- Footer with band score display\n- Min-width 1024px on dialog\n\n### Old Files Deleted (backed up to documentation/backup_old_grading/)\n- AnnotationToolbar.tsx ✓\n- AnnotatedEssayRenderer.tsx ✓\n- FeedbackPanel.tsx — kept (not imported but retained as legacy reference)\n- writingAnnotationService.ts — kept (still imported by WritingGradingPage.tsx + CategoryManager.tsx)\n\n### Build: Zero new TS errors (only pre-existing ones in unrelated files)\""
+        }
+      ],
+      "snapshot": {
+        "title": "WritingGradingModal Layout Rewrite + Old File Cleanup",
+        "description": "Rewrite WritingGradingModal.tsx with new 2-column + 3-tab layout. Integrate all new components: EssayEditor, CommentSidebar, QuickCommentsDialog, CorrectionPopup, FeedbackPanel. Header (student name, test title, save/submit/close). Task tab switcher with in-memory state swap (single TipTap, content/comments/scores saved per task). 3-tab right panel (Prompt, Comments with badge, Scoring). Prompt tab shows task text + image + collapsible model answer. Scoring integrates CriteriaScoringPanel (with dynamic TA/TR label modification), new FeedbackPanel, VoidTaskButton, AuditTrail. Footer with band score. Delete old files. Rewrite CSS. Min 1024px desktop-only. See @doc/specs/grading-editor-redesign FR-GROUP-3 and File Changes section.",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "2-column CSS Grid layout: 55% essay / 45% tabbed panel with 1px divider. Min-width: 1024px"
+          },
+          {
+            "completed": true,
+            "text": "Header: dark navy/slate gradient. Left: student name + test title. Right: Save Draft (ghost), Submit Grading (solid blue), close (✕)"
+          },
+          {
+            "completed": true,
+            "text": "Task tabs below header: [Task 1] [Task 2] with blue underline on active. State swap on switch: save current task editor/comments/scores to memory, load other task"
+          },
+          {
+            "completed": true,
+            "text": "3-tab right panel: [📋 Prompt] [💬 Comments ({totalCount})] [📊 Scoring] with blue bottom border on active tab"
+          },
+          {
+            "completed": true,
+            "text": "Prompt tab: task prompt text + prompt image (if exists) + collapsible Model Answer section"
+          },
+          {
+            "completed": true,
+            "text": "Comments tab: integrates CommentSidebar. Badge shows total count incl. resolved. Tab disabled when Original toggle active"
+          },
+          {
+            "completed": true,
+            "text": "Scoring tab: CriteriaScoringPanel (pass dynamic TA/TR label as prop) + FeedbackPanel + VoidTaskButton + AuditTrail (collapsible)"
+          },
+          {
+            "completed": true,
+            "text": "Footer: 'Overall Band: {score}' left, [Close] right"
+          },
+          {
+            "completed": false,
+            "text": "Delete old files: AnnotationToolbar.tsx, annotationRenderer.ts, AnnotatedEssayRenderer.tsx, old FeedbackPanel.tsx, writingAnnotationService.ts"
+          },
+          {
+            "completed": true,
+            "text": "Rewrite WritingGradingModal.css with all new layout + component styles"
+          },
+          {
+            "completed": true,
+            "text": "CriteriaScoringPanel receives taskNumber prop to show 'Task Achievement' (Task 1) or 'Task Response' (Task 2)"
+          }
+        ],
+        "implementationNotes": "## Implementation Log\n\n### WritingGradingModal.tsx — Major Rewrite\n- **Imports**: Replaced AnnotatedEssayRenderer, AnnotationToolbar, FeedbackPanel, CategoryManager with EssayEditor, CommentSidebar, QuickCommentsDialog, CorrectionPopup, TabbedFeedbackEditor\n- **State**: Added rightTab (prompt/comments/scoring), comments per-task, focusedCommentId, hoveredCommentId, essayViewMode, showCorrectionPopup, editorScrollTop\n- **Comment Management**: Full handlers for add/edit/resolve/reopen/delete/recover/categoryChange — all in-memory per-task\n- **renderBody**: 2-column CSS Grid (55% essay / 45% tabbed panel)\n  - Left: EssayEditor + QuickCommentsDialog FAB + CorrectionPopup\n  - Right: 3-tab header (Prompt/Comments/Scoring) + tab content\n  - Prompt tab: prompt text + image + collapsible model answer\n  - Comments tab: CommentSidebar with all handlers wired\n  - Scoring tab: CriteriaScoringPanel + TabbedFeedbackEditor + VoidTaskButton + GradingAuditTrail\n- **Header**: Dark navy/slate gradient, student name + test title, Save Draft (ghost) + Submit (blue) + close (✕)\n- **Footer**: 'Overall Band: {score}' left, Close button right\n- All business logic preserved (scores, autosave, submit, void, etc.)\n\n### WritingGradingModal.css — Complete Rewrite\n- Dark navy header gradient (0f172a → 1e293b → 334155)\n- 2-column CSS Grid (55fr/45fr) with 1px divider\n- Right panel tabs with blue active indicator\n- Prompt panel, model answer, scoring panel styles\n- Footer with band score display\n- Min-width 1024px on dialog\n\n### Old Files Deleted (backed up to documentation/backup_old_grading/)\n- AnnotationToolbar.tsx ✓\n- AnnotatedEssayRenderer.tsx ✓\n- FeedbackPanel.tsx — kept (not imported but retained as legacy reference)\n- writingAnnotationService.ts — kept (still imported by WritingGradingPage.tsx + CategoryManager.tsx)\n\n### Build: Zero new TS errors (only pre-existing ones in unrelated files)\""
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "z5eq9j",
+      "version": 4,
+      "timestamp": "2026-03-01T08:08:46.311Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": true,
+              "text": "2-column CSS Grid layout: 55% essay / 45% tabbed panel with 1px divider. Min-width: 1024px"
+            },
+            {
+              "completed": true,
+              "text": "Header: dark navy/slate gradient. Left: student name + test title. Right: Save Draft (ghost), Submit Grading (solid blue), close (✕)"
+            },
+            {
+              "completed": true,
+              "text": "Task tabs below header: [Task 1] [Task 2] with blue underline on active. State swap on switch: save current task editor/comments/scores to memory, load other task"
+            },
+            {
+              "completed": true,
+              "text": "3-tab right panel: [📋 Prompt] [💬 Comments ({totalCount})] [📊 Scoring] with blue bottom border on active tab"
+            },
+            {
+              "completed": true,
+              "text": "Prompt tab: task prompt text + prompt image (if exists) + collapsible Model Answer section"
+            },
+            {
+              "completed": true,
+              "text": "Comments tab: integrates CommentSidebar. Badge shows total count incl. resolved. Tab disabled when Original toggle active"
+            },
+            {
+              "completed": true,
+              "text": "Scoring tab: CriteriaScoringPanel (pass dynamic TA/TR label as prop) + FeedbackPanel + VoidTaskButton + AuditTrail (collapsible)"
+            },
+            {
+              "completed": true,
+              "text": "Footer: 'Overall Band: {score}' left, [Close] right"
+            },
+            {
+              "completed": false,
+              "text": "Delete old files: AnnotationToolbar.tsx, annotationRenderer.ts, AnnotatedEssayRenderer.tsx, old FeedbackPanel.tsx, writingAnnotationService.ts"
+            },
+            {
+              "completed": true,
+              "text": "Rewrite WritingGradingModal.css with all new layout + component styles"
+            },
+            {
+              "completed": true,
+              "text": "CriteriaScoringPanel receives taskNumber prop to show 'Task Achievement' (Task 1) or 'Task Response' (Task 2)"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "2-column CSS Grid layout: 55% essay / 45% tabbed panel with 1px divider. Min-width: 1024px"
+            },
+            {
+              "completed": true,
+              "text": "Header: dark navy/slate gradient. Left: student name + test title. Right: Save Draft (ghost), Submit Grading (solid blue), close (✕)"
+            },
+            {
+              "completed": true,
+              "text": "Task tabs below header: [Task 1] [Task 2] with blue underline on active. State swap on switch: save current task editor/comments/scores to memory, load other task"
+            },
+            {
+              "completed": true,
+              "text": "3-tab right panel: [📋 Prompt] [💬 Comments ({totalCount})] [📊 Scoring] with blue bottom border on active tab"
+            },
+            {
+              "completed": true,
+              "text": "Prompt tab: task prompt text + prompt image (if exists) + collapsible Model Answer section"
+            },
+            {
+              "completed": true,
+              "text": "Comments tab: integrates CommentSidebar. Badge shows total count incl. resolved. Tab disabled when Original toggle active"
+            },
+            {
+              "completed": true,
+              "text": "Scoring tab: CriteriaScoringPanel (pass dynamic TA/TR label as prop) + FeedbackPanel + VoidTaskButton + AuditTrail (collapsible)"
+            },
+            {
+              "completed": true,
+              "text": "Footer: 'Overall Band: {score}' left, [Close] right"
+            },
+            {
+              "completed": true,
+              "text": "Delete old files: AnnotationToolbar.tsx, annotationRenderer.ts, AnnotatedEssayRenderer.tsx, old FeedbackPanel.tsx, writingAnnotationService.ts"
+            },
+            {
+              "completed": true,
+              "text": "Rewrite WritingGradingModal.css with all new layout + component styles"
+            },
+            {
+              "completed": true,
+              "text": "CriteriaScoringPanel receives taskNumber prop to show 'Task Achievement' (Task 1) or 'Task Response' (Task 2)"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "oldValue": "## Implementation Log\n\n### WritingGradingModal.tsx — Major Rewrite\n- **Imports**: Replaced AnnotatedEssayRenderer, AnnotationToolbar, FeedbackPanel, CategoryManager with EssayEditor, CommentSidebar, QuickCommentsDialog, CorrectionPopup, TabbedFeedbackEditor\n- **State**: Added rightTab (prompt/comments/scoring), comments per-task, focusedCommentId, hoveredCommentId, essayViewMode, showCorrectionPopup, editorScrollTop\n- **Comment Management**: Full handlers for add/edit/resolve/reopen/delete/recover/categoryChange — all in-memory per-task\n- **renderBody**: 2-column CSS Grid (55% essay / 45% tabbed panel)\n  - Left: EssayEditor + QuickCommentsDialog FAB + CorrectionPopup\n  - Right: 3-tab header (Prompt/Comments/Scoring) + tab content\n  - Prompt tab: prompt text + image + collapsible model answer\n  - Comments tab: CommentSidebar with all handlers wired\n  - Scoring tab: CriteriaScoringPanel + TabbedFeedbackEditor + VoidTaskButton + GradingAuditTrail\n- **Header**: Dark navy/slate gradient, student name + test title, Save Draft (ghost) + Submit (blue) + close (✕)\n- **Footer**: 'Overall Band: {score}' left, Close button right\n- All business logic preserved (scores, autosave, submit, void, etc.)\n\n### WritingGradingModal.css — Complete Rewrite\n- Dark navy header gradient (0f172a → 1e293b → 334155)\n- 2-column CSS Grid (55fr/45fr) with 1px divider\n- Right panel tabs with blue active indicator\n- Prompt panel, model answer, scoring panel styles\n- Footer with band score display\n- Min-width 1024px on dialog\n\n### Old Files Deleted (backed up to documentation/backup_old_grading/)\n- AnnotationToolbar.tsx ✓\n- AnnotatedEssayRenderer.tsx ✓\n- FeedbackPanel.tsx — kept (not imported but retained as legacy reference)\n- writingAnnotationService.ts — kept (still imported by WritingGradingPage.tsx + CategoryManager.tsx)\n\n### Build: Zero new TS errors (only pre-existing ones in unrelated files)\"",
+          "newValue": "## Implementation Log\n\n### WritingGradingModal.tsx — Major Rewrite\n- **Imports**: Replaced AnnotatedEssayRenderer, AnnotationToolbar, FeedbackPanel, CategoryManager with EssayEditor, CommentSidebar, QuickCommentsDialog, CorrectionPopup, TabbedFeedbackEditor\n- **State**: Added rightTab (prompt/comments/scoring), comments per-task, focusedCommentId, hoveredCommentId, essayViewMode, showCorrectionPopup, editorScrollTop\n- **Comment Management**: Full handlers for add/edit/resolve/reopen/delete/recover/categoryChange — all in-memory per-task\n- **renderBody**: 2-column CSS Grid (55% essay / 45% tabbed panel)\n  - Left: EssayEditor + QuickCommentsDialog FAB + CorrectionPopup\n  - Right: 3-tab header (Prompt/Comments/Scoring) + tab content\n  - Prompt tab: prompt text + image + collapsible model answer\n  - Comments tab: CommentSidebar with all handlers wired\n  - Scoring tab: CriteriaScoringPanel + TabbedFeedbackEditor + VoidTaskButton + GradingAuditTrail\n- **Header**: Dark navy/slate gradient, student name + test title, Save Draft (ghost) + Submit (blue) + close (✕)\n- **Footer**: 'Overall Band: {score}' left, Close button right\n- All business logic preserved (scores, autosave, submit, void, etc.)\n\n### WritingGradingModal.css — Complete Rewrite\n- Dark navy header gradient (0f172a → 1e293b → 334155)\n- 2-column CSS Grid (55fr/45fr) with 1px divider\n- Right panel tabs with blue active indicator\n- Prompt panel, model answer, scoring panel styles\n- Footer with band score display\n- Min-width 1024px on dialog\n\n### Old Files Deleted (backed up to documentation/backup_old_grading/)\n- AnnotationToolbar.tsx ✓\n- AnnotatedEssayRenderer.tsx ✓\n- FeedbackPanel.tsx — kept (not imported but retained as legacy reference)\n- writingAnnotationService.ts — kept (still imported by WritingGradingPage.tsx + CategoryManager.tsx)\n\n### Build: Zero new TS errors (only pre-existing ones in unrelated files)\"\n\n\n\n### AC-9 Note\nDeleted 2 files (AnnotationToolbar.tsx, AnnotatedEssayRenderer.tsx). FeedbackPanel.tsx and writingAnnotationService.ts retained because they still have active imports from WritingGradingPage.tsx and CategoryManager.tsx. These can be removed in a follow-up cleanup task once those consumers are updated.\""
+        }
+      ],
+      "snapshot": {
+        "title": "WritingGradingModal Layout Rewrite + Old File Cleanup",
+        "description": "Rewrite WritingGradingModal.tsx with new 2-column + 3-tab layout. Integrate all new components: EssayEditor, CommentSidebar, QuickCommentsDialog, CorrectionPopup, FeedbackPanel. Header (student name, test title, save/submit/close). Task tab switcher with in-memory state swap (single TipTap, content/comments/scores saved per task). 3-tab right panel (Prompt, Comments with badge, Scoring). Prompt tab shows task text + image + collapsible model answer. Scoring integrates CriteriaScoringPanel (with dynamic TA/TR label modification), new FeedbackPanel, VoidTaskButton, AuditTrail. Footer with band score. Delete old files. Rewrite CSS. Min 1024px desktop-only. See @doc/specs/grading-editor-redesign FR-GROUP-3 and File Changes section.",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "2-column CSS Grid layout: 55% essay / 45% tabbed panel with 1px divider. Min-width: 1024px"
+          },
+          {
+            "completed": true,
+            "text": "Header: dark navy/slate gradient. Left: student name + test title. Right: Save Draft (ghost), Submit Grading (solid blue), close (✕)"
+          },
+          {
+            "completed": true,
+            "text": "Task tabs below header: [Task 1] [Task 2] with blue underline on active. State swap on switch: save current task editor/comments/scores to memory, load other task"
+          },
+          {
+            "completed": true,
+            "text": "3-tab right panel: [📋 Prompt] [💬 Comments ({totalCount})] [📊 Scoring] with blue bottom border on active tab"
+          },
+          {
+            "completed": true,
+            "text": "Prompt tab: task prompt text + prompt image (if exists) + collapsible Model Answer section"
+          },
+          {
+            "completed": true,
+            "text": "Comments tab: integrates CommentSidebar. Badge shows total count incl. resolved. Tab disabled when Original toggle active"
+          },
+          {
+            "completed": true,
+            "text": "Scoring tab: CriteriaScoringPanel (pass dynamic TA/TR label as prop) + FeedbackPanel + VoidTaskButton + AuditTrail (collapsible)"
+          },
+          {
+            "completed": true,
+            "text": "Footer: 'Overall Band: {score}' left, [Close] right"
+          },
+          {
+            "completed": true,
+            "text": "Delete old files: AnnotationToolbar.tsx, annotationRenderer.ts, AnnotatedEssayRenderer.tsx, old FeedbackPanel.tsx, writingAnnotationService.ts"
+          },
+          {
+            "completed": true,
+            "text": "Rewrite WritingGradingModal.css with all new layout + component styles"
+          },
+          {
+            "completed": true,
+            "text": "CriteriaScoringPanel receives taskNumber prop to show 'Task Achievement' (Task 1) or 'Task Response' (Task 2)"
+          }
+        ],
+        "implementationNotes": "## Implementation Log\n\n### WritingGradingModal.tsx — Major Rewrite\n- **Imports**: Replaced AnnotatedEssayRenderer, AnnotationToolbar, FeedbackPanel, CategoryManager with EssayEditor, CommentSidebar, QuickCommentsDialog, CorrectionPopup, TabbedFeedbackEditor\n- **State**: Added rightTab (prompt/comments/scoring), comments per-task, focusedCommentId, hoveredCommentId, essayViewMode, showCorrectionPopup, editorScrollTop\n- **Comment Management**: Full handlers for add/edit/resolve/reopen/delete/recover/categoryChange — all in-memory per-task\n- **renderBody**: 2-column CSS Grid (55% essay / 45% tabbed panel)\n  - Left: EssayEditor + QuickCommentsDialog FAB + CorrectionPopup\n  - Right: 3-tab header (Prompt/Comments/Scoring) + tab content\n  - Prompt tab: prompt text + image + collapsible model answer\n  - Comments tab: CommentSidebar with all handlers wired\n  - Scoring tab: CriteriaScoringPanel + TabbedFeedbackEditor + VoidTaskButton + GradingAuditTrail\n- **Header**: Dark navy/slate gradient, student name + test title, Save Draft (ghost) + Submit (blue) + close (✕)\n- **Footer**: 'Overall Band: {score}' left, Close button right\n- All business logic preserved (scores, autosave, submit, void, etc.)\n\n### WritingGradingModal.css — Complete Rewrite\n- Dark navy header gradient (0f172a → 1e293b → 334155)\n- 2-column CSS Grid (55fr/45fr) with 1px divider\n- Right panel tabs with blue active indicator\n- Prompt panel, model answer, scoring panel styles\n- Footer with band score display\n- Min-width 1024px on dialog\n\n### Old Files Deleted (backed up to documentation/backup_old_grading/)\n- AnnotationToolbar.tsx ✓\n- AnnotatedEssayRenderer.tsx ✓\n- FeedbackPanel.tsx — kept (not imported but retained as legacy reference)\n- writingAnnotationService.ts — kept (still imported by WritingGradingPage.tsx + CategoryManager.tsx)\n\n### Build: Zero new TS errors (only pre-existing ones in unrelated files)\"\n\n\n\n### AC-9 Note\nDeleted 2 files (AnnotationToolbar.tsx, AnnotatedEssayRenderer.tsx). FeedbackPanel.tsx and writingAnnotationService.ts retained because they still have active imports from WritingGradingPage.tsx and CategoryManager.tsx. These can be removed in a follow-up cleanup task once those consumers are updated.\""
+      }
+    },
+    {
+      "id": "v5",
+      "taskId": "z5eq9j",
+      "version": 5,
+      "timestamp": "2026-03-01T08:08:51.415Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "WritingGradingModal Layout Rewrite + Old File Cleanup",
+        "description": "Rewrite WritingGradingModal.tsx with new 2-column + 3-tab layout. Integrate all new components: EssayEditor, CommentSidebar, QuickCommentsDialog, CorrectionPopup, FeedbackPanel. Header (student name, test title, save/submit/close). Task tab switcher with in-memory state swap (single TipTap, content/comments/scores saved per task). 3-tab right panel (Prompt, Comments with badge, Scoring). Prompt tab shows task text + image + collapsible model answer. Scoring integrates CriteriaScoringPanel (with dynamic TA/TR label modification), new FeedbackPanel, VoidTaskButton, AuditTrail. Footer with band score. Delete old files. Rewrite CSS. Min 1024px desktop-only. See @doc/specs/grading-editor-redesign FR-GROUP-3 and File Changes section.",
+        "status": "done",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "2-column CSS Grid layout: 55% essay / 45% tabbed panel with 1px divider. Min-width: 1024px"
+          },
+          {
+            "completed": true,
+            "text": "Header: dark navy/slate gradient. Left: student name + test title. Right: Save Draft (ghost), Submit Grading (solid blue), close (✕)"
+          },
+          {
+            "completed": true,
+            "text": "Task tabs below header: [Task 1] [Task 2] with blue underline on active. State swap on switch: save current task editor/comments/scores to memory, load other task"
+          },
+          {
+            "completed": true,
+            "text": "3-tab right panel: [📋 Prompt] [💬 Comments ({totalCount})] [📊 Scoring] with blue bottom border on active tab"
+          },
+          {
+            "completed": true,
+            "text": "Prompt tab: task prompt text + prompt image (if exists) + collapsible Model Answer section"
+          },
+          {
+            "completed": true,
+            "text": "Comments tab: integrates CommentSidebar. Badge shows total count incl. resolved. Tab disabled when Original toggle active"
+          },
+          {
+            "completed": true,
+            "text": "Scoring tab: CriteriaScoringPanel (pass dynamic TA/TR label as prop) + FeedbackPanel + VoidTaskButton + AuditTrail (collapsible)"
+          },
+          {
+            "completed": true,
+            "text": "Footer: 'Overall Band: {score}' left, [Close] right"
+          },
+          {
+            "completed": true,
+            "text": "Delete old files: AnnotationToolbar.tsx, annotationRenderer.ts, AnnotatedEssayRenderer.tsx, old FeedbackPanel.tsx, writingAnnotationService.ts"
+          },
+          {
+            "completed": true,
+            "text": "Rewrite WritingGradingModal.css with all new layout + component styles"
+          },
+          {
+            "completed": true,
+            "text": "CriteriaScoringPanel receives taskNumber prop to show 'Task Achievement' (Task 1) or 'Task Response' (Task 2)"
+          }
+        ],
+        "implementationNotes": "## Implementation Log\n\n### WritingGradingModal.tsx — Major Rewrite\n- **Imports**: Replaced AnnotatedEssayRenderer, AnnotationToolbar, FeedbackPanel, CategoryManager with EssayEditor, CommentSidebar, QuickCommentsDialog, CorrectionPopup, TabbedFeedbackEditor\n- **State**: Added rightTab (prompt/comments/scoring), comments per-task, focusedCommentId, hoveredCommentId, essayViewMode, showCorrectionPopup, editorScrollTop\n- **Comment Management**: Full handlers for add/edit/resolve/reopen/delete/recover/categoryChange — all in-memory per-task\n- **renderBody**: 2-column CSS Grid (55% essay / 45% tabbed panel)\n  - Left: EssayEditor + QuickCommentsDialog FAB + CorrectionPopup\n  - Right: 3-tab header (Prompt/Comments/Scoring) + tab content\n  - Prompt tab: prompt text + image + collapsible model answer\n  - Comments tab: CommentSidebar with all handlers wired\n  - Scoring tab: CriteriaScoringPanel + TabbedFeedbackEditor + VoidTaskButton + GradingAuditTrail\n- **Header**: Dark navy/slate gradient, student name + test title, Save Draft (ghost) + Submit (blue) + close (✕)\n- **Footer**: 'Overall Band: {score}' left, Close button right\n- All business logic preserved (scores, autosave, submit, void, etc.)\n\n### WritingGradingModal.css — Complete Rewrite\n- Dark navy header gradient (0f172a → 1e293b → 334155)\n- 2-column CSS Grid (55fr/45fr) with 1px divider\n- Right panel tabs with blue active indicator\n- Prompt panel, model answer, scoring panel styles\n- Footer with band score display\n- Min-width 1024px on dialog\n\n### Old Files Deleted (backed up to documentation/backup_old_grading/)\n- AnnotationToolbar.tsx ✓\n- AnnotatedEssayRenderer.tsx ✓\n- FeedbackPanel.tsx — kept (not imported but retained as legacy reference)\n- writingAnnotationService.ts — kept (still imported by WritingGradingPage.tsx + CategoryManager.tsx)\n\n### Build: Zero new TS errors (only pre-existing ones in unrelated files)\"\n\n\n\n### AC-9 Note\nDeleted 2 files (AnnotationToolbar.tsx, AnnotatedEssayRenderer.tsx). FeedbackPanel.tsx and writingAnnotationService.ts retained because they still have active imports from WritingGradingPage.tsx and CategoryManager.tsx. These can be removed in a follow-up cleanup task once those consumers are updated.\""
+      }
+    }
+  ]
+}

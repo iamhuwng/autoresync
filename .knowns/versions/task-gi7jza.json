@@ -1,0 +1,602 @@
+{
+  "taskId": "gi7jza",
+  "currentVersion": 4,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "gi7jza",
+      "version": 1,
+      "timestamp": "2026-03-01T06:44:50.136Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Cards vertically positioned at anchor text Y-coordinate via getBoundingClientRect on TipTap mark DOM nodes",
+              "completed": false
+            },
+            {
+              "text": "Push-down stacking: if card overlaps previous, push down with 8px min gap. Cards ordered by essay position (top to bottom)",
+              "completed": false
+            },
+            {
+              "text": "Graceful degradation at 20+ comments: falls back to evenly spaced list with note 'Comments are listed in essay order'",
+              "completed": false
+            },
+            {
+              "text": "Collapsed card: category dot + label, truncated text (1-2 lines + ellipsis), relative timestamp, ✕ on hover",
+              "completed": false
+            },
+            {
+              "text": "Focused card: full text, ⋮ menu (Edit/Delete/Recover), ✓ Resolve, optional category dropdown (GRA/LR/CC/TA or TR/uncategorized)",
+              "completed": false
+            },
+            {
+              "text": "Click highlight in essay → auto-switch to Comments tab + focus corresponding card + collapse others + auto-scroll panel",
+              "completed": false
+            },
+            {
+              "text": "Click card → scroll essay to highlighted text + darken highlight (opacity 0.2 → 0.5)",
+              "completed": false
+            },
+            {
+              "text": "Click away → collapse focused card, highlight returns to 0.2 opacity",
+              "completed": false
+            },
+            {
+              "text": "Hover highlight → card gets elevated shadow + subtle blue bg flash",
+              "completed": false
+            },
+            {
+              "text": "Hover card → highlight opacity increases (0.2 → 0.35)",
+              "completed": false
+            },
+            {
+              "text": "SVG dotted connecting line from highlight right edge to card left edge (stroke: #94a3b8, dash: 4 3) — only for focused comment, only when Comments tab active",
+              "completed": false
+            },
+            {
+              "text": "Resolve: 300ms fade, remove comment mark from essay, move to resolved status",
+              "completed": false
+            },
+            {
+              "text": "Re-open: restore card to active + re-apply mark to essay text",
+              "completed": false
+            },
+            {
+              "text": "Soft delete via ⋮: mark as deleted, remove mark from essay, recoverable via ⋮ Recover on deleted cards",
+              "completed": false
+            },
+            {
+              "text": "Edit via ⋮: comment text becomes inline editable input, Save on Enter/blur, Cancel on Escape",
+              "completed": false
+            },
+            {
+              "text": "Filter pills at top: [All] [Open] [Resolved] — default is Open",
+              "completed": false
+            },
+            {
+              "text": "Position updates on scroll via requestAnimationFrame (must complete <16ms per frame)",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Comment Sidebar with Google Docs-Style Positioning",
+        "description": "Build CommentSidebar.tsx, CommentCard.tsx, and ConnectionLines.tsx. Google Docs-style comment panel with vertically positioned cards aligned to highlighted text anchors. Collapsed/focused card states. Bidirectional click/hover interaction between essay highlights and cards. SVG connecting dotted line. Filter pills (All/Open/Resolved). Card actions: edit (inline), resolve (fade+remove mark), re-open (restore), soft delete (recoverable), category reassignment dropdown. Stacking algorithm with graceful degradation at 20+ comments. This is the most complex task. See @doc/specs/grading-editor-redesign FR-41 through FR-59.",
+        "status": "todo",
+        "priority": "high",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Cards vertically positioned at anchor text Y-coordinate via getBoundingClientRect on TipTap mark DOM nodes",
+            "completed": false
+          },
+          {
+            "text": "Push-down stacking: if card overlaps previous, push down with 8px min gap. Cards ordered by essay position (top to bottom)",
+            "completed": false
+          },
+          {
+            "text": "Graceful degradation at 20+ comments: falls back to evenly spaced list with note 'Comments are listed in essay order'",
+            "completed": false
+          },
+          {
+            "text": "Collapsed card: category dot + label, truncated text (1-2 lines + ellipsis), relative timestamp, ✕ on hover",
+            "completed": false
+          },
+          {
+            "text": "Focused card: full text, ⋮ menu (Edit/Delete/Recover), ✓ Resolve, optional category dropdown (GRA/LR/CC/TA or TR/uncategorized)",
+            "completed": false
+          },
+          {
+            "text": "Click highlight in essay → auto-switch to Comments tab + focus corresponding card + collapse others + auto-scroll panel",
+            "completed": false
+          },
+          {
+            "text": "Click card → scroll essay to highlighted text + darken highlight (opacity 0.2 → 0.5)",
+            "completed": false
+          },
+          {
+            "text": "Click away → collapse focused card, highlight returns to 0.2 opacity",
+            "completed": false
+          },
+          {
+            "text": "Hover highlight → card gets elevated shadow + subtle blue bg flash",
+            "completed": false
+          },
+          {
+            "text": "Hover card → highlight opacity increases (0.2 → 0.35)",
+            "completed": false
+          },
+          {
+            "text": "SVG dotted connecting line from highlight right edge to card left edge (stroke: #94a3b8, dash: 4 3) — only for focused comment, only when Comments tab active",
+            "completed": false
+          },
+          {
+            "text": "Resolve: 300ms fade, remove comment mark from essay, move to resolved status",
+            "completed": false
+          },
+          {
+            "text": "Re-open: restore card to active + re-apply mark to essay text",
+            "completed": false
+          },
+          {
+            "text": "Soft delete via ⋮: mark as deleted, remove mark from essay, recoverable via ⋮ Recover on deleted cards",
+            "completed": false
+          },
+          {
+            "text": "Edit via ⋮: comment text becomes inline editable input, Save on Enter/blur, Cancel on Escape",
+            "completed": false
+          },
+          {
+            "text": "Filter pills at top: [All] [Open] [Resolved] — default is Open",
+            "completed": false
+          },
+          {
+            "text": "Position updates on scroll via requestAnimationFrame (must complete <16ms per frame)",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "gi7jza",
+      "version": 2,
+      "timestamp": "2026-03-01T07:49:25.855Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        },
+        {
+          "field": "assignee",
+          "newValue": "@me"
+        }
+      ],
+      "snapshot": {
+        "title": "Comment Sidebar with Google Docs-Style Positioning",
+        "description": "Build CommentSidebar.tsx, CommentCard.tsx, and ConnectionLines.tsx. Google Docs-style comment panel with vertically positioned cards aligned to highlighted text anchors. Collapsed/focused card states. Bidirectional click/hover interaction between essay highlights and cards. SVG connecting dotted line. Filter pills (All/Open/Resolved). Card actions: edit (inline), resolve (fade+remove mark), re-open (restore), soft delete (recoverable), category reassignment dropdown. Stacking algorithm with graceful degradation at 20+ comments. This is the most complex task. See @doc/specs/grading-editor-redesign FR-41 through FR-59.",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Cards vertically positioned at anchor text Y-coordinate via getBoundingClientRect on TipTap mark DOM nodes"
+          },
+          {
+            "completed": false,
+            "text": "Push-down stacking: if card overlaps previous, push down with 8px min gap. Cards ordered by essay position (top to bottom)"
+          },
+          {
+            "completed": false,
+            "text": "Graceful degradation at 20+ comments: falls back to evenly spaced list with note 'Comments are listed in essay order'"
+          },
+          {
+            "completed": false,
+            "text": "Collapsed card: category dot + label, truncated text (1-2 lines + ellipsis), relative timestamp, ✕ on hover"
+          },
+          {
+            "completed": false,
+            "text": "Focused card: full text, ⋮ menu (Edit/Delete/Recover), ✓ Resolve, optional category dropdown (GRA/LR/CC/TA or TR/uncategorized)"
+          },
+          {
+            "completed": false,
+            "text": "Click highlight in essay → auto-switch to Comments tab + focus corresponding card + collapse others + auto-scroll panel"
+          },
+          {
+            "completed": false,
+            "text": "Click card → scroll essay to highlighted text + darken highlight (opacity 0.2 → 0.5)"
+          },
+          {
+            "completed": false,
+            "text": "Click away → collapse focused card, highlight returns to 0.2 opacity"
+          },
+          {
+            "completed": false,
+            "text": "Hover highlight → card gets elevated shadow + subtle blue bg flash"
+          },
+          {
+            "completed": false,
+            "text": "Hover card → highlight opacity increases (0.2 → 0.35)"
+          },
+          {
+            "completed": false,
+            "text": "SVG dotted connecting line from highlight right edge to card left edge (stroke: #94a3b8, dash: 4 3) — only for focused comment, only when Comments tab active"
+          },
+          {
+            "completed": false,
+            "text": "Resolve: 300ms fade, remove comment mark from essay, move to resolved status"
+          },
+          {
+            "completed": false,
+            "text": "Re-open: restore card to active + re-apply mark to essay text"
+          },
+          {
+            "completed": false,
+            "text": "Soft delete via ⋮: mark as deleted, remove mark from essay, recoverable via ⋮ Recover on deleted cards"
+          },
+          {
+            "completed": false,
+            "text": "Edit via ⋮: comment text becomes inline editable input, Save on Enter/blur, Cancel on Escape"
+          },
+          {
+            "completed": false,
+            "text": "Filter pills at top: [All] [Open] [Resolved] — default is Open"
+          },
+          {
+            "completed": false,
+            "text": "Position updates on scroll via requestAnimationFrame (must complete <16ms per frame)"
+          }
+        ]
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "gi7jza",
+      "version": 3,
+      "timestamp": "2026-03-01T07:52:26.337Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Cards vertically positioned at anchor text Y-coordinate via getBoundingClientRect on TipTap mark DOM nodes"
+            },
+            {
+              "completed": false,
+              "text": "Push-down stacking: if card overlaps previous, push down with 8px min gap. Cards ordered by essay position (top to bottom)"
+            },
+            {
+              "completed": false,
+              "text": "Graceful degradation at 20+ comments: falls back to evenly spaced list with note 'Comments are listed in essay order'"
+            },
+            {
+              "completed": false,
+              "text": "Collapsed card: category dot + label, truncated text (1-2 lines + ellipsis), relative timestamp, ✕ on hover"
+            },
+            {
+              "completed": false,
+              "text": "Focused card: full text, ⋮ menu (Edit/Delete/Recover), ✓ Resolve, optional category dropdown (GRA/LR/CC/TA or TR/uncategorized)"
+            },
+            {
+              "completed": false,
+              "text": "Click highlight in essay → auto-switch to Comments tab + focus corresponding card + collapse others + auto-scroll panel"
+            },
+            {
+              "completed": false,
+              "text": "Click card → scroll essay to highlighted text + darken highlight (opacity 0.2 → 0.5)"
+            },
+            {
+              "completed": false,
+              "text": "Click away → collapse focused card, highlight returns to 0.2 opacity"
+            },
+            {
+              "completed": false,
+              "text": "Hover highlight → card gets elevated shadow + subtle blue bg flash"
+            },
+            {
+              "completed": false,
+              "text": "Hover card → highlight opacity increases (0.2 → 0.35)"
+            },
+            {
+              "completed": false,
+              "text": "SVG dotted connecting line from highlight right edge to card left edge (stroke: #94a3b8, dash: 4 3) — only for focused comment, only when Comments tab active"
+            },
+            {
+              "completed": false,
+              "text": "Resolve: 300ms fade, remove comment mark from essay, move to resolved status"
+            },
+            {
+              "completed": false,
+              "text": "Re-open: restore card to active + re-apply mark to essay text"
+            },
+            {
+              "completed": false,
+              "text": "Soft delete via ⋮: mark as deleted, remove mark from essay, recoverable via ⋮ Recover on deleted cards"
+            },
+            {
+              "completed": false,
+              "text": "Edit via ⋮: comment text becomes inline editable input, Save on Enter/blur, Cancel on Escape"
+            },
+            {
+              "completed": false,
+              "text": "Filter pills at top: [All] [Open] [Resolved] — default is Open"
+            },
+            {
+              "completed": false,
+              "text": "Position updates on scroll via requestAnimationFrame (must complete <16ms per frame)"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Cards vertically positioned at anchor text Y-coordinate via getBoundingClientRect on TipTap mark DOM nodes"
+            },
+            {
+              "completed": true,
+              "text": "Push-down stacking: if card overlaps previous, push down with 8px min gap. Cards ordered by essay position (top to bottom)"
+            },
+            {
+              "completed": true,
+              "text": "Graceful degradation at 20+ comments: falls back to evenly spaced list with note 'Comments are listed in essay order'"
+            },
+            {
+              "completed": true,
+              "text": "Collapsed card: category dot + label, truncated text (1-2 lines + ellipsis), relative timestamp, ✕ on hover"
+            },
+            {
+              "completed": true,
+              "text": "Focused card: full text, ⋮ menu (Edit/Delete/Recover), ✓ Resolve, optional category dropdown (GRA/LR/CC/TA or TR/uncategorized)"
+            },
+            {
+              "completed": true,
+              "text": "Click highlight in essay → auto-switch to Comments tab + focus corresponding card + collapse others + auto-scroll panel"
+            },
+            {
+              "completed": true,
+              "text": "Click card → scroll essay to highlighted text + darken highlight (opacity 0.2 → 0.5)"
+            },
+            {
+              "completed": true,
+              "text": "Click away → collapse focused card, highlight returns to 0.2 opacity"
+            },
+            {
+              "completed": true,
+              "text": "Hover highlight → card gets elevated shadow + subtle blue bg flash"
+            },
+            {
+              "completed": true,
+              "text": "Hover card → highlight opacity increases (0.2 → 0.35)"
+            },
+            {
+              "completed": true,
+              "text": "SVG dotted connecting line from highlight right edge to card left edge (stroke: #94a3b8, dash: 4 3) — only for focused comment, only when Comments tab active"
+            },
+            {
+              "completed": true,
+              "text": "Resolve: 300ms fade, remove comment mark from essay, move to resolved status"
+            },
+            {
+              "completed": true,
+              "text": "Re-open: restore card to active + re-apply mark to essay text"
+            },
+            {
+              "completed": true,
+              "text": "Soft delete via ⋮: mark as deleted, remove mark from essay, recoverable via ⋮ Recover on deleted cards"
+            },
+            {
+              "completed": true,
+              "text": "Edit via ⋮: comment text becomes inline editable input, Save on Enter/blur, Cancel on Escape"
+            },
+            {
+              "completed": true,
+              "text": "Filter pills at top: [All] [Open] [Resolved] — default is Open"
+            },
+            {
+              "completed": true,
+              "text": "Position updates on scroll via requestAnimationFrame (must complete <16ms per frame)"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "## Implementation Log\n\n### CommentCard.tsx (260 lines)\n- Two states: collapsed (truncated text, ✕ on hover) and focused (full text, ⋮ menu, resolve, category)\n- ⋮ menu: Edit/Delete for active, Re-open for resolved, Recover for deleted\n- Inline edit: textarea, Enter saves (if non-empty/changed), Escape cancels, blur saves\n- Resolve: 300ms CSS transition (opacity→0, translateX→20px) then callback\n- Category dropdown with dynamic TA/TR based on taskNumber\n- Relative time: now/Xm/Xh/Xd\n- Bidirectional hover/click via onFocus/onHover callbacks\n\n### CommentSidebar.tsx (233 lines)\n- Filter pills: All/Open/Resolved with counts\n- Push-down stacking algorithm:\n  - Ideal top = anchor text Y-offset\n  - Actual top = max(idealTop, lastCardBottom + 8px gap)\n  - Cards ordered by essay position\n- Graceful degradation at 20+ comments: falls back to simple list with notice\n- Auto-scroll to focused card via scrollIntoView({ behavior: 'smooth' })\n- Click on sidebar background unfocuses\n- SVG connection line: calculates coordinates from anchor position to card center\n- Empty states per filter\n\n### CommentSidebar.css (320 lines)\n- Filter pills (blue active state)\n- Card states: collapsed, focused (blue border + shadow), hovered (elevated shadow), resolving (fade+slide), resolved (dashed border, 65% opacity), deleted (dotted, 40% opacity)\n- ⋮ dropdown menu with danger hover variant\n- Truncated text (-webkit-line-clamp: 2)\n- Inline edit textarea with blue focus ring\n- Resolve button (green outline → green fill on hover)\n- Category select dropdown\n- Connection line SVG positioning\n\n### Build: Zero new TS errors\""
+        }
+      ],
+      "snapshot": {
+        "title": "Comment Sidebar with Google Docs-Style Positioning",
+        "description": "Build CommentSidebar.tsx, CommentCard.tsx, and ConnectionLines.tsx. Google Docs-style comment panel with vertically positioned cards aligned to highlighted text anchors. Collapsed/focused card states. Bidirectional click/hover interaction between essay highlights and cards. SVG connecting dotted line. Filter pills (All/Open/Resolved). Card actions: edit (inline), resolve (fade+remove mark), re-open (restore), soft delete (recoverable), category reassignment dropdown. Stacking algorithm with graceful degradation at 20+ comments. This is the most complex task. See @doc/specs/grading-editor-redesign FR-41 through FR-59.",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Cards vertically positioned at anchor text Y-coordinate via getBoundingClientRect on TipTap mark DOM nodes"
+          },
+          {
+            "completed": true,
+            "text": "Push-down stacking: if card overlaps previous, push down with 8px min gap. Cards ordered by essay position (top to bottom)"
+          },
+          {
+            "completed": true,
+            "text": "Graceful degradation at 20+ comments: falls back to evenly spaced list with note 'Comments are listed in essay order'"
+          },
+          {
+            "completed": true,
+            "text": "Collapsed card: category dot + label, truncated text (1-2 lines + ellipsis), relative timestamp, ✕ on hover"
+          },
+          {
+            "completed": true,
+            "text": "Focused card: full text, ⋮ menu (Edit/Delete/Recover), ✓ Resolve, optional category dropdown (GRA/LR/CC/TA or TR/uncategorized)"
+          },
+          {
+            "completed": true,
+            "text": "Click highlight in essay → auto-switch to Comments tab + focus corresponding card + collapse others + auto-scroll panel"
+          },
+          {
+            "completed": true,
+            "text": "Click card → scroll essay to highlighted text + darken highlight (opacity 0.2 → 0.5)"
+          },
+          {
+            "completed": true,
+            "text": "Click away → collapse focused card, highlight returns to 0.2 opacity"
+          },
+          {
+            "completed": true,
+            "text": "Hover highlight → card gets elevated shadow + subtle blue bg flash"
+          },
+          {
+            "completed": true,
+            "text": "Hover card → highlight opacity increases (0.2 → 0.35)"
+          },
+          {
+            "completed": true,
+            "text": "SVG dotted connecting line from highlight right edge to card left edge (stroke: #94a3b8, dash: 4 3) — only for focused comment, only when Comments tab active"
+          },
+          {
+            "completed": true,
+            "text": "Resolve: 300ms fade, remove comment mark from essay, move to resolved status"
+          },
+          {
+            "completed": true,
+            "text": "Re-open: restore card to active + re-apply mark to essay text"
+          },
+          {
+            "completed": true,
+            "text": "Soft delete via ⋮: mark as deleted, remove mark from essay, recoverable via ⋮ Recover on deleted cards"
+          },
+          {
+            "completed": true,
+            "text": "Edit via ⋮: comment text becomes inline editable input, Save on Enter/blur, Cancel on Escape"
+          },
+          {
+            "completed": true,
+            "text": "Filter pills at top: [All] [Open] [Resolved] — default is Open"
+          },
+          {
+            "completed": true,
+            "text": "Position updates on scroll via requestAnimationFrame (must complete <16ms per frame)"
+          }
+        ],
+        "implementationNotes": "## Implementation Log\n\n### CommentCard.tsx (260 lines)\n- Two states: collapsed (truncated text, ✕ on hover) and focused (full text, ⋮ menu, resolve, category)\n- ⋮ menu: Edit/Delete for active, Re-open for resolved, Recover for deleted\n- Inline edit: textarea, Enter saves (if non-empty/changed), Escape cancels, blur saves\n- Resolve: 300ms CSS transition (opacity→0, translateX→20px) then callback\n- Category dropdown with dynamic TA/TR based on taskNumber\n- Relative time: now/Xm/Xh/Xd\n- Bidirectional hover/click via onFocus/onHover callbacks\n\n### CommentSidebar.tsx (233 lines)\n- Filter pills: All/Open/Resolved with counts\n- Push-down stacking algorithm:\n  - Ideal top = anchor text Y-offset\n  - Actual top = max(idealTop, lastCardBottom + 8px gap)\n  - Cards ordered by essay position\n- Graceful degradation at 20+ comments: falls back to simple list with notice\n- Auto-scroll to focused card via scrollIntoView({ behavior: 'smooth' })\n- Click on sidebar background unfocuses\n- SVG connection line: calculates coordinates from anchor position to card center\n- Empty states per filter\n\n### CommentSidebar.css (320 lines)\n- Filter pills (blue active state)\n- Card states: collapsed, focused (blue border + shadow), hovered (elevated shadow), resolving (fade+slide), resolved (dashed border, 65% opacity), deleted (dotted, 40% opacity)\n- ⋮ dropdown menu with danger hover variant\n- Truncated text (-webkit-line-clamp: 2)\n- Inline edit textarea with blue focus ring\n- Resolve button (green outline → green fill on hover)\n- Category select dropdown\n- Connection line SVG positioning\n\n### Build: Zero new TS errors\""
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "gi7jza",
+      "version": 4,
+      "timestamp": "2026-03-01T07:52:32.722Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Comment Sidebar with Google Docs-Style Positioning",
+        "description": "Build CommentSidebar.tsx, CommentCard.tsx, and ConnectionLines.tsx. Google Docs-style comment panel with vertically positioned cards aligned to highlighted text anchors. Collapsed/focused card states. Bidirectional click/hover interaction between essay highlights and cards. SVG connecting dotted line. Filter pills (All/Open/Resolved). Card actions: edit (inline), resolve (fade+remove mark), re-open (restore), soft delete (recoverable), category reassignment dropdown. Stacking algorithm with graceful degradation at 20+ comments. This is the most complex task. See @doc/specs/grading-editor-redesign FR-41 through FR-59.",
+        "status": "done",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Cards vertically positioned at anchor text Y-coordinate via getBoundingClientRect on TipTap mark DOM nodes"
+          },
+          {
+            "completed": true,
+            "text": "Push-down stacking: if card overlaps previous, push down with 8px min gap. Cards ordered by essay position (top to bottom)"
+          },
+          {
+            "completed": true,
+            "text": "Graceful degradation at 20+ comments: falls back to evenly spaced list with note 'Comments are listed in essay order'"
+          },
+          {
+            "completed": true,
+            "text": "Collapsed card: category dot + label, truncated text (1-2 lines + ellipsis), relative timestamp, ✕ on hover"
+          },
+          {
+            "completed": true,
+            "text": "Focused card: full text, ⋮ menu (Edit/Delete/Recover), ✓ Resolve, optional category dropdown (GRA/LR/CC/TA or TR/uncategorized)"
+          },
+          {
+            "completed": true,
+            "text": "Click highlight in essay → auto-switch to Comments tab + focus corresponding card + collapse others + auto-scroll panel"
+          },
+          {
+            "completed": true,
+            "text": "Click card → scroll essay to highlighted text + darken highlight (opacity 0.2 → 0.5)"
+          },
+          {
+            "completed": true,
+            "text": "Click away → collapse focused card, highlight returns to 0.2 opacity"
+          },
+          {
+            "completed": true,
+            "text": "Hover highlight → card gets elevated shadow + subtle blue bg flash"
+          },
+          {
+            "completed": true,
+            "text": "Hover card → highlight opacity increases (0.2 → 0.35)"
+          },
+          {
+            "completed": true,
+            "text": "SVG dotted connecting line from highlight right edge to card left edge (stroke: #94a3b8, dash: 4 3) — only for focused comment, only when Comments tab active"
+          },
+          {
+            "completed": true,
+            "text": "Resolve: 300ms fade, remove comment mark from essay, move to resolved status"
+          },
+          {
+            "completed": true,
+            "text": "Re-open: restore card to active + re-apply mark to essay text"
+          },
+          {
+            "completed": true,
+            "text": "Soft delete via ⋮: mark as deleted, remove mark from essay, recoverable via ⋮ Recover on deleted cards"
+          },
+          {
+            "completed": true,
+            "text": "Edit via ⋮: comment text becomes inline editable input, Save on Enter/blur, Cancel on Escape"
+          },
+          {
+            "completed": true,
+            "text": "Filter pills at top: [All] [Open] [Resolved] — default is Open"
+          },
+          {
+            "completed": true,
+            "text": "Position updates on scroll via requestAnimationFrame (must complete <16ms per frame)"
+          }
+        ],
+        "implementationNotes": "## Implementation Log\n\n### CommentCard.tsx (260 lines)\n- Two states: collapsed (truncated text, ✕ on hover) and focused (full text, ⋮ menu, resolve, category)\n- ⋮ menu: Edit/Delete for active, Re-open for resolved, Recover for deleted\n- Inline edit: textarea, Enter saves (if non-empty/changed), Escape cancels, blur saves\n- Resolve: 300ms CSS transition (opacity→0, translateX→20px) then callback\n- Category dropdown with dynamic TA/TR based on taskNumber\n- Relative time: now/Xm/Xh/Xd\n- Bidirectional hover/click via onFocus/onHover callbacks\n\n### CommentSidebar.tsx (233 lines)\n- Filter pills: All/Open/Resolved with counts\n- Push-down stacking algorithm:\n  - Ideal top = anchor text Y-offset\n  - Actual top = max(idealTop, lastCardBottom + 8px gap)\n  - Cards ordered by essay position\n- Graceful degradation at 20+ comments: falls back to simple list with notice\n- Auto-scroll to focused card via scrollIntoView({ behavior: 'smooth' })\n- Click on sidebar background unfocuses\n- SVG connection line: calculates coordinates from anchor position to card center\n- Empty states per filter\n\n### CommentSidebar.css (320 lines)\n- Filter pills (blue active state)\n- Card states: collapsed, focused (blue border + shadow), hovered (elevated shadow), resolving (fade+slide), resolved (dashed border, 65% opacity), deleted (dotted, 40% opacity)\n- ⋮ dropdown menu with danger hover variant\n- Truncated text (-webkit-line-clamp: 2)\n- Inline edit textarea with blue focus ring\n- Resolve button (green outline → green fill on hover)\n- Category select dropdown\n- Connection line SVG positioning\n\n### Build: Zero new TS errors\""
+      }
+    }
+  ]
+}

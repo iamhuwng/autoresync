@@ -1,0 +1,96 @@
+{
+  "taskId": "nd2ys0",
+  "currentVersion": 1,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "nd2ys0",
+      "version": 1,
+      "timestamp": "2026-03-04T21:58:38.186Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "New pipeline replaces current AI call in parseThcsText()",
+              "completed": false
+            },
+            {
+              "text": "ParsedTest output interface unchanged — existing consumers work",
+              "completed": false
+            },
+            {
+              "text": "validateAIResult simplified (remove TYPE_FIX_MAP, keep ANSWER KEY filter)",
+              "completed": false
+            },
+            {
+              "text": "Section reconciliation removed or simplified",
+              "completed": false
+            },
+            {
+              "text": "Metadata override (Step 6) kept as safety net",
+              "completed": false
+            },
+            {
+              "text": "Parse Review Panel: AI-inferred (yellow), compromised (orange), uncertain (warning), reasoning (expandable)",
+              "completed": false
+            },
+            {
+              "text": "[AI-INFERRED] tag fully consumed → answerSource: 'ai-inferred'",
+              "completed": false
+            },
+            {
+              "text": "End-to-end test: paste test text → ParsedTest output",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Pipeline Integration + Review Panel Updates",
+        "description": "Wire everything into `parseThcsText()` replacing the current internal AI call. Preserve `ParsedTest` output interface. Feed reasoning logs + compromise flags + audit entries to Parse Review Panel. Simplify band-aid steps: remove TYPE_FIX_MAP from validateAIResult, remove section reconciliation, keep metadata override as safety net. Parse Review Panel: AI-inferred (yellow), compromised (orange), uncertain (warning icon), reasoning logs (expandable). Consume all 3 AI tags (`[AI-INFERRED]`, `[UNCERTAIN]`, `[COMPROMISED]`). Depends on @task-0nf1us (Pass 2), @task-4x1wy1 (Compromise), @task-7920rs (External Retry), @task-gffhk7 (Engine Enhancements).",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "from-spec",
+          "integration"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "New pipeline replaces current AI call in parseThcsText()",
+            "completed": false
+          },
+          {
+            "text": "ParsedTest output interface unchanged — existing consumers work",
+            "completed": false
+          },
+          {
+            "text": "validateAIResult simplified (remove TYPE_FIX_MAP, keep ANSWER KEY filter)",
+            "completed": false
+          },
+          {
+            "text": "Section reconciliation removed or simplified",
+            "completed": false
+          },
+          {
+            "text": "Metadata override (Step 6) kept as safety net",
+            "completed": false
+          },
+          {
+            "text": "Parse Review Panel: AI-inferred (yellow), compromised (orange), uncertain (warning), reasoning (expandable)",
+            "completed": false
+          },
+          {
+            "text": "[AI-INFERRED] tag fully consumed → answerSource: 'ai-inferred'",
+            "completed": false
+          },
+          {
+            "text": "End-to-end test: paste test text → ParsedTest output",
+            "completed": false
+          }
+        ]
+      }
+    }
+  ]
+}

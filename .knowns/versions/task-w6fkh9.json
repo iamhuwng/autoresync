@@ -1,0 +1,80 @@
+{
+  "taskId": "w6fkh9",
+  "currentVersion": 1,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "w6fkh9",
+      "version": 1,
+      "timestamp": "2026-03-04T21:57:54.019Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "[TYPE: xxx] instruction with all 20 type slugs listed",
+              "completed": false
+            },
+            {
+              "text": "Section name lookup table removed, replaced with 'copy exactly'",
+              "completed": false
+            },
+            {
+              "text": "Blanket markdown ban replaced with targeted formatting rules",
+              "completed": false
+            },
+            {
+              "text": "Per-type extraction rules table matches FR-1g (10 rows)",
+              "completed": false
+            },
+            {
+              "text": "{{target_word}}, [WORD BANK:], (N điểm), reading-announcement all specified",
+              "completed": false
+            },
+            {
+              "text": "Prompt is shorter than current (net reduction from removing lookup table)",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Redesign External AI Prompt",
+        "description": "Rewrite `thcs-pdf-extraction-prompt.txt` per FR-1a through FR-1h. Add `[TYPE: xxx]` tags, remove section name lookup table, replace markdown ban, add per-type extraction rules table (FR-1g), add `{{target_word}}`, `[WORD BANK:]`, `(N điểm)`, and `reading-announcement` distinction.",
+        "status": "todo",
+        "priority": "high",
+        "labels": [
+          "from-spec",
+          "foundation"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "[TYPE: xxx] instruction with all 20 type slugs listed",
+            "completed": false
+          },
+          {
+            "text": "Section name lookup table removed, replaced with 'copy exactly'",
+            "completed": false
+          },
+          {
+            "text": "Blanket markdown ban replaced with targeted formatting rules",
+            "completed": false
+          },
+          {
+            "text": "Per-type extraction rules table matches FR-1g (10 rows)",
+            "completed": false
+          },
+          {
+            "text": "{{target_word}}, [WORD BANK:], (N điểm), reading-announcement all specified",
+            "completed": false
+          },
+          {
+            "text": "Prompt is shorter than current (net reduction from removing lookup table)",
+            "completed": false
+          }
+        ]
+      }
+    }
+  ]
+}

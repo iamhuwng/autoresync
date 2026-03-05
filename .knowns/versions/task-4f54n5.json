@@ -1,0 +1,502 @@
+{
+  "taskId": "4f54n5",
+  "currentVersion": 5,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "4f54n5",
+      "version": 1,
+      "timestamp": "2026-03-04T22:47:05.947Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "{{target_word}} → underlinedParts on question object",
+              "completed": false
+            },
+            {
+              "text": "{{phoneme}} → optionUnderlines (verify existing)",
+              "completed": false
+            },
+            {
+              "text": "{{error}} → underlinedParts (verify existing)",
+              "completed": false
+            },
+            {
+              "text": "[WORD BANK:] → wordBank array + blankMapping",
+              "completed": false
+            },
+            {
+              "text": "(N điểm) → per-section point allocation (fallback: 10/total)",
+              "completed": false
+            },
+            {
+              "text": "Instruction replacement: type slug → INSTRUCTION_TEMPLATES after type finalization",
+              "completed": false
+            },
+            {
+              "text": "Section ordering by curriculum (Pronunciation→Stress→Grammar→Fill-in→Reading→Writing)",
+              "completed": false
+            },
+            {
+              "text": "Post-parse validation: 0 Qs error, numbering gaps, answer coverage, passage, cloze, writing",
+              "completed": false
+            },
+            {
+              "text": "[AI-INFERRED]/[UNCERTAIN]/[COMPROMISED] tag consumption → data model fields",
+              "completed": false
+            },
+            {
+              "text": "All tags stripped from display text after consumption",
+              "completed": false
+            },
+            {
+              "text": "Order: 1 (no dependencies)",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Engine Enhancements: Markers, Data Extraction, Instruction Replacement, Ordering, Validation",
+        "description": "5 engine capabilities: (1) marker conversion for `{{target_word}}` → `underlinedParts` + verify existing, (2) `[WORD BANK:]` → `wordBank`/`blankMapping` and `(N điểm)` → point allocation, (3) instruction replacement — type slug → `INSTRUCTION_TEMPLATES` lookup (deterministic, no AI), (4) section ordering by Vietnamese curriculum, (5) post-parse validation + `warnings[]`. Also: AI tag consumption (`[AI-INFERRED]`, `[UNCERTAIN]`, `[COMPROMISED]`).",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "from-spec-v2",
+          "engine"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "{{target_word}} → underlinedParts on question object",
+            "completed": false
+          },
+          {
+            "text": "{{phoneme}} → optionUnderlines (verify existing)",
+            "completed": false
+          },
+          {
+            "text": "{{error}} → underlinedParts (verify existing)",
+            "completed": false
+          },
+          {
+            "text": "[WORD BANK:] → wordBank array + blankMapping",
+            "completed": false
+          },
+          {
+            "text": "(N điểm) → per-section point allocation (fallback: 10/total)",
+            "completed": false
+          },
+          {
+            "text": "Instruction replacement: type slug → INSTRUCTION_TEMPLATES after type finalization",
+            "completed": false
+          },
+          {
+            "text": "Section ordering by curriculum (Pronunciation→Stress→Grammar→Fill-in→Reading→Writing)",
+            "completed": false
+          },
+          {
+            "text": "Post-parse validation: 0 Qs error, numbering gaps, answer coverage, passage, cloze, writing",
+            "completed": false
+          },
+          {
+            "text": "[AI-INFERRED]/[UNCERTAIN]/[COMPROMISED] tag consumption → data model fields",
+            "completed": false
+          },
+          {
+            "text": "All tags stripped from display text after consumption",
+            "completed": false
+          },
+          {
+            "text": "Order: 1 (no dependencies)",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "4f54n5",
+      "version": 2,
+      "timestamp": "2026-03-04T23:03:12.630Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        },
+        {
+          "field": "assignee",
+          "newValue": "@me"
+        }
+      ],
+      "snapshot": {
+        "title": "Engine Enhancements: Markers, Data Extraction, Instruction Replacement, Ordering, Validation",
+        "description": "5 engine capabilities: (1) marker conversion for `{{target_word}}` → `underlinedParts` + verify existing, (2) `[WORD BANK:]` → `wordBank`/`blankMapping` and `(N điểm)` → point allocation, (3) instruction replacement — type slug → `INSTRUCTION_TEMPLATES` lookup (deterministic, no AI), (4) section ordering by Vietnamese curriculum, (5) post-parse validation + `warnings[]`. Also: AI tag consumption (`[AI-INFERRED]`, `[UNCERTAIN]`, `[COMPROMISED]`).",
+        "status": "in-progress",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "engine"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "{{target_word}} → underlinedParts on question object"
+          },
+          {
+            "completed": false,
+            "text": "{{phoneme}} → optionUnderlines (verify existing)"
+          },
+          {
+            "completed": false,
+            "text": "{{error}} → underlinedParts (verify existing)"
+          },
+          {
+            "completed": false,
+            "text": "[WORD BANK:] → wordBank array + blankMapping"
+          },
+          {
+            "completed": false,
+            "text": "(N điểm) → per-section point allocation (fallback: 10/total)"
+          },
+          {
+            "completed": false,
+            "text": "Instruction replacement: type slug → INSTRUCTION_TEMPLATES after type finalization"
+          },
+          {
+            "completed": false,
+            "text": "Section ordering by curriculum (Pronunciation→Stress→Grammar→Fill-in→Reading→Writing)"
+          },
+          {
+            "completed": false,
+            "text": "Post-parse validation: 0 Qs error, numbering gaps, answer coverage, passage, cloze, writing"
+          },
+          {
+            "completed": false,
+            "text": "[AI-INFERRED]/[UNCERTAIN]/[COMPROMISED] tag consumption → data model fields"
+          },
+          {
+            "completed": false,
+            "text": "All tags stripped from display text after consumption"
+          },
+          {
+            "completed": false,
+            "text": "Order: 1 (no dependencies)"
+          }
+        ]
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "4f54n5",
+      "version": 3,
+      "timestamp": "2026-03-04T23:04:19.000Z",
+      "changes": [
+        {
+          "field": "implementationPlan",
+          "newValue": "## Implementation Plan\n\n### Existing vs New Assessment\n\nThe `thcs-draft-converter.ts` (592 lines) already handles:\n- ✅ `{{phoneme}}` → `optionUnderlines` (line 132-139) — AC-2 verify\n- ✅ `{{error}}` → `underlinedParts` (line 144-151) — AC-3 verify\n- ✅ `{{target_word}}` → `underlinedParts` for synonym/antonym (line 156-161) — AC-1 verify\n- ✅ `[WORD BANK:]` → `wordBank`/`blankMapping` (line 324-399) — AC-4 verify\n- ✅ `(N)______` blanks → cloze mapping (line 353-371)\n\nMissing (all NEW code to add):\n- ❌ `(N điểm)` point extraction — AC-5\n- ❌ Instruction replacement — AC-6\n- ❌ Section ordering — AC-7\n- ❌ Post-parse validation — AC-8\n- ❌ AI tag consumption — AC-9\n- ❌ Tag stripping — AC-10\n\n### Architecture Decision\nRather than bloating `thcs-draft-converter.ts` further, create a **new engine enhancement module** that runs as post-processing steps. The converter already does the ParsedTest→THCSDraft mapping; the enhancements operate on the *input* (ParsedTest) before conversion and on the *output* (THCSDraft) after.\n\n### New file\n`src/services/test-creation/thcs-engine-enhancements.ts`\n\n### Functions\n\n#### 1. `extractPointAllocation(sectionName: string): number | null` (FR-18)\n- Regex: `/\\((\\d+(?:\\.\\d+)?)\\s*điểm\\)/i`\n- Returns numeric value or null\n- Also strips the tag from the section name for display\n\n#### 2. `applyPointAllocation(sections, totalQuestions): void` (FR-18)\n- For each section: check `extractPointAllocation(section.name)`\n- If found: use that for section points, calculate per-question: `sectionPoints / questionCount`\n- If NOT found: fall back to `10 / totalQuestions` (existing behavior)\n- Modifies sections in-place\n\n#### 3. `replaceInstructions(sections): void` (FR-17)\n- For each section: look up `ALL_INSTRUCTION_TEMPLATES[section.defaultQuestionType]`\n- If match found AND `section.isCustomInstruction === false`: replace `instructionText`\n- Skip if teacher has customized the instruction\n- Import `ALL_INSTRUCTION_TEMPLATES` from `thcs-test.types.ts`\n\n#### 4. `sortSectionsByCurriculum(sections): typeof sections` (FR-16)\n- Define curriculum order map:\n  ```typescript\n  const CURRICULUM_ORDER: Record<string, number> = {\n    'pronunciation': 1,\n    'word-stress': 2,\n    'mcq-grammar': 3,\n    'mcq-vocabulary': 3,\n    'mcq-sign-notice': 3,\n    'dialogue-response': 3,\n    'verb-form': 4,\n    'word-form': 4,\n    'reading-cloze-wordbank': 4,\n    'reading-announcement': 5,\n    'reading-comprehension': 5,\n    'reading-cloze-mcq': 5,\n    'sentence-arrangement': 6,\n    'closest-meaning': 6,\n    'sentence-rewrite': 6,\n    'sentence-rewrite-keyword': 6,\n    'error-identification': 3,\n    'synonym-mcq': 3,\n    'antonym-mcq': 3,\n    'word-reference': 5,\n  };\n  ```\n- Stable sort: sections with curriculum position sort by that; sections without preserve original relative order\n- Returns new sorted array (does not mutate)\n\n#### 5. `consumeAITags(sections): AITagConsumptionResult` (FR-14)\n- Scan all question texts, options, passage content for:\n  - `[AI-INFERRED]` → set `answerSource: 'ai-inferred'` on question, strip tag\n  - `[UNCERTAIN]` → add to section's `warnings[]`, strip tag\n  - `[COMPROMISED: old → new]` → set `compromised: true`, `originalType`, `convertedType` on section, strip tag\n- Returns `{ inferredCount, uncertainCount, compromisedSections[] }` for diagnostics\n\n#### 6. `stripDisplayTags(sections): void` (FR-14, FR-17)\n- Final pass: remove any remaining `[TYPE: ...]`, `[STATS: ...]`, `[AI-INFERRED]`, `[UNCERTAIN]`, `[COMPROMISED: ...]` tags from ALL text fields\n- Also strip `(N điểm)` from section name display text\n- Ensures no pipeline-internal markers leak to the student/teacher UI\n\n#### 7. `validateParsedOutput(result): PostParseWarning[]` (FR-19)\n- Returns array of warnings (not errors — pipeline should not crash):\n  ```typescript\n  interface PostParseWarning {\n    severity: 'error' | 'warning';\n    code: string;\n    message: string;\n    sectionIndex?: number;\n    questionNumber?: number;\n  }\n  ```\n- Checks:\n  - `ZERO_QUESTIONS`: total questions = 0 → error\n  - `NUMBERING_GAP`: unexpected gaps in sequential question numbers → warning\n  - `MISSING_ANSWER`: question has no correctAnswer AND no answerSource:'ai-inferred' → warning\n  - `READING_NO_PASSAGE`: reading section has empty passage.content → warning\n  - `CLOZE_NO_BLANKS`: cloze section has no numbered blanks → warning\n  - `WRITING_NO_ARROW`: writing question has no originalSentence or sentenceStarter → warning\n\n#### 8. `runEngineEnhancements(sections, totalQuestions)` — Orchestrator\nRuns all enhancements in correct order:\n1. `consumeAITags(sections)` — extract tags before any other processing\n2. `applyPointAllocation(sections, totalQuestions)` — must run before instruction replacement\n3. `replaceInstructions(sections)` — after type finalization\n4. `sortSectionsByCurriculum(sections)` — reorder\n5. `stripDisplayTags(sections)` — final cleanup\n6. `validateParsedOutput(result)` — quality check\nReturns `{ sections, warnings, tagStats }`.\n\n### Integration point\nCalled from `convertParsedToThcsDraft()` — after the existing conversion logic, before returning. The orchestrator receives the converted sections and applies enhancements.\n\n### Existing code changes\n- `thcs-draft-converter.ts` line 579-590: Add call to `runEngineEnhancements()` before return\n- Verify existing marker conversion (AC-1,2,3) still works — add inline comments noting \"verified per AC-X\"\n\n### Files changed\n- `src/services/test-creation/thcs-engine-enhancements.ts` (NEW — ~250 lines)\n- `src/services/test-creation/thcs-draft-converter.ts` (minor — add orchestrator call + type imports)\n\n### Dependencies\n- `ALL_INSTRUCTION_TEMPLATES` from `thcs-test.types.ts` (existing export)\n- No new external dependencies"
+        }
+      ],
+      "snapshot": {
+        "title": "Engine Enhancements: Markers, Data Extraction, Instruction Replacement, Ordering, Validation",
+        "description": "5 engine capabilities: (1) marker conversion for `{{target_word}}` → `underlinedParts` + verify existing, (2) `[WORD BANK:]` → `wordBank`/`blankMapping` and `(N điểm)` → point allocation, (3) instruction replacement — type slug → `INSTRUCTION_TEMPLATES` lookup (deterministic, no AI), (4) section ordering by Vietnamese curriculum, (5) post-parse validation + `warnings[]`. Also: AI tag consumption (`[AI-INFERRED]`, `[UNCERTAIN]`, `[COMPROMISED]`).",
+        "status": "in-progress",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "engine"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "{{target_word}} → underlinedParts on question object"
+          },
+          {
+            "completed": false,
+            "text": "{{phoneme}} → optionUnderlines (verify existing)"
+          },
+          {
+            "completed": false,
+            "text": "{{error}} → underlinedParts (verify existing)"
+          },
+          {
+            "completed": false,
+            "text": "[WORD BANK:] → wordBank array + blankMapping"
+          },
+          {
+            "completed": false,
+            "text": "(N điểm) → per-section point allocation (fallback: 10/total)"
+          },
+          {
+            "completed": false,
+            "text": "Instruction replacement: type slug → INSTRUCTION_TEMPLATES after type finalization"
+          },
+          {
+            "completed": false,
+            "text": "Section ordering by curriculum (Pronunciation→Stress→Grammar→Fill-in→Reading→Writing)"
+          },
+          {
+            "completed": false,
+            "text": "Post-parse validation: 0 Qs error, numbering gaps, answer coverage, passage, cloze, writing"
+          },
+          {
+            "completed": false,
+            "text": "[AI-INFERRED]/[UNCERTAIN]/[COMPROMISED] tag consumption → data model fields"
+          },
+          {
+            "completed": false,
+            "text": "All tags stripped from display text after consumption"
+          },
+          {
+            "completed": false,
+            "text": "Order: 1 (no dependencies)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### Existing vs New Assessment\n\nThe `thcs-draft-converter.ts` (592 lines) already handles:\n- ✅ `{{phoneme}}` → `optionUnderlines` (line 132-139) — AC-2 verify\n- ✅ `{{error}}` → `underlinedParts` (line 144-151) — AC-3 verify\n- ✅ `{{target_word}}` → `underlinedParts` for synonym/antonym (line 156-161) — AC-1 verify\n- ✅ `[WORD BANK:]` → `wordBank`/`blankMapping` (line 324-399) — AC-4 verify\n- ✅ `(N)______` blanks → cloze mapping (line 353-371)\n\nMissing (all NEW code to add):\n- ❌ `(N điểm)` point extraction — AC-5\n- ❌ Instruction replacement — AC-6\n- ❌ Section ordering — AC-7\n- ❌ Post-parse validation — AC-8\n- ❌ AI tag consumption — AC-9\n- ❌ Tag stripping — AC-10\n\n### Architecture Decision\nRather than bloating `thcs-draft-converter.ts` further, create a **new engine enhancement module** that runs as post-processing steps. The converter already does the ParsedTest→THCSDraft mapping; the enhancements operate on the *input* (ParsedTest) before conversion and on the *output* (THCSDraft) after.\n\n### New file\n`src/services/test-creation/thcs-engine-enhancements.ts`\n\n### Functions\n\n#### 1. `extractPointAllocation(sectionName: string): number | null` (FR-18)\n- Regex: `/\\((\\d+(?:\\.\\d+)?)\\s*điểm\\)/i`\n- Returns numeric value or null\n- Also strips the tag from the section name for display\n\n#### 2. `applyPointAllocation(sections, totalQuestions): void` (FR-18)\n- For each section: check `extractPointAllocation(section.name)`\n- If found: use that for section points, calculate per-question: `sectionPoints / questionCount`\n- If NOT found: fall back to `10 / totalQuestions` (existing behavior)\n- Modifies sections in-place\n\n#### 3. `replaceInstructions(sections): void` (FR-17)\n- For each section: look up `ALL_INSTRUCTION_TEMPLATES[section.defaultQuestionType]`\n- If match found AND `section.isCustomInstruction === false`: replace `instructionText`\n- Skip if teacher has customized the instruction\n- Import `ALL_INSTRUCTION_TEMPLATES` from `thcs-test.types.ts`\n\n#### 4. `sortSectionsByCurriculum(sections): typeof sections` (FR-16)\n- Define curriculum order map:\n  ```typescript\n  const CURRICULUM_ORDER: Record<string, number> = {\n    'pronunciation': 1,\n    'word-stress': 2,\n    'mcq-grammar': 3,\n    'mcq-vocabulary': 3,\n    'mcq-sign-notice': 3,\n    'dialogue-response': 3,\n    'verb-form': 4,\n    'word-form': 4,\n    'reading-cloze-wordbank': 4,\n    'reading-announcement': 5,\n    'reading-comprehension': 5,\n    'reading-cloze-mcq': 5,\n    'sentence-arrangement': 6,\n    'closest-meaning': 6,\n    'sentence-rewrite': 6,\n    'sentence-rewrite-keyword': 6,\n    'error-identification': 3,\n    'synonym-mcq': 3,\n    'antonym-mcq': 3,\n    'word-reference': 5,\n  };\n  ```\n- Stable sort: sections with curriculum position sort by that; sections without preserve original relative order\n- Returns new sorted array (does not mutate)\n\n#### 5. `consumeAITags(sections): AITagConsumptionResult` (FR-14)\n- Scan all question texts, options, passage content for:\n  - `[AI-INFERRED]` → set `answerSource: 'ai-inferred'` on question, strip tag\n  - `[UNCERTAIN]` → add to section's `warnings[]`, strip tag\n  - `[COMPROMISED: old → new]` → set `compromised: true`, `originalType`, `convertedType` on section, strip tag\n- Returns `{ inferredCount, uncertainCount, compromisedSections[] }` for diagnostics\n\n#### 6. `stripDisplayTags(sections): void` (FR-14, FR-17)\n- Final pass: remove any remaining `[TYPE: ...]`, `[STATS: ...]`, `[AI-INFERRED]`, `[UNCERTAIN]`, `[COMPROMISED: ...]` tags from ALL text fields\n- Also strip `(N điểm)` from section name display text\n- Ensures no pipeline-internal markers leak to the student/teacher UI\n\n#### 7. `validateParsedOutput(result): PostParseWarning[]` (FR-19)\n- Returns array of warnings (not errors — pipeline should not crash):\n  ```typescript\n  interface PostParseWarning {\n    severity: 'error' | 'warning';\n    code: string;\n    message: string;\n    sectionIndex?: number;\n    questionNumber?: number;\n  }\n  ```\n- Checks:\n  - `ZERO_QUESTIONS`: total questions = 0 → error\n  - `NUMBERING_GAP`: unexpected gaps in sequential question numbers → warning\n  - `MISSING_ANSWER`: question has no correctAnswer AND no answerSource:'ai-inferred' → warning\n  - `READING_NO_PASSAGE`: reading section has empty passage.content → warning\n  - `CLOZE_NO_BLANKS`: cloze section has no numbered blanks → warning\n  - `WRITING_NO_ARROW`: writing question has no originalSentence or sentenceStarter → warning\n\n#### 8. `runEngineEnhancements(sections, totalQuestions)` — Orchestrator\nRuns all enhancements in correct order:\n1. `consumeAITags(sections)` — extract tags before any other processing\n2. `applyPointAllocation(sections, totalQuestions)` — must run before instruction replacement\n3. `replaceInstructions(sections)` — after type finalization\n4. `sortSectionsByCurriculum(sections)` — reorder\n5. `stripDisplayTags(sections)` — final cleanup\n6. `validateParsedOutput(result)` — quality check\nReturns `{ sections, warnings, tagStats }`.\n\n### Integration point\nCalled from `convertParsedToThcsDraft()` — after the existing conversion logic, before returning. The orchestrator receives the converted sections and applies enhancements.\n\n### Existing code changes\n- `thcs-draft-converter.ts` line 579-590: Add call to `runEngineEnhancements()` before return\n- Verify existing marker conversion (AC-1,2,3) still works — add inline comments noting \"verified per AC-X\"\n\n### Files changed\n- `src/services/test-creation/thcs-engine-enhancements.ts` (NEW — ~250 lines)\n- `src/services/test-creation/thcs-draft-converter.ts` (minor — add orchestrator call + type imports)\n\n### Dependencies\n- `ALL_INSTRUCTION_TEMPLATES` from `thcs-test.types.ts` (existing export)\n- No new external dependencies"
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "4f54n5",
+      "version": 4,
+      "timestamp": "2026-03-05T02:12:26.582Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "{{target_word}} → underlinedParts on question object"
+            },
+            {
+              "completed": false,
+              "text": "{{phoneme}} → optionUnderlines (verify existing)"
+            },
+            {
+              "completed": false,
+              "text": "{{error}} → underlinedParts (verify existing)"
+            },
+            {
+              "completed": false,
+              "text": "[WORD BANK:] → wordBank array + blankMapping"
+            },
+            {
+              "completed": false,
+              "text": "(N điểm) → per-section point allocation (fallback: 10/total)"
+            },
+            {
+              "completed": false,
+              "text": "Instruction replacement: type slug → INSTRUCTION_TEMPLATES after type finalization"
+            },
+            {
+              "completed": false,
+              "text": "Section ordering by curriculum (Pronunciation→Stress→Grammar→Fill-in→Reading→Writing)"
+            },
+            {
+              "completed": false,
+              "text": "Post-parse validation: 0 Qs error, numbering gaps, answer coverage, passage, cloze, writing"
+            },
+            {
+              "completed": false,
+              "text": "[AI-INFERRED]/[UNCERTAIN]/[COMPROMISED] tag consumption → data model fields"
+            },
+            {
+              "completed": false,
+              "text": "All tags stripped from display text after consumption"
+            },
+            {
+              "completed": false,
+              "text": "Order: 1 (no dependencies)"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "{{target_word}} → underlinedParts on question object"
+            },
+            {
+              "completed": true,
+              "text": "{{phoneme}} → optionUnderlines (verify existing)"
+            },
+            {
+              "completed": true,
+              "text": "{{error}} → underlinedParts (verify existing)"
+            },
+            {
+              "completed": true,
+              "text": "[WORD BANK:] → wordBank array + blankMapping"
+            },
+            {
+              "completed": true,
+              "text": "(N điểm) → per-section point allocation (fallback: 10/total)"
+            },
+            {
+              "completed": true,
+              "text": "Instruction replacement: type slug → INSTRUCTION_TEMPLATES after type finalization"
+            },
+            {
+              "completed": true,
+              "text": "Section ordering by curriculum (Pronunciation→Stress→Grammar→Fill-in→Reading→Writing)"
+            },
+            {
+              "completed": true,
+              "text": "Post-parse validation: 0 Qs error, numbering gaps, answer coverage, passage, cloze, writing"
+            },
+            {
+              "completed": true,
+              "text": "[AI-INFERRED]/[UNCERTAIN]/[COMPROMISED] tag consumption → data model fields"
+            },
+            {
+              "completed": true,
+              "text": "All tags stripped from display text after consumption"
+            },
+            {
+              "completed": true,
+              "text": "Order: 1 (no dependencies)"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "## Implementation Notes\n- Created `thcs-engine-enhancements.ts` (~408 lines)\n- ACs 1-4 (marker conversion): Verified existing in thcs-draft-converter.ts lines 132-399\n  - AC-1: {{target_word}} → underlinedParts (line 156-161) ✓\n  - AC-2: {{phoneme}} → optionUnderlines (line 132-139) ✓\n  - AC-3: {{error}} → underlinedParts (line 144-151) ✓\n  - AC-4: [WORD BANK:] → wordBank/blankMapping (line 324-399) ✓\n- ACs 5-10 (new code):\n  - AC-5: (N điểm) → extractPointAllocation() + applyPointAllocation()\n  - AC-6: replaceInstructions() using ALL_INSTRUCTION_TEMPLATES lookup\n  - AC-7: sortSectionsByCurriculum() with 20-type CURRICULUM_ORDER map\n  - AC-8: validateParsedOutput() with 6 check types (ZERO_QUESTIONS, NUMBERING_GAP, MISSING_ANSWER, READING_NO_PASSAGE, CLOZE_NO_BLANKS, WRITING_NO_ARROW)\n  - AC-9: consumeAITags() for [AI-INFERRED]/[UNCERTAIN]/[COMPROMISED]\n  - AC-10: stripDisplayTags() with 8 pipeline-internal tag patterns\n- Orchestrator: runEngineEnhancements() runs all 7 steps in correct order\n- 24 unit tests passing\n- Zero TypeScript errors"
+        }
+      ],
+      "snapshot": {
+        "title": "Engine Enhancements: Markers, Data Extraction, Instruction Replacement, Ordering, Validation",
+        "description": "5 engine capabilities: (1) marker conversion for `{{target_word}}` → `underlinedParts` + verify existing, (2) `[WORD BANK:]` → `wordBank`/`blankMapping` and `(N điểm)` → point allocation, (3) instruction replacement — type slug → `INSTRUCTION_TEMPLATES` lookup (deterministic, no AI), (4) section ordering by Vietnamese curriculum, (5) post-parse validation + `warnings[]`. Also: AI tag consumption (`[AI-INFERRED]`, `[UNCERTAIN]`, `[COMPROMISED]`).",
+        "status": "in-progress",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "engine"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "{{target_word}} → underlinedParts on question object"
+          },
+          {
+            "completed": true,
+            "text": "{{phoneme}} → optionUnderlines (verify existing)"
+          },
+          {
+            "completed": true,
+            "text": "{{error}} → underlinedParts (verify existing)"
+          },
+          {
+            "completed": true,
+            "text": "[WORD BANK:] → wordBank array + blankMapping"
+          },
+          {
+            "completed": true,
+            "text": "(N điểm) → per-section point allocation (fallback: 10/total)"
+          },
+          {
+            "completed": true,
+            "text": "Instruction replacement: type slug → INSTRUCTION_TEMPLATES after type finalization"
+          },
+          {
+            "completed": true,
+            "text": "Section ordering by curriculum (Pronunciation→Stress→Grammar→Fill-in→Reading→Writing)"
+          },
+          {
+            "completed": true,
+            "text": "Post-parse validation: 0 Qs error, numbering gaps, answer coverage, passage, cloze, writing"
+          },
+          {
+            "completed": true,
+            "text": "[AI-INFERRED]/[UNCERTAIN]/[COMPROMISED] tag consumption → data model fields"
+          },
+          {
+            "completed": true,
+            "text": "All tags stripped from display text after consumption"
+          },
+          {
+            "completed": true,
+            "text": "Order: 1 (no dependencies)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### Existing vs New Assessment\n\nThe `thcs-draft-converter.ts` (592 lines) already handles:\n- ✅ `{{phoneme}}` → `optionUnderlines` (line 132-139) — AC-2 verify\n- ✅ `{{error}}` → `underlinedParts` (line 144-151) — AC-3 verify\n- ✅ `{{target_word}}` → `underlinedParts` for synonym/antonym (line 156-161) — AC-1 verify\n- ✅ `[WORD BANK:]` → `wordBank`/`blankMapping` (line 324-399) — AC-4 verify\n- ✅ `(N)______` blanks → cloze mapping (line 353-371)\n\nMissing (all NEW code to add):\n- ❌ `(N điểm)` point extraction — AC-5\n- ❌ Instruction replacement — AC-6\n- ❌ Section ordering — AC-7\n- ❌ Post-parse validation — AC-8\n- ❌ AI tag consumption — AC-9\n- ❌ Tag stripping — AC-10\n\n### Architecture Decision\nRather than bloating `thcs-draft-converter.ts` further, create a **new engine enhancement module** that runs as post-processing steps. The converter already does the ParsedTest→THCSDraft mapping; the enhancements operate on the *input* (ParsedTest) before conversion and on the *output* (THCSDraft) after.\n\n### New file\n`src/services/test-creation/thcs-engine-enhancements.ts`\n\n### Functions\n\n#### 1. `extractPointAllocation(sectionName: string): number | null` (FR-18)\n- Regex: `/\\((\\d+(?:\\.\\d+)?)\\s*điểm\\)/i`\n- Returns numeric value or null\n- Also strips the tag from the section name for display\n\n#### 2. `applyPointAllocation(sections, totalQuestions): void` (FR-18)\n- For each section: check `extractPointAllocation(section.name)`\n- If found: use that for section points, calculate per-question: `sectionPoints / questionCount`\n- If NOT found: fall back to `10 / totalQuestions` (existing behavior)\n- Modifies sections in-place\n\n#### 3. `replaceInstructions(sections): void` (FR-17)\n- For each section: look up `ALL_INSTRUCTION_TEMPLATES[section.defaultQuestionType]`\n- If match found AND `section.isCustomInstruction === false`: replace `instructionText`\n- Skip if teacher has customized the instruction\n- Import `ALL_INSTRUCTION_TEMPLATES` from `thcs-test.types.ts`\n\n#### 4. `sortSectionsByCurriculum(sections): typeof sections` (FR-16)\n- Define curriculum order map:\n  ```typescript\n  const CURRICULUM_ORDER: Record<string, number> = {\n    'pronunciation': 1,\n    'word-stress': 2,\n    'mcq-grammar': 3,\n    'mcq-vocabulary': 3,\n    'mcq-sign-notice': 3,\n    'dialogue-response': 3,\n    'verb-form': 4,\n    'word-form': 4,\n    'reading-cloze-wordbank': 4,\n    'reading-announcement': 5,\n    'reading-comprehension': 5,\n    'reading-cloze-mcq': 5,\n    'sentence-arrangement': 6,\n    'closest-meaning': 6,\n    'sentence-rewrite': 6,\n    'sentence-rewrite-keyword': 6,\n    'error-identification': 3,\n    'synonym-mcq': 3,\n    'antonym-mcq': 3,\n    'word-reference': 5,\n  };\n  ```\n- Stable sort: sections with curriculum position sort by that; sections without preserve original relative order\n- Returns new sorted array (does not mutate)\n\n#### 5. `consumeAITags(sections): AITagConsumptionResult` (FR-14)\n- Scan all question texts, options, passage content for:\n  - `[AI-INFERRED]` → set `answerSource: 'ai-inferred'` on question, strip tag\n  - `[UNCERTAIN]` → add to section's `warnings[]`, strip tag\n  - `[COMPROMISED: old → new]` → set `compromised: true`, `originalType`, `convertedType` on section, strip tag\n- Returns `{ inferredCount, uncertainCount, compromisedSections[] }` for diagnostics\n\n#### 6. `stripDisplayTags(sections): void` (FR-14, FR-17)\n- Final pass: remove any remaining `[TYPE: ...]`, `[STATS: ...]`, `[AI-INFERRED]`, `[UNCERTAIN]`, `[COMPROMISED: ...]` tags from ALL text fields\n- Also strip `(N điểm)` from section name display text\n- Ensures no pipeline-internal markers leak to the student/teacher UI\n\n#### 7. `validateParsedOutput(result): PostParseWarning[]` (FR-19)\n- Returns array of warnings (not errors — pipeline should not crash):\n  ```typescript\n  interface PostParseWarning {\n    severity: 'error' | 'warning';\n    code: string;\n    message: string;\n    sectionIndex?: number;\n    questionNumber?: number;\n  }\n  ```\n- Checks:\n  - `ZERO_QUESTIONS`: total questions = 0 → error\n  - `NUMBERING_GAP`: unexpected gaps in sequential question numbers → warning\n  - `MISSING_ANSWER`: question has no correctAnswer AND no answerSource:'ai-inferred' → warning\n  - `READING_NO_PASSAGE`: reading section has empty passage.content → warning\n  - `CLOZE_NO_BLANKS`: cloze section has no numbered blanks → warning\n  - `WRITING_NO_ARROW`: writing question has no originalSentence or sentenceStarter → warning\n\n#### 8. `runEngineEnhancements(sections, totalQuestions)` — Orchestrator\nRuns all enhancements in correct order:\n1. `consumeAITags(sections)` — extract tags before any other processing\n2. `applyPointAllocation(sections, totalQuestions)` — must run before instruction replacement\n3. `replaceInstructions(sections)` — after type finalization\n4. `sortSectionsByCurriculum(sections)` — reorder\n5. `stripDisplayTags(sections)` — final cleanup\n6. `validateParsedOutput(result)` — quality check\nReturns `{ sections, warnings, tagStats }`.\n\n### Integration point\nCalled from `convertParsedToThcsDraft()` — after the existing conversion logic, before returning. The orchestrator receives the converted sections and applies enhancements.\n\n### Existing code changes\n- `thcs-draft-converter.ts` line 579-590: Add call to `runEngineEnhancements()` before return\n- Verify existing marker conversion (AC-1,2,3) still works — add inline comments noting \"verified per AC-X\"\n\n### Files changed\n- `src/services/test-creation/thcs-engine-enhancements.ts` (NEW — ~250 lines)\n- `src/services/test-creation/thcs-draft-converter.ts` (minor — add orchestrator call + type imports)\n\n### Dependencies\n- `ALL_INSTRUCTION_TEMPLATES` from `thcs-test.types.ts` (existing export)\n- No new external dependencies",
+        "implementationNotes": "## Implementation Notes\n- Created `thcs-engine-enhancements.ts` (~408 lines)\n- ACs 1-4 (marker conversion): Verified existing in thcs-draft-converter.ts lines 132-399\n  - AC-1: {{target_word}} → underlinedParts (line 156-161) ✓\n  - AC-2: {{phoneme}} → optionUnderlines (line 132-139) ✓\n  - AC-3: {{error}} → underlinedParts (line 144-151) ✓\n  - AC-4: [WORD BANK:] → wordBank/blankMapping (line 324-399) ✓\n- ACs 5-10 (new code):\n  - AC-5: (N điểm) → extractPointAllocation() + applyPointAllocation()\n  - AC-6: replaceInstructions() using ALL_INSTRUCTION_TEMPLATES lookup\n  - AC-7: sortSectionsByCurriculum() with 20-type CURRICULUM_ORDER map\n  - AC-8: validateParsedOutput() with 6 check types (ZERO_QUESTIONS, NUMBERING_GAP, MISSING_ANSWER, READING_NO_PASSAGE, CLOZE_NO_BLANKS, WRITING_NO_ARROW)\n  - AC-9: consumeAITags() for [AI-INFERRED]/[UNCERTAIN]/[COMPROMISED]\n  - AC-10: stripDisplayTags() with 8 pipeline-internal tag patterns\n- Orchestrator: runEngineEnhancements() runs all 7 steps in correct order\n- 24 unit tests passing\n- Zero TypeScript errors"
+      }
+    },
+    {
+      "id": "v5",
+      "taskId": "4f54n5",
+      "version": 5,
+      "timestamp": "2026-03-05T02:13:12.198Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Engine Enhancements: Markers, Data Extraction, Instruction Replacement, Ordering, Validation",
+        "description": "5 engine capabilities: (1) marker conversion for `{{target_word}}` → `underlinedParts` + verify existing, (2) `[WORD BANK:]` → `wordBank`/`blankMapping` and `(N điểm)` → point allocation, (3) instruction replacement — type slug → `INSTRUCTION_TEMPLATES` lookup (deterministic, no AI), (4) section ordering by Vietnamese curriculum, (5) post-parse validation + `warnings[]`. Also: AI tag consumption (`[AI-INFERRED]`, `[UNCERTAIN]`, `[COMPROMISED]`).",
+        "status": "done",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "engine"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "{{target_word}} → underlinedParts on question object"
+          },
+          {
+            "completed": true,
+            "text": "{{phoneme}} → optionUnderlines (verify existing)"
+          },
+          {
+            "completed": true,
+            "text": "{{error}} → underlinedParts (verify existing)"
+          },
+          {
+            "completed": true,
+            "text": "[WORD BANK:] → wordBank array + blankMapping"
+          },
+          {
+            "completed": true,
+            "text": "(N điểm) → per-section point allocation (fallback: 10/total)"
+          },
+          {
+            "completed": true,
+            "text": "Instruction replacement: type slug → INSTRUCTION_TEMPLATES after type finalization"
+          },
+          {
+            "completed": true,
+            "text": "Section ordering by curriculum (Pronunciation→Stress→Grammar→Fill-in→Reading→Writing)"
+          },
+          {
+            "completed": true,
+            "text": "Post-parse validation: 0 Qs error, numbering gaps, answer coverage, passage, cloze, writing"
+          },
+          {
+            "completed": true,
+            "text": "[AI-INFERRED]/[UNCERTAIN]/[COMPROMISED] tag consumption → data model fields"
+          },
+          {
+            "completed": true,
+            "text": "All tags stripped from display text after consumption"
+          },
+          {
+            "completed": true,
+            "text": "Order: 1 (no dependencies)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### Existing vs New Assessment\n\nThe `thcs-draft-converter.ts` (592 lines) already handles:\n- ✅ `{{phoneme}}` → `optionUnderlines` (line 132-139) — AC-2 verify\n- ✅ `{{error}}` → `underlinedParts` (line 144-151) — AC-3 verify\n- ✅ `{{target_word}}` → `underlinedParts` for synonym/antonym (line 156-161) — AC-1 verify\n- ✅ `[WORD BANK:]` → `wordBank`/`blankMapping` (line 324-399) — AC-4 verify\n- ✅ `(N)______` blanks → cloze mapping (line 353-371)\n\nMissing (all NEW code to add):\n- ❌ `(N điểm)` point extraction — AC-5\n- ❌ Instruction replacement — AC-6\n- ❌ Section ordering — AC-7\n- ❌ Post-parse validation — AC-8\n- ❌ AI tag consumption — AC-9\n- ❌ Tag stripping — AC-10\n\n### Architecture Decision\nRather than bloating `thcs-draft-converter.ts` further, create a **new engine enhancement module** that runs as post-processing steps. The converter already does the ParsedTest→THCSDraft mapping; the enhancements operate on the *input* (ParsedTest) before conversion and on the *output* (THCSDraft) after.\n\n### New file\n`src/services/test-creation/thcs-engine-enhancements.ts`\n\n### Functions\n\n#### 1. `extractPointAllocation(sectionName: string): number | null` (FR-18)\n- Regex: `/\\((\\d+(?:\\.\\d+)?)\\s*điểm\\)/i`\n- Returns numeric value or null\n- Also strips the tag from the section name for display\n\n#### 2. `applyPointAllocation(sections, totalQuestions): void` (FR-18)\n- For each section: check `extractPointAllocation(section.name)`\n- If found: use that for section points, calculate per-question: `sectionPoints / questionCount`\n- If NOT found: fall back to `10 / totalQuestions` (existing behavior)\n- Modifies sections in-place\n\n#### 3. `replaceInstructions(sections): void` (FR-17)\n- For each section: look up `ALL_INSTRUCTION_TEMPLATES[section.defaultQuestionType]`\n- If match found AND `section.isCustomInstruction === false`: replace `instructionText`\n- Skip if teacher has customized the instruction\n- Import `ALL_INSTRUCTION_TEMPLATES` from `thcs-test.types.ts`\n\n#### 4. `sortSectionsByCurriculum(sections): typeof sections` (FR-16)\n- Define curriculum order map:\n  ```typescript\n  const CURRICULUM_ORDER: Record<string, number> = {\n    'pronunciation': 1,\n    'word-stress': 2,\n    'mcq-grammar': 3,\n    'mcq-vocabulary': 3,\n    'mcq-sign-notice': 3,\n    'dialogue-response': 3,\n    'verb-form': 4,\n    'word-form': 4,\n    'reading-cloze-wordbank': 4,\n    'reading-announcement': 5,\n    'reading-comprehension': 5,\n    'reading-cloze-mcq': 5,\n    'sentence-arrangement': 6,\n    'closest-meaning': 6,\n    'sentence-rewrite': 6,\n    'sentence-rewrite-keyword': 6,\n    'error-identification': 3,\n    'synonym-mcq': 3,\n    'antonym-mcq': 3,\n    'word-reference': 5,\n  };\n  ```\n- Stable sort: sections with curriculum position sort by that; sections without preserve original relative order\n- Returns new sorted array (does not mutate)\n\n#### 5. `consumeAITags(sections): AITagConsumptionResult` (FR-14)\n- Scan all question texts, options, passage content for:\n  - `[AI-INFERRED]` → set `answerSource: 'ai-inferred'` on question, strip tag\n  - `[UNCERTAIN]` → add to section's `warnings[]`, strip tag\n  - `[COMPROMISED: old → new]` → set `compromised: true`, `originalType`, `convertedType` on section, strip tag\n- Returns `{ inferredCount, uncertainCount, compromisedSections[] }` for diagnostics\n\n#### 6. `stripDisplayTags(sections): void` (FR-14, FR-17)\n- Final pass: remove any remaining `[TYPE: ...]`, `[STATS: ...]`, `[AI-INFERRED]`, `[UNCERTAIN]`, `[COMPROMISED: ...]` tags from ALL text fields\n- Also strip `(N điểm)` from section name display text\n- Ensures no pipeline-internal markers leak to the student/teacher UI\n\n#### 7. `validateParsedOutput(result): PostParseWarning[]` (FR-19)\n- Returns array of warnings (not errors — pipeline should not crash):\n  ```typescript\n  interface PostParseWarning {\n    severity: 'error' | 'warning';\n    code: string;\n    message: string;\n    sectionIndex?: number;\n    questionNumber?: number;\n  }\n  ```\n- Checks:\n  - `ZERO_QUESTIONS`: total questions = 0 → error\n  - `NUMBERING_GAP`: unexpected gaps in sequential question numbers → warning\n  - `MISSING_ANSWER`: question has no correctAnswer AND no answerSource:'ai-inferred' → warning\n  - `READING_NO_PASSAGE`: reading section has empty passage.content → warning\n  - `CLOZE_NO_BLANKS`: cloze section has no numbered blanks → warning\n  - `WRITING_NO_ARROW`: writing question has no originalSentence or sentenceStarter → warning\n\n#### 8. `runEngineEnhancements(sections, totalQuestions)` — Orchestrator\nRuns all enhancements in correct order:\n1. `consumeAITags(sections)` — extract tags before any other processing\n2. `applyPointAllocation(sections, totalQuestions)` — must run before instruction replacement\n3. `replaceInstructions(sections)` — after type finalization\n4. `sortSectionsByCurriculum(sections)` — reorder\n5. `stripDisplayTags(sections)` — final cleanup\n6. `validateParsedOutput(result)` — quality check\nReturns `{ sections, warnings, tagStats }`.\n\n### Integration point\nCalled from `convertParsedToThcsDraft()` — after the existing conversion logic, before returning. The orchestrator receives the converted sections and applies enhancements.\n\n### Existing code changes\n- `thcs-draft-converter.ts` line 579-590: Add call to `runEngineEnhancements()` before return\n- Verify existing marker conversion (AC-1,2,3) still works — add inline comments noting \"verified per AC-X\"\n\n### Files changed\n- `src/services/test-creation/thcs-engine-enhancements.ts` (NEW — ~250 lines)\n- `src/services/test-creation/thcs-draft-converter.ts` (minor — add orchestrator call + type imports)\n\n### Dependencies\n- `ALL_INSTRUCTION_TEMPLATES` from `thcs-test.types.ts` (existing export)\n- No new external dependencies",
+        "implementationNotes": "## Implementation Notes\n- Created `thcs-engine-enhancements.ts` (~408 lines)\n- ACs 1-4 (marker conversion): Verified existing in thcs-draft-converter.ts lines 132-399\n  - AC-1: {{target_word}} → underlinedParts (line 156-161) ✓\n  - AC-2: {{phoneme}} → optionUnderlines (line 132-139) ✓\n  - AC-3: {{error}} → underlinedParts (line 144-151) ✓\n  - AC-4: [WORD BANK:] → wordBank/blankMapping (line 324-399) ✓\n- ACs 5-10 (new code):\n  - AC-5: (N điểm) → extractPointAllocation() + applyPointAllocation()\n  - AC-6: replaceInstructions() using ALL_INSTRUCTION_TEMPLATES lookup\n  - AC-7: sortSectionsByCurriculum() with 20-type CURRICULUM_ORDER map\n  - AC-8: validateParsedOutput() with 6 check types (ZERO_QUESTIONS, NUMBERING_GAP, MISSING_ANSWER, READING_NO_PASSAGE, CLOZE_NO_BLANKS, WRITING_NO_ARROW)\n  - AC-9: consumeAITags() for [AI-INFERRED]/[UNCERTAIN]/[COMPROMISED]\n  - AC-10: stripDisplayTags() with 8 pipeline-internal tag patterns\n- Orchestrator: runEngineEnhancements() runs all 7 steps in correct order\n- 24 unit tests passing\n- Zero TypeScript errors"
+      }
+    }
+  ]
+}

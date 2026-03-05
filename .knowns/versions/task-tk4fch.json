@@ -1,0 +1,246 @@
+{
+  "taskId": "tk4fch",
+  "currentVersion": 5,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "tk4fch",
+      "version": 1,
+      "timestamp": "2026-03-04T18:00:32.006Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Remove debug tools div (lines 218-266) from THCSParseReviewPanel.tsx",
+              "completed": false
+            },
+            {
+              "text": "Verify THCSPreviewOverlay.tsx diagnostics accordion is untouched (diff check)",
+              "completed": false
+            },
+            {
+              "text": "Verify build passes after removal",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Remove debug buttons from parse review panel",
+        "description": "Remove the debug tools `<div>` (lines 218-266) from `THCSParseReviewPanel.tsx`. Verify the `THCSPreviewOverlay.tsx` diagnostics accordion is unchanged and still functional.",
+        "status": "todo",
+        "priority": "low",
+        "labels": [
+          "from-spec",
+          "thcs-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Remove debug tools div (lines 218-266) from THCSParseReviewPanel.tsx",
+            "completed": false
+          },
+          {
+            "text": "Verify THCSPreviewOverlay.tsx diagnostics accordion is untouched (diff check)",
+            "completed": false
+          },
+          {
+            "text": "Verify build passes after removal",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "tk4fch",
+      "version": 2,
+      "timestamp": "2026-03-04T18:02:53.619Z",
+      "changes": [
+        {
+          "field": "implementationPlan",
+          "newValue": "## Implementation Plan\n\n1. Delete lines 218-266 from `THCSParseReviewPanel.tsx` (the debug tools div containing 3 copy buttons)\n2. Verify no other code references the removed elements\n3. Verify `THCSPreviewOverlay.tsx` is untouched (diff check)\n4. Run `npx tsc --noEmit` to confirm build passes\n5. Quick visual check that Parse Review panel renders correctly without the debug section"
+        }
+      ],
+      "snapshot": {
+        "title": "Remove debug buttons from parse review panel",
+        "description": "Remove the debug tools `<div>` (lines 218-266) from `THCSParseReviewPanel.tsx`. Verify the `THCSPreviewOverlay.tsx` diagnostics accordion is unchanged and still functional.",
+        "status": "todo",
+        "priority": "low",
+        "labels": [
+          "from-spec",
+          "thcs-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Remove debug tools div (lines 218-266) from THCSParseReviewPanel.tsx"
+          },
+          {
+            "completed": false,
+            "text": "Verify THCSPreviewOverlay.tsx diagnostics accordion is untouched (diff check)"
+          },
+          {
+            "completed": false,
+            "text": "Verify build passes after removal"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n1. Delete lines 218-266 from `THCSParseReviewPanel.tsx` (the debug tools div containing 3 copy buttons)\n2. Verify no other code references the removed elements\n3. Verify `THCSPreviewOverlay.tsx` is untouched (diff check)\n4. Run `npx tsc --noEmit` to confirm build passes\n5. Quick visual check that Parse Review panel renders correctly without the debug section"
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "tk4fch",
+      "version": 3,
+      "timestamp": "2026-03-04T18:17:31.968Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        },
+        {
+          "field": "assignee",
+          "newValue": "@me"
+        }
+      ],
+      "snapshot": {
+        "title": "Remove debug buttons from parse review panel",
+        "description": "Remove the debug tools `<div>` (lines 218-266) from `THCSParseReviewPanel.tsx`. Verify the `THCSPreviewOverlay.tsx` diagnostics accordion is unchanged and still functional.",
+        "status": "in-progress",
+        "priority": "low",
+        "assignee": "@me",
+        "labels": [
+          "from-spec",
+          "thcs-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Remove debug tools div (lines 218-266) from THCSParseReviewPanel.tsx"
+          },
+          {
+            "completed": false,
+            "text": "Verify THCSPreviewOverlay.tsx diagnostics accordion is untouched (diff check)"
+          },
+          {
+            "completed": false,
+            "text": "Verify build passes after removal"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n1. Delete lines 218-266 from `THCSParseReviewPanel.tsx` (the debug tools div containing 3 copy buttons)\n2. Verify no other code references the removed elements\n3. Verify `THCSPreviewOverlay.tsx` is untouched (diff check)\n4. Run `npx tsc --noEmit` to confirm build passes\n5. Quick visual check that Parse Review panel renders correctly without the debug section"
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "tk4fch",
+      "version": 4,
+      "timestamp": "2026-03-04T18:18:54.609Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Remove debug tools div (lines 218-266) from THCSParseReviewPanel.tsx"
+            },
+            {
+              "completed": false,
+              "text": "Verify THCSPreviewOverlay.tsx diagnostics accordion is untouched (diff check)"
+            },
+            {
+              "completed": false,
+              "text": "Verify build passes after removal"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Remove debug tools div (lines 218-266) from THCSParseReviewPanel.tsx"
+            },
+            {
+              "completed": true,
+              "text": "Verify THCSPreviewOverlay.tsx diagnostics accordion is untouched (diff check)"
+            },
+            {
+              "completed": true,
+              "text": "Verify build passes after removal"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Removed debug tools div (3 buttons) from THCSParseReviewPanel.tsx. Verified THCSPreviewOverlay.tsx untouched (last commit: 1fb2dae, unrelated). Build verified — no new TS errors from our changes."
+        }
+      ],
+      "snapshot": {
+        "title": "Remove debug buttons from parse review panel",
+        "description": "Remove the debug tools `<div>` (lines 218-266) from `THCSParseReviewPanel.tsx`. Verify the `THCSPreviewOverlay.tsx` diagnostics accordion is unchanged and still functional.",
+        "status": "in-progress",
+        "priority": "low",
+        "assignee": "@me",
+        "labels": [
+          "from-spec",
+          "thcs-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Remove debug tools div (lines 218-266) from THCSParseReviewPanel.tsx"
+          },
+          {
+            "completed": true,
+            "text": "Verify THCSPreviewOverlay.tsx diagnostics accordion is untouched (diff check)"
+          },
+          {
+            "completed": true,
+            "text": "Verify build passes after removal"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n1. Delete lines 218-266 from `THCSParseReviewPanel.tsx` (the debug tools div containing 3 copy buttons)\n2. Verify no other code references the removed elements\n3. Verify `THCSPreviewOverlay.tsx` is untouched (diff check)\n4. Run `npx tsc --noEmit` to confirm build passes\n5. Quick visual check that Parse Review panel renders correctly without the debug section",
+        "implementationNotes": "Removed debug tools div (3 buttons) from THCSParseReviewPanel.tsx. Verified THCSPreviewOverlay.tsx untouched (last commit: 1fb2dae, unrelated). Build verified — no new TS errors from our changes."
+      }
+    },
+    {
+      "id": "v5",
+      "taskId": "tk4fch",
+      "version": 5,
+      "timestamp": "2026-03-04T18:18:56.404Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Remove debug buttons from parse review panel",
+        "description": "Remove the debug tools `<div>` (lines 218-266) from `THCSParseReviewPanel.tsx`. Verify the `THCSPreviewOverlay.tsx` diagnostics accordion is unchanged and still functional.",
+        "status": "done",
+        "priority": "low",
+        "assignee": "@me",
+        "labels": [
+          "from-spec",
+          "thcs-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Remove debug tools div (lines 218-266) from THCSParseReviewPanel.tsx"
+          },
+          {
+            "completed": true,
+            "text": "Verify THCSPreviewOverlay.tsx diagnostics accordion is untouched (diff check)"
+          },
+          {
+            "completed": true,
+            "text": "Verify build passes after removal"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n1. Delete lines 218-266 from `THCSParseReviewPanel.tsx` (the debug tools div containing 3 copy buttons)\n2. Verify no other code references the removed elements\n3. Verify `THCSPreviewOverlay.tsx` is untouched (diff check)\n4. Run `npx tsc --noEmit` to confirm build passes\n5. Quick visual check that Parse Review panel renders correctly without the debug section",
+        "implementationNotes": "Removed debug tools div (3 buttons) from THCSParseReviewPanel.tsx. Verified THCSPreviewOverlay.tsx untouched (last commit: 1fb2dae, unrelated). Build verified — no new TS errors from our changes."
+      }
+    }
+  ]
+}

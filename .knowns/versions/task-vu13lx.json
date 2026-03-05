@@ -1,0 +1,438 @@
+{
+  "taskId": "vu13lx",
+  "currentVersion": 5,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "vu13lx",
+      "version": 1,
+      "timestamp": "2026-03-04T22:46:53.903Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Prompt includes all 20 type slug codenames with descriptions",
+              "completed": false
+            },
+            {
+              "text": "Section name lookup table removed, verbatim copy instruction added",
+              "completed": false
+            },
+            {
+              "text": "Per-type extraction table matches FR-1g",
+              "completed": false
+            },
+            {
+              "text": "{{target_word}} convention for synonym/antonym",
+              "completed": false
+            },
+            {
+              "text": "[WORD BANK:] instruction for cloze-wordbank",
+              "completed": false
+            },
+            {
+              "text": "Point allocation (N điểm) copy instruction",
+              "completed": false
+            },
+            {
+              "text": "Blanket markdown ban replaced with targeted formatting rules",
+              "completed": false
+            },
+            {
+              "text": "reading-announcement vs reading-comprehension distinction",
+              "completed": false
+            },
+            {
+              "text": "Order: 1 (start here)",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Redesign External AI Prompt",
+        "description": "Rewrite `thcs-pdf-extraction-prompt.txt` with: `[TYPE: xxx]` tags (20 slugs), remove section name lookup table (AI copies verbatim), targeted formatting rules (not blanket markdown ban), per-type extraction rules (`{{target_word}}`, `[WORD BANK:]`, `(N điểm)`), `reading-announcement` distinction. The prompt should be LEANER than the current one — focused on faithful extraction + visual-only markers.",
+        "status": "todo",
+        "priority": "high",
+        "labels": [
+          "from-spec-v2",
+          "foundation"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Prompt includes all 20 type slug codenames with descriptions",
+            "completed": false
+          },
+          {
+            "text": "Section name lookup table removed, verbatim copy instruction added",
+            "completed": false
+          },
+          {
+            "text": "Per-type extraction table matches FR-1g",
+            "completed": false
+          },
+          {
+            "text": "{{target_word}} convention for synonym/antonym",
+            "completed": false
+          },
+          {
+            "text": "[WORD BANK:] instruction for cloze-wordbank",
+            "completed": false
+          },
+          {
+            "text": "Point allocation (N điểm) copy instruction",
+            "completed": false
+          },
+          {
+            "text": "Blanket markdown ban replaced with targeted formatting rules",
+            "completed": false
+          },
+          {
+            "text": "reading-announcement vs reading-comprehension distinction",
+            "completed": false
+          },
+          {
+            "text": "Order: 1 (start here)",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "vu13lx",
+      "version": 2,
+      "timestamp": "2026-03-04T22:51:11.285Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        },
+        {
+          "field": "assignee",
+          "newValue": "@me"
+        }
+      ],
+      "snapshot": {
+        "title": "Redesign External AI Prompt",
+        "description": "Rewrite `thcs-pdf-extraction-prompt.txt` with: `[TYPE: xxx]` tags (20 slugs), remove section name lookup table (AI copies verbatim), targeted formatting rules (not blanket markdown ban), per-type extraction rules (`{{target_word}}`, `[WORD BANK:]`, `(N điểm)`), `reading-announcement` distinction. The prompt should be LEANER than the current one — focused on faithful extraction + visual-only markers.",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "foundation"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Prompt includes all 20 type slug codenames with descriptions"
+          },
+          {
+            "completed": false,
+            "text": "Section name lookup table removed, verbatim copy instruction added"
+          },
+          {
+            "completed": false,
+            "text": "Per-type extraction table matches FR-1g"
+          },
+          {
+            "completed": false,
+            "text": "{{target_word}} convention for synonym/antonym"
+          },
+          {
+            "completed": false,
+            "text": "[WORD BANK:] instruction for cloze-wordbank"
+          },
+          {
+            "completed": false,
+            "text": "Point allocation (N điểm) copy instruction"
+          },
+          {
+            "completed": false,
+            "text": "Blanket markdown ban replaced with targeted formatting rules"
+          },
+          {
+            "completed": false,
+            "text": "reading-announcement vs reading-comprehension distinction"
+          },
+          {
+            "completed": false,
+            "text": "Order: 1 (start here)"
+          }
+        ]
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "vu13lx",
+      "version": 3,
+      "timestamp": "2026-03-04T22:56:49.497Z",
+      "changes": [
+        {
+          "field": "implementationPlan",
+          "newValue": "## Implementation Plan\n\n### Target file\n`src/services/test-creation/thcs-pdf-extraction-prompt.txt` (198 lines → rewrite)\n\n### Key Design Decisions\n- This is the **external/teacher-facing** prompt (teachers paste to ChatGPT/Gemini to extract PDF images to text)\n- Output format: **structured plain text** (NOT JSON) — designed for regex parser consumption\n- The current 18-line section name lookup table (lines 23-39) forces AI to rename sections → REMOVE, replace with \"copy verbatim\"\n- The blanket markdown ban (line 185) conflicts with **bold**/__underline__ in passages → REPLACE with targeted rules\n- Classification rules are currently missing from this prompt — the Engine handles classification, so the external prompt just needs `[TYPE: xxx]` tags\n\n### Changes (section by section)\n\n#### 1. METADATA HEADER (keep as-is)\nLines 5-12 — no change needed.\n\n#### 2. SECTION HEADERS — REWRITE\n- Remove the 18-line lookup table (lines 23-39)\n- Replace with: \"Copy the section name EXACTLY as written in the original document\"\n- Add instruction: \"Append `[TYPE: xxx]` tag at END of each section header line\"\n- Include the full 20-slug codename table with short descriptions\n\n#### 3. TYPE SLUG TABLE — NEW\nAdd the 20 type slugs from `THCSQuestionType`:\n```\n| pronunciation       | underlined part differs in pronunciation |\n| word-stress          | primary stress position differs |\n| mcq-grammar          | grammar gap-fill MCQ |\n| mcq-vocabulary       | vocabulary/phrasal verb MCQ |\n| mcq-sign-notice      | sign/notice interpretation |\n| dialogue-response    | conversation response selection |\n| reading-cloze-mcq    | passage cloze with MCQ per blank |\n| reading-comprehension | long passage + MCQ |\n| reading-announcement  | short notice/ad + MCQ |\n| sentence-arrangement  | arrange sentences in order |\n| closest-meaning       | sentence closest in meaning |\n| error-identification  | underlined part needing correction |\n| synonym-mcq           | CLOSEST in meaning (word) |\n| antonym-mcq           | OPPOSITE in meaning (word) |\n| word-reference         | pronoun/word reference in passage |\n| verb-form             | supply correct verb form |\n| word-form             | supply correct word form |\n| reading-cloze-wordbank | passage cloze from word bank |\n| sentence-rewrite       | rewrite with given start |\n| sentence-rewrite-keyword | rewrite using keyword |\n```\n\n#### 4. PER-TYPE EXTRACTION RULES — NEW (FR-1g)\nAdd specific extraction instructions per type:\n- pronunciation: `{{underlined_letters}}` in each option\n- error-identification: `{{underlined_word_or_phrase}}` in each option\n- synonym-mcq / antonym-mcq: `{{tested_word}}` in question text\n- reading passages: `**bold**` vocabulary + `__underline__` sentences\n- reading-cloze: `(N)______` numbered blanks\n- reading-cloze-wordbank: `[WORD BANK: word1 / word2 / ...]`\n- sentence-rewrite: `=>` separator\n- verb-form / word-form: `(verb)` / `(WORD)` brackets\n\n#### 5. FORMATTING RULES — REWRITE\nReplace blanket \"Do NOT add markdown\" with:\n- Inside PASSAGE: blocks: `**bold**` and `__underline__` are REQUIRED\n- Outside PASSAGE: blocks: no markdown formatting\n- `{{}}` markers for pronunciation/error/synonym/antonym throughout\n\n#### 6. POINT ALLOCATION — NEW (FR-1f)\nAdd instruction: \"If point allocation is visible (e.g., '(2 điểm)'), copy it on the section header line\"\n\n#### 7. WORD BANK — NEW (FR-1e)\nAdd instruction for `[WORD BANK: word1 / word2 / ...]` tag\n\n#### 8. reading-announcement DISTINCTION — NEW (FR-1h)\nAdd explicit rule: short notices/ads/letters = `[TYPE: reading-announcement]`, long articles = `[TYPE: reading-comprehension]`\n\n#### 9. GENERAL RULES — UPDATE\n- Remove \"Do NOT add markdown formatting OUTSIDE of PASSAGE: blocks\" (already in section 5)\n- Keep: verbatim extraction, Vietnamese diacritics, no reordering, no commentary\n\n### What stays the same\n- METADATA HEADER format (lines 5-12)\n- QUESTIONS FORMAT (lines 48-64) — mostly unchanged\n- PRONUNCIATION QUESTIONS (lines 66-77) — keep\n- ERROR CORRECTION (lines 79-86) — keep\n- READING SECTIONS (lines 88-103) — keep + add {{}} markers\n- READING CLOZE (lines 131-150) — keep + add word bank\n- FILL-IN (lines 152-159) — keep\n- SENTENCE REWRITING (lines 161-168) — keep\n- ANSWER KEY (lines 170-182) — keep\n- GENERAL RULES (lines 184-196) — update\n\n### Files changed\n- `src/services/test-creation/thcs-pdf-extraction-prompt.txt` (REWRITE)"
+        }
+      ],
+      "snapshot": {
+        "title": "Redesign External AI Prompt",
+        "description": "Rewrite `thcs-pdf-extraction-prompt.txt` with: `[TYPE: xxx]` tags (20 slugs), remove section name lookup table (AI copies verbatim), targeted formatting rules (not blanket markdown ban), per-type extraction rules (`{{target_word}}`, `[WORD BANK:]`, `(N điểm)`), `reading-announcement` distinction. The prompt should be LEANER than the current one — focused on faithful extraction + visual-only markers.",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "foundation"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Prompt includes all 20 type slug codenames with descriptions"
+          },
+          {
+            "completed": false,
+            "text": "Section name lookup table removed, verbatim copy instruction added"
+          },
+          {
+            "completed": false,
+            "text": "Per-type extraction table matches FR-1g"
+          },
+          {
+            "completed": false,
+            "text": "{{target_word}} convention for synonym/antonym"
+          },
+          {
+            "completed": false,
+            "text": "[WORD BANK:] instruction for cloze-wordbank"
+          },
+          {
+            "completed": false,
+            "text": "Point allocation (N điểm) copy instruction"
+          },
+          {
+            "completed": false,
+            "text": "Blanket markdown ban replaced with targeted formatting rules"
+          },
+          {
+            "completed": false,
+            "text": "reading-announcement vs reading-comprehension distinction"
+          },
+          {
+            "completed": false,
+            "text": "Order: 1 (start here)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### Target file\n`src/services/test-creation/thcs-pdf-extraction-prompt.txt` (198 lines → rewrite)\n\n### Key Design Decisions\n- This is the **external/teacher-facing** prompt (teachers paste to ChatGPT/Gemini to extract PDF images to text)\n- Output format: **structured plain text** (NOT JSON) — designed for regex parser consumption\n- The current 18-line section name lookup table (lines 23-39) forces AI to rename sections → REMOVE, replace with \"copy verbatim\"\n- The blanket markdown ban (line 185) conflicts with **bold**/__underline__ in passages → REPLACE with targeted rules\n- Classification rules are currently missing from this prompt — the Engine handles classification, so the external prompt just needs `[TYPE: xxx]` tags\n\n### Changes (section by section)\n\n#### 1. METADATA HEADER (keep as-is)\nLines 5-12 — no change needed.\n\n#### 2. SECTION HEADERS — REWRITE\n- Remove the 18-line lookup table (lines 23-39)\n- Replace with: \"Copy the section name EXACTLY as written in the original document\"\n- Add instruction: \"Append `[TYPE: xxx]` tag at END of each section header line\"\n- Include the full 20-slug codename table with short descriptions\n\n#### 3. TYPE SLUG TABLE — NEW\nAdd the 20 type slugs from `THCSQuestionType`:\n```\n| pronunciation       | underlined part differs in pronunciation |\n| word-stress          | primary stress position differs |\n| mcq-grammar          | grammar gap-fill MCQ |\n| mcq-vocabulary       | vocabulary/phrasal verb MCQ |\n| mcq-sign-notice      | sign/notice interpretation |\n| dialogue-response    | conversation response selection |\n| reading-cloze-mcq    | passage cloze with MCQ per blank |\n| reading-comprehension | long passage + MCQ |\n| reading-announcement  | short notice/ad + MCQ |\n| sentence-arrangement  | arrange sentences in order |\n| closest-meaning       | sentence closest in meaning |\n| error-identification  | underlined part needing correction |\n| synonym-mcq           | CLOSEST in meaning (word) |\n| antonym-mcq           | OPPOSITE in meaning (word) |\n| word-reference         | pronoun/word reference in passage |\n| verb-form             | supply correct verb form |\n| word-form             | supply correct word form |\n| reading-cloze-wordbank | passage cloze from word bank |\n| sentence-rewrite       | rewrite with given start |\n| sentence-rewrite-keyword | rewrite using keyword |\n```\n\n#### 4. PER-TYPE EXTRACTION RULES — NEW (FR-1g)\nAdd specific extraction instructions per type:\n- pronunciation: `{{underlined_letters}}` in each option\n- error-identification: `{{underlined_word_or_phrase}}` in each option\n- synonym-mcq / antonym-mcq: `{{tested_word}}` in question text\n- reading passages: `**bold**` vocabulary + `__underline__` sentences\n- reading-cloze: `(N)______` numbered blanks\n- reading-cloze-wordbank: `[WORD BANK: word1 / word2 / ...]`\n- sentence-rewrite: `=>` separator\n- verb-form / word-form: `(verb)` / `(WORD)` brackets\n\n#### 5. FORMATTING RULES — REWRITE\nReplace blanket \"Do NOT add markdown\" with:\n- Inside PASSAGE: blocks: `**bold**` and `__underline__` are REQUIRED\n- Outside PASSAGE: blocks: no markdown formatting\n- `{{}}` markers for pronunciation/error/synonym/antonym throughout\n\n#### 6. POINT ALLOCATION — NEW (FR-1f)\nAdd instruction: \"If point allocation is visible (e.g., '(2 điểm)'), copy it on the section header line\"\n\n#### 7. WORD BANK — NEW (FR-1e)\nAdd instruction for `[WORD BANK: word1 / word2 / ...]` tag\n\n#### 8. reading-announcement DISTINCTION — NEW (FR-1h)\nAdd explicit rule: short notices/ads/letters = `[TYPE: reading-announcement]`, long articles = `[TYPE: reading-comprehension]`\n\n#### 9. GENERAL RULES — UPDATE\n- Remove \"Do NOT add markdown formatting OUTSIDE of PASSAGE: blocks\" (already in section 5)\n- Keep: verbatim extraction, Vietnamese diacritics, no reordering, no commentary\n\n### What stays the same\n- METADATA HEADER format (lines 5-12)\n- QUESTIONS FORMAT (lines 48-64) — mostly unchanged\n- PRONUNCIATION QUESTIONS (lines 66-77) — keep\n- ERROR CORRECTION (lines 79-86) — keep\n- READING SECTIONS (lines 88-103) — keep + add {{}} markers\n- READING CLOZE (lines 131-150) — keep + add word bank\n- FILL-IN (lines 152-159) — keep\n- SENTENCE REWRITING (lines 161-168) — keep\n- ANSWER KEY (lines 170-182) — keep\n- GENERAL RULES (lines 184-196) — update\n\n### Files changed\n- `src/services/test-creation/thcs-pdf-extraction-prompt.txt` (REWRITE)"
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "vu13lx",
+      "version": 4,
+      "timestamp": "2026-03-05T01:04:55.478Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Prompt includes all 20 type slug codenames with descriptions"
+            },
+            {
+              "completed": false,
+              "text": "Section name lookup table removed, verbatim copy instruction added"
+            },
+            {
+              "completed": false,
+              "text": "Per-type extraction table matches FR-1g"
+            },
+            {
+              "completed": false,
+              "text": "{{target_word}} convention for synonym/antonym"
+            },
+            {
+              "completed": false,
+              "text": "[WORD BANK:] instruction for cloze-wordbank"
+            },
+            {
+              "completed": false,
+              "text": "Point allocation (N điểm) copy instruction"
+            },
+            {
+              "completed": false,
+              "text": "Blanket markdown ban replaced with targeted formatting rules"
+            },
+            {
+              "completed": false,
+              "text": "reading-announcement vs reading-comprehension distinction"
+            },
+            {
+              "completed": false,
+              "text": "Order: 1 (start here)"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Prompt includes all 20 type slug codenames with descriptions"
+            },
+            {
+              "completed": true,
+              "text": "Section name lookup table removed, verbatim copy instruction added"
+            },
+            {
+              "completed": true,
+              "text": "Per-type extraction table matches FR-1g"
+            },
+            {
+              "completed": true,
+              "text": "{{target_word}} convention for synonym/antonym"
+            },
+            {
+              "completed": true,
+              "text": "[WORD BANK:] instruction for cloze-wordbank"
+            },
+            {
+              "completed": true,
+              "text": "Point allocation (N điểm) copy instruction"
+            },
+            {
+              "completed": true,
+              "text": "Blanket markdown ban replaced with targeted formatting rules"
+            },
+            {
+              "completed": true,
+              "text": "reading-announcement vs reading-comprehension distinction"
+            },
+            {
+              "completed": true,
+              "text": "Order: 1 (start here)"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "## Implementation Notes\n- Rewrote `thcs-pdf-extraction-prompt.txt` (198 → 157 lines, leaner)\n- Key changes:\n  - Removed 18-line section name lookup table → replaced with \\\"copy verbatim\\\" + [TYPE: xxx] tag instruction\n  - Added full 20-slug type table with descriptions\n  - Added per-type extraction rules: {{}} for pronunciation/error/synonym/antonym/word-reference, [WORD BANK:] for cloze-wordbank, (N điểm) for points, => for sentence-rewrite\n  - Replaced blanket \\\"no markdown\\\" rule → PASSAGE: blocks use **bold**/__underline__, outside uses {{}} only\n  - Added reading-announcement vs reading-comprehension distinction with explicit examples\n  - Added sentence-rewrite-keyword example\n  - NOTE: `thcs-ai-extraction-prompt.txt` (the internal AI JSON prompt) is a SEPARATE file — unchanged here, will be removed in task 8085zl"
+        }
+      ],
+      "snapshot": {
+        "title": "Redesign External AI Prompt",
+        "description": "Rewrite `thcs-pdf-extraction-prompt.txt` with: `[TYPE: xxx]` tags (20 slugs), remove section name lookup table (AI copies verbatim), targeted formatting rules (not blanket markdown ban), per-type extraction rules (`{{target_word}}`, `[WORD BANK:]`, `(N điểm)`), `reading-announcement` distinction. The prompt should be LEANER than the current one — focused on faithful extraction + visual-only markers.",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "foundation"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Prompt includes all 20 type slug codenames with descriptions"
+          },
+          {
+            "completed": true,
+            "text": "Section name lookup table removed, verbatim copy instruction added"
+          },
+          {
+            "completed": true,
+            "text": "Per-type extraction table matches FR-1g"
+          },
+          {
+            "completed": true,
+            "text": "{{target_word}} convention for synonym/antonym"
+          },
+          {
+            "completed": true,
+            "text": "[WORD BANK:] instruction for cloze-wordbank"
+          },
+          {
+            "completed": true,
+            "text": "Point allocation (N điểm) copy instruction"
+          },
+          {
+            "completed": true,
+            "text": "Blanket markdown ban replaced with targeted formatting rules"
+          },
+          {
+            "completed": true,
+            "text": "reading-announcement vs reading-comprehension distinction"
+          },
+          {
+            "completed": true,
+            "text": "Order: 1 (start here)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### Target file\n`src/services/test-creation/thcs-pdf-extraction-prompt.txt` (198 lines → rewrite)\n\n### Key Design Decisions\n- This is the **external/teacher-facing** prompt (teachers paste to ChatGPT/Gemini to extract PDF images to text)\n- Output format: **structured plain text** (NOT JSON) — designed for regex parser consumption\n- The current 18-line section name lookup table (lines 23-39) forces AI to rename sections → REMOVE, replace with \"copy verbatim\"\n- The blanket markdown ban (line 185) conflicts with **bold**/__underline__ in passages → REPLACE with targeted rules\n- Classification rules are currently missing from this prompt — the Engine handles classification, so the external prompt just needs `[TYPE: xxx]` tags\n\n### Changes (section by section)\n\n#### 1. METADATA HEADER (keep as-is)\nLines 5-12 — no change needed.\n\n#### 2. SECTION HEADERS — REWRITE\n- Remove the 18-line lookup table (lines 23-39)\n- Replace with: \"Copy the section name EXACTLY as written in the original document\"\n- Add instruction: \"Append `[TYPE: xxx]` tag at END of each section header line\"\n- Include the full 20-slug codename table with short descriptions\n\n#### 3. TYPE SLUG TABLE — NEW\nAdd the 20 type slugs from `THCSQuestionType`:\n```\n| pronunciation       | underlined part differs in pronunciation |\n| word-stress          | primary stress position differs |\n| mcq-grammar          | grammar gap-fill MCQ |\n| mcq-vocabulary       | vocabulary/phrasal verb MCQ |\n| mcq-sign-notice      | sign/notice interpretation |\n| dialogue-response    | conversation response selection |\n| reading-cloze-mcq    | passage cloze with MCQ per blank |\n| reading-comprehension | long passage + MCQ |\n| reading-announcement  | short notice/ad + MCQ |\n| sentence-arrangement  | arrange sentences in order |\n| closest-meaning       | sentence closest in meaning |\n| error-identification  | underlined part needing correction |\n| synonym-mcq           | CLOSEST in meaning (word) |\n| antonym-mcq           | OPPOSITE in meaning (word) |\n| word-reference         | pronoun/word reference in passage |\n| verb-form             | supply correct verb form |\n| word-form             | supply correct word form |\n| reading-cloze-wordbank | passage cloze from word bank |\n| sentence-rewrite       | rewrite with given start |\n| sentence-rewrite-keyword | rewrite using keyword |\n```\n\n#### 4. PER-TYPE EXTRACTION RULES — NEW (FR-1g)\nAdd specific extraction instructions per type:\n- pronunciation: `{{underlined_letters}}` in each option\n- error-identification: `{{underlined_word_or_phrase}}` in each option\n- synonym-mcq / antonym-mcq: `{{tested_word}}` in question text\n- reading passages: `**bold**` vocabulary + `__underline__` sentences\n- reading-cloze: `(N)______` numbered blanks\n- reading-cloze-wordbank: `[WORD BANK: word1 / word2 / ...]`\n- sentence-rewrite: `=>` separator\n- verb-form / word-form: `(verb)` / `(WORD)` brackets\n\n#### 5. FORMATTING RULES — REWRITE\nReplace blanket \"Do NOT add markdown\" with:\n- Inside PASSAGE: blocks: `**bold**` and `__underline__` are REQUIRED\n- Outside PASSAGE: blocks: no markdown formatting\n- `{{}}` markers for pronunciation/error/synonym/antonym throughout\n\n#### 6. POINT ALLOCATION — NEW (FR-1f)\nAdd instruction: \"If point allocation is visible (e.g., '(2 điểm)'), copy it on the section header line\"\n\n#### 7. WORD BANK — NEW (FR-1e)\nAdd instruction for `[WORD BANK: word1 / word2 / ...]` tag\n\n#### 8. reading-announcement DISTINCTION — NEW (FR-1h)\nAdd explicit rule: short notices/ads/letters = `[TYPE: reading-announcement]`, long articles = `[TYPE: reading-comprehension]`\n\n#### 9. GENERAL RULES — UPDATE\n- Remove \"Do NOT add markdown formatting OUTSIDE of PASSAGE: blocks\" (already in section 5)\n- Keep: verbatim extraction, Vietnamese diacritics, no reordering, no commentary\n\n### What stays the same\n- METADATA HEADER format (lines 5-12)\n- QUESTIONS FORMAT (lines 48-64) — mostly unchanged\n- PRONUNCIATION QUESTIONS (lines 66-77) — keep\n- ERROR CORRECTION (lines 79-86) — keep\n- READING SECTIONS (lines 88-103) — keep + add {{}} markers\n- READING CLOZE (lines 131-150) — keep + add word bank\n- FILL-IN (lines 152-159) — keep\n- SENTENCE REWRITING (lines 161-168) — keep\n- ANSWER KEY (lines 170-182) — keep\n- GENERAL RULES (lines 184-196) — update\n\n### Files changed\n- `src/services/test-creation/thcs-pdf-extraction-prompt.txt` (REWRITE)",
+        "implementationNotes": "## Implementation Notes\n- Rewrote `thcs-pdf-extraction-prompt.txt` (198 → 157 lines, leaner)\n- Key changes:\n  - Removed 18-line section name lookup table → replaced with \\\"copy verbatim\\\" + [TYPE: xxx] tag instruction\n  - Added full 20-slug type table with descriptions\n  - Added per-type extraction rules: {{}} for pronunciation/error/synonym/antonym/word-reference, [WORD BANK:] for cloze-wordbank, (N điểm) for points, => for sentence-rewrite\n  - Replaced blanket \\\"no markdown\\\" rule → PASSAGE: blocks use **bold**/__underline__, outside uses {{}} only\n  - Added reading-announcement vs reading-comprehension distinction with explicit examples\n  - Added sentence-rewrite-keyword example\n  - NOTE: `thcs-ai-extraction-prompt.txt` (the internal AI JSON prompt) is a SEPARATE file — unchanged here, will be removed in task 8085zl"
+      }
+    },
+    {
+      "id": "v5",
+      "taskId": "vu13lx",
+      "version": 5,
+      "timestamp": "2026-03-05T01:05:04.223Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Redesign External AI Prompt",
+        "description": "Rewrite `thcs-pdf-extraction-prompt.txt` with: `[TYPE: xxx]` tags (20 slugs), remove section name lookup table (AI copies verbatim), targeted formatting rules (not blanket markdown ban), per-type extraction rules (`{{target_word}}`, `[WORD BANK:]`, `(N điểm)`), `reading-announcement` distinction. The prompt should be LEANER than the current one — focused on faithful extraction + visual-only markers.",
+        "status": "done",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "foundation"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Prompt includes all 20 type slug codenames with descriptions"
+          },
+          {
+            "completed": true,
+            "text": "Section name lookup table removed, verbatim copy instruction added"
+          },
+          {
+            "completed": true,
+            "text": "Per-type extraction table matches FR-1g"
+          },
+          {
+            "completed": true,
+            "text": "{{target_word}} convention for synonym/antonym"
+          },
+          {
+            "completed": true,
+            "text": "[WORD BANK:] instruction for cloze-wordbank"
+          },
+          {
+            "completed": true,
+            "text": "Point allocation (N điểm) copy instruction"
+          },
+          {
+            "completed": true,
+            "text": "Blanket markdown ban replaced with targeted formatting rules"
+          },
+          {
+            "completed": true,
+            "text": "reading-announcement vs reading-comprehension distinction"
+          },
+          {
+            "completed": true,
+            "text": "Order: 1 (start here)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### Target file\n`src/services/test-creation/thcs-pdf-extraction-prompt.txt` (198 lines → rewrite)\n\n### Key Design Decisions\n- This is the **external/teacher-facing** prompt (teachers paste to ChatGPT/Gemini to extract PDF images to text)\n- Output format: **structured plain text** (NOT JSON) — designed for regex parser consumption\n- The current 18-line section name lookup table (lines 23-39) forces AI to rename sections → REMOVE, replace with \"copy verbatim\"\n- The blanket markdown ban (line 185) conflicts with **bold**/__underline__ in passages → REPLACE with targeted rules\n- Classification rules are currently missing from this prompt — the Engine handles classification, so the external prompt just needs `[TYPE: xxx]` tags\n\n### Changes (section by section)\n\n#### 1. METADATA HEADER (keep as-is)\nLines 5-12 — no change needed.\n\n#### 2. SECTION HEADERS — REWRITE\n- Remove the 18-line lookup table (lines 23-39)\n- Replace with: \"Copy the section name EXACTLY as written in the original document\"\n- Add instruction: \"Append `[TYPE: xxx]` tag at END of each section header line\"\n- Include the full 20-slug codename table with short descriptions\n\n#### 3. TYPE SLUG TABLE — NEW\nAdd the 20 type slugs from `THCSQuestionType`:\n```\n| pronunciation       | underlined part differs in pronunciation |\n| word-stress          | primary stress position differs |\n| mcq-grammar          | grammar gap-fill MCQ |\n| mcq-vocabulary       | vocabulary/phrasal verb MCQ |\n| mcq-sign-notice      | sign/notice interpretation |\n| dialogue-response    | conversation response selection |\n| reading-cloze-mcq    | passage cloze with MCQ per blank |\n| reading-comprehension | long passage + MCQ |\n| reading-announcement  | short notice/ad + MCQ |\n| sentence-arrangement  | arrange sentences in order |\n| closest-meaning       | sentence closest in meaning |\n| error-identification  | underlined part needing correction |\n| synonym-mcq           | CLOSEST in meaning (word) |\n| antonym-mcq           | OPPOSITE in meaning (word) |\n| word-reference         | pronoun/word reference in passage |\n| verb-form             | supply correct verb form |\n| word-form             | supply correct word form |\n| reading-cloze-wordbank | passage cloze from word bank |\n| sentence-rewrite       | rewrite with given start |\n| sentence-rewrite-keyword | rewrite using keyword |\n```\n\n#### 4. PER-TYPE EXTRACTION RULES — NEW (FR-1g)\nAdd specific extraction instructions per type:\n- pronunciation: `{{underlined_letters}}` in each option\n- error-identification: `{{underlined_word_or_phrase}}` in each option\n- synonym-mcq / antonym-mcq: `{{tested_word}}` in question text\n- reading passages: `**bold**` vocabulary + `__underline__` sentences\n- reading-cloze: `(N)______` numbered blanks\n- reading-cloze-wordbank: `[WORD BANK: word1 / word2 / ...]`\n- sentence-rewrite: `=>` separator\n- verb-form / word-form: `(verb)` / `(WORD)` brackets\n\n#### 5. FORMATTING RULES — REWRITE\nReplace blanket \"Do NOT add markdown\" with:\n- Inside PASSAGE: blocks: `**bold**` and `__underline__` are REQUIRED\n- Outside PASSAGE: blocks: no markdown formatting\n- `{{}}` markers for pronunciation/error/synonym/antonym throughout\n\n#### 6. POINT ALLOCATION — NEW (FR-1f)\nAdd instruction: \"If point allocation is visible (e.g., '(2 điểm)'), copy it on the section header line\"\n\n#### 7. WORD BANK — NEW (FR-1e)\nAdd instruction for `[WORD BANK: word1 / word2 / ...]` tag\n\n#### 8. reading-announcement DISTINCTION — NEW (FR-1h)\nAdd explicit rule: short notices/ads/letters = `[TYPE: reading-announcement]`, long articles = `[TYPE: reading-comprehension]`\n\n#### 9. GENERAL RULES — UPDATE\n- Remove \"Do NOT add markdown formatting OUTSIDE of PASSAGE: blocks\" (already in section 5)\n- Keep: verbatim extraction, Vietnamese diacritics, no reordering, no commentary\n\n### What stays the same\n- METADATA HEADER format (lines 5-12)\n- QUESTIONS FORMAT (lines 48-64) — mostly unchanged\n- PRONUNCIATION QUESTIONS (lines 66-77) — keep\n- ERROR CORRECTION (lines 79-86) — keep\n- READING SECTIONS (lines 88-103) — keep + add {{}} markers\n- READING CLOZE (lines 131-150) — keep + add word bank\n- FILL-IN (lines 152-159) — keep\n- SENTENCE REWRITING (lines 161-168) — keep\n- ANSWER KEY (lines 170-182) — keep\n- GENERAL RULES (lines 184-196) — update\n\n### Files changed\n- `src/services/test-creation/thcs-pdf-extraction-prompt.txt` (REWRITE)",
+        "implementationNotes": "## Implementation Notes\n- Rewrote `thcs-pdf-extraction-prompt.txt` (198 → 157 lines, leaner)\n- Key changes:\n  - Removed 18-line section name lookup table → replaced with \\\"copy verbatim\\\" + [TYPE: xxx] tag instruction\n  - Added full 20-slug type table with descriptions\n  - Added per-type extraction rules: {{}} for pronunciation/error/synonym/antonym/word-reference, [WORD BANK:] for cloze-wordbank, (N điểm) for points, => for sentence-rewrite\n  - Replaced blanket \\\"no markdown\\\" rule → PASSAGE: blocks use **bold**/__underline__, outside uses {{}} only\n  - Added reading-announcement vs reading-comprehension distinction with explicit examples\n  - Added sentence-rewrite-keyword example\n  - NOTE: `thcs-ai-extraction-prompt.txt` (the internal AI JSON prompt) is a SEPARATE file — unchanged here, will be removed in task 8085zl"
+      }
+    }
+  ]
+}

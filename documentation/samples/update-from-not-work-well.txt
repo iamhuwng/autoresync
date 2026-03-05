@@ -1,0 +1,1751 @@
+<input>
+TITLE: TEST 1
+GRADE: 7
+DURATION: [Not specified]
+EXAM TYPE: ôn tập
+
+---
+
+PART A: PHONETICS (0.5 points)
+
+I. [TYPE: pronunciation] Choose the word A, B, C or D whose underlined part is pronounced differently from the others.
+
+1. A. tr{{ai}}n   B. {{ai}}r   C. p{{ai}}r   D. st{{ai}}r
+2. A. th{{eir}}   B. h{{eir}}   C. th{{ere}}   D. h{{ere}}
+
+II. [TYPE: word-stress] Choose the word which has a different stress pattern from the others.
+
+11. A. highlight   B. harvest   C. parade   D. festive
+12. A. center   B. display   C. prepare   D. relax
+
+---
+
+PART B: VOCABULARY AND GRAMMAR (2.0 points)
+
+I. [TYPE: mcq-grammar] Choose the best option to complete each of the following sentences.
+
+3. ______ is a round cake traditionally eaten during the Mid-Autumn Festival.
+A. hamburger   B. mooncake   C. cookie   D. sandwich
+4. Do you know the ______ in the UK is to keep to the left?
+A. traffic light   B. traffic rule   C. traffic jam   D. speed limit
+5. Paul Walker has won Oscar for the best ______.
+A. actor   B. actress   C. acting   D. action
+6. ______ the weather was bad, we enjoyed our trip.
+A. despite of   B. although   C. in spite of   D. however
+7. He is often rude at school, he ______ be more polite towards his teachers and schoolmates.
+A. shouldn't   B. should   C. can   D. might
+8. He doesn't enjoy playing sports, ______ he plays basketball twice a week.
+A. despite   B. but   C. because   D. so
+9. ______ they watch fireworks display last night?
+A. Will   B. Can   C. Did   D. Do
+10. ______ you make apple cakes? - Yes, I can.
+A. Can   B. Should   C. Will   D. Are
+
+II. [TYPE: sentence-arrangement] Choose the best option A, B, C or D to indicate the correct order of the sentences to make a complete paragraph.
+
+a. Football helps children develop teamwork skills and stay physically healthy.
+b. Playing sports is a great way for children to improve their health and social skills.
+c. However, players need proper equipment like shin guards and cleats to stay safe.
+d. It also teaches them how to deal with winning and losing.
+e. In conclusion, sports like football are both fun and beneficial for kids.
+A. b-a-d-c-e   B. b-a-c-e-d   C. b-c-a-e-d   D. d-b-a-c-e
+
+a. It's a great time for people to come together and celebrate.
+b. Many people travel home to spend time with their families.
+c. Tet is the most important festival in Vietnam.
+d. Children usually receive lucky money in red envelopes.
+e. Streets are decorated with beautiful flowers and lights.
+A. c-b-e-d-a   B. c-e-b-d-a   C. c-d-b-e-a   D. a-c-b-e-d
+
+---
+
+PART C: READING (2.5 points)
+
+I. [TYPE: reading-cloze-mcq] Read the following passage and choose the letter A, B, C or D on your answer sheet to indicate the correct word or phrase that best fits each of the numbered blanks.
+
+Traffic congestion is a major problem in many (15)______ cities. It occurs when there are too many vehicles on the (16)**, leading to slower speeds and longer trip times. To reduce traffic, (17)** which leads to narrow streets, build more roads, and encourage people to use bicycles or walk. Some cities have (18)______ a "congestion charge" to discourage drivers from entering the city center during peak hours. If more people (19)______ public transport, the number of cars on the road would decrease significantly.
+
+15. A. rural   B. large   C. small   D. quiet
+16. A. park   B. water   C. roads   D. air
+17. A. governments   B. students   C. drivers   D. tourists
+18. A. introduced   B. seen   C. made   D. given
+19. A. see   B. saw   C. sees   D. to see
+
+II. [TYPE: reading-cloze-mcq] Read the following passage and choose the letter A, B, C or D on your answer sheet to indicate the correct word or phrase that best fits each of the numbered blanks.
+
+In many countries, films are a popular form of entertainment. A film is usually (20)______ by a director and features actors who play different roles. Some films are based on books, while others are (21)______ stories. The process of (22)______ a film involves many people, including (23)**, editors, and sound technicians. When a film is finished, it is often shown in (24)** before being released on DVD or streaming platforms.
+
+20. A. which   B. who   C. when   D. where
+21. A. original   B. old   C. boring   D. sad
+22. A. making   B. filming   C. acting   D. writing
+23. A. cameramen   B. teachers   C. doctors   D. pilots
+24. A. schools   B. cinemas   C. hospitals   D. parks
+
+III. [TYPE: reading-comprehension] Read the following passage and choose the letter A, B, C or D on your answer sheet to indicate the correct answer to each of the questions.
+
+VALENTINE'S DAY AROUND THE WORLD
+There is a custom in Italy for young couples to get engaged on Valentine's Day. Some shops are decorated with a lot of candies. In South Korea, women give chocolate to men on February 14th. Then, on March 14th, men give non-chocolate candies to women. In the USA, many people express their love by sending cards called valentines. These cards often have hearts and poems. Some people also give flowers or chocolates to their loved ones. In Vietnam, Valentine's Day has become popular recently, and many young people celebrate it by going out for dinner or giving gifts.
+
+25. What do young couples in Italy often do on Valentine's Day?
+A. Buy candies   B. Get engaged   C. Go to the cinema   D. Give flowers
+26. When do men in South Korea give candies to women?
+A. February 14th   B. March 14th   C. April 14th   D. January 14th
+27. What are the cards sent in the USA called?
+A. Hearts   B. Poems   C. Valentines   D. Gifts
+28. How is Valentine's Day celebrated in Vietnam?
+A. Sending cards   B. Getting engaged   C. Going out for dinner or giving gifts   D. Giving only chocolate
+29. The word "express" in the USA paragraph is closest in meaning to
+A. hide   B. show   C. forget   D. ignore
+30. Which of the following statements is NOT TRUE according to the passage?
+A. In Italy, shops are decorated with candies.
+B. In South Korea, women give chocolate to men on March 14th.
+C. Americans send valentines with hearts and poems.
+D. Valentine's Day is popular among young people in Vietnam.
+
+---
+
+PART D: WRITING (2.0 points)
+
+I. [TYPE: error-identification] Choose the underlined part A, B, C or D that needs correction.
+
+31. Although (A) the traffic jam (B), we (C) arrived at the meeting on time (D).
+32. He should (A) to study (B) harder if (C) he wants to pass (D) the exam.
+33. How far (A) is (B) it from (C) your house and (D) the school?
+34. In spite (A) of he was (B) tired, he (C) finished his (D) homework.
+
+II. [TYPE: sentence-arrangement] Rearrange the words to make complete sentences.
+
+35. is / a / the / cake / Mooncake / traditionally / eaten / during / Mid-Autumn / Festival.
+=> ____________________________________________________________________
+36. the / although / was / bad / We / enjoyed / our / trip / weather.
+=> ____________________________________________________________________
+
+III. [TYPE: closest-meaning] Choose the letter A, B, C or D on your answer sheet to indicate the sentence that is closest in meaning to the original sentence in each of following questions.
+
+37. Tom was admitted to the university although his grades were bad.
+A. Despite of Tom's bad grades, he was admitted to the university.
+B. Despite Tom's bad grades, he was admitted to the university.
+C. Although Tom's bad grades, he was admitted to the university.
+D. Despite Tom's grades were bad, he was admitted to the university.
+38. In spite of the high prices, my daughter insists on going to the movies.
+A. Despite the prices are high, my daughter insists on going to the movies.
+B. In spite of the prices are high, my daughter insists on going to the movies.
+C. Because the prices are high, my daughter insists on going to the movies.
+D. Even though the prices are high, my daughter insists on going to the movies.
+39. The school is 2 kilometers away from my house.
+A. It is 2 kilometers from my house to the school.
+B. It is 2 kilometers to my house from the school.
+C. It has 2 kilometers from my house to the school.
+D. It is 2 kilometers between my house with the school.
+40. How far is it from your house to the post office?
+A. What is the distance from your house and the post office?
+B. What is the distance between your house to the post office?
+C. What is the distance from your house to the post office?
+D. What distance is it from your house to the post office?
+
+---
+
+ANSWER KEY
+1.A  2.D  3.B  4.B  5.A  6.B  7.B  8.B  9.C  10.A
+11.C  12.A  13.A  14.A  15.B  16.C  17.A  18.A  19.A  20.B
+21.A  22.A  23.A  24.B  25.B  26.B  27.C  28.C  29.B  30.B
+31.A  32.B  33.D  34.A
+35. Mooncake is a cake traditionally eaten during the Mid-Autumn Festival.
+36. We enjoyed our trip although the weather was bad.
+37.B  38.D  39.A  40.C
+<parser debug>
+{
+  "timestamp": "2026-03-03T03:53:27.847Z",
+  "pipeline": "direct-regex",
+  "inputLength": 8749,
+  "cleanedLength": 8741,
+  "metadata": {
+    "gradeLevel": 7,
+    "title": "TEST 1",
+    "examType": "ôn tập"
+  },
+  "sections": [
+    {
+      "name": "PART A: PHONETICS (0.5 points)",
+      "detectedType": "pronunciation",
+      "typeConfidence": 95,
+      "questionCount": 2,
+      "questionNumbers": [
+        1,
+        2
+      ],
+      "hasPassage": false
+    },
+    {
+      "name": "PART A: PHONETICS (0.5 points)",
+      "detectedType": "word-stress",
+      "typeConfidence": 97,
+      "questionCount": 2,
+      "questionNumbers": [
+        11,
+        12
+      ],
+      "hasPassage": false
+    },
+    {
+      "name": "PART B: VOCABULARY AND GRAMMAR (2.0 points)",
+      "detectedType": "mcq-grammar",
+      "typeConfidence": 85,
+      "questionCount": 8,
+      "questionNumbers": [
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "hasPassage": false
+    },
+    {
+      "name": "PART B: VOCABULARY AND GRAMMAR (2.0 points)",
+      "detectedType": "sentence-arrangement",
+      "typeConfidence": 80,
+      "questionCount": 0,
+      "questionNumbers": [],
+      "hasPassage": true
+    },
+    {
+      "name": "PART C: READING (2.5 points)",
+      "detectedType": "reading-comprehension",
+      "typeConfidence": 80,
+      "questionCount": 5,
+      "questionNumbers": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "hasPassage": true
+    },
+    {
+      "name": "PART C: READING (2.5 points)",
+      "detectedType": "reading-comprehension",
+      "typeConfidence": 80,
+      "questionCount": 5,
+      "questionNumbers": [
+        20,
+        21,
+        22,
+        23,
+        24
+      ],
+      "hasPassage": true
+    },
+    {
+      "name": "PART C: READING (2.5 points)",
+      "detectedType": "reading-comprehension",
+      "typeConfidence": 80,
+      "questionCount": 6,
+      "questionNumbers": [
+        25,
+        26,
+        27,
+        28,
+        29,
+        30
+      ],
+      "hasPassage": true
+    },
+    {
+      "name": "PART D: WRITING (2.0 points)",
+      "detectedType": "error-identification",
+      "typeConfidence": 92,
+      "questionCount": 4,
+      "questionNumbers": [
+        31,
+        32,
+        33,
+        34
+      ],
+      "hasPassage": false
+    },
+    {
+      "name": "PART D: WRITING (2.0 points)",
+      "detectedType": "sentence-arrangement",
+      "typeConfidence": 80,
+      "questionCount": 2,
+      "questionNumbers": [
+        35,
+        36
+      ],
+      "hasPassage": false
+    },
+    {
+      "name": "PART D: WRITING (2.0 points)",
+      "detectedType": "synonym-mcq",
+      "typeConfidence": 90,
+      "questionCount": 4,
+      "questionNumbers": [
+        37,
+        38,
+        39,
+        40
+      ],
+      "hasPassage": false
+    }
+  ],
+  "totalQuestions": 38,
+  "answeredCount": 40,
+  "overallConfidence": 86,
+  "warnings": []
+}
+<parsed result>
+{
+  "metadata": {
+    "title": "TEST 1",
+    "gradeLevel": 7,
+    "duration": 0,
+    "examType": "ưn tập"
+  },
+  "sections": [
+    {
+      "name": "PART A: PHONETICS (0.5 points)",
+      "instructionText": "I. [TYPE: pronunciation] Choose the word A, B, C or D whose underlined part is pronounced differently from the others.",
+      "startLine": 0,
+      "endLine": 0,
+      "questions": [
+        {
+          "questionNumber": 1,
+          "text": "",
+          "type": "pronunciation",
+          "options": [
+            "tr{{ai}}n",
+            "{{ai}}r",
+            "p{{ai}}r",
+            "st{{ai}}r"
+          ],
+          "correctAnswer": "A",
+          "blankCount": 0
+        },
+        {
+          "questionNumber": 2,
+          "text": "",
+          "type": "pronunciation",
+          "options": [
+            "th{{eir}}",
+            "h{{eir}}",
+            "th{{ere}}",
+            "h{{ere}}"
+          ],
+          "correctAnswer": "D",
+          "blankCount": 0
+        }
+      ],
+      "detectedType": "pronunciation",
+      "typeConfidence": 95
+    },
+    {
+      "name": "PART A: PHONETICS (0.5 points)",
+      "instructionText": "II. [TYPE: word-stress] Choose the word which has a different stress pattern from the others.",
+      "startLine": 0,
+      "endLine": 0,
+      "questions": [
+        {
+          "questionNumber": 11,
+          "text": "",
+          "type": "word-stress",
+          "options": [
+            "highlight",
+            "harvest",
+            "parade",
+            "festive"
+          ],
+          "correctAnswer": "C",
+          "blankCount": 0
+        },
+        {
+          "questionNumber": 12,
+          "text": "",
+          "type": "word-stress",
+          "options": [
+            "center",
+            "display",
+            "prepare",
+            "relax"
+          ],
+          "correctAnswer": "A",
+          "blankCount": 0
+        }
+      ],
+      "detectedType": "word-stress",
+      "typeConfidence": 97
+    },
+    {
+      "name": "PART B: VOCABULARY AND GRAMMAR (2.0 points)",
+      "instructionText": "I. [TYPE: mcq-grammar] Choose the best option to complete each of the following sentences.",
+      "startLine": 0,
+      "endLine": 0,
+      "questions": [
+        {
+          "questionNumber": 3,
+          "text": "______ is a round cake traditionally eaten during the Mid-Autumn Festival.",
+          "type": "mcq-grammar",
+          "options": [
+            "hamburger",
+            "mooncake",
+            "cookie",
+            "sandwich"
+          ],
+          "correctAnswer": "B",
+          "blankCount": 1
+        },
+        {
+          "questionNumber": 4,
+          "text": "Do you know the ______ in the UK is to keep to the left?",
+          "type": "mcq-grammar",
+          "options": [
+            "traffic light",
+            "traffic rule",
+            "traffic jam",
+            "speed limit"
+          ],
+          "correctAnswer": "B",
+          "blankCount": 1
+        },
+        {
+          "questionNumber": 5,
+          "text": "Paul Walker has won Oscar for the best ______.",
+          "type": "mcq-grammar",
+          "options": [
+            "actor",
+            "actress",
+            "acting",
+            "action"
+          ],
+          "correctAnswer": "A",
+          "blankCount": 1
+        },
+        {
+          "questionNumber": 6,
+          "text": "______ the weather was bad, we enjoyed our trip.",
+          "type": "mcq-grammar",
+          "options": [
+            "despite of",
+            "although",
+            "in spite of",
+            "however"
+          ],
+          "correctAnswer": "B",
+          "blankCount": 1
+        },
+        {
+          "questionNumber": 7,
+          "text": "He is often rude at school, he ______ be more polite towards his teachers and schoolmates.",
+          "type": "mcq-grammar",
+          "options": [
+            "shouldn't",
+            "should",
+            "can",
+            "might"
+          ],
+          "correctAnswer": "B",
+          "blankCount": 1
+        },
+        {
+          "questionNumber": 8,
+          "text": "He doesn't enjoy playing sports, ______ he plays basketball twice a week.",
+          "type": "mcq-grammar",
+          "options": [
+            "despite",
+            "but",
+            "because",
+            "so"
+          ],
+          "correctAnswer": "B",
+          "blankCount": 1
+        },
+        {
+          "questionNumber": 9,
+          "text": "______ they watch fireworks display last night?",
+          "type": "mcq-grammar",
+          "options": [
+            "Will",
+            "Can",
+            "Did",
+            "Do"
+          ],
+          "correctAnswer": "C",
+          "blankCount": 1
+        },
+        {
+          "questionNumber": 10,
+          "text": "______ you make apple cakes? - Yes, I can.",
+          "type": "mcq-grammar",
+          "options": [
+            "Can",
+            "Should",
+            "Will",
+            "Are"
+          ],
+          "correctAnswer": "A",
+          "blankCount": 1
+        }
+      ],
+      "detectedType": "mcq-grammar",
+      "typeConfidence": 85
+    },
+    {
+      "name": "PART B: VOCABULARY AND GRAMMAR (2.0 points)",
+      "instructionText": "II. [TYPE: sentence-arrangement] Choose the best option A, B, C or D to indicate the correct order of the sentences to make a complete paragraph.",
+      "startLine": 0,
+      "endLine": 0,
+      "questions": [],
+      "detectedType": "sentence-arrangement",
+      "typeConfidence": 80,
+      "passageText": "a. Football helps children develop teamwork skills and stay physically healthy.\nb. Playing sports is a great way for children to improve their health and social skills.\nc. However, players need proper equipment like shin guards and cleats to stay safe.\nd. It also teaches them how to deal with winning and losing.\ne. In conclusion, sports like football are both fun and beneficial for kids.\nA. b-a-d-c-e   B. b-a-c-e-d   C. b-c-a-e-d   D. d-b-a-c-e\na. It's a great time for people to come together and celebrate.\nb. Many people travel home to spend time with their families.\nc. Tet is the most important festival in Vietnam.\nd. Children usually receive lucky money in red envelopes.\ne. Streets are decorated with beautiful flowers and lights.\nA. c-b-e-d-a   B. c-e-b-d-a   C. c-d-b-e-a   D. a-c-b-e-d"
+    },
+    {
+      "name": "PART C: READING (2.5 points)",
+      "instructionText": "I. [TYPE: reading-cloze-mcq] Read the following passage and choose the letter A, B, C or D on your answer sheet to indicate the correct word or phrase that best fits each of the numbered blanks.",
+      "startLine": 0,
+      "endLine": 0,
+      "questions": [
+        {
+          "questionNumber": 15,
+          "text": "Traffic congestion is a major problem in many ______ cities.",
+          "type": "reading-comprehension",
+          "options": [
+            "rural",
+            "large",
+            "small",
+            "quiet"
+          ],
+          "correctAnswer": "B",
+          "blankCount": 1
+        },
+        {
+          "questionNumber": 16,
+          "text": "It occurs when there are too many vehicles on the ______, leading to slower speeds and longer trip times.",
+          "type": "reading-comprehension",
+          "options": [
+            "park",
+            "water",
+            "roads",
+            "air"
+          ],
+          "correctAnswer": "C",
+          "blankCount": 1
+        },
+        {
+          "questionNumber": 17,
+          "text": "To reduce traffic, ______ which leads to narrow streets, build more roads, and encourage people to use bicycles or walk.",
+          "type": "reading-comprehension",
+          "options": [
+            "governments",
+            "students",
+            "drivers",
+            "tourists"
+          ],
+          "correctAnswer": "A",
+          "blankCount": 1
+        },
+        {
+          "questionNumber": 18,
+          "text": "Some cities have ______ a \"congestion charge\" to discourage drivers from entering the city center during peak hours.",
+          "type": "reading-comprehension",
+          "options": [
+            "introduced",
+            "seen",
+            "made",
+            "given"
+          ],
+          "correctAnswer": "A",
+          "blankCount": 1
+        },
+        {
+          "questionNumber": 19,
+          "text": "If more people ______ public transport, the number of cars on the road would decrease significantly.",
+          "type": "reading-comprehension",
+          "options": [
+            "see",
+            "saw",
+            "sees",
+            "to see"
+          ],
+          "correctAnswer": "A",
+          "blankCount": 1
+        }
+      ],
+      "detectedType": "reading-comprehension",
+      "typeConfidence": 80,
+      "passageText": "Traffic congestion is a major problem in many (15)______ cities. It occurs when there are too many vehicles on the (16), leading to slower speeds and longer trip times. To reduce traffic, (17) which leads to narrow streets, build more roads, and encourage people to use bicycles or walk. Some cities have (18)______ a \"congestion charge\" to discourage drivers from entering the city center during peak hours. If more people (19)______ public transport, the number of cars on the road would decrease significantly."
+    },
+    {
+      "name": "PART C: READING (2.5 points)",
+      "instructionText": "II. [TYPE: reading-cloze-mcq] Read the following passage and choose the letter A, B, C or D on your answer sheet to indicate the correct word or phrase that best fits each of the numbered blanks.",
+      "startLine": 0,
+      "endLine": 0,
+      "questions": [
+        {
+          "questionNumber": 20,
+          "text": "A film is usually ______ by a director and features actors who play different roles.",
+          "type": "reading-comprehension",
+          "options": [
+            "which",
+            "who",
+            "when",
+            "where"
+          ],
+          "correctAnswer": "B",
+          "blankCount": 1
+        },
+        {
+          "questionNumber": 21,
+          "text": "Some films are based on books, while others are ______ stories.",
+          "type": "reading-comprehension",
+          "options": [
+            "original",
+            "old",
+            "boring",
+            "sad"
+          ],
+          "correctAnswer": "A",
+          "blankCount": 1
+        },
+        {
+          "questionNumber": 22,
+          "text": "The process of ______ a film involves many people, including",
+          "type": "reading-comprehension",
+          "options": [
+            "making",
+            "filming",
+            "acting",
+            "writing"
+          ],
+          "correctAnswer": "A",
+          "blankCount": 1
+        },
+        {
+          "questionNumber": 23,
+          "text": "The process of making a film involves many people, including ______, editors, and sound technicians.",
+          "type": "reading-comprehension",
+          "options": [
+            "cameramen",
+            "teachers",
+            "doctors",
+            "pilots"
+          ],
+          "correctAnswer": "A",
+          "blankCount": 1
+        },
+        {
+          "questionNumber": 24,
+          "text": "When a film is finished, it is often shown in ______ before being released on DVD or streaming platforms.",
+          "type": "reading-comprehension",
+          "options": [
+            "schools",
+            "cinemas",
+            "hospitals",
+            "parks"
+          ],
+          "correctAnswer": "B",
+          "blankCount": 1
+        }
+      ],
+      "detectedType": "reading-comprehension",
+      "typeConfidence": 80,
+      "passageText": "In many countries, films are a popular form of entertainment. A film is usually ______ by a director and features actors who play different roles. Some films are based on books, while others are ______ stories. The process of ______ a film involves many people, including ______, editors, and sound technicians. When a film is finished, it is often shown in ______ before being released on DVD or streaming platforms."
+    },
+    {
+      "name": "PART C: READING (2.5 points)",
+      "instructionText": "III. [TYPE: reading-comprehension] Read the following passage and choose the letter A, B, C or D on your answer sheet to indicate the correct answer to each of the questions.",
+      "startLine": 0,
+      "endLine": 0,
+      "questions": [
+        {
+          "questionNumber": 25,
+          "text": "What do young couples in Italy often do on Valentine's Day?",
+          "type": "reading-comprehension",
+          "options": [
+            "Buy candies",
+            "Get engaged",
+            "Go to the cinema",
+            "Give flowers"
+          ],
+          "correctAnswer": "B",
+          "blankCount": 0
+        },
+        {
+          "questionNumber": 26,
+          "text": "When do men in South Korea give candies to women?",
+          "type": "reading-comprehension",
+          "options": [
+            "February 14th",
+            "March 14th",
+            "April 14th",
+            "January 14th"
+          ],
+          "correctAnswer": "B",
+          "blankCount": 0
+        },
+        {
+          "questionNumber": 27,
+          "text": "What are the cards sent in the USA called?",
+          "type": "reading-comprehension",
+          "options": [
+            "Hearts",
+            "Poems",
+            "Valentines",
+            "Gifts"
+          ],
+          "correctAnswer": "C",
+          "blankCount": 0
+        },
+        {
+          "questionNumber": 28,
+          "text": "How is Valentine's Day celebrated in Vietnam?",
+          "type": "reading-comprehension",
+          "options": [
+            "Sending cards",
+            "Getting engaged",
+            "Going out for dinner or giving gifts",
+            "Giving only chocolate"
+          ],
+          "correctAnswer": "C",
+          "blankCount": 0
+        },
+        {
+          "questionNumber": 29,
+          "text": "The word \"express\" in the USA paragraph is closest in meaning to",
+          "type": "reading-comprehension",
+          "options": [
+            "hide",
+            "show",
+            "forget",
+            "ignore"
+          ],
+          "correctAnswer": "B",
+          "blankCount": 0
+        },
+        {
+          "questionNumber": 30,
+          "text": "Which of the following statements is NOT TRUE according to the passage?",
+          "type": "reading-comprehension",
+          "options": [
+            "In Italy, shops are decorated with candies.",
+            "In South Korea, women give chocolate to men on March 14th.",
+            "Americans send valentines with hearts and poems.",
+            "Valentine's Day is popular among young people in Vietnam."
+          ],
+          "correctAnswer": "B",
+          "blankCount": 0
+        }
+      ],
+      "detectedType": "reading-comprehension",
+      "typeConfidence": 80,
+      "passageText": "VALENTINE'S DAY AROUND THE WORLD There is a custom in Italy for young couples to get engaged on Valentine's Day. Some shops are decorated with a lot of candies. In South Korea, women give chocolate to men on February 14th. Then, on March 14th, men give non-chocolate candies to women. In the USA, many people express their love by sending cards called valentines. These cards often have hearts and poems. Some people also give flowers or chocolates to their loved ones. In Vietnam, Valentine's Day has become popular recently, and many young people celebrate it by going out for dinner or giving gifts."
+    },
+    {
+      "name": "PART D: WRITING (2.0 points)",
+      "instructionText": "I. [TYPE: error-identification] Choose the underlined part A, B, C or D that needs correction.",
+      "startLine": 0,
+      "endLine": 0,
+      "questions": [
+        {
+          "questionNumber": 31,
+          "text": "Although (A) the traffic jam (B), we (C) arrived at the meeting on time (D).",
+          "type": "error-identification",
+          "options": [],
+          "correctAnswer": "A",
+          "blankCount": 0
+        },
+        {
+          "questionNumber": 32,
+          "text": "He should (A) to study (B) harder if (C) he wants to pass (D) the exam.",
+          "type": "error-identification",
+          "options": [],
+          "correctAnswer": "B",
+          "blankCount": 0
+        },
+        {
+          "questionNumber": 33,
+          "text": "How far (A) is (B) it from (C) your house and (D) the school?",
+          "type": "error-identification",
+          "options": [],
+          "correctAnswer": "D",
+          "blankCount": 0
+        },
+        {
+          "questionNumber": 34,
+          "text": "In spite (A) of he was (B) tired, he (C) finished his (D) homework.",
+          "type": "error-identification",
+          "options": [],
+          "correctAnswer": "A",
+          "blankCount": 0
+        }
+      ],
+      "detectedType": "error-identification",
+      "typeConfidence": 92
+    },
+    {
+      "name": "PART D: WRITING (2.0 points)",
+      "instructionText": "II. [TYPE: sentence-arrangement] Rearrange the words to make complete sentences.",
+      "startLine": 0,
+      "endLine": 0,
+      "questions": [
+        {
+          "questionNumber": 35,
+          "text": "is / a / the / cake / Mooncake / traditionally / eaten / during / Mid-Autumn / Festival.",
+          "type": "sentence-arrangement",
+          "options": [],
+          "correctAnswer": "",
+          "blankCount": 0
+        },
+        {
+          "questionNumber": 36,
+          "text": "the / although / was / bad / We / enjoyed / our / trip / weather.",
+          "type": "sentence-arrangement",
+          "options": [],
+          "correctAnswer": "",
+          "blankCount": 0
+        }
+      ],
+      "detectedType": "sentence-arrangement",
+      "typeConfidence": 80
+    },
+    {
+      "name": "PART D: WRITING (2.0 points)",
+      "instructionText": "III. [TYPE: closest-meaning] Choose the letter A, B, C or D on your answer sheet to indicate the sentence that is closest in meaning to the original sentence in each of following questions.",
+      "startLine": 0,
+      "endLine": 0,
+      "questions": [
+        {
+          "questionNumber": 37,
+          "text": "Tom was admitted to the university although his grades were bad.",
+          "type": "synonym-mcq",
+          "options": [
+            "Despite of Tom's bad grades, he was admitted to the university.",
+            "Despite Tom's bad grades, he was admitted to the university.",
+            "Although Tom's bad grades, he was admitted to the university.",
+            "Despite Tom's grades were bad, he was admitted to the university."
+          ],
+          "correctAnswer": "B",
+          "blankCount": 0
+        },
+        {
+          "questionNumber": 38,
+          "text": "In spite of the high prices, my daughter insists on going to the movies.",
+          "type": "synonym-mcq",
+          "options": [
+            "Despite the prices are high, my daughter insists on going to the movies.",
+            "In spite of the prices are high, my daughter insists on going to the movies.",
+            "Because the prices are high, my daughter insists on going to the movies.",
+            "Even though the prices are high, my daughter insists on going to the movies."
+          ],
+          "correctAnswer": "D",
+          "blankCount": 0
+        },
+        {
+          "questionNumber": 39,
+          "text": "The school is 2 kilometers away from my house.",
+          "type": "synonym-mcq",
+          "options": [
+            "It is 2 kilometers from my house to the school.",
+            "It is 2 kilometers to my house from the school.",
+            "It has 2 kilometers from my house to the school.",
+            "It is 2 kilometers between my house with the school."
+          ],
+          "correctAnswer": "A",
+          "blankCount": 0
+        },
+        {
+          "questionNumber": 40,
+          "text": "How far is it from your house to the post office?",
+          "type": "synonym-mcq",
+          "options": [
+            "What is the distance from your house and the post office?",
+            "What is the distance between your house to the post office?",
+            "What is the distance from your house to the post office?",
+            "What distance is it from your house to the post office?"
+          ],
+          "correctAnswer": "C",
+          "blankCount": 0
+        }
+      ],
+      "detectedType": "synonym-mcq",
+      "typeConfidence": 90
+    }
+  ],
+  "answerKey": {
+    "1": "A",
+    "2": "D",
+    "3": "B",
+    "4": "B",
+    "5": "A",
+    "6": "B",
+    "7": "B",
+    "8": "B",
+    "9": "C",
+    "10": "A",
+    "11": "C",
+    "12": "A",
+    "13": "A",
+    "14": "A",
+    "15": "B",
+    "16": "C",
+    "17": "A",
+    "18": "A",
+    "19": "A",
+    "20": "B",
+    "21": "A",
+    "22": "A",
+    "23": "A",
+    "24": "B",
+    "25": "B",
+    "26": "B",
+    "27": "C",
+    "28": "C",
+    "29": "B",
+    "30": "B",
+    "31": "A",
+    "32": "B",
+    "33": "D",
+    "34": "A",
+    "35": "Mooncake is a cake traditionally eaten during the Mid-Autumn Festival.",
+    "36": "We enjoyed our trip although the weather was bad.",
+    "37": "B",
+    "38": "D",
+    "39": "A",
+    "40": "C"
+  },
+  "warnings": [],
+  "overallConfidence": 92
+}
+<section json>
+[
+  {
+    "id": "9f8c3430-bea1-48fe-b8e8-7d043fc5c658",
+    "name": "PART A: PHONETICS (0.5 points)",
+    "order": 0,
+    "totalPoints": 0.53,
+    "pointMode": "auto",
+    "instructionText": "I. [TYPE: pronunciation] Choose the word A, B, C or D whose underlined part is pronounced differently from the others.",
+    "isCustomInstruction": false,
+    "layout": "single-column",
+    "questions": [
+      {
+        "id": "4c74c0ac-147d-4f08-a7bd-1ff93f13bd84",
+        "questionNumber": 1,
+        "type": "pronunciation",
+        "questionText": "",
+        "options": [
+          "train",
+          "air",
+          "pair",
+          "stair"
+        ],
+        "correctAnswer": "A",
+        "intent": "pronunciation",
+        "optionUnderlines": [
+          "tr{{ai}}n",
+          "{{ai}}r",
+          "p{{ai}}r",
+          "st{{ai}}r"
+        ]
+      },
+      {
+        "id": "183a328b-ff8a-4861-ad2b-6d1dd2cf43b6",
+        "questionNumber": 2,
+        "type": "pronunciation",
+        "questionText": "",
+        "options": [
+          "their",
+          "heir",
+          "there",
+          "here"
+        ],
+        "correctAnswer": "D",
+        "intent": "pronunciation",
+        "optionUnderlines": [
+          "th{{eir}}",
+          "h{{eir}}",
+          "th{{ere}}",
+          "h{{ere}}"
+        ]
+      }
+    ],
+    "defaultQuestionType": "pronunciation",
+    "shuffle": false,
+    "shuffleOptions": false
+  },
+  {
+    "id": "f824f0e0-0a47-409d-a773-5a319f00d63d",
+    "name": "PART A: PHONETICS (0.5 points)",
+    "order": 1,
+    "totalPoints": 0.53,
+    "pointMode": "auto",
+    "instructionText": "II. [TYPE: word-stress] Choose the word which has a different stress pattern from the others.",
+    "isCustomInstruction": false,
+    "layout": "single-column",
+    "questions": [
+      {
+        "id": "46451a66-c240-4e69-9a6a-e2842b7fd5b3",
+        "questionNumber": 11,
+        "type": "word-stress",
+        "questionText": "",
+        "options": [
+          "highlight",
+          "harvest",
+          "parade",
+          "festive"
+        ],
+        "correctAnswer": "C",
+        "intent": "word-stress"
+      },
+      {
+        "id": "f48ef53b-58b1-4733-bd20-21a97bc36c83",
+        "questionNumber": 12,
+        "type": "word-stress",
+        "questionText": "",
+        "options": [
+          "center",
+          "display",
+          "prepare",
+          "relax"
+        ],
+        "correctAnswer": "A",
+        "intent": "word-stress"
+      }
+    ],
+    "defaultQuestionType": "word-stress",
+    "shuffle": false,
+    "shuffleOptions": false
+  },
+  {
+    "id": "1ef59b23-64f7-4820-98ab-35f48aa53739",
+    "name": "PART B: VOCABULARY AND GRAMMAR (2.0 points)",
+    "order": 2,
+    "totalPoints": 2.11,
+    "pointMode": "auto",
+    "instructionText": "I. [TYPE: mcq-grammar] Choose the best option to complete each of the following sentences.",
+    "isCustomInstruction": false,
+    "layout": "single-column",
+    "questions": [
+      {
+        "id": "dc21fa0c-9f50-4e71-8729-8f0b88a6bb01",
+        "questionNumber": 3,
+        "type": "mcq-grammar",
+        "questionText": "______ is a round cake traditionally eaten during the Mid-Autumn Festival.",
+        "options": [
+          "hamburger",
+          "mooncake",
+          "cookie",
+          "sandwich"
+        ],
+        "correctAnswer": "B",
+        "intent": "mcq-grammar"
+      },
+      {
+        "id": "9d34944c-4388-4361-a9f7-3ff502b2f851",
+        "questionNumber": 4,
+        "type": "mcq-grammar",
+        "questionText": "Do you know the ______ in the UK is to keep to the left?",
+        "options": [
+          "traffic light",
+          "traffic rule",
+          "traffic jam",
+          "speed limit"
+        ],
+        "correctAnswer": "B",
+        "intent": "mcq-grammar"
+      },
+      {
+        "id": "01b32360-2716-4c71-9743-ca6ea14acd33",
+        "questionNumber": 5,
+        "type": "mcq-grammar",
+        "questionText": "Paul Walker has won Oscar for the best ______.",
+        "options": [
+          "actor",
+          "actress",
+          "acting",
+          "action"
+        ],
+        "correctAnswer": "A",
+        "intent": "mcq-grammar"
+      },
+      {
+        "id": "98f7e0aa-8300-4894-8831-f4b5e753ce74",
+        "questionNumber": 6,
+        "type": "mcq-grammar",
+        "questionText": "______ the weather was bad, we enjoyed our trip.",
+        "options": [
+          "despite of",
+          "although",
+          "in spite of",
+          "however"
+        ],
+        "correctAnswer": "B",
+        "intent": "mcq-grammar"
+      },
+      {
+        "id": "b65fb7b5-422d-4fba-bec7-af038524d5aa",
+        "questionNumber": 7,
+        "type": "mcq-grammar",
+        "questionText": "He is often rude at school, he ______ be more polite towards his teachers and schoolmates.",
+        "options": [
+          "shouldn't",
+          "should",
+          "can",
+          "might"
+        ],
+        "correctAnswer": "B",
+        "intent": "mcq-grammar"
+      },
+      {
+        "id": "ce7b4f7a-958c-44d5-9a97-6a377ef429a0",
+        "questionNumber": 8,
+        "type": "mcq-grammar",
+        "questionText": "He doesn't enjoy playing sports, ______ he plays basketball twice a week.",
+        "options": [
+          "despite",
+          "but",
+          "because",
+          "so"
+        ],
+        "correctAnswer": "B",
+        "intent": "mcq-grammar"
+      },
+      {
+        "id": "443b5442-798c-4b4c-b16b-c2df36849194",
+        "questionNumber": 9,
+        "type": "mcq-grammar",
+        "questionText": "______ they watch fireworks display last night?",
+        "options": [
+          "Will",
+          "Can",
+          "Did",
+          "Do"
+        ],
+        "correctAnswer": "C",
+        "intent": "mcq-grammar"
+      },
+      {
+        "id": "95fe7342-c55d-4a6e-92c0-31db1bdabc4d",
+        "questionNumber": 10,
+        "type": "mcq-grammar",
+        "questionText": "______ you make apple cakes? - Yes, I can.",
+        "options": [
+          "Can",
+          "Should",
+          "Will",
+          "Are"
+        ],
+        "correctAnswer": "A",
+        "intent": "mcq-grammar"
+      }
+    ],
+    "defaultQuestionType": "mcq-grammar",
+    "shuffle": false,
+    "shuffleOptions": false
+  },
+  {
+    "id": "b496cfce-d7a9-419d-8a9d-fdc0800efcbe",
+    "name": "PART B: VOCABULARY AND GRAMMAR (2.0 points)",
+    "order": 3,
+    "totalPoints": 0,
+    "pointMode": "auto",
+    "instructionText": "II. [TYPE: sentence-arrangement] Choose the best option A, B, C or D to indicate the correct order of the sentences to make a complete paragraph.",
+    "isCustomInstruction": false,
+    "layout": "single-column",
+    "questions": [],
+    "defaultQuestionType": "sentence-arrangement",
+    "shuffle": false,
+    "shuffleOptions": false
+  },
+  {
+    "id": "504a3793-95b4-4b8b-92bf-d69a4526de08",
+    "name": "PART C: READING (2.5 points)",
+    "order": 4,
+    "totalPoints": 1.32,
+    "pointMode": "auto",
+    "instructionText": "I. [TYPE: reading-cloze-mcq] Read the following passage and choose the letter A, B, C or D on your answer sheet to indicate the correct word or phrase that best fits each of the numbered blanks.",
+    "isCustomInstruction": false,
+    "layout": "two-column",
+    "questions": [
+      {
+        "id": "c8ad0308-6089-4480-bca0-c9de5c5e2a94",
+        "questionNumber": 15,
+        "type": "reading-comprehension",
+        "questionText": "Traffic congestion is a major problem in many ______ cities.",
+        "options": [
+          "rural",
+          "large",
+          "small",
+          "quiet"
+        ],
+        "correctAnswer": "B",
+        "intent": "reading-comprehension"
+      },
+      {
+        "id": "1265f427-bbd8-4c8d-8182-236febddb6aa",
+        "questionNumber": 16,
+        "type": "reading-comprehension",
+        "questionText": "It occurs when there are too many vehicles on the ______, leading to slower speeds and longer trip times.",
+        "options": [
+          "park",
+          "water",
+          "roads",
+          "air"
+        ],
+        "correctAnswer": "C",
+        "intent": "reading-comprehension"
+      },
+      {
+        "id": "c01652b2-19a5-4730-899b-53bd025db022",
+        "questionNumber": 17,
+        "type": "reading-comprehension",
+        "questionText": "To reduce traffic, ______ which leads to narrow streets, build more roads, and encourage people to use bicycles or walk.",
+        "options": [
+          "governments",
+          "students",
+          "drivers",
+          "tourists"
+        ],
+        "correctAnswer": "A",
+        "intent": "reading-comprehension"
+      },
+      {
+        "id": "ea9850e3-da0d-4e0d-8820-689a4d171448",
+        "questionNumber": 18,
+        "type": "reading-comprehension",
+        "questionText": "Some cities have ______ a \"congestion charge\" to discourage drivers from entering the city center during peak hours.",
+        "options": [
+          "introduced",
+          "seen",
+          "made",
+          "given"
+        ],
+        "correctAnswer": "A",
+        "intent": "reading-comprehension"
+      },
+      {
+        "id": "00898e9c-5bf7-4508-b5d7-7fd5dd15965c",
+        "questionNumber": 19,
+        "type": "reading-comprehension",
+        "questionText": "If more people ______ public transport, the number of cars on the road would decrease significantly.",
+        "options": [
+          "see",
+          "saw",
+          "sees",
+          "to see"
+        ],
+        "correctAnswer": "A",
+        "intent": "reading-comprehension"
+      }
+    ],
+    "defaultQuestionType": "reading-comprehension",
+    "shuffle": false,
+    "shuffleOptions": false,
+    "passageTitle": "PART C: READING (2.5 points)",
+    "passageContent": "Traffic congestion is a major problem in many (15)______ cities. It occurs when there are too many vehicles on the (16), leading to slower speeds and longer trip times. To reduce traffic, (17) which leads to narrow streets, build more roads, and encourage people to use bicycles or walk.\n\nSome cities have (18)______ a \"congestion charge\" to discourage drivers from entering the city center during peak hours. If more people (19)______ public transport, the number of cars on the road would decrease significantly.",
+    "passage": {
+      "id": "0d13775b-895e-42c7-a078-2b5c353dfd90",
+      "content": "Traffic congestion is a major problem in many (15)______ cities. It occurs when there are too many vehicles on the (16), leading to slower speeds and longer trip times. To reduce traffic, (17) which leads to narrow streets, build more roads, and encourage people to use bicycles or walk.\n\nSome cities have (18)______ a \"congestion charge\" to discourage drivers from entering the city center during peak hours. If more people (19)______ public transport, the number of cars on the road would decrease significantly.",
+      "title": "PART C: READING (2.5 points)",
+      "wordCount": 83
+    }
+  },
+  {
+    "id": "02d7310a-0aab-4f6a-baf7-9d7e067b84f9",
+    "name": "PART C: READING (2.5 points)",
+    "order": 5,
+    "totalPoints": 1.32,
+    "pointMode": "auto",
+    "instructionText": "II. [TYPE: reading-cloze-mcq] Read the following passage and choose the letter A, B, C or D on your answer sheet to indicate the correct word or phrase that best fits each of the numbered blanks.",
+    "isCustomInstruction": false,
+    "layout": "two-column",
+    "questions": [
+      {
+        "id": "175c5355-682f-4ba6-95b3-0e6983009e5b",
+        "questionNumber": 20,
+        "type": "reading-comprehension",
+        "questionText": "A film is usually ______ by a director and features actors who play different roles.",
+        "options": [
+          "which",
+          "who",
+          "when",
+          "where"
+        ],
+        "correctAnswer": "B",
+        "intent": "reading-comprehension"
+      },
+      {
+        "id": "db09d32a-af42-40dc-844f-5b0d446f4169",
+        "questionNumber": 21,
+        "type": "reading-comprehension",
+        "questionText": "Some films are based on books, while others are ______ stories.",
+        "options": [
+          "original",
+          "old",
+          "boring",
+          "sad"
+        ],
+        "correctAnswer": "A",
+        "intent": "reading-comprehension"
+      },
+      {
+        "id": "7485a60b-5732-43d7-8c36-a8e8984604f8",
+        "questionNumber": 22,
+        "type": "reading-comprehension",
+        "questionText": "The process of ______ a film involves many people, including",
+        "options": [
+          "making",
+          "filming",
+          "acting",
+          "writing"
+        ],
+        "correctAnswer": "A",
+        "intent": "reading-comprehension"
+      },
+      {
+        "id": "b05f673c-bb29-457c-bce5-b3aab42fada7",
+        "questionNumber": 23,
+        "type": "reading-comprehension",
+        "questionText": "The process of making a film involves many people, including ______, editors, and sound technicians.",
+        "options": [
+          "cameramen",
+          "teachers",
+          "doctors",
+          "pilots"
+        ],
+        "correctAnswer": "A",
+        "intent": "reading-comprehension"
+      },
+      {
+        "id": "0b4fd5e6-8471-4a3a-b16a-28f107c28927",
+        "questionNumber": 24,
+        "type": "reading-comprehension",
+        "questionText": "When a film is finished, it is often shown in ______ before being released on DVD or streaming platforms.",
+        "options": [
+          "schools",
+          "cinemas",
+          "hospitals",
+          "parks"
+        ],
+        "correctAnswer": "B",
+        "intent": "reading-comprehension"
+      }
+    ],
+    "defaultQuestionType": "reading-comprehension",
+    "shuffle": false,
+    "shuffleOptions": false,
+    "passageTitle": "PART C: READING (2.5 points)",
+    "passageContent": "In many countries, films are a popular form of entertainment. A film is usually ______ by a director and features actors who play different roles. Some films are based on books, while others are ______ stories.\n\nThe process of ______ a film involves many people, including ______, editors, and sound technicians. When a film is finished, it is often shown in ______ before being released on DVD or streaming platforms.",
+    "passage": {
+      "id": "f2b59186-5c16-4b24-a039-4a360c1c6c1c",
+      "content": "In many countries, films are a popular form of entertainment. A film is usually ______ by a director and features actors who play different roles. Some films are based on books, while others are ______ stories.\n\nThe process of ______ a film involves many people, including ______, editors, and sound technicians. When a film is finished, it is often shown in ______ before being released on DVD or streaming platforms.",
+      "title": "PART C: READING (2.5 points)",
+      "wordCount": 70
+    }
+  },
+  {
+    "id": "409ebc6a-8b1d-4f54-b925-2985664ea359",
+    "name": "PART C: READING (2.5 points)",
+    "order": 6,
+    "totalPoints": 1.58,
+    "pointMode": "auto",
+    "instructionText": "III. [TYPE: reading-comprehension] Read the following passage and choose the letter A, B, C or D on your answer sheet to indicate the correct answer to each of the questions.",
+    "isCustomInstruction": false,
+    "layout": "two-column",
+    "questions": [
+      {
+        "id": "10ba731a-4a2b-4a78-8893-ba76726c3389",
+        "questionNumber": 25,
+        "type": "reading-comprehension",
+        "questionText": "What do young couples in Italy often do on Valentine's Day?",
+        "options": [
+          "Buy candies",
+          "Get engaged",
+          "Go to the cinema",
+          "Give flowers"
+        ],
+        "correctAnswer": "B",
+        "intent": "reading-comprehension"
+      },
+      {
+        "id": "662291ab-9263-43a8-aaba-6bf91ffcb3fb",
+        "questionNumber": 26,
+        "type": "reading-comprehension",
+        "questionText": "When do men in South Korea give candies to women?",
+        "options": [
+          "February 14th",
+          "March 14th",
+          "April 14th",
+          "January 14th"
+        ],
+        "correctAnswer": "B",
+        "intent": "reading-comprehension"
+      },
+      {
+        "id": "bc14edc2-6e2c-468a-8fe8-44e814ecdd11",
+        "questionNumber": 27,
+        "type": "reading-comprehension",
+        "questionText": "What are the cards sent in the USA called?",
+        "options": [
+          "Hearts",
+          "Poems",
+          "Valentines",
+          "Gifts"
+        ],
+        "correctAnswer": "C",
+        "intent": "reading-comprehension"
+      },
+      {
+        "id": "d69d72ad-2458-487d-b87c-226944448f2c",
+        "questionNumber": 28,
+        "type": "reading-comprehension",
+        "questionText": "How is Valentine's Day celebrated in Vietnam?",
+        "options": [
+          "Sending cards",
+          "Getting engaged",
+          "Going out for dinner or giving gifts",
+          "Giving only chocolate"
+        ],
+        "correctAnswer": "C",
+        "intent": "reading-comprehension"
+      },
+      {
+        "id": "040391a2-d528-4bf8-a876-14d2855045d7",
+        "questionNumber": 29,
+        "type": "reading-comprehension",
+        "questionText": "The word \"express\" in the USA paragraph is closest in meaning to",
+        "options": [
+          "hide",
+          "show",
+          "forget",
+          "ignore"
+        ],
+        "correctAnswer": "B",
+        "intent": "reading-comprehension"
+      },
+      {
+        "id": "e6d3a9ca-8007-4daa-b62a-ebc8712ae213",
+        "questionNumber": 30,
+        "type": "reading-comprehension",
+        "questionText": "Which of the following statements is NOT TRUE according to the passage?",
+        "options": [
+          "In Italy, shops are decorated with candies.",
+          "In South Korea, women give chocolate to men on March 14th.",
+          "Americans send valentines with hearts and poems.",
+          "Valentine's Day is popular among young people in Vietnam."
+        ],
+        "correctAnswer": "B",
+        "intent": "reading-comprehension"
+      }
+    ],
+    "defaultQuestionType": "reading-comprehension",
+    "shuffle": false,
+    "shuffleOptions": false,
+    "passageTitle": "PART C: READING (2.5 points)",
+    "passageContent": "VALENTINE'S DAY AROUND THE WORLD There is a custom in Italy for young couples to get engaged on Valentine's Day. Some shops are decorated with a lot of candies. In South Korea, women give chocolate to men on February 14th.\n\nThen, on March 14th, men give non-chocolate candies to women. In the USA, many people express their love by sending cards called valentines. These cards often have hearts and poems.\n\nSome people also give flowers or chocolates to their loved ones. In Vietnam, Valentine's Day has become popular recently, and many young people celebrate it by going out for dinner or giving gifts.",
+    "passage": {
+      "id": "4d68b5f9-17c8-4ccc-a625-49caa4f48c18",
+      "content": "VALENTINE'S DAY AROUND THE WORLD There is a custom in Italy for young couples to get engaged on Valentine's Day. Some shops are decorated with a lot of candies. In South Korea, women give chocolate to men on February 14th.\n\nThen, on March 14th, men give non-chocolate candies to women. In the USA, many people express their love by sending cards called valentines. These cards often have hearts and poems.\n\nSome people also give flowers or chocolates to their loved ones. In Vietnam, Valentine's Day has become popular recently, and many young people celebrate it by going out for dinner or giving gifts.",
+      "title": "PART C: READING (2.5 points)",
+      "wordCount": 103
+    }
+  },
+  {
+    "id": "75f2b3b1-4623-4daa-9810-1813e9e0009e",
+    "name": "PART D: WRITING (2.0 points)",
+    "order": 7,
+    "totalPoints": 1.05,
+    "pointMode": "auto",
+    "instructionText": "I. [TYPE: error-identification] Choose the underlined part A, B, C or D that needs correction.",
+    "isCustomInstruction": false,
+    "layout": "single-column",
+    "questions": [
+      {
+        "id": "adbe0c24-b7b7-4e06-8d48-368c1530ca9e",
+        "questionNumber": 31,
+        "type": "error-identification",
+        "questionText": "Although (A) the traffic jam (B), we (C) arrived at the meeting on time (D).",
+        "options": [],
+        "correctAnswer": "A",
+        "intent": "error-identification"
+      },
+      {
+        "id": "e2184496-addc-4844-8257-d55fdb258679",
+        "questionNumber": 32,
+        "type": "error-identification",
+        "questionText": "He should (A) to study (B) harder if (C) he wants to pass (D) the exam.",
+        "options": [],
+        "correctAnswer": "B",
+        "intent": "error-identification"
+      },
+      {
+        "id": "2dbf1b96-e6fb-4d78-9885-7076134a824a",
+        "questionNumber": 33,
+        "type": "error-identification",
+        "questionText": "How far (A) is (B) it from (C) your house and (D) the school?",
+        "options": [],
+        "correctAnswer": "D",
+        "intent": "error-identification"
+      },
+      {
+        "id": "9dd8bfa4-0738-4a6e-91e9-a5b8e24e09de",
+        "questionNumber": 34,
+        "type": "error-identification",
+        "questionText": "In spite (A) of he was (B) tired, he (C) finished his (D) homework.",
+        "options": [],
+        "correctAnswer": "A",
+        "intent": "error-identification"
+      }
+    ],
+    "defaultQuestionType": "error-identification",
+    "shuffle": false,
+    "shuffleOptions": false
+  },
+  {
+    "id": "4264f47b-366a-43bf-99b1-80024ec6863c",
+    "name": "PART D: WRITING (2.0 points)",
+    "order": 8,
+    "totalPoints": 0.53,
+    "pointMode": "auto",
+    "instructionText": "II. [TYPE: sentence-arrangement] Rearrange the words to make complete sentences.",
+    "isCustomInstruction": false,
+    "layout": "single-column",
+    "questions": [
+      {
+        "id": "c30a1a9c-c5ab-4e2a-baf6-cd859d04d033",
+        "questionNumber": 35,
+        "type": "sentence-arrangement",
+        "questionText": "is / a / the / cake / Mooncake / traditionally / eaten / during / Mid-Autumn / Festival.",
+        "options": [],
+        "correctAnswer": "",
+        "intent": "sentence-arrangement"
+      },
+      {
+        "id": "dd3f8a13-feb9-42d7-86d4-c77042381382",
+        "questionNumber": 36,
+        "type": "sentence-arrangement",
+        "questionText": "the / although / was / bad / We / enjoyed / our / trip / weather.",
+        "options": [],
+        "correctAnswer": "",
+        "intent": "sentence-arrangement"
+      }
+    ],
+    "defaultQuestionType": "sentence-arrangement",
+    "shuffle": false,
+    "shuffleOptions": false
+  },
+  {
+    "id": "c1a3f611-e714-448e-808d-1d0f561c6e12",
+    "name": "PART D: WRITING (2.0 points)",
+    "order": 9,
+    "totalPoints": 1.03,
+    "pointMode": "auto",
+    "instructionText": "III. [TYPE: closest-meaning] Choose the letter A, B, C or D on your answer sheet to indicate the sentence that is closest in meaning to the original sentence in each of following questions.",
+    "isCustomInstruction": false,
+    "layout": "single-column",
+    "questions": [
+      {
+        "id": "caecfc32-5e9d-4c6e-8586-7fe683292201",
+        "questionNumber": 37,
+        "type": "synonym-mcq",
+        "questionText": "Tom was admitted to the university although his grades were bad.",
+        "options": [
+          "Despite of Tom's bad grades, he was admitted to the university.",
+          "Despite Tom's bad grades, he was admitted to the university.",
+          "Although Tom's bad grades, he was admitted to the university.",
+          "Despite Tom's grades were bad, he was admitted to the university."
+        ],
+        "correctAnswer": "B",
+        "intent": "synonym-mcq"
+      },
+      {
+        "id": "5910bb09-a5f0-417f-a7f2-d9d505352705",
+        "questionNumber": 38,
+        "type": "synonym-mcq",
+        "questionText": "In spite of the high prices, my daughter insists on going to the movies.",
+        "options": [
+          "Despite the prices are high, my daughter insists on going to the movies.",
+          "In spite of the prices are high, my daughter insists on going to the movies.",
+          "Because the prices are high, my daughter insists on going to the movies.",
+          "Even though the prices are high, my daughter insists on going to the movies."
+        ],
+        "correctAnswer": "D",
+        "intent": "synonym-mcq"
+      },
+      {
+        "id": "90d115b7-5a81-4780-a6d1-b1862ff59c55",
+        "questionNumber": 39,
+        "type": "synonym-mcq",
+        "questionText": "The school is 2 kilometers away from my house.",
+        "options": [
+          "It is 2 kilometers from my house to the school.",
+          "It is 2 kilometers to my house from the school.",
+          "It has 2 kilometers from my house to the school.",
+          "It is 2 kilometers between my house with the school."
+        ],
+        "correctAnswer": "A",
+        "intent": "synonym-mcq"
+      },
+      {
+        "id": "0c8d2708-4b68-477d-a8df-8a636432a2ff",
+        "questionNumber": 40,
+        "type": "synonym-mcq",
+        "questionText": "How far is it from your house to the post office?",
+        "options": [
+          "What is the distance from your house and the post office?",
+          "What is the distance between your house to the post office?",
+          "What is the distance from your house to the post office?",
+          "What distance is it from your house to the post office?"
+        ],
+        "correctAnswer": "C",
+        "intent": "synonym-mcq"
+      }
+    ],
+    "defaultQuestionType": "synonym-mcq",
+    "shuffle": false,
+    "shuffleOptions": false
+  }
+]
+<answer key breakdown>
+[0] PART A: PHONETICS (0.5 points) (pronunciation) — 2 questions
+  Q1: type=pronunciation intent=pronunciation answer=A opts=4
+  Q2: type=pronunciation intent=pronunciation answer=D opts=4
+
+[1] PART A: PHONETICS (0.5 points) (word-stress) — 2 questions
+  Q11: type=word-stress intent=word-stress answer=C opts=4
+  Q12: type=word-stress intent=word-stress answer=A opts=4
+
+[2] PART B: VOCABULARY AND GRAMMAR (2.0 points) (mcq-grammar) — 8 questions
+  Q3: type=mcq-grammar intent=mcq-grammar answer=B opts=4
+  Q4: type=mcq-grammar intent=mcq-grammar answer=B opts=4
+  Q5: type=mcq-grammar intent=mcq-grammar answer=A opts=4
+  Q6: type=mcq-grammar intent=mcq-grammar answer=B opts=4
+  Q7: type=mcq-grammar intent=mcq-grammar answer=B opts=4
+  Q8: type=mcq-grammar intent=mcq-grammar answer=B opts=4
+  Q9: type=mcq-grammar intent=mcq-grammar answer=C opts=4
+  Q10: type=mcq-grammar intent=mcq-grammar answer=A opts=4
+
+[3] PART B: VOCABULARY AND GRAMMAR (2.0 points) (?) — 0 questions
+
+
+[4] PART C: READING (2.5 points) (reading-comprehension) — 5 questions
+  Q15: type=reading-comprehension intent=reading-comprehension answer=B opts=4
+  Q16: type=reading-comprehension intent=reading-comprehension answer=C opts=4
+  Q17: type=reading-comprehension intent=reading-comprehension answer=A opts=4
+  Q18: type=reading-comprehension intent=reading-comprehension answer=A opts=4
+  Q19: type=reading-comprehension intent=reading-comprehension answer=A opts=4
+
+[5] PART C: READING (2.5 points) (reading-comprehension) — 5 questions
+  Q20: type=reading-comprehension intent=reading-comprehension answer=B opts=4
+  Q21: type=reading-comprehension intent=reading-comprehension answer=A opts=4
+  Q22: type=reading-comprehension intent=reading-comprehension answer=A opts=4
+  Q23: type=reading-comprehension intent=reading-comprehension answer=A opts=4
+  Q24: type=reading-comprehension intent=reading-comprehension answer=B opts=4
+
+[6] PART C: READING (2.5 points) (reading-comprehension) — 6 questions
+  Q25: type=reading-comprehension intent=reading-comprehension answer=B opts=4
+  Q26: type=reading-comprehension intent=reading-comprehension answer=B opts=4
+  Q27: type=reading-comprehension intent=reading-comprehension answer=C opts=4
+  Q28: type=reading-comprehension intent=reading-comprehension answer=C opts=4
+  Q29: type=reading-comprehension intent=reading-comprehension answer=B opts=4
+  Q30: type=reading-comprehension intent=reading-comprehension answer=B opts=4
+
+[7] PART D: WRITING (2.0 points) (error-identification) — 4 questions
+  Q31: type=error-identification intent=error-identification answer=A opts=0
+  Q32: type=error-identification intent=error-identification answer=B opts=0
+  Q33: type=error-identification intent=error-identification answer=D opts=0
+  Q34: type=error-identification intent=error-identification answer=A opts=0
+
+[8] PART D: WRITING (2.0 points) (sentence-arrangement) — 2 questions
+  Q35: type=sentence-arrangement intent=sentence-arrangement answer=⚠️ MISSING opts=0
+  Q36: type=sentence-arrangement intent=sentence-arrangement answer=⚠️ MISSING opts=0
+
+[9] PART D: WRITING (2.0 points) (synonym-mcq) — 4 questions
+  Q37: type=synonym-mcq intent=synonym-mcq answer=B opts=4
+  Q38: type=synonym-mcq intent=synonym-mcq answer=D opts=4
+  Q39: type=synonym-mcq intent=synonym-mcq answer=A opts=4
+  Q40: type=synonym-mcq intent=synonym-mcq answer=C opts=4
+<section breakdown>
+[0] "PART A: PHONETICS (0.5 points)"
+  sectionType: pronunciation
+  qTypes: [pronunciation]
+  intents: [pronunciation]
+  questions: 2
+  missingAnswers: 0
+  layout: single-column
+
+[1] "PART A: PHONETICS (0.5 points)"
+  sectionType: word-stress
+  qTypes: [word-stress]
+  intents: [word-stress]
+  questions: 2
+  missingAnswers: 0
+  layout: single-column
+
+[2] "PART B: VOCABULARY AND GRAMMAR (2.0 points)"
+  sectionType: mcq-grammar
+  qTypes: [mcq-grammar]
+  intents: [mcq-grammar]
+  questions: 8
+  missingAnswers: 0
+  layout: single-column
+
+[3] "PART B: VOCABULARY AND GRAMMAR (2.0 points)"
+  sectionType: ?
+  qTypes: []
+  intents: []
+  questions: 0
+  missingAnswers: 0
+  layout: single-column
+
+[4] "PART C: READING (2.5 points)"
+  sectionType: reading-comprehension
+  qTypes: [reading-comprehension]
+  intents: [reading-comprehension]
+  questions: 5
+  missingAnswers: 0
+  layout: two-column
+
+[5] "PART C: READING (2.5 points)"
+  sectionType: reading-comprehension
+  qTypes: [reading-comprehension]
+  intents: [reading-comprehension]
+  questions: 5
+  missingAnswers: 0
+  layout: two-column
+
+[6] "PART C: READING (2.5 points)"
+  sectionType: reading-comprehension
+  qTypes: [reading-comprehension]
+  intents: [reading-comprehension]
+  questions: 6
+  missingAnswers: 0
+  layout: two-column
+
+[7] "PART D: WRITING (2.0 points)"
+  sectionType: error-identification
+  qTypes: [error-identification]
+  intents: [error-identification]
+  questions: 4
+  missingAnswers: 0
+  layout: single-column
+
+[8] "PART D: WRITING (2.0 points)"
+  sectionType: sentence-arrangement
+  qTypes: [sentence-arrangement]
+  intents: [sentence-arrangement]
+  questions: 2
+  missingAnswers: 2
+  layout: single-column
+
+[9] "PART D: WRITING (2.0 points)"
+  sectionType: synonym-mcq
+  qTypes: [synonym-mcq]
+  intents: [synonym-mcq]
+  questions: 4
+  missingAnswers: 0
+  layout: single-column

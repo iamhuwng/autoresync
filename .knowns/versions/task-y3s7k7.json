@@ -1,0 +1,217 @@
+{
+  "taskId": "y3s7k7",
+  "currentVersion": 3,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "y3s7k7",
+      "version": 1,
+      "timestamp": "2026-03-04T04:07:12.209Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "thcsDocumentParser.service.ts is ≤1,200 lines total",
+              "completed": false
+            },
+            {
+              "text": "npx tsc --noEmit produces no new errors in all parser files + shared module",
+              "completed": false
+            },
+            {
+              "text": "THCSDocumentUpload imports unchanged",
+              "completed": false
+            },
+            {
+              "text": "THCSSetupStep imports unchanged",
+              "completed": false
+            },
+            {
+              "text": "THCSTestEditorPage imports unchanged",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Final verification — line count & consumer imports",
+        "description": "Cross-cutting verification task. Confirm:\n- `thcsDocumentParser.service.ts` is ≤1,200 lines\n- `npx tsc --noEmit` produces no new TypeScript errors across all parser files + shared module\n- All 3 consumer imports (`THCSDocumentUpload`, `THCSSetupStep`, `THCSTestEditorPage`) remain unchanged and functional",
+        "status": "todo",
+        "priority": "low",
+        "labels": [
+          "from-spec",
+          "verification"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "thcsDocumentParser.service.ts is ≤1,200 lines total",
+            "completed": false
+          },
+          {
+            "text": "npx tsc --noEmit produces no new errors in all parser files + shared module",
+            "completed": false
+          },
+          {
+            "text": "THCSDocumentUpload imports unchanged",
+            "completed": false
+          },
+          {
+            "text": "THCSSetupStep imports unchanged",
+            "completed": false
+          },
+          {
+            "text": "THCSTestEditorPage imports unchanged",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "y3s7k7",
+      "version": 2,
+      "timestamp": "2026-03-04T10:41:43.158Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        }
+      ],
+      "snapshot": {
+        "title": "Final verification — line count & consumer imports",
+        "description": "Cross-cutting verification task. Confirm:\n- `thcsDocumentParser.service.ts` is ≤1,200 lines\n- `npx tsc --noEmit` produces no new TypeScript errors across all parser files + shared module\n- All 3 consumer imports (`THCSDocumentUpload`, `THCSSetupStep`, `THCSTestEditorPage`) remain unchanged and functional",
+        "status": "in-progress",
+        "priority": "low",
+        "labels": [
+          "from-spec",
+          "verification"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "thcsDocumentParser.service.ts is ≤1,200 lines total"
+          },
+          {
+            "completed": false,
+            "text": "npx tsc --noEmit produces no new errors in all parser files + shared module"
+          },
+          {
+            "completed": false,
+            "text": "THCSDocumentUpload imports unchanged"
+          },
+          {
+            "completed": false,
+            "text": "THCSSetupStep imports unchanged"
+          },
+          {
+            "completed": false,
+            "text": "THCSTestEditorPage imports unchanged"
+          }
+        ]
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "y3s7k7",
+      "version": 3,
+      "timestamp": "2026-03-04T10:44:59.117Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "thcsDocumentParser.service.ts is ≤1,200 lines total"
+            },
+            {
+              "completed": false,
+              "text": "npx tsc --noEmit produces no new errors in all parser files + shared module"
+            },
+            {
+              "completed": false,
+              "text": "THCSDocumentUpload imports unchanged"
+            },
+            {
+              "completed": false,
+              "text": "THCSSetupStep imports unchanged"
+            },
+            {
+              "completed": false,
+              "text": "THCSTestEditorPage imports unchanged"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": false,
+              "text": "thcsDocumentParser.service.ts is ≤1,200 lines total"
+            },
+            {
+              "completed": false,
+              "text": "npx tsc --noEmit produces no new errors in all parser files + shared module"
+            },
+            {
+              "completed": false,
+              "text": "THCSDocumentUpload imports unchanged"
+            },
+            {
+              "completed": false,
+              "text": "THCSSetupStep imports unchanged"
+            },
+            {
+              "completed": false,
+              "text": "THCSTestEditorPage imports unchanged"
+            },
+            {
+              "text": "1,2,3,4,5",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Final verification — line count & consumer imports",
+        "description": "Cross-cutting verification task. Confirm:\n- `thcsDocumentParser.service.ts` is ≤1,200 lines\n- `npx tsc --noEmit` produces no new TypeScript errors across all parser files + shared module\n- All 3 consumer imports (`THCSDocumentUpload`, `THCSSetupStep`, `THCSTestEditorPage`) remain unchanged and functional",
+        "status": "done",
+        "priority": "low",
+        "labels": [
+          "from-spec",
+          "verification"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "thcsDocumentParser.service.ts is ≤1,200 lines total"
+          },
+          {
+            "completed": false,
+            "text": "npx tsc --noEmit produces no new errors in all parser files + shared module"
+          },
+          {
+            "completed": false,
+            "text": "THCSDocumentUpload imports unchanged"
+          },
+          {
+            "completed": false,
+            "text": "THCSSetupStep imports unchanged"
+          },
+          {
+            "completed": false,
+            "text": "THCSTestEditorPage imports unchanged"
+          },
+          {
+            "text": "1,2,3,4,5",
+            "completed": false
+          }
+        ]
+      }
+    }
+  ]
+}

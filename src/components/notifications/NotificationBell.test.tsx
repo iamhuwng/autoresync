@@ -1,10 +1,9 @@
-
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import '@testing-library/jest-dom';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { NotificationBell } from './NotificationBell';
 import * as notificationService from '../../services/notificationService';
 import { MemoryRouter } from 'react-router-dom';
-import { MantineProvider } from '@mantine/core';
 
 // Mock dependencies
 vi.mock('../../services/notificationService');
@@ -26,18 +25,14 @@ describe('NotificationBell', () => {
 
     it('renders bell icon', () => {
         render(
-            <MantineProvider>
-                <NotificationBell userId="user123" />
-            </MantineProvider>
+            <NotificationBell userId="user123" />
         );
         expect(screen.getByLabelText('Notifications')).toBeInTheDocument();
     });
 
     it('subscribes to notifications on mount', () => {
         render(
-            <MantineProvider>
-                <NotificationBell userId="user123" />
-            </MantineProvider>
+            <NotificationBell userId="user123" />
         );
         expect(mockSubscribe).toHaveBeenCalledWith('user123', expect.any(Function));
     });
@@ -53,21 +48,17 @@ describe('NotificationBell', () => {
         });
 
         render(
-            <MantineProvider>
-                <NotificationBell userId="user123" />
-            </MantineProvider>
+            <NotificationBell userId="user123" />
         );
-        // Mentine Indicator renders the label
+        // The unread badge wrapper should render the text content '2'
         expect(screen.getByText('2')).toBeInTheDocument();
     });
 
     it('opens panel on click', async () => {
         render(
-            <MantineProvider>
-                <MemoryRouter>
-                    <NotificationBell userId="user123" />
-                </MemoryRouter>
-            </MantineProvider>
+            <MemoryRouter>
+                <NotificationBell userId="user123" />
+            </MemoryRouter>
         );
         const button = screen.getByLabelText('Notifications');
         fireEvent.click(button);

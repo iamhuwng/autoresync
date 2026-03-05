@@ -1,0 +1,271 @@
+{
+  "taskId": "1opvmj",
+  "currentVersion": 5,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "1opvmj",
+      "version": 1,
+      "timestamp": "2026-03-04T21:26:06.112Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "FormativeFeedbackPanel rendered below score, above pills grid",
+              "completed": false
+            },
+            {
+              "text": "formativeFeedback loaded from result data",
+              "completed": false
+            },
+            {
+              "text": "questionExplanations passed to THCSQuestionRenderer for each question",
+              "completed": false
+            },
+            {
+              "text": "Page renders normally when formativeFeedback is absent (old results)",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Integrate FormativeFeedbackPanel into StudentTestResultsPage",
+        "description": "Add FormativeFeedbackPanel to StudentTestResultsPage.tsx between the score section and question pills grid. Load formativeFeedback from the result record. Pass questionExplanations to the question review section so THCSQuestionRenderer can display per-question AI explanations.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "from-spec",
+          "formative-feedback"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "FormativeFeedbackPanel rendered below score, above pills grid",
+            "completed": false
+          },
+          {
+            "text": "formativeFeedback loaded from result data",
+            "completed": false
+          },
+          {
+            "text": "questionExplanations passed to THCSQuestionRenderer for each question",
+            "completed": false
+          },
+          {
+            "text": "Page renders normally when formativeFeedback is absent (old results)",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "1opvmj",
+      "version": 2,
+      "timestamp": "2026-03-04T21:32:54.902Z",
+      "changes": [
+        {
+          "field": "implementationPlan",
+          "newValue": "## Implementation Plan: Integrate FormativeFeedbackPanel into StudentTestResultsPage\n\n### File: `src/pages/StudentTestResultsPage.tsx` (MODIFY)\n\n### Context\nThis page renders test results from `permanentResultRecord` (type `TestResultRecord`). Once Task `cybx0j` is done, `TestResultRecord` will have an optional `formativeFeedback?: FormativeFeedback` field. This task plugs the `FormativeFeedbackPanel` (Task `86hnh4`) into the page.\n\n### Step 1: Import the FormativeFeedbackPanel component\n```typescript\n// At top of file, after existing imports\nimport FormativeFeedbackPanel from '../components/thcs-student/FormativeFeedbackPanel';\nimport type { FormativeFeedback } from '../types/thcs-test.types';\n```\n\n### Step 2: Place the panel in the results view\n\n**Location**: Between \"Performance Feedback\" card (line 584-600) and \"Teacher Overall Feedback\" card (line 602-623). This positions AI feedback after the generic percentage-based feedback but before teacher comments.\n\n```tsx\n{/* AI Formative Feedback (THCS tests only, async — may appear after page load) */}\n{permanentResultRecord?.formativeFeedback && (\n    <FormativeFeedbackPanel feedback={permanentResultRecord.formativeFeedback as FormativeFeedback} />\n)}\n```\n\n**Why here?** \n- After the generic \"Performance Feedback\" → provides deeper analysis\n- Before Teacher's Feedback → teacher feedback always takes visual priority (higher on page)\n- Only renders when `formativeFeedback` exists → backward compatible with all existing results\n\n### Step 3: Thread per-question AI explanations to question review\n\nIn the question-by-question review section (lines 639-793), extract the explanation map and pass it down:\n\n```typescript\n// Before the question map (around line 638)\nconst questionExplanationMap: Record<number, string> = (() => {\n    const fb = permanentResultRecord?.formativeFeedback as FormativeFeedback | undefined;\n    if (!fb?.aiFeedback?.questionExplanations) return {};\n    return fb.aiFeedback.questionExplanations;\n})();\n```\n\nThen inside the expanded question details (after Teacher Feedback, ~line 787), add:\n```tsx\n{/* AI Explanation for incorrect answers (only when no teacher feedback) */}\n{(() => {\n    const hasTeacherFeedback = permanentResultRecord?.questionResults?.find(\n        q => q.questionNumber === result.questionNumber\n    )?.teacherFeedback;\n    const aiExplanation = questionExplanationMap[result.questionNumber];\n    \n    if (hasTeacherFeedback || !aiExplanation || result.isCorrect) return null;\n    \n    return (\n        <div style={{\n            marginTop: '1rem', padding: '0.5rem 0.75rem',\n            background: 'rgba(139,92,246,0.06)', borderRadius: '0.375rem',\n            border: '1px solid rgba(139,92,246,0.15)',\n            fontSize: '0.875rem', color: '#6d28d9',\n        }}>\n            <strong>🤖 AI Explanation:</strong> {aiExplanation}\n        </div>\n    );\n})()}\n```\n\n### Step 4: Handle async feedback arrival\n\nSince feedback is generated asynchronously and saved to RTDB after the result, the first page load may not have it. Options:\n\n**Option A (Simple — recommended for MVP):** User refreshes page to see feedback. The `loadResults` function already calls `getStudentSessionResult` which reads the full record. If feedback has been written by then, it shows up. No extra polling needed.\n\n**Option B (Enhanced, future):** Add a `useEffect` with a one-time delayed re-fetch (e.g., 10 seconds after load) to check if feedback has arrived. This can be added later as an enhancement.\n\nFor this task, **Option A** is sufficient — the panel simply renders if data exists.\n\n### Step 5: No THCS-only gate needed?\n\nThe `formativeFeedback` field only exists when the feedback service runs (only for THCS tests, per Task `ygx4vv`). So the `permanentResultRecord?.formativeFeedback` null check naturally gates it to THCS results only. No explicit `testType === 'THCS-THPT'` check required.\n\n### Files Modified\n1. `StudentTestResultsPage.tsx` — Import + render panel + question explanations\n\n### Dependencies\n- Task `cybx0j` — Defines `FormativeFeedback` type\n- Task `86hnh4` — Creates `FormativeFeedbackPanel` component\n- Task `ygx4vv` — Generates and saves the data\n- Task `pbh9j8` — Per-question explanation in THCSQuestionRenderer (separate integration for THCSTestLayout/THCSPracticeView contexts; this task handles the StudentTestResultsPage context)"
+        }
+      ],
+      "snapshot": {
+        "title": "Integrate FormativeFeedbackPanel into StudentTestResultsPage",
+        "description": "Add FormativeFeedbackPanel to StudentTestResultsPage.tsx between the score section and question pills grid. Load formativeFeedback from the result record. Pass questionExplanations to the question review section so THCSQuestionRenderer can display per-question AI explanations.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "from-spec",
+          "formative-feedback"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "FormativeFeedbackPanel rendered below score, above pills grid"
+          },
+          {
+            "completed": false,
+            "text": "formativeFeedback loaded from result data"
+          },
+          {
+            "completed": false,
+            "text": "questionExplanations passed to THCSQuestionRenderer for each question"
+          },
+          {
+            "completed": false,
+            "text": "Page renders normally when formativeFeedback is absent (old results)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan: Integrate FormativeFeedbackPanel into StudentTestResultsPage\n\n### File: `src/pages/StudentTestResultsPage.tsx` (MODIFY)\n\n### Context\nThis page renders test results from `permanentResultRecord` (type `TestResultRecord`). Once Task `cybx0j` is done, `TestResultRecord` will have an optional `formativeFeedback?: FormativeFeedback` field. This task plugs the `FormativeFeedbackPanel` (Task `86hnh4`) into the page.\n\n### Step 1: Import the FormativeFeedbackPanel component\n```typescript\n// At top of file, after existing imports\nimport FormativeFeedbackPanel from '../components/thcs-student/FormativeFeedbackPanel';\nimport type { FormativeFeedback } from '../types/thcs-test.types';\n```\n\n### Step 2: Place the panel in the results view\n\n**Location**: Between \"Performance Feedback\" card (line 584-600) and \"Teacher Overall Feedback\" card (line 602-623). This positions AI feedback after the generic percentage-based feedback but before teacher comments.\n\n```tsx\n{/* AI Formative Feedback (THCS tests only, async — may appear after page load) */}\n{permanentResultRecord?.formativeFeedback && (\n    <FormativeFeedbackPanel feedback={permanentResultRecord.formativeFeedback as FormativeFeedback} />\n)}\n```\n\n**Why here?** \n- After the generic \"Performance Feedback\" → provides deeper analysis\n- Before Teacher's Feedback → teacher feedback always takes visual priority (higher on page)\n- Only renders when `formativeFeedback` exists → backward compatible with all existing results\n\n### Step 3: Thread per-question AI explanations to question review\n\nIn the question-by-question review section (lines 639-793), extract the explanation map and pass it down:\n\n```typescript\n// Before the question map (around line 638)\nconst questionExplanationMap: Record<number, string> = (() => {\n    const fb = permanentResultRecord?.formativeFeedback as FormativeFeedback | undefined;\n    if (!fb?.aiFeedback?.questionExplanations) return {};\n    return fb.aiFeedback.questionExplanations;\n})();\n```\n\nThen inside the expanded question details (after Teacher Feedback, ~line 787), add:\n```tsx\n{/* AI Explanation for incorrect answers (only when no teacher feedback) */}\n{(() => {\n    const hasTeacherFeedback = permanentResultRecord?.questionResults?.find(\n        q => q.questionNumber === result.questionNumber\n    )?.teacherFeedback;\n    const aiExplanation = questionExplanationMap[result.questionNumber];\n    \n    if (hasTeacherFeedback || !aiExplanation || result.isCorrect) return null;\n    \n    return (\n        <div style={{\n            marginTop: '1rem', padding: '0.5rem 0.75rem',\n            background: 'rgba(139,92,246,0.06)', borderRadius: '0.375rem',\n            border: '1px solid rgba(139,92,246,0.15)',\n            fontSize: '0.875rem', color: '#6d28d9',\n        }}>\n            <strong>🤖 AI Explanation:</strong> {aiExplanation}\n        </div>\n    );\n})()}\n```\n\n### Step 4: Handle async feedback arrival\n\nSince feedback is generated asynchronously and saved to RTDB after the result, the first page load may not have it. Options:\n\n**Option A (Simple — recommended for MVP):** User refreshes page to see feedback. The `loadResults` function already calls `getStudentSessionResult` which reads the full record. If feedback has been written by then, it shows up. No extra polling needed.\n\n**Option B (Enhanced, future):** Add a `useEffect` with a one-time delayed re-fetch (e.g., 10 seconds after load) to check if feedback has arrived. This can be added later as an enhancement.\n\nFor this task, **Option A** is sufficient — the panel simply renders if data exists.\n\n### Step 5: No THCS-only gate needed?\n\nThe `formativeFeedback` field only exists when the feedback service runs (only for THCS tests, per Task `ygx4vv`). So the `permanentResultRecord?.formativeFeedback` null check naturally gates it to THCS results only. No explicit `testType === 'THCS-THPT'` check required.\n\n### Files Modified\n1. `StudentTestResultsPage.tsx` — Import + render panel + question explanations\n\n### Dependencies\n- Task `cybx0j` — Defines `FormativeFeedback` type\n- Task `86hnh4` — Creates `FormativeFeedbackPanel` component\n- Task `ygx4vv` — Generates and saves the data\n- Task `pbh9j8` — Per-question explanation in THCSQuestionRenderer (separate integration for THCSTestLayout/THCSPracticeView contexts; this task handles the StudentTestResultsPage context)"
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "1opvmj",
+      "version": 3,
+      "timestamp": "2026-03-04T22:09:19.838Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        }
+      ],
+      "snapshot": {
+        "title": "Integrate FormativeFeedbackPanel into StudentTestResultsPage",
+        "description": "Add FormativeFeedbackPanel to StudentTestResultsPage.tsx between the score section and question pills grid. Load formativeFeedback from the result record. Pass questionExplanations to the question review section so THCSQuestionRenderer can display per-question AI explanations.",
+        "status": "in-progress",
+        "priority": "medium",
+        "labels": [
+          "from-spec",
+          "formative-feedback"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "FormativeFeedbackPanel rendered below score, above pills grid"
+          },
+          {
+            "completed": false,
+            "text": "formativeFeedback loaded from result data"
+          },
+          {
+            "completed": false,
+            "text": "questionExplanations passed to THCSQuestionRenderer for each question"
+          },
+          {
+            "completed": false,
+            "text": "Page renders normally when formativeFeedback is absent (old results)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan: Integrate FormativeFeedbackPanel into StudentTestResultsPage\n\n### File: `src/pages/StudentTestResultsPage.tsx` (MODIFY)\n\n### Context\nThis page renders test results from `permanentResultRecord` (type `TestResultRecord`). Once Task `cybx0j` is done, `TestResultRecord` will have an optional `formativeFeedback?: FormativeFeedback` field. This task plugs the `FormativeFeedbackPanel` (Task `86hnh4`) into the page.\n\n### Step 1: Import the FormativeFeedbackPanel component\n```typescript\n// At top of file, after existing imports\nimport FormativeFeedbackPanel from '../components/thcs-student/FormativeFeedbackPanel';\nimport type { FormativeFeedback } from '../types/thcs-test.types';\n```\n\n### Step 2: Place the panel in the results view\n\n**Location**: Between \"Performance Feedback\" card (line 584-600) and \"Teacher Overall Feedback\" card (line 602-623). This positions AI feedback after the generic percentage-based feedback but before teacher comments.\n\n```tsx\n{/* AI Formative Feedback (THCS tests only, async — may appear after page load) */}\n{permanentResultRecord?.formativeFeedback && (\n    <FormativeFeedbackPanel feedback={permanentResultRecord.formativeFeedback as FormativeFeedback} />\n)}\n```\n\n**Why here?** \n- After the generic \"Performance Feedback\" → provides deeper analysis\n- Before Teacher's Feedback → teacher feedback always takes visual priority (higher on page)\n- Only renders when `formativeFeedback` exists → backward compatible with all existing results\n\n### Step 3: Thread per-question AI explanations to question review\n\nIn the question-by-question review section (lines 639-793), extract the explanation map and pass it down:\n\n```typescript\n// Before the question map (around line 638)\nconst questionExplanationMap: Record<number, string> = (() => {\n    const fb = permanentResultRecord?.formativeFeedback as FormativeFeedback | undefined;\n    if (!fb?.aiFeedback?.questionExplanations) return {};\n    return fb.aiFeedback.questionExplanations;\n})();\n```\n\nThen inside the expanded question details (after Teacher Feedback, ~line 787), add:\n```tsx\n{/* AI Explanation for incorrect answers (only when no teacher feedback) */}\n{(() => {\n    const hasTeacherFeedback = permanentResultRecord?.questionResults?.find(\n        q => q.questionNumber === result.questionNumber\n    )?.teacherFeedback;\n    const aiExplanation = questionExplanationMap[result.questionNumber];\n    \n    if (hasTeacherFeedback || !aiExplanation || result.isCorrect) return null;\n    \n    return (\n        <div style={{\n            marginTop: '1rem', padding: '0.5rem 0.75rem',\n            background: 'rgba(139,92,246,0.06)', borderRadius: '0.375rem',\n            border: '1px solid rgba(139,92,246,0.15)',\n            fontSize: '0.875rem', color: '#6d28d9',\n        }}>\n            <strong>🤖 AI Explanation:</strong> {aiExplanation}\n        </div>\n    );\n})()}\n```\n\n### Step 4: Handle async feedback arrival\n\nSince feedback is generated asynchronously and saved to RTDB after the result, the first page load may not have it. Options:\n\n**Option A (Simple — recommended for MVP):** User refreshes page to see feedback. The `loadResults` function already calls `getStudentSessionResult` which reads the full record. If feedback has been written by then, it shows up. No extra polling needed.\n\n**Option B (Enhanced, future):** Add a `useEffect` with a one-time delayed re-fetch (e.g., 10 seconds after load) to check if feedback has arrived. This can be added later as an enhancement.\n\nFor this task, **Option A** is sufficient — the panel simply renders if data exists.\n\n### Step 5: No THCS-only gate needed?\n\nThe `formativeFeedback` field only exists when the feedback service runs (only for THCS tests, per Task `ygx4vv`). So the `permanentResultRecord?.formativeFeedback` null check naturally gates it to THCS results only. No explicit `testType === 'THCS-THPT'` check required.\n\n### Files Modified\n1. `StudentTestResultsPage.tsx` — Import + render panel + question explanations\n\n### Dependencies\n- Task `cybx0j` — Defines `FormativeFeedback` type\n- Task `86hnh4` — Creates `FormativeFeedbackPanel` component\n- Task `ygx4vv` — Generates and saves the data\n- Task `pbh9j8` — Per-question explanation in THCSQuestionRenderer (separate integration for THCSTestLayout/THCSPracticeView contexts; this task handles the StudentTestResultsPage context)"
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "1opvmj",
+      "version": 4,
+      "timestamp": "2026-03-04T22:11:16.089Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "FormativeFeedbackPanel rendered below score, above pills grid"
+            },
+            {
+              "completed": false,
+              "text": "formativeFeedback loaded from result data"
+            },
+            {
+              "completed": false,
+              "text": "questionExplanations passed to THCSQuestionRenderer for each question"
+            },
+            {
+              "completed": false,
+              "text": "Page renders normally when formativeFeedback is absent (old results)"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "FormativeFeedbackPanel rendered below score, above pills grid"
+            },
+            {
+              "completed": true,
+              "text": "formativeFeedback loaded from result data"
+            },
+            {
+              "completed": true,
+              "text": "questionExplanations passed to THCSQuestionRenderer for each question"
+            },
+            {
+              "completed": true,
+              "text": "Page renders normally when formativeFeedback is absent (old results)"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Modified `src/pages/StudentTestResultsPage.tsx`:\n\n**Changes:**\n1. **Imports** (line 37-38): Added `FormativeFeedbackPanel` component and `FormativeFeedback` type\n2. **Panel integration** (line 601-607): Inserted `FormativeFeedbackPanel` between Performance Feedback card and Teacher Overall Feedback card\n   - Wrapped in `permanentResultRecord?.formativeFeedback &&` null guard\n   - Cast to `FormativeFeedback` type for prop safety\n3. **Per-question AI explanation** (line 789-812): Added AI explanation block in expanded question details\n   - Shows after teacher feedback IIFE\n   - Priority: teacher feedback > AI explanation > nothing\n   - Only for wrong answers (`!result.isCorrect`)\n   - Reads from `formativeFeedback.questionExplanations[questionNumber]`\n   - Purple theme with 🤖 icon and \"(AI-generated)\" label\n\n**Backward compatibility:**\n- `permanentResultRecord?.formativeFeedback` null check gates everything\n- Old results without formativeFeedback field render exactly as before\n- No explicit THCS gate needed — only THCS tests generate formativeFeedback\n\n**Pre-existing TS error (NOT ours):**\n- Line 908: `markingStatus` type mismatch — pre-existing, unrelated to our changes\n\n**TypeScript compilation verified** — no new errors introduced."
+        }
+      ],
+      "snapshot": {
+        "title": "Integrate FormativeFeedbackPanel into StudentTestResultsPage",
+        "description": "Add FormativeFeedbackPanel to StudentTestResultsPage.tsx between the score section and question pills grid. Load formativeFeedback from the result record. Pass questionExplanations to the question review section so THCSQuestionRenderer can display per-question AI explanations.",
+        "status": "in-progress",
+        "priority": "medium",
+        "labels": [
+          "from-spec",
+          "formative-feedback"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "FormativeFeedbackPanel rendered below score, above pills grid"
+          },
+          {
+            "completed": true,
+            "text": "formativeFeedback loaded from result data"
+          },
+          {
+            "completed": true,
+            "text": "questionExplanations passed to THCSQuestionRenderer for each question"
+          },
+          {
+            "completed": true,
+            "text": "Page renders normally when formativeFeedback is absent (old results)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan: Integrate FormativeFeedbackPanel into StudentTestResultsPage\n\n### File: `src/pages/StudentTestResultsPage.tsx` (MODIFY)\n\n### Context\nThis page renders test results from `permanentResultRecord` (type `TestResultRecord`). Once Task `cybx0j` is done, `TestResultRecord` will have an optional `formativeFeedback?: FormativeFeedback` field. This task plugs the `FormativeFeedbackPanel` (Task `86hnh4`) into the page.\n\n### Step 1: Import the FormativeFeedbackPanel component\n```typescript\n// At top of file, after existing imports\nimport FormativeFeedbackPanel from '../components/thcs-student/FormativeFeedbackPanel';\nimport type { FormativeFeedback } from '../types/thcs-test.types';\n```\n\n### Step 2: Place the panel in the results view\n\n**Location**: Between \"Performance Feedback\" card (line 584-600) and \"Teacher Overall Feedback\" card (line 602-623). This positions AI feedback after the generic percentage-based feedback but before teacher comments.\n\n```tsx\n{/* AI Formative Feedback (THCS tests only, async — may appear after page load) */}\n{permanentResultRecord?.formativeFeedback && (\n    <FormativeFeedbackPanel feedback={permanentResultRecord.formativeFeedback as FormativeFeedback} />\n)}\n```\n\n**Why here?** \n- After the generic \"Performance Feedback\" → provides deeper analysis\n- Before Teacher's Feedback → teacher feedback always takes visual priority (higher on page)\n- Only renders when `formativeFeedback` exists → backward compatible with all existing results\n\n### Step 3: Thread per-question AI explanations to question review\n\nIn the question-by-question review section (lines 639-793), extract the explanation map and pass it down:\n\n```typescript\n// Before the question map (around line 638)\nconst questionExplanationMap: Record<number, string> = (() => {\n    const fb = permanentResultRecord?.formativeFeedback as FormativeFeedback | undefined;\n    if (!fb?.aiFeedback?.questionExplanations) return {};\n    return fb.aiFeedback.questionExplanations;\n})();\n```\n\nThen inside the expanded question details (after Teacher Feedback, ~line 787), add:\n```tsx\n{/* AI Explanation for incorrect answers (only when no teacher feedback) */}\n{(() => {\n    const hasTeacherFeedback = permanentResultRecord?.questionResults?.find(\n        q => q.questionNumber === result.questionNumber\n    )?.teacherFeedback;\n    const aiExplanation = questionExplanationMap[result.questionNumber];\n    \n    if (hasTeacherFeedback || !aiExplanation || result.isCorrect) return null;\n    \n    return (\n        <div style={{\n            marginTop: '1rem', padding: '0.5rem 0.75rem',\n            background: 'rgba(139,92,246,0.06)', borderRadius: '0.375rem',\n            border: '1px solid rgba(139,92,246,0.15)',\n            fontSize: '0.875rem', color: '#6d28d9',\n        }}>\n            <strong>🤖 AI Explanation:</strong> {aiExplanation}\n        </div>\n    );\n})()}\n```\n\n### Step 4: Handle async feedback arrival\n\nSince feedback is generated asynchronously and saved to RTDB after the result, the first page load may not have it. Options:\n\n**Option A (Simple — recommended for MVP):** User refreshes page to see feedback. The `loadResults` function already calls `getStudentSessionResult` which reads the full record. If feedback has been written by then, it shows up. No extra polling needed.\n\n**Option B (Enhanced, future):** Add a `useEffect` with a one-time delayed re-fetch (e.g., 10 seconds after load) to check if feedback has arrived. This can be added later as an enhancement.\n\nFor this task, **Option A** is sufficient — the panel simply renders if data exists.\n\n### Step 5: No THCS-only gate needed?\n\nThe `formativeFeedback` field only exists when the feedback service runs (only for THCS tests, per Task `ygx4vv`). So the `permanentResultRecord?.formativeFeedback` null check naturally gates it to THCS results only. No explicit `testType === 'THCS-THPT'` check required.\n\n### Files Modified\n1. `StudentTestResultsPage.tsx` — Import + render panel + question explanations\n\n### Dependencies\n- Task `cybx0j` — Defines `FormativeFeedback` type\n- Task `86hnh4` — Creates `FormativeFeedbackPanel` component\n- Task `ygx4vv` — Generates and saves the data\n- Task `pbh9j8` — Per-question explanation in THCSQuestionRenderer (separate integration for THCSTestLayout/THCSPracticeView contexts; this task handles the StudentTestResultsPage context)",
+        "implementationNotes": "Modified `src/pages/StudentTestResultsPage.tsx`:\n\n**Changes:**\n1. **Imports** (line 37-38): Added `FormativeFeedbackPanel` component and `FormativeFeedback` type\n2. **Panel integration** (line 601-607): Inserted `FormativeFeedbackPanel` between Performance Feedback card and Teacher Overall Feedback card\n   - Wrapped in `permanentResultRecord?.formativeFeedback &&` null guard\n   - Cast to `FormativeFeedback` type for prop safety\n3. **Per-question AI explanation** (line 789-812): Added AI explanation block in expanded question details\n   - Shows after teacher feedback IIFE\n   - Priority: teacher feedback > AI explanation > nothing\n   - Only for wrong answers (`!result.isCorrect`)\n   - Reads from `formativeFeedback.questionExplanations[questionNumber]`\n   - Purple theme with 🤖 icon and \"(AI-generated)\" label\n\n**Backward compatibility:**\n- `permanentResultRecord?.formativeFeedback` null check gates everything\n- Old results without formativeFeedback field render exactly as before\n- No explicit THCS gate needed — only THCS tests generate formativeFeedback\n\n**Pre-existing TS error (NOT ours):**\n- Line 908: `markingStatus` type mismatch — pre-existing, unrelated to our changes\n\n**TypeScript compilation verified** — no new errors introduced."
+      }
+    },
+    {
+      "id": "v5",
+      "taskId": "1opvmj",
+      "version": 5,
+      "timestamp": "2026-03-04T22:11:26.961Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Integrate FormativeFeedbackPanel into StudentTestResultsPage",
+        "description": "Add FormativeFeedbackPanel to StudentTestResultsPage.tsx between the score section and question pills grid. Load formativeFeedback from the result record. Pass questionExplanations to the question review section so THCSQuestionRenderer can display per-question AI explanations.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "from-spec",
+          "formative-feedback"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "FormativeFeedbackPanel rendered below score, above pills grid"
+          },
+          {
+            "completed": true,
+            "text": "formativeFeedback loaded from result data"
+          },
+          {
+            "completed": true,
+            "text": "questionExplanations passed to THCSQuestionRenderer for each question"
+          },
+          {
+            "completed": true,
+            "text": "Page renders normally when formativeFeedback is absent (old results)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan: Integrate FormativeFeedbackPanel into StudentTestResultsPage\n\n### File: `src/pages/StudentTestResultsPage.tsx` (MODIFY)\n\n### Context\nThis page renders test results from `permanentResultRecord` (type `TestResultRecord`). Once Task `cybx0j` is done, `TestResultRecord` will have an optional `formativeFeedback?: FormativeFeedback` field. This task plugs the `FormativeFeedbackPanel` (Task `86hnh4`) into the page.\n\n### Step 1: Import the FormativeFeedbackPanel component\n```typescript\n// At top of file, after existing imports\nimport FormativeFeedbackPanel from '../components/thcs-student/FormativeFeedbackPanel';\nimport type { FormativeFeedback } from '../types/thcs-test.types';\n```\n\n### Step 2: Place the panel in the results view\n\n**Location**: Between \"Performance Feedback\" card (line 584-600) and \"Teacher Overall Feedback\" card (line 602-623). This positions AI feedback after the generic percentage-based feedback but before teacher comments.\n\n```tsx\n{/* AI Formative Feedback (THCS tests only, async — may appear after page load) */}\n{permanentResultRecord?.formativeFeedback && (\n    <FormativeFeedbackPanel feedback={permanentResultRecord.formativeFeedback as FormativeFeedback} />\n)}\n```\n\n**Why here?** \n- After the generic \"Performance Feedback\" → provides deeper analysis\n- Before Teacher's Feedback → teacher feedback always takes visual priority (higher on page)\n- Only renders when `formativeFeedback` exists → backward compatible with all existing results\n\n### Step 3: Thread per-question AI explanations to question review\n\nIn the question-by-question review section (lines 639-793), extract the explanation map and pass it down:\n\n```typescript\n// Before the question map (around line 638)\nconst questionExplanationMap: Record<number, string> = (() => {\n    const fb = permanentResultRecord?.formativeFeedback as FormativeFeedback | undefined;\n    if (!fb?.aiFeedback?.questionExplanations) return {};\n    return fb.aiFeedback.questionExplanations;\n})();\n```\n\nThen inside the expanded question details (after Teacher Feedback, ~line 787), add:\n```tsx\n{/* AI Explanation for incorrect answers (only when no teacher feedback) */}\n{(() => {\n    const hasTeacherFeedback = permanentResultRecord?.questionResults?.find(\n        q => q.questionNumber === result.questionNumber\n    )?.teacherFeedback;\n    const aiExplanation = questionExplanationMap[result.questionNumber];\n    \n    if (hasTeacherFeedback || !aiExplanation || result.isCorrect) return null;\n    \n    return (\n        <div style={{\n            marginTop: '1rem', padding: '0.5rem 0.75rem',\n            background: 'rgba(139,92,246,0.06)', borderRadius: '0.375rem',\n            border: '1px solid rgba(139,92,246,0.15)',\n            fontSize: '0.875rem', color: '#6d28d9',\n        }}>\n            <strong>🤖 AI Explanation:</strong> {aiExplanation}\n        </div>\n    );\n})()}\n```\n\n### Step 4: Handle async feedback arrival\n\nSince feedback is generated asynchronously and saved to RTDB after the result, the first page load may not have it. Options:\n\n**Option A (Simple — recommended for MVP):** User refreshes page to see feedback. The `loadResults` function already calls `getStudentSessionResult` which reads the full record. If feedback has been written by then, it shows up. No extra polling needed.\n\n**Option B (Enhanced, future):** Add a `useEffect` with a one-time delayed re-fetch (e.g., 10 seconds after load) to check if feedback has arrived. This can be added later as an enhancement.\n\nFor this task, **Option A** is sufficient — the panel simply renders if data exists.\n\n### Step 5: No THCS-only gate needed?\n\nThe `formativeFeedback` field only exists when the feedback service runs (only for THCS tests, per Task `ygx4vv`). So the `permanentResultRecord?.formativeFeedback` null check naturally gates it to THCS results only. No explicit `testType === 'THCS-THPT'` check required.\n\n### Files Modified\n1. `StudentTestResultsPage.tsx` — Import + render panel + question explanations\n\n### Dependencies\n- Task `cybx0j` — Defines `FormativeFeedback` type\n- Task `86hnh4` — Creates `FormativeFeedbackPanel` component\n- Task `ygx4vv` — Generates and saves the data\n- Task `pbh9j8` — Per-question explanation in THCSQuestionRenderer (separate integration for THCSTestLayout/THCSPracticeView contexts; this task handles the StudentTestResultsPage context)",
+        "implementationNotes": "Modified `src/pages/StudentTestResultsPage.tsx`:\n\n**Changes:**\n1. **Imports** (line 37-38): Added `FormativeFeedbackPanel` component and `FormativeFeedback` type\n2. **Panel integration** (line 601-607): Inserted `FormativeFeedbackPanel` between Performance Feedback card and Teacher Overall Feedback card\n   - Wrapped in `permanentResultRecord?.formativeFeedback &&` null guard\n   - Cast to `FormativeFeedback` type for prop safety\n3. **Per-question AI explanation** (line 789-812): Added AI explanation block in expanded question details\n   - Shows after teacher feedback IIFE\n   - Priority: teacher feedback > AI explanation > nothing\n   - Only for wrong answers (`!result.isCorrect`)\n   - Reads from `formativeFeedback.questionExplanations[questionNumber]`\n   - Purple theme with 🤖 icon and \"(AI-generated)\" label\n\n**Backward compatibility:**\n- `permanentResultRecord?.formativeFeedback` null check gates everything\n- Old results without formativeFeedback field render exactly as before\n- No explicit THCS gate needed — only THCS tests generate formativeFeedback\n\n**Pre-existing TS error (NOT ours):**\n- Line 908: `markingStatus` type mismatch — pre-existing, unrelated to our changes\n\n**TypeScript compilation verified** — no new errors introduced."
+      }
+    }
+  ]
+}

@@ -1,0 +1,91 @@
+{
+  "taskId": "odi2nt",
+  "currentVersion": 1,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "odi2nt",
+      "version": 1,
+      "timestamp": "2026-03-01T17:44:28.798Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "allQuestionResults prop added to InlineWritingGrader",
+              "completed": true
+            },
+            {
+              "text": "Collapsible question results table rendered at top of scrollable area",
+              "completed": true
+            },
+            {
+              "text": "Summary counts: auto-graded/total + pending writing count",
+              "completed": true
+            },
+            {
+              "text": "Expand shows 2-column grid with Q number, type, status icon, score",
+              "completed": true
+            },
+            {
+              "text": "Collapsed by default",
+              "completed": true
+            },
+            {
+              "text": "Wired from TeacherTestMonitorPage session results",
+              "completed": true
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "2026-03-02: Implemented. Added allQuestionResults prop + collapsible overview table at top of InlineWritingGrader. Shows compact 2-column grid of all 40 question results with type labels, ✓/✗ icons, and score. Pending writing questions highlighted in amber. Collapsed by default with summary counts. Wired from session?.results?.[studentId]?.questionResults."
+        }
+      ],
+      "snapshot": {
+        "title": "Sub-D: Question results table at top of grading view",
+        "description": "Add full question results table above the writing grading area in InlineWritingGrader.\n\nData source: TeacherTestMonitorPage must pass `allQuestionResults` prop (read from RTDB session `game_sessions/{code}/results/{studentId}/questionResults`).\n\nTable format (per approved mockup):\n- One row per question: Q1 (MCQ): A ✓ (1) | Q2 (MCQ): B ✗ Correct: C (0) | ... | Q38 (Writing): ⏳ Pending\n- Color coding: green for correct, red for incorrect, amber for partial\n- Writing questions show '⏳ Pending' or '✓ Graded'\n\nRequires:\n1. New prop on InlineWritingGrader: `allQuestionResults: Record<string, any>`\n2. TeacherTestMonitorPage reads from RTDB and passes it\n3. Table component rendered above writing grading area",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "writing-grading",
+          "ui",
+          "teacher"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "allQuestionResults prop added to InlineWritingGrader",
+            "completed": true
+          },
+          {
+            "text": "Collapsible question results table rendered at top of scrollable area",
+            "completed": true
+          },
+          {
+            "text": "Summary counts: auto-graded/total + pending writing count",
+            "completed": true
+          },
+          {
+            "text": "Expand shows 2-column grid with Q number, type, status icon, score",
+            "completed": true
+          },
+          {
+            "text": "Collapsed by default",
+            "completed": true
+          },
+          {
+            "text": "Wired from TeacherTestMonitorPage session results",
+            "completed": true
+          }
+        ],
+        "implementationNotes": "2026-03-02: Implemented. Added allQuestionResults prop + collapsible overview table at top of InlineWritingGrader. Shows compact 2-column grid of all 40 question results with type labels, ✓/✗ icons, and score. Pending writing questions highlighted in amber. Collapsed by default with summary counts. Wired from session?.results?.[studentId]?.questionResults."
+      }
+    }
+  ]
+}

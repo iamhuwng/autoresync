@@ -1,8 +1,8 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import '@testing-library/jest-dom';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { NotificationSettingsModal } from './NotificationSettingsModal';
 import * as userService from '../../services/userService';
-import { MantineProvider } from '@mantine/core';
 
 // Mock userService
 vi.mock('../../services/userService', () => ({
@@ -10,20 +10,9 @@ vi.mock('../../services/userService', () => ({
     updateUserProfile: vi.fn(),
 }));
 
-// Mock notifications to avoid issues
-vi.mock('@mantine/notifications', () => ({
-    notifications: {
-        show: vi.fn()
-    }
-}));
-
-// Components using Mantine need to be wrapped in MantineProvider
-const renderWithMantine = (component: React.ReactNode) => {
-    return render(
-        <MantineProvider>
-            {component}
-        </MantineProvider>
-    );
+// Components no longer use Mantine, render normally
+const renderNormally = (component: React.ReactNode) => {
+    return render(component);
 };
 
 describe('NotificationSettingsModal', () => {
@@ -46,10 +35,13 @@ describe('NotificationSettingsModal', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         (userService.getUserById as any).mockResolvedValue(mockUser);
+
+        // Mock window.alert to avoid error during test execution
+        vi.spyOn(window, 'alert').mockImplementation(() => { });
     });
 
     it('renders correctly when opened', async () => {
-        renderWithMantine(
+        renderNormally(
             <NotificationSettingsModal
                 userId={mockUserId}
                 opened={true}
@@ -74,7 +66,7 @@ describe('NotificationSettingsModal', () => {
     it('calls updateUserProfile when save button is clicked', async () => {
         (userService.updateUserProfile as any).mockResolvedValue(undefined);
 
-        renderWithMantine(
+        renderNormally(
             <NotificationSettingsModal
                 userId={mockUserId}
                 opened={true}
@@ -105,7 +97,7 @@ describe('NotificationSettingsModal', () => {
     });
 
     it('closes modal when cancel is clicked', async () => {
-        renderWithMantine(
+        renderNormally(
             <NotificationSettingsModal
                 userId={mockUserId}
                 opened={true}

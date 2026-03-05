@@ -5,6 +5,7 @@ import { getEnv } from '../../config/env.config';
 import { validateAIResponse, validatePassagesOnly, validateQuestionsAndAnswers, normalizeQuestionType, normalizeAnswer } from './response.validator';
 import { getDecryptedKeys } from '../api-keys.service';
 import { extractJSON } from '../test-creation/ai-json-repair';
+import { benchKey, isKeyBenched } from '../key-cooldown.service';
 
 // Type-only import to avoid eager loading
 type Groq = any;
@@ -61,23 +62,8 @@ export class GroqProvider implements IAIService {
    */
   private async loadAllGroqApiKeys(): Promise<string[]> {
     const keys: string[] = [];
-    const env = getEnv();
 
-    // Load from .env (support VITE_GROQ_API_KEY and VITE_GROQ_API_KEY_1 through _5)
-    const legacyKey = env.VITE_GROQ_API_KEY;
-    if (legacyKey && legacyKey.trim().length > 0 && !legacyKey.includes('your_')) {
-      keys.push(legacyKey);
-    }
-
-    // Check for numbered keys (future env expansion)
-    for (let i = 1; i <= 5; i++) {
-      const key = (env as any)[`VITE_GROQ_API_KEY_${i}`] as string | undefined;
-      if (key && key.trim().length > 0 && !key.includes('your_') && !keys.includes(key)) {
-        keys.push(key);
-      }
-    }
-
-    // Load from Firestore (encrypted keys)
+    // Load from Firestore (admin-managed) FIRST — they're more likely to be fresh
     try {
       const firestoreKeys = await getDecryptedKeys('groq');
       for (const key of firestoreKeys) {
@@ -87,6 +73,21 @@ export class GroqProvider implements IAIService {
       }
     } catch (error) {
       console.warn('[Groq] Failed to load Firestore keys:', error);
+    }
+
+    // Then load from .env as fallback
+    const env = getEnv();
+    const legacyKey = env.VITE_GROQ_API_KEY;
+    if (legacyKey && legacyKey.trim().length > 0 && !legacyKey.includes('your_') && !keys.includes(legacyKey)) {
+      keys.push(legacyKey);
+    }
+
+    // Check for numbered keys (future env expansion)
+    for (let i = 1; i <= 5; i++) {
+      const key = (env as any)[`VITE_GROQ_API_KEY_${i}`] as string | undefined;
+      if (key && key.trim().length > 0 && !key.includes('your_') && !keys.includes(key)) {
+        keys.push(key);
+      }
     }
 
     return keys;
@@ -113,6 +114,7 @@ export class GroqProvider implements IAIService {
         const client = new Groq({
           apiKey,
           dangerouslyAllowBrowser: true,
+          maxRetries: 0, // Disable SDK internal retries on 429 — we handle key rotation ourselves
         });
         console.log(`✅ Groq client ${index + 1}/${this.apiKeys.length} initialized`);
         return client;
@@ -150,6 +152,10 @@ export class GroqProvider implements IAIService {
    * Check if a key is currently exhausted
    */
   private isKeyExhausted(keyIndex: number): boolean {
+    // Check centralized cooldown first (shared across all callers)
+    const key = this.apiKeys[keyIndex];
+    if (key && isKeyBenched(key)) return true;
+
     const exhaustedKey = this.exhaustedKeys.get(keyIndex);
     if (!exhaustedKey) return false;
 
@@ -171,8 +177,14 @@ export class GroqProvider implements IAIService {
       timestamp: Date.now(),
       reason,
     });
-    const keyPreview = this.apiKeys[keyIndex]?.substring(this.apiKeys[keyIndex].length - 8) || 'unknown';
+    const key = this.apiKeys[keyIndex];
+    const keyPreview = key?.substring(key.length - 8) || 'unknown';
     console.warn(`⚠️ [Groq] Marked key #${keyIndex + 1} (...${keyPreview}) as exhausted: ${reason}`);
+
+    // Also register in centralized cooldown so other callers skip this key too
+    if (key) {
+      benchKey(key, 'groq', reason);
+    }
   }
 
   /**

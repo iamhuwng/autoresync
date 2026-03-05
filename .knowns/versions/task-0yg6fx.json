@@ -1,0 +1,342 @@
+{
+  "taskId": "0yg6fx",
+  "currentVersion": 5,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "0yg6fx",
+      "version": 1,
+      "timestamp": "2026-03-04T22:46:58.666Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Model/temperature progression configurable",
+              "completed": false
+            },
+            {
+              "text": "Better/worse comparison: fewer issues = better",
+              "completed": false
+            },
+            {
+              "text": "Circuit breaker at 5 total AI calls enforced",
+              "completed": false
+            },
+            {
+              "text": "Session-level call tracking persists across retries",
+              "completed": false
+            },
+            {
+              "text": "Clean escalation path to teacher or skip",
+              "completed": false
+            },
+            {
+              "text": "Order: 1 (no dependencies)",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Build Retry Manager",
+        "description": "Create `thcs-retry-manager.ts`. Internal retry: Groq llama (temp 0.1) → Gemini Flash (temp 0.2) → teacher. Compromise: Flash (0.15) → Flash (0.3) → skip. Circuit breaker at 5 total AI calls per session. Better/worse comparison between retries (fewer issues = better). Session-level call tracking.",
+        "status": "todo",
+        "priority": "high",
+        "labels": [
+          "from-spec-v2",
+          "core-module"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Model/temperature progression configurable",
+            "completed": false
+          },
+          {
+            "text": "Better/worse comparison: fewer issues = better",
+            "completed": false
+          },
+          {
+            "text": "Circuit breaker at 5 total AI calls enforced",
+            "completed": false
+          },
+          {
+            "text": "Session-level call tracking persists across retries",
+            "completed": false
+          },
+          {
+            "text": "Clean escalation path to teacher or skip",
+            "completed": false
+          },
+          {
+            "text": "Order: 1 (no dependencies)",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "0yg6fx",
+      "version": 2,
+      "timestamp": "2026-03-04T22:51:12.121Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        },
+        {
+          "field": "assignee",
+          "newValue": "@me"
+        }
+      ],
+      "snapshot": {
+        "title": "Build Retry Manager",
+        "description": "Create `thcs-retry-manager.ts`. Internal retry: Groq llama (temp 0.1) → Gemini Flash (temp 0.2) → teacher. Compromise: Flash (0.15) → Flash (0.3) → skip. Circuit breaker at 5 total AI calls per session. Better/worse comparison between retries (fewer issues = better). Session-level call tracking.",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "core-module"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Model/temperature progression configurable"
+          },
+          {
+            "completed": false,
+            "text": "Better/worse comparison: fewer issues = better"
+          },
+          {
+            "completed": false,
+            "text": "Circuit breaker at 5 total AI calls enforced"
+          },
+          {
+            "completed": false,
+            "text": "Session-level call tracking persists across retries"
+          },
+          {
+            "completed": false,
+            "text": "Clean escalation path to teacher or skip"
+          },
+          {
+            "completed": false,
+            "text": "Order: 1 (no dependencies)"
+          }
+        ]
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "0yg6fx",
+      "version": 3,
+      "timestamp": "2026-03-04T22:59:30.196Z",
+      "changes": [
+        {
+          "field": "implementationPlan",
+          "newValue": "## Implementation Plan\n\n### New file\n`src/services/test-creation/thcs-retry-manager.ts`\n\n### Architecture\nA standalone, stateless-per-call retry orchestrator. Each parse session creates a `RetrySession` that tracks total AI calls and manages escalation. The module does NOT contain AI provider logic — it delegates to a caller-provided `callAI` function.\n\n### Interfaces\n\n```typescript\n// Configuration for a retry chain\ninterface RetryChainConfig {\n  steps: Array<{\n    provider: 'groq' | 'gemini';\n    model: string;\n    temperature: number;\n  }>;\n  fallback: 'teacher' | 'skip';\n}\n\n// Built-in chains\nconst REPAIR_CHAIN: RetryChainConfig = {\n  steps: [\n    { provider: 'groq', model: 'llama-3.3-70b-versatile', temperature: 0.1 },\n    { provider: 'gemini', model: 'gemini-2.0-flash', temperature: 0.2 },\n  ],\n  fallback: 'teacher',\n};\n\nconst COMPROMISE_CHAIN: RetryChainConfig = {\n  steps: [\n    { provider: 'gemini', model: 'gemini-2.0-flash', temperature: 0.15 },\n    { provider: 'gemini', model: 'gemini-2.0-flash', temperature: 0.3 },\n  ],\n  fallback: 'skip',\n};\n\n// Session state (created once per parseThcsText call)\ninterface RetrySession {\n  totalCalls: number;\n  maxCalls: number; // 5 — circuit breaker\n  callLog: RetryCallEntry[];\n}\n\ninterface RetryCallEntry {\n  timestamp: number;\n  provider: string;\n  model: string;\n  temperature: number;\n  issueCountBefore: number;\n  issueCountAfter: number;\n  verdict: 'better' | 'worse' | 'same';\n}\n\n// Result of a retry attempt\ninterface RetryResult<T> {\n  outcome: 'success' | 'escalated' | 'circuit-breaker' | 'all-failed';\n  bestResult: T | null;\n  callLog: RetryCallEntry[];\n  escalatedTo?: 'teacher' | 'skip';\n}\n```\n\n### Core Functions\n\n#### 1. `createRetrySession(maxCalls?: number): RetrySession`\nFactory — creates a session with `totalCalls: 0`, `maxCalls: 5`.\n\n#### 2. `executeRetryChain<T>(session, chain, callAI, compareResults): Promise<RetryResult<T>>`\nMain orchestrator:\n1. Check circuit breaker (`session.totalCalls >= session.maxCalls`) → return `circuit-breaker`\n2. Call first step in chain via `callAI(step)`\n3. Increment `session.totalCalls`\n4. If success, store as `bestResult`\n5. If issues remain, try next step:\n   - Call `callAI(nextStep)`, increment counter\n   - Run `compareResults(previous, current)` → returns `{ verdict: 'better'|'worse'|'same', issueCount: number }`\n   - If `better`: use current as new base, continue\n   - If `worse` or `same`: keep previous, escalate to next step\n6. If all steps exhausted → return `all-failed` with `escalatedTo: chain.fallback`\n7. Between each call, re-check circuit breaker\n\n#### 3. `compareIssueCount(before: number, after: number): 'better' | 'worse' | 'same'`\nSimple comparison helper (fewer issues = better).\n\n#### 4. `isCircuitBreakerTripped(session): boolean`\nCheck if total calls ≥ max.\n\n#### 5. `getSessionStats(session): { totalCalls, remaining, callLog }`\nFor diagnostic logging.\n\n### Key Design Decisions\n- **Generic `callAI` callback**: The retry manager doesn't know about Groq/Gemini internals. It receives a `(step) => Promise<{ result: T, issueCount: number } | null>` callback.\n- **No provider initialization**: Provider init (SDK loading, key rotation) stays in existing `callGroqDirect`/`callGeminiDirect` or future wrappers. The retry manager only orchestrates the SEQUENCE.\n- **Session is mutable state**: `totalCalls` increments across repair, compromise, and external retry calls within ONE parse session. This ensures the circuit breaker counts ALL AI calls, not just repair calls.\n- **Chains are configurable**: The two built-in chains (repair + compromise) are exported constants. The integration task (T11) can pass custom chains if needed.\n- **No async side effects**: The retry manager has zero imports beyond types. No Firebase, no API keys, no SDK. Pure orchestration logic.\n\n### Files changed\n- `src/services/test-creation/thcs-retry-manager.ts` (NEW — ~120 lines)\n\n### Dependencies\n- None (pure logic module)\n\n### Consumed by\n- Task `pqr0rq` (Pass 2 Repair) — uses `REPAIR_CHAIN` + `executeRetryChain`\n- Task `78pz92` (Compromise Step) — uses `COMPROMISE_CHAIN`\n- Task `le05g6` (External Retry) — creates its own chain config\n- Task `8085zl` (Integration) — creates `RetrySession` at parse entry point, passes to all consumers"
+        }
+      ],
+      "snapshot": {
+        "title": "Build Retry Manager",
+        "description": "Create `thcs-retry-manager.ts`. Internal retry: Groq llama (temp 0.1) → Gemini Flash (temp 0.2) → teacher. Compromise: Flash (0.15) → Flash (0.3) → skip. Circuit breaker at 5 total AI calls per session. Better/worse comparison between retries (fewer issues = better). Session-level call tracking.",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "core-module"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Model/temperature progression configurable"
+          },
+          {
+            "completed": false,
+            "text": "Better/worse comparison: fewer issues = better"
+          },
+          {
+            "completed": false,
+            "text": "Circuit breaker at 5 total AI calls enforced"
+          },
+          {
+            "completed": false,
+            "text": "Session-level call tracking persists across retries"
+          },
+          {
+            "completed": false,
+            "text": "Clean escalation path to teacher or skip"
+          },
+          {
+            "completed": false,
+            "text": "Order: 1 (no dependencies)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### New file\n`src/services/test-creation/thcs-retry-manager.ts`\n\n### Architecture\nA standalone, stateless-per-call retry orchestrator. Each parse session creates a `RetrySession` that tracks total AI calls and manages escalation. The module does NOT contain AI provider logic — it delegates to a caller-provided `callAI` function.\n\n### Interfaces\n\n```typescript\n// Configuration for a retry chain\ninterface RetryChainConfig {\n  steps: Array<{\n    provider: 'groq' | 'gemini';\n    model: string;\n    temperature: number;\n  }>;\n  fallback: 'teacher' | 'skip';\n}\n\n// Built-in chains\nconst REPAIR_CHAIN: RetryChainConfig = {\n  steps: [\n    { provider: 'groq', model: 'llama-3.3-70b-versatile', temperature: 0.1 },\n    { provider: 'gemini', model: 'gemini-2.0-flash', temperature: 0.2 },\n  ],\n  fallback: 'teacher',\n};\n\nconst COMPROMISE_CHAIN: RetryChainConfig = {\n  steps: [\n    { provider: 'gemini', model: 'gemini-2.0-flash', temperature: 0.15 },\n    { provider: 'gemini', model: 'gemini-2.0-flash', temperature: 0.3 },\n  ],\n  fallback: 'skip',\n};\n\n// Session state (created once per parseThcsText call)\ninterface RetrySession {\n  totalCalls: number;\n  maxCalls: number; // 5 — circuit breaker\n  callLog: RetryCallEntry[];\n}\n\ninterface RetryCallEntry {\n  timestamp: number;\n  provider: string;\n  model: string;\n  temperature: number;\n  issueCountBefore: number;\n  issueCountAfter: number;\n  verdict: 'better' | 'worse' | 'same';\n}\n\n// Result of a retry attempt\ninterface RetryResult<T> {\n  outcome: 'success' | 'escalated' | 'circuit-breaker' | 'all-failed';\n  bestResult: T | null;\n  callLog: RetryCallEntry[];\n  escalatedTo?: 'teacher' | 'skip';\n}\n```\n\n### Core Functions\n\n#### 1. `createRetrySession(maxCalls?: number): RetrySession`\nFactory — creates a session with `totalCalls: 0`, `maxCalls: 5`.\n\n#### 2. `executeRetryChain<T>(session, chain, callAI, compareResults): Promise<RetryResult<T>>`\nMain orchestrator:\n1. Check circuit breaker (`session.totalCalls >= session.maxCalls`) → return `circuit-breaker`\n2. Call first step in chain via `callAI(step)`\n3. Increment `session.totalCalls`\n4. If success, store as `bestResult`\n5. If issues remain, try next step:\n   - Call `callAI(nextStep)`, increment counter\n   - Run `compareResults(previous, current)` → returns `{ verdict: 'better'|'worse'|'same', issueCount: number }`\n   - If `better`: use current as new base, continue\n   - If `worse` or `same`: keep previous, escalate to next step\n6. If all steps exhausted → return `all-failed` with `escalatedTo: chain.fallback`\n7. Between each call, re-check circuit breaker\n\n#### 3. `compareIssueCount(before: number, after: number): 'better' | 'worse' | 'same'`\nSimple comparison helper (fewer issues = better).\n\n#### 4. `isCircuitBreakerTripped(session): boolean`\nCheck if total calls ≥ max.\n\n#### 5. `getSessionStats(session): { totalCalls, remaining, callLog }`\nFor diagnostic logging.\n\n### Key Design Decisions\n- **Generic `callAI` callback**: The retry manager doesn't know about Groq/Gemini internals. It receives a `(step) => Promise<{ result: T, issueCount: number } | null>` callback.\n- **No provider initialization**: Provider init (SDK loading, key rotation) stays in existing `callGroqDirect`/`callGeminiDirect` or future wrappers. The retry manager only orchestrates the SEQUENCE.\n- **Session is mutable state**: `totalCalls` increments across repair, compromise, and external retry calls within ONE parse session. This ensures the circuit breaker counts ALL AI calls, not just repair calls.\n- **Chains are configurable**: The two built-in chains (repair + compromise) are exported constants. The integration task (T11) can pass custom chains if needed.\n- **No async side effects**: The retry manager has zero imports beyond types. No Firebase, no API keys, no SDK. Pure orchestration logic.\n\n### Files changed\n- `src/services/test-creation/thcs-retry-manager.ts` (NEW — ~120 lines)\n\n### Dependencies\n- None (pure logic module)\n\n### Consumed by\n- Task `pqr0rq` (Pass 2 Repair) — uses `REPAIR_CHAIN` + `executeRetryChain`\n- Task `78pz92` (Compromise Step) — uses `COMPROMISE_CHAIN`\n- Task `le05g6` (External Retry) — creates its own chain config\n- Task `8085zl` (Integration) — creates `RetrySession` at parse entry point, passes to all consumers"
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "0yg6fx",
+      "version": 4,
+      "timestamp": "2026-03-05T01:01:25.578Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Model/temperature progression configurable"
+            },
+            {
+              "completed": false,
+              "text": "Better/worse comparison: fewer issues = better"
+            },
+            {
+              "completed": false,
+              "text": "Circuit breaker at 5 total AI calls enforced"
+            },
+            {
+              "completed": false,
+              "text": "Session-level call tracking persists across retries"
+            },
+            {
+              "completed": false,
+              "text": "Clean escalation path to teacher or skip"
+            },
+            {
+              "completed": false,
+              "text": "Order: 1 (no dependencies)"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Model/temperature progression configurable"
+            },
+            {
+              "completed": true,
+              "text": "Better/worse comparison: fewer issues = better"
+            },
+            {
+              "completed": true,
+              "text": "Circuit breaker at 5 total AI calls enforced"
+            },
+            {
+              "completed": true,
+              "text": "Session-level call tracking persists across retries"
+            },
+            {
+              "completed": true,
+              "text": "Clean escalation path to teacher or skip"
+            },
+            {
+              "completed": true,
+              "text": "Order: 1 (no dependencies)"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "## Implementation Notes\n- Created `thcs-retry-manager.ts` (~190 lines)\n- Core exports: `createRetrySession`, `executeRetryChain`, `REPAIR_CHAIN`, `COMPROMISE_CHAIN`\n- Helpers: `compareIssueCount`, `isCircuitBreakerTripped`, `getSessionStats`\n- Full type exports: RetryStep, RetrySession, RetryChainConfig, RetryResult, AICallOutcome, RetryCallEntry\n- 22 unit tests passing (thcs-retry-manager.test.ts)\n- Zero TypeScript errors (tsc --noEmit clean)"
+        }
+      ],
+      "snapshot": {
+        "title": "Build Retry Manager",
+        "description": "Create `thcs-retry-manager.ts`. Internal retry: Groq llama (temp 0.1) → Gemini Flash (temp 0.2) → teacher. Compromise: Flash (0.15) → Flash (0.3) → skip. Circuit breaker at 5 total AI calls per session. Better/worse comparison between retries (fewer issues = better). Session-level call tracking.",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "core-module"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Model/temperature progression configurable"
+          },
+          {
+            "completed": true,
+            "text": "Better/worse comparison: fewer issues = better"
+          },
+          {
+            "completed": true,
+            "text": "Circuit breaker at 5 total AI calls enforced"
+          },
+          {
+            "completed": true,
+            "text": "Session-level call tracking persists across retries"
+          },
+          {
+            "completed": true,
+            "text": "Clean escalation path to teacher or skip"
+          },
+          {
+            "completed": true,
+            "text": "Order: 1 (no dependencies)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### New file\n`src/services/test-creation/thcs-retry-manager.ts`\n\n### Architecture\nA standalone, stateless-per-call retry orchestrator. Each parse session creates a `RetrySession` that tracks total AI calls and manages escalation. The module does NOT contain AI provider logic — it delegates to a caller-provided `callAI` function.\n\n### Interfaces\n\n```typescript\n// Configuration for a retry chain\ninterface RetryChainConfig {\n  steps: Array<{\n    provider: 'groq' | 'gemini';\n    model: string;\n    temperature: number;\n  }>;\n  fallback: 'teacher' | 'skip';\n}\n\n// Built-in chains\nconst REPAIR_CHAIN: RetryChainConfig = {\n  steps: [\n    { provider: 'groq', model: 'llama-3.3-70b-versatile', temperature: 0.1 },\n    { provider: 'gemini', model: 'gemini-2.0-flash', temperature: 0.2 },\n  ],\n  fallback: 'teacher',\n};\n\nconst COMPROMISE_CHAIN: RetryChainConfig = {\n  steps: [\n    { provider: 'gemini', model: 'gemini-2.0-flash', temperature: 0.15 },\n    { provider: 'gemini', model: 'gemini-2.0-flash', temperature: 0.3 },\n  ],\n  fallback: 'skip',\n};\n\n// Session state (created once per parseThcsText call)\ninterface RetrySession {\n  totalCalls: number;\n  maxCalls: number; // 5 — circuit breaker\n  callLog: RetryCallEntry[];\n}\n\ninterface RetryCallEntry {\n  timestamp: number;\n  provider: string;\n  model: string;\n  temperature: number;\n  issueCountBefore: number;\n  issueCountAfter: number;\n  verdict: 'better' | 'worse' | 'same';\n}\n\n// Result of a retry attempt\ninterface RetryResult<T> {\n  outcome: 'success' | 'escalated' | 'circuit-breaker' | 'all-failed';\n  bestResult: T | null;\n  callLog: RetryCallEntry[];\n  escalatedTo?: 'teacher' | 'skip';\n}\n```\n\n### Core Functions\n\n#### 1. `createRetrySession(maxCalls?: number): RetrySession`\nFactory — creates a session with `totalCalls: 0`, `maxCalls: 5`.\n\n#### 2. `executeRetryChain<T>(session, chain, callAI, compareResults): Promise<RetryResult<T>>`\nMain orchestrator:\n1. Check circuit breaker (`session.totalCalls >= session.maxCalls`) → return `circuit-breaker`\n2. Call first step in chain via `callAI(step)`\n3. Increment `session.totalCalls`\n4. If success, store as `bestResult`\n5. If issues remain, try next step:\n   - Call `callAI(nextStep)`, increment counter\n   - Run `compareResults(previous, current)` → returns `{ verdict: 'better'|'worse'|'same', issueCount: number }`\n   - If `better`: use current as new base, continue\n   - If `worse` or `same`: keep previous, escalate to next step\n6. If all steps exhausted → return `all-failed` with `escalatedTo: chain.fallback`\n7. Between each call, re-check circuit breaker\n\n#### 3. `compareIssueCount(before: number, after: number): 'better' | 'worse' | 'same'`\nSimple comparison helper (fewer issues = better).\n\n#### 4. `isCircuitBreakerTripped(session): boolean`\nCheck if total calls ≥ max.\n\n#### 5. `getSessionStats(session): { totalCalls, remaining, callLog }`\nFor diagnostic logging.\n\n### Key Design Decisions\n- **Generic `callAI` callback**: The retry manager doesn't know about Groq/Gemini internals. It receives a `(step) => Promise<{ result: T, issueCount: number } | null>` callback.\n- **No provider initialization**: Provider init (SDK loading, key rotation) stays in existing `callGroqDirect`/`callGeminiDirect` or future wrappers. The retry manager only orchestrates the SEQUENCE.\n- **Session is mutable state**: `totalCalls` increments across repair, compromise, and external retry calls within ONE parse session. This ensures the circuit breaker counts ALL AI calls, not just repair calls.\n- **Chains are configurable**: The two built-in chains (repair + compromise) are exported constants. The integration task (T11) can pass custom chains if needed.\n- **No async side effects**: The retry manager has zero imports beyond types. No Firebase, no API keys, no SDK. Pure orchestration logic.\n\n### Files changed\n- `src/services/test-creation/thcs-retry-manager.ts` (NEW — ~120 lines)\n\n### Dependencies\n- None (pure logic module)\n\n### Consumed by\n- Task `pqr0rq` (Pass 2 Repair) — uses `REPAIR_CHAIN` + `executeRetryChain`\n- Task `78pz92` (Compromise Step) — uses `COMPROMISE_CHAIN`\n- Task `le05g6` (External Retry) — creates its own chain config\n- Task `8085zl` (Integration) — creates `RetrySession` at parse entry point, passes to all consumers",
+        "implementationNotes": "## Implementation Notes\n- Created `thcs-retry-manager.ts` (~190 lines)\n- Core exports: `createRetrySession`, `executeRetryChain`, `REPAIR_CHAIN`, `COMPROMISE_CHAIN`\n- Helpers: `compareIssueCount`, `isCircuitBreakerTripped`, `getSessionStats`\n- Full type exports: RetryStep, RetrySession, RetryChainConfig, RetryResult, AICallOutcome, RetryCallEntry\n- 22 unit tests passing (thcs-retry-manager.test.ts)\n- Zero TypeScript errors (tsc --noEmit clean)"
+      }
+    },
+    {
+      "id": "v5",
+      "taskId": "0yg6fx",
+      "version": 5,
+      "timestamp": "2026-03-05T01:01:35.230Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Build Retry Manager",
+        "description": "Create `thcs-retry-manager.ts`. Internal retry: Groq llama (temp 0.1) → Gemini Flash (temp 0.2) → teacher. Compromise: Flash (0.15) → Flash (0.3) → skip. Circuit breaker at 5 total AI calls per session. Better/worse comparison between retries (fewer issues = better). Session-level call tracking.",
+        "status": "done",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "core-module"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Model/temperature progression configurable"
+          },
+          {
+            "completed": true,
+            "text": "Better/worse comparison: fewer issues = better"
+          },
+          {
+            "completed": true,
+            "text": "Circuit breaker at 5 total AI calls enforced"
+          },
+          {
+            "completed": true,
+            "text": "Session-level call tracking persists across retries"
+          },
+          {
+            "completed": true,
+            "text": "Clean escalation path to teacher or skip"
+          },
+          {
+            "completed": true,
+            "text": "Order: 1 (no dependencies)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### New file\n`src/services/test-creation/thcs-retry-manager.ts`\n\n### Architecture\nA standalone, stateless-per-call retry orchestrator. Each parse session creates a `RetrySession` that tracks total AI calls and manages escalation. The module does NOT contain AI provider logic — it delegates to a caller-provided `callAI` function.\n\n### Interfaces\n\n```typescript\n// Configuration for a retry chain\ninterface RetryChainConfig {\n  steps: Array<{\n    provider: 'groq' | 'gemini';\n    model: string;\n    temperature: number;\n  }>;\n  fallback: 'teacher' | 'skip';\n}\n\n// Built-in chains\nconst REPAIR_CHAIN: RetryChainConfig = {\n  steps: [\n    { provider: 'groq', model: 'llama-3.3-70b-versatile', temperature: 0.1 },\n    { provider: 'gemini', model: 'gemini-2.0-flash', temperature: 0.2 },\n  ],\n  fallback: 'teacher',\n};\n\nconst COMPROMISE_CHAIN: RetryChainConfig = {\n  steps: [\n    { provider: 'gemini', model: 'gemini-2.0-flash', temperature: 0.15 },\n    { provider: 'gemini', model: 'gemini-2.0-flash', temperature: 0.3 },\n  ],\n  fallback: 'skip',\n};\n\n// Session state (created once per parseThcsText call)\ninterface RetrySession {\n  totalCalls: number;\n  maxCalls: number; // 5 — circuit breaker\n  callLog: RetryCallEntry[];\n}\n\ninterface RetryCallEntry {\n  timestamp: number;\n  provider: string;\n  model: string;\n  temperature: number;\n  issueCountBefore: number;\n  issueCountAfter: number;\n  verdict: 'better' | 'worse' | 'same';\n}\n\n// Result of a retry attempt\ninterface RetryResult<T> {\n  outcome: 'success' | 'escalated' | 'circuit-breaker' | 'all-failed';\n  bestResult: T | null;\n  callLog: RetryCallEntry[];\n  escalatedTo?: 'teacher' | 'skip';\n}\n```\n\n### Core Functions\n\n#### 1. `createRetrySession(maxCalls?: number): RetrySession`\nFactory — creates a session with `totalCalls: 0`, `maxCalls: 5`.\n\n#### 2. `executeRetryChain<T>(session, chain, callAI, compareResults): Promise<RetryResult<T>>`\nMain orchestrator:\n1. Check circuit breaker (`session.totalCalls >= session.maxCalls`) → return `circuit-breaker`\n2. Call first step in chain via `callAI(step)`\n3. Increment `session.totalCalls`\n4. If success, store as `bestResult`\n5. If issues remain, try next step:\n   - Call `callAI(nextStep)`, increment counter\n   - Run `compareResults(previous, current)` → returns `{ verdict: 'better'|'worse'|'same', issueCount: number }`\n   - If `better`: use current as new base, continue\n   - If `worse` or `same`: keep previous, escalate to next step\n6. If all steps exhausted → return `all-failed` with `escalatedTo: chain.fallback`\n7. Between each call, re-check circuit breaker\n\n#### 3. `compareIssueCount(before: number, after: number): 'better' | 'worse' | 'same'`\nSimple comparison helper (fewer issues = better).\n\n#### 4. `isCircuitBreakerTripped(session): boolean`\nCheck if total calls ≥ max.\n\n#### 5. `getSessionStats(session): { totalCalls, remaining, callLog }`\nFor diagnostic logging.\n\n### Key Design Decisions\n- **Generic `callAI` callback**: The retry manager doesn't know about Groq/Gemini internals. It receives a `(step) => Promise<{ result: T, issueCount: number } | null>` callback.\n- **No provider initialization**: Provider init (SDK loading, key rotation) stays in existing `callGroqDirect`/`callGeminiDirect` or future wrappers. The retry manager only orchestrates the SEQUENCE.\n- **Session is mutable state**: `totalCalls` increments across repair, compromise, and external retry calls within ONE parse session. This ensures the circuit breaker counts ALL AI calls, not just repair calls.\n- **Chains are configurable**: The two built-in chains (repair + compromise) are exported constants. The integration task (T11) can pass custom chains if needed.\n- **No async side effects**: The retry manager has zero imports beyond types. No Firebase, no API keys, no SDK. Pure orchestration logic.\n\n### Files changed\n- `src/services/test-creation/thcs-retry-manager.ts` (NEW — ~120 lines)\n\n### Dependencies\n- None (pure logic module)\n\n### Consumed by\n- Task `pqr0rq` (Pass 2 Repair) — uses `REPAIR_CHAIN` + `executeRetryChain`\n- Task `78pz92` (Compromise Step) — uses `COMPROMISE_CHAIN`\n- Task `le05g6` (External Retry) — creates its own chain config\n- Task `8085zl` (Integration) — creates `RetrySession` at parse entry point, passes to all consumers",
+        "implementationNotes": "## Implementation Notes\n- Created `thcs-retry-manager.ts` (~190 lines)\n- Core exports: `createRetrySession`, `executeRetryChain`, `REPAIR_CHAIN`, `COMPROMISE_CHAIN`\n- Helpers: `compareIssueCount`, `isCircuitBreakerTripped`, `getSessionStats`\n- Full type exports: RetryStep, RetrySession, RetryChainConfig, RetryResult, AICallOutcome, RetryCallEntry\n- 22 unit tests passing (thcs-retry-manager.test.ts)\n- Zero TypeScript errors (tsc --noEmit clean)"
+      }
+    }
+  ]
+}

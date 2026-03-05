@@ -1,0 +1,303 @@
+{
+  "taskId": "ygx4vv",
+  "currentVersion": 5,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "ygx4vv",
+      "version": 1,
+      "timestamp": "2026-03-04T21:25:29.102Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Feedback generation triggered after auto-marking + result save completes",
+              "completed": false
+            },
+            {
+              "text": "Non-blocking — test result available immediately, feedback arrives async",
+              "completed": false
+            },
+            {
+              "text": "Feedback saved to test_results/{resultId}/formativeFeedback in RTDB",
+              "completed": false
+            },
+            {
+              "text": "testResults.service.ts loads formativeFeedback when reading results",
+              "completed": false
+            },
+            {
+              "text": "No new RTDB nodes created — stored as child of existing result",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Integrate feedback generation into auto-marking flow",
+        "description": "After markThcsTest() completes and the result is saved, trigger generateFormativeFeedback() asynchronously. Save the feedback to the result record in RTDB. Ensure it's non-blocking — the test result should be immediately available to the student, with feedback arriving async. Also update testResults.service.ts to load formativeFeedback when reading results.",
+        "status": "todo",
+        "priority": "high",
+        "labels": [
+          "from-spec",
+          "formative-feedback"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Feedback generation triggered after auto-marking + result save completes",
+            "completed": false
+          },
+          {
+            "text": "Non-blocking — test result available immediately, feedback arrives async",
+            "completed": false
+          },
+          {
+            "text": "Feedback saved to test_results/{resultId}/formativeFeedback in RTDB",
+            "completed": false
+          },
+          {
+            "text": "testResults.service.ts loads formativeFeedback when reading results",
+            "completed": false
+          },
+          {
+            "text": "No new RTDB nodes created — stored as child of existing result",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "ygx4vv",
+      "version": 2,
+      "timestamp": "2026-03-04T21:30:55.526Z",
+      "changes": [
+        {
+          "field": "implementationPlan",
+          "newValue": "## Implementation Plan: Integrate Feedback Generation into Auto-Marking Flow\n\n### Key Insight: Submission Runs Client-Side\nBoth `THCSTestLayout.tsx` (line 407-460) and `THCSPracticeView.tsx` (line 355-416) call `markThcsTest()` + `saveTestResult()` directly in the client. The feedback generation trigger must be fire-and-forget **after** `saveTestResult` returns the `resultId`.\n\n### Integration Points (3 call sites)\n\n#### 1. `THCSTestLayout.tsx` (live session — line ~460)\nAfter `await saveTestResult(...)` returns `resultId` (line 460), add fire-and-forget:\n```typescript\n// Fire-and-forget: Formative feedback generation (async, non-blocking)\nimport('../../services/formativeFeedback.service').then(({ generateFormativeFeedback }) => {\n    generateFormativeFeedback(gradingResult, testData.sections, {\n        title: testData.metadata.title,\n        gradeLevel: testData.metadata.gradeLevel || 9,\n    }, resultId).catch(err => console.warn('[THCS] Formative feedback failed:', err));\n}).catch(err => console.warn('Failed to load formativeFeedback service:', err));\n```\n**Placement**: After line 460, alongside the existing fire-and-forget blocks (stats update line 497, academic record line 517, writing grading line 539).\n\n**CRITICAL**: `saveTestResult()` currently does NOT return `resultId` in `THCSTestLayout.tsx` — the return value is not captured. Must capture it:\n```typescript\nconst resultId = await saveTestResult(...)\n```\n\n#### 2. `THCSPracticeView.tsx` (homework/self-study — line ~416)\nSame pattern. `resultId` is already captured on line 389. Add fire-and-forget after line 416.\n\n#### 3. `autoSubmitDisconnected.ts` (disconnected auto-submit — line ~354)\n`resultId` already captured. Add same fire-and-forget pattern.\n\n### Service: `formativeFeedback.service.ts` — `generateFormativeFeedback()` wrapper\n\nThe main function signature needs a `resultId` parameter to know where to write:\n```typescript\nexport async function generateFormativeFeedback(\n    gradingResult: THCSGradingResult,\n    sections: THCSSection[],\n    testMetadata: { title: string; gradeLevel: number },\n    resultId: string, // <-- needed to write back\n): Promise<void>\n```\n\n**Write logic** (at end of function):\n```typescript\n// Write feedback to existing result record\nimport { ref, update } from 'firebase/database';\nimport { database } from './firebase';\n\nconst feedbackRef = ref(database, `test_results/${resultId}/formativeFeedback`);\nawait update(ref(database, `test_results/${resultId}`), {\n    formativeFeedback: feedback,\n});\n```\n\n### Reading: testResults.service.ts\n\n**No changes needed** — `getTestResult()` (line 355-375) reads the entire `test_results/{resultId}` record via `get()`, so it automatically includes `formativeFeedback` when it exists. The data is already returned as part of `TestResultRecord`.\n\nHowever, we should **add the optional field to the TypeScript interface**:\n```typescript\n// In TestResultRecord (testResults.service.ts line ~128)\n/** AI-generated formative feedback (async, may arrive after initial save) */\nformativeFeedback?: FormativeFeedback;\n```\n\n### Edge Cases\n- `saveTestResult` fails → feedback gen never triggers (correct: nothing to write to)\n- Feedback gen fails → result still accessible, just no feedback (graceful degradation)\n- Student views result before feedback arrives → UI shows no panel initially (handled by Task 1opvmj: conditional render)\n- Both AI providers fail → deterministic-only feedback still written to RTDB\n- Multiple submissions in same session → each gets its own feedback (tied to resultId, not session)"
+        }
+      ],
+      "snapshot": {
+        "title": "Integrate feedback generation into auto-marking flow",
+        "description": "After markThcsTest() completes and the result is saved, trigger generateFormativeFeedback() asynchronously. Save the feedback to the result record in RTDB. Ensure it's non-blocking — the test result should be immediately available to the student, with feedback arriving async. Also update testResults.service.ts to load formativeFeedback when reading results.",
+        "status": "todo",
+        "priority": "high",
+        "labels": [
+          "from-spec",
+          "formative-feedback"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Feedback generation triggered after auto-marking + result save completes"
+          },
+          {
+            "completed": false,
+            "text": "Non-blocking — test result available immediately, feedback arrives async"
+          },
+          {
+            "completed": false,
+            "text": "Feedback saved to test_results/{resultId}/formativeFeedback in RTDB"
+          },
+          {
+            "completed": false,
+            "text": "testResults.service.ts loads formativeFeedback when reading results"
+          },
+          {
+            "completed": false,
+            "text": "No new RTDB nodes created — stored as child of existing result"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan: Integrate Feedback Generation into Auto-Marking Flow\n\n### Key Insight: Submission Runs Client-Side\nBoth `THCSTestLayout.tsx` (line 407-460) and `THCSPracticeView.tsx` (line 355-416) call `markThcsTest()` + `saveTestResult()` directly in the client. The feedback generation trigger must be fire-and-forget **after** `saveTestResult` returns the `resultId`.\n\n### Integration Points (3 call sites)\n\n#### 1. `THCSTestLayout.tsx` (live session — line ~460)\nAfter `await saveTestResult(...)` returns `resultId` (line 460), add fire-and-forget:\n```typescript\n// Fire-and-forget: Formative feedback generation (async, non-blocking)\nimport('../../services/formativeFeedback.service').then(({ generateFormativeFeedback }) => {\n    generateFormativeFeedback(gradingResult, testData.sections, {\n        title: testData.metadata.title,\n        gradeLevel: testData.metadata.gradeLevel || 9,\n    }, resultId).catch(err => console.warn('[THCS] Formative feedback failed:', err));\n}).catch(err => console.warn('Failed to load formativeFeedback service:', err));\n```\n**Placement**: After line 460, alongside the existing fire-and-forget blocks (stats update line 497, academic record line 517, writing grading line 539).\n\n**CRITICAL**: `saveTestResult()` currently does NOT return `resultId` in `THCSTestLayout.tsx` — the return value is not captured. Must capture it:\n```typescript\nconst resultId = await saveTestResult(...)\n```\n\n#### 2. `THCSPracticeView.tsx` (homework/self-study — line ~416)\nSame pattern. `resultId` is already captured on line 389. Add fire-and-forget after line 416.\n\n#### 3. `autoSubmitDisconnected.ts` (disconnected auto-submit — line ~354)\n`resultId` already captured. Add same fire-and-forget pattern.\n\n### Service: `formativeFeedback.service.ts` — `generateFormativeFeedback()` wrapper\n\nThe main function signature needs a `resultId` parameter to know where to write:\n```typescript\nexport async function generateFormativeFeedback(\n    gradingResult: THCSGradingResult,\n    sections: THCSSection[],\n    testMetadata: { title: string; gradeLevel: number },\n    resultId: string, // <-- needed to write back\n): Promise<void>\n```\n\n**Write logic** (at end of function):\n```typescript\n// Write feedback to existing result record\nimport { ref, update } from 'firebase/database';\nimport { database } from './firebase';\n\nconst feedbackRef = ref(database, `test_results/${resultId}/formativeFeedback`);\nawait update(ref(database, `test_results/${resultId}`), {\n    formativeFeedback: feedback,\n});\n```\n\n### Reading: testResults.service.ts\n\n**No changes needed** — `getTestResult()` (line 355-375) reads the entire `test_results/{resultId}` record via `get()`, so it automatically includes `formativeFeedback` when it exists. The data is already returned as part of `TestResultRecord`.\n\nHowever, we should **add the optional field to the TypeScript interface**:\n```typescript\n// In TestResultRecord (testResults.service.ts line ~128)\n/** AI-generated formative feedback (async, may arrive after initial save) */\nformativeFeedback?: FormativeFeedback;\n```\n\n### Edge Cases\n- `saveTestResult` fails → feedback gen never triggers (correct: nothing to write to)\n- Feedback gen fails → result still accessible, just no feedback (graceful degradation)\n- Student views result before feedback arrives → UI shows no panel initially (handled by Task 1opvmj: conditional render)\n- Both AI providers fail → deterministic-only feedback still written to RTDB\n- Multiple submissions in same session → each gets its own feedback (tied to resultId, not session)"
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "ygx4vv",
+      "version": 3,
+      "timestamp": "2026-03-04T21:57:03.926Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        }
+      ],
+      "snapshot": {
+        "title": "Integrate feedback generation into auto-marking flow",
+        "description": "After markThcsTest() completes and the result is saved, trigger generateFormativeFeedback() asynchronously. Save the feedback to the result record in RTDB. Ensure it's non-blocking — the test result should be immediately available to the student, with feedback arriving async. Also update testResults.service.ts to load formativeFeedback when reading results.",
+        "status": "in-progress",
+        "priority": "high",
+        "labels": [
+          "from-spec",
+          "formative-feedback"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Feedback generation triggered after auto-marking + result save completes"
+          },
+          {
+            "completed": false,
+            "text": "Non-blocking — test result available immediately, feedback arrives async"
+          },
+          {
+            "completed": false,
+            "text": "Feedback saved to test_results/{resultId}/formativeFeedback in RTDB"
+          },
+          {
+            "completed": false,
+            "text": "testResults.service.ts loads formativeFeedback when reading results"
+          },
+          {
+            "completed": false,
+            "text": "No new RTDB nodes created — stored as child of existing result"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan: Integrate Feedback Generation into Auto-Marking Flow\n\n### Key Insight: Submission Runs Client-Side\nBoth `THCSTestLayout.tsx` (line 407-460) and `THCSPracticeView.tsx` (line 355-416) call `markThcsTest()` + `saveTestResult()` directly in the client. The feedback generation trigger must be fire-and-forget **after** `saveTestResult` returns the `resultId`.\n\n### Integration Points (3 call sites)\n\n#### 1. `THCSTestLayout.tsx` (live session — line ~460)\nAfter `await saveTestResult(...)` returns `resultId` (line 460), add fire-and-forget:\n```typescript\n// Fire-and-forget: Formative feedback generation (async, non-blocking)\nimport('../../services/formativeFeedback.service').then(({ generateFormativeFeedback }) => {\n    generateFormativeFeedback(gradingResult, testData.sections, {\n        title: testData.metadata.title,\n        gradeLevel: testData.metadata.gradeLevel || 9,\n    }, resultId).catch(err => console.warn('[THCS] Formative feedback failed:', err));\n}).catch(err => console.warn('Failed to load formativeFeedback service:', err));\n```\n**Placement**: After line 460, alongside the existing fire-and-forget blocks (stats update line 497, academic record line 517, writing grading line 539).\n\n**CRITICAL**: `saveTestResult()` currently does NOT return `resultId` in `THCSTestLayout.tsx` — the return value is not captured. Must capture it:\n```typescript\nconst resultId = await saveTestResult(...)\n```\n\n#### 2. `THCSPracticeView.tsx` (homework/self-study — line ~416)\nSame pattern. `resultId` is already captured on line 389. Add fire-and-forget after line 416.\n\n#### 3. `autoSubmitDisconnected.ts` (disconnected auto-submit — line ~354)\n`resultId` already captured. Add same fire-and-forget pattern.\n\n### Service: `formativeFeedback.service.ts` — `generateFormativeFeedback()` wrapper\n\nThe main function signature needs a `resultId` parameter to know where to write:\n```typescript\nexport async function generateFormativeFeedback(\n    gradingResult: THCSGradingResult,\n    sections: THCSSection[],\n    testMetadata: { title: string; gradeLevel: number },\n    resultId: string, // <-- needed to write back\n): Promise<void>\n```\n\n**Write logic** (at end of function):\n```typescript\n// Write feedback to existing result record\nimport { ref, update } from 'firebase/database';\nimport { database } from './firebase';\n\nconst feedbackRef = ref(database, `test_results/${resultId}/formativeFeedback`);\nawait update(ref(database, `test_results/${resultId}`), {\n    formativeFeedback: feedback,\n});\n```\n\n### Reading: testResults.service.ts\n\n**No changes needed** — `getTestResult()` (line 355-375) reads the entire `test_results/{resultId}` record via `get()`, so it automatically includes `formativeFeedback` when it exists. The data is already returned as part of `TestResultRecord`.\n\nHowever, we should **add the optional field to the TypeScript interface**:\n```typescript\n// In TestResultRecord (testResults.service.ts line ~128)\n/** AI-generated formative feedback (async, may arrive after initial save) */\nformativeFeedback?: FormativeFeedback;\n```\n\n### Edge Cases\n- `saveTestResult` fails → feedback gen never triggers (correct: nothing to write to)\n- Feedback gen fails → result still accessible, just no feedback (graceful degradation)\n- Student views result before feedback arrives → UI shows no panel initially (handled by Task 1opvmj: conditional render)\n- Both AI providers fail → deterministic-only feedback still written to RTDB\n- Multiple submissions in same session → each gets its own feedback (tied to resultId, not session)"
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "ygx4vv",
+      "version": 4,
+      "timestamp": "2026-03-04T21:59:33.158Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Feedback generation triggered after auto-marking + result save completes"
+            },
+            {
+              "completed": false,
+              "text": "Non-blocking — test result available immediately, feedback arrives async"
+            },
+            {
+              "completed": false,
+              "text": "Feedback saved to test_results/{resultId}/formativeFeedback in RTDB"
+            },
+            {
+              "completed": false,
+              "text": "testResults.service.ts loads formativeFeedback when reading results"
+            },
+            {
+              "completed": false,
+              "text": "No new RTDB nodes created — stored as child of existing result"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Feedback generation triggered after auto-marking + result save completes"
+            },
+            {
+              "completed": true,
+              "text": "Non-blocking — test result available immediately, feedback arrives async"
+            },
+            {
+              "completed": true,
+              "text": "Feedback saved to test_results/{resultId}/formativeFeedback in RTDB"
+            },
+            {
+              "completed": true,
+              "text": "testResults.service.ts loads formativeFeedback when reading results"
+            },
+            {
+              "completed": true,
+              "text": "No new RTDB nodes created — stored as child of existing result"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Integrated formative feedback generation into the auto-marking flow at 2 call sites:\n\n**1. THCSTestLayout.tsx (live session)**\n- Captured `resultId` from `saveTestResult()` (was previously discarded)\n- Added fire-and-forget `generateFormativeFeedback()` after writing grading block (line ~545)\n- Uses dynamic import to avoid loading the service until needed\n\n**2. THCSPracticeView.tsx (homework/self-study)**\n- `resultId` was already captured on line 389\n- Added fire-and-forget `generateFormativeFeedback()` after writing grading block (line ~467)\n- Same dynamic import pattern\n\n**3. autoSubmitDisconnected.ts**\n- N/A — does not call `markThcsTest` or `saveTestResult`, so no integration needed\n\n**testResults.service.ts**\n- `formativeFeedback?: FormativeFeedback` already on `TestResultRecord` (from task cybx0j)\n- `getTestResult()` reads full record via `get()` — automatically includes formativeFeedback when present\n- No changes needed\n\n**TypeScript compilation verified** — no new errors introduced."
+        }
+      ],
+      "snapshot": {
+        "title": "Integrate feedback generation into auto-marking flow",
+        "description": "After markThcsTest() completes and the result is saved, trigger generateFormativeFeedback() asynchronously. Save the feedback to the result record in RTDB. Ensure it's non-blocking — the test result should be immediately available to the student, with feedback arriving async. Also update testResults.service.ts to load formativeFeedback when reading results.",
+        "status": "in-progress",
+        "priority": "high",
+        "labels": [
+          "from-spec",
+          "formative-feedback"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Feedback generation triggered after auto-marking + result save completes"
+          },
+          {
+            "completed": true,
+            "text": "Non-blocking — test result available immediately, feedback arrives async"
+          },
+          {
+            "completed": true,
+            "text": "Feedback saved to test_results/{resultId}/formativeFeedback in RTDB"
+          },
+          {
+            "completed": true,
+            "text": "testResults.service.ts loads formativeFeedback when reading results"
+          },
+          {
+            "completed": true,
+            "text": "No new RTDB nodes created — stored as child of existing result"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan: Integrate Feedback Generation into Auto-Marking Flow\n\n### Key Insight: Submission Runs Client-Side\nBoth `THCSTestLayout.tsx` (line 407-460) and `THCSPracticeView.tsx` (line 355-416) call `markThcsTest()` + `saveTestResult()` directly in the client. The feedback generation trigger must be fire-and-forget **after** `saveTestResult` returns the `resultId`.\n\n### Integration Points (3 call sites)\n\n#### 1. `THCSTestLayout.tsx` (live session — line ~460)\nAfter `await saveTestResult(...)` returns `resultId` (line 460), add fire-and-forget:\n```typescript\n// Fire-and-forget: Formative feedback generation (async, non-blocking)\nimport('../../services/formativeFeedback.service').then(({ generateFormativeFeedback }) => {\n    generateFormativeFeedback(gradingResult, testData.sections, {\n        title: testData.metadata.title,\n        gradeLevel: testData.metadata.gradeLevel || 9,\n    }, resultId).catch(err => console.warn('[THCS] Formative feedback failed:', err));\n}).catch(err => console.warn('Failed to load formativeFeedback service:', err));\n```\n**Placement**: After line 460, alongside the existing fire-and-forget blocks (stats update line 497, academic record line 517, writing grading line 539).\n\n**CRITICAL**: `saveTestResult()` currently does NOT return `resultId` in `THCSTestLayout.tsx` — the return value is not captured. Must capture it:\n```typescript\nconst resultId = await saveTestResult(...)\n```\n\n#### 2. `THCSPracticeView.tsx` (homework/self-study — line ~416)\nSame pattern. `resultId` is already captured on line 389. Add fire-and-forget after line 416.\n\n#### 3. `autoSubmitDisconnected.ts` (disconnected auto-submit — line ~354)\n`resultId` already captured. Add same fire-and-forget pattern.\n\n### Service: `formativeFeedback.service.ts` — `generateFormativeFeedback()` wrapper\n\nThe main function signature needs a `resultId` parameter to know where to write:\n```typescript\nexport async function generateFormativeFeedback(\n    gradingResult: THCSGradingResult,\n    sections: THCSSection[],\n    testMetadata: { title: string; gradeLevel: number },\n    resultId: string, // <-- needed to write back\n): Promise<void>\n```\n\n**Write logic** (at end of function):\n```typescript\n// Write feedback to existing result record\nimport { ref, update } from 'firebase/database';\nimport { database } from './firebase';\n\nconst feedbackRef = ref(database, `test_results/${resultId}/formativeFeedback`);\nawait update(ref(database, `test_results/${resultId}`), {\n    formativeFeedback: feedback,\n});\n```\n\n### Reading: testResults.service.ts\n\n**No changes needed** — `getTestResult()` (line 355-375) reads the entire `test_results/{resultId}` record via `get()`, so it automatically includes `formativeFeedback` when it exists. The data is already returned as part of `TestResultRecord`.\n\nHowever, we should **add the optional field to the TypeScript interface**:\n```typescript\n// In TestResultRecord (testResults.service.ts line ~128)\n/** AI-generated formative feedback (async, may arrive after initial save) */\nformativeFeedback?: FormativeFeedback;\n```\n\n### Edge Cases\n- `saveTestResult` fails → feedback gen never triggers (correct: nothing to write to)\n- Feedback gen fails → result still accessible, just no feedback (graceful degradation)\n- Student views result before feedback arrives → UI shows no panel initially (handled by Task 1opvmj: conditional render)\n- Both AI providers fail → deterministic-only feedback still written to RTDB\n- Multiple submissions in same session → each gets its own feedback (tied to resultId, not session)",
+        "implementationNotes": "Integrated formative feedback generation into the auto-marking flow at 2 call sites:\n\n**1. THCSTestLayout.tsx (live session)**\n- Captured `resultId` from `saveTestResult()` (was previously discarded)\n- Added fire-and-forget `generateFormativeFeedback()` after writing grading block (line ~545)\n- Uses dynamic import to avoid loading the service until needed\n\n**2. THCSPracticeView.tsx (homework/self-study)**\n- `resultId` was already captured on line 389\n- Added fire-and-forget `generateFormativeFeedback()` after writing grading block (line ~467)\n- Same dynamic import pattern\n\n**3. autoSubmitDisconnected.ts**\n- N/A — does not call `markThcsTest` or `saveTestResult`, so no integration needed\n\n**testResults.service.ts**\n- `formativeFeedback?: FormativeFeedback` already on `TestResultRecord` (from task cybx0j)\n- `getTestResult()` reads full record via `get()` — automatically includes formativeFeedback when present\n- No changes needed\n\n**TypeScript compilation verified** — no new errors introduced."
+      }
+    },
+    {
+      "id": "v5",
+      "taskId": "ygx4vv",
+      "version": 5,
+      "timestamp": "2026-03-04T21:59:45.096Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Integrate feedback generation into auto-marking flow",
+        "description": "After markThcsTest() completes and the result is saved, trigger generateFormativeFeedback() asynchronously. Save the feedback to the result record in RTDB. Ensure it's non-blocking — the test result should be immediately available to the student, with feedback arriving async. Also update testResults.service.ts to load formativeFeedback when reading results.",
+        "status": "done",
+        "priority": "high",
+        "labels": [
+          "from-spec",
+          "formative-feedback"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Feedback generation triggered after auto-marking + result save completes"
+          },
+          {
+            "completed": true,
+            "text": "Non-blocking — test result available immediately, feedback arrives async"
+          },
+          {
+            "completed": true,
+            "text": "Feedback saved to test_results/{resultId}/formativeFeedback in RTDB"
+          },
+          {
+            "completed": true,
+            "text": "testResults.service.ts loads formativeFeedback when reading results"
+          },
+          {
+            "completed": true,
+            "text": "No new RTDB nodes created — stored as child of existing result"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan: Integrate Feedback Generation into Auto-Marking Flow\n\n### Key Insight: Submission Runs Client-Side\nBoth `THCSTestLayout.tsx` (line 407-460) and `THCSPracticeView.tsx` (line 355-416) call `markThcsTest()` + `saveTestResult()` directly in the client. The feedback generation trigger must be fire-and-forget **after** `saveTestResult` returns the `resultId`.\n\n### Integration Points (3 call sites)\n\n#### 1. `THCSTestLayout.tsx` (live session — line ~460)\nAfter `await saveTestResult(...)` returns `resultId` (line 460), add fire-and-forget:\n```typescript\n// Fire-and-forget: Formative feedback generation (async, non-blocking)\nimport('../../services/formativeFeedback.service').then(({ generateFormativeFeedback }) => {\n    generateFormativeFeedback(gradingResult, testData.sections, {\n        title: testData.metadata.title,\n        gradeLevel: testData.metadata.gradeLevel || 9,\n    }, resultId).catch(err => console.warn('[THCS] Formative feedback failed:', err));\n}).catch(err => console.warn('Failed to load formativeFeedback service:', err));\n```\n**Placement**: After line 460, alongside the existing fire-and-forget blocks (stats update line 497, academic record line 517, writing grading line 539).\n\n**CRITICAL**: `saveTestResult()` currently does NOT return `resultId` in `THCSTestLayout.tsx` — the return value is not captured. Must capture it:\n```typescript\nconst resultId = await saveTestResult(...)\n```\n\n#### 2. `THCSPracticeView.tsx` (homework/self-study — line ~416)\nSame pattern. `resultId` is already captured on line 389. Add fire-and-forget after line 416.\n\n#### 3. `autoSubmitDisconnected.ts` (disconnected auto-submit — line ~354)\n`resultId` already captured. Add same fire-and-forget pattern.\n\n### Service: `formativeFeedback.service.ts` — `generateFormativeFeedback()` wrapper\n\nThe main function signature needs a `resultId` parameter to know where to write:\n```typescript\nexport async function generateFormativeFeedback(\n    gradingResult: THCSGradingResult,\n    sections: THCSSection[],\n    testMetadata: { title: string; gradeLevel: number },\n    resultId: string, // <-- needed to write back\n): Promise<void>\n```\n\n**Write logic** (at end of function):\n```typescript\n// Write feedback to existing result record\nimport { ref, update } from 'firebase/database';\nimport { database } from './firebase';\n\nconst feedbackRef = ref(database, `test_results/${resultId}/formativeFeedback`);\nawait update(ref(database, `test_results/${resultId}`), {\n    formativeFeedback: feedback,\n});\n```\n\n### Reading: testResults.service.ts\n\n**No changes needed** — `getTestResult()` (line 355-375) reads the entire `test_results/{resultId}` record via `get()`, so it automatically includes `formativeFeedback` when it exists. The data is already returned as part of `TestResultRecord`.\n\nHowever, we should **add the optional field to the TypeScript interface**:\n```typescript\n// In TestResultRecord (testResults.service.ts line ~128)\n/** AI-generated formative feedback (async, may arrive after initial save) */\nformativeFeedback?: FormativeFeedback;\n```\n\n### Edge Cases\n- `saveTestResult` fails → feedback gen never triggers (correct: nothing to write to)\n- Feedback gen fails → result still accessible, just no feedback (graceful degradation)\n- Student views result before feedback arrives → UI shows no panel initially (handled by Task 1opvmj: conditional render)\n- Both AI providers fail → deterministic-only feedback still written to RTDB\n- Multiple submissions in same session → each gets its own feedback (tied to resultId, not session)",
+        "implementationNotes": "Integrated formative feedback generation into the auto-marking flow at 2 call sites:\n\n**1. THCSTestLayout.tsx (live session)**\n- Captured `resultId` from `saveTestResult()` (was previously discarded)\n- Added fire-and-forget `generateFormativeFeedback()` after writing grading block (line ~545)\n- Uses dynamic import to avoid loading the service until needed\n\n**2. THCSPracticeView.tsx (homework/self-study)**\n- `resultId` was already captured on line 389\n- Added fire-and-forget `generateFormativeFeedback()` after writing grading block (line ~467)\n- Same dynamic import pattern\n\n**3. autoSubmitDisconnected.ts**\n- N/A — does not call `markThcsTest` or `saveTestResult`, so no integration needed\n\n**testResults.service.ts**\n- `formativeFeedback?: FormativeFeedback` already on `TestResultRecord` (from task cybx0j)\n- `getTestResult()` reads full record via `get()` — automatically includes formativeFeedback when present\n- No changes needed\n\n**TypeScript compilation verified** — no new errors introduced."
+      }
+    }
+  ]
+}

@@ -1,0 +1,156 @@
+Extract ALL content from this IELTS Listening test PDF into plain text. Do NOT skip questions. Do NOT invent content.
+
+## OUTPUT FORMAT
+
+Questions 1-10
+
+Complete the form below.
+Write NO MORE THAN TWO WORDS AND/OR A NUMBER for each answer.
+
+LIBRARY MEMBERSHIP APPLICATION
+Name: Sarah 1______
+Address: 27 2______ Road
+Phone: 3______
+Membership type: 4______
+
+---
+
+Questions 11-15
+
+Choose the correct letter, A, B or C.
+
+11. The new library will be located
+A. in the city centre   B. near the university   C. beside the park
+
+12. The main reason for the relocation is
+A. cost savings   B. increased space   C. better access
+
+---
+
+Questions 16-20
+
+Complete the sentences below.
+Write NO MORE THAN ONE WORD AND/OR A NUMBER for each answer.
+
+16. The opening ceremony will take place on ______.
+17. Visitors must register at the ______ desk.
+
+---
+
+Questions 21-25
+
+What change has been made to each area?
+A. It has been enlarged.
+B. It has been replaced.
+C. It has been relocated.
+D. It has been refurbished.
+
+21. entrance hall
+22. main auditorium
+23. car park
+
+---
+
+Questions 26-30
+
+Complete the notes below.
+Write NO MORE THAN TWO WORDS for each answer.
+
+CHILDREN'S ENGINEERING WORKSHOPS
+Age group: 26______ years
+Fee: 27______ per session
+
+---
+
+Questions 31-35
+
+Choose TWO letters, A-E.
+Which TWO activities are available on weekends?
+
+A. Swimming
+B. Tennis
+C. Golf
+D. Yoga
+E. Cycling
+
+---
+
+Questions 36-40
+
+Label the map below.
+Write the correct letter, A-H, next to questions 36-40.
+
+36. Reception ______
+37. Library ______
+38. Car park ______
+
+---
+
+ANSWER KEY
+1. Mitchell  2. Lakeside  3. 0412553967  4. standard
+11. B  12. C  13. A
+16. Saturday  17. information
+21. D  22. A  23. C
+26. 8-12  27. $15/fifteen dollars
+31. B, D
+36. E  37. A  38. G
+
+## RULES
+
+These rules are CRITICAL. The output will be machine-parsed and these exact patterns MUST be followed.
+
+**Section headers**: Every question group MUST start on its own line with exactly `Questions X-Y` (e.g. `Questions 1-10`). This is the primary pattern the parser uses to detect sections. Separate groups with `---`.
+
+**Instructions**: Place the FULL instruction text on the line(s) immediately after the `Questions X-Y` header. The parser detects question types from these keywords:
+- "Complete the notes" → note-completion
+- "Complete the form" → form-completion
+- "Complete the table" → table-completion
+- "Complete the sentences" → sentence-completion
+- "Complete the summary" → summary-completion
+- "Choose the correct letter" → multiple-choice
+- "Choose TWO/THREE letters" → multiple-select
+- "Label the map" → map-labelling
+- "Label the plan" → plan-labelling
+- "Label the diagram" → diagram-labeling
+- "Match" / "which letter" → matching
+- "Answer the questions" → short-answer
+Keep these keywords EXACTLY as they appear in the original.
+
+**Word limits**: ALWAYS put the word limit on its own separate line right after the instruction: `Write NO MORE THAN TWO WORDS AND/OR A NUMBER for each answer.`
+
+**Blanks**: Use 6+ underscores `______` for fill-in blanks. For form/note completion, put the question number IMMEDIATELY before the blank: `1______` or `1 ______`.
+
+**Form/Note completion**: Preserve the visual layout:
+HEADING IN CAPS
+Label: 1______
+Another label: 2______
+
+**Table completion**: Use pipe-separated format:
+| Column A | Column B | Column C |
+| Data | 3______ | Data |
+| 4______ | Data | Data |
+
+**MCQ options**: Put on separate lines starting with `A.`, `B.`, `C.`, `D.` — OR on one line with 3 spaces: `A. opt1   B. opt2   C. opt3`
+
+**Matching options box**: List all options (A-H) BEFORE the numbered questions:
+A. It has been enlarged.
+B. It has been replaced.
+C. It has been relocated.
+
+21. entrance hall
+22. main auditorium
+
+**Numbered questions**: Format as `N. question text` — e.g. `16. The ceremony starts at ______.` The parser matches `^\d+[.)\s]+(.+)` to find questions.
+
+**Answer key**: Each answer on its own line or compact: `1. Victoria  2. 742881`. Use / for alternatives: `22. 15/fifteen percent`. MCQ answers as letter only.
+
+## DO NOT
+- Skip questions or reorder them
+- Merge different question type groups into one section
+- Add markdown formatting (**, ##, •) anywhere
+- Drop or rephrase word limit instructions
+- Change the original question numbering
+- Add "Section 1", "Part 1" etc. — use only `Questions X-Y`
+- Add explanations, commentary, or annotations
+- Truncate form/table/note structures
+- Use dots (......) instead of underscores (______) for blanks

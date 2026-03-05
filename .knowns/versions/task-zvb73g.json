@@ -1,0 +1,289 @@
+{
+  "taskId": "zvb73g",
+  "currentVersion": 3,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "zvb73g",
+      "version": 1,
+      "timestamp": "2026-03-04T04:07:07.971Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Remove extractExplicitTypeTag call from validateAIResult (L670)",
+              "completed": false
+            },
+            {
+              "text": "Remove sentence-rewrite→closest-meaning check from validateAIResult (L692-706)",
+              "completed": false
+            },
+            {
+              "text": "Remove word-bank reclassification from validateAIResult (L711-726)",
+              "completed": false
+            },
+            {
+              "text": "Add Pattern 5 to reclassifyByContent: sentence-rewrite + MCQ options → closest-meaning",
+              "completed": false
+            },
+            {
+              "text": "Add Pattern 6 to reclassifyByContent: cloze-mcq + word bank → reading-cloze-wordbank",
+              "completed": false
+            },
+            {
+              "text": "Downgrade converter safety net to console.warn only (no type mutation)",
+              "completed": false
+            },
+            {
+              "text": "Add classifyQuestionTypes() + reclassifyByContent() call after validateAIResult in AI path",
+              "completed": false
+            },
+            {
+              "text": "npx tsc --noEmit passes cleanly",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Consolidate reclassification into classifier module",
+        "description": "FR-4: Eliminate the 5-site classification problem.\n\n1. Strip ALL type logic from `validateAIResult()` — make it a pure structure normalizer (remove `extractExplicitTypeTag` call at L670, sentence-rewrite→closest-meaning check at L692-706, word-bank reclassification at L711-726)\n2. Move the 2 reclassification patterns into `reclassifyByContent()` as Patterns 5-6\n3. Downgrade converter safety net (converter L80-95) to `console.warn()` only — no mutation\n4. Ensure AI path calls `classifyQuestionTypes()` + `reclassifyByContent()` after `validateAIResult()`",
+        "status": "todo",
+        "priority": "high",
+        "labels": [
+          "from-spec",
+          "refactor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Remove extractExplicitTypeTag call from validateAIResult (L670)",
+            "completed": false
+          },
+          {
+            "text": "Remove sentence-rewrite→closest-meaning check from validateAIResult (L692-706)",
+            "completed": false
+          },
+          {
+            "text": "Remove word-bank reclassification from validateAIResult (L711-726)",
+            "completed": false
+          },
+          {
+            "text": "Add Pattern 5 to reclassifyByContent: sentence-rewrite + MCQ options → closest-meaning",
+            "completed": false
+          },
+          {
+            "text": "Add Pattern 6 to reclassifyByContent: cloze-mcq + word bank → reading-cloze-wordbank",
+            "completed": false
+          },
+          {
+            "text": "Downgrade converter safety net to console.warn only (no type mutation)",
+            "completed": false
+          },
+          {
+            "text": "Add classifyQuestionTypes() + reclassifyByContent() call after validateAIResult in AI path",
+            "completed": false
+          },
+          {
+            "text": "npx tsc --noEmit passes cleanly",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "zvb73g",
+      "version": 2,
+      "timestamp": "2026-03-04T10:22:05.175Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        }
+      ],
+      "snapshot": {
+        "title": "Consolidate reclassification into classifier module",
+        "description": "FR-4: Eliminate the 5-site classification problem.\n\n1. Strip ALL type logic from `validateAIResult()` — make it a pure structure normalizer (remove `extractExplicitTypeTag` call at L670, sentence-rewrite→closest-meaning check at L692-706, word-bank reclassification at L711-726)\n2. Move the 2 reclassification patterns into `reclassifyByContent()` as Patterns 5-6\n3. Downgrade converter safety net (converter L80-95) to `console.warn()` only — no mutation\n4. Ensure AI path calls `classifyQuestionTypes()` + `reclassifyByContent()` after `validateAIResult()`",
+        "status": "in-progress",
+        "priority": "high",
+        "labels": [
+          "from-spec",
+          "refactor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Remove extractExplicitTypeTag call from validateAIResult (L670)"
+          },
+          {
+            "completed": false,
+            "text": "Remove sentence-rewrite→closest-meaning check from validateAIResult (L692-706)"
+          },
+          {
+            "completed": false,
+            "text": "Remove word-bank reclassification from validateAIResult (L711-726)"
+          },
+          {
+            "completed": false,
+            "text": "Add Pattern 5 to reclassifyByContent: sentence-rewrite + MCQ options → closest-meaning"
+          },
+          {
+            "completed": false,
+            "text": "Add Pattern 6 to reclassifyByContent: cloze-mcq + word bank → reading-cloze-wordbank"
+          },
+          {
+            "completed": false,
+            "text": "Downgrade converter safety net to console.warn only (no type mutation)"
+          },
+          {
+            "completed": false,
+            "text": "Add classifyQuestionTypes() + reclassifyByContent() call after validateAIResult in AI path"
+          },
+          {
+            "completed": false,
+            "text": "npx tsc --noEmit passes cleanly"
+          }
+        ]
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "zvb73g",
+      "version": 3,
+      "timestamp": "2026-03-04T10:31:24.763Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Remove extractExplicitTypeTag call from validateAIResult (L670)"
+            },
+            {
+              "completed": false,
+              "text": "Remove sentence-rewrite→closest-meaning check from validateAIResult (L692-706)"
+            },
+            {
+              "completed": false,
+              "text": "Remove word-bank reclassification from validateAIResult (L711-726)"
+            },
+            {
+              "completed": false,
+              "text": "Add Pattern 5 to reclassifyByContent: sentence-rewrite + MCQ options → closest-meaning"
+            },
+            {
+              "completed": false,
+              "text": "Add Pattern 6 to reclassifyByContent: cloze-mcq + word bank → reading-cloze-wordbank"
+            },
+            {
+              "completed": false,
+              "text": "Downgrade converter safety net to console.warn only (no type mutation)"
+            },
+            {
+              "completed": false,
+              "text": "Add classifyQuestionTypes() + reclassifyByContent() call after validateAIResult in AI path"
+            },
+            {
+              "completed": false,
+              "text": "npx tsc --noEmit passes cleanly"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": false,
+              "text": "Remove extractExplicitTypeTag call from validateAIResult (L670)"
+            },
+            {
+              "completed": false,
+              "text": "Remove sentence-rewrite→closest-meaning check from validateAIResult (L692-706)"
+            },
+            {
+              "completed": false,
+              "text": "Remove word-bank reclassification from validateAIResult (L711-726)"
+            },
+            {
+              "completed": false,
+              "text": "Add Pattern 5 to reclassifyByContent: sentence-rewrite + MCQ options → closest-meaning"
+            },
+            {
+              "completed": false,
+              "text": "Add Pattern 6 to reclassifyByContent: cloze-mcq + word bank → reading-cloze-wordbank"
+            },
+            {
+              "completed": false,
+              "text": "Downgrade converter safety net to console.warn only (no type mutation)"
+            },
+            {
+              "completed": false,
+              "text": "Add classifyQuestionTypes() + reclassifyByContent() call after validateAIResult in AI path"
+            },
+            {
+              "completed": false,
+              "text": "npx tsc --noEmit passes cleanly"
+            },
+            {
+              "text": "1,2,3,4,5,6,7,8",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Consolidate reclassification into classifier module",
+        "description": "FR-4: Eliminate the 5-site classification problem.\n\n1. Strip ALL type logic from `validateAIResult()` — make it a pure structure normalizer (remove `extractExplicitTypeTag` call at L670, sentence-rewrite→closest-meaning check at L692-706, word-bank reclassification at L711-726)\n2. Move the 2 reclassification patterns into `reclassifyByContent()` as Patterns 5-6\n3. Downgrade converter safety net (converter L80-95) to `console.warn()` only — no mutation\n4. Ensure AI path calls `classifyQuestionTypes()` + `reclassifyByContent()` after `validateAIResult()`",
+        "status": "done",
+        "priority": "high",
+        "labels": [
+          "from-spec",
+          "refactor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Remove extractExplicitTypeTag call from validateAIResult (L670)"
+          },
+          {
+            "completed": false,
+            "text": "Remove sentence-rewrite→closest-meaning check from validateAIResult (L692-706)"
+          },
+          {
+            "completed": false,
+            "text": "Remove word-bank reclassification from validateAIResult (L711-726)"
+          },
+          {
+            "completed": false,
+            "text": "Add Pattern 5 to reclassifyByContent: sentence-rewrite + MCQ options → closest-meaning"
+          },
+          {
+            "completed": false,
+            "text": "Add Pattern 6 to reclassifyByContent: cloze-mcq + word bank → reading-cloze-wordbank"
+          },
+          {
+            "completed": false,
+            "text": "Downgrade converter safety net to console.warn only (no type mutation)"
+          },
+          {
+            "completed": false,
+            "text": "Add classifyQuestionTypes() + reclassifyByContent() call after validateAIResult in AI path"
+          },
+          {
+            "completed": false,
+            "text": "npx tsc --noEmit passes cleanly"
+          },
+          {
+            "text": "1,2,3,4,5,6,7,8",
+            "completed": false
+          }
+        ]
+      }
+    }
+  ]
+}

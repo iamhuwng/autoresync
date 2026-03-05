@@ -1,0 +1,289 @@
+{
+  "taskId": "s8qlkz",
+  "currentVersion": 3,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "s8qlkz",
+      "version": 1,
+      "timestamp": "2026-03-04T04:07:11.913Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Extract splitContentFromAnswerKey sub-function",
+              "completed": false
+            },
+            {
+              "text": "Extract splitIntoSections sub-function",
+              "completed": false
+            },
+            {
+              "text": "Extract parseQuestionsInSection sub-function",
+              "completed": false
+            },
+            {
+              "text": "Extract assemblePassages sub-function (or equivalent)",
+              "completed": false
+            },
+            {
+              "text": "parseThcsTextDirect is ≤80 lines orchestrator",
+              "completed": false
+            },
+            {
+              "text": "All sub-functions are independently callable (no hidden state)",
+              "completed": false
+            },
+            {
+              "text": "Parser output identical to pre-decomposition",
+              "completed": false
+            },
+            {
+              "text": "npx tsc --noEmit passes cleanly",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Decompose parseThcsTextDirect into sub-functions",
+        "description": "FR-3: Break the 460-line `parseThcsTextDirect` (L1213-1676) into focused sub-functions. Extract at minimum:\n- `splitContentFromAnswerKey(lines)` — Stage 2: finds answer key boundary\n- `splitIntoSections(contentLines)` — Stage 4: PART/sub-section detection\n- `parseQuestionsInSection(section, lines)` — Stage 5: MCQ/writing/fill-in question parsing\n- `assemblePassages(sections)` — Stage 6: passage text extraction\n\nThe main `parseThcsTextDirect` function should become a ≤80-line orchestrator. All sub-functions remain in the same file.\n\nDepends on Tasks 1-4 being complete so line counts are stable.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "from-spec",
+          "refactor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Extract splitContentFromAnswerKey sub-function",
+            "completed": false
+          },
+          {
+            "text": "Extract splitIntoSections sub-function",
+            "completed": false
+          },
+          {
+            "text": "Extract parseQuestionsInSection sub-function",
+            "completed": false
+          },
+          {
+            "text": "Extract assemblePassages sub-function (or equivalent)",
+            "completed": false
+          },
+          {
+            "text": "parseThcsTextDirect is ≤80 lines orchestrator",
+            "completed": false
+          },
+          {
+            "text": "All sub-functions are independently callable (no hidden state)",
+            "completed": false
+          },
+          {
+            "text": "Parser output identical to pre-decomposition",
+            "completed": false
+          },
+          {
+            "text": "npx tsc --noEmit passes cleanly",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "s8qlkz",
+      "version": 2,
+      "timestamp": "2026-03-04T10:34:46.371Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        }
+      ],
+      "snapshot": {
+        "title": "Decompose parseThcsTextDirect into sub-functions",
+        "description": "FR-3: Break the 460-line `parseThcsTextDirect` (L1213-1676) into focused sub-functions. Extract at minimum:\n- `splitContentFromAnswerKey(lines)` — Stage 2: finds answer key boundary\n- `splitIntoSections(contentLines)` — Stage 4: PART/sub-section detection\n- `parseQuestionsInSection(section, lines)` — Stage 5: MCQ/writing/fill-in question parsing\n- `assemblePassages(sections)` — Stage 6: passage text extraction\n\nThe main `parseThcsTextDirect` function should become a ≤80-line orchestrator. All sub-functions remain in the same file.\n\nDepends on Tasks 1-4 being complete so line counts are stable.",
+        "status": "in-progress",
+        "priority": "medium",
+        "labels": [
+          "from-spec",
+          "refactor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Extract splitContentFromAnswerKey sub-function"
+          },
+          {
+            "completed": false,
+            "text": "Extract splitIntoSections sub-function"
+          },
+          {
+            "completed": false,
+            "text": "Extract parseQuestionsInSection sub-function"
+          },
+          {
+            "completed": false,
+            "text": "Extract assemblePassages sub-function (or equivalent)"
+          },
+          {
+            "completed": false,
+            "text": "parseThcsTextDirect is ≤80 lines orchestrator"
+          },
+          {
+            "completed": false,
+            "text": "All sub-functions are independently callable (no hidden state)"
+          },
+          {
+            "completed": false,
+            "text": "Parser output identical to pre-decomposition"
+          },
+          {
+            "completed": false,
+            "text": "npx tsc --noEmit passes cleanly"
+          }
+        ]
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "s8qlkz",
+      "version": 3,
+      "timestamp": "2026-03-04T10:38:40.783Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Extract splitContentFromAnswerKey sub-function"
+            },
+            {
+              "completed": false,
+              "text": "Extract splitIntoSections sub-function"
+            },
+            {
+              "completed": false,
+              "text": "Extract parseQuestionsInSection sub-function"
+            },
+            {
+              "completed": false,
+              "text": "Extract assemblePassages sub-function (or equivalent)"
+            },
+            {
+              "completed": false,
+              "text": "parseThcsTextDirect is ≤80 lines orchestrator"
+            },
+            {
+              "completed": false,
+              "text": "All sub-functions are independently callable (no hidden state)"
+            },
+            {
+              "completed": false,
+              "text": "Parser output identical to pre-decomposition"
+            },
+            {
+              "completed": false,
+              "text": "npx tsc --noEmit passes cleanly"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": false,
+              "text": "Extract splitContentFromAnswerKey sub-function"
+            },
+            {
+              "completed": false,
+              "text": "Extract splitIntoSections sub-function"
+            },
+            {
+              "completed": false,
+              "text": "Extract parseQuestionsInSection sub-function"
+            },
+            {
+              "completed": false,
+              "text": "Extract assemblePassages sub-function (or equivalent)"
+            },
+            {
+              "completed": false,
+              "text": "parseThcsTextDirect is ≤80 lines orchestrator"
+            },
+            {
+              "completed": false,
+              "text": "All sub-functions are independently callable (no hidden state)"
+            },
+            {
+              "completed": false,
+              "text": "Parser output identical to pre-decomposition"
+            },
+            {
+              "completed": false,
+              "text": "npx tsc --noEmit passes cleanly"
+            },
+            {
+              "text": "1,2,3,4,5,6,7,8",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Decompose parseThcsTextDirect into sub-functions",
+        "description": "FR-3: Break the 460-line `parseThcsTextDirect` (L1213-1676) into focused sub-functions. Extract at minimum:\n- `splitContentFromAnswerKey(lines)` — Stage 2: finds answer key boundary\n- `splitIntoSections(contentLines)` — Stage 4: PART/sub-section detection\n- `parseQuestionsInSection(section, lines)` — Stage 5: MCQ/writing/fill-in question parsing\n- `assemblePassages(sections)` — Stage 6: passage text extraction\n\nThe main `parseThcsTextDirect` function should become a ≤80-line orchestrator. All sub-functions remain in the same file.\n\nDepends on Tasks 1-4 being complete so line counts are stable.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "from-spec",
+          "refactor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Extract splitContentFromAnswerKey sub-function"
+          },
+          {
+            "completed": false,
+            "text": "Extract splitIntoSections sub-function"
+          },
+          {
+            "completed": false,
+            "text": "Extract parseQuestionsInSection sub-function"
+          },
+          {
+            "completed": false,
+            "text": "Extract assemblePassages sub-function (or equivalent)"
+          },
+          {
+            "completed": false,
+            "text": "parseThcsTextDirect is ≤80 lines orchestrator"
+          },
+          {
+            "completed": false,
+            "text": "All sub-functions are independently callable (no hidden state)"
+          },
+          {
+            "completed": false,
+            "text": "Parser output identical to pre-decomposition"
+          },
+          {
+            "completed": false,
+            "text": "npx tsc --noEmit passes cleanly"
+          },
+          {
+            "text": "1,2,3,4,5,6,7,8",
+            "completed": false
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,434 @@
+{
+  "taskId": "46v9ri",
+  "currentVersion": 4,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "46v9ri",
+      "version": 1,
+      "timestamp": "2026-03-01T06:45:11.509Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "FAB button (💬 SVG icon) in bottom-right of essay panel",
+              "completed": false
+            },
+            {
+              "text": "Speech-bubble dialog opens on click with tail pointing to FAB",
+              "completed": false
+            },
+            {
+              "text": "If no text selected: show tooltip 'Select text first, then use Quick Comments' — dialog does NOT open",
+              "completed": false
+            },
+            {
+              "text": "Presets organized by 4 categories with colored headers: GRA (red), LR (orange), CC (green), TA/TR (blue)",
+              "completed": false
+            },
+            {
+              "text": "Category abbreviation dynamically uses TA (Task 1) or TR (Task 2) based on active task",
+              "completed": false
+            },
+            {
+              "text": "Default presets: GRA (Subject-verb agreement, Wrong tense, Article error, Run-on sentence, Fragment), LR (Word choice, Repetitive vocabulary, Informal register, Spelling error), CC (Needs transition word, Weak paragraph structure, Unclear reference), TA/TR (Off-topic, Doesn't address the prompt, Missing key info)",
+              "completed": false
+            },
+            {
+              "text": "Clicking a preset creates commentMark on selected text + creates GradingComment object with preset text and category",
+              "completed": false
+            },
+            {
+              "text": "'➕ Create new preset' inline input with category dropdown and Add button inside the dialog",
+              "completed": false
+            },
+            {
+              "text": "Default presets (isDefault:true) cannot be deleted; custom presets can be deleted",
+              "completed": false
+            },
+            {
+              "text": "Presets stored in localStorage at kahoot_quick_comment_presets",
+              "completed": false
+            },
+            {
+              "text": "Dialog dismissal (click outside or Escape) preserves the text selection in the editor",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Quick Comments Dialog",
+        "description": "Build QuickCommentsDialog.tsx \\u2014 speech-bubble dialog from FAB button. Categorized preset chips (GRA, LR, CC, TA/TR dynamic based on task). Click preset \\u2192 auto-create comment mark + card on selected text. Custom preset creation inline. localStorage persistence. Selection validation. See @doc/specs/grading-editor-redesign FR-19 through FR-28.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "FAB button (💬 SVG icon) in bottom-right of essay panel",
+            "completed": false
+          },
+          {
+            "text": "Speech-bubble dialog opens on click with tail pointing to FAB",
+            "completed": false
+          },
+          {
+            "text": "If no text selected: show tooltip 'Select text first, then use Quick Comments' — dialog does NOT open",
+            "completed": false
+          },
+          {
+            "text": "Presets organized by 4 categories with colored headers: GRA (red), LR (orange), CC (green), TA/TR (blue)",
+            "completed": false
+          },
+          {
+            "text": "Category abbreviation dynamically uses TA (Task 1) or TR (Task 2) based on active task",
+            "completed": false
+          },
+          {
+            "text": "Default presets: GRA (Subject-verb agreement, Wrong tense, Article error, Run-on sentence, Fragment), LR (Word choice, Repetitive vocabulary, Informal register, Spelling error), CC (Needs transition word, Weak paragraph structure, Unclear reference), TA/TR (Off-topic, Doesn't address the prompt, Missing key info)",
+            "completed": false
+          },
+          {
+            "text": "Clicking a preset creates commentMark on selected text + creates GradingComment object with preset text and category",
+            "completed": false
+          },
+          {
+            "text": "'➕ Create new preset' inline input with category dropdown and Add button inside the dialog",
+            "completed": false
+          },
+          {
+            "text": "Default presets (isDefault:true) cannot be deleted; custom presets can be deleted",
+            "completed": false
+          },
+          {
+            "text": "Presets stored in localStorage at kahoot_quick_comment_presets",
+            "completed": false
+          },
+          {
+            "text": "Dialog dismissal (click outside or Escape) preserves the text selection in the editor",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "46v9ri",
+      "version": 2,
+      "timestamp": "2026-03-01T07:53:26.105Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        },
+        {
+          "field": "assignee",
+          "newValue": "@me"
+        }
+      ],
+      "snapshot": {
+        "title": "Quick Comments Dialog",
+        "description": "Build QuickCommentsDialog.tsx \\u2014 speech-bubble dialog from FAB button. Categorized preset chips (GRA, LR, CC, TA/TR dynamic based on task). Click preset \\u2192 auto-create comment mark + card on selected text. Custom preset creation inline. localStorage persistence. Selection validation. See @doc/specs/grading-editor-redesign FR-19 through FR-28.",
+        "status": "in-progress",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "FAB button (💬 SVG icon) in bottom-right of essay panel"
+          },
+          {
+            "completed": false,
+            "text": "Speech-bubble dialog opens on click with tail pointing to FAB"
+          },
+          {
+            "completed": false,
+            "text": "If no text selected: show tooltip 'Select text first, then use Quick Comments' — dialog does NOT open"
+          },
+          {
+            "completed": false,
+            "text": "Presets organized by 4 categories with colored headers: GRA (red), LR (orange), CC (green), TA/TR (blue)"
+          },
+          {
+            "completed": false,
+            "text": "Category abbreviation dynamically uses TA (Task 1) or TR (Task 2) based on active task"
+          },
+          {
+            "completed": false,
+            "text": "Default presets: GRA (Subject-verb agreement, Wrong tense, Article error, Run-on sentence, Fragment), LR (Word choice, Repetitive vocabulary, Informal register, Spelling error), CC (Needs transition word, Weak paragraph structure, Unclear reference), TA/TR (Off-topic, Doesn't address the prompt, Missing key info)"
+          },
+          {
+            "completed": false,
+            "text": "Clicking a preset creates commentMark on selected text + creates GradingComment object with preset text and category"
+          },
+          {
+            "completed": false,
+            "text": "'➕ Create new preset' inline input with category dropdown and Add button inside the dialog"
+          },
+          {
+            "completed": false,
+            "text": "Default presets (isDefault:true) cannot be deleted; custom presets can be deleted"
+          },
+          {
+            "completed": false,
+            "text": "Presets stored in localStorage at kahoot_quick_comment_presets"
+          },
+          {
+            "completed": false,
+            "text": "Dialog dismissal (click outside or Escape) preserves the text selection in the editor"
+          }
+        ]
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "46v9ri",
+      "version": 3,
+      "timestamp": "2026-03-01T07:56:19.359Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "FAB button (💬 SVG icon) in bottom-right of essay panel"
+            },
+            {
+              "completed": false,
+              "text": "Speech-bubble dialog opens on click with tail pointing to FAB"
+            },
+            {
+              "completed": false,
+              "text": "If no text selected: show tooltip 'Select text first, then use Quick Comments' — dialog does NOT open"
+            },
+            {
+              "completed": false,
+              "text": "Presets organized by 4 categories with colored headers: GRA (red), LR (orange), CC (green), TA/TR (blue)"
+            },
+            {
+              "completed": false,
+              "text": "Category abbreviation dynamically uses TA (Task 1) or TR (Task 2) based on active task"
+            },
+            {
+              "completed": false,
+              "text": "Default presets: GRA (Subject-verb agreement, Wrong tense, Article error, Run-on sentence, Fragment), LR (Word choice, Repetitive vocabulary, Informal register, Spelling error), CC (Needs transition word, Weak paragraph structure, Unclear reference), TA/TR (Off-topic, Doesn't address the prompt, Missing key info)"
+            },
+            {
+              "completed": false,
+              "text": "Clicking a preset creates commentMark on selected text + creates GradingComment object with preset text and category"
+            },
+            {
+              "completed": false,
+              "text": "'➕ Create new preset' inline input with category dropdown and Add button inside the dialog"
+            },
+            {
+              "completed": false,
+              "text": "Default presets (isDefault:true) cannot be deleted; custom presets can be deleted"
+            },
+            {
+              "completed": false,
+              "text": "Presets stored in localStorage at kahoot_quick_comment_presets"
+            },
+            {
+              "completed": false,
+              "text": "Dialog dismissal (click outside or Escape) preserves the text selection in the editor"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "FAB button (💬 SVG icon) in bottom-right of essay panel"
+            },
+            {
+              "completed": true,
+              "text": "Speech-bubble dialog opens on click with tail pointing to FAB"
+            },
+            {
+              "completed": true,
+              "text": "If no text selected: show tooltip 'Select text first, then use Quick Comments' — dialog does NOT open"
+            },
+            {
+              "completed": true,
+              "text": "Presets organized by 4 categories with colored headers: GRA (red), LR (orange), CC (green), TA/TR (blue)"
+            },
+            {
+              "completed": true,
+              "text": "Category abbreviation dynamically uses TA (Task 1) or TR (Task 2) based on active task"
+            },
+            {
+              "completed": true,
+              "text": "Default presets: GRA (Subject-verb agreement, Wrong tense, Article error, Run-on sentence, Fragment), LR (Word choice, Repetitive vocabulary, Informal register, Spelling error), CC (Needs transition word, Weak paragraph structure, Unclear reference), TA/TR (Off-topic, Doesn't address the prompt, Missing key info)"
+            },
+            {
+              "completed": true,
+              "text": "Clicking a preset creates commentMark on selected text + creates GradingComment object with preset text and category"
+            },
+            {
+              "completed": true,
+              "text": "'➕ Create new preset' inline input with category dropdown and Add button inside the dialog"
+            },
+            {
+              "completed": true,
+              "text": "Default presets (isDefault:true) cannot be deleted; custom presets can be deleted"
+            },
+            {
+              "completed": true,
+              "text": "Presets stored in localStorage at kahoot_quick_comment_presets"
+            },
+            {
+              "completed": true,
+              "text": "Dialog dismissal (click outside or Escape) preserves the text selection in the editor"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "## Implementation Log\n\n### QuickCommentsDialog.tsx (330 lines)\n- FAB button with gradient (blue→indigo), SVG chat bubble icon\n- Tooltip on click without selection: 'Select text first, then use Quick Comments' (auto-dismiss 2.5s)\n- Speech-bubble dialog with CSS tail pointing to FAB\n- 15 default presets across 4 categories: GRA(5), LR(4), CC(3), TA(3)\n- Dynamic TA→TR swap for Task 2\n- Preset chips with click handler → calls onSelectPreset\n- Custom preset deletion (✕ on non-default chips)\n- '➕ Create new preset' inline: input + category dropdown + Add button\n- localStorage persistence at kahoot_quick_comment_presets (stores only custom presets)\n- Click-outside + Escape dismissal\n- Grouped display ordered: TA/TR → CC → LR → GRA\n\n### QuickCommentsDialog.css\n- FAB: 44px circle, gradient, scale hover/active\n- Tooltip: dark background, tail arrow, fade-in animation\n- Dialog: 320px wide, 12px radius, slide-up animation, speech-bubble tail\n- Category groups with colored left border + dot\n- Chips: rounded pill shape with hover state, ✕ on custom\n- Add row: input + select + button inline\n\n### Build: Zero new TS errors (fixed one ! assertion)\""
+        }
+      ],
+      "snapshot": {
+        "title": "Quick Comments Dialog",
+        "description": "Build QuickCommentsDialog.tsx \\u2014 speech-bubble dialog from FAB button. Categorized preset chips (GRA, LR, CC, TA/TR dynamic based on task). Click preset \\u2192 auto-create comment mark + card on selected text. Custom preset creation inline. localStorage persistence. Selection validation. See @doc/specs/grading-editor-redesign FR-19 through FR-28.",
+        "status": "in-progress",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "FAB button (💬 SVG icon) in bottom-right of essay panel"
+          },
+          {
+            "completed": true,
+            "text": "Speech-bubble dialog opens on click with tail pointing to FAB"
+          },
+          {
+            "completed": true,
+            "text": "If no text selected: show tooltip 'Select text first, then use Quick Comments' — dialog does NOT open"
+          },
+          {
+            "completed": true,
+            "text": "Presets organized by 4 categories with colored headers: GRA (red), LR (orange), CC (green), TA/TR (blue)"
+          },
+          {
+            "completed": true,
+            "text": "Category abbreviation dynamically uses TA (Task 1) or TR (Task 2) based on active task"
+          },
+          {
+            "completed": true,
+            "text": "Default presets: GRA (Subject-verb agreement, Wrong tense, Article error, Run-on sentence, Fragment), LR (Word choice, Repetitive vocabulary, Informal register, Spelling error), CC (Needs transition word, Weak paragraph structure, Unclear reference), TA/TR (Off-topic, Doesn't address the prompt, Missing key info)"
+          },
+          {
+            "completed": true,
+            "text": "Clicking a preset creates commentMark on selected text + creates GradingComment object with preset text and category"
+          },
+          {
+            "completed": true,
+            "text": "'➕ Create new preset' inline input with category dropdown and Add button inside the dialog"
+          },
+          {
+            "completed": true,
+            "text": "Default presets (isDefault:true) cannot be deleted; custom presets can be deleted"
+          },
+          {
+            "completed": true,
+            "text": "Presets stored in localStorage at kahoot_quick_comment_presets"
+          },
+          {
+            "completed": true,
+            "text": "Dialog dismissal (click outside or Escape) preserves the text selection in the editor"
+          }
+        ],
+        "implementationNotes": "## Implementation Log\n\n### QuickCommentsDialog.tsx (330 lines)\n- FAB button with gradient (blue→indigo), SVG chat bubble icon\n- Tooltip on click without selection: 'Select text first, then use Quick Comments' (auto-dismiss 2.5s)\n- Speech-bubble dialog with CSS tail pointing to FAB\n- 15 default presets across 4 categories: GRA(5), LR(4), CC(3), TA(3)\n- Dynamic TA→TR swap for Task 2\n- Preset chips with click handler → calls onSelectPreset\n- Custom preset deletion (✕ on non-default chips)\n- '➕ Create new preset' inline: input + category dropdown + Add button\n- localStorage persistence at kahoot_quick_comment_presets (stores only custom presets)\n- Click-outside + Escape dismissal\n- Grouped display ordered: TA/TR → CC → LR → GRA\n\n### QuickCommentsDialog.css\n- FAB: 44px circle, gradient, scale hover/active\n- Tooltip: dark background, tail arrow, fade-in animation\n- Dialog: 320px wide, 12px radius, slide-up animation, speech-bubble tail\n- Category groups with colored left border + dot\n- Chips: rounded pill shape with hover state, ✕ on custom\n- Add row: input + select + button inline\n\n### Build: Zero new TS errors (fixed one ! assertion)\""
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "46v9ri",
+      "version": 4,
+      "timestamp": "2026-03-01T07:56:25.736Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Quick Comments Dialog",
+        "description": "Build QuickCommentsDialog.tsx \\u2014 speech-bubble dialog from FAB button. Categorized preset chips (GRA, LR, CC, TA/TR dynamic based on task). Click preset \\u2192 auto-create comment mark + card on selected text. Custom preset creation inline. localStorage persistence. Selection validation. See @doc/specs/grading-editor-redesign FR-19 through FR-28.",
+        "status": "done",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "FAB button (💬 SVG icon) in bottom-right of essay panel"
+          },
+          {
+            "completed": true,
+            "text": "Speech-bubble dialog opens on click with tail pointing to FAB"
+          },
+          {
+            "completed": true,
+            "text": "If no text selected: show tooltip 'Select text first, then use Quick Comments' — dialog does NOT open"
+          },
+          {
+            "completed": true,
+            "text": "Presets organized by 4 categories with colored headers: GRA (red), LR (orange), CC (green), TA/TR (blue)"
+          },
+          {
+            "completed": true,
+            "text": "Category abbreviation dynamically uses TA (Task 1) or TR (Task 2) based on active task"
+          },
+          {
+            "completed": true,
+            "text": "Default presets: GRA (Subject-verb agreement, Wrong tense, Article error, Run-on sentence, Fragment), LR (Word choice, Repetitive vocabulary, Informal register, Spelling error), CC (Needs transition word, Weak paragraph structure, Unclear reference), TA/TR (Off-topic, Doesn't address the prompt, Missing key info)"
+          },
+          {
+            "completed": true,
+            "text": "Clicking a preset creates commentMark on selected text + creates GradingComment object with preset text and category"
+          },
+          {
+            "completed": true,
+            "text": "'➕ Create new preset' inline input with category dropdown and Add button inside the dialog"
+          },
+          {
+            "completed": true,
+            "text": "Default presets (isDefault:true) cannot be deleted; custom presets can be deleted"
+          },
+          {
+            "completed": true,
+            "text": "Presets stored in localStorage at kahoot_quick_comment_presets"
+          },
+          {
+            "completed": true,
+            "text": "Dialog dismissal (click outside or Escape) preserves the text selection in the editor"
+          }
+        ],
+        "implementationNotes": "## Implementation Log\n\n### QuickCommentsDialog.tsx (330 lines)\n- FAB button with gradient (blue→indigo), SVG chat bubble icon\n- Tooltip on click without selection: 'Select text first, then use Quick Comments' (auto-dismiss 2.5s)\n- Speech-bubble dialog with CSS tail pointing to FAB\n- 15 default presets across 4 categories: GRA(5), LR(4), CC(3), TA(3)\n- Dynamic TA→TR swap for Task 2\n- Preset chips with click handler → calls onSelectPreset\n- Custom preset deletion (✕ on non-default chips)\n- '➕ Create new preset' inline: input + category dropdown + Add button\n- localStorage persistence at kahoot_quick_comment_presets (stores only custom presets)\n- Click-outside + Escape dismissal\n- Grouped display ordered: TA/TR → CC → LR → GRA\n\n### QuickCommentsDialog.css\n- FAB: 44px circle, gradient, scale hover/active\n- Tooltip: dark background, tail arrow, fade-in animation\n- Dialog: 320px wide, 12px radius, slide-up animation, speech-bubble tail\n- Category groups with colored left border + dot\n- Chips: rounded pill shape with hover state, ✕ on custom\n- Add row: input + select + button inline\n\n### Build: Zero new TS errors (fixed one ! assertion)\""
+      }
+    }
+  ]
+}

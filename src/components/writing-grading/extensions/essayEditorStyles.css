@@ -1,0 +1,116 @@
+/**
+ * Essay Editor Styles
+ *
+ * CSS for custom TipTap marks used in the grading essay editor.
+ * Imported by EssayEditor.tsx (Task t6evqo).
+ *
+ * @see specs/grading-editor-redesign
+ * @module extensions/essayEditorStyles
+ */
+
+/* ═══════════════════════════════════════════════════════════════
+   COMMENT MARK
+   Category-colored background + dotted bottom border.
+   Base styles — dynamic colors are set via inline style in commentMark.ts.
+   ═══════════════════════════════════════════════════════════════ */
+
+.comment-mark {
+    cursor: pointer;
+    transition: background-color 0.15s ease, opacity 0.15s ease;
+    border-radius: 2px;
+    position: relative;
+}
+
+/* Hover state — slightly stronger background */
+.comment-mark:hover {
+    filter: brightness(0.95);
+}
+
+/* Focused state (set via JS when comment card is focused) */
+.comment-mark.comment-focused {
+    filter: brightness(0.88);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CORRECTION MARK
+   Original text: strikethrough + gray.
+   Correction text: rendered via ::after pseudo-element from data-correction attr.
+   Result: ~~original~~ → correction
+   ═══════════════════════════════════════════════════════════════ */
+
+.correction-mark {
+    cursor: default;
+    position: relative;
+    /* text-decoration and color are set via inline style in correctionMark.ts */
+}
+
+/* The arrow + correction text, rendered inline after the struck-through original */
+.correction-mark::after {
+    content: " → " attr(data-correction);
+    text-decoration: none;
+    color: #10b981;
+    font-size: inherit;
+    font-style: normal;
+    font-weight: 500;
+    letter-spacing: normal;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   COMMENT GUTTER DOTS
+   Small colored SVG circles in the left margin for lines with comments.
+   Rendered by EssayEditor component, not by TipTap marks.
+   ═══════════════════════════════════════════════════════════════ */
+
+.essay-editor-gutter {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 24px;
+    pointer-events: auto;
+    z-index: 1;
+}
+
+.gutter-dot {
+    position: absolute;
+    left: 6px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    opacity: 0.8;
+}
+
+.gutter-dot:hover {
+    transform: scale(1.3);
+    opacity: 1;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   HIGHLIGHT OVERRIDES
+   TipTap's built-in Highlight extension uses <mark> tag.
+   We add transition and cursor for interactivity.
+   ═══════════════════════════════════════════════════════════════ */
+
+.ProseMirror mark {
+    cursor: pointer;
+    transition: background-color 0.15s ease, opacity 0.15s ease;
+    border-radius: 2px;
+    padding: 1px 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MARKS-ONLY MODE VISUAL INDICATOR
+   Subtle indicator that the editor is in annotation-only mode.
+   ═══════════════════════════════════════════════════════════════ */
+
+.ProseMirror.marks-only-mode {
+    caret-color: transparent;
+}
+
+/* Selection styling for marks-only mode — blue highlight for selected range */
+.ProseMirror.marks-only-mode ::selection {
+    background: rgba(59, 130, 246, 0.25);
+}

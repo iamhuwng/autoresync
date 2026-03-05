@@ -1,0 +1,419 @@
+{
+  "taskId": "p5cs6u",
+  "currentVersion": 5,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "p5cs6u",
+      "version": 1,
+      "timestamp": "2026-03-03T03:17:28.833Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Create `generateDiagnosticLog(metadata, sections)` helper that produces the full plain-text log string",
+              "completed": false
+            },
+            {
+              "text": "Handle all question types: MCQ → correctAnswer, verb-form/word-form → blankAnswers, sentence-rewrite → modelAnswers, cloze-wordbank → blankMapping",
+              "completed": false
+            },
+            {
+              "text": "Add collapsed-by-default accordion card with rotating ▶/▾ chevron toggle (pure state, no Mantine)",
+              "completed": false
+            },
+            {
+              "text": "Render log in monospace <pre> block inside the card",
+              "completed": false
+            },
+            {
+              "text": "Add \"📋 Copy Log\" button with clipboard write + fallback + \"✅ Copied!\" feedback (2s timeout)",
+              "completed": false
+            },
+            {
+              "text": "Insert card after Warnings section in left column (~line 220)",
+              "completed": false
+            },
+            {
+              "text": "Include generation timestamp in log output",
+              "completed": false
+            },
+            {
+              "text": "No new Mantine imports, no network calls, no state mutations",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "1. Add state: `diagnosticsOpen` (boolean, default false), `logCopied` (boolean, default false)\n2. Create `generateDiagnosticLog(metadata, sections, errors, warnings)` helper function:\n   - Header with timestamp\n   - Metadata block (title, grade, duration, examType, timerMode)\n   - Sections overview (totals)\n   - Per-section breakdown with question type distribution\n   - Per-question detail with answer resolution (MCQ/fill-in/rewrite/cloze)\n   - Data integrity warnings\n3. Add the accordion card JSX after the Warnings card (~line 220):\n   - Use existing `cardStyle`\n   - Accordion header with ▶/▾ chevron + \"Diagnostic Logs\" label + Copy button\n   - Conditional render of log content (not Mantine Collapse)\n   - Monospace `<pre>` block for the log\n4. Implement copy handler with `navigator.clipboard.writeText` + `document.execCommand` fallback\n5. Verify: no new Mantine imports, no side effects, build passes"
+        }
+      ],
+      "snapshot": {
+        "title": "Add Diagnostic Logs Panel to THCSReviewStep",
+        "description": "Add a collapsible \"Diagnostic Logs\" card to the THCSReviewStep left column (after the Warnings card). The card generates a structured plain-text diagnostic dump of test metadata, section breakdown, and per-question data integrity. Includes a \"📋 Copy Log\" button with visual feedback. Uses pure CSS accordion (no Mantine Collapse), existing cardStyle, and monospace log output. Single-file change: src/components/thcs-editor/THCSReviewStep.tsx",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "from-spec",
+          "thcs",
+          "diagnostics"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Create `generateDiagnosticLog(metadata, sections)` helper that produces the full plain-text log string",
+            "completed": false
+          },
+          {
+            "text": "Handle all question types: MCQ → correctAnswer, verb-form/word-form → blankAnswers, sentence-rewrite → modelAnswers, cloze-wordbank → blankMapping",
+            "completed": false
+          },
+          {
+            "text": "Add collapsed-by-default accordion card with rotating ▶/▾ chevron toggle (pure state, no Mantine)",
+            "completed": false
+          },
+          {
+            "text": "Render log in monospace <pre> block inside the card",
+            "completed": false
+          },
+          {
+            "text": "Add \"📋 Copy Log\" button with clipboard write + fallback + \"✅ Copied!\" feedback (2s timeout)",
+            "completed": false
+          },
+          {
+            "text": "Insert card after Warnings section in left column (~line 220)",
+            "completed": false
+          },
+          {
+            "text": "Include generation timestamp in log output",
+            "completed": false
+          },
+          {
+            "text": "No new Mantine imports, no network calls, no state mutations",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "1. Add state: `diagnosticsOpen` (boolean, default false), `logCopied` (boolean, default false)\n2. Create `generateDiagnosticLog(metadata, sections, errors, warnings)` helper function:\n   - Header with timestamp\n   - Metadata block (title, grade, duration, examType, timerMode)\n   - Sections overview (totals)\n   - Per-section breakdown with question type distribution\n   - Per-question detail with answer resolution (MCQ/fill-in/rewrite/cloze)\n   - Data integrity warnings\n3. Add the accordion card JSX after the Warnings card (~line 220):\n   - Use existing `cardStyle`\n   - Accordion header with ▶/▾ chevron + \"Diagnostic Logs\" label + Copy button\n   - Conditional render of log content (not Mantine Collapse)\n   - Monospace `<pre>` block for the log\n4. Implement copy handler with `navigator.clipboard.writeText` + `document.execCommand` fallback\n5. Verify: no new Mantine imports, no side effects, build passes"
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "p5cs6u",
+      "version": 2,
+      "timestamp": "2026-03-03T03:17:51.901Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        },
+        {
+          "field": "assignee",
+          "newValue": "@me"
+        }
+      ],
+      "snapshot": {
+        "title": "Add Diagnostic Logs Panel to THCSReviewStep",
+        "description": "Add a collapsible \"Diagnostic Logs\" card to the THCSReviewStep left column (after the Warnings card). The card generates a structured plain-text diagnostic dump of test metadata, section breakdown, and per-question data integrity. Includes a \"📋 Copy Log\" button with visual feedback. Uses pure CSS accordion (no Mantine Collapse), existing cardStyle, and monospace log output. Single-file change: src/components/thcs-editor/THCSReviewStep.tsx",
+        "status": "in-progress",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "from-spec",
+          "thcs",
+          "diagnostics"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Create `generateDiagnosticLog(metadata, sections)` helper that produces the full plain-text log string"
+          },
+          {
+            "completed": false,
+            "text": "Handle all question types: MCQ → correctAnswer, verb-form/word-form → blankAnswers, sentence-rewrite → modelAnswers, cloze-wordbank → blankMapping"
+          },
+          {
+            "completed": false,
+            "text": "Add collapsed-by-default accordion card with rotating ▶/▾ chevron toggle (pure state, no Mantine)"
+          },
+          {
+            "completed": false,
+            "text": "Render log in monospace <pre> block inside the card"
+          },
+          {
+            "completed": false,
+            "text": "Add \"📋 Copy Log\" button with clipboard write + fallback + \"✅ Copied!\" feedback (2s timeout)"
+          },
+          {
+            "completed": false,
+            "text": "Insert card after Warnings section in left column (~line 220)"
+          },
+          {
+            "completed": false,
+            "text": "Include generation timestamp in log output"
+          },
+          {
+            "completed": false,
+            "text": "No new Mantine imports, no network calls, no state mutations"
+          }
+        ],
+        "implementationPlan": "1. Add state: `diagnosticsOpen` (boolean, default false), `logCopied` (boolean, default false)\n2. Create `generateDiagnosticLog(metadata, sections, errors, warnings)` helper function:\n   - Header with timestamp\n   - Metadata block (title, grade, duration, examType, timerMode)\n   - Sections overview (totals)\n   - Per-section breakdown with question type distribution\n   - Per-question detail with answer resolution (MCQ/fill-in/rewrite/cloze)\n   - Data integrity warnings\n3. Add the accordion card JSX after the Warnings card (~line 220):\n   - Use existing `cardStyle`\n   - Accordion header with ▶/▾ chevron + \"Diagnostic Logs\" label + Copy button\n   - Conditional render of log content (not Mantine Collapse)\n   - Monospace `<pre>` block for the log\n4. Implement copy handler with `navigator.clipboard.writeText` + `document.execCommand` fallback\n5. Verify: no new Mantine imports, no side effects, build passes"
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "p5cs6u",
+      "version": 3,
+      "timestamp": "2026-03-03T03:20:23.407Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Create `generateDiagnosticLog(metadata, sections)` helper that produces the full plain-text log string"
+            },
+            {
+              "completed": false,
+              "text": "Handle all question types: MCQ → correctAnswer, verb-form/word-form → blankAnswers, sentence-rewrite → modelAnswers, cloze-wordbank → blankMapping"
+            },
+            {
+              "completed": false,
+              "text": "Add collapsed-by-default accordion card with rotating ▶/▾ chevron toggle (pure state, no Mantine)"
+            },
+            {
+              "completed": false,
+              "text": "Render log in monospace <pre> block inside the card"
+            },
+            {
+              "completed": false,
+              "text": "Add \"📋 Copy Log\" button with clipboard write + fallback + \"✅ Copied!\" feedback (2s timeout)"
+            },
+            {
+              "completed": false,
+              "text": "Insert card after Warnings section in left column (~line 220)"
+            },
+            {
+              "completed": false,
+              "text": "Include generation timestamp in log output"
+            },
+            {
+              "completed": false,
+              "text": "No new Mantine imports, no network calls, no state mutations"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Create `generateDiagnosticLog(metadata, sections)` helper that produces the full plain-text log string"
+            },
+            {
+              "completed": true,
+              "text": "Handle all question types: MCQ → correctAnswer, verb-form/word-form → blankAnswers, sentence-rewrite → modelAnswers, cloze-wordbank → blankMapping"
+            },
+            {
+              "completed": true,
+              "text": "Add collapsed-by-default accordion card with rotating ▶/▾ chevron toggle (pure state, no Mantine)"
+            },
+            {
+              "completed": true,
+              "text": "Render log in monospace <pre> block inside the card"
+            },
+            {
+              "completed": true,
+              "text": "Add \"📋 Copy Log\" button with clipboard write + fallback + \"✅ Copied!\" feedback (2s timeout)"
+            },
+            {
+              "completed": true,
+              "text": "Insert card after Warnings section in left column (~line 220)"
+            },
+            {
+              "completed": true,
+              "text": "Include generation timestamp in log output"
+            },
+            {
+              "completed": true,
+              "text": "No new Mantine imports, no network calls, no state mutations"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Implementation complete in single edit to THCSReviewStep.tsx:\n- Added `generateDiagnosticLog()` helper (~95 lines) that handles all 5 question type families\n- Added collapsible accordion card with ▶ chevron rotation animation\n- Monospace <pre> block with dark theme (#1e293b bg)\n- Copy button with navigator.clipboard + execCommand fallback\n- No new imports added, no Mantine dependencies\n- TypeScript compiles cleanly (0 errors)"
+        }
+      ],
+      "snapshot": {
+        "title": "Add Diagnostic Logs Panel to THCSReviewStep",
+        "description": "Add a collapsible \"Diagnostic Logs\" card to the THCSReviewStep left column (after the Warnings card). The card generates a structured plain-text diagnostic dump of test metadata, section breakdown, and per-question data integrity. Includes a \"📋 Copy Log\" button with visual feedback. Uses pure CSS accordion (no Mantine Collapse), existing cardStyle, and monospace log output. Single-file change: src/components/thcs-editor/THCSReviewStep.tsx",
+        "status": "in-progress",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "from-spec",
+          "thcs",
+          "diagnostics"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Create `generateDiagnosticLog(metadata, sections)` helper that produces the full plain-text log string"
+          },
+          {
+            "completed": true,
+            "text": "Handle all question types: MCQ → correctAnswer, verb-form/word-form → blankAnswers, sentence-rewrite → modelAnswers, cloze-wordbank → blankMapping"
+          },
+          {
+            "completed": true,
+            "text": "Add collapsed-by-default accordion card with rotating ▶/▾ chevron toggle (pure state, no Mantine)"
+          },
+          {
+            "completed": true,
+            "text": "Render log in monospace <pre> block inside the card"
+          },
+          {
+            "completed": true,
+            "text": "Add \"📋 Copy Log\" button with clipboard write + fallback + \"✅ Copied!\" feedback (2s timeout)"
+          },
+          {
+            "completed": true,
+            "text": "Insert card after Warnings section in left column (~line 220)"
+          },
+          {
+            "completed": true,
+            "text": "Include generation timestamp in log output"
+          },
+          {
+            "completed": true,
+            "text": "No new Mantine imports, no network calls, no state mutations"
+          }
+        ],
+        "implementationPlan": "1. Add state: `diagnosticsOpen` (boolean, default false), `logCopied` (boolean, default false)\n2. Create `generateDiagnosticLog(metadata, sections, errors, warnings)` helper function:\n   - Header with timestamp\n   - Metadata block (title, grade, duration, examType, timerMode)\n   - Sections overview (totals)\n   - Per-section breakdown with question type distribution\n   - Per-question detail with answer resolution (MCQ/fill-in/rewrite/cloze)\n   - Data integrity warnings\n3. Add the accordion card JSX after the Warnings card (~line 220):\n   - Use existing `cardStyle`\n   - Accordion header with ▶/▾ chevron + \"Diagnostic Logs\" label + Copy button\n   - Conditional render of log content (not Mantine Collapse)\n   - Monospace `<pre>` block for the log\n4. Implement copy handler with `navigator.clipboard.writeText` + `document.execCommand` fallback\n5. Verify: no new Mantine imports, no side effects, build passes",
+        "implementationNotes": "Implementation complete in single edit to THCSReviewStep.tsx:\n- Added `generateDiagnosticLog()` helper (~95 lines) that handles all 5 question type families\n- Added collapsible accordion card with ▶ chevron rotation animation\n- Monospace <pre> block with dark theme (#1e293b bg)\n- Copy button with navigator.clipboard + execCommand fallback\n- No new imports added, no Mantine dependencies\n- TypeScript compiles cleanly (0 errors)"
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "p5cs6u",
+      "version": 4,
+      "timestamp": "2026-03-03T03:20:29.961Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Add Diagnostic Logs Panel to THCSReviewStep",
+        "description": "Add a collapsible \"Diagnostic Logs\" card to the THCSReviewStep left column (after the Warnings card). The card generates a structured plain-text diagnostic dump of test metadata, section breakdown, and per-question data integrity. Includes a \"📋 Copy Log\" button with visual feedback. Uses pure CSS accordion (no Mantine Collapse), existing cardStyle, and monospace log output. Single-file change: src/components/thcs-editor/THCSReviewStep.tsx",
+        "status": "done",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "from-spec",
+          "thcs",
+          "diagnostics"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Create `generateDiagnosticLog(metadata, sections)` helper that produces the full plain-text log string"
+          },
+          {
+            "completed": true,
+            "text": "Handle all question types: MCQ → correctAnswer, verb-form/word-form → blankAnswers, sentence-rewrite → modelAnswers, cloze-wordbank → blankMapping"
+          },
+          {
+            "completed": true,
+            "text": "Add collapsed-by-default accordion card with rotating ▶/▾ chevron toggle (pure state, no Mantine)"
+          },
+          {
+            "completed": true,
+            "text": "Render log in monospace <pre> block inside the card"
+          },
+          {
+            "completed": true,
+            "text": "Add \"📋 Copy Log\" button with clipboard write + fallback + \"✅ Copied!\" feedback (2s timeout)"
+          },
+          {
+            "completed": true,
+            "text": "Insert card after Warnings section in left column (~line 220)"
+          },
+          {
+            "completed": true,
+            "text": "Include generation timestamp in log output"
+          },
+          {
+            "completed": true,
+            "text": "No new Mantine imports, no network calls, no state mutations"
+          }
+        ],
+        "implementationPlan": "1. Add state: `diagnosticsOpen` (boolean, default false), `logCopied` (boolean, default false)\n2. Create `generateDiagnosticLog(metadata, sections, errors, warnings)` helper function:\n   - Header with timestamp\n   - Metadata block (title, grade, duration, examType, timerMode)\n   - Sections overview (totals)\n   - Per-section breakdown with question type distribution\n   - Per-question detail with answer resolution (MCQ/fill-in/rewrite/cloze)\n   - Data integrity warnings\n3. Add the accordion card JSX after the Warnings card (~line 220):\n   - Use existing `cardStyle`\n   - Accordion header with ▶/▾ chevron + \"Diagnostic Logs\" label + Copy button\n   - Conditional render of log content (not Mantine Collapse)\n   - Monospace `<pre>` block for the log\n4. Implement copy handler with `navigator.clipboard.writeText` + `document.execCommand` fallback\n5. Verify: no new Mantine imports, no side effects, build passes",
+        "implementationNotes": "Implementation complete in single edit to THCSReviewStep.tsx:\n- Added `generateDiagnosticLog()` helper (~95 lines) that handles all 5 question type families\n- Added collapsible accordion card with ▶ chevron rotation animation\n- Monospace <pre> block with dark theme (#1e293b bg)\n- Copy button with navigator.clipboard + execCommand fallback\n- No new imports added, no Mantine dependencies\n- TypeScript compiles cleanly (0 errors)"
+      }
+    },
+    {
+      "id": "v5",
+      "taskId": "p5cs6u",
+      "version": 5,
+      "timestamp": "2026-03-03T03:28:36.222Z",
+      "changes": [
+        {
+          "field": "implementationNotes",
+          "oldValue": "Implementation complete in single edit to THCSReviewStep.tsx:\n- Added `generateDiagnosticLog()` helper (~95 lines) that handles all 5 question type families\n- Added collapsible accordion card with ▶ chevron rotation animation\n- Monospace <pre> block with dark theme (#1e293b bg)\n- Copy button with navigator.clipboard + execCommand fallback\n- No new imports added, no Mantine dependencies\n- TypeScript compiles cleanly (0 errors)",
+          "newValue": "Implementation complete in single edit to THCSReviewStep.tsx:\n- Added `generateDiagnosticLog()` helper (~95 lines) that handles all 5 question type families\n- Added collapsible accordion card with ▶ chevron rotation animation\n- Monospace <pre> block with dark theme (#1e293b bg)\n- Copy button with navigator.clipboard + execCommand fallback\n- No new imports added, no Mantine dependencies\n- TypeScript compiles cleanly (0 errors)\n\n\n\nCORRECTION: User clarified the feature belongs in THCSPreviewOverlay (the preview modal opened from Step 2), NOT THCSReviewStep (the review/publish step). Reverted all changes from THCSReviewStep and re-implemented in THCSPreviewOverlay.tsx instead. The diagnostic panel now lives in the preview sidebar, below the Submit button, as a collapsible section with ▶ accordion, monospace log output, and Copy button."
+        }
+      ],
+      "snapshot": {
+        "title": "Add Diagnostic Logs Panel to THCSReviewStep",
+        "description": "Add a collapsible \"Diagnostic Logs\" card to the THCSReviewStep left column (after the Warnings card). The card generates a structured plain-text diagnostic dump of test metadata, section breakdown, and per-question data integrity. Includes a \"📋 Copy Log\" button with visual feedback. Uses pure CSS accordion (no Mantine Collapse), existing cardStyle, and monospace log output. Single-file change: src/components/thcs-editor/THCSReviewStep.tsx",
+        "status": "done",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "from-spec",
+          "thcs",
+          "diagnostics"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Create `generateDiagnosticLog(metadata, sections)` helper that produces the full plain-text log string"
+          },
+          {
+            "completed": true,
+            "text": "Handle all question types: MCQ → correctAnswer, verb-form/word-form → blankAnswers, sentence-rewrite → modelAnswers, cloze-wordbank → blankMapping"
+          },
+          {
+            "completed": true,
+            "text": "Add collapsed-by-default accordion card with rotating ▶/▾ chevron toggle (pure state, no Mantine)"
+          },
+          {
+            "completed": true,
+            "text": "Render log in monospace <pre> block inside the card"
+          },
+          {
+            "completed": true,
+            "text": "Add \"📋 Copy Log\" button with clipboard write + fallback + \"✅ Copied!\" feedback (2s timeout)"
+          },
+          {
+            "completed": true,
+            "text": "Insert card after Warnings section in left column (~line 220)"
+          },
+          {
+            "completed": true,
+            "text": "Include generation timestamp in log output"
+          },
+          {
+            "completed": true,
+            "text": "No new Mantine imports, no network calls, no state mutations"
+          }
+        ],
+        "implementationPlan": "1. Add state: `diagnosticsOpen` (boolean, default false), `logCopied` (boolean, default false)\n2. Create `generateDiagnosticLog(metadata, sections, errors, warnings)` helper function:\n   - Header with timestamp\n   - Metadata block (title, grade, duration, examType, timerMode)\n   - Sections overview (totals)\n   - Per-section breakdown with question type distribution\n   - Per-question detail with answer resolution (MCQ/fill-in/rewrite/cloze)\n   - Data integrity warnings\n3. Add the accordion card JSX after the Warnings card (~line 220):\n   - Use existing `cardStyle`\n   - Accordion header with ▶/▾ chevron + \"Diagnostic Logs\" label + Copy button\n   - Conditional render of log content (not Mantine Collapse)\n   - Monospace `<pre>` block for the log\n4. Implement copy handler with `navigator.clipboard.writeText` + `document.execCommand` fallback\n5. Verify: no new Mantine imports, no side effects, build passes",
+        "implementationNotes": "Implementation complete in single edit to THCSReviewStep.tsx:\n- Added `generateDiagnosticLog()` helper (~95 lines) that handles all 5 question type families\n- Added collapsible accordion card with ▶ chevron rotation animation\n- Monospace <pre> block with dark theme (#1e293b bg)\n- Copy button with navigator.clipboard + execCommand fallback\n- No new imports added, no Mantine dependencies\n- TypeScript compiles cleanly (0 errors)\n\n\n\nCORRECTION: User clarified the feature belongs in THCSPreviewOverlay (the preview modal opened from Step 2), NOT THCSReviewStep (the review/publish step). Reverted all changes from THCSReviewStep and re-implemented in THCSPreviewOverlay.tsx instead. The diagnostic panel now lives in the preview sidebar, below the Submit button, as a collapsible section with ▶ accordion, monospace log output, and Copy button."
+      }
+    }
+  ]
+}

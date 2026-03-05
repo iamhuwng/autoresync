@@ -1,0 +1,156 @@
+{
+  "taskId": "qj9kv1",
+  "currentVersion": 2,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "qj9kv1",
+      "version": 1,
+      "timestamp": "2026-03-01T17:37:49.384Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "handleSaveQuestion writes gradedByUid/gradedByName/gradedAt to RTDB",
+              "completed": false
+            },
+            {
+              "text": "handleSaveQuestion calls updateThcsWritingGrade() for permanent record after RTDB write",
+              "completed": false
+            },
+            {
+              "text": "If permanent write fails, RTDB write is NOT rolled back (log error + show warning)",
+              "completed": false
+            },
+            {
+              "text": "Build succeeds with no new TS errors",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Sub-B: Dual-write — RTDB + permanent on every save",
+        "description": "Add dual-write to InlineWritingGrader's save handler.\n\nWhen teacher clicks Save on a writing question:\n1. Write 1 (existing): RTDB session at `game_sessions/{code}/results/{studentId}/questionResults/{qNum}`\n   - Add: `writingResult/gradedByUid`, `writingResult/gradedByName`, `writingResult/gradedAt`\n2. Write 2 (NEW): Call `updateThcsWritingGrade(sessionCode, studentId, qNum, { score, maxScore, feedback, teacherName, teacherUid })`\n\nBOTH writes happen on every explicit save. No separate auto-save (that's Sub-C). This keeps RTDB and permanent record in sync.",
+        "status": "in-progress",
+        "priority": "high",
+        "labels": [
+          "writing-grading",
+          "service",
+          "teacher"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "handleSaveQuestion writes gradedByUid/gradedByName/gradedAt to RTDB",
+            "completed": false
+          },
+          {
+            "text": "handleSaveQuestion calls updateThcsWritingGrade() for permanent record after RTDB write",
+            "completed": false
+          },
+          {
+            "text": "If permanent write fails, RTDB write is NOT rolled back (log error + show warning)",
+            "completed": false
+          },
+          {
+            "text": "Build succeeds with no new TS errors",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "qj9kv1",
+      "version": 2,
+      "timestamp": "2026-03-01T17:39:13.165Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "handleSaveQuestion writes gradedByUid/gradedByName/gradedAt to RTDB"
+            },
+            {
+              "completed": false,
+              "text": "handleSaveQuestion calls updateThcsWritingGrade() for permanent record after RTDB write"
+            },
+            {
+              "completed": false,
+              "text": "If permanent write fails, RTDB write is NOT rolled back (log error + show warning)"
+            },
+            {
+              "completed": false,
+              "text": "Build succeeds with no new TS errors"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "handleSaveQuestion writes gradedByUid/gradedByName/gradedAt to RTDB"
+            },
+            {
+              "completed": true,
+              "text": "handleSaveQuestion calls updateThcsWritingGrade() for permanent record after RTDB write"
+            },
+            {
+              "completed": true,
+              "text": "If permanent write fails, RTDB write is NOT rolled back (log error + show warning)"
+            },
+            {
+              "completed": true,
+              "text": "Build succeeds with no new TS errors"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "2026-03-02: Implemented. Added import of updateThcsWritingGrade to InlineWritingGrader. After RTDB write succeeds, calls updateThcsWritingGrade(sessionCode, studentId, qNum, {score, maxScore, feedback, teacherName, teacherUid}). Permanent write failures are caught and logged (RTDB not rolled back). Build clean."
+        }
+      ],
+      "snapshot": {
+        "title": "Sub-B: Dual-write — RTDB + permanent on every save",
+        "description": "Add dual-write to InlineWritingGrader's save handler.\n\nWhen teacher clicks Save on a writing question:\n1. Write 1 (existing): RTDB session at `game_sessions/{code}/results/{studentId}/questionResults/{qNum}`\n   - Add: `writingResult/gradedByUid`, `writingResult/gradedByName`, `writingResult/gradedAt`\n2. Write 2 (NEW): Call `updateThcsWritingGrade(sessionCode, studentId, qNum, { score, maxScore, feedback, teacherName, teacherUid })`\n\nBOTH writes happen on every explicit save. No separate auto-save (that's Sub-C). This keeps RTDB and permanent record in sync.",
+        "status": "done",
+        "priority": "high",
+        "labels": [
+          "writing-grading",
+          "service",
+          "teacher"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "handleSaveQuestion writes gradedByUid/gradedByName/gradedAt to RTDB"
+          },
+          {
+            "completed": true,
+            "text": "handleSaveQuestion calls updateThcsWritingGrade() for permanent record after RTDB write"
+          },
+          {
+            "completed": true,
+            "text": "If permanent write fails, RTDB write is NOT rolled back (log error + show warning)"
+          },
+          {
+            "completed": true,
+            "text": "Build succeeds with no new TS errors"
+          }
+        ],
+        "implementationNotes": "2026-03-02: Implemented. Added import of updateThcsWritingGrade to InlineWritingGrader. After RTDB write succeeds, calls updateThcsWritingGrade(sessionCode, studentId, qNum, {score, maxScore, feedback, teacherName, teacherUid}). Permanent write failures are caught and logged (RTDB not rolled back). Build clean."
+      }
+    }
+  ]
+}

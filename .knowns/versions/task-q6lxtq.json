@@ -1,0 +1,470 @@
+{
+  "taskId": "q6lxtq",
+  "currentVersion": 5,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "q6lxtq",
+      "version": 1,
+      "timestamp": "2026-03-04T22:47:20.235Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Always runs on every input (no skip/fast-path logic)",
+              "completed": false
+            },
+            {
+              "text": "Runs on near-raw text (post-preClean, before any regex)",
+              "completed": false
+            },
+            {
+              "text": "Confidence assessment of external AI output included",
+              "completed": false
+            },
+            {
+              "text": "All 6 restructuring tasks implemented (split, prefix, expand, linebreaks, stats, infer)",
+              "completed": false
+            },
+            {
+              "text": "Missing answers inferred with [AI-INFERRED] tags",
+              "completed": false
+            },
+            {
+              "text": "Stats comment [STATS: X questions, Y answers, Z sections] appended",
+              "completed": false
+            },
+            {
+              "text": "Does NOT contain instruction replacement logic (Engine job)",
+              "completed": false
+            },
+            {
+              "text": "Outputs plain text (not JSON)",
+              "completed": false
+            },
+            {
+              "text": "All markers preserved through restructure",
+              "completed": false
+            },
+            {
+              "text": "Order: 2 (depends on T1 kttjez + T2 vu13lx)",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Implement Internal AI Pass 1 (Restructure + Confidence Assessment)",
+        "description": "Static ~20-line prompt for text restructuring AND confidence assessment. **Always runs** on every input. Runs on **near-raw text** (post-preClean only, before any regex/code processing) so the AI can independently assess external AI output quality. Tasks: (1) assess confidence, (2) split merged Qs, (3) add Q prefixes, (4) expand answer keys, (5) insert line breaks + section splitting, (6) produce stats `[STATS:]`, (7) infer missing answers `[AI-INFERRED]`. Does NOT replace instructions (Engine job, D10). Depends on @task-kttjez (pre-clean fix), @task-vu13lx (external prompt).",
+        "status": "todo",
+        "priority": "high",
+        "labels": [
+          "from-spec-v2",
+          "pipeline"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Always runs on every input (no skip/fast-path logic)",
+            "completed": false
+          },
+          {
+            "text": "Runs on near-raw text (post-preClean, before any regex)",
+            "completed": false
+          },
+          {
+            "text": "Confidence assessment of external AI output included",
+            "completed": false
+          },
+          {
+            "text": "All 6 restructuring tasks implemented (split, prefix, expand, linebreaks, stats, infer)",
+            "completed": false
+          },
+          {
+            "text": "Missing answers inferred with [AI-INFERRED] tags",
+            "completed": false
+          },
+          {
+            "text": "Stats comment [STATS: X questions, Y answers, Z sections] appended",
+            "completed": false
+          },
+          {
+            "text": "Does NOT contain instruction replacement logic (Engine job)",
+            "completed": false
+          },
+          {
+            "text": "Outputs plain text (not JSON)",
+            "completed": false
+          },
+          {
+            "text": "All markers preserved through restructure",
+            "completed": false
+          },
+          {
+            "text": "Order: 2 (depends on T1 kttjez + T2 vu13lx)",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "q6lxtq",
+      "version": 2,
+      "timestamp": "2026-03-04T23:05:16.198Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        },
+        {
+          "field": "assignee",
+          "newValue": "@me"
+        }
+      ],
+      "snapshot": {
+        "title": "Implement Internal AI Pass 1 (Restructure + Confidence Assessment)",
+        "description": "Static ~20-line prompt for text restructuring AND confidence assessment. **Always runs** on every input. Runs on **near-raw text** (post-preClean only, before any regex/code processing) so the AI can independently assess external AI output quality. Tasks: (1) assess confidence, (2) split merged Qs, (3) add Q prefixes, (4) expand answer keys, (5) insert line breaks + section splitting, (6) produce stats `[STATS:]`, (7) infer missing answers `[AI-INFERRED]`. Does NOT replace instructions (Engine job, D10). Depends on @task-kttjez (pre-clean fix), @task-vu13lx (external prompt).",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "pipeline"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Always runs on every input (no skip/fast-path logic)"
+          },
+          {
+            "completed": false,
+            "text": "Runs on near-raw text (post-preClean, before any regex)"
+          },
+          {
+            "completed": false,
+            "text": "Confidence assessment of external AI output included"
+          },
+          {
+            "completed": false,
+            "text": "All 6 restructuring tasks implemented (split, prefix, expand, linebreaks, stats, infer)"
+          },
+          {
+            "completed": false,
+            "text": "Missing answers inferred with [AI-INFERRED] tags"
+          },
+          {
+            "completed": false,
+            "text": "Stats comment [STATS: X questions, Y answers, Z sections] appended"
+          },
+          {
+            "completed": false,
+            "text": "Does NOT contain instruction replacement logic (Engine job)"
+          },
+          {
+            "completed": false,
+            "text": "Outputs plain text (not JSON)"
+          },
+          {
+            "completed": false,
+            "text": "All markers preserved through restructure"
+          },
+          {
+            "completed": false,
+            "text": "Order: 2 (depends on T1 kttjez + T2 vu13lx)"
+          }
+        ]
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "q6lxtq",
+      "version": 3,
+      "timestamp": "2026-03-04T23:06:17.094Z",
+      "changes": [
+        {
+          "field": "implementationPlan",
+          "newValue": "## Implementation Plan\n\n### New file\n`src/services/test-creation/thcs-pass1-restructure.ts`\n\n### What Pass 1 IS\nA **static prompt** (~20 lines) sent to the internal AI (Groq llama) that:\n1. Assesses the external AI's output quality/confidence\n2. Normalizes the text structure for the regex engine\n3. Outputs **plain text** (NOT JSON) — the restructured version of the input\n\n### What Pass 1 is NOT\n- NOT a JSON parser (that's the current `callGroqDirect`)\n- NOT an instruction replacer (that's the Engine, task `4f54n5`)\n- NOT a classifier (that's the classifier module)\n\n### Position in pipeline\n```\nTeacher pastes text (external AI output)\n  → preCleanText() (task kttjez)\n  → *** Pass 1 (this task) ***\n  → Code Validation (task 9vafnp)\n  → Pass 2 Repair if needed (task pqr0rq)\n  → Regex Engine parse\n  → Engine Enhancements (task 4f54n5)\n  → Draft Converter\n```\n\n### Architecture\n\n#### The Prompt (static, ~25 lines)\n```\nYou are normalizing a Vietnamese THCS English test document that was extracted by another AI.\nYour job is to RESTRUCTURE the text so a regex parser can process it reliably.\n\nINPUT ASSESSMENT (do this first):\n- Rate the quality of this AI extraction: [CONFIDENCE: N] (0-100)\n- Consider: Are sections properly separated? Do question numbers exist? Are type tags present? Does structure make sense for a Vietnamese English test?\n\nRESTRUCTURING TASKS (apply ALL that are needed):\n1. SPLIT merged questions: If two questions appear on the same line, split them onto separate lines\n2. ADD missing prefixes: Every question should start with \"Question N.\" format\n3. EXPAND compressed answer keys: Convert \"1-5: BACDC\" into \"1. B\n2. A\n3. C\n4. D\n5. C\"\n4. INSERT line breaks: Ensure blank lines between sections, between questions, between options\n5. SPLIT ambiguous sections: If one section header covers two DIFFERENT exercise types (detectable from content patterns like MCQ mixed with fill-in), split into two separate sections with appropriate headers\n6. PRODUCE stats: At the very end, append: [STATS: X questions, Y answers, Z sections]\n7. INFER missing answers: If NO answer key section exists at all, attempt to infer from context and mark each with [AI-INFERRED] (e.g., \"1. B [AI-INFERRED]\")\n\nCRITICAL RULES:\n- Output PLAIN TEXT only (not JSON, not markdown)\n- PRESERVE all markers: **bold**, __underline__, {{braces}}, [TYPE: xxx], [WORD BANK: ...]\n- PRESERVE all Vietnamese diacritics exactly\n- Do NOT replace instruction texts — leave them as-is\n- Do NOT change question text content — only structural formatting\n- Do NOT reorder sections or questions\n- Keep your [CONFIDENCE: N] assessment on the FIRST line of output\n```\n\n#### Module Functions\n\n##### `buildPass1Prompt(nearRawText: string): string`\n- Appends the static prompt + the input text\n- Simple string concatenation (no dynamic fragments — this is a static prompt)\n\n##### `parsePass1Response(response: string): Pass1Result`\n```typescript\ninterface Pass1Result {\n  confidence: number;           // 0-100 from [CONFIDENCE: N]\n  restructuredText: string;     // The cleaned output text\n  stats: {\n    questions: number;\n    answers: number;\n    sections: number;\n  } | null;                     // Parsed from [STATS: ...] if present\n  hasInferredAnswers: boolean;  // true if [AI-INFERRED] tags found\n}\n```\n- Extract `[CONFIDENCE: N]` from first line → `confidence`\n- Extract `[STATS: X questions, Y answers, Z sections]` from last line → `stats`\n- Detect `[AI-INFERRED]` presence → `hasInferredAnswers`\n- Everything between confidence and stats → `restructuredText`\n\n##### `executePass1(nearRawText: string, session: RetrySession): Promise<Pass1Result>`\nMain orchestrator:\n1. Build prompt via `buildPass1Prompt(nearRawText)`\n2. Call AI (Groq llama, temp 0.1) — uses retry manager session for call counting\n3. Parse response via `parsePass1Response()`\n4. If AI fails → return fallback result: `{ confidence: 0, restructuredText: nearRawText, stats: null, hasInferredAnswers: false }`\n5. Never crashes — gracefully degrades\n\n##### AI Call Implementation\n- Uses the same `callGroqDirect` / `callGeminiDirect` pattern from the existing parser\n- BUT with a different prompt and expecting **plain text** response (not JSON)\n- System message: `\"You are a text restructuring assistant. Output plain text only.\"`\n- Temperature: 0.1 (low creativity — we want faithful restructuring)\n- Max tokens: 8192 (same as existing)\n\n### Key Design Decisions\n\n1. **Always runs** — no conditional skip. Even clean text benefits from the confidence assessment.\n2. **Near-raw text** — receives output of `preCleanText()` ONLY. No regex has touched it yet. This ensures the AI assesses the external AI's output independently.\n3. **Plain text output** — the restructured text goes BACK into the pipeline as text, to be processed by the code validator and regex engine.\n4. **Static prompt** — unlike the adaptive prompt builder (task `wei3uc`), Pass 1 uses the SAME prompt every time. No fragment selection needed.\n5. **Graceful degradation** — if the AI call fails entirely, Pass 1 returns the original text unchanged with `confidence: 0`. The pipeline continues with whatever it has.\n\n### Integration point (future — task `8085zl`)\nIn `parseThcsText()`:\n```\nconst cleaned = preCleanText(rawText);\n// NEW: Pass 1 — always runs\nconst pass1 = await executePass1(cleaned, retrySession);\n// Pass result to code validator (task 9vafnp)\n// Use pass1.restructuredText for all subsequent processing\n```\n\n### Files changed\n- `src/services/test-creation/thcs-pass1-restructure.ts` (NEW — ~100 lines)\n\n### Dependencies\n- `thcs-retry-manager.ts` (task `0yg6fx`) — for `RetrySession` type (call counting)\n- Uses existing `callGroqDirect`/`callGeminiDirect` patterns (but adapted for plain text response)\n\n### Consumed by\n- Task `9vafnp` (Code Validation) — receives `Pass1Result.restructuredText` + `confidence`\n- Task `8085zl` (Integration) — calls `executePass1()` in the main pipeline"
+        }
+      ],
+      "snapshot": {
+        "title": "Implement Internal AI Pass 1 (Restructure + Confidence Assessment)",
+        "description": "Static ~20-line prompt for text restructuring AND confidence assessment. **Always runs** on every input. Runs on **near-raw text** (post-preClean only, before any regex/code processing) so the AI can independently assess external AI output quality. Tasks: (1) assess confidence, (2) split merged Qs, (3) add Q prefixes, (4) expand answer keys, (5) insert line breaks + section splitting, (6) produce stats `[STATS:]`, (7) infer missing answers `[AI-INFERRED]`. Does NOT replace instructions (Engine job, D10). Depends on @task-kttjez (pre-clean fix), @task-vu13lx (external prompt).",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "pipeline"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Always runs on every input (no skip/fast-path logic)"
+          },
+          {
+            "completed": false,
+            "text": "Runs on near-raw text (post-preClean, before any regex)"
+          },
+          {
+            "completed": false,
+            "text": "Confidence assessment of external AI output included"
+          },
+          {
+            "completed": false,
+            "text": "All 6 restructuring tasks implemented (split, prefix, expand, linebreaks, stats, infer)"
+          },
+          {
+            "completed": false,
+            "text": "Missing answers inferred with [AI-INFERRED] tags"
+          },
+          {
+            "completed": false,
+            "text": "Stats comment [STATS: X questions, Y answers, Z sections] appended"
+          },
+          {
+            "completed": false,
+            "text": "Does NOT contain instruction replacement logic (Engine job)"
+          },
+          {
+            "completed": false,
+            "text": "Outputs plain text (not JSON)"
+          },
+          {
+            "completed": false,
+            "text": "All markers preserved through restructure"
+          },
+          {
+            "completed": false,
+            "text": "Order: 2 (depends on T1 kttjez + T2 vu13lx)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### New file\n`src/services/test-creation/thcs-pass1-restructure.ts`\n\n### What Pass 1 IS\nA **static prompt** (~20 lines) sent to the internal AI (Groq llama) that:\n1. Assesses the external AI's output quality/confidence\n2. Normalizes the text structure for the regex engine\n3. Outputs **plain text** (NOT JSON) — the restructured version of the input\n\n### What Pass 1 is NOT\n- NOT a JSON parser (that's the current `callGroqDirect`)\n- NOT an instruction replacer (that's the Engine, task `4f54n5`)\n- NOT a classifier (that's the classifier module)\n\n### Position in pipeline\n```\nTeacher pastes text (external AI output)\n  → preCleanText() (task kttjez)\n  → *** Pass 1 (this task) ***\n  → Code Validation (task 9vafnp)\n  → Pass 2 Repair if needed (task pqr0rq)\n  → Regex Engine parse\n  → Engine Enhancements (task 4f54n5)\n  → Draft Converter\n```\n\n### Architecture\n\n#### The Prompt (static, ~25 lines)\n```\nYou are normalizing a Vietnamese THCS English test document that was extracted by another AI.\nYour job is to RESTRUCTURE the text so a regex parser can process it reliably.\n\nINPUT ASSESSMENT (do this first):\n- Rate the quality of this AI extraction: [CONFIDENCE: N] (0-100)\n- Consider: Are sections properly separated? Do question numbers exist? Are type tags present? Does structure make sense for a Vietnamese English test?\n\nRESTRUCTURING TASKS (apply ALL that are needed):\n1. SPLIT merged questions: If two questions appear on the same line, split them onto separate lines\n2. ADD missing prefixes: Every question should start with \"Question N.\" format\n3. EXPAND compressed answer keys: Convert \"1-5: BACDC\" into \"1. B\n2. A\n3. C\n4. D\n5. C\"\n4. INSERT line breaks: Ensure blank lines between sections, between questions, between options\n5. SPLIT ambiguous sections: If one section header covers two DIFFERENT exercise types (detectable from content patterns like MCQ mixed with fill-in), split into two separate sections with appropriate headers\n6. PRODUCE stats: At the very end, append: [STATS: X questions, Y answers, Z sections]\n7. INFER missing answers: If NO answer key section exists at all, attempt to infer from context and mark each with [AI-INFERRED] (e.g., \"1. B [AI-INFERRED]\")\n\nCRITICAL RULES:\n- Output PLAIN TEXT only (not JSON, not markdown)\n- PRESERVE all markers: **bold**, __underline__, {{braces}}, [TYPE: xxx], [WORD BANK: ...]\n- PRESERVE all Vietnamese diacritics exactly\n- Do NOT replace instruction texts — leave them as-is\n- Do NOT change question text content — only structural formatting\n- Do NOT reorder sections or questions\n- Keep your [CONFIDENCE: N] assessment on the FIRST line of output\n```\n\n#### Module Functions\n\n##### `buildPass1Prompt(nearRawText: string): string`\n- Appends the static prompt + the input text\n- Simple string concatenation (no dynamic fragments — this is a static prompt)\n\n##### `parsePass1Response(response: string): Pass1Result`\n```typescript\ninterface Pass1Result {\n  confidence: number;           // 0-100 from [CONFIDENCE: N]\n  restructuredText: string;     // The cleaned output text\n  stats: {\n    questions: number;\n    answers: number;\n    sections: number;\n  } | null;                     // Parsed from [STATS: ...] if present\n  hasInferredAnswers: boolean;  // true if [AI-INFERRED] tags found\n}\n```\n- Extract `[CONFIDENCE: N]` from first line → `confidence`\n- Extract `[STATS: X questions, Y answers, Z sections]` from last line → `stats`\n- Detect `[AI-INFERRED]` presence → `hasInferredAnswers`\n- Everything between confidence and stats → `restructuredText`\n\n##### `executePass1(nearRawText: string, session: RetrySession): Promise<Pass1Result>`\nMain orchestrator:\n1. Build prompt via `buildPass1Prompt(nearRawText)`\n2. Call AI (Groq llama, temp 0.1) — uses retry manager session for call counting\n3. Parse response via `parsePass1Response()`\n4. If AI fails → return fallback result: `{ confidence: 0, restructuredText: nearRawText, stats: null, hasInferredAnswers: false }`\n5. Never crashes — gracefully degrades\n\n##### AI Call Implementation\n- Uses the same `callGroqDirect` / `callGeminiDirect` pattern from the existing parser\n- BUT with a different prompt and expecting **plain text** response (not JSON)\n- System message: `\"You are a text restructuring assistant. Output plain text only.\"`\n- Temperature: 0.1 (low creativity — we want faithful restructuring)\n- Max tokens: 8192 (same as existing)\n\n### Key Design Decisions\n\n1. **Always runs** — no conditional skip. Even clean text benefits from the confidence assessment.\n2. **Near-raw text** — receives output of `preCleanText()` ONLY. No regex has touched it yet. This ensures the AI assesses the external AI's output independently.\n3. **Plain text output** — the restructured text goes BACK into the pipeline as text, to be processed by the code validator and regex engine.\n4. **Static prompt** — unlike the adaptive prompt builder (task `wei3uc`), Pass 1 uses the SAME prompt every time. No fragment selection needed.\n5. **Graceful degradation** — if the AI call fails entirely, Pass 1 returns the original text unchanged with `confidence: 0`. The pipeline continues with whatever it has.\n\n### Integration point (future — task `8085zl`)\nIn `parseThcsText()`:\n```\nconst cleaned = preCleanText(rawText);\n// NEW: Pass 1 — always runs\nconst pass1 = await executePass1(cleaned, retrySession);\n// Pass result to code validator (task 9vafnp)\n// Use pass1.restructuredText for all subsequent processing\n```\n\n### Files changed\n- `src/services/test-creation/thcs-pass1-restructure.ts` (NEW — ~100 lines)\n\n### Dependencies\n- `thcs-retry-manager.ts` (task `0yg6fx`) — for `RetrySession` type (call counting)\n- Uses existing `callGroqDirect`/`callGeminiDirect` patterns (but adapted for plain text response)\n\n### Consumed by\n- Task `9vafnp` (Code Validation) — receives `Pass1Result.restructuredText` + `confidence`\n- Task `8085zl` (Integration) — calls `executePass1()` in the main pipeline"
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "q6lxtq",
+      "version": 4,
+      "timestamp": "2026-03-05T01:08:37.814Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Always runs on every input (no skip/fast-path logic)"
+            },
+            {
+              "completed": false,
+              "text": "Runs on near-raw text (post-preClean, before any regex)"
+            },
+            {
+              "completed": false,
+              "text": "Confidence assessment of external AI output included"
+            },
+            {
+              "completed": false,
+              "text": "All 6 restructuring tasks implemented (split, prefix, expand, linebreaks, stats, infer)"
+            },
+            {
+              "completed": false,
+              "text": "Missing answers inferred with [AI-INFERRED] tags"
+            },
+            {
+              "completed": false,
+              "text": "Stats comment [STATS: X questions, Y answers, Z sections] appended"
+            },
+            {
+              "completed": false,
+              "text": "Does NOT contain instruction replacement logic (Engine job)"
+            },
+            {
+              "completed": false,
+              "text": "Outputs plain text (not JSON)"
+            },
+            {
+              "completed": false,
+              "text": "All markers preserved through restructure"
+            },
+            {
+              "completed": false,
+              "text": "Order: 2 (depends on T1 kttjez + T2 vu13lx)"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Always runs on every input (no skip/fast-path logic)"
+            },
+            {
+              "completed": true,
+              "text": "Runs on near-raw text (post-preClean, before any regex)"
+            },
+            {
+              "completed": true,
+              "text": "Confidence assessment of external AI output included"
+            },
+            {
+              "completed": true,
+              "text": "All 6 restructuring tasks implemented (split, prefix, expand, linebreaks, stats, infer)"
+            },
+            {
+              "completed": true,
+              "text": "Missing answers inferred with [AI-INFERRED] tags"
+            },
+            {
+              "completed": true,
+              "text": "Stats comment [STATS: X questions, Y answers, Z sections] appended"
+            },
+            {
+              "completed": true,
+              "text": "Does NOT contain instruction replacement logic (Engine job)"
+            },
+            {
+              "completed": true,
+              "text": "Outputs plain text (not JSON)"
+            },
+            {
+              "completed": true,
+              "text": "All markers preserved through restructure"
+            },
+            {
+              "completed": true,
+              "text": "Order: 2 (depends on T1 kttjez + T2 vu13lx)"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "## Implementation Notes\n- Created `thcs-pass1-restructure.ts` (~155 lines)\n- Exports: `buildPass1Prompt`, `getPass1SystemMessage`, `parsePass1Response`, `executePass1`, `Pass1Result`\n- Static prompt (~25 lines) covers: confidence assessment, 7 restructuring tasks, critical rules for marker preservation\n- Response parser extracts [CONFIDENCE: N], [STATS: X questions, Y answers, Z sections], [AI-INFERRED] detection\n- Orchestrator uses callAI callback (system+prompt → plain text), respects circuit breaker, graceful degradation on failure\n- 19 unit tests passing (thcs-pass1-restructure.test.ts)\n- Zero TypeScript errors"
+        }
+      ],
+      "snapshot": {
+        "title": "Implement Internal AI Pass 1 (Restructure + Confidence Assessment)",
+        "description": "Static ~20-line prompt for text restructuring AND confidence assessment. **Always runs** on every input. Runs on **near-raw text** (post-preClean only, before any regex/code processing) so the AI can independently assess external AI output quality. Tasks: (1) assess confidence, (2) split merged Qs, (3) add Q prefixes, (4) expand answer keys, (5) insert line breaks + section splitting, (6) produce stats `[STATS:]`, (7) infer missing answers `[AI-INFERRED]`. Does NOT replace instructions (Engine job, D10). Depends on @task-kttjez (pre-clean fix), @task-vu13lx (external prompt).",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "pipeline"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Always runs on every input (no skip/fast-path logic)"
+          },
+          {
+            "completed": true,
+            "text": "Runs on near-raw text (post-preClean, before any regex)"
+          },
+          {
+            "completed": true,
+            "text": "Confidence assessment of external AI output included"
+          },
+          {
+            "completed": true,
+            "text": "All 6 restructuring tasks implemented (split, prefix, expand, linebreaks, stats, infer)"
+          },
+          {
+            "completed": true,
+            "text": "Missing answers inferred with [AI-INFERRED] tags"
+          },
+          {
+            "completed": true,
+            "text": "Stats comment [STATS: X questions, Y answers, Z sections] appended"
+          },
+          {
+            "completed": true,
+            "text": "Does NOT contain instruction replacement logic (Engine job)"
+          },
+          {
+            "completed": true,
+            "text": "Outputs plain text (not JSON)"
+          },
+          {
+            "completed": true,
+            "text": "All markers preserved through restructure"
+          },
+          {
+            "completed": true,
+            "text": "Order: 2 (depends on T1 kttjez + T2 vu13lx)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### New file\n`src/services/test-creation/thcs-pass1-restructure.ts`\n\n### What Pass 1 IS\nA **static prompt** (~20 lines) sent to the internal AI (Groq llama) that:\n1. Assesses the external AI's output quality/confidence\n2. Normalizes the text structure for the regex engine\n3. Outputs **plain text** (NOT JSON) — the restructured version of the input\n\n### What Pass 1 is NOT\n- NOT a JSON parser (that's the current `callGroqDirect`)\n- NOT an instruction replacer (that's the Engine, task `4f54n5`)\n- NOT a classifier (that's the classifier module)\n\n### Position in pipeline\n```\nTeacher pastes text (external AI output)\n  → preCleanText() (task kttjez)\n  → *** Pass 1 (this task) ***\n  → Code Validation (task 9vafnp)\n  → Pass 2 Repair if needed (task pqr0rq)\n  → Regex Engine parse\n  → Engine Enhancements (task 4f54n5)\n  → Draft Converter\n```\n\n### Architecture\n\n#### The Prompt (static, ~25 lines)\n```\nYou are normalizing a Vietnamese THCS English test document that was extracted by another AI.\nYour job is to RESTRUCTURE the text so a regex parser can process it reliably.\n\nINPUT ASSESSMENT (do this first):\n- Rate the quality of this AI extraction: [CONFIDENCE: N] (0-100)\n- Consider: Are sections properly separated? Do question numbers exist? Are type tags present? Does structure make sense for a Vietnamese English test?\n\nRESTRUCTURING TASKS (apply ALL that are needed):\n1. SPLIT merged questions: If two questions appear on the same line, split them onto separate lines\n2. ADD missing prefixes: Every question should start with \"Question N.\" format\n3. EXPAND compressed answer keys: Convert \"1-5: BACDC\" into \"1. B\n2. A\n3. C\n4. D\n5. C\"\n4. INSERT line breaks: Ensure blank lines between sections, between questions, between options\n5. SPLIT ambiguous sections: If one section header covers two DIFFERENT exercise types (detectable from content patterns like MCQ mixed with fill-in), split into two separate sections with appropriate headers\n6. PRODUCE stats: At the very end, append: [STATS: X questions, Y answers, Z sections]\n7. INFER missing answers: If NO answer key section exists at all, attempt to infer from context and mark each with [AI-INFERRED] (e.g., \"1. B [AI-INFERRED]\")\n\nCRITICAL RULES:\n- Output PLAIN TEXT only (not JSON, not markdown)\n- PRESERVE all markers: **bold**, __underline__, {{braces}}, [TYPE: xxx], [WORD BANK: ...]\n- PRESERVE all Vietnamese diacritics exactly\n- Do NOT replace instruction texts — leave them as-is\n- Do NOT change question text content — only structural formatting\n- Do NOT reorder sections or questions\n- Keep your [CONFIDENCE: N] assessment on the FIRST line of output\n```\n\n#### Module Functions\n\n##### `buildPass1Prompt(nearRawText: string): string`\n- Appends the static prompt + the input text\n- Simple string concatenation (no dynamic fragments — this is a static prompt)\n\n##### `parsePass1Response(response: string): Pass1Result`\n```typescript\ninterface Pass1Result {\n  confidence: number;           // 0-100 from [CONFIDENCE: N]\n  restructuredText: string;     // The cleaned output text\n  stats: {\n    questions: number;\n    answers: number;\n    sections: number;\n  } | null;                     // Parsed from [STATS: ...] if present\n  hasInferredAnswers: boolean;  // true if [AI-INFERRED] tags found\n}\n```\n- Extract `[CONFIDENCE: N]` from first line → `confidence`\n- Extract `[STATS: X questions, Y answers, Z sections]` from last line → `stats`\n- Detect `[AI-INFERRED]` presence → `hasInferredAnswers`\n- Everything between confidence and stats → `restructuredText`\n\n##### `executePass1(nearRawText: string, session: RetrySession): Promise<Pass1Result>`\nMain orchestrator:\n1. Build prompt via `buildPass1Prompt(nearRawText)`\n2. Call AI (Groq llama, temp 0.1) — uses retry manager session for call counting\n3. Parse response via `parsePass1Response()`\n4. If AI fails → return fallback result: `{ confidence: 0, restructuredText: nearRawText, stats: null, hasInferredAnswers: false }`\n5. Never crashes — gracefully degrades\n\n##### AI Call Implementation\n- Uses the same `callGroqDirect` / `callGeminiDirect` pattern from the existing parser\n- BUT with a different prompt and expecting **plain text** response (not JSON)\n- System message: `\"You are a text restructuring assistant. Output plain text only.\"`\n- Temperature: 0.1 (low creativity — we want faithful restructuring)\n- Max tokens: 8192 (same as existing)\n\n### Key Design Decisions\n\n1. **Always runs** — no conditional skip. Even clean text benefits from the confidence assessment.\n2. **Near-raw text** — receives output of `preCleanText()` ONLY. No regex has touched it yet. This ensures the AI assesses the external AI's output independently.\n3. **Plain text output** — the restructured text goes BACK into the pipeline as text, to be processed by the code validator and regex engine.\n4. **Static prompt** — unlike the adaptive prompt builder (task `wei3uc`), Pass 1 uses the SAME prompt every time. No fragment selection needed.\n5. **Graceful degradation** — if the AI call fails entirely, Pass 1 returns the original text unchanged with `confidence: 0`. The pipeline continues with whatever it has.\n\n### Integration point (future — task `8085zl`)\nIn `parseThcsText()`:\n```\nconst cleaned = preCleanText(rawText);\n// NEW: Pass 1 — always runs\nconst pass1 = await executePass1(cleaned, retrySession);\n// Pass result to code validator (task 9vafnp)\n// Use pass1.restructuredText for all subsequent processing\n```\n\n### Files changed\n- `src/services/test-creation/thcs-pass1-restructure.ts` (NEW — ~100 lines)\n\n### Dependencies\n- `thcs-retry-manager.ts` (task `0yg6fx`) — for `RetrySession` type (call counting)\n- Uses existing `callGroqDirect`/`callGeminiDirect` patterns (but adapted for plain text response)\n\n### Consumed by\n- Task `9vafnp` (Code Validation) — receives `Pass1Result.restructuredText` + `confidence`\n- Task `8085zl` (Integration) — calls `executePass1()` in the main pipeline",
+        "implementationNotes": "## Implementation Notes\n- Created `thcs-pass1-restructure.ts` (~155 lines)\n- Exports: `buildPass1Prompt`, `getPass1SystemMessage`, `parsePass1Response`, `executePass1`, `Pass1Result`\n- Static prompt (~25 lines) covers: confidence assessment, 7 restructuring tasks, critical rules for marker preservation\n- Response parser extracts [CONFIDENCE: N], [STATS: X questions, Y answers, Z sections], [AI-INFERRED] detection\n- Orchestrator uses callAI callback (system+prompt → plain text), respects circuit breaker, graceful degradation on failure\n- 19 unit tests passing (thcs-pass1-restructure.test.ts)\n- Zero TypeScript errors"
+      }
+    },
+    {
+      "id": "v5",
+      "taskId": "q6lxtq",
+      "version": 5,
+      "timestamp": "2026-03-05T01:08:46.396Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Implement Internal AI Pass 1 (Restructure + Confidence Assessment)",
+        "description": "Static ~20-line prompt for text restructuring AND confidence assessment. **Always runs** on every input. Runs on **near-raw text** (post-preClean only, before any regex/code processing) so the AI can independently assess external AI output quality. Tasks: (1) assess confidence, (2) split merged Qs, (3) add Q prefixes, (4) expand answer keys, (5) insert line breaks + section splitting, (6) produce stats `[STATS:]`, (7) infer missing answers `[AI-INFERRED]`. Does NOT replace instructions (Engine job, D10). Depends on @task-kttjez (pre-clean fix), @task-vu13lx (external prompt).",
+        "status": "done",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "pipeline"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Always runs on every input (no skip/fast-path logic)"
+          },
+          {
+            "completed": true,
+            "text": "Runs on near-raw text (post-preClean, before any regex)"
+          },
+          {
+            "completed": true,
+            "text": "Confidence assessment of external AI output included"
+          },
+          {
+            "completed": true,
+            "text": "All 6 restructuring tasks implemented (split, prefix, expand, linebreaks, stats, infer)"
+          },
+          {
+            "completed": true,
+            "text": "Missing answers inferred with [AI-INFERRED] tags"
+          },
+          {
+            "completed": true,
+            "text": "Stats comment [STATS: X questions, Y answers, Z sections] appended"
+          },
+          {
+            "completed": true,
+            "text": "Does NOT contain instruction replacement logic (Engine job)"
+          },
+          {
+            "completed": true,
+            "text": "Outputs plain text (not JSON)"
+          },
+          {
+            "completed": true,
+            "text": "All markers preserved through restructure"
+          },
+          {
+            "completed": true,
+            "text": "Order: 2 (depends on T1 kttjez + T2 vu13lx)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### New file\n`src/services/test-creation/thcs-pass1-restructure.ts`\n\n### What Pass 1 IS\nA **static prompt** (~20 lines) sent to the internal AI (Groq llama) that:\n1. Assesses the external AI's output quality/confidence\n2. Normalizes the text structure for the regex engine\n3. Outputs **plain text** (NOT JSON) — the restructured version of the input\n\n### What Pass 1 is NOT\n- NOT a JSON parser (that's the current `callGroqDirect`)\n- NOT an instruction replacer (that's the Engine, task `4f54n5`)\n- NOT a classifier (that's the classifier module)\n\n### Position in pipeline\n```\nTeacher pastes text (external AI output)\n  → preCleanText() (task kttjez)\n  → *** Pass 1 (this task) ***\n  → Code Validation (task 9vafnp)\n  → Pass 2 Repair if needed (task pqr0rq)\n  → Regex Engine parse\n  → Engine Enhancements (task 4f54n5)\n  → Draft Converter\n```\n\n### Architecture\n\n#### The Prompt (static, ~25 lines)\n```\nYou are normalizing a Vietnamese THCS English test document that was extracted by another AI.\nYour job is to RESTRUCTURE the text so a regex parser can process it reliably.\n\nINPUT ASSESSMENT (do this first):\n- Rate the quality of this AI extraction: [CONFIDENCE: N] (0-100)\n- Consider: Are sections properly separated? Do question numbers exist? Are type tags present? Does structure make sense for a Vietnamese English test?\n\nRESTRUCTURING TASKS (apply ALL that are needed):\n1. SPLIT merged questions: If two questions appear on the same line, split them onto separate lines\n2. ADD missing prefixes: Every question should start with \"Question N.\" format\n3. EXPAND compressed answer keys: Convert \"1-5: BACDC\" into \"1. B\n2. A\n3. C\n4. D\n5. C\"\n4. INSERT line breaks: Ensure blank lines between sections, between questions, between options\n5. SPLIT ambiguous sections: If one section header covers two DIFFERENT exercise types (detectable from content patterns like MCQ mixed with fill-in), split into two separate sections with appropriate headers\n6. PRODUCE stats: At the very end, append: [STATS: X questions, Y answers, Z sections]\n7. INFER missing answers: If NO answer key section exists at all, attempt to infer from context and mark each with [AI-INFERRED] (e.g., \"1. B [AI-INFERRED]\")\n\nCRITICAL RULES:\n- Output PLAIN TEXT only (not JSON, not markdown)\n- PRESERVE all markers: **bold**, __underline__, {{braces}}, [TYPE: xxx], [WORD BANK: ...]\n- PRESERVE all Vietnamese diacritics exactly\n- Do NOT replace instruction texts — leave them as-is\n- Do NOT change question text content — only structural formatting\n- Do NOT reorder sections or questions\n- Keep your [CONFIDENCE: N] assessment on the FIRST line of output\n```\n\n#### Module Functions\n\n##### `buildPass1Prompt(nearRawText: string): string`\n- Appends the static prompt + the input text\n- Simple string concatenation (no dynamic fragments — this is a static prompt)\n\n##### `parsePass1Response(response: string): Pass1Result`\n```typescript\ninterface Pass1Result {\n  confidence: number;           // 0-100 from [CONFIDENCE: N]\n  restructuredText: string;     // The cleaned output text\n  stats: {\n    questions: number;\n    answers: number;\n    sections: number;\n  } | null;                     // Parsed from [STATS: ...] if present\n  hasInferredAnswers: boolean;  // true if [AI-INFERRED] tags found\n}\n```\n- Extract `[CONFIDENCE: N]` from first line → `confidence`\n- Extract `[STATS: X questions, Y answers, Z sections]` from last line → `stats`\n- Detect `[AI-INFERRED]` presence → `hasInferredAnswers`\n- Everything between confidence and stats → `restructuredText`\n\n##### `executePass1(nearRawText: string, session: RetrySession): Promise<Pass1Result>`\nMain orchestrator:\n1. Build prompt via `buildPass1Prompt(nearRawText)`\n2. Call AI (Groq llama, temp 0.1) — uses retry manager session for call counting\n3. Parse response via `parsePass1Response()`\n4. If AI fails → return fallback result: `{ confidence: 0, restructuredText: nearRawText, stats: null, hasInferredAnswers: false }`\n5. Never crashes — gracefully degrades\n\n##### AI Call Implementation\n- Uses the same `callGroqDirect` / `callGeminiDirect` pattern from the existing parser\n- BUT with a different prompt and expecting **plain text** response (not JSON)\n- System message: `\"You are a text restructuring assistant. Output plain text only.\"`\n- Temperature: 0.1 (low creativity — we want faithful restructuring)\n- Max tokens: 8192 (same as existing)\n\n### Key Design Decisions\n\n1. **Always runs** — no conditional skip. Even clean text benefits from the confidence assessment.\n2. **Near-raw text** — receives output of `preCleanText()` ONLY. No regex has touched it yet. This ensures the AI assesses the external AI's output independently.\n3. **Plain text output** — the restructured text goes BACK into the pipeline as text, to be processed by the code validator and regex engine.\n4. **Static prompt** — unlike the adaptive prompt builder (task `wei3uc`), Pass 1 uses the SAME prompt every time. No fragment selection needed.\n5. **Graceful degradation** — if the AI call fails entirely, Pass 1 returns the original text unchanged with `confidence: 0`. The pipeline continues with whatever it has.\n\n### Integration point (future — task `8085zl`)\nIn `parseThcsText()`:\n```\nconst cleaned = preCleanText(rawText);\n// NEW: Pass 1 — always runs\nconst pass1 = await executePass1(cleaned, retrySession);\n// Pass result to code validator (task 9vafnp)\n// Use pass1.restructuredText for all subsequent processing\n```\n\n### Files changed\n- `src/services/test-creation/thcs-pass1-restructure.ts` (NEW — ~100 lines)\n\n### Dependencies\n- `thcs-retry-manager.ts` (task `0yg6fx`) — for `RetrySession` type (call counting)\n- Uses existing `callGroqDirect`/`callGeminiDirect` patterns (but adapted for plain text response)\n\n### Consumed by\n- Task `9vafnp` (Code Validation) — receives `Pass1Result.restructuredText` + `confidence`\n- Task `8085zl` (Integration) — calls `executePass1()` in the main pipeline",
+        "implementationNotes": "## Implementation Notes\n- Created `thcs-pass1-restructure.ts` (~155 lines)\n- Exports: `buildPass1Prompt`, `getPass1SystemMessage`, `parsePass1Response`, `executePass1`, `Pass1Result`\n- Static prompt (~25 lines) covers: confidence assessment, 7 restructuring tasks, critical rules for marker preservation\n- Response parser extracts [CONFIDENCE: N], [STATS: X questions, Y answers, Z sections], [AI-INFERRED] detection\n- Orchestrator uses callAI callback (system+prompt → plain text), respects circuit breaker, graceful degradation on failure\n- 19 unit tests passing (thcs-pass1-restructure.test.ts)\n- Zero TypeScript errors"
+      }
+    }
+  ]
+}

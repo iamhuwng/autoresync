@@ -12,9 +12,10 @@ import {
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { THCSTemplatePicker } from './THCSTemplatePicker';
-import { THCSDocumentUpload } from './THCSDocumentUpload';
+
 import { THCSParseReviewPanel } from './THCSParseReviewPanel';
 import { parseThcsText } from '../../services/test-creation/thcsDocumentParser.service';
+import thcsExtractionPrompt from '../../services/test-creation/thcs-pdf-extraction-prompt.txt?raw';
 import type { THCSTestMetadata } from '../../types/thcs-test.types';
 import { DURATION_PRESETS, GRADE_LEVELS, EXAM_TYPE_OPTIONS } from '../../types/thcs-test.types';
 
@@ -40,18 +41,20 @@ const THCSSetupStep: React.FC<THCSSetupStepProps> = ({
     onMetadataChange,
     onIsPublicChange,
     onTemplateSelect,
-    onDocumentParsed,
+
     onParsedProceed,
     onStartBlank,
 }) => {
     const [advancedOpen, setAdvancedOpen] = useState(false);
     const [showTemplatePicker, setShowTemplatePicker] = useState(false);
-    const [showDocumentUpload, setShowDocumentUpload] = useState(false);
+
     const [showPasteText, setShowPasteText] = useState(false);
     const [pasteTextContent, setPasteTextContent] = useState('');
-    const [parsedTestData, setParsedTestData] = useState<any>(null);
+
     const [parsedPasteData, setParsedPasteData] = useState<any>(null);
     const [isPasteProcessing, setIsPasteProcessing] = useState(false);
+    const [pasteErrorMessage, setPasteErrorMessage] = useState<string | null>(null);
+    const [promptCopied, setPromptCopied] = useState(false);
 
     const selectedDuration = metadata.duration;
 
@@ -343,7 +346,7 @@ const THCSSetupStep: React.FC<THCSSetupStepProps> = ({
             {!isEditMode && (
                 <div style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(4, 1fr)',
+                    gridTemplateColumns: 'repeat(3, 1fr)',
                     gap: '0.75rem',
                 }}>
                     <QuickStartCard
@@ -352,12 +355,7 @@ const THCSSetupStep: React.FC<THCSSetupStepProps> = ({
                         onClick={() => setShowTemplatePicker(true)}
                         active={false}
                     />
-                    <QuickStartCard
-                        svgIcon={uploadIcon}
-                        title="Upload Document"
-                        onClick={() => setShowDocumentUpload(true)}
-                        active={false}
-                    />
+
                     <QuickStartCard
                         svgIcon={pasteTextIcon}
                         title="Paste Text"
@@ -383,43 +381,7 @@ const THCSSetupStep: React.FC<THCSSetupStepProps> = ({
                 }}
             />
 
-            {/* Document Upload Overlay */}
-            {showDocumentUpload && (
-                <div style={{
-                    position: 'fixed', inset: 0, zIndex: 1000,
-                    background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
-                    display: 'flex', justifyContent: 'center', alignItems: 'center',
-                }}>
-                    <div style={{
-                        background: 'white', borderRadius: '1rem', padding: '2rem',
-                        maxWidth: '700px', width: '90%', maxHeight: '85vh', overflow: 'auto',
-                        boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-                    }}>
-                        <h2 style={{ margin: '0 0 1rem', fontSize: '1.25rem', fontWeight: 700, color: '#1e293b' }}>
-                            📄 Auto Test Maker — Upload Document
-                        </h2>
-                        {!parsedTestData ? (
-                            <THCSDocumentUpload
-                                onParsed={(result) => {
-                                    setParsedTestData(result);
-                                    onDocumentParsed?.(result);
-                                }}
-                                onCancel={() => setShowDocumentUpload(false)}
-                            />
-                        ) : (
-                            <THCSParseReviewPanel
-                                parsedTest={parsedTestData}
-                                onBack={() => setParsedTestData(null)}
-                                onProceed={(finalParsed) => {
-                                    setShowDocumentUpload(false);
-                                    setParsedTestData(null);
-                                    onParsedProceed?.(finalParsed);
-                                }}
-                            />
-                        )}
-                    </div>
-                </div>
-            )}
+
 
             {/* Paste Text Modal */}
             {showPasteText && (
@@ -440,9 +402,52 @@ const THCSSetupStep: React.FC<THCSSetupStepProps> = ({
                                 <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: '#1e293b' }}>
                                     📝 Paste Test Content
                                 </h2>
+                                {/* Step 0: Copy Prompt for External AI */}
+                                <div style={{
+                                    display: 'flex', alignItems: 'center', gap: '0.75rem',
+                                    padding: '0.75rem 1rem',
+                                    background: 'linear-gradient(135deg, #f0f4ff 0%, #ede9fe 100%)',
+                                    borderRadius: '0.75rem',
+                                    border: '1px solid rgba(139,92,246,0.15)',
+                                }}>
+                                    <span style={{ fontSize: '1.25rem' }}>🤖</span>
+                                    <div style={{ flex: 1 }}>
+                                        <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#1e293b' }}>
+                                            Step 1: Copy the prompt below → paste into ChatGPT/Gemini along with your test images
+                                        </span>
+                                        <br />
+                                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                                            Step 2: Copy the AI's output → paste it into the text box below
+                                        </span>
+                                    </div>
+                                    <button
+                                        onClick={async () => {
+                                            try {
+                                                await navigator.clipboard.writeText(thcsExtractionPrompt);
+                                                setPromptCopied(true);
+                                                setTimeout(() => setPromptCopied(false), 2000);
+                                            } catch {
+                                                notifications.show({ color: 'red', title: 'Copy failed', message: 'Please copy manually' });
+                                            }
+                                        }}
+                                        style={{
+                                            padding: '0.5rem 1rem',
+                                            border: 'none',
+                                            borderRadius: '0.5rem',
+                                            background: promptCopied ? '#22c55e' : '#8b5cf6',
+                                            color: '#fff',
+                                            fontSize: '0.8125rem',
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                            transition: 'all 0.2s',
+                                            whiteSpace: 'nowrap',
+                                        }}
+                                    >
+                                        {promptCopied ? '✅ Copied!' : '📋 Copy Prompt'}
+                                    </button>
+                                </div>
                                 <p style={{ margin: 0, fontSize: '0.875rem', color: '#64748b' }}>
-                                    Paste your test questions below. Include section headers, questions with choices (A–D),
-                                    and an answer key table if available. The parser will auto-detect sections, question types,
+                                    Paste the AI's structured output below. The parser will auto-detect sections, question types,
                                     and answers.
                                 </p>
                                 <textarea
@@ -466,6 +471,20 @@ const THCSSetupStep: React.FC<THCSSetupStepProps> = ({
                                     onFocus={(e) => e.target.style.borderColor = '#8b5cf6'}
                                     onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
                                 />
+                                {pasteErrorMessage && (
+                                    <div style={{
+                                        margin: '1rem 0 0 0',
+                                        padding: '0.875rem',
+                                        background: '#fee2e2',
+                                        color: '#b91c1c',
+                                        borderRadius: '0.5rem',
+                                        border: '1px solid #f87171',
+                                        fontSize: '0.875rem',
+                                        fontWeight: 500,
+                                    }}>
+                                        ⚠️ {pasteErrorMessage}
+                                    </div>
+                                )}
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
                                         {pasteTextContent.length > 0
@@ -492,31 +511,27 @@ const THCSSetupStep: React.FC<THCSSetupStepProps> = ({
                                             onClick={async () => {
                                                 if (!pasteTextContent.trim()) return;
                                                 setIsPasteProcessing(true);
+                                                setPasteErrorMessage(null);
+                                                console.log('[PasteText] Starting parse, text length:', pasteTextContent.length);
                                                 try {
                                                     const result = await parseThcsText(pasteTextContent);
+                                                    console.log('[PasteText] parseThcsText returned:', {
+                                                        success: result.success,
+                                                        error: !result.success ? result.error : undefined,
+                                                        hasSections: result.success ? result.data?.sections?.length : undefined,
+                                                        totalQuestions: result.success ? result.data?.sections?.reduce((s: number, sec: any) => s + sec.questions.length, 0) : undefined,
+                                                    });
                                                     if (result.success) {
                                                         const { data } = result;
-                                                        const qCount = data.sections.reduce((sum, s) => sum + s.questions.length, 0);
-                                                        const ansCount = Object.keys(data.answerKey).length;
-                                                        notifications.show({
-                                                            color: 'green',
-                                                            title: '✅ Text Parsed Successfully',
-                                                            message: `Found ${data.sections.length} section(s), ${qCount} question(s), ${ansCount} answer(s). Review below.`,
-                                                        });
+                                                        console.log('[PasteText] ✅ Setting parsedPasteData, sections:', data.sections.length);
                                                         setParsedPasteData(data);
                                                     } else {
-                                                        notifications.show({
-                                                            color: 'red',
-                                                            title: '❌ Parse Failed',
-                                                            message: result.error,
-                                                        });
+                                                        console.log('[PasteText] ❌ Parse failed:', result.error);
+                                                        setPasteErrorMessage(result.error || 'Parse failed with no error message');
                                                     }
                                                 } catch (err) {
-                                                    notifications.show({
-                                                        color: 'red',
-                                                        title: '❌ Parse Error',
-                                                        message: err instanceof Error ? err.message : 'Unknown error',
-                                                    });
+                                                    console.error('[PasteText] ❌ Exception:', err);
+                                                    setPasteErrorMessage(err instanceof Error ? err.message : 'Unknown error');
                                                 } finally {
                                                     setIsPasteProcessing(false);
                                                 }
@@ -689,12 +704,7 @@ const templateIcon = `<svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.
   <path d="M25 25l2 2 4-4" stroke="#8b5cf6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>`;
 
-const uploadIcon = `<svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect x="8" y="4" width="24" height="32" rx="3" stroke="#94a3b8" stroke-width="1.5" fill="none"/>
-  <path d="M8 8h14l4 4h0v-4" stroke="#94a3b8" stroke-width="1.5" stroke-linejoin="round" fill="none"/>
-  <path d="M14 14h12M14 20h10" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round"/>
-  <path d="M20 32V24m0 0l-3 3m3-3l3 3" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>`;
+
 
 const pasteTextIcon = `<svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
   <rect x="8" y="6" width="24" height="30" rx="3" stroke="#94a3b8" stroke-width="1.5" fill="none"/>

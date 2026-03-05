@@ -1,0 +1,278 @@
+{
+  "taskId": "grtpiz",
+  "currentVersion": 5,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "grtpiz",
+      "version": 1,
+      "timestamp": "2026-03-04T18:00:27.990Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Add `const parseStart = Date.now()` at top of `parseThcsText()` and compute `parseDurationMs` before setting __PARSE_DEBUG",
+              "completed": false
+            },
+            {
+              "text": "Track `usedProvider` variable through `attemptAIParse()` calls — set to 'groq'/'gemini' on success, 'regex-fallback' if both fail",
+              "completed": false
+            },
+            {
+              "text": "Collect reclassification events from `reclassifyByContent()` in thcs-type-classifier.ts — return array of { questionNumber, from, to, reason }",
+              "completed": false
+            },
+            {
+              "text": "Add provider, parseDurationMs, reclassifications to the __PARSE_DEBUG object assignment (L574-586)",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Enrich __PARSE_DEBUG with pipeline metadata",
+        "description": "Add `provider`, `parseDurationMs`, and `reclassifications` fields to the `window.__PARSE_DEBUG` object in `thcsDocumentParser.service.ts`. Track which AI provider was used (groq/gemini/regex-fallback), measure wall-clock parse time, and collect type reclassification events from the classifier.",
+        "status": "todo",
+        "priority": "high",
+        "labels": [
+          "from-spec",
+          "thcs-parser"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Add `const parseStart = Date.now()` at top of `parseThcsText()` and compute `parseDurationMs` before setting __PARSE_DEBUG",
+            "completed": false
+          },
+          {
+            "text": "Track `usedProvider` variable through `attemptAIParse()` calls — set to 'groq'/'gemini' on success, 'regex-fallback' if both fail",
+            "completed": false
+          },
+          {
+            "text": "Collect reclassification events from `reclassifyByContent()` in thcs-type-classifier.ts — return array of { questionNumber, from, to, reason }",
+            "completed": false
+          },
+          {
+            "text": "Add provider, parseDurationMs, reclassifications to the __PARSE_DEBUG object assignment (L574-586)",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "grtpiz",
+      "version": 2,
+      "timestamp": "2026-03-04T18:02:41.675Z",
+      "changes": [
+        {
+          "field": "implementationPlan",
+          "newValue": "## Implementation Plan\n\n1. Add `const parseStart = Date.now()` at L415 (top of try block in `parseThcsText()`)\n2. Add `let usedProvider: 'groq' | 'gemini' | 'regex-fallback' = 'regex-fallback'` variable after warnings\n3. Set `usedProvider = 'groq'` on L441-443 (groq success) and `usedProvider = 'gemini'` on L447-449 (gemini success)\n4. In `reclassifyByContent()` (thcs-type-classifier.ts): change return type to `{ questionNumber, from, to, reason }[]`, collect reclassification events in an array instead of just console.log, return the array\n5. Capture return value: `const reclassifications = reclassifyByContent(...)` in validateAIResult or wherever it's called\n6. Thread `reclassifications` to the __PARSE_DEBUG block (L574-586), add `provider`, `parseDurationMs: Date.now() - parseStart`\n7. Verify build: `npx tsc --noEmit`\n\n**Key decision:** `reclassifyByContent` currently returns `void` and mutates sections in-place + logs to console. Change to also return an events array while keeping the mutation behavior."
+        }
+      ],
+      "snapshot": {
+        "title": "Enrich __PARSE_DEBUG with pipeline metadata",
+        "description": "Add `provider`, `parseDurationMs`, and `reclassifications` fields to the `window.__PARSE_DEBUG` object in `thcsDocumentParser.service.ts`. Track which AI provider was used (groq/gemini/regex-fallback), measure wall-clock parse time, and collect type reclassification events from the classifier.",
+        "status": "todo",
+        "priority": "high",
+        "labels": [
+          "from-spec",
+          "thcs-parser"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Add `const parseStart = Date.now()` at top of `parseThcsText()` and compute `parseDurationMs` before setting __PARSE_DEBUG"
+          },
+          {
+            "completed": false,
+            "text": "Track `usedProvider` variable through `attemptAIParse()` calls — set to 'groq'/'gemini' on success, 'regex-fallback' if both fail"
+          },
+          {
+            "completed": false,
+            "text": "Collect reclassification events from `reclassifyByContent()` in thcs-type-classifier.ts — return array of { questionNumber, from, to, reason }"
+          },
+          {
+            "completed": false,
+            "text": "Add provider, parseDurationMs, reclassifications to the __PARSE_DEBUG object assignment (L574-586)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n1. Add `const parseStart = Date.now()` at L415 (top of try block in `parseThcsText()`)\n2. Add `let usedProvider: 'groq' | 'gemini' | 'regex-fallback' = 'regex-fallback'` variable after warnings\n3. Set `usedProvider = 'groq'` on L441-443 (groq success) and `usedProvider = 'gemini'` on L447-449 (gemini success)\n4. In `reclassifyByContent()` (thcs-type-classifier.ts): change return type to `{ questionNumber, from, to, reason }[]`, collect reclassification events in an array instead of just console.log, return the array\n5. Capture return value: `const reclassifications = reclassifyByContent(...)` in validateAIResult or wherever it's called\n6. Thread `reclassifications` to the __PARSE_DEBUG block (L574-586), add `provider`, `parseDurationMs: Date.now() - parseStart`\n7. Verify build: `npx tsc --noEmit`\n\n**Key decision:** `reclassifyByContent` currently returns `void` and mutates sections in-place + logs to console. Change to also return an events array while keeping the mutation behavior."
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "grtpiz",
+      "version": 3,
+      "timestamp": "2026-03-04T18:08:07.755Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        },
+        {
+          "field": "assignee",
+          "newValue": "@me"
+        }
+      ],
+      "snapshot": {
+        "title": "Enrich __PARSE_DEBUG with pipeline metadata",
+        "description": "Add `provider`, `parseDurationMs`, and `reclassifications` fields to the `window.__PARSE_DEBUG` object in `thcsDocumentParser.service.ts`. Track which AI provider was used (groq/gemini/regex-fallback), measure wall-clock parse time, and collect type reclassification events from the classifier.",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "from-spec",
+          "thcs-parser"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Add `const parseStart = Date.now()` at top of `parseThcsText()` and compute `parseDurationMs` before setting __PARSE_DEBUG"
+          },
+          {
+            "completed": false,
+            "text": "Track `usedProvider` variable through `attemptAIParse()` calls — set to 'groq'/'gemini' on success, 'regex-fallback' if both fail"
+          },
+          {
+            "completed": false,
+            "text": "Collect reclassification events from `reclassifyByContent()` in thcs-type-classifier.ts — return array of { questionNumber, from, to, reason }"
+          },
+          {
+            "completed": false,
+            "text": "Add provider, parseDurationMs, reclassifications to the __PARSE_DEBUG object assignment (L574-586)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n1. Add `const parseStart = Date.now()` at L415 (top of try block in `parseThcsText()`)\n2. Add `let usedProvider: 'groq' | 'gemini' | 'regex-fallback' = 'regex-fallback'` variable after warnings\n3. Set `usedProvider = 'groq'` on L441-443 (groq success) and `usedProvider = 'gemini'` on L447-449 (gemini success)\n4. In `reclassifyByContent()` (thcs-type-classifier.ts): change return type to `{ questionNumber, from, to, reason }[]`, collect reclassification events in an array instead of just console.log, return the array\n5. Capture return value: `const reclassifications = reclassifyByContent(...)` in validateAIResult or wherever it's called\n6. Thread `reclassifications` to the __PARSE_DEBUG block (L574-586), add `provider`, `parseDurationMs: Date.now() - parseStart`\n7. Verify build: `npx tsc --noEmit`\n\n**Key decision:** `reclassifyByContent` currently returns `void` and mutates sections in-place + logs to console. Change to also return an events array while keeping the mutation behavior."
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "grtpiz",
+      "version": 4,
+      "timestamp": "2026-03-04T18:12:39.057Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Add `const parseStart = Date.now()` at top of `parseThcsText()` and compute `parseDurationMs` before setting __PARSE_DEBUG"
+            },
+            {
+              "completed": false,
+              "text": "Track `usedProvider` variable through `attemptAIParse()` calls — set to 'groq'/'gemini' on success, 'regex-fallback' if both fail"
+            },
+            {
+              "completed": false,
+              "text": "Collect reclassification events from `reclassifyByContent()` in thcs-type-classifier.ts — return array of { questionNumber, from, to, reason }"
+            },
+            {
+              "completed": false,
+              "text": "Add provider, parseDurationMs, reclassifications to the __PARSE_DEBUG object assignment (L574-586)"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Add `const parseStart = Date.now()` at top of `parseThcsText()` and compute `parseDurationMs` before setting __PARSE_DEBUG"
+            },
+            {
+              "completed": true,
+              "text": "Track `usedProvider` variable through `attemptAIParse()` calls — set to 'groq'/'gemini' on success, 'regex-fallback' if both fail"
+            },
+            {
+              "completed": true,
+              "text": "Collect reclassification events from `reclassifyByContent()` in thcs-type-classifier.ts — return array of { questionNumber, from, to, reason }"
+            },
+            {
+              "completed": true,
+              "text": "Add provider, parseDurationMs, reclassifications to the __PARSE_DEBUG object assignment (L574-586)"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Implemented: parseStart timing, usedProvider tracking (groq/gemini/regex-fallback), ReclassificationEvent type + return array from reclassifyByContent, module-level _lastReclassifications capture. All 3 fields added to __PARSE_DEBUG. Build verified — no new TS errors."
+        }
+      ],
+      "snapshot": {
+        "title": "Enrich __PARSE_DEBUG with pipeline metadata",
+        "description": "Add `provider`, `parseDurationMs`, and `reclassifications` fields to the `window.__PARSE_DEBUG` object in `thcsDocumentParser.service.ts`. Track which AI provider was used (groq/gemini/regex-fallback), measure wall-clock parse time, and collect type reclassification events from the classifier.",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "from-spec",
+          "thcs-parser"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Add `const parseStart = Date.now()` at top of `parseThcsText()` and compute `parseDurationMs` before setting __PARSE_DEBUG"
+          },
+          {
+            "completed": true,
+            "text": "Track `usedProvider` variable through `attemptAIParse()` calls — set to 'groq'/'gemini' on success, 'regex-fallback' if both fail"
+          },
+          {
+            "completed": true,
+            "text": "Collect reclassification events from `reclassifyByContent()` in thcs-type-classifier.ts — return array of { questionNumber, from, to, reason }"
+          },
+          {
+            "completed": true,
+            "text": "Add provider, parseDurationMs, reclassifications to the __PARSE_DEBUG object assignment (L574-586)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n1. Add `const parseStart = Date.now()` at L415 (top of try block in `parseThcsText()`)\n2. Add `let usedProvider: 'groq' | 'gemini' | 'regex-fallback' = 'regex-fallback'` variable after warnings\n3. Set `usedProvider = 'groq'` on L441-443 (groq success) and `usedProvider = 'gemini'` on L447-449 (gemini success)\n4. In `reclassifyByContent()` (thcs-type-classifier.ts): change return type to `{ questionNumber, from, to, reason }[]`, collect reclassification events in an array instead of just console.log, return the array\n5. Capture return value: `const reclassifications = reclassifyByContent(...)` in validateAIResult or wherever it's called\n6. Thread `reclassifications` to the __PARSE_DEBUG block (L574-586), add `provider`, `parseDurationMs: Date.now() - parseStart`\n7. Verify build: `npx tsc --noEmit`\n\n**Key decision:** `reclassifyByContent` currently returns `void` and mutates sections in-place + logs to console. Change to also return an events array while keeping the mutation behavior.",
+        "implementationNotes": "Implemented: parseStart timing, usedProvider tracking (groq/gemini/regex-fallback), ReclassificationEvent type + return array from reclassifyByContent, module-level _lastReclassifications capture. All 3 fields added to __PARSE_DEBUG. Build verified — no new TS errors."
+      }
+    },
+    {
+      "id": "v5",
+      "taskId": "grtpiz",
+      "version": 5,
+      "timestamp": "2026-03-04T18:12:40.693Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Enrich __PARSE_DEBUG with pipeline metadata",
+        "description": "Add `provider`, `parseDurationMs`, and `reclassifications` fields to the `window.__PARSE_DEBUG` object in `thcsDocumentParser.service.ts`. Track which AI provider was used (groq/gemini/regex-fallback), measure wall-clock parse time, and collect type reclassification events from the classifier.",
+        "status": "done",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "from-spec",
+          "thcs-parser"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Add `const parseStart = Date.now()` at top of `parseThcsText()` and compute `parseDurationMs` before setting __PARSE_DEBUG"
+          },
+          {
+            "completed": true,
+            "text": "Track `usedProvider` variable through `attemptAIParse()` calls — set to 'groq'/'gemini' on success, 'regex-fallback' if both fail"
+          },
+          {
+            "completed": true,
+            "text": "Collect reclassification events from `reclassifyByContent()` in thcs-type-classifier.ts — return array of { questionNumber, from, to, reason }"
+          },
+          {
+            "completed": true,
+            "text": "Add provider, parseDurationMs, reclassifications to the __PARSE_DEBUG object assignment (L574-586)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n1. Add `const parseStart = Date.now()` at L415 (top of try block in `parseThcsText()`)\n2. Add `let usedProvider: 'groq' | 'gemini' | 'regex-fallback' = 'regex-fallback'` variable after warnings\n3. Set `usedProvider = 'groq'` on L441-443 (groq success) and `usedProvider = 'gemini'` on L447-449 (gemini success)\n4. In `reclassifyByContent()` (thcs-type-classifier.ts): change return type to `{ questionNumber, from, to, reason }[]`, collect reclassification events in an array instead of just console.log, return the array\n5. Capture return value: `const reclassifications = reclassifyByContent(...)` in validateAIResult or wherever it's called\n6. Thread `reclassifications` to the __PARSE_DEBUG block (L574-586), add `provider`, `parseDurationMs: Date.now() - parseStart`\n7. Verify build: `npx tsc --noEmit`\n\n**Key decision:** `reclassifyByContent` currently returns `void` and mutates sections in-place + logs to console. Change to also return an events array while keeping the mutation behavior.",
+        "implementationNotes": "Implemented: parseStart timing, usedProvider tracking (groq/gemini/regex-fallback), ReclassificationEvent type + return array from reclassifyByContent, module-level _lastReclassifications capture. All 3 fields added to __PARSE_DEBUG. Build verified — no new TS errors."
+      }
+    }
+  ]
+}

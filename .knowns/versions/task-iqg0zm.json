@@ -1,0 +1,310 @@
+{
+  "taskId": "iqg0zm",
+  "currentVersion": 5,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "iqg0zm",
+      "version": 1,
+      "timestamp": "2026-03-04T04:07:00.878Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Remove all double-blank-line runs from parseThcsDocument (L158-434)",
+              "completed": false
+            },
+            {
+              "text": "Move THCS_AI_PROMPT to dynamic import() inside parseThcsText",
+              "completed": false
+            },
+            {
+              "text": "Add alreadyCleaned parameter to parseThcsTextDirect, skip preCleanText when true",
+              "completed": false
+            },
+            {
+              "text": "Update parseThcsText reconciliation call to pass alreadyCleaned: true",
+              "completed": false
+            },
+            {
+              "text": "npx tsc --noEmit passes cleanly",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Quick cleanup — Strip blank lines, lazy prompt, dedup preCleanText",
+        "description": "Three zero-risk cosmetic/minor fixes to the main parser file.\n\n- **FR-1**: Strip ~130 double-blank-line runs from `parseThcsDocument` (L158-434)\n- **FR-7**: Move `THCS_AI_PROMPT` import from module scope to dynamic `import()` inside `parseThcsText`\n- **FR-6**: Add `alreadyCleaned` parameter to `parseThcsTextDirect` so the paste-text reconciliation path skips redundant `preCleanText()`",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "from-spec",
+          "refactor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Remove all double-blank-line runs from parseThcsDocument (L158-434)",
+            "completed": false
+          },
+          {
+            "text": "Move THCS_AI_PROMPT to dynamic import() inside parseThcsText",
+            "completed": false
+          },
+          {
+            "text": "Add alreadyCleaned parameter to parseThcsTextDirect, skip preCleanText when true",
+            "completed": false
+          },
+          {
+            "text": "Update parseThcsText reconciliation call to pass alreadyCleaned: true",
+            "completed": false
+          },
+          {
+            "text": "npx tsc --noEmit passes cleanly",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "iqg0zm",
+      "version": 2,
+      "timestamp": "2026-03-04T04:08:15.722Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        },
+        {
+          "field": "assignee",
+          "newValue": "@me"
+        }
+      ],
+      "snapshot": {
+        "title": "Quick cleanup — Strip blank lines, lazy prompt, dedup preCleanText",
+        "description": "Three zero-risk cosmetic/minor fixes to the main parser file.\n\n- **FR-1**: Strip ~130 double-blank-line runs from `parseThcsDocument` (L158-434)\n- **FR-7**: Move `THCS_AI_PROMPT` import from module scope to dynamic `import()` inside `parseThcsText`\n- **FR-6**: Add `alreadyCleaned` parameter to `parseThcsTextDirect` so the paste-text reconciliation path skips redundant `preCleanText()`",
+        "status": "in-progress",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "from-spec",
+          "refactor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Remove all double-blank-line runs from parseThcsDocument (L158-434)"
+          },
+          {
+            "completed": false,
+            "text": "Move THCS_AI_PROMPT to dynamic import() inside parseThcsText"
+          },
+          {
+            "completed": false,
+            "text": "Add alreadyCleaned parameter to parseThcsTextDirect, skip preCleanText when true"
+          },
+          {
+            "completed": false,
+            "text": "Update parseThcsText reconciliation call to pass alreadyCleaned: true"
+          },
+          {
+            "completed": false,
+            "text": "npx tsc --noEmit passes cleanly"
+          }
+        ]
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "iqg0zm",
+      "version": 3,
+      "timestamp": "2026-03-04T04:08:43.150Z",
+      "changes": [
+        {
+          "field": "implementationPlan",
+          "newValue": "1. **FR-1: Strip blank lines** from parseThcsDocument (L158-434)\n   - Collapse consecutive blank lines to max 1\n   - ~270 lines → ~140 lines\n\n2. **FR-7: Lazy-load AI prompt** (L446)\n   - Remove static `import THCS_AI_PROMPT from './thcs-ai-extraction-prompt.txt?raw'`\n   - Add dynamic `const { default: THCS_AI_PROMPT } = await import('./thcs-ai-extraction-prompt.txt?raw')` inside parseThcsText before L824\n\n3. **FR-6: Deduplicate preCleanText** (L1221-1230)\n   - Add `alreadyCleaned?: boolean` parameter to parseThcsTextDirect\n   - When true, skip preCleanText call and use rawText directly\n   - Update reconciliation call in parseThcsText L885 to pass cleaned text + alreadyCleaned: true\n\n4. **Verify**: npx tsc --noEmit passes"
+        }
+      ],
+      "snapshot": {
+        "title": "Quick cleanup — Strip blank lines, lazy prompt, dedup preCleanText",
+        "description": "Three zero-risk cosmetic/minor fixes to the main parser file.\n\n- **FR-1**: Strip ~130 double-blank-line runs from `parseThcsDocument` (L158-434)\n- **FR-7**: Move `THCS_AI_PROMPT` import from module scope to dynamic `import()` inside `parseThcsText`\n- **FR-6**: Add `alreadyCleaned` parameter to `parseThcsTextDirect` so the paste-text reconciliation path skips redundant `preCleanText()`",
+        "status": "in-progress",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "from-spec",
+          "refactor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Remove all double-blank-line runs from parseThcsDocument (L158-434)"
+          },
+          {
+            "completed": false,
+            "text": "Move THCS_AI_PROMPT to dynamic import() inside parseThcsText"
+          },
+          {
+            "completed": false,
+            "text": "Add alreadyCleaned parameter to parseThcsTextDirect, skip preCleanText when true"
+          },
+          {
+            "completed": false,
+            "text": "Update parseThcsText reconciliation call to pass alreadyCleaned: true"
+          },
+          {
+            "completed": false,
+            "text": "npx tsc --noEmit passes cleanly"
+          }
+        ],
+        "implementationPlan": "1. **FR-1: Strip blank lines** from parseThcsDocument (L158-434)\n   - Collapse consecutive blank lines to max 1\n   - ~270 lines → ~140 lines\n\n2. **FR-7: Lazy-load AI prompt** (L446)\n   - Remove static `import THCS_AI_PROMPT from './thcs-ai-extraction-prompt.txt?raw'`\n   - Add dynamic `const { default: THCS_AI_PROMPT } = await import('./thcs-ai-extraction-prompt.txt?raw')` inside parseThcsText before L824\n\n3. **FR-6: Deduplicate preCleanText** (L1221-1230)\n   - Add `alreadyCleaned?: boolean` parameter to parseThcsTextDirect\n   - When true, skip preCleanText call and use rawText directly\n   - Update reconciliation call in parseThcsText L885 to pass cleaned text + alreadyCleaned: true\n\n4. **Verify**: npx tsc --noEmit passes"
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "iqg0zm",
+      "version": 4,
+      "timestamp": "2026-03-04T15:42:49.375Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Remove all double-blank-line runs from parseThcsDocument (L158-434)"
+            },
+            {
+              "completed": false,
+              "text": "Move THCS_AI_PROMPT to dynamic import() inside parseThcsText"
+            },
+            {
+              "completed": false,
+              "text": "Add alreadyCleaned parameter to parseThcsTextDirect, skip preCleanText when true"
+            },
+            {
+              "completed": false,
+              "text": "Update parseThcsText reconciliation call to pass alreadyCleaned: true"
+            },
+            {
+              "completed": false,
+              "text": "npx tsc --noEmit passes cleanly"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Remove all double-blank-line runs from parseThcsDocument (L158-434)"
+            },
+            {
+              "completed": true,
+              "text": "Move THCS_AI_PROMPT to dynamic import() inside parseThcsText"
+            },
+            {
+              "completed": true,
+              "text": "Add alreadyCleaned parameter to parseThcsTextDirect, skip preCleanText when true"
+            },
+            {
+              "completed": true,
+              "text": "Update parseThcsText reconciliation call to pass alreadyCleaned: true"
+            },
+            {
+              "completed": true,
+              "text": "npx tsc --noEmit passes cleanly"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "## Implementation (2026-03-04)\n\n### AC1: Strip blank lines ✅\n- Removed 8 double-blank-line runs from thcsDocumentParser.service.ts\n- File reduced from 846 → 838 lines\n- Verified: 0 consecutive blank lines remaining\n\n### AC2: Lazy AI prompt import ✅\n- Already implemented in prior session (line 438 uses dynamic `await import()`)\n- No changes needed\n\n### AC3: alreadyCleaned parameter ✅\n- Already implemented in prior session on `parseThcsTextRegex` (line 773)\n- Note: `parseThcsTextDirect` from original spec doesn't exist; the actual function is `parseThcsTextRegex` which already has the parameter\n\n### AC4: Reconciliation passes alreadyCleaned ✅\n- Already implemented — both fallback (line 471) and reconciliation (line 480) pass `alreadyCleaned: true`\n\n### AC5: tsc --noEmit ✅\n- No TypeScript errors in thcsDocumentParser.service.ts\n- Pre-existing errors in other files (AccessControlWrapper, ProfilePage, invitationService) are unrelated"
+        }
+      ],
+      "snapshot": {
+        "title": "Quick cleanup — Strip blank lines, lazy prompt, dedup preCleanText",
+        "description": "Three zero-risk cosmetic/minor fixes to the main parser file.\n\n- **FR-1**: Strip ~130 double-blank-line runs from `parseThcsDocument` (L158-434)\n- **FR-7**: Move `THCS_AI_PROMPT` import from module scope to dynamic `import()` inside `parseThcsText`\n- **FR-6**: Add `alreadyCleaned` parameter to `parseThcsTextDirect` so the paste-text reconciliation path skips redundant `preCleanText()`",
+        "status": "in-progress",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "from-spec",
+          "refactor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Remove all double-blank-line runs from parseThcsDocument (L158-434)"
+          },
+          {
+            "completed": true,
+            "text": "Move THCS_AI_PROMPT to dynamic import() inside parseThcsText"
+          },
+          {
+            "completed": true,
+            "text": "Add alreadyCleaned parameter to parseThcsTextDirect, skip preCleanText when true"
+          },
+          {
+            "completed": true,
+            "text": "Update parseThcsText reconciliation call to pass alreadyCleaned: true"
+          },
+          {
+            "completed": true,
+            "text": "npx tsc --noEmit passes cleanly"
+          }
+        ],
+        "implementationPlan": "1. **FR-1: Strip blank lines** from parseThcsDocument (L158-434)\n   - Collapse consecutive blank lines to max 1\n   - ~270 lines → ~140 lines\n\n2. **FR-7: Lazy-load AI prompt** (L446)\n   - Remove static `import THCS_AI_PROMPT from './thcs-ai-extraction-prompt.txt?raw'`\n   - Add dynamic `const { default: THCS_AI_PROMPT } = await import('./thcs-ai-extraction-prompt.txt?raw')` inside parseThcsText before L824\n\n3. **FR-6: Deduplicate preCleanText** (L1221-1230)\n   - Add `alreadyCleaned?: boolean` parameter to parseThcsTextDirect\n   - When true, skip preCleanText call and use rawText directly\n   - Update reconciliation call in parseThcsText L885 to pass cleaned text + alreadyCleaned: true\n\n4. **Verify**: npx tsc --noEmit passes",
+        "implementationNotes": "## Implementation (2026-03-04)\n\n### AC1: Strip blank lines ✅\n- Removed 8 double-blank-line runs from thcsDocumentParser.service.ts\n- File reduced from 846 → 838 lines\n- Verified: 0 consecutive blank lines remaining\n\n### AC2: Lazy AI prompt import ✅\n- Already implemented in prior session (line 438 uses dynamic `await import()`)\n- No changes needed\n\n### AC3: alreadyCleaned parameter ✅\n- Already implemented in prior session on `parseThcsTextRegex` (line 773)\n- Note: `parseThcsTextDirect` from original spec doesn't exist; the actual function is `parseThcsTextRegex` which already has the parameter\n\n### AC4: Reconciliation passes alreadyCleaned ✅\n- Already implemented — both fallback (line 471) and reconciliation (line 480) pass `alreadyCleaned: true`\n\n### AC5: tsc --noEmit ✅\n- No TypeScript errors in thcsDocumentParser.service.ts\n- Pre-existing errors in other files (AccessControlWrapper, ProfilePage, invitationService) are unrelated"
+      }
+    },
+    {
+      "id": "v5",
+      "taskId": "iqg0zm",
+      "version": 5,
+      "timestamp": "2026-03-04T15:43:00.076Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Quick cleanup — Strip blank lines, lazy prompt, dedup preCleanText",
+        "description": "Three zero-risk cosmetic/minor fixes to the main parser file.\n\n- **FR-1**: Strip ~130 double-blank-line runs from `parseThcsDocument` (L158-434)\n- **FR-7**: Move `THCS_AI_PROMPT` import from module scope to dynamic `import()` inside `parseThcsText`\n- **FR-6**: Add `alreadyCleaned` parameter to `parseThcsTextDirect` so the paste-text reconciliation path skips redundant `preCleanText()`",
+        "status": "done",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "from-spec",
+          "refactor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Remove all double-blank-line runs from parseThcsDocument (L158-434)"
+          },
+          {
+            "completed": true,
+            "text": "Move THCS_AI_PROMPT to dynamic import() inside parseThcsText"
+          },
+          {
+            "completed": true,
+            "text": "Add alreadyCleaned parameter to parseThcsTextDirect, skip preCleanText when true"
+          },
+          {
+            "completed": true,
+            "text": "Update parseThcsText reconciliation call to pass alreadyCleaned: true"
+          },
+          {
+            "completed": true,
+            "text": "npx tsc --noEmit passes cleanly"
+          }
+        ],
+        "implementationPlan": "1. **FR-1: Strip blank lines** from parseThcsDocument (L158-434)\n   - Collapse consecutive blank lines to max 1\n   - ~270 lines → ~140 lines\n\n2. **FR-7: Lazy-load AI prompt** (L446)\n   - Remove static `import THCS_AI_PROMPT from './thcs-ai-extraction-prompt.txt?raw'`\n   - Add dynamic `const { default: THCS_AI_PROMPT } = await import('./thcs-ai-extraction-prompt.txt?raw')` inside parseThcsText before L824\n\n3. **FR-6: Deduplicate preCleanText** (L1221-1230)\n   - Add `alreadyCleaned?: boolean` parameter to parseThcsTextDirect\n   - When true, skip preCleanText call and use rawText directly\n   - Update reconciliation call in parseThcsText L885 to pass cleaned text + alreadyCleaned: true\n\n4. **Verify**: npx tsc --noEmit passes",
+        "implementationNotes": "## Implementation (2026-03-04)\n\n### AC1: Strip blank lines ✅\n- Removed 8 double-blank-line runs from thcsDocumentParser.service.ts\n- File reduced from 846 → 838 lines\n- Verified: 0 consecutive blank lines remaining\n\n### AC2: Lazy AI prompt import ✅\n- Already implemented in prior session (line 438 uses dynamic `await import()`)\n- No changes needed\n\n### AC3: alreadyCleaned parameter ✅\n- Already implemented in prior session on `parseThcsTextRegex` (line 773)\n- Note: `parseThcsTextDirect` from original spec doesn't exist; the actual function is `parseThcsTextRegex` which already has the parameter\n\n### AC4: Reconciliation passes alreadyCleaned ✅\n- Already implemented — both fallback (line 471) and reconciliation (line 480) pass `alreadyCleaned: true`\n\n### AC5: tsc --noEmit ✅\n- No TypeScript errors in thcsDocumentParser.service.ts\n- Pre-existing errors in other files (AccessControlWrapper, ProfilePage, invitationService) are unrelated"
+      }
+    }
+  ]
+}

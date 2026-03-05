@@ -1,9 +1,10 @@
 /**
  * THCS Document Parser Service
  *
- * Three-layer hybrid pipeline (Brain-Janitor-Grunt):
- *   External AI (Step 0) ? Internal AI Pass 1 (Janitor) ? Regex Engine (Grunt)
- *   + Code Validation ? Adaptive Repair ? Compromise ? External Retry
+ * Parallel Pipeline Architecture (PRD-0031):
+ *   External AI (Step 0) → Gate Check → Pre-Clean
+ *   → Parallel: [AI Pass 1 (Janitor)] + [Code Validator]
+ *   → Decision Tree → (Crossfix?) → Compromise → Regex Engine (Grunt)
  */
 
 import type { THCSQuestionType } from '../../types/thcs-test.types';
@@ -13,15 +14,12 @@ export { convertParsedToThcsDraft } from './thcs-draft-converter';
 
 // -- Pipeline Module Imports --
 import { executePass1 } from './thcs-pass1-restructure';
-import type { Pass1Result } from './thcs-pass1-restructure';
-import { validateRestructuredText, detectSectionBoundaries } from './thcs-text-validator';
+import { validateRestructuredText, validateOriginalText, detectSectionBoundaries } from './thcs-text-validator';
 import type { ValidationReport } from './thcs-text-validator';
 import { executePass2Repair } from './thcs-pass2-repair';
 import type { Pass2Result } from './thcs-pass2-repair';
 import { executeCompromiseStep } from './thcs-compromise-step';
 import type { CompromiseResult } from './thcs-compromise-step';
-import { executeExternalRetry } from './thcs-external-retry';
-import type { ExternalRetryResult } from './thcs-external-retry';
 import { createRetrySession } from './thcs-retry-manager';
 import type { RetryStep } from './thcs-retry-manager';
 import type { RepairAuditEntry } from './thcs-prompt-builder';
@@ -101,33 +99,37 @@ export interface ParsedTest {
 
 export type Result<T> = { success: true; data: T } | { success: false; error: string };
 
-// -- Regex Patterns (PRD �4.12.3) --
+// -- Regex Patterns (PRD §4.12.3) --
 
 const PATTERNS = {
-    // Section: "I. MULTIPLE CHOICE", "Part A:", "SECTION II.", "Ph?n 3."
+    // Section: "I. MULTIPLE CHOICE", "Part A:", "SECTION II.", "Phần 3."
     // Must have a recognized prefix OR a Roman numeral followed by substantial text (>3 chars, not just a single letter)
-    sectionHeader: /^(?:(?:SECTION|Part|Ph?n)\s*(?:[IVXLCDM]+|\d+)[.:\s]*(.+)|([IVXLCDM]+)[.:\s]+(.{4,}))/im,
-    // Question: "Question 1.", "C�u 1.", "C�u1:", with REQUIRED prefix OR bare number with substantial text
-    // Bare "1. B" will NOT match � must have "Question" prefix OR text length >= 3 after number
-    question: /^(?:(?:C�u\s*|Question\s*|Q\.?\s*)(?:s?\s*)?(\d+)[.):\s]+(.+)|(\d+)[.):\s]+(.{3,}))/i,
+    // BUG FIX: Single-letter C, D, L, M were over-matching option lines (e.g. "C. economically").
+    // Now only I, V, X are valid single-letter Roman numerals; C/D/L/M require 2+ chars.
+    sectionHeader: /^(?:(?:SECTION|Part|Phần|Ph[aầ]n)\s*(?:[IVXLCDM]+|\d+)[.:\s]*(.+)|(?:[IVXLCDM]{2,}|[IVX])[.:\s]+(.{4,}))/im,
+    // Question: "Question 1.", "Câu 1.", "Câu1:", with REQUIRED prefix OR bare number with substantial text
+    // Bare "1. B" will NOT match — must have "Question" prefix OR text length >= 3 after number
+    // BUG FIX: Changed (.+) to (.*) so "Question 1." with no trailing text (cloze questions) still matches.
+    question: /^(?:(?:C[aâ]u\s*|Question\s*|Q\.?\s*)(?:s?\s*)?(\d+)[.):\s]*(.*)|([0-9]+)[.):\s]+(.{3,}))/i,
     // Option: "A. text", "A) text", "A: text"
     optionLine: /^([A-H])[.):\s]+(.+)/i,
     // Answer key header: many Vietnamese variants
-    answerKeyHeader: /^(?:ANSWER\s*KEY|��P\s*�N|KEY|KEYS|B?NG\s*��P\s*�N|M�\s*�?.*��P\s*�N)[:\s]*/i,
-    // Answer entries: "1:B", "1.B", "1-B", "C�u 1: ��p �n: A"
-    answerKeyLine: /(?:C�u\s*)?(\d+)[:.)\-\s]+(?:��p\s*�n[:\s]*)?([A-H])/gi,
+    // Allow optional leading decorators: "=== 4. ", "V. ", "VI.", Roman numerals, etc.
+    answerKeyHeader: /^(?:[=\-*#\s]*(?:[IVXLCDM]+\.?\s*|\d+\.?\s*)?)?(?:ANSWER\s*KEY|ĐÁP\s*ÁN|KEY|KEYS|BẢNG\s*ĐÁP\s*ÁN|MÃ\s*Đ[ÊỀ].*ĐÁP\s*ÁN)[:\s=\-*]*/i,
+    // Answer entries: "1:B", "1.B", "1-B", "Câu 1: Đáp án: A"
+    answerKeyLine: /(?:C[aâ]u\s*)?(\d+)[:.)\-\s]+(?:Đ[áa]p\s*[áa]n[:\s]*)?([A-H])/gi,
     // Space-separated answer: "1. B" (number + dot/colon + space + single letter)
     answerKeySpaced: /^\s*(\d+)[.):\s]+([A-H])\s*$/i,
     fillBlank: /_{2,}|\.{3,}/g,
-    pointAllocation: /\((\d+(?:\.\d+)?)\s*(?:point|di?m|pts?|marks?)\)/i,
-    // Duration: "60 minutes", "60 MINUTES", "45 ph�t"
-    duration: /(\d+)\s*(?:minutes?|ph�t|mins?)/i,
-    // Grade: "Grade 9", "L?p 10", "Kh?i 9", "10TH GRADE", "L?P 9"
-    gradeLevel: /(?:(?:Grade|L?p|Kh?i)\s*(\d{1,2})|(\d{1,2})(?:TH|ST|ND|RD)?\s*GRADE)/i,
+    pointAllocation: /\((\d+(?:\.\d+)?)\s*(?:point|đi[eể]m|di[eể]m|pts?|marks?)\)/i,
+    // Duration: "60 minutes", "60 MINUTES", "45 phút"
+    duration: /(\d+)\s*(?:minutes?|phút|mins?)/i,
+    // Grade: "Grade 9", "Lớp 10", "Khối 9", "10TH GRADE", "LỚP 9"
+    gradeLevel: /(?:(?:Grade|L[oớ]p|Kh[oố]i)\s*(\d{1,2})|(\d{1,2})(?:TH|ST|ND|RD)?\s*GRADE)/i,
 };
 
 // -- Layer 1: Regex Structural Parser --
-// (used by parseThcsTextRegex fallback � kept after upload pipeline removal)
+// (used by parseThcsTextRegex fallback — kept after upload pipeline removal)
 
 function detectSections(lines: string[]): ParsedSection[] {
     const sections: ParsedSection[] = [];
@@ -136,15 +138,15 @@ function detectSections(lines: string[]): ParsedSection[] {
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i]!.trim();
 
-        // Skip answer key section � don't treat it as a regular section
-        if (PATTERNS.answerKeyHeader.test(line) || /ANSWER\s*KEY|��P\s*�N/i.test(line)) {
+        // Skip answer key section  don't treat it as a regular section
+        if (PATTERNS.answerKeyHeader.test(line) || /^(?:VI\.|V\.|IV\.)?\s*(?:ANSWER\s*KEY|ĐÁP\s*ÁN)/i.test(line)) {
             // Close current section before answer key starts
             if (currentSection && currentSection.startLine !== undefined) {
                 currentSection.endLine = i - 1;
                 sections.push(currentSection as ParsedSection);
                 currentSection = null;
             }
-            break; // Stop section detection � everything after this is answer key
+            break; // Stop section detection  everything after this is answer key
         }
 
         const sectionMatch = line.match(PATTERNS.sectionHeader);
@@ -199,7 +201,7 @@ function parseQuestions(lines: string[], sections: ParsedSection[]): void {
             const line = lines[i]?.trim() || '';
             if (!line) continue;
 
-            if (PATTERNS.answerKeyHeader.test(line) || /ANSWER\s*KEY|��P\s*�N/i.test(line)) break;
+            if (PATTERNS.answerKeyHeader.test(line) || /^(?:VI\.|V\.|IV\.)?\s*(?:ANSWER\s*KEY|ĐÁP\s*ÁN)/i.test(line)) break;
 
             const questionMatch = line.match(PATTERNS.question);
             const optionMatch = line.match(PATTERNS.optionLine);
@@ -213,11 +215,14 @@ function parseQuestions(lines: string[], sections: ParsedSection[]): void {
 
             if (questionMatch) {
                 const qNum = questionMatch[1] || questionMatch[3];
-                const qText = questionMatch[2] || questionMatch[4];
-                if (qNum && qText) {
+                const qText = questionMatch[2] || questionMatch[4] || '';
+                if (qNum) {
                     const cleanText = qText.trim();
+                    // Skip false positive: bare "1. B" where B is an option letter not question text
                     if (cleanText.length <= 2 && /^[A-H]$/i.test(cleanText)) continue;
-                    if (currentQ && currentQ.text) section.questions.push(currentQ as ParsedQuestion);
+                    if (currentQ && (currentQ.text || (currentQ.options && currentQ.options.length > 0))) {
+                        section.questions.push(currentQ as ParsedQuestion);
+                    }
                     currentQ = {
                         questionNumber: parseInt(qNum, 10),
                         text: cleanText,
@@ -233,7 +238,10 @@ function parseQuestions(lines: string[], sections: ParsedSection[]): void {
             }
         }
 
-        if (currentQ && currentQ.text) section.questions.push(currentQ as ParsedQuestion);
+        // Push last question — accept questions with options even if text is empty (cloze format)
+        if (currentQ && (currentQ.text || (currentQ.options && currentQ.options.length > 0))) {
+            section.questions.push(currentQ as ParsedQuestion);
+        }
         if (!section.instructionText && instructionLines.length > 0)
             section.instructionText = instructionLines.join(' ').trim();
     }
@@ -268,11 +276,11 @@ function extractMetadata(lines: string[]): ParsedMetadata {
         }
     }
 
-    if (/gi?a\s*k�|mid[- ]?term|gi?a.*h?c.*k�/i.test(headerLines)) metadata.examType = 'gi?a k�';
-    else if (/cu?i\s*k�|final|end[- ]?of|cu?i.*h?c.*k�/i.test(headerLines)) metadata.examType = 'cu?i k�';
-    else if (/thi\s*v�o\s*10|entrance|tuy?n\s*sinh/i.test(headerLines)) metadata.examType = 'thi v�o 10';
-    else if (/�n\s*t?p|review|practice/i.test(headerLines)) metadata.examType = '�n t?p';
-    else if (/ki?m tra|test|quiz|exam/i.test(headerLines)) metadata.examType = 'gi?a k�';
+    if (/giữa\s*kì|mid[- ]?term|giữa.*học.*kì/i.test(headerLines)) metadata.examType = 'giữa kì';
+    else if (/cuối\s*kì|final|end[- ]?of|cuối.*học.*kì/i.test(headerLines)) metadata.examType = 'cuối kì';
+    else if (/thi\s*vào\s*10|entrance|tuyển\s*sinh/i.test(headerLines)) metadata.examType = 'thi vào 10';
+    else if (/ôn\s*tập|review|practice/i.test(headerLines)) metadata.examType = 'ôn tập';
+    else if (/kiểm tra|test|quiz|exam/i.test(headerLines)) metadata.examType = 'giữa kì';
 
     const examTypePrefixMatch = headerLines.match(/^EXAM\s*TYPE:\s*(.+)/im);
     if (examTypePrefixMatch) metadata.examType = examTypePrefixMatch[1]!.trim();
@@ -287,13 +295,13 @@ function extractAnswerKey(lines: string[]): Record<number, string> {
     for (let i = 0; i < lines.length; i++) {
         const trimmed = lines[i]?.trim() || '';
 
-        // Detect answer key section start � multiple strategies
+        // Detect answer key section start  multiple strategies
         if (PATTERNS.answerKeyHeader.test(trimmed)) {
             inAnswerSection = true;
             continue;
         }
-        // Also detect if a section header contains "ANSWER KEY" or "��P �N"
-        if (/ANSWER\s*KEY|��P\s*�N/i.test(trimmed) && PATTERNS.sectionHeader.test(trimmed)) {
+        // Also detect if a section header contains "ANSWER KEY" or "ĐÁP ÁN"
+        if (/^(?:VI\.|V\.|IV\.)?\s*(?:ANSWER\s*KEY|ĐÁP\s*ÁN)/i.test(trimmed) || (/ANSWER\s*KEY|ĐÁP\s*ÁN/i.test(trimmed) && PATTERNS.sectionHeader.test(trimmed))) {
             inAnswerSection = true;
             continue;
         }
@@ -362,6 +370,29 @@ function preCleanText(rawText: string): string {
  * @param onProgress - Optional progress callback for UI
  * @returns Parsed test result with sections, questions, answer key
  */
+/**
+ * Gate Check (FR-1): Verify pasted text came from Step 0.
+ * Must satisfy at least ONE of Group A AND at least ONE of Group B.
+ *
+ * Group A (metadata markers): TITLE: | GRADE: | EXAM TYPE:
+ * Group B (structural markers): section header (Roman numeral/Part) | [TYPE: xxx] tag
+ */
+function isStep0Output(text: string): boolean {
+    // Group A: at least one metadata marker
+    const hasGroupA =
+        /^TITLE:/m.test(text) ||
+        /^GRADE:/m.test(text) ||
+        /^EXAM\s+TYPE:/m.test(text);
+
+    // Group B: at least one structural marker
+    const hasGroupB =
+        /^(?:I{1,3}|IV|V|VI{0,3}|IX|X{0,3})\.\s+/im.test(text) ||
+        /^(?:Part|Section|Exercise)\s+/im.test(text) ||
+        /\[TYPE:\s*[a-z][a-z0-9-]*\s*\]/i.test(text);
+
+    return hasGroupA && hasGroupB;
+}
+
 export async function parseThcsText(
     rawText: string,
     onProgress?: (progress: ParseProgress) => void
@@ -372,6 +403,14 @@ export async function parseThcsText(
         let usedProvider = 'pipeline-v2';
         let reclassifications: ReclassificationEvent[] = [];
 
+        // ── FR-1: Gate Check ──
+        if (!isStep0Output(rawText)) {
+            return {
+                success: false,
+                error: "This text doesn't appear to be Step 0 output. Please use the Copy Prompt button in the test creation wizard to get the extraction prompt, paste it into Gemini or ChatGPT along with your test images, then paste the AI's output here.",
+            };
+        }
+
         // --- Stage 1: Pre-clean -------------------------------------
         onProgress?.({ stage: 'extracting', percent: 5, message: 'Cleaning text...' });
         const cleaned = preCleanText(rawText);
@@ -380,9 +419,8 @@ export async function parseThcsText(
             return { success: false, error: 'Text too short to parse. Please paste the full test content.' };
         }
 
-        // --- Stage 2: Pass 1 � Restructure + Confidence -------------
-        onProgress?.({ stage: 'parsing', percent: 10, message: 'Analyzing text structure...' });
-        const retrySession = createRetrySession(5);
+        // --- Stage 2: Parallel Assessment (FR-3) ─────────────────────
+        onProgress?.({ stage: 'ai-polish', percent: 20, message: 'Analyzing text (AI + Code in parallel)...' });
 
         // Create the AI callback for internal Pass 1 (Groq → Gemini fallback)
         const callInternalAI = async (systemMessage: string, prompt: string): Promise<string | null> => {
@@ -393,25 +431,96 @@ export async function parseThcsText(
             return callGeminiDirectPlainText(prompt, systemMessage);
         };
 
-        const pass1: Pass1Result = await executePass1(cleaned, retrySession, callInternalAI);
-        console.log(`[parseThcsText] Pass1 done: confidence=${pass1.confidence}, text=${pass1.restructuredText.length} chars`);
+        // Run AI restructuring and code validation in parallel
+        const [aiResult, codeReport] = await Promise.all([
+            executePass1(cleaned, createRetrySession(), callInternalAI).catch((err) => {
+                console.warn('[parseThcsText] Pass 1 AI call failed:', err);
+                return null; // AI failure is handled by decision tree
+            }),
+            Promise.resolve(validateOriginalText(cleaned)),
+        ]);
 
-        // --- Stage 3: Code Validation -------------------------------
-        onProgress?.({ stage: 'parsing', percent: 25, message: 'Validating format...' });
-        const validationReport: ValidationReport = validateRestructuredText(
-            pass1.restructuredText, rawText, pass1.confidence,
-        );
-        console.log(`[parseThcsText] Validation: formatConfidence=${validationReport.formatConfidence}, issues=${validationReport.issues.length}`);
+        // Also validate the AI-restructured text (if AI succeeded)
+        const validationReport: ValidationReport = aiResult
+            ? validateRestructuredText(aiResult.restructuredText, rawText, aiResult.confidence)
+            : codeReport;
+        console.log(`[parseThcsText] Parallel done: AI=${aiResult ? `confidence=${aiResult.confidence}` : 'FAILED'}, Code=formatConfidence=${codeReport.formatConfidence}`);
 
-        // --- Stage 4: Branch Decision -------------------------------
-        let bestText = pass1.restructuredText;
+        // ── FR-4: Decision Tree ──
+        type NextStep = 'engine' | 'crossfix';
+        let textForEngine: string;
+        let decision: NextStep;
+
+        if (aiResult === null) {
+            // AI call failed entirely
+            if (codeReport.formatConfidence >= 70) {
+                decision = 'engine';
+                textForEngine = cleaned;
+            } else {
+                decision = 'crossfix';
+                textForEngine = cleaned;
+            }
+        } else {
+            const A = aiResult.confidence;
+            const C = codeReport.formatConfidence;
+            const gap = Math.abs(A - C);
+            const isEqual = gap <= 10;
+
+            if (!isEqual && A > C) {
+                decision = 'engine';
+                textForEngine = aiResult.restructuredText;
+            } else if (!isEqual && C > A) {
+                decision = 'crossfix';
+                textForEngine = aiResult.restructuredText;
+            } else if (isEqual && A > 70 && C > 70) {
+                decision = 'engine';
+                textForEngine = aiResult.restructuredText;
+            } else {
+                decision = 'crossfix';
+                textForEngine = aiResult?.restructuredText ?? cleaned;
+            }
+        }
+
+        console.log(`[parseThcsText] Decision tree: decision=${decision}, AI=${aiResult?.confidence ?? 'FAILED'}, Code=${codeReport.formatConfidence}`);
+
+        // --- Stage 4: Apply Decision ── crossfix? → compromise → engine ---
+        let bestText = textForEngine;
         let allAuditEntries: RepairAuditEntry[] = [];
         let compromiseResult: CompromiseResult | null = null;
         let confidenceWarning: string | null = null;
 
-        // 4a: Compromise unsupported types (if any)
+        // 4a: Optional crossfix loop (if decision tree chose 'crossfix')
+        if (decision === 'crossfix') {
+            onProgress?.({ stage: 'parsing', percent: 35, message: 'Cross-fixing formatting issues...' });
+            // TODO: Task 4.0 — implement executeCrossfixLoop and call it here
+            // const crossfixResult = await executeCrossfixLoop(
+            //     bestText, cleaned, aiResult?.confidence ?? 0, crossfixCallAI,
+            // );
+            // bestText = crossfixResult.bestText;
+            // allAuditEntries.push(...crossfixResult.auditLog);
+            // confidenceWarning = crossfixResult.confidenceWarning;
+
+            // Interim: use the old repair as a bridge until crossfix loop is implemented
+            const repairCallAI = async (system: string, prompt: string, step: RetryStep): Promise<string | null> => {
+                if (step.provider === 'gemini') {
+                    return callGeminiDirectPlainText(prompt, system, step.model);
+                }
+                return callGroqDirectPlainText(prompt, system, step.model, step.temperature);
+            };
+            if (validationReport.issues.length > 0) {
+                const pass2: Pass2Result = await executePass2Repair(
+                    validationReport, aiResult?.confidence ?? 0, createRetrySession(), repairCallAI,
+                    bestText,
+                );
+                bestText = pass2.repairedText;
+                allAuditEntries.push(...pass2.auditLog);
+                confidenceWarning = pass2.confidenceWarning;
+            }
+        }
+
+        // 4b: Compromise unsupported types (BOTH paths — compromise handles types that crossfix doesn't)
         if (validationReport.unsupportedTypes.length > 0) {
-            onProgress?.({ stage: 'parsing', percent: 35, message: 'Converting unsupported sections...' });
+            onProgress?.({ stage: 'parsing', percent: 45, message: 'Converting unsupported sections...' });
             const compCallAI = async (system: string, prompt: string, _step: RetryStep): Promise<string | null> => {
                 return callGroqDirectPlainText(prompt, system);
             };
@@ -430,11 +539,10 @@ export async function parseThcsText(
             });
 
             compromiseResult = await executeCompromiseStep(
-                validationReport.unsupportedTypes, bestText, rawText, retrySession, compCallAI, sectionTexts,
+                validationReport.unsupportedTypes, bestText, rawText, createRetrySession(), compCallAI, sectionTexts,
             );
 
-            // Merge converted sections back into bestText (previously this was missing —
-            // convertedText was computed but never applied, making compromise a no-op).
+            // Merge converted sections back into bestText
             if (compromiseResult.compromisedSections.length > 0) {
                 const mergedLines = [...textLines];
                 // Process in reverse index order so line offsets don't shift mid-merge.
@@ -455,66 +563,30 @@ export async function parseThcsText(
             }
         }
 
-        // 4b: Repair known issues (if formatConfidence 50-79 and issues exist)
-        // Upper bound <80 is required: anything ≥80 is good enough for the regex engine.
-        // Without it, a 99%-confidence test with a single minor issue would trigger AI repair
-        // that could degrade an already-correct result.
-        if (validationReport.formatConfidence >= 50 && validationReport.formatConfidence < 80 && validationReport.issues.length > 0) {
-            onProgress?.({ stage: 'parsing', percent: 45, message: 'Repairing formatting issues...' });
-            const repairCallAI = async (system: string, prompt: string, step: RetryStep): Promise<string | null> => {
-                if (step.provider === 'gemini') {
-                    return callGeminiDirectPlainText(prompt, system, step.model);
-                }
-                return callGroqDirectPlainText(prompt, system, step.model, step.temperature);
-            };
-            const pass2: Pass2Result = await executePass2Repair(
-                validationReport, pass1.confidence, retrySession, repairCallAI,
-                bestText, // post-compromise current state (Bug 4 fix)
-            );
-            bestText = pass2.repairedText;
-            allAuditEntries.push(...pass2.auditLog);
-            confidenceWarning = pass2.confidenceWarning;
-        }
-
-        // 4c: External retry (if formatConfidence < 50 after all internal passes)
-        if (validationReport.formatConfidence < 50) {
-            onProgress?.({ stage: 'parsing', percent: 50, message: 'Requesting external re-extraction...' });
-            const extCallAI = async (provider: string, model: string, prompt: string): Promise<string | null> => {
-                if (provider === 'groq') {
-                    return callGroqDirectPlainText(prompt, 'You are an expert Vietnamese THCS English test parser.', model);
-                }
-                return callGeminiDirectPlainText(prompt, 'You are an expert Vietnamese THCS English test parser.', model);
-            };
-            const runPipeline = async (rawResp: string) => {
-                const reCleaned = preCleanText(rawResp);
-                const rePass1 = await executePass1(reCleaned, createRetrySession(2), callInternalAI);
-                const reReport = validateRestructuredText(rePass1.restructuredText, rawText, rePass1.confidence);
-                return { processedText: rePass1.restructuredText, report: reReport };
-            };
-            const extRetry: ExternalRetryResult = await executeExternalRetry(
-                rawText, allAuditEntries, validationReport, extCallAI, runPipeline,
-            );
-            if (extRetry.outcome === 'success' && extRetry.bestText) {
-                bestText = extRetry.bestText;
-                usedProvider = 'external-retry';
-            } else {
-                // Teacher escalation � but don't hard fail, continue with best we have
-                warnings.push({
-                    type: 'skipped-content',
-                    message: extRetry.teacherMessage || 'Automatic parsing had low confidence. Please review carefully.',
-                });
-            }
-        }
-
         // --- Stage 5: Regex Engine Parse ----------------------------
+        console.log(`[parseThcsText] Stage 5: Regex engine, bestText length=${bestText.length}`);
+        console.log(`[parseThcsText] Stage 5: bestText first 800 chars:\n${bestText.substring(0, 800)}`);
+        // Quick diagnostic: test regex patterns against first few lines
+        const diagLines = bestText.split('\n').slice(0, 30);
+        const diagSectionHits = diagLines.filter(l => PATTERNS.sectionHeader.test(l.trim())).length;
+        const diagQuestionHits = diagLines.filter(l => PATTERNS.question.test(l.trim())).length;
+        console.log(`[parseThcsText] Stage 5 DIAG: first 30 lines → ${diagSectionHits} section headers, ${diagQuestionHits} question matches`);
         onProgress?.({ stage: 'parsing', percent: 65, message: 'Parsing content...' });
         const parsedResult = await parseThcsTextRegex(bestText, undefined, true);
-        if (!parsedResult.success || !parsedResult.data) {
-            return { success: false, error: 'Regex parsing failed on processed text.' };
+        console.log(`[parseThcsText] Stage 5: Regex result success=${parsedResult.success}, questions=${parsedResult.success ? parsedResult.data?.sections?.reduce((s: number, sec: any) => s + sec.questions.length, 0) : 'N/A'}`);
+        if (!parsedResult.success) {
+            console.error('[parseThcsText] Regex parsing failed:', parsedResult.error);
+            const baseError = parsedResult.error || 'Regex parsing failed on processed text.';
+            const warningContext = warnings.length > 0 ? ` (Note: ${(warnings[0] as ParseWarning).message})` : '';
+            return { success: false, error: baseError + warningContext };
+        }
+        if (!parsedResult.data) {
+            return { success: false, error: 'Regex parsing succeeded but returned no data.' };
         }
         const parsedTest = parsedResult.data;
 
         // --- Stage 6: Type Classification ---------------------------
+        console.log(`[parseThcsText] Stage 6: Classifying ${parsedTest.sections.length} sections`);
         onProgress?.({ stage: 'classifying', percent: 80, message: 'Classifying question types...' });
         classifyQuestionTypes(parsedTest.sections);
         reclassifications = reclassifyByContent(parsedTest.sections);
@@ -560,13 +632,13 @@ export async function parseThcsText(
 
         // Attach pipeline debug data for review panel
         parsedTest._pipelineDebug = {
-            pass1Confidence: pass1.confidence,
+            pass1Confidence: aiResult?.confidence ?? 0,
             codeConfidence: validationReport.formatConfidence,
             issuesFound: validationReport.issues.map(i => i.code),
             auditLog: allAuditEntries,
             compromisedSections: compromiseResult?.compromisedSections || [],
             skippedSections: compromiseResult?.skippedSections || [],
-            hasInferredAnswers: pass1.hasInferredAnswers,
+            hasInferredAnswers: aiResult?.hasInferredAnswers ?? false,
             pipeline: 'v2-brain-janitor-grunt',
             provider: usedProvider,
             parseDurationMs: Date.now() - parseStart,

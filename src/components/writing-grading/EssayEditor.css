@@ -1,0 +1,312 @@
+/**
+ * EssayEditor Styles
+ *
+ * Styles for the TipTap essay editor component in the grading modal.
+ * Left column of the 2-column layout.
+ *
+ * @see specs/grading-editor-redesign
+ * @module components/writing-grading/EssayEditor.css
+ */
+
+/* ═══════════════════════════════════════════════════════════════
+   WRAPPER
+   ═══════════════════════════════════════════════════════════════ */
+
+.essay-editor-wrapper {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: #ffffff;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   VIEW MODE TOGGLE (Original / Marked)
+   ═══════════════════════════════════════════════════════════════ */
+
+.essay-editor-view-toggle {
+    display: flex;
+    gap: 2px;
+    padding: 8px 12px;
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc;
+}
+
+.view-toggle-btn {
+    padding: 6px 14px;
+    border: none;
+    background: transparent;
+    color: #64748b;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.view-toggle-btn:hover {
+    background: #e2e8f0;
+    color: #1e293b;
+}
+
+.view-toggle-btn.active {
+    background: #3b82f6;
+    color: #ffffff;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   FIXED TOOLBAR
+   ═══════════════════════════════════════════════════════════════ */
+
+.essay-editor-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 6px 12px;
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc;
+    flex-shrink: 0;
+}
+
+.toolbar-btn {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #475569;
+    transition: all 0.12s ease;
+}
+
+.toolbar-btn:hover:not(:disabled) {
+    background: #e2e8f0;
+    color: #1e293b;
+}
+
+.toolbar-btn.active {
+    background: #dbeafe;
+    color: #2563eb;
+}
+
+.toolbar-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.toolbar-btn-group {
+    display: flex;
+    align-items: center;
+    position: relative;
+}
+
+.toolbar-dropdown-arrow {
+    width: 18px;
+    font-size: 10px;
+    margin-left: -2px;
+    color: #94a3b8;
+}
+
+.toolbar-dropdown-arrow:hover {
+    color: #475569;
+}
+
+.toolbar-separator {
+    width: 1px;
+    height: 20px;
+    background: #e2e8f0;
+    margin: 0 6px;
+}
+
+.toolbar-icon {
+    display: inline-flex;
+    padding-bottom: 2px;
+}
+
+/* ─── Toolbar Dropdown ─────────────────────────────────────── */
+
+.toolbar-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 4px;
+    display: flex;
+    gap: 6px;
+    padding: 8px 10px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    z-index: 50;
+    flex-wrap: wrap;
+    max-width: 160px;
+}
+
+.color-dot {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.color-dot:hover {
+    transform: scale(1.15);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   EDITOR CONTAINER (with gutter)
+   ═══════════════════════════════════════════════════════════════ */
+
+.essay-editor-container {
+    position: relative;
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+}
+
+.essay-editor-editable {
+    flex: 1;
+    padding: 20px 24px 20px 32px;
+    min-height: 100%;
+}
+
+/* ProseMirror content styling */
+.essay-editor-editable .ProseMirror {
+    outline: none;
+    font-family: 'Georgia', 'Times New Roman', serif;
+    font-size: 15px;
+    line-height: 1.8;
+    color: #1e293b;
+    min-height: 200px;
+}
+
+.essay-editor-editable .ProseMirror p {
+    margin-bottom: 12px;
+}
+
+.essay-editor-editable .ProseMirror p:last-child {
+    margin-bottom: 0;
+}
+
+/* Placeholder */
+.essay-editor-editable .ProseMirror p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    float: left;
+    color: #94a3b8;
+    pointer-events: none;
+    height: 0;
+    font-style: italic;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ORIGINAL VIEW (plain text, read-only)
+   ═══════════════════════════════════════════════════════════════ */
+
+.essay-original-view {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 24px;
+}
+
+.essay-original-text {
+    font-family: 'Georgia', 'Times New Roman', serif;
+    font-size: 15px;
+    line-height: 1.8;
+    color: #1e293b;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.essay-placeholder {
+    color: #94a3b8;
+    font-style: italic;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   METADATA BAR
+   ═══════════════════════════════════════════════════════════════ */
+
+.essay-editor-metadata {
+    padding: 8px 16px;
+    border-top: 1px solid #e2e8f0;
+    background: #f8fafc;
+    font-size: 12px;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   BUBBLE MENU
+   ═══════════════════════════════════════════════════════════════ */
+
+.essay-bubble-menu {
+    display: flex;
+    gap: 2px;
+    padding: 4px 6px;
+    background: #1e293b;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.bubble-btn {
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: #e2e8f0;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.12s ease;
+}
+
+.bubble-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   COMMENT MARKS (in essay text)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Base comment mark — applied by TipTap extension */
+.essay-editor-editable .comment-mark {
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+    border-radius: 2px;
+    position: relative;
+}
+
+/* Focused comment mark — when card is clicked or mark is clicked */
+.essay-editor-editable .comment-mark.comment-focused {
+    background-color: rgba(59, 130, 246, 0.25) !important;
+    border-bottom-width: 3px !important;
+    border-bottom-style: solid !important;
+    outline: 2px solid rgba(59, 130, 246, 0.3);
+    outline-offset: 1px;
+    border-radius: 2px;
+}
+
+/* Hovered comment mark — when hovering the sidebar card */
+.essay-editor-editable .comment-mark.comment-hovered {
+    background-color: rgba(59, 130, 246, 0.15) !important;
+    border-bottom-width: 3px !important;
+    border-bottom-style: dotted !important;
+}

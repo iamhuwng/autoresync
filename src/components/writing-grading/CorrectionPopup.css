@@ -1,0 +1,150 @@
+/**
+ * CorrectionPopup Styles
+ *
+ * Small floating popup for entering correction text.
+ * Positioned absolutely within the editor container.
+ *
+ * @module components/writing-grading/CorrectionPopup.css
+ */
+
+.correction-popup {
+    position: absolute;
+    z-index: 60;
+    width: 300px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06);
+    padding: 12px;
+    animation: correctionPopupIn 0.15s ease-out;
+}
+
+@keyframes correctionPopupIn {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ─── Header ─────────────────────────────────────────────── */
+
+.correction-popup-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.correction-popup-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.correction-popup-close {
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: #94a3b8;
+    font-size: 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.12s ease;
+}
+
+.correction-popup-close:hover {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+/* ─── Preview ────────────────────────────────────────────── */
+
+.correction-popup-preview {
+    padding: 8px 10px;
+    background: #f8fafc;
+    border-radius: 6px;
+    margin-bottom: 10px;
+    font-size: 13px;
+    line-height: 1.5;
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 2px;
+}
+
+.correction-preview-original {
+    text-decoration: line-through;
+    color: #94a3b8;
+}
+
+.correction-preview-arrow {
+    color: #64748b;
+    font-size: 12px;
+}
+
+.correction-preview-new {
+    color: #10b981;
+    font-weight: 500;
+}
+
+/* ─── Input Row ──────────────────────────────────────────── */
+
+.correction-popup-input-row {
+    display: flex;
+    gap: 6px;
+}
+
+.correction-popup-input {
+    flex: 1;
+    padding: 7px 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #1e293b;
+    background: #ffffff;
+    outline: none;
+    transition: border-color 0.15s ease;
+}
+
+.correction-popup-input:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.correction-popup-input::placeholder {
+    color: #94a3b8;
+}
+
+.correction-popup-apply {
+    padding: 7px 14px;
+    border: none;
+    background: #10b981;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.12s ease;
+    white-space: nowrap;
+}
+
+.correction-popup-apply:hover:not(:disabled) {
+    background: #059669;
+}
+
+.correction-popup-apply:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}

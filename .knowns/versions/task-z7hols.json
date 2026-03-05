@@ -1,0 +1,355 @@
+{
+  "taskId": "z7hols",
+  "currentVersion": 4,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "z7hols",
+      "version": 1,
+      "timestamp": "2026-03-01T06:46:33.523Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "StudentResultOverview: shows overall band, per-criterion scores (TA/TR CC LR GRA), all feedback sections, annotation count, 'View Detailed Markup →' link",
+              "completed": false
+            },
+            {
+              "text": "Overview is fully responsive: clean layout on desktop + mobile",
+              "completed": false
+            },
+            {
+              "text": "StudentDetailedMarkup (desktop): read-only TipTap editor with all teacher marks (highlights, corrections, strikethroughs, comments) + Google Docs-style comment sidebar with positioned cards + bidirectional click interaction",
+              "completed": false
+            },
+            {
+              "text": "StudentDetailedMarkup (mobile): single-column layout. Essay with marks rendered inline. Tapping highlighted text expands comment card inline below (accordion style). No sidebar.",
+              "completed": false
+            },
+            {
+              "text": "No emoji reactions, no reply input (future features)",
+              "completed": false
+            },
+            {
+              "text": "Accessible as a separate page from student records/results list",
+              "completed": false
+            },
+            {
+              "text": "Corrections display correctly in read-only mode: strikethrough + → + green text",
+              "completed": false
+            },
+            {
+              "text": "All category colors and labels display correctly",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Student Result View (Overview + Detailed Markup)",
+        "description": "Build StudentResultOverview.tsx (responsive) and StudentDetailedMarkup.tsx. Overview (default): band scores, per-criterion scores, all feedback sections, annotation count, 'View Detailed Markup' link. Fully responsive desktop+mobile. Detailed Markup: desktop = read-only TipTap with marks + Google Docs-style comment sidebar with positioned cards. Mobile = single-column with inline expandable accordion comments on tap. Separate page. No reactions/replies (future). See @doc/specs/grading-editor-redesign FR-GROUP-5.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "phase-2",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "StudentResultOverview: shows overall band, per-criterion scores (TA/TR CC LR GRA), all feedback sections, annotation count, 'View Detailed Markup →' link",
+            "completed": false
+          },
+          {
+            "text": "Overview is fully responsive: clean layout on desktop + mobile",
+            "completed": false
+          },
+          {
+            "text": "StudentDetailedMarkup (desktop): read-only TipTap editor with all teacher marks (highlights, corrections, strikethroughs, comments) + Google Docs-style comment sidebar with positioned cards + bidirectional click interaction",
+            "completed": false
+          },
+          {
+            "text": "StudentDetailedMarkup (mobile): single-column layout. Essay with marks rendered inline. Tapping highlighted text expands comment card inline below (accordion style). No sidebar.",
+            "completed": false
+          },
+          {
+            "text": "No emoji reactions, no reply input (future features)",
+            "completed": false
+          },
+          {
+            "text": "Accessible as a separate page from student records/results list",
+            "completed": false
+          },
+          {
+            "text": "Corrections display correctly in read-only mode: strikethrough + → + green text",
+            "completed": false
+          },
+          {
+            "text": "All category colors and labels display correctly",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "z7hols",
+      "version": 2,
+      "timestamp": "2026-03-01T08:25:39.688Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        },
+        {
+          "field": "assignee",
+          "newValue": "@me"
+        }
+      ],
+      "snapshot": {
+        "title": "Student Result View (Overview + Detailed Markup)",
+        "description": "Build StudentResultOverview.tsx (responsive) and StudentDetailedMarkup.tsx. Overview (default): band scores, per-criterion scores, all feedback sections, annotation count, 'View Detailed Markup' link. Fully responsive desktop+mobile. Detailed Markup: desktop = read-only TipTap with marks + Google Docs-style comment sidebar with positioned cards. Mobile = single-column with inline expandable accordion comments on tap. Separate page. No reactions/replies (future). See @doc/specs/grading-editor-redesign FR-GROUP-5.",
+        "status": "in-progress",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "phase-2",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "StudentResultOverview: shows overall band, per-criterion scores (TA/TR CC LR GRA), all feedback sections, annotation count, 'View Detailed Markup →' link"
+          },
+          {
+            "completed": false,
+            "text": "Overview is fully responsive: clean layout on desktop + mobile"
+          },
+          {
+            "completed": false,
+            "text": "StudentDetailedMarkup (desktop): read-only TipTap editor with all teacher marks (highlights, corrections, strikethroughs, comments) + Google Docs-style comment sidebar with positioned cards + bidirectional click interaction"
+          },
+          {
+            "completed": false,
+            "text": "StudentDetailedMarkup (mobile): single-column layout. Essay with marks rendered inline. Tapping highlighted text expands comment card inline below (accordion style). No sidebar."
+          },
+          {
+            "completed": false,
+            "text": "No emoji reactions, no reply input (future features)"
+          },
+          {
+            "completed": false,
+            "text": "Accessible as a separate page from student records/results list"
+          },
+          {
+            "completed": false,
+            "text": "Corrections display correctly in read-only mode: strikethrough + → + green text"
+          },
+          {
+            "completed": false,
+            "text": "All category colors and labels display correctly"
+          }
+        ]
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "z7hols",
+      "version": 3,
+      "timestamp": "2026-03-01T08:26:55.926Z",
+      "changes": [
+        {
+          "field": "implementationPlan",
+          "newValue": "## Implementation Plan\n\n### 1. StudentResultOverview.tsx + CSS (AC-1, AC-2, AC-5, AC-8)\n- New component in writing-results/\n- Props: { submission: WritingSubmission, onViewDetailedMarkup?: () => void }\n- Shows: overall band, per-criterion scores (TA/TR CC LR GRA), feedback sections, comments count, 'View Detailed Markup →' link\n- Responsive: flex grid on desktop, stacked on mobile\n- External CSS file: StudentResultOverview.css\n- No emoji reactions, no reply input\n- Category colors & labels from COMMENT_CATEGORIES\n\n### 2. StudentDetailedMarkup.tsx + CSS (AC-3, AC-4, AC-6, AC-7, AC-8)\n- New component in writing-results/\n- Props: { submission: WritingSubmission, onBack?: () => void }\n- Desktop: 2-column — read-only essay with marks + comment sidebar\n- Mobile: single-column, inline expandable accordion comments\n- Read-only essay renders: highlighted text with category colors, corrections (strikethrough → green), comments indicators\n- Comment cards show category color dot, label, text, anchor text\n- Bidirectional click: click highlight → focus card, click card → scroll to text\n- Responsive via CSS media queries\n- No TipTap dependency (render HTML directly from comments + essay text to avoid TipTap bundle in student view)\n\n### 3. Update WritingResultView.tsx (hook up new components)\n- Import StudentResultOverview\n- Add state for view mode: 'overview' | 'detailed'\n- Render StudentResultOverview by default, StudentDetailedMarkup when toggled\n\n### Files:\n- NEW: src/components/writing-results/StudentResultOverview.tsx\n- NEW: src/components/writing-results/StudentResultOverview.css\n- NEW: src/components/writing-results/StudentDetailedMarkup.tsx\n- NEW: src/components/writing-results/StudentDetailedMarkup.css\n- MODIFIED: src/components/writing-results/WritingResultView.tsx (integrate new components)\""
+        }
+      ],
+      "snapshot": {
+        "title": "Student Result View (Overview + Detailed Markup)",
+        "description": "Build StudentResultOverview.tsx (responsive) and StudentDetailedMarkup.tsx. Overview (default): band scores, per-criterion scores, all feedback sections, annotation count, 'View Detailed Markup' link. Fully responsive desktop+mobile. Detailed Markup: desktop = read-only TipTap with marks + Google Docs-style comment sidebar with positioned cards. Mobile = single-column with inline expandable accordion comments on tap. Separate page. No reactions/replies (future). See @doc/specs/grading-editor-redesign FR-GROUP-5.",
+        "status": "in-progress",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "phase-2",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "StudentResultOverview: shows overall band, per-criterion scores (TA/TR CC LR GRA), all feedback sections, annotation count, 'View Detailed Markup →' link"
+          },
+          {
+            "completed": false,
+            "text": "Overview is fully responsive: clean layout on desktop + mobile"
+          },
+          {
+            "completed": false,
+            "text": "StudentDetailedMarkup (desktop): read-only TipTap editor with all teacher marks (highlights, corrections, strikethroughs, comments) + Google Docs-style comment sidebar with positioned cards + bidirectional click interaction"
+          },
+          {
+            "completed": false,
+            "text": "StudentDetailedMarkup (mobile): single-column layout. Essay with marks rendered inline. Tapping highlighted text expands comment card inline below (accordion style). No sidebar."
+          },
+          {
+            "completed": false,
+            "text": "No emoji reactions, no reply input (future features)"
+          },
+          {
+            "completed": false,
+            "text": "Accessible as a separate page from student records/results list"
+          },
+          {
+            "completed": false,
+            "text": "Corrections display correctly in read-only mode: strikethrough + → + green text"
+          },
+          {
+            "completed": false,
+            "text": "All category colors and labels display correctly"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### 1. StudentResultOverview.tsx + CSS (AC-1, AC-2, AC-5, AC-8)\n- New component in writing-results/\n- Props: { submission: WritingSubmission, onViewDetailedMarkup?: () => void }\n- Shows: overall band, per-criterion scores (TA/TR CC LR GRA), feedback sections, comments count, 'View Detailed Markup →' link\n- Responsive: flex grid on desktop, stacked on mobile\n- External CSS file: StudentResultOverview.css\n- No emoji reactions, no reply input\n- Category colors & labels from COMMENT_CATEGORIES\n\n### 2. StudentDetailedMarkup.tsx + CSS (AC-3, AC-4, AC-6, AC-7, AC-8)\n- New component in writing-results/\n- Props: { submission: WritingSubmission, onBack?: () => void }\n- Desktop: 2-column — read-only essay with marks + comment sidebar\n- Mobile: single-column, inline expandable accordion comments\n- Read-only essay renders: highlighted text with category colors, corrections (strikethrough → green), comments indicators\n- Comment cards show category color dot, label, text, anchor text\n- Bidirectional click: click highlight → focus card, click card → scroll to text\n- Responsive via CSS media queries\n- No TipTap dependency (render HTML directly from comments + essay text to avoid TipTap bundle in student view)\n\n### 3. Update WritingResultView.tsx (hook up new components)\n- Import StudentResultOverview\n- Add state for view mode: 'overview' | 'detailed'\n- Render StudentResultOverview by default, StudentDetailedMarkup when toggled\n\n### Files:\n- NEW: src/components/writing-results/StudentResultOverview.tsx\n- NEW: src/components/writing-results/StudentResultOverview.css\n- NEW: src/components/writing-results/StudentDetailedMarkup.tsx\n- NEW: src/components/writing-results/StudentDetailedMarkup.css\n- MODIFIED: src/components/writing-results/WritingResultView.tsx (integrate new components)\""
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "z7hols",
+      "version": 4,
+      "timestamp": "2026-03-01T08:30:53.295Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "StudentResultOverview: shows overall band, per-criterion scores (TA/TR CC LR GRA), all feedback sections, annotation count, 'View Detailed Markup →' link"
+            },
+            {
+              "completed": false,
+              "text": "Overview is fully responsive: clean layout on desktop + mobile"
+            },
+            {
+              "completed": false,
+              "text": "StudentDetailedMarkup (desktop): read-only TipTap editor with all teacher marks (highlights, corrections, strikethroughs, comments) + Google Docs-style comment sidebar with positioned cards + bidirectional click interaction"
+            },
+            {
+              "completed": false,
+              "text": "StudentDetailedMarkup (mobile): single-column layout. Essay with marks rendered inline. Tapping highlighted text expands comment card inline below (accordion style). No sidebar."
+            },
+            {
+              "completed": false,
+              "text": "No emoji reactions, no reply input (future features)"
+            },
+            {
+              "completed": false,
+              "text": "Accessible as a separate page from student records/results list"
+            },
+            {
+              "completed": false,
+              "text": "Corrections display correctly in read-only mode: strikethrough + → + green text"
+            },
+            {
+              "completed": false,
+              "text": "All category colors and labels display correctly"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "StudentResultOverview: shows overall band, per-criterion scores (TA/TR CC LR GRA), all feedback sections, annotation count, 'View Detailed Markup →' link"
+            },
+            {
+              "completed": true,
+              "text": "Overview is fully responsive: clean layout on desktop + mobile"
+            },
+            {
+              "completed": true,
+              "text": "StudentDetailedMarkup (desktop): read-only TipTap editor with all teacher marks (highlights, corrections, strikethroughs, comments) + Google Docs-style comment sidebar with positioned cards + bidirectional click interaction"
+            },
+            {
+              "completed": true,
+              "text": "StudentDetailedMarkup (mobile): single-column layout. Essay with marks rendered inline. Tapping highlighted text expands comment card inline below (accordion style). No sidebar."
+            },
+            {
+              "completed": true,
+              "text": "No emoji reactions, no reply input (future features)"
+            },
+            {
+              "completed": true,
+              "text": "Accessible as a separate page from student records/results list"
+            },
+            {
+              "completed": true,
+              "text": "Corrections display correctly in read-only mode: strikethrough + → + green text"
+            },
+            {
+              "completed": true,
+              "text": "All category colors and labels display correctly"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "## Implementation Complete\n\n### New Files Created:\n\n1. **StudentResultOverview.tsx + CSS** — Student-facing result overview\n   - Overall band hero section with gradient background\n   - Criteria grid (2-col mobile, 4-col desktop)\n   - Per-task breakdown cards with band scores and criteria chips\n   - Feedback sections (overall + per-criterion) with HTML rendering\n   - Comments count with category breakdown (e.g., \\\"2 GRA, 1 CC\\\")\n   - \\\"View Detailed Markup →\\\" button (only shown when comments exist)\n   - Fully responsive: mobile-first CSS with breakpoints\n   - Stat cards: format, word count, time spent, submitted date\n\n2. **StudentDetailedMarkup.tsx + CSS** — Detailed marked essay view\n   - Desktop: 2-column layout (essay + comment sidebar)\n   - Essay renders with comment highlights (category color + 30% opacity bg)\n   - Bidirectional click: click highlight → focuses sidebar card, click card → scrolls to highlight\n   - Sidebar shows comment cards with category dot, label, anchor text, comment text\n   - Mobile: single-column, sidebar hidden, inline accordion comments expand on tap\n   - Back to Overview button\n   - Task tabs for multi-task submissions\n   - Comment marks rendered by finding anchorText in essay text\n\n3. **WritingResultView.tsx** — Simplified wrapper\n   - Thin state wrapper switching between overview and detailed views\n   - Replaces old 290-line inline-style implementation\n\n### Design Decisions:\n- No TipTap dependency in student view (renders from comment data + plain text) to keep bundle small\n- Uses anchorText matching for highlight placement (simpler than TipTap marks)\n- Corrections display handled via CSS classes (strikethrough + green replacement)\n- No emoji reactions or reply input (AC-5: future features)\n- Category colors from COMMENT_CATEGORIES constant\n- Accessible via existing route: StudentTestResultsPage lazy-loads WritingResultView\n\n### Build: Zero new TS errors\""
+        }
+      ],
+      "snapshot": {
+        "title": "Student Result View (Overview + Detailed Markup)",
+        "description": "Build StudentResultOverview.tsx (responsive) and StudentDetailedMarkup.tsx. Overview (default): band scores, per-criterion scores, all feedback sections, annotation count, 'View Detailed Markup' link. Fully responsive desktop+mobile. Detailed Markup: desktop = read-only TipTap with marks + Google Docs-style comment sidebar with positioned cards. Mobile = single-column with inline expandable accordion comments on tap. Separate page. No reactions/replies (future). See @doc/specs/grading-editor-redesign FR-GROUP-5.",
+        "status": "done",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "phase-2",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "StudentResultOverview: shows overall band, per-criterion scores (TA/TR CC LR GRA), all feedback sections, annotation count, 'View Detailed Markup →' link"
+          },
+          {
+            "completed": true,
+            "text": "Overview is fully responsive: clean layout on desktop + mobile"
+          },
+          {
+            "completed": true,
+            "text": "StudentDetailedMarkup (desktop): read-only TipTap editor with all teacher marks (highlights, corrections, strikethroughs, comments) + Google Docs-style comment sidebar with positioned cards + bidirectional click interaction"
+          },
+          {
+            "completed": true,
+            "text": "StudentDetailedMarkup (mobile): single-column layout. Essay with marks rendered inline. Tapping highlighted text expands comment card inline below (accordion style). No sidebar."
+          },
+          {
+            "completed": true,
+            "text": "No emoji reactions, no reply input (future features)"
+          },
+          {
+            "completed": true,
+            "text": "Accessible as a separate page from student records/results list"
+          },
+          {
+            "completed": true,
+            "text": "Corrections display correctly in read-only mode: strikethrough + → + green text"
+          },
+          {
+            "completed": true,
+            "text": "All category colors and labels display correctly"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### 1. StudentResultOverview.tsx + CSS (AC-1, AC-2, AC-5, AC-8)\n- New component in writing-results/\n- Props: { submission: WritingSubmission, onViewDetailedMarkup?: () => void }\n- Shows: overall band, per-criterion scores (TA/TR CC LR GRA), feedback sections, comments count, 'View Detailed Markup →' link\n- Responsive: flex grid on desktop, stacked on mobile\n- External CSS file: StudentResultOverview.css\n- No emoji reactions, no reply input\n- Category colors & labels from COMMENT_CATEGORIES\n\n### 2. StudentDetailedMarkup.tsx + CSS (AC-3, AC-4, AC-6, AC-7, AC-8)\n- New component in writing-results/\n- Props: { submission: WritingSubmission, onBack?: () => void }\n- Desktop: 2-column — read-only essay with marks + comment sidebar\n- Mobile: single-column, inline expandable accordion comments\n- Read-only essay renders: highlighted text with category colors, corrections (strikethrough → green), comments indicators\n- Comment cards show category color dot, label, text, anchor text\n- Bidirectional click: click highlight → focus card, click card → scroll to text\n- Responsive via CSS media queries\n- No TipTap dependency (render HTML directly from comments + essay text to avoid TipTap bundle in student view)\n\n### 3. Update WritingResultView.tsx (hook up new components)\n- Import StudentResultOverview\n- Add state for view mode: 'overview' | 'detailed'\n- Render StudentResultOverview by default, StudentDetailedMarkup when toggled\n\n### Files:\n- NEW: src/components/writing-results/StudentResultOverview.tsx\n- NEW: src/components/writing-results/StudentResultOverview.css\n- NEW: src/components/writing-results/StudentDetailedMarkup.tsx\n- NEW: src/components/writing-results/StudentDetailedMarkup.css\n- MODIFIED: src/components/writing-results/WritingResultView.tsx (integrate new components)\"",
+        "implementationNotes": "## Implementation Complete\n\n### New Files Created:\n\n1. **StudentResultOverview.tsx + CSS** — Student-facing result overview\n   - Overall band hero section with gradient background\n   - Criteria grid (2-col mobile, 4-col desktop)\n   - Per-task breakdown cards with band scores and criteria chips\n   - Feedback sections (overall + per-criterion) with HTML rendering\n   - Comments count with category breakdown (e.g., \\\"2 GRA, 1 CC\\\")\n   - \\\"View Detailed Markup →\\\" button (only shown when comments exist)\n   - Fully responsive: mobile-first CSS with breakpoints\n   - Stat cards: format, word count, time spent, submitted date\n\n2. **StudentDetailedMarkup.tsx + CSS** — Detailed marked essay view\n   - Desktop: 2-column layout (essay + comment sidebar)\n   - Essay renders with comment highlights (category color + 30% opacity bg)\n   - Bidirectional click: click highlight → focuses sidebar card, click card → scrolls to highlight\n   - Sidebar shows comment cards with category dot, label, anchor text, comment text\n   - Mobile: single-column, sidebar hidden, inline accordion comments expand on tap\n   - Back to Overview button\n   - Task tabs for multi-task submissions\n   - Comment marks rendered by finding anchorText in essay text\n\n3. **WritingResultView.tsx** — Simplified wrapper\n   - Thin state wrapper switching between overview and detailed views\n   - Replaces old 290-line inline-style implementation\n\n### Design Decisions:\n- No TipTap dependency in student view (renders from comment data + plain text) to keep bundle small\n- Uses anchorText matching for highlight placement (simpler than TipTap marks)\n- Corrections display handled via CSS classes (strikethrough + green replacement)\n- No emoji reactions or reply input (AC-5: future features)\n- Category colors from COMMENT_CATEGORIES constant\n- Accessible via existing route: StudentTestResultsPage lazy-loads WritingResultView\n\n### Build: Zero new TS errors\""
+      }
+    }
+  ]
+}

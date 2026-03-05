@@ -1,0 +1,206 @@
+{
+  "taskId": "y9w97l",
+  "currentVersion": 3,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "y9w97l",
+      "version": 1,
+      "timestamp": "2026-03-01T16:59:01.331Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        },
+        {
+          "field": "assignee",
+          "newValue": "@me"
+        }
+      ],
+      "snapshot": {
+        "title": "Data Model — Add grading fields to WritingGradingResult",
+        "description": "Add `gradedByUid`, `gradedByName`, `gradedAt` optional fields to `WritingGradingResult` in thcs-test.types.ts. Also add matching fields to the permanent record question result type in testResults.service.ts.",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "writing-grading",
+          "types"
+        ],
+        "acceptanceCriteria": []
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "y9w97l",
+      "version": 2,
+      "timestamp": "2026-03-01T16:59:47.434Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Add `gradedByUid?: string`, `gradedByName?: string`, `gradedAt?: number` to WritingGradingResult interface in thcs-test.types.ts",
+              "completed": false
+            },
+            {
+              "text": "Add `gradedByName?: string`, `gradedByUid?: string`, `gradedAt?: number` to TestResultRecord.questionResults[] inline type in testResults.service.ts",
+              "completed": false
+            },
+            {
+              "text": "JSDoc comments on each new field explaining purpose and when it's set",
+              "completed": false
+            },
+            {
+              "text": "No runtime changes — types only, pure additive (backward compatible)",
+              "completed": false
+            },
+            {
+              "text": "Build succeeds with no TypeScript errors",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "## Implementation Plan\n\n### Context\nTwo type definitions need grading identity fields:\n1. `WritingGradingResult` in `thcs-test.types.ts` (line 255-264) — the RTDB/session grading result\n2. `TestResultRecord.questionResults[]` inline type in `testResults.service.ts` (lines 38-49) — the permanent record\n\n### Steps\n\n1. **Edit `src/types/thcs-test.types.ts` lines 255-264**\n   - Add 3 optional fields after `gradingTier`:\n     ```typescript\n     gradedByUid?: string;    // UID of the teacher who graded\n     gradedByName?: string;   // Display name of the grading teacher\n     gradedAt?: number;       // Timestamp when graded (Date.now())\n     ```\n   - Add JSDoc for each field\n\n2. **Edit `src/services/testResults.service.ts` lines 38-49**\n   - Add 3 optional fields to the inline `questionResults` array type:\n     ```typescript\n     gradedByName?: string;   // Teacher who graded (for writing questions)\n     gradedByUid?: string;    // UID of grading teacher\n     gradedAt?: number;       // When grading occurred\n     ```\n\n3. **Verify build** — `npm run dev` should show no new TS errors\n\n### Risk: None\nPure additive type changes. All new fields are optional. No runtime behavior changes."
+        }
+      ],
+      "snapshot": {
+        "title": "Data Model — Add grading fields to WritingGradingResult",
+        "description": "Add `gradedByUid`, `gradedByName`, `gradedAt` optional fields to `WritingGradingResult` in thcs-test.types.ts. Also add matching fields to the permanent record question result type in testResults.service.ts.",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "writing-grading",
+          "types"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Add `gradedByUid?: string`, `gradedByName?: string`, `gradedAt?: number` to WritingGradingResult interface in thcs-test.types.ts",
+            "completed": false
+          },
+          {
+            "text": "Add `gradedByName?: string`, `gradedByUid?: string`, `gradedAt?: number` to TestResultRecord.questionResults[] inline type in testResults.service.ts",
+            "completed": false
+          },
+          {
+            "text": "JSDoc comments on each new field explaining purpose and when it's set",
+            "completed": false
+          },
+          {
+            "text": "No runtime changes — types only, pure additive (backward compatible)",
+            "completed": false
+          },
+          {
+            "text": "Build succeeds with no TypeScript errors",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### Context\nTwo type definitions need grading identity fields:\n1. `WritingGradingResult` in `thcs-test.types.ts` (line 255-264) — the RTDB/session grading result\n2. `TestResultRecord.questionResults[]` inline type in `testResults.service.ts` (lines 38-49) — the permanent record\n\n### Steps\n\n1. **Edit `src/types/thcs-test.types.ts` lines 255-264**\n   - Add 3 optional fields after `gradingTier`:\n     ```typescript\n     gradedByUid?: string;    // UID of the teacher who graded\n     gradedByName?: string;   // Display name of the grading teacher\n     gradedAt?: number;       // Timestamp when graded (Date.now())\n     ```\n   - Add JSDoc for each field\n\n2. **Edit `src/services/testResults.service.ts` lines 38-49**\n   - Add 3 optional fields to the inline `questionResults` array type:\n     ```typescript\n     gradedByName?: string;   // Teacher who graded (for writing questions)\n     gradedByUid?: string;    // UID of grading teacher\n     gradedAt?: number;       // When grading occurred\n     ```\n\n3. **Verify build** — `npm run dev` should show no new TS errors\n\n### Risk: None\nPure additive type changes. All new fields are optional. No runtime behavior changes."
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "y9w97l",
+      "version": 3,
+      "timestamp": "2026-03-01T17:01:13.849Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Add `gradedByUid?: string`, `gradedByName?: string`, `gradedAt?: number` to WritingGradingResult interface in thcs-test.types.ts"
+            },
+            {
+              "completed": false,
+              "text": "Add `gradedByName?: string`, `gradedByUid?: string`, `gradedAt?: number` to TestResultRecord.questionResults[] inline type in testResults.service.ts"
+            },
+            {
+              "completed": false,
+              "text": "JSDoc comments on each new field explaining purpose and when it's set"
+            },
+            {
+              "completed": false,
+              "text": "No runtime changes — types only, pure additive (backward compatible)"
+            },
+            {
+              "completed": false,
+              "text": "Build succeeds with no TypeScript errors"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Add `gradedByUid?: string`, `gradedByName?: string`, `gradedAt?: number` to WritingGradingResult interface in thcs-test.types.ts"
+            },
+            {
+              "completed": true,
+              "text": "Add `gradedByName?: string`, `gradedByUid?: string`, `gradedAt?: number` to TestResultRecord.questionResults[] inline type in testResults.service.ts"
+            },
+            {
+              "completed": true,
+              "text": "JSDoc comments on each new field explaining purpose and when it's set"
+            },
+            {
+              "completed": true,
+              "text": "No runtime changes — types only, pure additive (backward compatible)"
+            },
+            {
+              "completed": true,
+              "text": "Build succeeds with no TypeScript errors"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Implemented 2026-03-02:\n- Added gradedByUid, gradedByName, gradedAt to WritingGradingResult (thcs-test.types.ts line 265-270)\n- Added gradedByName, gradedByUid, gradedAt to TestResultRecord.questionResults[] (testResults.service.ts line 49-54)\n- All fields optional with JSDoc comments\n- Build verified: no new TS errors (existing Mantine errors pre-date this change)"
+        }
+      ],
+      "snapshot": {
+        "title": "Data Model — Add grading fields to WritingGradingResult",
+        "description": "Add `gradedByUid`, `gradedByName`, `gradedAt` optional fields to `WritingGradingResult` in thcs-test.types.ts. Also add matching fields to the permanent record question result type in testResults.service.ts.",
+        "status": "done",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "writing-grading",
+          "types"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Add `gradedByUid?: string`, `gradedByName?: string`, `gradedAt?: number` to WritingGradingResult interface in thcs-test.types.ts"
+          },
+          {
+            "completed": true,
+            "text": "Add `gradedByName?: string`, `gradedByUid?: string`, `gradedAt?: number` to TestResultRecord.questionResults[] inline type in testResults.service.ts"
+          },
+          {
+            "completed": true,
+            "text": "JSDoc comments on each new field explaining purpose and when it's set"
+          },
+          {
+            "completed": true,
+            "text": "No runtime changes — types only, pure additive (backward compatible)"
+          },
+          {
+            "completed": true,
+            "text": "Build succeeds with no TypeScript errors"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### Context\nTwo type definitions need grading identity fields:\n1. `WritingGradingResult` in `thcs-test.types.ts` (line 255-264) — the RTDB/session grading result\n2. `TestResultRecord.questionResults[]` inline type in `testResults.service.ts` (lines 38-49) — the permanent record\n\n### Steps\n\n1. **Edit `src/types/thcs-test.types.ts` lines 255-264**\n   - Add 3 optional fields after `gradingTier`:\n     ```typescript\n     gradedByUid?: string;    // UID of the teacher who graded\n     gradedByName?: string;   // Display name of the grading teacher\n     gradedAt?: number;       // Timestamp when graded (Date.now())\n     ```\n   - Add JSDoc for each field\n\n2. **Edit `src/services/testResults.service.ts` lines 38-49**\n   - Add 3 optional fields to the inline `questionResults` array type:\n     ```typescript\n     gradedByName?: string;   // Teacher who graded (for writing questions)\n     gradedByUid?: string;    // UID of grading teacher\n     gradedAt?: number;       // When grading occurred\n     ```\n\n3. **Verify build** — `npm run dev` should show no new TS errors\n\n### Risk: None\nPure additive type changes. All new fields are optional. No runtime behavior changes.",
+        "implementationNotes": "Implemented 2026-03-02:\n- Added gradedByUid, gradedByName, gradedAt to WritingGradingResult (thcs-test.types.ts line 265-270)\n- Added gradedByName, gradedByUid, gradedAt to TestResultRecord.questionResults[] (testResults.service.ts line 49-54)\n- All fields optional with JSDoc comments\n- Build verified: no new TS errors (existing Mantine errors pre-date this change)"
+      }
+    }
+  ]
+}

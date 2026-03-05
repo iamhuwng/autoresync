@@ -1,0 +1,323 @@
+{
+  "taskId": "le05g6",
+  "currentVersion": 4,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "le05g6",
+      "version": 1,
+      "timestamp": "2026-03-04T22:47:31.154Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Triggers when formatConfidence < 50 after Pass 1 + Pass 2",
+              "completed": false
+            },
+            {
+              "text": "Calls external AI API (not teachers manual session)",
+              "completed": false
+            },
+            {
+              "text": "Audit log includes: issue codes, failed sections, Q count mismatches",
+              "completed": false
+            },
+            {
+              "text": "Each retry re-enters at preClean",
+              "completed": false
+            },
+            {
+              "text": "Max 3 retries enforced",
+              "completed": false
+            },
+            {
+              "text": "All fail → teacher escalation with full audit log",
+              "completed": false
+            },
+            {
+              "text": "Order: 5 (depends on T7 pqr0rq)",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Implement Automated External Retry",
+        "description": "When `formatConfidence < 50` after all internal passes (Pass 1 + Pass 2), call external AI API (Gemini/GPT) with original text + structured audit log. Max 3 retries. Each retry re-enters pipeline at preClean. All fail → escalate to teacher with full audit log. This is a DIFFERENT mechanism from the internal retry chain — different API, prompt structure, and termination logic. Depends on @task-{Pass2}, @task-0yg6fx.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "from-spec-v2",
+          "pipeline"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Triggers when formatConfidence < 50 after Pass 1 + Pass 2",
+            "completed": false
+          },
+          {
+            "text": "Calls external AI API (not teachers manual session)",
+            "completed": false
+          },
+          {
+            "text": "Audit log includes: issue codes, failed sections, Q count mismatches",
+            "completed": false
+          },
+          {
+            "text": "Each retry re-enters at preClean",
+            "completed": false
+          },
+          {
+            "text": "Max 3 retries enforced",
+            "completed": false
+          },
+          {
+            "text": "All fail → teacher escalation with full audit log",
+            "completed": false
+          },
+          {
+            "text": "Order: 5 (depends on T7 pqr0rq)",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "le05g6",
+      "version": 2,
+      "timestamp": "2026-03-04T23:11:45.391Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        },
+        {
+          "field": "assignee",
+          "newValue": "@me"
+        }
+      ],
+      "snapshot": {
+        "title": "Implement Automated External Retry",
+        "description": "When `formatConfidence < 50` after all internal passes (Pass 1 + Pass 2), call external AI API (Gemini/GPT) with original text + structured audit log. Max 3 retries. Each retry re-enters pipeline at preClean. All fail → escalate to teacher with full audit log. This is a DIFFERENT mechanism from the internal retry chain — different API, prompt structure, and termination logic. Depends on @task-{Pass2}, @task-0yg6fx.",
+        "status": "in-progress",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "pipeline"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Triggers when formatConfidence < 50 after Pass 1 + Pass 2"
+          },
+          {
+            "completed": false,
+            "text": "Calls external AI API (not teachers manual session)"
+          },
+          {
+            "completed": false,
+            "text": "Audit log includes: issue codes, failed sections, Q count mismatches"
+          },
+          {
+            "completed": false,
+            "text": "Each retry re-enters at preClean"
+          },
+          {
+            "completed": false,
+            "text": "Max 3 retries enforced"
+          },
+          {
+            "completed": false,
+            "text": "All fail → teacher escalation with full audit log"
+          },
+          {
+            "completed": false,
+            "text": "Order: 5 (depends on T7 pqr0rq)"
+          }
+        ]
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "le05g6",
+      "version": 3,
+      "timestamp": "2026-03-04T23:13:07.420Z",
+      "changes": [
+        {
+          "field": "implementationPlan",
+          "newValue": "## Implementation Plan\n\n### New file\n`src/services/test-creation/thcs-external-retry.ts`\n\n### Architecture\nA last-resort mechanism — completely different from the internal retry chain. When the internal pipeline (Pass 1 + Pass 2) can't get confidence above 50, this calls an EXTERNAL AI API (Gemini/GPT — not Groq) with the ORIGINAL teacher text + a structured audit log of what went wrong.\n\n### Key Distinction from Internal Retry\n| Aspect | Internal (Pass 2) | External Retry |\n|---|---|---|\n| Trigger | `formatConfidence 50-79` | `formatConfidence < 50` after ALL internal passes |\n| AI used | Groq/Gemini for TEXT REPAIR | Gemini/GPT for FULL RE-EXTRACTION |\n| Prompt type | Fragment-based repair prompt | Original teacher text + audit log |\n| Input | Restructured text | Original raw teacher text |\n| Output | Repaired text (plain text) | Text re-enters pipeline at preClean |\n| Max tries | Per retry chain (2-3 steps) | Fixed: max 3 |\n| On failure | Escalate model/temp | Escalate to teacher |\n\n### Interfaces\n\n```typescript\ninterface ExternalRetryResult {\n  outcome: 'success' | 'teacher-escalation';\n  bestText: string | null;           // best re-extracted text (if success)\n  attemptsUsed: number;             // 1-3\n  auditLog: ExternalRetryAuditEntry[];\n  teacherMessage: string | null;    // shown when escalating to teacher\n}\n\ninterface ExternalRetryAuditEntry {\n  attempt: number;\n  timestamp: number;\n  provider: string;\n  issueCodes: string[];\n  formatConfidence: number;\n  sectionsMissing: string[];\n  questionCountMismatch: { expected: number; got: number } | null;\n}\n```\n\n### Core Function\n\n```typescript\nasync function executeExternalRetry(\n  originalInput: string,           // raw teacher text\n  internalAuditLog: RepairAuditEntry[],  // from Pass 2 attempts\n  validationReport: ValidationReport,     // final internal report\n  callAI: (provider: string, prompt: string) => Promise<string | null>,\n): Promise<ExternalRetryResult>\n```\n\n#### Logic:\n\n1. **Build audit summary** for the external AI:\n   ```\n   === PARSING AUDIT LOG ===\n   Issues found: MERGED_QUESTIONS (section 2), MISSING_ANSWER_KEY (global)\n   Failed sections: Section 3 (\"Reading B\") - 0 questions parsed\n   Question count: Expected ~40 (estimated from text length), parsed 28\n   Internal repair attempts: 2 (both produced worse results)\n   Specific problems:\n   - Lines 45-52: Questions merged, could not split reliably\n   - Answer key format \"1-5: BACDC\" could not be expanded\n   ```\n\n2. **Build external prompt**:\n   ```\n   A Vietnamese THCS English test was automatically parsed but the results were poor.\n   Below is the original teacher text and an audit log of what went wrong.\n   Please re-extract the test content, paying special attention to the flagged issues.\n\n   === AUDIT LOG ===\n   {auditSummary}\n\n   === ORIGINAL TEXT ===\n   {originalInput}\n\n   Please extract and structure the test content. Output as clean, well-formatted text with:\n   - Clear section headers with [TYPE: xxx] tags\n   - One question per line with \"Question N.\" prefix\n   - Options on separate lines (A. / B. / C. / D.)\n   - Answer key section with one answer per line\n   ```\n\n3. **Retry loop** (max 3):\n   a. Call external AI (Gemini Flash → Gemini Pro → GPT-4o-mini)\n   b. Pass response through `preCleanText()` (re-enters pipeline)\n   c. Run Pass 1 on result\n   d. Run code validation on Pass 1 output\n   e. If `formatConfidence >= 50`: SUCCESS — return this text\n   f. If still < 50: add to audit log, try next provider/attempt\n   g. After attempt, update audit summary with new findings\n\n4. **All 3 fail**: Return `teacher-escalation` with:\n   ```\n   teacherMessage: \"Automatic parsing could not reliably extract this test after 3 attempts.\n   Issues found: [summary]. Please review the text format and try again, or create the\n   test manually using the editor.\"\n   ```\n\n### Key Design Decisions\n\n1. **Original text, not processed** — the external retry starts from scratch with the teacher's original paste. The processed versions from internal passes are discarded.\n\n2. **Different provider chain** — External retry uses Gemini Flash → Pro → GPT-4o-mini. NOT the same chain as internal repair (which uses Groq → Gemini Flash).\n\n3. **Re-enters at preClean** — each retry output goes through the full validation pipeline (preClean → Pass 1 → code validation). This ensures we use the same quality criteria.\n\n4. **Separate from circuit breaker** — the 5-call circuit breaker is for INTERNAL AI calls. External retry has its own separate max (3 attempts). This is per FR-15 spec.\n\n5. **Teacher escalation is graceful** — includes the full audit log so the teacher understands what went wrong.\n\n### Files changed\n- `src/services/test-creation/thcs-external-retry.ts` (NEW — ~100 lines)\n\n### Dependencies\n- `thcs-text-validator.ts` → `validateRestructuredText`, `ValidationReport`\n- `thcs-pass1-restructure.ts` → `executePass1` (for re-validation)\n- `thcs-prompt-builder.ts` → `RepairAuditEntry` type\n\n### Consumed by\n- Task `8085zl` (Integration) → calls `executeExternalRetry()` when `formatConfidence < 50`"
+        }
+      ],
+      "snapshot": {
+        "title": "Implement Automated External Retry",
+        "description": "When `formatConfidence < 50` after all internal passes (Pass 1 + Pass 2), call external AI API (Gemini/GPT) with original text + structured audit log. Max 3 retries. Each retry re-enters pipeline at preClean. All fail → escalate to teacher with full audit log. This is a DIFFERENT mechanism from the internal retry chain — different API, prompt structure, and termination logic. Depends on @task-{Pass2}, @task-0yg6fx.",
+        "status": "in-progress",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "pipeline"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Triggers when formatConfidence < 50 after Pass 1 + Pass 2"
+          },
+          {
+            "completed": false,
+            "text": "Calls external AI API (not teachers manual session)"
+          },
+          {
+            "completed": false,
+            "text": "Audit log includes: issue codes, failed sections, Q count mismatches"
+          },
+          {
+            "completed": false,
+            "text": "Each retry re-enters at preClean"
+          },
+          {
+            "completed": false,
+            "text": "Max 3 retries enforced"
+          },
+          {
+            "completed": false,
+            "text": "All fail → teacher escalation with full audit log"
+          },
+          {
+            "completed": false,
+            "text": "Order: 5 (depends on T7 pqr0rq)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### New file\n`src/services/test-creation/thcs-external-retry.ts`\n\n### Architecture\nA last-resort mechanism — completely different from the internal retry chain. When the internal pipeline (Pass 1 + Pass 2) can't get confidence above 50, this calls an EXTERNAL AI API (Gemini/GPT — not Groq) with the ORIGINAL teacher text + a structured audit log of what went wrong.\n\n### Key Distinction from Internal Retry\n| Aspect | Internal (Pass 2) | External Retry |\n|---|---|---|\n| Trigger | `formatConfidence 50-79` | `formatConfidence < 50` after ALL internal passes |\n| AI used | Groq/Gemini for TEXT REPAIR | Gemini/GPT for FULL RE-EXTRACTION |\n| Prompt type | Fragment-based repair prompt | Original teacher text + audit log |\n| Input | Restructured text | Original raw teacher text |\n| Output | Repaired text (plain text) | Text re-enters pipeline at preClean |\n| Max tries | Per retry chain (2-3 steps) | Fixed: max 3 |\n| On failure | Escalate model/temp | Escalate to teacher |\n\n### Interfaces\n\n```typescript\ninterface ExternalRetryResult {\n  outcome: 'success' | 'teacher-escalation';\n  bestText: string | null;           // best re-extracted text (if success)\n  attemptsUsed: number;             // 1-3\n  auditLog: ExternalRetryAuditEntry[];\n  teacherMessage: string | null;    // shown when escalating to teacher\n}\n\ninterface ExternalRetryAuditEntry {\n  attempt: number;\n  timestamp: number;\n  provider: string;\n  issueCodes: string[];\n  formatConfidence: number;\n  sectionsMissing: string[];\n  questionCountMismatch: { expected: number; got: number } | null;\n}\n```\n\n### Core Function\n\n```typescript\nasync function executeExternalRetry(\n  originalInput: string,           // raw teacher text\n  internalAuditLog: RepairAuditEntry[],  // from Pass 2 attempts\n  validationReport: ValidationReport,     // final internal report\n  callAI: (provider: string, prompt: string) => Promise<string | null>,\n): Promise<ExternalRetryResult>\n```\n\n#### Logic:\n\n1. **Build audit summary** for the external AI:\n   ```\n   === PARSING AUDIT LOG ===\n   Issues found: MERGED_QUESTIONS (section 2), MISSING_ANSWER_KEY (global)\n   Failed sections: Section 3 (\"Reading B\") - 0 questions parsed\n   Question count: Expected ~40 (estimated from text length), parsed 28\n   Internal repair attempts: 2 (both produced worse results)\n   Specific problems:\n   - Lines 45-52: Questions merged, could not split reliably\n   - Answer key format \"1-5: BACDC\" could not be expanded\n   ```\n\n2. **Build external prompt**:\n   ```\n   A Vietnamese THCS English test was automatically parsed but the results were poor.\n   Below is the original teacher text and an audit log of what went wrong.\n   Please re-extract the test content, paying special attention to the flagged issues.\n\n   === AUDIT LOG ===\n   {auditSummary}\n\n   === ORIGINAL TEXT ===\n   {originalInput}\n\n   Please extract and structure the test content. Output as clean, well-formatted text with:\n   - Clear section headers with [TYPE: xxx] tags\n   - One question per line with \"Question N.\" prefix\n   - Options on separate lines (A. / B. / C. / D.)\n   - Answer key section with one answer per line\n   ```\n\n3. **Retry loop** (max 3):\n   a. Call external AI (Gemini Flash → Gemini Pro → GPT-4o-mini)\n   b. Pass response through `preCleanText()` (re-enters pipeline)\n   c. Run Pass 1 on result\n   d. Run code validation on Pass 1 output\n   e. If `formatConfidence >= 50`: SUCCESS — return this text\n   f. If still < 50: add to audit log, try next provider/attempt\n   g. After attempt, update audit summary with new findings\n\n4. **All 3 fail**: Return `teacher-escalation` with:\n   ```\n   teacherMessage: \"Automatic parsing could not reliably extract this test after 3 attempts.\n   Issues found: [summary]. Please review the text format and try again, or create the\n   test manually using the editor.\"\n   ```\n\n### Key Design Decisions\n\n1. **Original text, not processed** — the external retry starts from scratch with the teacher's original paste. The processed versions from internal passes are discarded.\n\n2. **Different provider chain** — External retry uses Gemini Flash → Pro → GPT-4o-mini. NOT the same chain as internal repair (which uses Groq → Gemini Flash).\n\n3. **Re-enters at preClean** — each retry output goes through the full validation pipeline (preClean → Pass 1 → code validation). This ensures we use the same quality criteria.\n\n4. **Separate from circuit breaker** — the 5-call circuit breaker is for INTERNAL AI calls. External retry has its own separate max (3 attempts). This is per FR-15 spec.\n\n5. **Teacher escalation is graceful** — includes the full audit log so the teacher understands what went wrong.\n\n### Files changed\n- `src/services/test-creation/thcs-external-retry.ts` (NEW — ~100 lines)\n\n### Dependencies\n- `thcs-text-validator.ts` → `validateRestructuredText`, `ValidationReport`\n- `thcs-pass1-restructure.ts` → `executePass1` (for re-validation)\n- `thcs-prompt-builder.ts` → `RepairAuditEntry` type\n\n### Consumed by\n- Task `8085zl` (Integration) → calls `executeExternalRetry()` when `formatConfidence < 50`"
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "le05g6",
+      "version": 4,
+      "timestamp": "2026-03-05T02:36:43.743Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Triggers when formatConfidence < 50 after Pass 1 + Pass 2"
+            },
+            {
+              "completed": false,
+              "text": "Calls external AI API (not teachers manual session)"
+            },
+            {
+              "completed": false,
+              "text": "Audit log includes: issue codes, failed sections, Q count mismatches"
+            },
+            {
+              "completed": false,
+              "text": "Each retry re-enters at preClean"
+            },
+            {
+              "completed": false,
+              "text": "Max 3 retries enforced"
+            },
+            {
+              "completed": false,
+              "text": "All fail → teacher escalation with full audit log"
+            },
+            {
+              "completed": false,
+              "text": "Order: 5 (depends on T7 pqr0rq)"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Triggers when formatConfidence < 50 after Pass 1 + Pass 2"
+            },
+            {
+              "completed": true,
+              "text": "Calls external AI API (not teachers manual session)"
+            },
+            {
+              "completed": true,
+              "text": "Audit log includes: issue codes, failed sections, Q count mismatches"
+            },
+            {
+              "completed": true,
+              "text": "Each retry re-enters at preClean"
+            },
+            {
+              "completed": true,
+              "text": "Max 3 retries enforced"
+            },
+            {
+              "completed": true,
+              "text": "All fail → teacher escalation with full audit log"
+            },
+            {
+              "completed": true,
+              "text": "Order: 5 (depends on T7 pqr0rq)"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "## Implementation Notes\n- Created `thcs-external-retry.ts` (~200 lines)\n- Separate from internal 5-call circuit breaker\n- Provider chain: Gemini Flash → Gemini Pro → GPT-4o-mini\n- Each attempt: external AI → re-enters pipeline at preClean → validate\n- Success: formatConfidence ≥ 50\n- Failure: teacher escalation with full audit log + human-readable message\n- Tracks best result across all attempts\n- 15 unit tests passing"
+        }
+      ],
+      "snapshot": {
+        "title": "Implement Automated External Retry",
+        "description": "When `formatConfidence < 50` after all internal passes (Pass 1 + Pass 2), call external AI API (Gemini/GPT) with original text + structured audit log. Max 3 retries. Each retry re-enters pipeline at preClean. All fail → escalate to teacher with full audit log. This is a DIFFERENT mechanism from the internal retry chain — different API, prompt structure, and termination logic. Depends on @task-{Pass2}, @task-0yg6fx.",
+        "status": "done",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "pipeline"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Triggers when formatConfidence < 50 after Pass 1 + Pass 2"
+          },
+          {
+            "completed": true,
+            "text": "Calls external AI API (not teachers manual session)"
+          },
+          {
+            "completed": true,
+            "text": "Audit log includes: issue codes, failed sections, Q count mismatches"
+          },
+          {
+            "completed": true,
+            "text": "Each retry re-enters at preClean"
+          },
+          {
+            "completed": true,
+            "text": "Max 3 retries enforced"
+          },
+          {
+            "completed": true,
+            "text": "All fail → teacher escalation with full audit log"
+          },
+          {
+            "completed": true,
+            "text": "Order: 5 (depends on T7 pqr0rq)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### New file\n`src/services/test-creation/thcs-external-retry.ts`\n\n### Architecture\nA last-resort mechanism — completely different from the internal retry chain. When the internal pipeline (Pass 1 + Pass 2) can't get confidence above 50, this calls an EXTERNAL AI API (Gemini/GPT — not Groq) with the ORIGINAL teacher text + a structured audit log of what went wrong.\n\n### Key Distinction from Internal Retry\n| Aspect | Internal (Pass 2) | External Retry |\n|---|---|---|\n| Trigger | `formatConfidence 50-79` | `formatConfidence < 50` after ALL internal passes |\n| AI used | Groq/Gemini for TEXT REPAIR | Gemini/GPT for FULL RE-EXTRACTION |\n| Prompt type | Fragment-based repair prompt | Original teacher text + audit log |\n| Input | Restructured text | Original raw teacher text |\n| Output | Repaired text (plain text) | Text re-enters pipeline at preClean |\n| Max tries | Per retry chain (2-3 steps) | Fixed: max 3 |\n| On failure | Escalate model/temp | Escalate to teacher |\n\n### Interfaces\n\n```typescript\ninterface ExternalRetryResult {\n  outcome: 'success' | 'teacher-escalation';\n  bestText: string | null;           // best re-extracted text (if success)\n  attemptsUsed: number;             // 1-3\n  auditLog: ExternalRetryAuditEntry[];\n  teacherMessage: string | null;    // shown when escalating to teacher\n}\n\ninterface ExternalRetryAuditEntry {\n  attempt: number;\n  timestamp: number;\n  provider: string;\n  issueCodes: string[];\n  formatConfidence: number;\n  sectionsMissing: string[];\n  questionCountMismatch: { expected: number; got: number } | null;\n}\n```\n\n### Core Function\n\n```typescript\nasync function executeExternalRetry(\n  originalInput: string,           // raw teacher text\n  internalAuditLog: RepairAuditEntry[],  // from Pass 2 attempts\n  validationReport: ValidationReport,     // final internal report\n  callAI: (provider: string, prompt: string) => Promise<string | null>,\n): Promise<ExternalRetryResult>\n```\n\n#### Logic:\n\n1. **Build audit summary** for the external AI:\n   ```\n   === PARSING AUDIT LOG ===\n   Issues found: MERGED_QUESTIONS (section 2), MISSING_ANSWER_KEY (global)\n   Failed sections: Section 3 (\"Reading B\") - 0 questions parsed\n   Question count: Expected ~40 (estimated from text length), parsed 28\n   Internal repair attempts: 2 (both produced worse results)\n   Specific problems:\n   - Lines 45-52: Questions merged, could not split reliably\n   - Answer key format \"1-5: BACDC\" could not be expanded\n   ```\n\n2. **Build external prompt**:\n   ```\n   A Vietnamese THCS English test was automatically parsed but the results were poor.\n   Below is the original teacher text and an audit log of what went wrong.\n   Please re-extract the test content, paying special attention to the flagged issues.\n\n   === AUDIT LOG ===\n   {auditSummary}\n\n   === ORIGINAL TEXT ===\n   {originalInput}\n\n   Please extract and structure the test content. Output as clean, well-formatted text with:\n   - Clear section headers with [TYPE: xxx] tags\n   - One question per line with \"Question N.\" prefix\n   - Options on separate lines (A. / B. / C. / D.)\n   - Answer key section with one answer per line\n   ```\n\n3. **Retry loop** (max 3):\n   a. Call external AI (Gemini Flash → Gemini Pro → GPT-4o-mini)\n   b. Pass response through `preCleanText()` (re-enters pipeline)\n   c. Run Pass 1 on result\n   d. Run code validation on Pass 1 output\n   e. If `formatConfidence >= 50`: SUCCESS — return this text\n   f. If still < 50: add to audit log, try next provider/attempt\n   g. After attempt, update audit summary with new findings\n\n4. **All 3 fail**: Return `teacher-escalation` with:\n   ```\n   teacherMessage: \"Automatic parsing could not reliably extract this test after 3 attempts.\n   Issues found: [summary]. Please review the text format and try again, or create the\n   test manually using the editor.\"\n   ```\n\n### Key Design Decisions\n\n1. **Original text, not processed** — the external retry starts from scratch with the teacher's original paste. The processed versions from internal passes are discarded.\n\n2. **Different provider chain** — External retry uses Gemini Flash → Pro → GPT-4o-mini. NOT the same chain as internal repair (which uses Groq → Gemini Flash).\n\n3. **Re-enters at preClean** — each retry output goes through the full validation pipeline (preClean → Pass 1 → code validation). This ensures we use the same quality criteria.\n\n4. **Separate from circuit breaker** — the 5-call circuit breaker is for INTERNAL AI calls. External retry has its own separate max (3 attempts). This is per FR-15 spec.\n\n5. **Teacher escalation is graceful** — includes the full audit log so the teacher understands what went wrong.\n\n### Files changed\n- `src/services/test-creation/thcs-external-retry.ts` (NEW — ~100 lines)\n\n### Dependencies\n- `thcs-text-validator.ts` → `validateRestructuredText`, `ValidationReport`\n- `thcs-pass1-restructure.ts` → `executePass1` (for re-validation)\n- `thcs-prompt-builder.ts` → `RepairAuditEntry` type\n\n### Consumed by\n- Task `8085zl` (Integration) → calls `executeExternalRetry()` when `formatConfidence < 50`",
+        "implementationNotes": "## Implementation Notes\n- Created `thcs-external-retry.ts` (~200 lines)\n- Separate from internal 5-call circuit breaker\n- Provider chain: Gemini Flash → Gemini Pro → GPT-4o-mini\n- Each attempt: external AI → re-enters pipeline at preClean → validate\n- Success: formatConfidence ≥ 50\n- Failure: teacher escalation with full audit log + human-readable message\n- Tracks best result across all attempts\n- 15 unit tests passing"
+      }
+    }
+  ]
+}

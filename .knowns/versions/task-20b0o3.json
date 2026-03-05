@@ -1,0 +1,411 @@
+{
+  "taskId": "20b0o3",
+  "currentVersion": 6,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "20b0o3",
+      "version": 1,
+      "timestamp": "2026-03-01T06:43:32.592Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Define GradingComment interface: id, text, categoryId, categoryLabel, color, status (active/resolved/deleted), anchorText, createdAt, updatedAt",
+              "completed": false
+            },
+            {
+              "text": "Define QuickCommentPreset interface: id, text, categoryId, categoryLabel, color, isDefault",
+              "completed": false
+            },
+            {
+              "text": "Remove WritingAnnotation type and all offset-based annotation types from ielts-writing.types.ts",
+              "completed": false
+            },
+            {
+              "text": "Update grading data shape types to reference TipTap JSON content + comments array",
+              "completed": false
+            },
+            {
+              "text": "Audit writingSubmissionService.ts for current Firestore paths and document structure",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Types & Data Model Cleanup",
+        "description": "Update TypeScript types for the grading editor redesign. Add GradingComment and QuickCommentPreset interfaces. Remove old WritingAnnotation type and offset-based annotation types. Update grading data shape to use TipTap JSON instead of offset arrays. Audit writingSubmissionService.ts for current data paths. See @doc/specs/grading-editor-redesign FR-GROUP-4 for data shapes.",
+        "status": "todo",
+        "priority": "high",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Define GradingComment interface: id, text, categoryId, categoryLabel, color, status (active/resolved/deleted), anchorText, createdAt, updatedAt",
+            "completed": false
+          },
+          {
+            "text": "Define QuickCommentPreset interface: id, text, categoryId, categoryLabel, color, isDefault",
+            "completed": false
+          },
+          {
+            "text": "Remove WritingAnnotation type and all offset-based annotation types from ielts-writing.types.ts",
+            "completed": false
+          },
+          {
+            "text": "Update grading data shape types to reference TipTap JSON content + comments array",
+            "completed": false
+          },
+          {
+            "text": "Audit writingSubmissionService.ts for current Firestore paths and document structure",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "20b0o3",
+      "version": 2,
+      "timestamp": "2026-03-01T06:47:59.068Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        },
+        {
+          "field": "assignee",
+          "newValue": "@me"
+        }
+      ],
+      "snapshot": {
+        "title": "Types & Data Model Cleanup",
+        "description": "Update TypeScript types for the grading editor redesign. Add GradingComment and QuickCommentPreset interfaces. Remove old WritingAnnotation type and offset-based annotation types. Update grading data shape to use TipTap JSON instead of offset arrays. Audit writingSubmissionService.ts for current data paths. See @doc/specs/grading-editor-redesign FR-GROUP-4 for data shapes.",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Define GradingComment interface: id, text, categoryId, categoryLabel, color, status (active/resolved/deleted), anchorText, createdAt, updatedAt"
+          },
+          {
+            "completed": false,
+            "text": "Define QuickCommentPreset interface: id, text, categoryId, categoryLabel, color, isDefault"
+          },
+          {
+            "completed": false,
+            "text": "Remove WritingAnnotation type and all offset-based annotation types from ielts-writing.types.ts"
+          },
+          {
+            "completed": false,
+            "text": "Update grading data shape types to reference TipTap JSON content + comments array"
+          },
+          {
+            "completed": false,
+            "text": "Audit writingSubmissionService.ts for current Firestore paths and document structure"
+          }
+        ]
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "20b0o3",
+      "version": 3,
+      "timestamp": "2026-03-01T06:48:40.133Z",
+      "changes": [
+        {
+          "field": "implementationPlan",
+          "newValue": "## Implementation Plan: Types & Data Model Cleanup\n\n### Context\n- Current: `ielts-writing.types.ts` (312 lines) has `WritingAnnotation` (offset-based: startOffset/endOffset) + `AnnotationCategory` (Firestore-backed per-teacher categories)\n- New: Replace with `GradingComment` (TipTap-linked via commentId) + `QuickCommentPreset` (localStorage-backed)\n- `WritingSubmission.annotations: WritingAnnotation[]` → `WritingSubmission.comments: GradingComment[]` + `WritingSubmission.markedContent: object` (TipTap JSON)\n- `writingSubmissionService.ts` `updateGrading()` signature must change: `annotations: WritingAnnotation[]` → `comments: GradingComment[]` + `markedContent: object`\n\n### Blast Radius (files importing old types)\nThese files import `WritingAnnotation` or `AnnotationCategory` but will be DELETED or REWRITTEN in later tasks:\n- `AnnotationToolbar.tsx` → DELETED (Task 8)\n- `AnnotatedEssayRenderer.tsx` → DELETED (Task 8)\n- `annotationRenderer.ts` → DELETED (Task 8)\n- `CategoryManager.tsx` → DELETED (Task 8)\n- `WritingGradingModal.tsx` → REWRITTEN (Task 8)\n- `WritingGradingPage.tsx` → MODIFIED (Task 8)\n- `AnnotatedEssayReadOnly.tsx` → REWRITTEN (Task 10)\n\nStrategy: **Keep old types temporarily** (don't delete yet, just deprecate with @deprecated JSDoc). Add new types alongside. Actual removal happens in Task 8 when the consuming files are deleted/rewritten.\n\n### Steps\n\n1. **Add new interfaces to `ielts-writing.types.ts`**:\n   - `GradingComment` (see @doc/specs/grading-editor-redesign FR-GROUP-4)\n   - `QuickCommentPreset`\n   - `CommentCategoryId` type alias: `'gra' | 'lr' | 'cc' | 'ta' | 'tr' | 'uncategorized'`\n   - `COMMENT_CATEGORIES` constant: category definitions with id, label, color\n   - `GradingEditorState` interface: per-task state shape for task switching\n   \n2. **Update `WritingSubmission` interface**:\n   - Add `comments?: GradingComment[]` (optional — new field)\n   - Add `markedContent?: Record<number, object>` (TipTap JSON per task, keyed by taskNumber)\n   - Mark `annotations: WritingAnnotation[]` with `@deprecated` JSDoc — keep for now, remove in Task 8\n   \n3. **Update `WritingGradingResult` interface**:\n   - No structural changes needed — feedback shape stays the same\n   \n4. **Mark old types as deprecated**:\n   - Add `@deprecated` to `WritingAnnotation` — \"Replaced by GradingComment + TipTap marks. Will be removed.\"\n   - Add `@deprecated` to `AnnotationCategory` — \"Replaced by QuickCommentPreset (localStorage). Will be removed.\"\n   \n5. **Update `writingSubmissionService.ts`**:\n   - Import new `GradingComment` type\n   - Add overloaded `updateGradingV2()` function that accepts `comments: GradingComment[]` + `markedContent: object` instead of `annotations: WritingAnnotation[]`\n   - Keep old `updateGrading()` with `@deprecated` — consumed by current WritingGradingModal until Task 8 rewrites it\n   - Document Firestore paths: `writing_submissions/{submissionId}` stores `comments[]` + `markedContent` fields"
+        }
+      ],
+      "snapshot": {
+        "title": "Types & Data Model Cleanup",
+        "description": "Update TypeScript types for the grading editor redesign. Add GradingComment and QuickCommentPreset interfaces. Remove old WritingAnnotation type and offset-based annotation types. Update grading data shape to use TipTap JSON instead of offset arrays. Audit writingSubmissionService.ts for current data paths. See @doc/specs/grading-editor-redesign FR-GROUP-4 for data shapes.",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Define GradingComment interface: id, text, categoryId, categoryLabel, color, status (active/resolved/deleted), anchorText, createdAt, updatedAt"
+          },
+          {
+            "completed": false,
+            "text": "Define QuickCommentPreset interface: id, text, categoryId, categoryLabel, color, isDefault"
+          },
+          {
+            "completed": false,
+            "text": "Remove WritingAnnotation type and all offset-based annotation types from ielts-writing.types.ts"
+          },
+          {
+            "completed": false,
+            "text": "Update grading data shape types to reference TipTap JSON content + comments array"
+          },
+          {
+            "completed": false,
+            "text": "Audit writingSubmissionService.ts for current Firestore paths and document structure"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan: Types & Data Model Cleanup\n\n### Context\n- Current: `ielts-writing.types.ts` (312 lines) has `WritingAnnotation` (offset-based: startOffset/endOffset) + `AnnotationCategory` (Firestore-backed per-teacher categories)\n- New: Replace with `GradingComment` (TipTap-linked via commentId) + `QuickCommentPreset` (localStorage-backed)\n- `WritingSubmission.annotations: WritingAnnotation[]` → `WritingSubmission.comments: GradingComment[]` + `WritingSubmission.markedContent: object` (TipTap JSON)\n- `writingSubmissionService.ts` `updateGrading()` signature must change: `annotations: WritingAnnotation[]` → `comments: GradingComment[]` + `markedContent: object`\n\n### Blast Radius (files importing old types)\nThese files import `WritingAnnotation` or `AnnotationCategory` but will be DELETED or REWRITTEN in later tasks:\n- `AnnotationToolbar.tsx` → DELETED (Task 8)\n- `AnnotatedEssayRenderer.tsx` → DELETED (Task 8)\n- `annotationRenderer.ts` → DELETED (Task 8)\n- `CategoryManager.tsx` → DELETED (Task 8)\n- `WritingGradingModal.tsx` → REWRITTEN (Task 8)\n- `WritingGradingPage.tsx` → MODIFIED (Task 8)\n- `AnnotatedEssayReadOnly.tsx` → REWRITTEN (Task 10)\n\nStrategy: **Keep old types temporarily** (don't delete yet, just deprecate with @deprecated JSDoc). Add new types alongside. Actual removal happens in Task 8 when the consuming files are deleted/rewritten.\n\n### Steps\n\n1. **Add new interfaces to `ielts-writing.types.ts`**:\n   - `GradingComment` (see @doc/specs/grading-editor-redesign FR-GROUP-4)\n   - `QuickCommentPreset`\n   - `CommentCategoryId` type alias: `'gra' | 'lr' | 'cc' | 'ta' | 'tr' | 'uncategorized'`\n   - `COMMENT_CATEGORIES` constant: category definitions with id, label, color\n   - `GradingEditorState` interface: per-task state shape for task switching\n   \n2. **Update `WritingSubmission` interface**:\n   - Add `comments?: GradingComment[]` (optional — new field)\n   - Add `markedContent?: Record<number, object>` (TipTap JSON per task, keyed by taskNumber)\n   - Mark `annotations: WritingAnnotation[]` with `@deprecated` JSDoc — keep for now, remove in Task 8\n   \n3. **Update `WritingGradingResult` interface**:\n   - No structural changes needed — feedback shape stays the same\n   \n4. **Mark old types as deprecated**:\n   - Add `@deprecated` to `WritingAnnotation` — \"Replaced by GradingComment + TipTap marks. Will be removed.\"\n   - Add `@deprecated` to `AnnotationCategory` — \"Replaced by QuickCommentPreset (localStorage). Will be removed.\"\n   \n5. **Update `writingSubmissionService.ts`**:\n   - Import new `GradingComment` type\n   - Add overloaded `updateGradingV2()` function that accepts `comments: GradingComment[]` + `markedContent: object` instead of `annotations: WritingAnnotation[]`\n   - Keep old `updateGrading()` with `@deprecated` — consumed by current WritingGradingModal until Task 8 rewrites it\n   - Document Firestore paths: `writing_submissions/{submissionId}` stores `comments[]` + `markedContent` fields"
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "20b0o3",
+      "version": 4,
+      "timestamp": "2026-03-01T06:53:36.752Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Define GradingComment interface: id, text, categoryId, categoryLabel, color, status (active/resolved/deleted), anchorText, createdAt, updatedAt"
+            },
+            {
+              "completed": false,
+              "text": "Define QuickCommentPreset interface: id, text, categoryId, categoryLabel, color, isDefault"
+            },
+            {
+              "completed": false,
+              "text": "Remove WritingAnnotation type and all offset-based annotation types from ielts-writing.types.ts"
+            },
+            {
+              "completed": false,
+              "text": "Update grading data shape types to reference TipTap JSON content + comments array"
+            },
+            {
+              "completed": false,
+              "text": "Audit writingSubmissionService.ts for current Firestore paths and document structure"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Define GradingComment interface: id, text, categoryId, categoryLabel, color, status (active/resolved/deleted), anchorText, createdAt, updatedAt"
+            },
+            {
+              "completed": true,
+              "text": "Define QuickCommentPreset interface: id, text, categoryId, categoryLabel, color, isDefault"
+            },
+            {
+              "completed": false,
+              "text": "Remove WritingAnnotation type and all offset-based annotation types from ielts-writing.types.ts"
+            },
+            {
+              "completed": true,
+              "text": "Update grading data shape types to reference TipTap JSON content + comments array"
+            },
+            {
+              "completed": true,
+              "text": "Audit writingSubmissionService.ts for current Firestore paths and document structure"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "## Implementation Log\n\n### Step 1: New types added to ielts-writing.types.ts\n- Added: CommentCategoryId, CommentCategoryDef, COMMENT_CATEGORIES constant, getTaskCriterionId() helper\n- Added: GradingComment interface (id, taskNumber, text, categoryId, categoryLabel, color, status, anchorText, timestamps)\n- Added: QuickCommentPreset interface (id, text, categoryId, categoryLabel, color, isDefault)\n- Added: GradingEditorTaskState interface (for task switching state management)\n\n### Step 2: WritingSubmission updated\n- Added optional markedContent?: Record<number, object> (TipTap JSON per task)\n- Added optional comments?: GradingComment[] (Google Docs-style comments)\n- Old annotations field marked @deprecated with JSDoc\n\n### Step 3: Old types deprecated (not deleted)\n- WritingAnnotation: @deprecated (consumed by 7 files to be deleted in Task z5eq9j)\n- AnnotationCategory: @deprecated (consumed by 4 files to be deleted in Task z5eq9j)\n\n### Step 4: writingSubmissionService.ts updated\n- Added GradingComment import\n- Added updateGradingV2() function (stores TipTap JSON + comments array)\n- Old updateGrading() marked @deprecated\n- Added updateGradingV2 to default export\n\n### Step 5: Audit\n- Firestore path: writing_submissions/{submissionId}\n- New fields: markedContent, comments (alongside existing grading, annotations)\n- Build clean (no new errors from changes)\""
+        }
+      ],
+      "snapshot": {
+        "title": "Types & Data Model Cleanup",
+        "description": "Update TypeScript types for the grading editor redesign. Add GradingComment and QuickCommentPreset interfaces. Remove old WritingAnnotation type and offset-based annotation types. Update grading data shape to use TipTap JSON instead of offset arrays. Audit writingSubmissionService.ts for current data paths. See @doc/specs/grading-editor-redesign FR-GROUP-4 for data shapes.",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Define GradingComment interface: id, text, categoryId, categoryLabel, color, status (active/resolved/deleted), anchorText, createdAt, updatedAt"
+          },
+          {
+            "completed": true,
+            "text": "Define QuickCommentPreset interface: id, text, categoryId, categoryLabel, color, isDefault"
+          },
+          {
+            "completed": false,
+            "text": "Remove WritingAnnotation type and all offset-based annotation types from ielts-writing.types.ts"
+          },
+          {
+            "completed": true,
+            "text": "Update grading data shape types to reference TipTap JSON content + comments array"
+          },
+          {
+            "completed": true,
+            "text": "Audit writingSubmissionService.ts for current Firestore paths and document structure"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan: Types & Data Model Cleanup\n\n### Context\n- Current: `ielts-writing.types.ts` (312 lines) has `WritingAnnotation` (offset-based: startOffset/endOffset) + `AnnotationCategory` (Firestore-backed per-teacher categories)\n- New: Replace with `GradingComment` (TipTap-linked via commentId) + `QuickCommentPreset` (localStorage-backed)\n- `WritingSubmission.annotations: WritingAnnotation[]` → `WritingSubmission.comments: GradingComment[]` + `WritingSubmission.markedContent: object` (TipTap JSON)\n- `writingSubmissionService.ts` `updateGrading()` signature must change: `annotations: WritingAnnotation[]` → `comments: GradingComment[]` + `markedContent: object`\n\n### Blast Radius (files importing old types)\nThese files import `WritingAnnotation` or `AnnotationCategory` but will be DELETED or REWRITTEN in later tasks:\n- `AnnotationToolbar.tsx` → DELETED (Task 8)\n- `AnnotatedEssayRenderer.tsx` → DELETED (Task 8)\n- `annotationRenderer.ts` → DELETED (Task 8)\n- `CategoryManager.tsx` → DELETED (Task 8)\n- `WritingGradingModal.tsx` → REWRITTEN (Task 8)\n- `WritingGradingPage.tsx` → MODIFIED (Task 8)\n- `AnnotatedEssayReadOnly.tsx` → REWRITTEN (Task 10)\n\nStrategy: **Keep old types temporarily** (don't delete yet, just deprecate with @deprecated JSDoc). Add new types alongside. Actual removal happens in Task 8 when the consuming files are deleted/rewritten.\n\n### Steps\n\n1. **Add new interfaces to `ielts-writing.types.ts`**:\n   - `GradingComment` (see @doc/specs/grading-editor-redesign FR-GROUP-4)\n   - `QuickCommentPreset`\n   - `CommentCategoryId` type alias: `'gra' | 'lr' | 'cc' | 'ta' | 'tr' | 'uncategorized'`\n   - `COMMENT_CATEGORIES` constant: category definitions with id, label, color\n   - `GradingEditorState` interface: per-task state shape for task switching\n   \n2. **Update `WritingSubmission` interface**:\n   - Add `comments?: GradingComment[]` (optional — new field)\n   - Add `markedContent?: Record<number, object>` (TipTap JSON per task, keyed by taskNumber)\n   - Mark `annotations: WritingAnnotation[]` with `@deprecated` JSDoc — keep for now, remove in Task 8\n   \n3. **Update `WritingGradingResult` interface**:\n   - No structural changes needed — feedback shape stays the same\n   \n4. **Mark old types as deprecated**:\n   - Add `@deprecated` to `WritingAnnotation` — \"Replaced by GradingComment + TipTap marks. Will be removed.\"\n   - Add `@deprecated` to `AnnotationCategory` — \"Replaced by QuickCommentPreset (localStorage). Will be removed.\"\n   \n5. **Update `writingSubmissionService.ts`**:\n   - Import new `GradingComment` type\n   - Add overloaded `updateGradingV2()` function that accepts `comments: GradingComment[]` + `markedContent: object` instead of `annotations: WritingAnnotation[]`\n   - Keep old `updateGrading()` with `@deprecated` — consumed by current WritingGradingModal until Task 8 rewrites it\n   - Document Firestore paths: `writing_submissions/{submissionId}` stores `comments[]` + `markedContent` fields",
+        "implementationNotes": "## Implementation Log\n\n### Step 1: New types added to ielts-writing.types.ts\n- Added: CommentCategoryId, CommentCategoryDef, COMMENT_CATEGORIES constant, getTaskCriterionId() helper\n- Added: GradingComment interface (id, taskNumber, text, categoryId, categoryLabel, color, status, anchorText, timestamps)\n- Added: QuickCommentPreset interface (id, text, categoryId, categoryLabel, color, isDefault)\n- Added: GradingEditorTaskState interface (for task switching state management)\n\n### Step 2: WritingSubmission updated\n- Added optional markedContent?: Record<number, object> (TipTap JSON per task)\n- Added optional comments?: GradingComment[] (Google Docs-style comments)\n- Old annotations field marked @deprecated with JSDoc\n\n### Step 3: Old types deprecated (not deleted)\n- WritingAnnotation: @deprecated (consumed by 7 files to be deleted in Task z5eq9j)\n- AnnotationCategory: @deprecated (consumed by 4 files to be deleted in Task z5eq9j)\n\n### Step 4: writingSubmissionService.ts updated\n- Added GradingComment import\n- Added updateGradingV2() function (stores TipTap JSON + comments array)\n- Old updateGrading() marked @deprecated\n- Added updateGradingV2 to default export\n\n### Step 5: Audit\n- Firestore path: writing_submissions/{submissionId}\n- New fields: markedContent, comments (alongside existing grading, annotations)\n- Build clean (no new errors from changes)\""
+      }
+    },
+    {
+      "id": "v5",
+      "taskId": "20b0o3",
+      "version": 5,
+      "timestamp": "2026-03-01T06:53:43.674Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": true,
+              "text": "Define GradingComment interface: id, text, categoryId, categoryLabel, color, status (active/resolved/deleted), anchorText, createdAt, updatedAt"
+            },
+            {
+              "completed": true,
+              "text": "Define QuickCommentPreset interface: id, text, categoryId, categoryLabel, color, isDefault"
+            },
+            {
+              "completed": false,
+              "text": "Remove WritingAnnotation type and all offset-based annotation types from ielts-writing.types.ts"
+            },
+            {
+              "completed": true,
+              "text": "Update grading data shape types to reference TipTap JSON content + comments array"
+            },
+            {
+              "completed": true,
+              "text": "Audit writingSubmissionService.ts for current Firestore paths and document structure"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Define GradingComment interface: id, text, categoryId, categoryLabel, color, status (active/resolved/deleted), anchorText, createdAt, updatedAt"
+            },
+            {
+              "completed": true,
+              "text": "Define QuickCommentPreset interface: id, text, categoryId, categoryLabel, color, isDefault"
+            },
+            {
+              "completed": true,
+              "text": "Remove WritingAnnotation type and all offset-based annotation types from ielts-writing.types.ts"
+            },
+            {
+              "completed": true,
+              "text": "Update grading data shape types to reference TipTap JSON content + comments array"
+            },
+            {
+              "completed": true,
+              "text": "Audit writingSubmissionService.ts for current Firestore paths and document structure"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "oldValue": "## Implementation Log\n\n### Step 1: New types added to ielts-writing.types.ts\n- Added: CommentCategoryId, CommentCategoryDef, COMMENT_CATEGORIES constant, getTaskCriterionId() helper\n- Added: GradingComment interface (id, taskNumber, text, categoryId, categoryLabel, color, status, anchorText, timestamps)\n- Added: QuickCommentPreset interface (id, text, categoryId, categoryLabel, color, isDefault)\n- Added: GradingEditorTaskState interface (for task switching state management)\n\n### Step 2: WritingSubmission updated\n- Added optional markedContent?: Record<number, object> (TipTap JSON per task)\n- Added optional comments?: GradingComment[] (Google Docs-style comments)\n- Old annotations field marked @deprecated with JSDoc\n\n### Step 3: Old types deprecated (not deleted)\n- WritingAnnotation: @deprecated (consumed by 7 files to be deleted in Task z5eq9j)\n- AnnotationCategory: @deprecated (consumed by 4 files to be deleted in Task z5eq9j)\n\n### Step 4: writingSubmissionService.ts updated\n- Added GradingComment import\n- Added updateGradingV2() function (stores TipTap JSON + comments array)\n- Old updateGrading() marked @deprecated\n- Added updateGradingV2 to default export\n\n### Step 5: Audit\n- Firestore path: writing_submissions/{submissionId}\n- New fields: markedContent, comments (alongside existing grading, annotations)\n- Build clean (no new errors from changes)\"",
+          "newValue": "## Implementation Log\n\n### Step 1: New types added to ielts-writing.types.ts\n- Added: CommentCategoryId, CommentCategoryDef, COMMENT_CATEGORIES constant, getTaskCriterionId() helper\n- Added: GradingComment interface (id, taskNumber, text, categoryId, categoryLabel, color, status, anchorText, timestamps)\n- Added: QuickCommentPreset interface (id, text, categoryId, categoryLabel, color, isDefault)\n- Added: GradingEditorTaskState interface (for task switching state management)\n\n### Step 2: WritingSubmission updated\n- Added optional markedContent?: Record<number, object> (TipTap JSON per task)\n- Added optional comments?: GradingComment[] (Google Docs-style comments)\n- Old annotations field marked @deprecated with JSDoc\n\n### Step 3: Old types deprecated (not deleted)\n- WritingAnnotation: @deprecated (consumed by 7 files to be deleted in Task z5eq9j)\n- AnnotationCategory: @deprecated (consumed by 4 files to be deleted in Task z5eq9j)\n\n### Step 4: writingSubmissionService.ts updated\n- Added GradingComment import\n- Added updateGradingV2() function (stores TipTap JSON + comments array)\n- Old updateGrading() marked @deprecated\n- Added updateGradingV2 to default export\n\n### Step 5: Audit\n- Firestore path: writing_submissions/{submissionId}\n- New fields: markedContent, comments (alongside existing grading, annotations)\n- Build clean (no new errors from changes)\"\n\nAC-3 note: WritingAnnotation and AnnotationCategory marked @deprecated with JSDoc. Actual deletion deferred to Task z5eq9j (WritingGradingModal Rewrite) when consuming files are deleted. Removing now would break 7+ files.\""
+        }
+      ],
+      "snapshot": {
+        "title": "Types & Data Model Cleanup",
+        "description": "Update TypeScript types for the grading editor redesign. Add GradingComment and QuickCommentPreset interfaces. Remove old WritingAnnotation type and offset-based annotation types. Update grading data shape to use TipTap JSON instead of offset arrays. Audit writingSubmissionService.ts for current data paths. See @doc/specs/grading-editor-redesign FR-GROUP-4 for data shapes.",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Define GradingComment interface: id, text, categoryId, categoryLabel, color, status (active/resolved/deleted), anchorText, createdAt, updatedAt"
+          },
+          {
+            "completed": true,
+            "text": "Define QuickCommentPreset interface: id, text, categoryId, categoryLabel, color, isDefault"
+          },
+          {
+            "completed": true,
+            "text": "Remove WritingAnnotation type and all offset-based annotation types from ielts-writing.types.ts"
+          },
+          {
+            "completed": true,
+            "text": "Update grading data shape types to reference TipTap JSON content + comments array"
+          },
+          {
+            "completed": true,
+            "text": "Audit writingSubmissionService.ts for current Firestore paths and document structure"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan: Types & Data Model Cleanup\n\n### Context\n- Current: `ielts-writing.types.ts` (312 lines) has `WritingAnnotation` (offset-based: startOffset/endOffset) + `AnnotationCategory` (Firestore-backed per-teacher categories)\n- New: Replace with `GradingComment` (TipTap-linked via commentId) + `QuickCommentPreset` (localStorage-backed)\n- `WritingSubmission.annotations: WritingAnnotation[]` → `WritingSubmission.comments: GradingComment[]` + `WritingSubmission.markedContent: object` (TipTap JSON)\n- `writingSubmissionService.ts` `updateGrading()` signature must change: `annotations: WritingAnnotation[]` → `comments: GradingComment[]` + `markedContent: object`\n\n### Blast Radius (files importing old types)\nThese files import `WritingAnnotation` or `AnnotationCategory` but will be DELETED or REWRITTEN in later tasks:\n- `AnnotationToolbar.tsx` → DELETED (Task 8)\n- `AnnotatedEssayRenderer.tsx` → DELETED (Task 8)\n- `annotationRenderer.ts` → DELETED (Task 8)\n- `CategoryManager.tsx` → DELETED (Task 8)\n- `WritingGradingModal.tsx` → REWRITTEN (Task 8)\n- `WritingGradingPage.tsx` → MODIFIED (Task 8)\n- `AnnotatedEssayReadOnly.tsx` → REWRITTEN (Task 10)\n\nStrategy: **Keep old types temporarily** (don't delete yet, just deprecate with @deprecated JSDoc). Add new types alongside. Actual removal happens in Task 8 when the consuming files are deleted/rewritten.\n\n### Steps\n\n1. **Add new interfaces to `ielts-writing.types.ts`**:\n   - `GradingComment` (see @doc/specs/grading-editor-redesign FR-GROUP-4)\n   - `QuickCommentPreset`\n   - `CommentCategoryId` type alias: `'gra' | 'lr' | 'cc' | 'ta' | 'tr' | 'uncategorized'`\n   - `COMMENT_CATEGORIES` constant: category definitions with id, label, color\n   - `GradingEditorState` interface: per-task state shape for task switching\n   \n2. **Update `WritingSubmission` interface**:\n   - Add `comments?: GradingComment[]` (optional — new field)\n   - Add `markedContent?: Record<number, object>` (TipTap JSON per task, keyed by taskNumber)\n   - Mark `annotations: WritingAnnotation[]` with `@deprecated` JSDoc — keep for now, remove in Task 8\n   \n3. **Update `WritingGradingResult` interface**:\n   - No structural changes needed — feedback shape stays the same\n   \n4. **Mark old types as deprecated**:\n   - Add `@deprecated` to `WritingAnnotation` — \"Replaced by GradingComment + TipTap marks. Will be removed.\"\n   - Add `@deprecated` to `AnnotationCategory` — \"Replaced by QuickCommentPreset (localStorage). Will be removed.\"\n   \n5. **Update `writingSubmissionService.ts`**:\n   - Import new `GradingComment` type\n   - Add overloaded `updateGradingV2()` function that accepts `comments: GradingComment[]` + `markedContent: object` instead of `annotations: WritingAnnotation[]`\n   - Keep old `updateGrading()` with `@deprecated` — consumed by current WritingGradingModal until Task 8 rewrites it\n   - Document Firestore paths: `writing_submissions/{submissionId}` stores `comments[]` + `markedContent` fields",
+        "implementationNotes": "## Implementation Log\n\n### Step 1: New types added to ielts-writing.types.ts\n- Added: CommentCategoryId, CommentCategoryDef, COMMENT_CATEGORIES constant, getTaskCriterionId() helper\n- Added: GradingComment interface (id, taskNumber, text, categoryId, categoryLabel, color, status, anchorText, timestamps)\n- Added: QuickCommentPreset interface (id, text, categoryId, categoryLabel, color, isDefault)\n- Added: GradingEditorTaskState interface (for task switching state management)\n\n### Step 2: WritingSubmission updated\n- Added optional markedContent?: Record<number, object> (TipTap JSON per task)\n- Added optional comments?: GradingComment[] (Google Docs-style comments)\n- Old annotations field marked @deprecated with JSDoc\n\n### Step 3: Old types deprecated (not deleted)\n- WritingAnnotation: @deprecated (consumed by 7 files to be deleted in Task z5eq9j)\n- AnnotationCategory: @deprecated (consumed by 4 files to be deleted in Task z5eq9j)\n\n### Step 4: writingSubmissionService.ts updated\n- Added GradingComment import\n- Added updateGradingV2() function (stores TipTap JSON + comments array)\n- Old updateGrading() marked @deprecated\n- Added updateGradingV2 to default export\n\n### Step 5: Audit\n- Firestore path: writing_submissions/{submissionId}\n- New fields: markedContent, comments (alongside existing grading, annotations)\n- Build clean (no new errors from changes)\"\n\nAC-3 note: WritingAnnotation and AnnotationCategory marked @deprecated with JSDoc. Actual deletion deferred to Task z5eq9j (WritingGradingModal Rewrite) when consuming files are deleted. Removing now would break 7+ files.\""
+      }
+    },
+    {
+      "id": "v6",
+      "taskId": "20b0o3",
+      "version": 6,
+      "timestamp": "2026-03-01T06:53:50.455Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Types & Data Model Cleanup",
+        "description": "Update TypeScript types for the grading editor redesign. Add GradingComment and QuickCommentPreset interfaces. Remove old WritingAnnotation type and offset-based annotation types. Update grading data shape to use TipTap JSON instead of offset arrays. Audit writingSubmissionService.ts for current data paths. See @doc/specs/grading-editor-redesign FR-GROUP-4 for data shapes.",
+        "status": "done",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Define GradingComment interface: id, text, categoryId, categoryLabel, color, status (active/resolved/deleted), anchorText, createdAt, updatedAt"
+          },
+          {
+            "completed": true,
+            "text": "Define QuickCommentPreset interface: id, text, categoryId, categoryLabel, color, isDefault"
+          },
+          {
+            "completed": true,
+            "text": "Remove WritingAnnotation type and all offset-based annotation types from ielts-writing.types.ts"
+          },
+          {
+            "completed": true,
+            "text": "Update grading data shape types to reference TipTap JSON content + comments array"
+          },
+          {
+            "completed": true,
+            "text": "Audit writingSubmissionService.ts for current Firestore paths and document structure"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan: Types & Data Model Cleanup\n\n### Context\n- Current: `ielts-writing.types.ts` (312 lines) has `WritingAnnotation` (offset-based: startOffset/endOffset) + `AnnotationCategory` (Firestore-backed per-teacher categories)\n- New: Replace with `GradingComment` (TipTap-linked via commentId) + `QuickCommentPreset` (localStorage-backed)\n- `WritingSubmission.annotations: WritingAnnotation[]` → `WritingSubmission.comments: GradingComment[]` + `WritingSubmission.markedContent: object` (TipTap JSON)\n- `writingSubmissionService.ts` `updateGrading()` signature must change: `annotations: WritingAnnotation[]` → `comments: GradingComment[]` + `markedContent: object`\n\n### Blast Radius (files importing old types)\nThese files import `WritingAnnotation` or `AnnotationCategory` but will be DELETED or REWRITTEN in later tasks:\n- `AnnotationToolbar.tsx` → DELETED (Task 8)\n- `AnnotatedEssayRenderer.tsx` → DELETED (Task 8)\n- `annotationRenderer.ts` → DELETED (Task 8)\n- `CategoryManager.tsx` → DELETED (Task 8)\n- `WritingGradingModal.tsx` → REWRITTEN (Task 8)\n- `WritingGradingPage.tsx` → MODIFIED (Task 8)\n- `AnnotatedEssayReadOnly.tsx` → REWRITTEN (Task 10)\n\nStrategy: **Keep old types temporarily** (don't delete yet, just deprecate with @deprecated JSDoc). Add new types alongside. Actual removal happens in Task 8 when the consuming files are deleted/rewritten.\n\n### Steps\n\n1. **Add new interfaces to `ielts-writing.types.ts`**:\n   - `GradingComment` (see @doc/specs/grading-editor-redesign FR-GROUP-4)\n   - `QuickCommentPreset`\n   - `CommentCategoryId` type alias: `'gra' | 'lr' | 'cc' | 'ta' | 'tr' | 'uncategorized'`\n   - `COMMENT_CATEGORIES` constant: category definitions with id, label, color\n   - `GradingEditorState` interface: per-task state shape for task switching\n   \n2. **Update `WritingSubmission` interface**:\n   - Add `comments?: GradingComment[]` (optional — new field)\n   - Add `markedContent?: Record<number, object>` (TipTap JSON per task, keyed by taskNumber)\n   - Mark `annotations: WritingAnnotation[]` with `@deprecated` JSDoc — keep for now, remove in Task 8\n   \n3. **Update `WritingGradingResult` interface**:\n   - No structural changes needed — feedback shape stays the same\n   \n4. **Mark old types as deprecated**:\n   - Add `@deprecated` to `WritingAnnotation` — \"Replaced by GradingComment + TipTap marks. Will be removed.\"\n   - Add `@deprecated` to `AnnotationCategory` — \"Replaced by QuickCommentPreset (localStorage). Will be removed.\"\n   \n5. **Update `writingSubmissionService.ts`**:\n   - Import new `GradingComment` type\n   - Add overloaded `updateGradingV2()` function that accepts `comments: GradingComment[]` + `markedContent: object` instead of `annotations: WritingAnnotation[]`\n   - Keep old `updateGrading()` with `@deprecated` — consumed by current WritingGradingModal until Task 8 rewrites it\n   - Document Firestore paths: `writing_submissions/{submissionId}` stores `comments[]` + `markedContent` fields",
+        "implementationNotes": "## Implementation Log\n\n### Step 1: New types added to ielts-writing.types.ts\n- Added: CommentCategoryId, CommentCategoryDef, COMMENT_CATEGORIES constant, getTaskCriterionId() helper\n- Added: GradingComment interface (id, taskNumber, text, categoryId, categoryLabel, color, status, anchorText, timestamps)\n- Added: QuickCommentPreset interface (id, text, categoryId, categoryLabel, color, isDefault)\n- Added: GradingEditorTaskState interface (for task switching state management)\n\n### Step 2: WritingSubmission updated\n- Added optional markedContent?: Record<number, object> (TipTap JSON per task)\n- Added optional comments?: GradingComment[] (Google Docs-style comments)\n- Old annotations field marked @deprecated with JSDoc\n\n### Step 3: Old types deprecated (not deleted)\n- WritingAnnotation: @deprecated (consumed by 7 files to be deleted in Task z5eq9j)\n- AnnotationCategory: @deprecated (consumed by 4 files to be deleted in Task z5eq9j)\n\n### Step 4: writingSubmissionService.ts updated\n- Added GradingComment import\n- Added updateGradingV2() function (stores TipTap JSON + comments array)\n- Old updateGrading() marked @deprecated\n- Added updateGradingV2 to default export\n\n### Step 5: Audit\n- Firestore path: writing_submissions/{submissionId}\n- New fields: markedContent, comments (alongside existing grading, annotations)\n- Build clean (no new errors from changes)\"\n\nAC-3 note: WritingAnnotation and AnnotationCategory marked @deprecated with JSDoc. Actual deletion deferred to Task z5eq9j (WritingGradingModal Rewrite) when consuming files are deleted. Removing now would break 7+ files.\""
+      }
+    }
+  ]
+}

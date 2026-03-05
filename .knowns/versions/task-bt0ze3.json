@@ -1,0 +1,104 @@
+{
+  "taskId": "bt0ze3",
+  "currentVersion": 1,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "bt0ze3",
+      "version": 1,
+      "timestamp": "2026-03-04T21:58:18.282Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "16 REPAIR_FRAGMENTS with priority/instruction/example/constraint per issue code",
+              "completed": false
+            },
+            {
+              "text": "8 COMPROMISE_TEMPLATES (one per compromise route in FR-10)",
+              "completed": false
+            },
+            {
+              "text": "buildRepairPrompt() selects relevant fragments, injects original + processed text",
+              "completed": false
+            },
+            {
+              "text": "buildCompromisePrompt() injects originalInput, cross-reference block, compromise reasoning",
+              "completed": false
+            },
+            {
+              "text": "parseAIRepairResponse() splits fixed text from reasoning with 4 fallback delimiters",
+              "completed": false
+            },
+            {
+              "text": "parseReasoningEntries() extracts 5 fields: issueCode, action, reasoning, confidence, originalRef",
+              "completed": false
+            },
+            {
+              "text": "parseCompromiseResponse() extracts convertedText + reasoning",
+              "completed": false
+            },
+            {
+              "text": "Graceful degradation: missing reasoning → entire response = fixed text",
+              "completed": false
+            },
+            {
+              "text": "Unit tests for each parser + builder",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Build Adaptive Prompt Builder",
+        "description": "Create `thcs-prompt-builder.ts` — fragment registry (16 repair `REPAIR_FRAGMENTS` + 8 compromise `COMPROMISE_TEMPLATES`), `buildRepairPrompt()` (dynamic assembly from detected issues + both original/processed text), `buildCompromisePrompt()` (type-specific + cross-reference), and reasoning log parsers (`parseAIRepairResponse()`, `parseReasoningEntries()`, `parseCompromiseResponse()` with 4 fallback delimiters and graceful degradation). Depends on @task-f6s95f (Code Validator for issue code types).",
+        "status": "todo",
+        "priority": "high",
+        "labels": [
+          "from-spec",
+          "core-module"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "16 REPAIR_FRAGMENTS with priority/instruction/example/constraint per issue code",
+            "completed": false
+          },
+          {
+            "text": "8 COMPROMISE_TEMPLATES (one per compromise route in FR-10)",
+            "completed": false
+          },
+          {
+            "text": "buildRepairPrompt() selects relevant fragments, injects original + processed text",
+            "completed": false
+          },
+          {
+            "text": "buildCompromisePrompt() injects originalInput, cross-reference block, compromise reasoning",
+            "completed": false
+          },
+          {
+            "text": "parseAIRepairResponse() splits fixed text from reasoning with 4 fallback delimiters",
+            "completed": false
+          },
+          {
+            "text": "parseReasoningEntries() extracts 5 fields: issueCode, action, reasoning, confidence, originalRef",
+            "completed": false
+          },
+          {
+            "text": "parseCompromiseResponse() extracts convertedText + reasoning",
+            "completed": false
+          },
+          {
+            "text": "Graceful degradation: missing reasoning → entire response = fixed text",
+            "completed": false
+          },
+          {
+            "text": "Unit tests for each parser + builder",
+            "completed": false
+          }
+        ]
+      }
+    }
+  ]
+}

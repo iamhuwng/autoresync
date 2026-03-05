@@ -1,0 +1,80 @@
+{
+  "taskId": "7920rs",
+  "currentVersion": 1,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "7920rs",
+      "version": 1,
+      "timestamp": "2026-03-04T21:58:29.846Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Triggers only when formatConfidence < 50 after Pass 1 + Pass 2",
+              "completed": false
+            },
+            {
+              "text": "Calls external API (Gemini/GPT) with original text + structured audit log",
+              "completed": false
+            },
+            {
+              "text": "Audit log includes: issue codes, failed sections, question count mismatches",
+              "completed": false
+            },
+            {
+              "text": "Max 3 retries, each re-enters at preClean",
+              "completed": false
+            },
+            {
+              "text": "All 3 fail → escalate to teacher with full audit log + message",
+              "completed": false
+            },
+            {
+              "text": "Uses project API keys, not teacher's external session",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Implement Automated External Retry",
+        "description": "When formatConfidence < 50 after all internal passes (Pass 1 + Pass 2), automatically call external AI API (Gemini/GPT) with original text + structured audit log (issue codes, failed sections, question count mismatches). Max 3 retries. Each response re-enters at preClean. All 3 fail → escalate to teacher with full audit log. Uses project API keys. Depends on @task-xup4uy (retry manager).",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "from-spec",
+          "pipeline"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Triggers only when formatConfidence < 50 after Pass 1 + Pass 2",
+            "completed": false
+          },
+          {
+            "text": "Calls external API (Gemini/GPT) with original text + structured audit log",
+            "completed": false
+          },
+          {
+            "text": "Audit log includes: issue codes, failed sections, question count mismatches",
+            "completed": false
+          },
+          {
+            "text": "Max 3 retries, each re-enters at preClean",
+            "completed": false
+          },
+          {
+            "text": "All 3 fail → escalate to teacher with full audit log + message",
+            "completed": false
+          },
+          {
+            "text": "Uses project API keys, not teacher's external session",
+            "completed": false
+          }
+        ]
+      }
+    }
+  ]
+}

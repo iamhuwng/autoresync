@@ -1,0 +1,386 @@
+{
+  "taskId": "23fbgf",
+  "currentVersion": 6,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "23fbgf",
+      "version": 1,
+      "timestamp": "2026-03-04T21:25:02.387Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "analyzeFeedback() correctly buckets intents by percentage thresholds (≥80% strengths, 50-79% revision, <50% critical)",
+              "completed": false
+            },
+            {
+              "text": "Question numbers attached to each SkillAnalysis entry (both all and wrong-only)",
+              "completed": false
+            },
+            {
+              "text": "INTENT_SKILL_MAP used for human-friendly names in each bucket entry",
+              "completed": false
+            },
+            {
+              "text": "Template text generated for deterministic fallback (deterministicFeedback field)",
+              "completed": false
+            },
+            {
+              "text": "Handles empty/null intentBreakdown gracefully",
+              "completed": false
+            },
+            {
+              "text": "Perfect score (100%) produces only strengths, no revision/critical sections",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Implement deterministic feedback analysis",
+        "description": "Create `formativeFeedback.service.ts` with deterministic bucketing logic: read intentBreakdown from grading result, sort by performance ratio, bucket into strengths (≥80%) / revision (50-79%) / critical (<50%), attach question numbers per bucket, generate template-based fallback text.",
+        "status": "todo",
+        "priority": "high",
+        "labels": [
+          "from-spec",
+          "formative-feedback"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "analyzeFeedback() correctly buckets intents by percentage thresholds (≥80% strengths, 50-79% revision, <50% critical)",
+            "completed": false
+          },
+          {
+            "text": "Question numbers attached to each SkillAnalysis entry (both all and wrong-only)",
+            "completed": false
+          },
+          {
+            "text": "INTENT_SKILL_MAP used for human-friendly names in each bucket entry",
+            "completed": false
+          },
+          {
+            "text": "Template text generated for deterministic fallback (deterministicFeedback field)",
+            "completed": false
+          },
+          {
+            "text": "Handles empty/null intentBreakdown gracefully",
+            "completed": false
+          },
+          {
+            "text": "Perfect score (100%) produces only strengths, no revision/critical sections",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "23fbgf",
+      "version": 2,
+      "timestamp": "2026-03-04T21:28:37.391Z",
+      "changes": [
+        {
+          "field": "implementationPlan",
+          "newValue": "## Implementation Plan: Deterministic Feedback Analysis\n\n### File: `src/services/formativeFeedback.service.ts` (NEW)\n\n**Step 1: Create the service file with core function**\n\n```typescript\nimport type { THCSGradingResult, SectionResult, THCSSection, FormativeFeedback, SkillAnalysis } from '../types/thcs-test.types';\nimport { INTENT_SKILL_MAP } from '../types/thcs-test.types';\n```\n\n**Step 2: Implement `buildDeterministicAnalysis()`**\nInputs: `gradingResult: THCSGradingResult`, `sections: THCSSection[]`\nLogic:\n1. Call `mergeIntentBreakdowns(gradingResult.sectionResults)` to get aggregated intent map\n2. For each intent in merged breakdown:\n   a. Calculate `percentage = (correct / total) * 100`\n   b. Look up human name via `INTENT_SKILL_MAP[intent]`\n   c. Scan `gradingResult.questionResults` to find question numbers matching this intent (by cross-referencing with section questions)\n   d. Build `SkillAnalysis` entry with questionNumbers and wrongQuestionNumbers\n3. Sort all entries by percentage descending\n4. Bucket: ≥80% → strengths, 50-79% → revision, <50% → critical\n5. Return `{ strengths, revision, critical }`\n\n**Step 3: Implement question number extraction**\nHelper: `getQuestionNumbersByIntent(sections, intent)`\n- Iterate all sections → all questions\n- For each question where `question.type === intent` OR `question.intent === intent`\n- Return { all: number[], wrong: number[] } (wrong = not in gradingResult.questionResults as correct)\n\n**Step 4: Implement `buildDeterministicText()`**\nGenerates the fallback text from the analysis buckets:\n```\n\"You achieved X/Y correct answers (Z/10).\nStrengths: [skillName] (Q1, Q2) — X/Y correct. ...\nNeeds revision: ...\nCritical gaps: ...\"\n```\nHandle edge cases:\n- Perfect score → only strengths text, no revision/critical\n- Empty intentBreakdown → return generic text\n- 0% on all → only critical text\n\n**Step 5: Implement main `generateDeterministicFeedback()` function**\nCombines Steps 2-4:\n```typescript\nexport function generateDeterministicFeedback(\n    gradingResult: THCSGradingResult,\n    sections: THCSSection[],\n): FormativeFeedback { ... }\n```\nReturns complete FormativeFeedback with analysis populated, questionTopics/aiFeedback undefined, deterministicFeedback text populated, metadata fields set.\n\n### Edge Cases to Handle\n- `intentBreakdown` is empty/null → return empty buckets + generic text\n- All questions correct (100%) → strengths only\n- All questions wrong (0%) → critical only  \n- Single question type test → single entry in one bucket\n- Section has no intent (Phase 2 question with no MCQ intent) → use `question.type` as fallback"
+        }
+      ],
+      "snapshot": {
+        "title": "Implement deterministic feedback analysis",
+        "description": "Create `formativeFeedback.service.ts` with deterministic bucketing logic: read intentBreakdown from grading result, sort by performance ratio, bucket into strengths (≥80%) / revision (50-79%) / critical (<50%), attach question numbers per bucket, generate template-based fallback text.",
+        "status": "todo",
+        "priority": "high",
+        "labels": [
+          "from-spec",
+          "formative-feedback"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "analyzeFeedback() correctly buckets intents by percentage thresholds (≥80% strengths, 50-79% revision, <50% critical)"
+          },
+          {
+            "completed": false,
+            "text": "Question numbers attached to each SkillAnalysis entry (both all and wrong-only)"
+          },
+          {
+            "completed": false,
+            "text": "INTENT_SKILL_MAP used for human-friendly names in each bucket entry"
+          },
+          {
+            "completed": false,
+            "text": "Template text generated for deterministic fallback (deterministicFeedback field)"
+          },
+          {
+            "completed": false,
+            "text": "Handles empty/null intentBreakdown gracefully"
+          },
+          {
+            "completed": false,
+            "text": "Perfect score (100%) produces only strengths, no revision/critical sections"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan: Deterministic Feedback Analysis\n\n### File: `src/services/formativeFeedback.service.ts` (NEW)\n\n**Step 1: Create the service file with core function**\n\n```typescript\nimport type { THCSGradingResult, SectionResult, THCSSection, FormativeFeedback, SkillAnalysis } from '../types/thcs-test.types';\nimport { INTENT_SKILL_MAP } from '../types/thcs-test.types';\n```\n\n**Step 2: Implement `buildDeterministicAnalysis()`**\nInputs: `gradingResult: THCSGradingResult`, `sections: THCSSection[]`\nLogic:\n1. Call `mergeIntentBreakdowns(gradingResult.sectionResults)` to get aggregated intent map\n2. For each intent in merged breakdown:\n   a. Calculate `percentage = (correct / total) * 100`\n   b. Look up human name via `INTENT_SKILL_MAP[intent]`\n   c. Scan `gradingResult.questionResults` to find question numbers matching this intent (by cross-referencing with section questions)\n   d. Build `SkillAnalysis` entry with questionNumbers and wrongQuestionNumbers\n3. Sort all entries by percentage descending\n4. Bucket: ≥80% → strengths, 50-79% → revision, <50% → critical\n5. Return `{ strengths, revision, critical }`\n\n**Step 3: Implement question number extraction**\nHelper: `getQuestionNumbersByIntent(sections, intent)`\n- Iterate all sections → all questions\n- For each question where `question.type === intent` OR `question.intent === intent`\n- Return { all: number[], wrong: number[] } (wrong = not in gradingResult.questionResults as correct)\n\n**Step 4: Implement `buildDeterministicText()`**\nGenerates the fallback text from the analysis buckets:\n```\n\"You achieved X/Y correct answers (Z/10).\nStrengths: [skillName] (Q1, Q2) — X/Y correct. ...\nNeeds revision: ...\nCritical gaps: ...\"\n```\nHandle edge cases:\n- Perfect score → only strengths text, no revision/critical\n- Empty intentBreakdown → return generic text\n- 0% on all → only critical text\n\n**Step 5: Implement main `generateDeterministicFeedback()` function**\nCombines Steps 2-4:\n```typescript\nexport function generateDeterministicFeedback(\n    gradingResult: THCSGradingResult,\n    sections: THCSSection[],\n): FormativeFeedback { ... }\n```\nReturns complete FormativeFeedback with analysis populated, questionTopics/aiFeedback undefined, deterministicFeedback text populated, metadata fields set.\n\n### Edge Cases to Handle\n- `intentBreakdown` is empty/null → return empty buckets + generic text\n- All questions correct (100%) → strengths only\n- All questions wrong (0%) → critical only  \n- Single question type test → single entry in one bucket\n- Section has no intent (Phase 2 question with no MCQ intent) → use `question.type` as fallback"
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "23fbgf",
+      "version": 3,
+      "timestamp": "2026-03-04T21:43:52.563Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        }
+      ],
+      "snapshot": {
+        "title": "Implement deterministic feedback analysis",
+        "description": "Create `formativeFeedback.service.ts` with deterministic bucketing logic: read intentBreakdown from grading result, sort by performance ratio, bucket into strengths (≥80%) / revision (50-79%) / critical (<50%), attach question numbers per bucket, generate template-based fallback text.",
+        "status": "in-progress",
+        "priority": "high",
+        "labels": [
+          "from-spec",
+          "formative-feedback"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "analyzeFeedback() correctly buckets intents by percentage thresholds (≥80% strengths, 50-79% revision, <50% critical)"
+          },
+          {
+            "completed": false,
+            "text": "Question numbers attached to each SkillAnalysis entry (both all and wrong-only)"
+          },
+          {
+            "completed": false,
+            "text": "INTENT_SKILL_MAP used for human-friendly names in each bucket entry"
+          },
+          {
+            "completed": false,
+            "text": "Template text generated for deterministic fallback (deterministicFeedback field)"
+          },
+          {
+            "completed": false,
+            "text": "Handles empty/null intentBreakdown gracefully"
+          },
+          {
+            "completed": false,
+            "text": "Perfect score (100%) produces only strengths, no revision/critical sections"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan: Deterministic Feedback Analysis\n\n### File: `src/services/formativeFeedback.service.ts` (NEW)\n\n**Step 1: Create the service file with core function**\n\n```typescript\nimport type { THCSGradingResult, SectionResult, THCSSection, FormativeFeedback, SkillAnalysis } from '../types/thcs-test.types';\nimport { INTENT_SKILL_MAP } from '../types/thcs-test.types';\n```\n\n**Step 2: Implement `buildDeterministicAnalysis()`**\nInputs: `gradingResult: THCSGradingResult`, `sections: THCSSection[]`\nLogic:\n1. Call `mergeIntentBreakdowns(gradingResult.sectionResults)` to get aggregated intent map\n2. For each intent in merged breakdown:\n   a. Calculate `percentage = (correct / total) * 100`\n   b. Look up human name via `INTENT_SKILL_MAP[intent]`\n   c. Scan `gradingResult.questionResults` to find question numbers matching this intent (by cross-referencing with section questions)\n   d. Build `SkillAnalysis` entry with questionNumbers and wrongQuestionNumbers\n3. Sort all entries by percentage descending\n4. Bucket: ≥80% → strengths, 50-79% → revision, <50% → critical\n5. Return `{ strengths, revision, critical }`\n\n**Step 3: Implement question number extraction**\nHelper: `getQuestionNumbersByIntent(sections, intent)`\n- Iterate all sections → all questions\n- For each question where `question.type === intent` OR `question.intent === intent`\n- Return { all: number[], wrong: number[] } (wrong = not in gradingResult.questionResults as correct)\n\n**Step 4: Implement `buildDeterministicText()`**\nGenerates the fallback text from the analysis buckets:\n```\n\"You achieved X/Y correct answers (Z/10).\nStrengths: [skillName] (Q1, Q2) — X/Y correct. ...\nNeeds revision: ...\nCritical gaps: ...\"\n```\nHandle edge cases:\n- Perfect score → only strengths text, no revision/critical\n- Empty intentBreakdown → return generic text\n- 0% on all → only critical text\n\n**Step 5: Implement main `generateDeterministicFeedback()` function**\nCombines Steps 2-4:\n```typescript\nexport function generateDeterministicFeedback(\n    gradingResult: THCSGradingResult,\n    sections: THCSSection[],\n): FormativeFeedback { ... }\n```\nReturns complete FormativeFeedback with analysis populated, questionTopics/aiFeedback undefined, deterministicFeedback text populated, metadata fields set.\n\n### Edge Cases to Handle\n- `intentBreakdown` is empty/null → return empty buckets + generic text\n- All questions correct (100%) → strengths only\n- All questions wrong (0%) → critical only  \n- Single question type test → single entry in one bucket\n- Section has no intent (Phase 2 question with no MCQ intent) → use `question.type` as fallback"
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "23fbgf",
+      "version": 4,
+      "timestamp": "2026-03-04T21:46:25.477Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "analyzeFeedback() correctly buckets intents by percentage thresholds (≥80% strengths, 50-79% revision, <50% critical)"
+            },
+            {
+              "completed": false,
+              "text": "Question numbers attached to each SkillAnalysis entry (both all and wrong-only)"
+            },
+            {
+              "completed": false,
+              "text": "INTENT_SKILL_MAP used for human-friendly names in each bucket entry"
+            },
+            {
+              "completed": false,
+              "text": "Template text generated for deterministic fallback (deterministicFeedback field)"
+            },
+            {
+              "completed": false,
+              "text": "Handles empty/null intentBreakdown gracefully"
+            },
+            {
+              "completed": false,
+              "text": "Perfect score (100%) produces only strengths, no revision/critical sections"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "analyzeFeedback() correctly buckets intents by percentage thresholds (≥80% strengths, 50-79% revision, <50% critical)"
+            },
+            {
+              "completed": true,
+              "text": "Question numbers attached to each SkillAnalysis entry (both all and wrong-only)"
+            },
+            {
+              "completed": true,
+              "text": "INTENT_SKILL_MAP used for human-friendly names in each bucket entry"
+            },
+            {
+              "completed": true,
+              "text": "Template text generated for deterministic fallback (deterministicFeedback field)"
+            },
+            {
+              "completed": true,
+              "text": "Handles empty/null intentBreakdown gracefully"
+            },
+            {
+              "completed": true,
+              "text": "Perfect score (100%) produces only strengths, no revision/critical sections"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Created `src/services/formativeFeedback.service.ts` with complete deterministic analysis engine:\n\n**Functions implemented:**\n- `mergeIntentBreakdowns()` — aggregates intent data across all sections\n- `getQuestionNumbersByIntent()` — extracts question numbers per intent with wrong tracking\n- `buildSkillAnalysisList()` — builds SkillAnalysis entries with INTENT_SKILL_MAP names\n- `bucketByPerformance()` — buckets into strengths (≥80%), revision (50-79%), critical (<50%)\n- `buildDeterministicText()` — generates human-readable fallback text\n- `generateDeterministicFeedback()` — public API for deterministic-only feedback\n- `generateFormativeFeedback()` — async wrapper that saves to RTDB (AI enrichment placeholder for task 2gv1pn)\n\n**Edge cases handled:**\n- Empty/null sectionResults → generic text\n- Empty intentBreakdown → empty buckets\n- Perfect score → only strengths entries\n- Missing question results → treated as wrong\n- Unknown intents → fallback to intent string as name\n\n**TypeScript compilation verified** — no new errors introduced."
+        }
+      ],
+      "snapshot": {
+        "title": "Implement deterministic feedback analysis",
+        "description": "Create `formativeFeedback.service.ts` with deterministic bucketing logic: read intentBreakdown from grading result, sort by performance ratio, bucket into strengths (≥80%) / revision (50-79%) / critical (<50%), attach question numbers per bucket, generate template-based fallback text.",
+        "status": "in-progress",
+        "priority": "high",
+        "labels": [
+          "from-spec",
+          "formative-feedback"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "analyzeFeedback() correctly buckets intents by percentage thresholds (≥80% strengths, 50-79% revision, <50% critical)"
+          },
+          {
+            "completed": true,
+            "text": "Question numbers attached to each SkillAnalysis entry (both all and wrong-only)"
+          },
+          {
+            "completed": true,
+            "text": "INTENT_SKILL_MAP used for human-friendly names in each bucket entry"
+          },
+          {
+            "completed": true,
+            "text": "Template text generated for deterministic fallback (deterministicFeedback field)"
+          },
+          {
+            "completed": true,
+            "text": "Handles empty/null intentBreakdown gracefully"
+          },
+          {
+            "completed": true,
+            "text": "Perfect score (100%) produces only strengths, no revision/critical sections"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan: Deterministic Feedback Analysis\n\n### File: `src/services/formativeFeedback.service.ts` (NEW)\n\n**Step 1: Create the service file with core function**\n\n```typescript\nimport type { THCSGradingResult, SectionResult, THCSSection, FormativeFeedback, SkillAnalysis } from '../types/thcs-test.types';\nimport { INTENT_SKILL_MAP } from '../types/thcs-test.types';\n```\n\n**Step 2: Implement `buildDeterministicAnalysis()`**\nInputs: `gradingResult: THCSGradingResult`, `sections: THCSSection[]`\nLogic:\n1. Call `mergeIntentBreakdowns(gradingResult.sectionResults)` to get aggregated intent map\n2. For each intent in merged breakdown:\n   a. Calculate `percentage = (correct / total) * 100`\n   b. Look up human name via `INTENT_SKILL_MAP[intent]`\n   c. Scan `gradingResult.questionResults` to find question numbers matching this intent (by cross-referencing with section questions)\n   d. Build `SkillAnalysis` entry with questionNumbers and wrongQuestionNumbers\n3. Sort all entries by percentage descending\n4. Bucket: ≥80% → strengths, 50-79% → revision, <50% → critical\n5. Return `{ strengths, revision, critical }`\n\n**Step 3: Implement question number extraction**\nHelper: `getQuestionNumbersByIntent(sections, intent)`\n- Iterate all sections → all questions\n- For each question where `question.type === intent` OR `question.intent === intent`\n- Return { all: number[], wrong: number[] } (wrong = not in gradingResult.questionResults as correct)\n\n**Step 4: Implement `buildDeterministicText()`**\nGenerates the fallback text from the analysis buckets:\n```\n\"You achieved X/Y correct answers (Z/10).\nStrengths: [skillName] (Q1, Q2) — X/Y correct. ...\nNeeds revision: ...\nCritical gaps: ...\"\n```\nHandle edge cases:\n- Perfect score → only strengths text, no revision/critical\n- Empty intentBreakdown → return generic text\n- 0% on all → only critical text\n\n**Step 5: Implement main `generateDeterministicFeedback()` function**\nCombines Steps 2-4:\n```typescript\nexport function generateDeterministicFeedback(\n    gradingResult: THCSGradingResult,\n    sections: THCSSection[],\n): FormativeFeedback { ... }\n```\nReturns complete FormativeFeedback with analysis populated, questionTopics/aiFeedback undefined, deterministicFeedback text populated, metadata fields set.\n\n### Edge Cases to Handle\n- `intentBreakdown` is empty/null → return empty buckets + generic text\n- All questions correct (100%) → strengths only\n- All questions wrong (0%) → critical only  \n- Single question type test → single entry in one bucket\n- Section has no intent (Phase 2 question with no MCQ intent) → use `question.type` as fallback",
+        "implementationNotes": "Created `src/services/formativeFeedback.service.ts` with complete deterministic analysis engine:\n\n**Functions implemented:**\n- `mergeIntentBreakdowns()` — aggregates intent data across all sections\n- `getQuestionNumbersByIntent()` — extracts question numbers per intent with wrong tracking\n- `buildSkillAnalysisList()` — builds SkillAnalysis entries with INTENT_SKILL_MAP names\n- `bucketByPerformance()` — buckets into strengths (≥80%), revision (50-79%), critical (<50%)\n- `buildDeterministicText()` — generates human-readable fallback text\n- `generateDeterministicFeedback()` — public API for deterministic-only feedback\n- `generateFormativeFeedback()` — async wrapper that saves to RTDB (AI enrichment placeholder for task 2gv1pn)\n\n**Edge cases handled:**\n- Empty/null sectionResults → generic text\n- Empty intentBreakdown → empty buckets\n- Perfect score → only strengths entries\n- Missing question results → treated as wrong\n- Unknown intents → fallback to intent string as name\n\n**TypeScript compilation verified** — no new errors introduced."
+      }
+    },
+    {
+      "id": "v5",
+      "taskId": "23fbgf",
+      "version": 5,
+      "timestamp": "2026-03-04T21:46:34.735Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Implement deterministic feedback analysis",
+        "description": "Create `formativeFeedback.service.ts` with deterministic bucketing logic: read intentBreakdown from grading result, sort by performance ratio, bucket into strengths (≥80%) / revision (50-79%) / critical (<50%), attach question numbers per bucket, generate template-based fallback text.",
+        "status": "done",
+        "priority": "high",
+        "labels": [
+          "from-spec",
+          "formative-feedback"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "analyzeFeedback() correctly buckets intents by percentage thresholds (≥80% strengths, 50-79% revision, <50% critical)"
+          },
+          {
+            "completed": true,
+            "text": "Question numbers attached to each SkillAnalysis entry (both all and wrong-only)"
+          },
+          {
+            "completed": true,
+            "text": "INTENT_SKILL_MAP used for human-friendly names in each bucket entry"
+          },
+          {
+            "completed": true,
+            "text": "Template text generated for deterministic fallback (deterministicFeedback field)"
+          },
+          {
+            "completed": true,
+            "text": "Handles empty/null intentBreakdown gracefully"
+          },
+          {
+            "completed": true,
+            "text": "Perfect score (100%) produces only strengths, no revision/critical sections"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan: Deterministic Feedback Analysis\n\n### File: `src/services/formativeFeedback.service.ts` (NEW)\n\n**Step 1: Create the service file with core function**\n\n```typescript\nimport type { THCSGradingResult, SectionResult, THCSSection, FormativeFeedback, SkillAnalysis } from '../types/thcs-test.types';\nimport { INTENT_SKILL_MAP } from '../types/thcs-test.types';\n```\n\n**Step 2: Implement `buildDeterministicAnalysis()`**\nInputs: `gradingResult: THCSGradingResult`, `sections: THCSSection[]`\nLogic:\n1. Call `mergeIntentBreakdowns(gradingResult.sectionResults)` to get aggregated intent map\n2. For each intent in merged breakdown:\n   a. Calculate `percentage = (correct / total) * 100`\n   b. Look up human name via `INTENT_SKILL_MAP[intent]`\n   c. Scan `gradingResult.questionResults` to find question numbers matching this intent (by cross-referencing with section questions)\n   d. Build `SkillAnalysis` entry with questionNumbers and wrongQuestionNumbers\n3. Sort all entries by percentage descending\n4. Bucket: ≥80% → strengths, 50-79% → revision, <50% → critical\n5. Return `{ strengths, revision, critical }`\n\n**Step 3: Implement question number extraction**\nHelper: `getQuestionNumbersByIntent(sections, intent)`\n- Iterate all sections → all questions\n- For each question where `question.type === intent` OR `question.intent === intent`\n- Return { all: number[], wrong: number[] } (wrong = not in gradingResult.questionResults as correct)\n\n**Step 4: Implement `buildDeterministicText()`**\nGenerates the fallback text from the analysis buckets:\n```\n\"You achieved X/Y correct answers (Z/10).\nStrengths: [skillName] (Q1, Q2) — X/Y correct. ...\nNeeds revision: ...\nCritical gaps: ...\"\n```\nHandle edge cases:\n- Perfect score → only strengths text, no revision/critical\n- Empty intentBreakdown → return generic text\n- 0% on all → only critical text\n\n**Step 5: Implement main `generateDeterministicFeedback()` function**\nCombines Steps 2-4:\n```typescript\nexport function generateDeterministicFeedback(\n    gradingResult: THCSGradingResult,\n    sections: THCSSection[],\n): FormativeFeedback { ... }\n```\nReturns complete FormativeFeedback with analysis populated, questionTopics/aiFeedback undefined, deterministicFeedback text populated, metadata fields set.\n\n### Edge Cases to Handle\n- `intentBreakdown` is empty/null → return empty buckets + generic text\n- All questions correct (100%) → strengths only\n- All questions wrong (0%) → critical only  \n- Single question type test → single entry in one bucket\n- Section has no intent (Phase 2 question with no MCQ intent) → use `question.type` as fallback",
+        "implementationNotes": "Created `src/services/formativeFeedback.service.ts` with complete deterministic analysis engine:\n\n**Functions implemented:**\n- `mergeIntentBreakdowns()` — aggregates intent data across all sections\n- `getQuestionNumbersByIntent()` — extracts question numbers per intent with wrong tracking\n- `buildSkillAnalysisList()` — builds SkillAnalysis entries with INTENT_SKILL_MAP names\n- `bucketByPerformance()` — buckets into strengths (≥80%), revision (50-79%), critical (<50%)\n- `buildDeterministicText()` — generates human-readable fallback text\n- `generateDeterministicFeedback()` — public API for deterministic-only feedback\n- `generateFormativeFeedback()` — async wrapper that saves to RTDB (AI enrichment placeholder for task 2gv1pn)\n\n**Edge cases handled:**\n- Empty/null sectionResults → generic text\n- Empty intentBreakdown → empty buckets\n- Perfect score → only strengths entries\n- Missing question results → treated as wrong\n- Unknown intents → fallback to intent string as name\n\n**TypeScript compilation verified** — no new errors introduced."
+      }
+    },
+    {
+      "id": "v6",
+      "taskId": "23fbgf",
+      "version": 6,
+      "timestamp": "2026-03-04T22:25:53.534Z",
+      "changes": [
+        {
+          "field": "implementationNotes",
+          "oldValue": "Created `src/services/formativeFeedback.service.ts` with complete deterministic analysis engine:\n\n**Functions implemented:**\n- `mergeIntentBreakdowns()` — aggregates intent data across all sections\n- `getQuestionNumbersByIntent()` — extracts question numbers per intent with wrong tracking\n- `buildSkillAnalysisList()` — builds SkillAnalysis entries with INTENT_SKILL_MAP names\n- `bucketByPerformance()` — buckets into strengths (≥80%), revision (50-79%), critical (<50%)\n- `buildDeterministicText()` — generates human-readable fallback text\n- `generateDeterministicFeedback()` — public API for deterministic-only feedback\n- `generateFormativeFeedback()` — async wrapper that saves to RTDB (AI enrichment placeholder for task 2gv1pn)\n\n**Edge cases handled:**\n- Empty/null sectionResults → generic text\n- Empty intentBreakdown → empty buckets\n- Perfect score → only strengths entries\n- Missing question results → treated as wrong\n- Unknown intents → fallback to intent string as name\n\n**TypeScript compilation verified** — no new errors introduced.",
+          "newValue": "Created `src/services/formativeFeedback.service.ts` with complete deterministic analysis engine:\n\n**Functions implemented:**\n- `mergeIntentBreakdowns()` — aggregates intent data across all sections\n- `getQuestionNumbersByIntent()` — extracts question numbers per intent with wrong tracking\n- `buildSkillAnalysisList()` — builds SkillAnalysis entries with INTENT_SKILL_MAP names\n- `bucketByPerformance()` — buckets into strengths (≥80%), revision (50-79%), critical (<50%)\n- `buildDeterministicText()` — generates human-readable fallback text\n- `generateDeterministicFeedback()` — public API for deterministic-only feedback\n- `generateFormativeFeedback()` — async wrapper that saves to RTDB (AI enrichment placeholder for task 2gv1pn)\n\n**Edge cases handled:**\n- Empty/null sectionResults → generic text\n- Empty intentBreakdown → empty buckets\n- Perfect score → only strengths entries\n- Missing question results → treated as wrong\n- Unknown intents → fallback to intent string as name\n\n**TypeScript compilation verified** — no new errors introduced.\n\n📚 Extracted to @doc/patterns/pattern-deterministic-first-ai-enhancement"
+        }
+      ],
+      "snapshot": {
+        "title": "Implement deterministic feedback analysis",
+        "description": "Create `formativeFeedback.service.ts` with deterministic bucketing logic: read intentBreakdown from grading result, sort by performance ratio, bucket into strengths (≥80%) / revision (50-79%) / critical (<50%), attach question numbers per bucket, generate template-based fallback text.",
+        "status": "done",
+        "priority": "high",
+        "labels": [
+          "from-spec",
+          "formative-feedback"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "analyzeFeedback() correctly buckets intents by percentage thresholds (≥80% strengths, 50-79% revision, <50% critical)"
+          },
+          {
+            "completed": true,
+            "text": "Question numbers attached to each SkillAnalysis entry (both all and wrong-only)"
+          },
+          {
+            "completed": true,
+            "text": "INTENT_SKILL_MAP used for human-friendly names in each bucket entry"
+          },
+          {
+            "completed": true,
+            "text": "Template text generated for deterministic fallback (deterministicFeedback field)"
+          },
+          {
+            "completed": true,
+            "text": "Handles empty/null intentBreakdown gracefully"
+          },
+          {
+            "completed": true,
+            "text": "Perfect score (100%) produces only strengths, no revision/critical sections"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan: Deterministic Feedback Analysis\n\n### File: `src/services/formativeFeedback.service.ts` (NEW)\n\n**Step 1: Create the service file with core function**\n\n```typescript\nimport type { THCSGradingResult, SectionResult, THCSSection, FormativeFeedback, SkillAnalysis } from '../types/thcs-test.types';\nimport { INTENT_SKILL_MAP } from '../types/thcs-test.types';\n```\n\n**Step 2: Implement `buildDeterministicAnalysis()`**\nInputs: `gradingResult: THCSGradingResult`, `sections: THCSSection[]`\nLogic:\n1. Call `mergeIntentBreakdowns(gradingResult.sectionResults)` to get aggregated intent map\n2. For each intent in merged breakdown:\n   a. Calculate `percentage = (correct / total) * 100`\n   b. Look up human name via `INTENT_SKILL_MAP[intent]`\n   c. Scan `gradingResult.questionResults` to find question numbers matching this intent (by cross-referencing with section questions)\n   d. Build `SkillAnalysis` entry with questionNumbers and wrongQuestionNumbers\n3. Sort all entries by percentage descending\n4. Bucket: ≥80% → strengths, 50-79% → revision, <50% → critical\n5. Return `{ strengths, revision, critical }`\n\n**Step 3: Implement question number extraction**\nHelper: `getQuestionNumbersByIntent(sections, intent)`\n- Iterate all sections → all questions\n- For each question where `question.type === intent` OR `question.intent === intent`\n- Return { all: number[], wrong: number[] } (wrong = not in gradingResult.questionResults as correct)\n\n**Step 4: Implement `buildDeterministicText()`**\nGenerates the fallback text from the analysis buckets:\n```\n\"You achieved X/Y correct answers (Z/10).\nStrengths: [skillName] (Q1, Q2) — X/Y correct. ...\nNeeds revision: ...\nCritical gaps: ...\"\n```\nHandle edge cases:\n- Perfect score → only strengths text, no revision/critical\n- Empty intentBreakdown → return generic text\n- 0% on all → only critical text\n\n**Step 5: Implement main `generateDeterministicFeedback()` function**\nCombines Steps 2-4:\n```typescript\nexport function generateDeterministicFeedback(\n    gradingResult: THCSGradingResult,\n    sections: THCSSection[],\n): FormativeFeedback { ... }\n```\nReturns complete FormativeFeedback with analysis populated, questionTopics/aiFeedback undefined, deterministicFeedback text populated, metadata fields set.\n\n### Edge Cases to Handle\n- `intentBreakdown` is empty/null → return empty buckets + generic text\n- All questions correct (100%) → strengths only\n- All questions wrong (0%) → critical only  \n- Single question type test → single entry in one bucket\n- Section has no intent (Phase 2 question with no MCQ intent) → use `question.type` as fallback",
+        "implementationNotes": "Created `src/services/formativeFeedback.service.ts` with complete deterministic analysis engine:\n\n**Functions implemented:**\n- `mergeIntentBreakdowns()` — aggregates intent data across all sections\n- `getQuestionNumbersByIntent()` — extracts question numbers per intent with wrong tracking\n- `buildSkillAnalysisList()` — builds SkillAnalysis entries with INTENT_SKILL_MAP names\n- `bucketByPerformance()` — buckets into strengths (≥80%), revision (50-79%), critical (<50%)\n- `buildDeterministicText()` — generates human-readable fallback text\n- `generateDeterministicFeedback()` — public API for deterministic-only feedback\n- `generateFormativeFeedback()` — async wrapper that saves to RTDB (AI enrichment placeholder for task 2gv1pn)\n\n**Edge cases handled:**\n- Empty/null sectionResults → generic text\n- Empty intentBreakdown → empty buckets\n- Perfect score → only strengths entries\n- Missing question results → treated as wrong\n- Unknown intents → fallback to intent string as name\n\n**TypeScript compilation verified** — no new errors introduced.\n\n📚 Extracted to @doc/patterns/pattern-deterministic-first-ai-enhancement"
+      }
+    }
+  ]
+}

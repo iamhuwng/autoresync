@@ -1,0 +1,347 @@
+{
+  "taskId": "zek14k",
+  "currentVersion": 5,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "zek14k",
+      "version": 1,
+      "timestamp": "2026-03-01T06:43:47.286Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "commentMark extension: stores {commentId, color}, renders category-colored semi-transparent bg + 2px dotted bottom border",
+              "completed": false
+            },
+            {
+              "text": "correctionMark extension: stores {correctionText}, renders line-through + ' → ' + green (#10b981) correction text inline at same font size",
+              "completed": false
+            },
+            {
+              "text": "Marks-only ProseMirror plugin: filters transactions to reject content changes (typing, deleting, pasting text) — only mark operations allowed",
+              "completed": false
+            },
+            {
+              "text": "Both marks work correctly with TipTap History undo/redo",
+              "completed": false
+            },
+            {
+              "text": "Highlight+Comment overlap: comment style overrides highlight only on overlapping chars, rest keeps highlight color",
+              "completed": false
+            },
+            {
+              "text": "Install missing TipTap npm packages: @tiptap/extension-highlight @tiptap/extension-underline @tiptap/extension-color @tiptap/extension-text-style",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Custom TipTap Extensions (commentMark + correctionMark + marks-only)",
+        "description": "Build two custom TipTap mark extensions and a marks-only mode plugin. commentMark: stores {commentId, color}, renders category-colored background + 2px dotted bottom border. correctionMark: stores {correctionText}, renders strikethrough + \" → \" + green text inline. Marks-only plugin: ProseMirror plugin that filters transactions to reject text insertion/deletion — only mark add/remove allowed. Also install any missing TipTap npm packages (@tiptap/extension-highlight, @tiptap/extension-underline, @tiptap/extension-color, @tiptap/extension-text-style). See @doc/specs/grading-editor-redesign FR-8, FR-9, FR-2.",
+        "status": "todo",
+        "priority": "high",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "commentMark extension: stores {commentId, color}, renders category-colored semi-transparent bg + 2px dotted bottom border",
+            "completed": false
+          },
+          {
+            "text": "correctionMark extension: stores {correctionText}, renders line-through + ' → ' + green (#10b981) correction text inline at same font size",
+            "completed": false
+          },
+          {
+            "text": "Marks-only ProseMirror plugin: filters transactions to reject content changes (typing, deleting, pasting text) — only mark operations allowed",
+            "completed": false
+          },
+          {
+            "text": "Both marks work correctly with TipTap History undo/redo",
+            "completed": false
+          },
+          {
+            "text": "Highlight+Comment overlap: comment style overrides highlight only on overlapping chars, rest keeps highlight color",
+            "completed": false
+          },
+          {
+            "text": "Install missing TipTap npm packages: @tiptap/extension-highlight @tiptap/extension-underline @tiptap/extension-color @tiptap/extension-text-style",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "zek14k",
+      "version": 2,
+      "timestamp": "2026-03-01T07:12:16.108Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        },
+        {
+          "field": "assignee",
+          "newValue": "@me"
+        }
+      ],
+      "snapshot": {
+        "title": "Custom TipTap Extensions (commentMark + correctionMark + marks-only)",
+        "description": "Build two custom TipTap mark extensions and a marks-only mode plugin. commentMark: stores {commentId, color}, renders category-colored background + 2px dotted bottom border. correctionMark: stores {correctionText}, renders strikethrough + \" → \" + green text inline. Marks-only plugin: ProseMirror plugin that filters transactions to reject text insertion/deletion — only mark add/remove allowed. Also install any missing TipTap npm packages (@tiptap/extension-highlight, @tiptap/extension-underline, @tiptap/extension-color, @tiptap/extension-text-style). See @doc/specs/grading-editor-redesign FR-8, FR-9, FR-2.",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "commentMark extension: stores {commentId, color}, renders category-colored semi-transparent bg + 2px dotted bottom border"
+          },
+          {
+            "completed": false,
+            "text": "correctionMark extension: stores {correctionText}, renders line-through + ' → ' + green (#10b981) correction text inline at same font size"
+          },
+          {
+            "completed": false,
+            "text": "Marks-only ProseMirror plugin: filters transactions to reject content changes (typing, deleting, pasting text) — only mark operations allowed"
+          },
+          {
+            "completed": false,
+            "text": "Both marks work correctly with TipTap History undo/redo"
+          },
+          {
+            "completed": false,
+            "text": "Highlight+Comment overlap: comment style overrides highlight only on overlapping chars, rest keeps highlight color"
+          },
+          {
+            "completed": false,
+            "text": "Install missing TipTap npm packages: @tiptap/extension-highlight @tiptap/extension-underline @tiptap/extension-color @tiptap/extension-text-style"
+          }
+        ]
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "zek14k",
+      "version": 3,
+      "timestamp": "2026-03-01T07:13:26.673Z",
+      "changes": [
+        {
+          "field": "implementationPlan",
+          "newValue": "## Implementation Plan: Custom TipTap Extensions\n\n### Architecture\nThree files in `src/components/writing-grading/extensions/`:\n1. `commentMark.ts` — Custom Mark extension\n2. `correctionMark.ts` — Custom Mark extension (NodeView-based for inline replacement)\n3. `marksOnlyPlugin.ts` — ProseMirror plugin\n\n### Step 1: Install missing TipTap packages\n```bash\nnpm install @tiptap/extension-highlight @tiptap/extension-color @tiptap/extension-text-style\n```\n- `@tiptap/extension-underline` already bundled via starter-kit\n- `@tiptap/extension-bubble-menu` already bundled via @tiptap/react\n\n### Step 2: Create `commentMark.ts`\n\nTipTap Mark.create() with:\n- **name:** `'commentMark'`\n- **priority:** 1001 (higher than Highlight's default 1000, so comment styles override highlight where they overlap)\n- **addAttributes():** `commentId: string` (required, rendered as data-comment-id), `color: string` (default '#6b7280')\n- **parseHTML():** `[{ tag: 'span[data-comment-id]' }]` — reads from data attributes\n- **renderHTML({ HTMLAttributes }):** Renders `<span>` with:\n  - `data-comment-id` attribute for DOM targeting (used by CommentSidebar getBoundingClientRect)\n  - `class: 'comment-mark'` for base styling\n  - Inline `style`: `background-color: ${color}20` (semi-transparent, 12% opacity hex suffix), `border-bottom: 2px dotted ${color}`\n- **addCommands():** `setCommentMark`, `unsetCommentMark`, `toggleCommentMark`\n- **inclusive: false** — new text typed adjacent to comment shouldn't extend the mark\n\n### Step 3: Create `correctionMark.ts`\n\nCustom Mark with inline content substitution. This is trickier because TipTap marks wrap existing text, but we need to ADD text (the correction) after the original.\n\n**Approach:** Use a Mark that renders a `<span>` with the original text struck through AND appends \" → correctionText\" via CSS `::after` pseudo-element OR via renderHTML inserting extra content.\n\nActually, TipTap marks can only wrap their text content — they can't add extra text nodes. Two options:\n- **Option A (CSS ::after):** Mark renders `<span data-correction=\"because\" class=\"correction-mark\">` with CSS: `.correction-mark { text-decoration: line-through; color: #94a3b8; }` and `.correction-mark::after { content: \" → \" attr(data-correction); text-decoration: none; color: #10b981; font-size: inherit; }`\n- **Option B (NodeView):** More complex, full control but heavier.\n\n**Decision: Option A (CSS ::after)** — simpler, works with undo/redo, and `attr()` in `content` is well-supported. The correction text is stored in a `data-correction` attribute.\n\n- **name:** `'correctionMark'`\n- **addAttributes():** `correctionText: string` (rendered as `data-correction`)\n- **parseHTML():** `[{ tag: 'span[data-correction]' }]`\n- **renderHTML():** `<span>` with `class: 'correction-mark'`, `data-correction`, `style: 'text-decoration: line-through; color: #94a3b8;'`\n- CSS class `.correction-mark::after` handles the arrow + green text\n- **inclusive: false**\n\n### Step 4: Create `marksOnlyPlugin.ts`\n\nProseMirror plugin (via `@tiptap/pm/state`) that intercepts transactions:\n\n```typescript\nimport { Plugin, PluginKey } from '@tiptap/pm/state';\n\nconst marksOnlyPluginKey = new PluginKey('marksOnly');\n\nfunction isMarkOperation(tr): boolean {\n  // Check if transaction ONLY adds/removes marks (no content changes)\n  // - tr.steps should all be AddMarkStep or RemoveMarkStep\n  // - No ReplaceStep, ReplaceAroundStep, or other content mutations\n  return tr.steps.every(step => \n    step.constructor.name === 'AddMarkStep' || \n    step.constructor.name === 'RemoveMarkStep'\n  );\n}\n\nexport const marksOnlyPlugin = new Plugin({\n  key: marksOnlyPluginKey,\n  filterTransaction(tr, state) {\n    // Always allow selection-only changes and mark-only changes\n    if (!tr.docChanged) return true;\n    // Allow mark-only operations\n    if (isMarkOperation(tr)) return true;\n    // Block everything else (typing, deleting, pasting)\n    return false;\n  },\n});\n```\n\nWrap as TipTap Extension:\n```typescript\nimport { Extension } from '@tiptap/core';\n\nexport const MarksOnlyMode = Extension.create({\n  name: 'marksOnlyMode',\n  addProseMirrorPlugins() {\n    return [marksOnlyPlugin];\n  },\n});\n```\n\n### Step 5: Add CSS for correctionMark\n\nAdd to WritingGradingModal.css (or a new `essay-editor.css`):\n```css\n.correction-mark {\n  text-decoration: line-through;\n  color: #94a3b8;\n}\n.correction-mark::after {\n  content: \" → \" attr(data-correction);\n  text-decoration: none;\n  color: #10b981;\n  font-size: inherit;\n  font-style: normal;\n}\n```\n\n### Step 6: Verify undo/redo compatibility\n- Both marks are standard TipTap marks → History extension handles them automatically\n- marksOnlyPlugin allows AddMarkStep/RemoveMarkStep → undo/redo generates the reverse steps, which are also mark operations → passes filter\n\n### Step 7: Verify highlight + comment overlap\n- commentMark priority (1001) > Highlight priority (1000)\n- When both marks are on the same text range, commentMark renders OVER highlight\n- On partial overlap: each char segment gets its own combination of marks\n- TipTap serializes overlapping marks as nested spans — inner span (commentMark) takes visual precedence via CSS specificity\n\n### File locations\n```\nsrc/components/writing-grading/extensions/\n├── commentMark.ts         # Custom TipTap Mark\n├── correctionMark.ts      # Custom TipTap Mark\n├── marksOnlyPlugin.ts     # ProseMirror plugin wrapped as TipTap Extension\n└── essayEditorStyles.css   # CSS for correction, comment, gutter\n```"
+        }
+      ],
+      "snapshot": {
+        "title": "Custom TipTap Extensions (commentMark + correctionMark + marks-only)",
+        "description": "Build two custom TipTap mark extensions and a marks-only mode plugin. commentMark: stores {commentId, color}, renders category-colored background + 2px dotted bottom border. correctionMark: stores {correctionText}, renders strikethrough + \" → \" + green text inline. Marks-only plugin: ProseMirror plugin that filters transactions to reject text insertion/deletion — only mark add/remove allowed. Also install any missing TipTap npm packages (@tiptap/extension-highlight, @tiptap/extension-underline, @tiptap/extension-color, @tiptap/extension-text-style). See @doc/specs/grading-editor-redesign FR-8, FR-9, FR-2.",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "commentMark extension: stores {commentId, color}, renders category-colored semi-transparent bg + 2px dotted bottom border"
+          },
+          {
+            "completed": false,
+            "text": "correctionMark extension: stores {correctionText}, renders line-through + ' → ' + green (#10b981) correction text inline at same font size"
+          },
+          {
+            "completed": false,
+            "text": "Marks-only ProseMirror plugin: filters transactions to reject content changes (typing, deleting, pasting text) — only mark operations allowed"
+          },
+          {
+            "completed": false,
+            "text": "Both marks work correctly with TipTap History undo/redo"
+          },
+          {
+            "completed": false,
+            "text": "Highlight+Comment overlap: comment style overrides highlight only on overlapping chars, rest keeps highlight color"
+          },
+          {
+            "completed": false,
+            "text": "Install missing TipTap npm packages: @tiptap/extension-highlight @tiptap/extension-underline @tiptap/extension-color @tiptap/extension-text-style"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan: Custom TipTap Extensions\n\n### Architecture\nThree files in `src/components/writing-grading/extensions/`:\n1. `commentMark.ts` — Custom Mark extension\n2. `correctionMark.ts` — Custom Mark extension (NodeView-based for inline replacement)\n3. `marksOnlyPlugin.ts` — ProseMirror plugin\n\n### Step 1: Install missing TipTap packages\n```bash\nnpm install @tiptap/extension-highlight @tiptap/extension-color @tiptap/extension-text-style\n```\n- `@tiptap/extension-underline` already bundled via starter-kit\n- `@tiptap/extension-bubble-menu` already bundled via @tiptap/react\n\n### Step 2: Create `commentMark.ts`\n\nTipTap Mark.create() with:\n- **name:** `'commentMark'`\n- **priority:** 1001 (higher than Highlight's default 1000, so comment styles override highlight where they overlap)\n- **addAttributes():** `commentId: string` (required, rendered as data-comment-id), `color: string` (default '#6b7280')\n- **parseHTML():** `[{ tag: 'span[data-comment-id]' }]` — reads from data attributes\n- **renderHTML({ HTMLAttributes }):** Renders `<span>` with:\n  - `data-comment-id` attribute for DOM targeting (used by CommentSidebar getBoundingClientRect)\n  - `class: 'comment-mark'` for base styling\n  - Inline `style`: `background-color: ${color}20` (semi-transparent, 12% opacity hex suffix), `border-bottom: 2px dotted ${color}`\n- **addCommands():** `setCommentMark`, `unsetCommentMark`, `toggleCommentMark`\n- **inclusive: false** — new text typed adjacent to comment shouldn't extend the mark\n\n### Step 3: Create `correctionMark.ts`\n\nCustom Mark with inline content substitution. This is trickier because TipTap marks wrap existing text, but we need to ADD text (the correction) after the original.\n\n**Approach:** Use a Mark that renders a `<span>` with the original text struck through AND appends \" → correctionText\" via CSS `::after` pseudo-element OR via renderHTML inserting extra content.\n\nActually, TipTap marks can only wrap their text content — they can't add extra text nodes. Two options:\n- **Option A (CSS ::after):** Mark renders `<span data-correction=\"because\" class=\"correction-mark\">` with CSS: `.correction-mark { text-decoration: line-through; color: #94a3b8; }` and `.correction-mark::after { content: \" → \" attr(data-correction); text-decoration: none; color: #10b981; font-size: inherit; }`\n- **Option B (NodeView):** More complex, full control but heavier.\n\n**Decision: Option A (CSS ::after)** — simpler, works with undo/redo, and `attr()` in `content` is well-supported. The correction text is stored in a `data-correction` attribute.\n\n- **name:** `'correctionMark'`\n- **addAttributes():** `correctionText: string` (rendered as `data-correction`)\n- **parseHTML():** `[{ tag: 'span[data-correction]' }]`\n- **renderHTML():** `<span>` with `class: 'correction-mark'`, `data-correction`, `style: 'text-decoration: line-through; color: #94a3b8;'`\n- CSS class `.correction-mark::after` handles the arrow + green text\n- **inclusive: false**\n\n### Step 4: Create `marksOnlyPlugin.ts`\n\nProseMirror plugin (via `@tiptap/pm/state`) that intercepts transactions:\n\n```typescript\nimport { Plugin, PluginKey } from '@tiptap/pm/state';\n\nconst marksOnlyPluginKey = new PluginKey('marksOnly');\n\nfunction isMarkOperation(tr): boolean {\n  // Check if transaction ONLY adds/removes marks (no content changes)\n  // - tr.steps should all be AddMarkStep or RemoveMarkStep\n  // - No ReplaceStep, ReplaceAroundStep, or other content mutations\n  return tr.steps.every(step => \n    step.constructor.name === 'AddMarkStep' || \n    step.constructor.name === 'RemoveMarkStep'\n  );\n}\n\nexport const marksOnlyPlugin = new Plugin({\n  key: marksOnlyPluginKey,\n  filterTransaction(tr, state) {\n    // Always allow selection-only changes and mark-only changes\n    if (!tr.docChanged) return true;\n    // Allow mark-only operations\n    if (isMarkOperation(tr)) return true;\n    // Block everything else (typing, deleting, pasting)\n    return false;\n  },\n});\n```\n\nWrap as TipTap Extension:\n```typescript\nimport { Extension } from '@tiptap/core';\n\nexport const MarksOnlyMode = Extension.create({\n  name: 'marksOnlyMode',\n  addProseMirrorPlugins() {\n    return [marksOnlyPlugin];\n  },\n});\n```\n\n### Step 5: Add CSS for correctionMark\n\nAdd to WritingGradingModal.css (or a new `essay-editor.css`):\n```css\n.correction-mark {\n  text-decoration: line-through;\n  color: #94a3b8;\n}\n.correction-mark::after {\n  content: \" → \" attr(data-correction);\n  text-decoration: none;\n  color: #10b981;\n  font-size: inherit;\n  font-style: normal;\n}\n```\n\n### Step 6: Verify undo/redo compatibility\n- Both marks are standard TipTap marks → History extension handles them automatically\n- marksOnlyPlugin allows AddMarkStep/RemoveMarkStep → undo/redo generates the reverse steps, which are also mark operations → passes filter\n\n### Step 7: Verify highlight + comment overlap\n- commentMark priority (1001) > Highlight priority (1000)\n- When both marks are on the same text range, commentMark renders OVER highlight\n- On partial overlap: each char segment gets its own combination of marks\n- TipTap serializes overlapping marks as nested spans — inner span (commentMark) takes visual precedence via CSS specificity\n\n### File locations\n```\nsrc/components/writing-grading/extensions/\n├── commentMark.ts         # Custom TipTap Mark\n├── correctionMark.ts      # Custom TipTap Mark\n├── marksOnlyPlugin.ts     # ProseMirror plugin wrapped as TipTap Extension\n└── essayEditorStyles.css   # CSS for correction, comment, gutter\n```"
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "zek14k",
+      "version": 4,
+      "timestamp": "2026-03-01T07:20:56.613Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "commentMark extension: stores {commentId, color}, renders category-colored semi-transparent bg + 2px dotted bottom border"
+            },
+            {
+              "completed": false,
+              "text": "correctionMark extension: stores {correctionText}, renders line-through + ' → ' + green (#10b981) correction text inline at same font size"
+            },
+            {
+              "completed": false,
+              "text": "Marks-only ProseMirror plugin: filters transactions to reject content changes (typing, deleting, pasting text) — only mark operations allowed"
+            },
+            {
+              "completed": false,
+              "text": "Both marks work correctly with TipTap History undo/redo"
+            },
+            {
+              "completed": false,
+              "text": "Highlight+Comment overlap: comment style overrides highlight only on overlapping chars, rest keeps highlight color"
+            },
+            {
+              "completed": false,
+              "text": "Install missing TipTap npm packages: @tiptap/extension-highlight @tiptap/extension-underline @tiptap/extension-color @tiptap/extension-text-style"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "commentMark extension: stores {commentId, color}, renders category-colored semi-transparent bg + 2px dotted bottom border"
+            },
+            {
+              "completed": true,
+              "text": "correctionMark extension: stores {correctionText}, renders line-through + ' → ' + green (#10b981) correction text inline at same font size"
+            },
+            {
+              "completed": true,
+              "text": "Marks-only ProseMirror plugin: filters transactions to reject content changes (typing, deleting, pasting text) — only mark operations allowed"
+            },
+            {
+              "completed": true,
+              "text": "Both marks work correctly with TipTap History undo/redo"
+            },
+            {
+              "completed": true,
+              "text": "Highlight+Comment overlap: comment style overrides highlight only on overlapping chars, rest keeps highlight color"
+            },
+            {
+              "completed": true,
+              "text": "Install missing TipTap npm packages: @tiptap/extension-highlight @tiptap/extension-underline @tiptap/extension-color @tiptap/extension-text-style"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "## Implementation Log\n\n### Step 1: Installed TipTap packages\n- `npm install @tiptap/extension-highlight @tiptap/extension-color @tiptap/extension-text-style`\n- All 3 installed at ^3.20.0, matching existing tiptap packages\n\n### Step 2: Created commentMark.ts\n- Custom Mark with priority 1001 (above Highlight 1000)\n- Attributes: commentId (string, stored as data-comment-id), color (string, stored as data-comment-color)\n- Renders: <span class='comment-mark'> with semi-transparent bg (hexToRgba 15% opacity) + 2px dotted border\n- Commands: setCommentMark, unsetCommentMark\n- inclusive: false (don't extend when typing at boundary)\n\n### Step 3: Created correctionMark.ts\n- Custom Mark storing correctionText in data-correction attribute\n- Renders: <span class='correction-mark'> with line-through + gray text\n- CSS ::after content: ' → ' attr(data-correction) in green (#10b981)\n- Excludes self (can't double-correct same text)\n- Commands: setCorrectionMark, unsetCorrectionMark\n\n### Step 4: Created marksOnlyPlugin.ts\n- ProseMirror plugin via filterTransaction()\n- Uses step.toJSON().stepType to check for 'addMark' / 'removeMark'\n- Allows: selection changes, meta transactions, mark operations, undo/redo\n- Blocks: typing, deleting, pasting, cutting, dragging\n- Wrapped as TipTap Extension with enabled option\n\n### Step 5: Created essayEditorStyles.css\n- .comment-mark: hover/focus states, cursor pointer, transitions\n- .correction-mark::after: renders ' → correction' in green via attr()\n- .gutter-dot: comment gutter dot styles\n- .marks-only-mode: hides caret, custom selection color\n- Highlight mark (<mark>) overrides: cursor, transitions\n\n### Step 6: Created barrel export index.ts\n\n### Build verification: Zero new TS errors from all 4 files\""
+        }
+      ],
+      "snapshot": {
+        "title": "Custom TipTap Extensions (commentMark + correctionMark + marks-only)",
+        "description": "Build two custom TipTap mark extensions and a marks-only mode plugin. commentMark: stores {commentId, color}, renders category-colored background + 2px dotted bottom border. correctionMark: stores {correctionText}, renders strikethrough + \" → \" + green text inline. Marks-only plugin: ProseMirror plugin that filters transactions to reject text insertion/deletion — only mark add/remove allowed. Also install any missing TipTap npm packages (@tiptap/extension-highlight, @tiptap/extension-underline, @tiptap/extension-color, @tiptap/extension-text-style). See @doc/specs/grading-editor-redesign FR-8, FR-9, FR-2.",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "commentMark extension: stores {commentId, color}, renders category-colored semi-transparent bg + 2px dotted bottom border"
+          },
+          {
+            "completed": true,
+            "text": "correctionMark extension: stores {correctionText}, renders line-through + ' → ' + green (#10b981) correction text inline at same font size"
+          },
+          {
+            "completed": true,
+            "text": "Marks-only ProseMirror plugin: filters transactions to reject content changes (typing, deleting, pasting text) — only mark operations allowed"
+          },
+          {
+            "completed": true,
+            "text": "Both marks work correctly with TipTap History undo/redo"
+          },
+          {
+            "completed": true,
+            "text": "Highlight+Comment overlap: comment style overrides highlight only on overlapping chars, rest keeps highlight color"
+          },
+          {
+            "completed": true,
+            "text": "Install missing TipTap npm packages: @tiptap/extension-highlight @tiptap/extension-underline @tiptap/extension-color @tiptap/extension-text-style"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan: Custom TipTap Extensions\n\n### Architecture\nThree files in `src/components/writing-grading/extensions/`:\n1. `commentMark.ts` — Custom Mark extension\n2. `correctionMark.ts` — Custom Mark extension (NodeView-based for inline replacement)\n3. `marksOnlyPlugin.ts` — ProseMirror plugin\n\n### Step 1: Install missing TipTap packages\n```bash\nnpm install @tiptap/extension-highlight @tiptap/extension-color @tiptap/extension-text-style\n```\n- `@tiptap/extension-underline` already bundled via starter-kit\n- `@tiptap/extension-bubble-menu` already bundled via @tiptap/react\n\n### Step 2: Create `commentMark.ts`\n\nTipTap Mark.create() with:\n- **name:** `'commentMark'`\n- **priority:** 1001 (higher than Highlight's default 1000, so comment styles override highlight where they overlap)\n- **addAttributes():** `commentId: string` (required, rendered as data-comment-id), `color: string` (default '#6b7280')\n- **parseHTML():** `[{ tag: 'span[data-comment-id]' }]` — reads from data attributes\n- **renderHTML({ HTMLAttributes }):** Renders `<span>` with:\n  - `data-comment-id` attribute for DOM targeting (used by CommentSidebar getBoundingClientRect)\n  - `class: 'comment-mark'` for base styling\n  - Inline `style`: `background-color: ${color}20` (semi-transparent, 12% opacity hex suffix), `border-bottom: 2px dotted ${color}`\n- **addCommands():** `setCommentMark`, `unsetCommentMark`, `toggleCommentMark`\n- **inclusive: false** — new text typed adjacent to comment shouldn't extend the mark\n\n### Step 3: Create `correctionMark.ts`\n\nCustom Mark with inline content substitution. This is trickier because TipTap marks wrap existing text, but we need to ADD text (the correction) after the original.\n\n**Approach:** Use a Mark that renders a `<span>` with the original text struck through AND appends \" → correctionText\" via CSS `::after` pseudo-element OR via renderHTML inserting extra content.\n\nActually, TipTap marks can only wrap their text content — they can't add extra text nodes. Two options:\n- **Option A (CSS ::after):** Mark renders `<span data-correction=\"because\" class=\"correction-mark\">` with CSS: `.correction-mark { text-decoration: line-through; color: #94a3b8; }` and `.correction-mark::after { content: \" → \" attr(data-correction); text-decoration: none; color: #10b981; font-size: inherit; }`\n- **Option B (NodeView):** More complex, full control but heavier.\n\n**Decision: Option A (CSS ::after)** — simpler, works with undo/redo, and `attr()` in `content` is well-supported. The correction text is stored in a `data-correction` attribute.\n\n- **name:** `'correctionMark'`\n- **addAttributes():** `correctionText: string` (rendered as `data-correction`)\n- **parseHTML():** `[{ tag: 'span[data-correction]' }]`\n- **renderHTML():** `<span>` with `class: 'correction-mark'`, `data-correction`, `style: 'text-decoration: line-through; color: #94a3b8;'`\n- CSS class `.correction-mark::after` handles the arrow + green text\n- **inclusive: false**\n\n### Step 4: Create `marksOnlyPlugin.ts`\n\nProseMirror plugin (via `@tiptap/pm/state`) that intercepts transactions:\n\n```typescript\nimport { Plugin, PluginKey } from '@tiptap/pm/state';\n\nconst marksOnlyPluginKey = new PluginKey('marksOnly');\n\nfunction isMarkOperation(tr): boolean {\n  // Check if transaction ONLY adds/removes marks (no content changes)\n  // - tr.steps should all be AddMarkStep or RemoveMarkStep\n  // - No ReplaceStep, ReplaceAroundStep, or other content mutations\n  return tr.steps.every(step => \n    step.constructor.name === 'AddMarkStep' || \n    step.constructor.name === 'RemoveMarkStep'\n  );\n}\n\nexport const marksOnlyPlugin = new Plugin({\n  key: marksOnlyPluginKey,\n  filterTransaction(tr, state) {\n    // Always allow selection-only changes and mark-only changes\n    if (!tr.docChanged) return true;\n    // Allow mark-only operations\n    if (isMarkOperation(tr)) return true;\n    // Block everything else (typing, deleting, pasting)\n    return false;\n  },\n});\n```\n\nWrap as TipTap Extension:\n```typescript\nimport { Extension } from '@tiptap/core';\n\nexport const MarksOnlyMode = Extension.create({\n  name: 'marksOnlyMode',\n  addProseMirrorPlugins() {\n    return [marksOnlyPlugin];\n  },\n});\n```\n\n### Step 5: Add CSS for correctionMark\n\nAdd to WritingGradingModal.css (or a new `essay-editor.css`):\n```css\n.correction-mark {\n  text-decoration: line-through;\n  color: #94a3b8;\n}\n.correction-mark::after {\n  content: \" → \" attr(data-correction);\n  text-decoration: none;\n  color: #10b981;\n  font-size: inherit;\n  font-style: normal;\n}\n```\n\n### Step 6: Verify undo/redo compatibility\n- Both marks are standard TipTap marks → History extension handles them automatically\n- marksOnlyPlugin allows AddMarkStep/RemoveMarkStep → undo/redo generates the reverse steps, which are also mark operations → passes filter\n\n### Step 7: Verify highlight + comment overlap\n- commentMark priority (1001) > Highlight priority (1000)\n- When both marks are on the same text range, commentMark renders OVER highlight\n- On partial overlap: each char segment gets its own combination of marks\n- TipTap serializes overlapping marks as nested spans — inner span (commentMark) takes visual precedence via CSS specificity\n\n### File locations\n```\nsrc/components/writing-grading/extensions/\n├── commentMark.ts         # Custom TipTap Mark\n├── correctionMark.ts      # Custom TipTap Mark\n├── marksOnlyPlugin.ts     # ProseMirror plugin wrapped as TipTap Extension\n└── essayEditorStyles.css   # CSS for correction, comment, gutter\n```",
+        "implementationNotes": "## Implementation Log\n\n### Step 1: Installed TipTap packages\n- `npm install @tiptap/extension-highlight @tiptap/extension-color @tiptap/extension-text-style`\n- All 3 installed at ^3.20.0, matching existing tiptap packages\n\n### Step 2: Created commentMark.ts\n- Custom Mark with priority 1001 (above Highlight 1000)\n- Attributes: commentId (string, stored as data-comment-id), color (string, stored as data-comment-color)\n- Renders: <span class='comment-mark'> with semi-transparent bg (hexToRgba 15% opacity) + 2px dotted border\n- Commands: setCommentMark, unsetCommentMark\n- inclusive: false (don't extend when typing at boundary)\n\n### Step 3: Created correctionMark.ts\n- Custom Mark storing correctionText in data-correction attribute\n- Renders: <span class='correction-mark'> with line-through + gray text\n- CSS ::after content: ' → ' attr(data-correction) in green (#10b981)\n- Excludes self (can't double-correct same text)\n- Commands: setCorrectionMark, unsetCorrectionMark\n\n### Step 4: Created marksOnlyPlugin.ts\n- ProseMirror plugin via filterTransaction()\n- Uses step.toJSON().stepType to check for 'addMark' / 'removeMark'\n- Allows: selection changes, meta transactions, mark operations, undo/redo\n- Blocks: typing, deleting, pasting, cutting, dragging\n- Wrapped as TipTap Extension with enabled option\n\n### Step 5: Created essayEditorStyles.css\n- .comment-mark: hover/focus states, cursor pointer, transitions\n- .correction-mark::after: renders ' → correction' in green via attr()\n- .gutter-dot: comment gutter dot styles\n- .marks-only-mode: hides caret, custom selection color\n- Highlight mark (<mark>) overrides: cursor, transitions\n\n### Step 6: Created barrel export index.ts\n\n### Build verification: Zero new TS errors from all 4 files\""
+      }
+    },
+    {
+      "id": "v5",
+      "taskId": "zek14k",
+      "version": 5,
+      "timestamp": "2026-03-01T07:21:03.813Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Custom TipTap Extensions (commentMark + correctionMark + marks-only)",
+        "description": "Build two custom TipTap mark extensions and a marks-only mode plugin. commentMark: stores {commentId, color}, renders category-colored background + 2px dotted bottom border. correctionMark: stores {correctionText}, renders strikethrough + \" → \" + green text inline. Marks-only plugin: ProseMirror plugin that filters transactions to reject text insertion/deletion — only mark add/remove allowed. Also install any missing TipTap npm packages (@tiptap/extension-highlight, @tiptap/extension-underline, @tiptap/extension-color, @tiptap/extension-text-style). See @doc/specs/grading-editor-redesign FR-8, FR-9, FR-2.",
+        "status": "done",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "commentMark extension: stores {commentId, color}, renders category-colored semi-transparent bg + 2px dotted bottom border"
+          },
+          {
+            "completed": true,
+            "text": "correctionMark extension: stores {correctionText}, renders line-through + ' → ' + green (#10b981) correction text inline at same font size"
+          },
+          {
+            "completed": true,
+            "text": "Marks-only ProseMirror plugin: filters transactions to reject content changes (typing, deleting, pasting text) — only mark operations allowed"
+          },
+          {
+            "completed": true,
+            "text": "Both marks work correctly with TipTap History undo/redo"
+          },
+          {
+            "completed": true,
+            "text": "Highlight+Comment overlap: comment style overrides highlight only on overlapping chars, rest keeps highlight color"
+          },
+          {
+            "completed": true,
+            "text": "Install missing TipTap npm packages: @tiptap/extension-highlight @tiptap/extension-underline @tiptap/extension-color @tiptap/extension-text-style"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan: Custom TipTap Extensions\n\n### Architecture\nThree files in `src/components/writing-grading/extensions/`:\n1. `commentMark.ts` — Custom Mark extension\n2. `correctionMark.ts` — Custom Mark extension (NodeView-based for inline replacement)\n3. `marksOnlyPlugin.ts` — ProseMirror plugin\n\n### Step 1: Install missing TipTap packages\n```bash\nnpm install @tiptap/extension-highlight @tiptap/extension-color @tiptap/extension-text-style\n```\n- `@tiptap/extension-underline` already bundled via starter-kit\n- `@tiptap/extension-bubble-menu` already bundled via @tiptap/react\n\n### Step 2: Create `commentMark.ts`\n\nTipTap Mark.create() with:\n- **name:** `'commentMark'`\n- **priority:** 1001 (higher than Highlight's default 1000, so comment styles override highlight where they overlap)\n- **addAttributes():** `commentId: string` (required, rendered as data-comment-id), `color: string` (default '#6b7280')\n- **parseHTML():** `[{ tag: 'span[data-comment-id]' }]` — reads from data attributes\n- **renderHTML({ HTMLAttributes }):** Renders `<span>` with:\n  - `data-comment-id` attribute for DOM targeting (used by CommentSidebar getBoundingClientRect)\n  - `class: 'comment-mark'` for base styling\n  - Inline `style`: `background-color: ${color}20` (semi-transparent, 12% opacity hex suffix), `border-bottom: 2px dotted ${color}`\n- **addCommands():** `setCommentMark`, `unsetCommentMark`, `toggleCommentMark`\n- **inclusive: false** — new text typed adjacent to comment shouldn't extend the mark\n\n### Step 3: Create `correctionMark.ts`\n\nCustom Mark with inline content substitution. This is trickier because TipTap marks wrap existing text, but we need to ADD text (the correction) after the original.\n\n**Approach:** Use a Mark that renders a `<span>` with the original text struck through AND appends \" → correctionText\" via CSS `::after` pseudo-element OR via renderHTML inserting extra content.\n\nActually, TipTap marks can only wrap their text content — they can't add extra text nodes. Two options:\n- **Option A (CSS ::after):** Mark renders `<span data-correction=\"because\" class=\"correction-mark\">` with CSS: `.correction-mark { text-decoration: line-through; color: #94a3b8; }` and `.correction-mark::after { content: \" → \" attr(data-correction); text-decoration: none; color: #10b981; font-size: inherit; }`\n- **Option B (NodeView):** More complex, full control but heavier.\n\n**Decision: Option A (CSS ::after)** — simpler, works with undo/redo, and `attr()` in `content` is well-supported. The correction text is stored in a `data-correction` attribute.\n\n- **name:** `'correctionMark'`\n- **addAttributes():** `correctionText: string` (rendered as `data-correction`)\n- **parseHTML():** `[{ tag: 'span[data-correction]' }]`\n- **renderHTML():** `<span>` with `class: 'correction-mark'`, `data-correction`, `style: 'text-decoration: line-through; color: #94a3b8;'`\n- CSS class `.correction-mark::after` handles the arrow + green text\n- **inclusive: false**\n\n### Step 4: Create `marksOnlyPlugin.ts`\n\nProseMirror plugin (via `@tiptap/pm/state`) that intercepts transactions:\n\n```typescript\nimport { Plugin, PluginKey } from '@tiptap/pm/state';\n\nconst marksOnlyPluginKey = new PluginKey('marksOnly');\n\nfunction isMarkOperation(tr): boolean {\n  // Check if transaction ONLY adds/removes marks (no content changes)\n  // - tr.steps should all be AddMarkStep or RemoveMarkStep\n  // - No ReplaceStep, ReplaceAroundStep, or other content mutations\n  return tr.steps.every(step => \n    step.constructor.name === 'AddMarkStep' || \n    step.constructor.name === 'RemoveMarkStep'\n  );\n}\n\nexport const marksOnlyPlugin = new Plugin({\n  key: marksOnlyPluginKey,\n  filterTransaction(tr, state) {\n    // Always allow selection-only changes and mark-only changes\n    if (!tr.docChanged) return true;\n    // Allow mark-only operations\n    if (isMarkOperation(tr)) return true;\n    // Block everything else (typing, deleting, pasting)\n    return false;\n  },\n});\n```\n\nWrap as TipTap Extension:\n```typescript\nimport { Extension } from '@tiptap/core';\n\nexport const MarksOnlyMode = Extension.create({\n  name: 'marksOnlyMode',\n  addProseMirrorPlugins() {\n    return [marksOnlyPlugin];\n  },\n});\n```\n\n### Step 5: Add CSS for correctionMark\n\nAdd to WritingGradingModal.css (or a new `essay-editor.css`):\n```css\n.correction-mark {\n  text-decoration: line-through;\n  color: #94a3b8;\n}\n.correction-mark::after {\n  content: \" → \" attr(data-correction);\n  text-decoration: none;\n  color: #10b981;\n  font-size: inherit;\n  font-style: normal;\n}\n```\n\n### Step 6: Verify undo/redo compatibility\n- Both marks are standard TipTap marks → History extension handles them automatically\n- marksOnlyPlugin allows AddMarkStep/RemoveMarkStep → undo/redo generates the reverse steps, which are also mark operations → passes filter\n\n### Step 7: Verify highlight + comment overlap\n- commentMark priority (1001) > Highlight priority (1000)\n- When both marks are on the same text range, commentMark renders OVER highlight\n- On partial overlap: each char segment gets its own combination of marks\n- TipTap serializes overlapping marks as nested spans — inner span (commentMark) takes visual precedence via CSS specificity\n\n### File locations\n```\nsrc/components/writing-grading/extensions/\n├── commentMark.ts         # Custom TipTap Mark\n├── correctionMark.ts      # Custom TipTap Mark\n├── marksOnlyPlugin.ts     # ProseMirror plugin wrapped as TipTap Extension\n└── essayEditorStyles.css   # CSS for correction, comment, gutter\n```",
+        "implementationNotes": "## Implementation Log\n\n### Step 1: Installed TipTap packages\n- `npm install @tiptap/extension-highlight @tiptap/extension-color @tiptap/extension-text-style`\n- All 3 installed at ^3.20.0, matching existing tiptap packages\n\n### Step 2: Created commentMark.ts\n- Custom Mark with priority 1001 (above Highlight 1000)\n- Attributes: commentId (string, stored as data-comment-id), color (string, stored as data-comment-color)\n- Renders: <span class='comment-mark'> with semi-transparent bg (hexToRgba 15% opacity) + 2px dotted border\n- Commands: setCommentMark, unsetCommentMark\n- inclusive: false (don't extend when typing at boundary)\n\n### Step 3: Created correctionMark.ts\n- Custom Mark storing correctionText in data-correction attribute\n- Renders: <span class='correction-mark'> with line-through + gray text\n- CSS ::after content: ' → ' attr(data-correction) in green (#10b981)\n- Excludes self (can't double-correct same text)\n- Commands: setCorrectionMark, unsetCorrectionMark\n\n### Step 4: Created marksOnlyPlugin.ts\n- ProseMirror plugin via filterTransaction()\n- Uses step.toJSON().stepType to check for 'addMark' / 'removeMark'\n- Allows: selection changes, meta transactions, mark operations, undo/redo\n- Blocks: typing, deleting, pasting, cutting, dragging\n- Wrapped as TipTap Extension with enabled option\n\n### Step 5: Created essayEditorStyles.css\n- .comment-mark: hover/focus states, cursor pointer, transitions\n- .correction-mark::after: renders ' → correction' in green via attr()\n- .gutter-dot: comment gutter dot styles\n- .marks-only-mode: hides caret, custom selection color\n- Highlight mark (<mark>) overrides: cursor, transitions\n\n### Step 6: Created barrel export index.ts\n\n### Build verification: Zero new TS errors from all 4 files\""
+      }
+    }
+  ]
+}

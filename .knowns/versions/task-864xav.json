@@ -1,0 +1,193 @@
+{
+  "taskId": "864xav",
+  "currentVersion": 3,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "864xav",
+      "version": 1,
+      "timestamp": "2026-03-01T17:15:57.388Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Back up BatchGradingPanel.tsx before deletion",
+              "completed": false
+            },
+            {
+              "text": "Verify no imports reference BatchGradingPanel anywhere in codebase",
+              "completed": false
+            },
+            {
+              "text": "Delete BatchGradingPanel.tsx",
+              "completed": false
+            },
+            {
+              "text": "Build succeeds after deletion",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "## Implementation Plan\n\n### Steps\n\n1. **Verify no imports exist**\n   ```bash\n   grep -r \"BatchGradingPanel\" src/ --include=\"*.tsx\" --include=\"*.ts\"\n   ```\n   Already verified: only self-references within the file itself.\n\n2. **Back up file** (per user rules)\n   Copy to `documentation/backups/BatchGradingPanel.tsx.bak`\n\n3. **Delete file**\n   `src/components/thcs-grading/BatchGradingPanel.tsx`\n\n4. **Verify build**\n   `npx tsc --noEmit` — should show no new errors\n\n### Risk: Zero\nFile is confirmed orphaned — no imports reference it."
+        }
+      ],
+      "snapshot": {
+        "title": "Cleanup — Delete orphaned BatchGradingPanel",
+        "description": "Delete BatchGradingPanel.tsx — confirmed orphaned dead code. Verify no imports reference it elsewhere. Back up file before deletion per user rules.",
+        "status": "todo",
+        "priority": "low",
+        "labels": [
+          "writing-grading",
+          "cleanup"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Back up BatchGradingPanel.tsx before deletion",
+            "completed": false
+          },
+          {
+            "text": "Verify no imports reference BatchGradingPanel anywhere in codebase",
+            "completed": false
+          },
+          {
+            "text": "Delete BatchGradingPanel.tsx",
+            "completed": false
+          },
+          {
+            "text": "Build succeeds after deletion",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### Steps\n\n1. **Verify no imports exist**\n   ```bash\n   grep -r \"BatchGradingPanel\" src/ --include=\"*.tsx\" --include=\"*.ts\"\n   ```\n   Already verified: only self-references within the file itself.\n\n2. **Back up file** (per user rules)\n   Copy to `documentation/backups/BatchGradingPanel.tsx.bak`\n\n3. **Delete file**\n   `src/components/thcs-grading/BatchGradingPanel.tsx`\n\n4. **Verify build**\n   `npx tsc --noEmit` — should show no new errors\n\n### Risk: Zero\nFile is confirmed orphaned — no imports reference it."
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "864xav",
+      "version": 2,
+      "timestamp": "2026-03-01T17:45:09.256Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "2026-03-02: Deleted BatchGradingPanel.tsx. Backed up to documentation/backups/BatchGradingPanel.tsx.bak first. Confirmed no external imports exist."
+        }
+      ],
+      "snapshot": {
+        "title": "Cleanup — Delete orphaned BatchGradingPanel",
+        "description": "Delete BatchGradingPanel.tsx — confirmed orphaned dead code. Verify no imports reference it elsewhere. Back up file before deletion per user rules.",
+        "status": "done",
+        "priority": "low",
+        "labels": [
+          "writing-grading",
+          "cleanup"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Back up BatchGradingPanel.tsx before deletion"
+          },
+          {
+            "completed": false,
+            "text": "Verify no imports reference BatchGradingPanel anywhere in codebase"
+          },
+          {
+            "completed": false,
+            "text": "Delete BatchGradingPanel.tsx"
+          },
+          {
+            "completed": false,
+            "text": "Build succeeds after deletion"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### Steps\n\n1. **Verify no imports exist**\n   ```bash\n   grep -r \"BatchGradingPanel\" src/ --include=\"*.tsx\" --include=\"*.ts\"\n   ```\n   Already verified: only self-references within the file itself.\n\n2. **Back up file** (per user rules)\n   Copy to `documentation/backups/BatchGradingPanel.tsx.bak`\n\n3. **Delete file**\n   `src/components/thcs-grading/BatchGradingPanel.tsx`\n\n4. **Verify build**\n   `npx tsc --noEmit` — should show no new errors\n\n### Risk: Zero\nFile is confirmed orphaned — no imports reference it.",
+        "implementationNotes": "2026-03-02: Deleted BatchGradingPanel.tsx. Backed up to documentation/backups/BatchGradingPanel.tsx.bak first. Confirmed no external imports exist."
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "864xav",
+      "version": 3,
+      "timestamp": "2026-03-01T17:45:13.862Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Back up BatchGradingPanel.tsx before deletion"
+            },
+            {
+              "completed": false,
+              "text": "Verify no imports reference BatchGradingPanel anywhere in codebase"
+            },
+            {
+              "completed": false,
+              "text": "Delete BatchGradingPanel.tsx"
+            },
+            {
+              "completed": false,
+              "text": "Build succeeds after deletion"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Back up BatchGradingPanel.tsx before deletion"
+            },
+            {
+              "completed": true,
+              "text": "Verify no imports reference BatchGradingPanel anywhere in codebase"
+            },
+            {
+              "completed": true,
+              "text": "Delete BatchGradingPanel.tsx"
+            },
+            {
+              "completed": true,
+              "text": "Build succeeds after deletion"
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Cleanup — Delete orphaned BatchGradingPanel",
+        "description": "Delete BatchGradingPanel.tsx — confirmed orphaned dead code. Verify no imports reference it elsewhere. Back up file before deletion per user rules.",
+        "status": "done",
+        "priority": "low",
+        "labels": [
+          "writing-grading",
+          "cleanup"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Back up BatchGradingPanel.tsx before deletion"
+          },
+          {
+            "completed": true,
+            "text": "Verify no imports reference BatchGradingPanel anywhere in codebase"
+          },
+          {
+            "completed": true,
+            "text": "Delete BatchGradingPanel.tsx"
+          },
+          {
+            "completed": true,
+            "text": "Build succeeds after deletion"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### Steps\n\n1. **Verify no imports exist**\n   ```bash\n   grep -r \"BatchGradingPanel\" src/ --include=\"*.tsx\" --include=\"*.ts\"\n   ```\n   Already verified: only self-references within the file itself.\n\n2. **Back up file** (per user rules)\n   Copy to `documentation/backups/BatchGradingPanel.tsx.bak`\n\n3. **Delete file**\n   `src/components/thcs-grading/BatchGradingPanel.tsx`\n\n4. **Verify build**\n   `npx tsc --noEmit` — should show no new errors\n\n### Risk: Zero\nFile is confirmed orphaned — no imports reference it.",
+        "implementationNotes": "2026-03-02: Deleted BatchGradingPanel.tsx. Backed up to documentation/backups/BatchGradingPanel.tsx.bak first. Confirmed no external imports exist."
+      }
+    }
+  ]
+}

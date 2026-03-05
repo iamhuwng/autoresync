@@ -1,0 +1,374 @@
+{
+  "taskId": "78pz92",
+  "currentVersion": 5,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "78pz92",
+      "version": 1,
+      "timestamp": "2026-03-04T22:47:30.729Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "All 7 compromise routes implemented",
+              "completed": false
+            },
+            {
+              "text": "4 uncompromisable types correctly skipped with teacher warning",
+              "completed": false
+            },
+            {
+              "text": "buildCompromisePrompt() called with correct type + originalInput",
+              "completed": false
+            },
+            {
+              "text": "Output tagged [COMPROMISED: old → new]",
+              "completed": false
+            },
+            {
+              "text": "Compromise reasoning logged",
+              "completed": false
+            },
+            {
+              "text": "Retry follows compromise model/temp progression",
+              "completed": false
+            },
+            {
+              "text": "Order: 4 (depends on T3 9vafnp + T4 0yg6fx + T5 wei3uc)",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Implement Compromise Step",
+        "description": "When code validation detects unsupported types, route to compromise or skip. 7 compromise routes (matching → mcq-vocabulary, true-false → reading-comprehension, etc.) + 4 uncompromisable skips (listening, speaking, essay, composition). Uses `buildCompromisePrompt()` from prompt builder. Tags output `[COMPROMISED: old → new]`. Depends on @task-9vafnp, @task-0yg6fx, @task-wei3uc.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "from-spec-v2",
+          "pipeline"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "All 7 compromise routes implemented",
+            "completed": false
+          },
+          {
+            "text": "4 uncompromisable types correctly skipped with teacher warning",
+            "completed": false
+          },
+          {
+            "text": "buildCompromisePrompt() called with correct type + originalInput",
+            "completed": false
+          },
+          {
+            "text": "Output tagged [COMPROMISED: old → new]",
+            "completed": false
+          },
+          {
+            "text": "Compromise reasoning logged",
+            "completed": false
+          },
+          {
+            "text": "Retry follows compromise model/temp progression",
+            "completed": false
+          },
+          {
+            "text": "Order: 4 (depends on T3 9vafnp + T4 0yg6fx + T5 wei3uc)",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "78pz92",
+      "version": 2,
+      "timestamp": "2026-03-04T23:11:41.196Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        },
+        {
+          "field": "assignee",
+          "newValue": "@me"
+        }
+      ],
+      "snapshot": {
+        "title": "Implement Compromise Step",
+        "description": "When code validation detects unsupported types, route to compromise or skip. 7 compromise routes (matching → mcq-vocabulary, true-false → reading-comprehension, etc.) + 4 uncompromisable skips (listening, speaking, essay, composition). Uses `buildCompromisePrompt()` from prompt builder. Tags output `[COMPROMISED: old → new]`. Depends on @task-9vafnp, @task-0yg6fx, @task-wei3uc.",
+        "status": "in-progress",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "pipeline"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "All 7 compromise routes implemented"
+          },
+          {
+            "completed": false,
+            "text": "4 uncompromisable types correctly skipped with teacher warning"
+          },
+          {
+            "completed": false,
+            "text": "buildCompromisePrompt() called with correct type + originalInput"
+          },
+          {
+            "completed": false,
+            "text": "Output tagged [COMPROMISED: old → new]"
+          },
+          {
+            "completed": false,
+            "text": "Compromise reasoning logged"
+          },
+          {
+            "completed": false,
+            "text": "Retry follows compromise model/temp progression"
+          },
+          {
+            "completed": false,
+            "text": "Order: 4 (depends on T3 9vafnp + T4 0yg6fx + T5 wei3uc)"
+          }
+        ]
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "78pz92",
+      "version": 3,
+      "timestamp": "2026-03-04T23:12:29.412Z",
+      "changes": [
+        {
+          "field": "implementationPlan",
+          "newValue": "## Implementation Plan\n\n### New file\n`src/services/test-creation/thcs-compromise-step.ts`\n\n### Architecture\nAn orchestrator for unsupported type conversion. Very similar in structure to Pass 2 Repair but with different decision logic and prompt builder.\n\n### Flow\n```\nValidationReport.unsupportedTypes[]\n  → for each unsupported type:\n    → if canCompromise: buildCompromisePrompt() → AI call → parseCompromiseResponse()\n    → if uncompromisable: add skip warning\n  → return CompromiseResult\n```\n\n### Interfaces\n\n```typescript\ninterface CompromiseResult {\n  compromisedSections: Array<{\n    sectionIndex: number;\n    originalType: string;\n    convertedType: string;\n    convertedText: string;\n    reasoning: CompromiseReasoning;\n  }>;\n  skippedSections: Array<{\n    sectionIndex: number;\n    type: string;\n    reason: string;        // e.g., \"Listening requires audio — cannot digitize\"\n  }>;\n  auditLog: RepairAuditEntry[];\n}\n```\n\n### Core Function\n\n```typescript\nasync function executeCompromiseStep(\n  unsupportedTypes: ValidationReport['unsupportedTypes'],\n  processedText: string,\n  originalInput: string,\n  retrySession: RetrySession,\n  callAI: (step: RetryStep) => Promise<AICallResult | null>,\n): Promise<CompromiseResult>\n```\n\n#### Logic:\n1. Partition unsupported types into `compromisable` vs `uncompromisable`\n   ```\n   Compromisable: matching, true-false, translation, matching-headings,\n                  gap-fill-open, word-ordering, picture-description (if has options)\n   Uncompromisable: listening, speaking, essay, composition,\n                    picture-description (if open-ended)\n   ```\n\n2. For each **uncompromisable type**: add to `skippedSections` with teacher warning message\n   - `listening`: \"Listening comprehension requires audio files — cannot be digitized. Section skipped.\"\n   - `speaking`: \"Speaking tasks require oral interaction — cannot be digitized.\"\n   - `essay`: \"Extended essay writing needs manual grading setup — section skipped.\"\n   - `composition`: \"Composition tasks need manual grading — section skipped.\"\n\n3. For each **compromisable type**:\n   a. Extract section text from `processedText` (by section boundaries/indices)\n   b. Look up target type from `COMPROMISE_TEMPLATES`\n   c. `buildCompromisePrompt(sourceType, targetType, sectionText, originalInput)`\n   d. Call AI via `executeRetryChain(session, COMPROMISE_CHAIN, callCompromise, compareCompromise)`\n   e. Parse response: `parseCompromiseResponse(rawResponse)`\n   f. Verify `[COMPROMISED: old → new]` tag is present in output\n   g. Log audit entry\n\n4. Return `CompromiseResult`\n\n### Key Design Decisions\n\n1. **Per-section processing** — each unsupported section is compromised independently. One section failing doesn't block others.\n2. **Shared retry session** — compromise calls count toward the same 5-call circuit breaker as Pass 2 repair.\n3. **Output text includes tags** — `[COMPROMISED: old → new]` tags are left in the text for the engine's `consumeAITags()` to process.\n4. **Skip reasons are teacher-readable** — used by the review panel to explain why certain sections were dropped.\n\n### Files changed\n- `src/services/test-creation/thcs-compromise-step.ts` (NEW — ~70 lines)\n\n### Dependencies\n- `thcs-prompt-builder.ts` → `buildCompromisePrompt`, `parseCompromiseResponse`, `COMPROMISE_TEMPLATES`\n- `thcs-retry-manager.ts` → `executeRetryChain`, `COMPROMISE_CHAIN`, `RetrySession`\n- `thcs-text-validator.ts` → `ValidationReport` type"
+        }
+      ],
+      "snapshot": {
+        "title": "Implement Compromise Step",
+        "description": "When code validation detects unsupported types, route to compromise or skip. 7 compromise routes (matching → mcq-vocabulary, true-false → reading-comprehension, etc.) + 4 uncompromisable skips (listening, speaking, essay, composition). Uses `buildCompromisePrompt()` from prompt builder. Tags output `[COMPROMISED: old → new]`. Depends on @task-9vafnp, @task-0yg6fx, @task-wei3uc.",
+        "status": "in-progress",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "pipeline"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "All 7 compromise routes implemented"
+          },
+          {
+            "completed": false,
+            "text": "4 uncompromisable types correctly skipped with teacher warning"
+          },
+          {
+            "completed": false,
+            "text": "buildCompromisePrompt() called with correct type + originalInput"
+          },
+          {
+            "completed": false,
+            "text": "Output tagged [COMPROMISED: old → new]"
+          },
+          {
+            "completed": false,
+            "text": "Compromise reasoning logged"
+          },
+          {
+            "completed": false,
+            "text": "Retry follows compromise model/temp progression"
+          },
+          {
+            "completed": false,
+            "text": "Order: 4 (depends on T3 9vafnp + T4 0yg6fx + T5 wei3uc)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### New file\n`src/services/test-creation/thcs-compromise-step.ts`\n\n### Architecture\nAn orchestrator for unsupported type conversion. Very similar in structure to Pass 2 Repair but with different decision logic and prompt builder.\n\n### Flow\n```\nValidationReport.unsupportedTypes[]\n  → for each unsupported type:\n    → if canCompromise: buildCompromisePrompt() → AI call → parseCompromiseResponse()\n    → if uncompromisable: add skip warning\n  → return CompromiseResult\n```\n\n### Interfaces\n\n```typescript\ninterface CompromiseResult {\n  compromisedSections: Array<{\n    sectionIndex: number;\n    originalType: string;\n    convertedType: string;\n    convertedText: string;\n    reasoning: CompromiseReasoning;\n  }>;\n  skippedSections: Array<{\n    sectionIndex: number;\n    type: string;\n    reason: string;        // e.g., \"Listening requires audio — cannot digitize\"\n  }>;\n  auditLog: RepairAuditEntry[];\n}\n```\n\n### Core Function\n\n```typescript\nasync function executeCompromiseStep(\n  unsupportedTypes: ValidationReport['unsupportedTypes'],\n  processedText: string,\n  originalInput: string,\n  retrySession: RetrySession,\n  callAI: (step: RetryStep) => Promise<AICallResult | null>,\n): Promise<CompromiseResult>\n```\n\n#### Logic:\n1. Partition unsupported types into `compromisable` vs `uncompromisable`\n   ```\n   Compromisable: matching, true-false, translation, matching-headings,\n                  gap-fill-open, word-ordering, picture-description (if has options)\n   Uncompromisable: listening, speaking, essay, composition,\n                    picture-description (if open-ended)\n   ```\n\n2. For each **uncompromisable type**: add to `skippedSections` with teacher warning message\n   - `listening`: \"Listening comprehension requires audio files — cannot be digitized. Section skipped.\"\n   - `speaking`: \"Speaking tasks require oral interaction — cannot be digitized.\"\n   - `essay`: \"Extended essay writing needs manual grading setup — section skipped.\"\n   - `composition`: \"Composition tasks need manual grading — section skipped.\"\n\n3. For each **compromisable type**:\n   a. Extract section text from `processedText` (by section boundaries/indices)\n   b. Look up target type from `COMPROMISE_TEMPLATES`\n   c. `buildCompromisePrompt(sourceType, targetType, sectionText, originalInput)`\n   d. Call AI via `executeRetryChain(session, COMPROMISE_CHAIN, callCompromise, compareCompromise)`\n   e. Parse response: `parseCompromiseResponse(rawResponse)`\n   f. Verify `[COMPROMISED: old → new]` tag is present in output\n   g. Log audit entry\n\n4. Return `CompromiseResult`\n\n### Key Design Decisions\n\n1. **Per-section processing** — each unsupported section is compromised independently. One section failing doesn't block others.\n2. **Shared retry session** — compromise calls count toward the same 5-call circuit breaker as Pass 2 repair.\n3. **Output text includes tags** — `[COMPROMISED: old → new]` tags are left in the text for the engine's `consumeAITags()` to process.\n4. **Skip reasons are teacher-readable** — used by the review panel to explain why certain sections were dropped.\n\n### Files changed\n- `src/services/test-creation/thcs-compromise-step.ts` (NEW — ~70 lines)\n\n### Dependencies\n- `thcs-prompt-builder.ts` → `buildCompromisePrompt`, `parseCompromiseResponse`, `COMPROMISE_TEMPLATES`\n- `thcs-retry-manager.ts` → `executeRetryChain`, `COMPROMISE_CHAIN`, `RetrySession`\n- `thcs-text-validator.ts` → `ValidationReport` type"
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "78pz92",
+      "version": 4,
+      "timestamp": "2026-03-05T02:26:46.754Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "All 7 compromise routes implemented"
+            },
+            {
+              "completed": false,
+              "text": "4 uncompromisable types correctly skipped with teacher warning"
+            },
+            {
+              "completed": false,
+              "text": "buildCompromisePrompt() called with correct type + originalInput"
+            },
+            {
+              "completed": false,
+              "text": "Output tagged [COMPROMISED: old → new]"
+            },
+            {
+              "completed": false,
+              "text": "Compromise reasoning logged"
+            },
+            {
+              "completed": false,
+              "text": "Retry follows compromise model/temp progression"
+            },
+            {
+              "completed": false,
+              "text": "Order: 4 (depends on T3 9vafnp + T4 0yg6fx + T5 wei3uc)"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "All 7 compromise routes implemented"
+            },
+            {
+              "completed": true,
+              "text": "4 uncompromisable types correctly skipped with teacher warning"
+            },
+            {
+              "completed": true,
+              "text": "buildCompromisePrompt() called with correct type + originalInput"
+            },
+            {
+              "completed": true,
+              "text": "Output tagged [COMPROMISED: old → new]"
+            },
+            {
+              "completed": true,
+              "text": "Compromise reasoning logged"
+            },
+            {
+              "completed": true,
+              "text": "Retry follows compromise model/temp progression"
+            },
+            {
+              "completed": true,
+              "text": "Order: 4 (depends on T3 9vafnp + T4 0yg6fx + T5 wei3uc)"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "## Implementation Notes\n- Created `thcs-compromise-step.ts` (~160 lines)\n- Routes unsupported types: 7 compromise routes + 4 uncompromisable skips\n- picture-description auto-detects MCQ vs open based on option patterns\n- Shared retry session with Pass 2 Repair\n- Teacher-readable skip reasons for review panel\n- 13 unit tests passing"
+        }
+      ],
+      "snapshot": {
+        "title": "Implement Compromise Step",
+        "description": "When code validation detects unsupported types, route to compromise or skip. 7 compromise routes (matching → mcq-vocabulary, true-false → reading-comprehension, etc.) + 4 uncompromisable skips (listening, speaking, essay, composition). Uses `buildCompromisePrompt()` from prompt builder. Tags output `[COMPROMISED: old → new]`. Depends on @task-9vafnp, @task-0yg6fx, @task-wei3uc.",
+        "status": "in-progress",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "pipeline"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "All 7 compromise routes implemented"
+          },
+          {
+            "completed": true,
+            "text": "4 uncompromisable types correctly skipped with teacher warning"
+          },
+          {
+            "completed": true,
+            "text": "buildCompromisePrompt() called with correct type + originalInput"
+          },
+          {
+            "completed": true,
+            "text": "Output tagged [COMPROMISED: old → new]"
+          },
+          {
+            "completed": true,
+            "text": "Compromise reasoning logged"
+          },
+          {
+            "completed": true,
+            "text": "Retry follows compromise model/temp progression"
+          },
+          {
+            "completed": true,
+            "text": "Order: 4 (depends on T3 9vafnp + T4 0yg6fx + T5 wei3uc)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### New file\n`src/services/test-creation/thcs-compromise-step.ts`\n\n### Architecture\nAn orchestrator for unsupported type conversion. Very similar in structure to Pass 2 Repair but with different decision logic and prompt builder.\n\n### Flow\n```\nValidationReport.unsupportedTypes[]\n  → for each unsupported type:\n    → if canCompromise: buildCompromisePrompt() → AI call → parseCompromiseResponse()\n    → if uncompromisable: add skip warning\n  → return CompromiseResult\n```\n\n### Interfaces\n\n```typescript\ninterface CompromiseResult {\n  compromisedSections: Array<{\n    sectionIndex: number;\n    originalType: string;\n    convertedType: string;\n    convertedText: string;\n    reasoning: CompromiseReasoning;\n  }>;\n  skippedSections: Array<{\n    sectionIndex: number;\n    type: string;\n    reason: string;        // e.g., \"Listening requires audio — cannot digitize\"\n  }>;\n  auditLog: RepairAuditEntry[];\n}\n```\n\n### Core Function\n\n```typescript\nasync function executeCompromiseStep(\n  unsupportedTypes: ValidationReport['unsupportedTypes'],\n  processedText: string,\n  originalInput: string,\n  retrySession: RetrySession,\n  callAI: (step: RetryStep) => Promise<AICallResult | null>,\n): Promise<CompromiseResult>\n```\n\n#### Logic:\n1. Partition unsupported types into `compromisable` vs `uncompromisable`\n   ```\n   Compromisable: matching, true-false, translation, matching-headings,\n                  gap-fill-open, word-ordering, picture-description (if has options)\n   Uncompromisable: listening, speaking, essay, composition,\n                    picture-description (if open-ended)\n   ```\n\n2. For each **uncompromisable type**: add to `skippedSections` with teacher warning message\n   - `listening`: \"Listening comprehension requires audio files — cannot be digitized. Section skipped.\"\n   - `speaking`: \"Speaking tasks require oral interaction — cannot be digitized.\"\n   - `essay`: \"Extended essay writing needs manual grading setup — section skipped.\"\n   - `composition`: \"Composition tasks need manual grading — section skipped.\"\n\n3. For each **compromisable type**:\n   a. Extract section text from `processedText` (by section boundaries/indices)\n   b. Look up target type from `COMPROMISE_TEMPLATES`\n   c. `buildCompromisePrompt(sourceType, targetType, sectionText, originalInput)`\n   d. Call AI via `executeRetryChain(session, COMPROMISE_CHAIN, callCompromise, compareCompromise)`\n   e. Parse response: `parseCompromiseResponse(rawResponse)`\n   f. Verify `[COMPROMISED: old → new]` tag is present in output\n   g. Log audit entry\n\n4. Return `CompromiseResult`\n\n### Key Design Decisions\n\n1. **Per-section processing** — each unsupported section is compromised independently. One section failing doesn't block others.\n2. **Shared retry session** — compromise calls count toward the same 5-call circuit breaker as Pass 2 repair.\n3. **Output text includes tags** — `[COMPROMISED: old → new]` tags are left in the text for the engine's `consumeAITags()` to process.\n4. **Skip reasons are teacher-readable** — used by the review panel to explain why certain sections were dropped.\n\n### Files changed\n- `src/services/test-creation/thcs-compromise-step.ts` (NEW — ~70 lines)\n\n### Dependencies\n- `thcs-prompt-builder.ts` → `buildCompromisePrompt`, `parseCompromiseResponse`, `COMPROMISE_TEMPLATES`\n- `thcs-retry-manager.ts` → `executeRetryChain`, `COMPROMISE_CHAIN`, `RetrySession`\n- `thcs-text-validator.ts` → `ValidationReport` type",
+        "implementationNotes": "## Implementation Notes\n- Created `thcs-compromise-step.ts` (~160 lines)\n- Routes unsupported types: 7 compromise routes + 4 uncompromisable skips\n- picture-description auto-detects MCQ vs open based on option patterns\n- Shared retry session with Pass 2 Repair\n- Teacher-readable skip reasons for review panel\n- 13 unit tests passing"
+      }
+    },
+    {
+      "id": "v5",
+      "taskId": "78pz92",
+      "version": 5,
+      "timestamp": "2026-03-05T02:26:52.361Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Implement Compromise Step",
+        "description": "When code validation detects unsupported types, route to compromise or skip. 7 compromise routes (matching → mcq-vocabulary, true-false → reading-comprehension, etc.) + 4 uncompromisable skips (listening, speaking, essay, composition). Uses `buildCompromisePrompt()` from prompt builder. Tags output `[COMPROMISED: old → new]`. Depends on @task-9vafnp, @task-0yg6fx, @task-wei3uc.",
+        "status": "done",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "pipeline"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "All 7 compromise routes implemented"
+          },
+          {
+            "completed": true,
+            "text": "4 uncompromisable types correctly skipped with teacher warning"
+          },
+          {
+            "completed": true,
+            "text": "buildCompromisePrompt() called with correct type + originalInput"
+          },
+          {
+            "completed": true,
+            "text": "Output tagged [COMPROMISED: old → new]"
+          },
+          {
+            "completed": true,
+            "text": "Compromise reasoning logged"
+          },
+          {
+            "completed": true,
+            "text": "Retry follows compromise model/temp progression"
+          },
+          {
+            "completed": true,
+            "text": "Order: 4 (depends on T3 9vafnp + T4 0yg6fx + T5 wei3uc)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### New file\n`src/services/test-creation/thcs-compromise-step.ts`\n\n### Architecture\nAn orchestrator for unsupported type conversion. Very similar in structure to Pass 2 Repair but with different decision logic and prompt builder.\n\n### Flow\n```\nValidationReport.unsupportedTypes[]\n  → for each unsupported type:\n    → if canCompromise: buildCompromisePrompt() → AI call → parseCompromiseResponse()\n    → if uncompromisable: add skip warning\n  → return CompromiseResult\n```\n\n### Interfaces\n\n```typescript\ninterface CompromiseResult {\n  compromisedSections: Array<{\n    sectionIndex: number;\n    originalType: string;\n    convertedType: string;\n    convertedText: string;\n    reasoning: CompromiseReasoning;\n  }>;\n  skippedSections: Array<{\n    sectionIndex: number;\n    type: string;\n    reason: string;        // e.g., \"Listening requires audio — cannot digitize\"\n  }>;\n  auditLog: RepairAuditEntry[];\n}\n```\n\n### Core Function\n\n```typescript\nasync function executeCompromiseStep(\n  unsupportedTypes: ValidationReport['unsupportedTypes'],\n  processedText: string,\n  originalInput: string,\n  retrySession: RetrySession,\n  callAI: (step: RetryStep) => Promise<AICallResult | null>,\n): Promise<CompromiseResult>\n```\n\n#### Logic:\n1. Partition unsupported types into `compromisable` vs `uncompromisable`\n   ```\n   Compromisable: matching, true-false, translation, matching-headings,\n                  gap-fill-open, word-ordering, picture-description (if has options)\n   Uncompromisable: listening, speaking, essay, composition,\n                    picture-description (if open-ended)\n   ```\n\n2. For each **uncompromisable type**: add to `skippedSections` with teacher warning message\n   - `listening`: \"Listening comprehension requires audio files — cannot be digitized. Section skipped.\"\n   - `speaking`: \"Speaking tasks require oral interaction — cannot be digitized.\"\n   - `essay`: \"Extended essay writing needs manual grading setup — section skipped.\"\n   - `composition`: \"Composition tasks need manual grading — section skipped.\"\n\n3. For each **compromisable type**:\n   a. Extract section text from `processedText` (by section boundaries/indices)\n   b. Look up target type from `COMPROMISE_TEMPLATES`\n   c. `buildCompromisePrompt(sourceType, targetType, sectionText, originalInput)`\n   d. Call AI via `executeRetryChain(session, COMPROMISE_CHAIN, callCompromise, compareCompromise)`\n   e. Parse response: `parseCompromiseResponse(rawResponse)`\n   f. Verify `[COMPROMISED: old → new]` tag is present in output\n   g. Log audit entry\n\n4. Return `CompromiseResult`\n\n### Key Design Decisions\n\n1. **Per-section processing** — each unsupported section is compromised independently. One section failing doesn't block others.\n2. **Shared retry session** — compromise calls count toward the same 5-call circuit breaker as Pass 2 repair.\n3. **Output text includes tags** — `[COMPROMISED: old → new]` tags are left in the text for the engine's `consumeAITags()` to process.\n4. **Skip reasons are teacher-readable** — used by the review panel to explain why certain sections were dropped.\n\n### Files changed\n- `src/services/test-creation/thcs-compromise-step.ts` (NEW — ~70 lines)\n\n### Dependencies\n- `thcs-prompt-builder.ts` → `buildCompromisePrompt`, `parseCompromiseResponse`, `COMPROMISE_TEMPLATES`\n- `thcs-retry-manager.ts` → `executeRetryChain`, `COMPROMISE_CHAIN`, `RetrySession`\n- `thcs-text-validator.ts` → `ValidationReport` type",
+        "implementationNotes": "## Implementation Notes\n- Created `thcs-compromise-step.ts` (~160 lines)\n- Routes unsupported types: 7 compromise routes + 4 uncompromisable skips\n- picture-description auto-detects MCQ vs open based on option patterns\n- Shared retry session with Pass 2 Repair\n- Teacher-readable skip reasons for review panel\n- 13 unit tests passing"
+      }
+    }
+  ]
+}

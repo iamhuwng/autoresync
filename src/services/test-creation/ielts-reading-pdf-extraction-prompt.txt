@@ -1,0 +1,163 @@
+Extract ALL content from this IELTS Reading test PDF into plain text. Do NOT skip anything. Do NOT invent content.
+
+## OUTPUT FORMAT
+
+READING PASSAGE 1
+
+[Passage title]
+
+A  First paragraph of passage text here...
+
+B  Second paragraph continues here...
+
+C  Third paragraph continues here...
+
+---
+
+Questions 1-13
+
+Questions 1-5
+Do the following statements agree with the information given in Reading Passage 1?
+Write TRUE, FALSE, or NOT GIVEN.
+
+1. Statement text here.
+2. Another statement here.
+3. Another statement here.
+
+Questions 6-9
+Complete the sentences below.
+Choose NO MORE THAN TWO WORDS from the passage for each answer.
+
+6. The author describes ______ as the main cause.
+7. Research was conducted in ______ and three other countries.
+
+Questions 10-13
+Choose the correct letter, A, B, C or D.
+
+10. What is the main purpose of the first paragraph?
+A. To introduce a new theory   B. To describe a historical event   C. To challenge a common assumption   D. To summarize previous research
+
+---
+
+READING PASSAGE 2
+
+[Passage title]
+
+[Full passage text with paragraph breaks...]
+
+---
+
+Questions 14-26
+
+[Same pattern — sub-groups with instructions, then numbered questions]
+
+---
+
+READING PASSAGE 3
+
+[Passage title]
+
+[Full passage text with paragraph breaks...]
+
+---
+
+Questions 27-40
+
+[Same pattern]
+
+---
+
+ANSWER KEY
+1. TRUE  2. FALSE  3. NOT GIVEN
+6. climate change  7. Australia
+10. C  11. B  12. A  13. D
+
+## CRITICAL STRUCTURE RULES
+
+1. Passages MUST start with exactly `READING PASSAGE 1`, `READING PASSAGE 2`, `READING PASSAGE 3` — this exact wording triggers passage detection.
+2. If paragraphs have labels (A, B, C...), keep them: `A  paragraph text...` — these are referenced by matching-information questions.
+3. Separate paragraphs with blank lines. NEVER merge into one block.
+4. Include COMPLETE passage text — do not truncate or summarize.
+
+## QUESTION FORMAT RULES
+
+5. Each question sub-group starts with `Questions X-Y` on its own line, then the FULL instruction text, then the word limit if applicable.
+6. Number every question: `1. text`, `2. text` etc.
+7. MCQ options on ONE line: `A. opt1   B. opt2   C. opt3   D. opt4` (3 spaces between)
+8. Completion blanks use 6+ underscores: `______`
+9. Word limits on their own line: `Choose NO MORE THAN TWO WORDS from the passage for each answer.`
+
+## SPECIAL QUESTION TYPES
+
+**Matching headings** — list headings FIRST with roman numerals, THEN numbered questions:
+List of Headings
+i. The importance of planning
+ii. Early challenges
+iii. A surprising discovery
+iv. Environmental impact
+
+1. Paragraph A
+2. Paragraph B
+
+**Matching information** — instruction references paragraph letters:
+Which paragraph contains the following information?
+
+14. a reference to early experiments
+15. a comparison between two methods
+
+**Matching features** — list of entities FIRST, then numbered questions:
+List of Researchers
+A. Louis Pasteur
+B. Edward Jenner
+C. Robert Koch
+
+19. discovered the vaccination technique
+20. identified bacteria as a cause of disease
+
+**Matching sentence endings** — list endings FIRST, then sentence beginnings:
+List of Endings
+A. preferred visual learning.
+B. showed no significant difference.
+C. developed new testing methods.
+
+31. The study revealed that participants...
+32. The second experiment proved that...
+
+**Summary completion with word bank**:
+Complete the summary below.
+Choose NO MORE THAN TWO WORDS from the box below for each answer.
+
+[WORD BANK: increase / decline / stable / method / approach / theory]
+
+The study found a significant 27______ in temperature over the period. Researchers used a new 28______ to collect data.
+
+**Summary completion from passage** (no word bank):
+Complete the summary below.
+Choose NO MORE THAN TWO WORDS from the passage for each answer.
+
+The colony was established in 27______ and grew rapidly due to 28______.
+
+**Table completion**:
+Complete the table below.
+Choose NO MORE THAN TWO WORDS from the passage for each answer.
+
+| Stepwell | Date | Features |
+| Rani Ki Vav | 11th century | 9______ |
+| Adalaj Vav | 10______ | five levels |
+
+## ANSWER KEY FORMAT
+
+- TRUE/FALSE/NOT GIVEN / YES/NO/NOT GIVEN: use full words
+- MCQ: letter only (A, B, C, D)
+- Matching: letter or roman numeral
+- Completion: exact words, alternatives separated by /
+
+## DO NOT
+- Skip or truncate any passage text
+- Merge different question groups into one block
+- Add markdown formatting (**, ##, bullets)
+- Change question numbering
+- Drop word limit instructions
+- Abbreviate TRUE/FALSE/NOT GIVEN
+- Add explanations, commentary, or translations
+- Return passages without paragraph breaks

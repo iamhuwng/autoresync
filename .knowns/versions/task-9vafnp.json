@@ -1,0 +1,406 @@
+{
+  "taskId": "9vafnp",
+  "currentVersion": 5,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "9vafnp",
+      "version": 1,
+      "timestamp": "2026-03-04T22:47:24.157Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "ValidationReport interface with all required fields",
+              "completed": false
+            },
+            {
+              "text": "All 16 issue codes detectable (one test per code)",
+              "completed": false
+            },
+            {
+              "text": "unsupportedTypes[] detection for matching, true-false, translation, etc.",
+              "completed": false
+            },
+            {
+              "text": "stats object with section/question/answer/typeTag counts",
+              "completed": false
+            },
+            {
+              "text": "Carries originalInput and processedText for downstream",
+              "completed": false
+            },
+            {
+              "text": "formatConfidence weighted by issue severity",
+              "completed": false
+            },
+            {
+              "text": "Runs on Pass 1 output (not raw text)",
+              "completed": false
+            },
+            {
+              "text": "Order: 3 (depends on T6 q6lxtq - Pass 1)",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Build Code Validation Module (Post-Pass 1)",
+        "description": "Create `thcs-text-validator.ts`. Scans restructured text **AFTER Pass 1** (not raw text) to produce `ValidationReport` with: `formatConfidence` (0-100), `issues[]` (16 issue codes with section text + line ranges), `unsupportedTypes[]`, and `stats`. Determines whether Pass 2 (repair), Compromise, or External Retry are needed. Depends on @task-{Pass1} (runs on its output).",
+        "status": "todo",
+        "priority": "high",
+        "labels": [
+          "from-spec-v2",
+          "core-module"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "ValidationReport interface with all required fields",
+            "completed": false
+          },
+          {
+            "text": "All 16 issue codes detectable (one test per code)",
+            "completed": false
+          },
+          {
+            "text": "unsupportedTypes[] detection for matching, true-false, translation, etc.",
+            "completed": false
+          },
+          {
+            "text": "stats object with section/question/answer/typeTag counts",
+            "completed": false
+          },
+          {
+            "text": "Carries originalInput and processedText for downstream",
+            "completed": false
+          },
+          {
+            "text": "formatConfidence weighted by issue severity",
+            "completed": false
+          },
+          {
+            "text": "Runs on Pass 1 output (not raw text)",
+            "completed": false
+          },
+          {
+            "text": "Order: 3 (depends on T6 q6lxtq - Pass 1)",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "9vafnp",
+      "version": 2,
+      "timestamp": "2026-03-04T23:07:41.692Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        },
+        {
+          "field": "assignee",
+          "newValue": "@me"
+        }
+      ],
+      "snapshot": {
+        "title": "Build Code Validation Module (Post-Pass 1)",
+        "description": "Create `thcs-text-validator.ts`. Scans restructured text **AFTER Pass 1** (not raw text) to produce `ValidationReport` with: `formatConfidence` (0-100), `issues[]` (16 issue codes with section text + line ranges), `unsupportedTypes[]`, and `stats`. Determines whether Pass 2 (repair), Compromise, or External Retry are needed. Depends on @task-{Pass1} (runs on its output).",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "core-module"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "ValidationReport interface with all required fields"
+          },
+          {
+            "completed": false,
+            "text": "All 16 issue codes detectable (one test per code)"
+          },
+          {
+            "completed": false,
+            "text": "unsupportedTypes[] detection for matching, true-false, translation, etc."
+          },
+          {
+            "completed": false,
+            "text": "stats object with section/question/answer/typeTag counts"
+          },
+          {
+            "completed": false,
+            "text": "Carries originalInput and processedText for downstream"
+          },
+          {
+            "completed": false,
+            "text": "formatConfidence weighted by issue severity"
+          },
+          {
+            "completed": false,
+            "text": "Runs on Pass 1 output (not raw text)"
+          },
+          {
+            "completed": false,
+            "text": "Order: 3 (depends on T6 q6lxtq - Pass 1)"
+          }
+        ]
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "9vafnp",
+      "version": 3,
+      "timestamp": "2026-03-04T23:08:37.425Z",
+      "changes": [
+        {
+          "field": "implementationPlan",
+          "newValue": "## Implementation Plan\n\n### New file\n`src/services/test-creation/thcs-text-validator.ts`\n\n### Architecture\nA pure, deterministic text scanner — NO AI calls. Receives the restructured text from Pass 1, runs 16 regex-based checks, detects unsupported types, computes a weighted confidence score, and returns a `ValidationReport` that determines the pipeline's next step.\n\n### Interfaces\n\n```typescript\n// The 16 issue codes\ntype IssueCode =\n  | 'MERGED_QUESTIONS' | 'MISSING_Q_PREFIX' | 'OPTIONS_INLINE'\n  | 'COMPRESSED_ANSWER_KEY' | 'MISSING_ANSWER_KEY' | 'MISSING_TYPE_TAG'\n  | 'TYPE_CONTENT_MISMATCH' | 'MISSING_PASSAGE_BLOCK' | 'PASSAGE_NO_PARAGRAPHS'\n  | 'SECTION_NO_QUESTIONS' | 'AMBIGUOUS_SECTION_SPLIT' | 'NUMBERING_GAP'\n  | 'BLANK_FORMAT_WRONG' | 'MISSING_BRACKETS' | 'MISSING_ARROW'\n  | 'WORD_BANK_NOT_TAGGED';\n\n// Unsupported type slugs\ntype UnsupportedType =\n  | 'matching' | 'true-false' | 'translation' | 'matching-headings'\n  | 'gap-fill-open' | 'word-ordering' | 'picture-description'\n  | 'listening' | 'speaking' | 'essay' | 'composition';\n\ninterface ValidationIssue {\n  code: IssueCode;\n  severity: 'critical' | 'major' | 'minor';\n  sectionIndex: number;           // which section (0-based), -1 for global\n  lineRange: [number, number];    // start/end line in the text\n  sectionText: string;            // snippet of offending text (max 200 chars)\n  message: string;                // human-readable description\n}\n\ninterface ValidationStats {\n  sectionCount: number;\n  questionCount: number;\n  answerCount: number;\n  typeTagCount: number;\n}\n\ninterface ValidationReport {\n  formatConfidence: number;       // 0-100 weighted score\n  issues: ValidationIssue[];\n  unsupportedTypes: Array<{\n    type: UnsupportedType;\n    sectionIndex: number;\n    canCompromise: boolean;        // true if FR-10 has a route\n  }>;\n  stats: ValidationStats;\n  originalInput: string;          // raw teacher text (for repair prompt)\n  processedText: string;          // Pass 1 output (what was scanned)\n  aiConfidence: number;           // Pass 1's self-reported confidence (for FR-13 comparison)\n  confidenceDisagreement: boolean; // |aiConfidence - formatConfidence| > 25\n}\n```\n\n### Detection Functions (16 issue code detectors)\n\nEach detector receives `lines: string[]` and section boundaries. Returns `ValidationIssue[]`.\n\n#### Structural (severity: critical/major)\n1. **`detectMergedQuestions(lines, sections)`** — P:critical\n   - Regex: line matches `Question \\d+.*.+Question \\d+` or `Câu \\d+.*.+Câu \\d+`\n   - Also catches `\\d+\\.\\s+.+\\d+\\.\\s+` patterns (numbered questions on same line)\n\n2. **`detectMissingQPrefix(lines, sections)`** — P:major\n   - Lines with A/B/C/D options on following lines but no `Question \\d` or `Câu \\d` prefix\n   - Heuristic: look for option blocks where the preceding line doesn't match question pattern\n\n3. **`detectOptionsInline(lines, sections)`** — P:major\n   - Regex: `Question \\d+.+\\bA\\.\\s.+\\bB\\.\\s` (question + options on single line)\n\n4. **`detectNumberingGap(lines)`** — P:minor\n   - Collect all question numbers, check for non-sequential gaps\n\n5. **`detectSectionNoQuestions(lines, sections)`** — P:major\n   - Section header (e.g., line with `[TYPE:]` or all-caps instruction) with no subsequent questions before next section\n\n6. **`detectAmbiguousSectionSplit(lines, sections)`** — P:major\n   - Heuristic: within one section boundary, detect mixed patterns (e.g., some questions have MCQ options AND some have `______` fill-in blanks)\n\n#### Content & Type (severity: major)\n7. **`detectMissingTypeTag(lines, sections)`** — P:major\n   - Section header lines without `[TYPE: xxx]` tag\n\n8. **`detectTypeContentMismatch(lines, sections)`** — P:major\n   - `[TYPE: word-stress]` but content has `______` blanks (should be fill-in)\n   - `[TYPE: verb-form]` but content has A/B/C/D options (should be MCQ)\n   - Cross-reference type tag against content pattern signatures\n\n9. **`detectMissingPassageBlock(lines, sections)`** — P:major\n   - Section with reading type tag (`reading-*`) but no `PASSAGE:` delimiter and no substantial text block before questions\n\n10. **`detectPassageNoParagraphs(lines, sections)`** — P:minor\n    - Passage text > 200 chars with no `\n\n` breaks\n\n#### Marker & Formatting (severity: minor)\n11. **`detectBlankFormatWrong(lines, sections)`** — P:minor\n    - Fill-in sections where blanks are `...` or `___` (less than 6 underscores) instead of `______`\n\n12. **`detectMissingBrackets(lines, sections)`** — P:minor\n    - verb-form/word-form sections without `(verb)` or `(WORD)` markers in question text\n\n13. **`detectMissingArrow(lines, sections)`** — P:minor\n    - sentence-rewrite sections where questions lack `=>` separator\n\n14. **`detectWordBankNotTagged(lines, sections)`** — P:minor\n    - Section with cloze pattern + word list in text but not wrapped in `[WORD BANK: ...]`\n\n#### Key & Metadata (severity: critical)\n15. **`detectCompressedAnswerKey(lines)`** — P:critical\n    - Regex: `\\d+\\s*[-–]\\s*\\d+\\s*[:：]\\s*[A-D]{2,}` (e.g., \"1-5: BACDC\")\n\n16. **`detectMissingAnswerKey(lines)`** — P:critical\n    - No lines matching answer key patterns (`\\d+\\.\\s*[A-D]`, `Answer Key`, `Đáp án`)\n\n### Unsupported Type Detection\n\n```typescript\nfunction detectUnsupportedTypes(lines: string[], sections: SectionBoundary[]): UnsupportedType[]\n```\nScans `[TYPE: xxx]` tags and content patterns for:\n- `matching` — column A/B pattern, \"Match\" in header\n- `true-false` — \"True/False/Not Given\" in options\n- `translation` — \"Translate\", \"Dịch\" in header\n- `matching-headings` — \"Match heading\" patterns\n- `gap-fill-open` — fill-in blanks with NO word bank and NO brackets\n- `word-ordering` — \"Put words in order\", numbered word fragments\n- `picture-description` — \"Look at picture\", \"Describe\"\n- `listening` — \"Listen\", \"Nghe\" in header\n- `speaking` — \"Speak\", \"Nói\" in header\n- `essay`/`composition` — \"Write an essay\", \"Write about\"\n\n### Confidence Calculation\n\n```typescript\nfunction computeFormatConfidence(issues: ValidationIssue[], stats: ValidationStats): number\n```\n- Start at 100\n- Deduct per issue by severity:\n  - `critical`: -20 per issue (capped at -60)\n  - `major`: -10 per issue (capped at -40)\n  - `minor`: -3 per issue (capped at -15)\n- Bonus adjustments:\n  - +5 if all sections have type tags\n  - +5 if answer coverage > 90%\n- Floor at 0, cap at 100\n\n### Main Entry Point\n\n```typescript\nfunction validateRestructuredText(\n  processedText: string,\n  originalInput: string,\n  aiConfidence: number\n): ValidationReport\n```\n1. Split text into lines\n2. Detect section boundaries (headers, type tags, blank line groups)\n3. Run all 16 detectors → collect issues\n4. Detect unsupported types\n5. Compute stats (count sections, questions, answers, type tags)\n6. Compute `formatConfidence`\n7. Check confidence disagreement: `|aiConfidence - formatConfidence| > 25`\n8. Return `ValidationReport`\n\n### Pipeline Decision Logic (consumed by integration task)\n```\nif (report.unsupportedTypes.length > 0)\n  → route unsupported sections to Compromise (task 78pz92)\nif (report.formatConfidence >= 80 && report.issues.length === 0)\n  → proceed directly to Regex Engine (no Pass 2 needed)\nif (report.formatConfidence >= 50)\n  → route to Pass 2 Repair with relevant issue codes (task pqr0rq)\nif (report.formatConfidence < 50)\n  → route to External Retry (task le05g6)\n```\n\n### Files changed\n- `src/services/test-creation/thcs-text-validator.ts` (NEW — ~300-350 lines)\n\n### Dependencies\n- None (pure regex + heuristic logic, no AI calls, no imports beyond types)\n\n### Consumed by\n- Task `wei3uc` (Prompt Builder) — uses `IssueCode` type to select repair fragments\n- Task `pqr0rq` (Pass 2 Repair) — reads `ValidationReport.issues`\n- Task `78pz92` (Compromise) — reads `unsupportedTypes`\n- Task `le05g6` (External Retry) — triggered by `formatConfidence < 50`\n- Task `8085zl` (Integration) — calls `validateRestructuredText()` in main pipeline"
+        }
+      ],
+      "snapshot": {
+        "title": "Build Code Validation Module (Post-Pass 1)",
+        "description": "Create `thcs-text-validator.ts`. Scans restructured text **AFTER Pass 1** (not raw text) to produce `ValidationReport` with: `formatConfidence` (0-100), `issues[]` (16 issue codes with section text + line ranges), `unsupportedTypes[]`, and `stats`. Determines whether Pass 2 (repair), Compromise, or External Retry are needed. Depends on @task-{Pass1} (runs on its output).",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "core-module"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "ValidationReport interface with all required fields"
+          },
+          {
+            "completed": false,
+            "text": "All 16 issue codes detectable (one test per code)"
+          },
+          {
+            "completed": false,
+            "text": "unsupportedTypes[] detection for matching, true-false, translation, etc."
+          },
+          {
+            "completed": false,
+            "text": "stats object with section/question/answer/typeTag counts"
+          },
+          {
+            "completed": false,
+            "text": "Carries originalInput and processedText for downstream"
+          },
+          {
+            "completed": false,
+            "text": "formatConfidence weighted by issue severity"
+          },
+          {
+            "completed": false,
+            "text": "Runs on Pass 1 output (not raw text)"
+          },
+          {
+            "completed": false,
+            "text": "Order: 3 (depends on T6 q6lxtq - Pass 1)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### New file\n`src/services/test-creation/thcs-text-validator.ts`\n\n### Architecture\nA pure, deterministic text scanner — NO AI calls. Receives the restructured text from Pass 1, runs 16 regex-based checks, detects unsupported types, computes a weighted confidence score, and returns a `ValidationReport` that determines the pipeline's next step.\n\n### Interfaces\n\n```typescript\n// The 16 issue codes\ntype IssueCode =\n  | 'MERGED_QUESTIONS' | 'MISSING_Q_PREFIX' | 'OPTIONS_INLINE'\n  | 'COMPRESSED_ANSWER_KEY' | 'MISSING_ANSWER_KEY' | 'MISSING_TYPE_TAG'\n  | 'TYPE_CONTENT_MISMATCH' | 'MISSING_PASSAGE_BLOCK' | 'PASSAGE_NO_PARAGRAPHS'\n  | 'SECTION_NO_QUESTIONS' | 'AMBIGUOUS_SECTION_SPLIT' | 'NUMBERING_GAP'\n  | 'BLANK_FORMAT_WRONG' | 'MISSING_BRACKETS' | 'MISSING_ARROW'\n  | 'WORD_BANK_NOT_TAGGED';\n\n// Unsupported type slugs\ntype UnsupportedType =\n  | 'matching' | 'true-false' | 'translation' | 'matching-headings'\n  | 'gap-fill-open' | 'word-ordering' | 'picture-description'\n  | 'listening' | 'speaking' | 'essay' | 'composition';\n\ninterface ValidationIssue {\n  code: IssueCode;\n  severity: 'critical' | 'major' | 'minor';\n  sectionIndex: number;           // which section (0-based), -1 for global\n  lineRange: [number, number];    // start/end line in the text\n  sectionText: string;            // snippet of offending text (max 200 chars)\n  message: string;                // human-readable description\n}\n\ninterface ValidationStats {\n  sectionCount: number;\n  questionCount: number;\n  answerCount: number;\n  typeTagCount: number;\n}\n\ninterface ValidationReport {\n  formatConfidence: number;       // 0-100 weighted score\n  issues: ValidationIssue[];\n  unsupportedTypes: Array<{\n    type: UnsupportedType;\n    sectionIndex: number;\n    canCompromise: boolean;        // true if FR-10 has a route\n  }>;\n  stats: ValidationStats;\n  originalInput: string;          // raw teacher text (for repair prompt)\n  processedText: string;          // Pass 1 output (what was scanned)\n  aiConfidence: number;           // Pass 1's self-reported confidence (for FR-13 comparison)\n  confidenceDisagreement: boolean; // |aiConfidence - formatConfidence| > 25\n}\n```\n\n### Detection Functions (16 issue code detectors)\n\nEach detector receives `lines: string[]` and section boundaries. Returns `ValidationIssue[]`.\n\n#### Structural (severity: critical/major)\n1. **`detectMergedQuestions(lines, sections)`** — P:critical\n   - Regex: line matches `Question \\d+.*.+Question \\d+` or `Câu \\d+.*.+Câu \\d+`\n   - Also catches `\\d+\\.\\s+.+\\d+\\.\\s+` patterns (numbered questions on same line)\n\n2. **`detectMissingQPrefix(lines, sections)`** — P:major\n   - Lines with A/B/C/D options on following lines but no `Question \\d` or `Câu \\d` prefix\n   - Heuristic: look for option blocks where the preceding line doesn't match question pattern\n\n3. **`detectOptionsInline(lines, sections)`** — P:major\n   - Regex: `Question \\d+.+\\bA\\.\\s.+\\bB\\.\\s` (question + options on single line)\n\n4. **`detectNumberingGap(lines)`** — P:minor\n   - Collect all question numbers, check for non-sequential gaps\n\n5. **`detectSectionNoQuestions(lines, sections)`** — P:major\n   - Section header (e.g., line with `[TYPE:]` or all-caps instruction) with no subsequent questions before next section\n\n6. **`detectAmbiguousSectionSplit(lines, sections)`** — P:major\n   - Heuristic: within one section boundary, detect mixed patterns (e.g., some questions have MCQ options AND some have `______` fill-in blanks)\n\n#### Content & Type (severity: major)\n7. **`detectMissingTypeTag(lines, sections)`** — P:major\n   - Section header lines without `[TYPE: xxx]` tag\n\n8. **`detectTypeContentMismatch(lines, sections)`** — P:major\n   - `[TYPE: word-stress]` but content has `______` blanks (should be fill-in)\n   - `[TYPE: verb-form]` but content has A/B/C/D options (should be MCQ)\n   - Cross-reference type tag against content pattern signatures\n\n9. **`detectMissingPassageBlock(lines, sections)`** — P:major\n   - Section with reading type tag (`reading-*`) but no `PASSAGE:` delimiter and no substantial text block before questions\n\n10. **`detectPassageNoParagraphs(lines, sections)`** — P:minor\n    - Passage text > 200 chars with no `\n\n` breaks\n\n#### Marker & Formatting (severity: minor)\n11. **`detectBlankFormatWrong(lines, sections)`** — P:minor\n    - Fill-in sections where blanks are `...` or `___` (less than 6 underscores) instead of `______`\n\n12. **`detectMissingBrackets(lines, sections)`** — P:minor\n    - verb-form/word-form sections without `(verb)` or `(WORD)` markers in question text\n\n13. **`detectMissingArrow(lines, sections)`** — P:minor\n    - sentence-rewrite sections where questions lack `=>` separator\n\n14. **`detectWordBankNotTagged(lines, sections)`** — P:minor\n    - Section with cloze pattern + word list in text but not wrapped in `[WORD BANK: ...]`\n\n#### Key & Metadata (severity: critical)\n15. **`detectCompressedAnswerKey(lines)`** — P:critical\n    - Regex: `\\d+\\s*[-–]\\s*\\d+\\s*[:：]\\s*[A-D]{2,}` (e.g., \"1-5: BACDC\")\n\n16. **`detectMissingAnswerKey(lines)`** — P:critical\n    - No lines matching answer key patterns (`\\d+\\.\\s*[A-D]`, `Answer Key`, `Đáp án`)\n\n### Unsupported Type Detection\n\n```typescript\nfunction detectUnsupportedTypes(lines: string[], sections: SectionBoundary[]): UnsupportedType[]\n```\nScans `[TYPE: xxx]` tags and content patterns for:\n- `matching` — column A/B pattern, \"Match\" in header\n- `true-false` — \"True/False/Not Given\" in options\n- `translation` — \"Translate\", \"Dịch\" in header\n- `matching-headings` — \"Match heading\" patterns\n- `gap-fill-open` — fill-in blanks with NO word bank and NO brackets\n- `word-ordering` — \"Put words in order\", numbered word fragments\n- `picture-description` — \"Look at picture\", \"Describe\"\n- `listening` — \"Listen\", \"Nghe\" in header\n- `speaking` — \"Speak\", \"Nói\" in header\n- `essay`/`composition` — \"Write an essay\", \"Write about\"\n\n### Confidence Calculation\n\n```typescript\nfunction computeFormatConfidence(issues: ValidationIssue[], stats: ValidationStats): number\n```\n- Start at 100\n- Deduct per issue by severity:\n  - `critical`: -20 per issue (capped at -60)\n  - `major`: -10 per issue (capped at -40)\n  - `minor`: -3 per issue (capped at -15)\n- Bonus adjustments:\n  - +5 if all sections have type tags\n  - +5 if answer coverage > 90%\n- Floor at 0, cap at 100\n\n### Main Entry Point\n\n```typescript\nfunction validateRestructuredText(\n  processedText: string,\n  originalInput: string,\n  aiConfidence: number\n): ValidationReport\n```\n1. Split text into lines\n2. Detect section boundaries (headers, type tags, blank line groups)\n3. Run all 16 detectors → collect issues\n4. Detect unsupported types\n5. Compute stats (count sections, questions, answers, type tags)\n6. Compute `formatConfidence`\n7. Check confidence disagreement: `|aiConfidence - formatConfidence| > 25`\n8. Return `ValidationReport`\n\n### Pipeline Decision Logic (consumed by integration task)\n```\nif (report.unsupportedTypes.length > 0)\n  → route unsupported sections to Compromise (task 78pz92)\nif (report.formatConfidence >= 80 && report.issues.length === 0)\n  → proceed directly to Regex Engine (no Pass 2 needed)\nif (report.formatConfidence >= 50)\n  → route to Pass 2 Repair with relevant issue codes (task pqr0rq)\nif (report.formatConfidence < 50)\n  → route to External Retry (task le05g6)\n```\n\n### Files changed\n- `src/services/test-creation/thcs-text-validator.ts` (NEW — ~300-350 lines)\n\n### Dependencies\n- None (pure regex + heuristic logic, no AI calls, no imports beyond types)\n\n### Consumed by\n- Task `wei3uc` (Prompt Builder) — uses `IssueCode` type to select repair fragments\n- Task `pqr0rq` (Pass 2 Repair) — reads `ValidationReport.issues`\n- Task `78pz92` (Compromise) — reads `unsupportedTypes`\n- Task `le05g6` (External Retry) — triggered by `formatConfidence < 50`\n- Task `8085zl` (Integration) — calls `validateRestructuredText()` in main pipeline"
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "9vafnp",
+      "version": 4,
+      "timestamp": "2026-03-05T01:50:25.873Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "ValidationReport interface with all required fields"
+            },
+            {
+              "completed": false,
+              "text": "All 16 issue codes detectable (one test per code)"
+            },
+            {
+              "completed": false,
+              "text": "unsupportedTypes[] detection for matching, true-false, translation, etc."
+            },
+            {
+              "completed": false,
+              "text": "stats object with section/question/answer/typeTag counts"
+            },
+            {
+              "completed": false,
+              "text": "Carries originalInput and processedText for downstream"
+            },
+            {
+              "completed": false,
+              "text": "formatConfidence weighted by issue severity"
+            },
+            {
+              "completed": false,
+              "text": "Runs on Pass 1 output (not raw text)"
+            },
+            {
+              "completed": false,
+              "text": "Order: 3 (depends on T6 q6lxtq - Pass 1)"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "ValidationReport interface with all required fields"
+            },
+            {
+              "completed": true,
+              "text": "All 16 issue codes detectable (one test per code)"
+            },
+            {
+              "completed": true,
+              "text": "unsupportedTypes[] detection for matching, true-false, translation, etc."
+            },
+            {
+              "completed": true,
+              "text": "stats object with section/question/answer/typeTag counts"
+            },
+            {
+              "completed": true,
+              "text": "Carries originalInput and processedText for downstream"
+            },
+            {
+              "completed": true,
+              "text": "formatConfidence weighted by issue severity"
+            },
+            {
+              "completed": true,
+              "text": "Runs on Pass 1 output (not raw text)"
+            },
+            {
+              "completed": true,
+              "text": "Order: 3 (depends on T6 q6lxtq - Pass 1)"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "## Implementation Notes\n- Created `thcs-text-validator.ts` (~390 lines)\n- 16 issue detectors: MERGED_QUESTIONS, MISSING_Q_PREFIX, OPTIONS_INLINE, NUMBERING_GAP, SECTION_NO_QUESTIONS, AMBIGUOUS_SECTION_SPLIT, MISSING_TYPE_TAG, TYPE_CONTENT_MISMATCH, MISSING_PASSAGE_BLOCK, PASSAGE_NO_PARAGRAPHS, BLANK_FORMAT_WRONG, MISSING_BRACKETS, MISSING_ARROW, WORD_BANK_NOT_TAGGED, COMPRESSED_ANSWER_KEY, MISSING_ANSWER_KEY\n- 11 unsupported types: matching, true-false, translation, matching-headings, gap-fill-open, word-ordering, picture-description, listening, speaking, essay, composition (7 can compromise, 4 skip)\n- Weighted confidence: critical -20/ea (cap 60), major -10/ea (cap 40), minor -3/ea (cap 15), bonuses for type tags + answer coverage\n- Section boundary detection via Roman numeral / Part / Section regex + [TYPE:] tag extraction\n- 29 unit tests passing\n- Zero TypeScript errors"
+        }
+      ],
+      "snapshot": {
+        "title": "Build Code Validation Module (Post-Pass 1)",
+        "description": "Create `thcs-text-validator.ts`. Scans restructured text **AFTER Pass 1** (not raw text) to produce `ValidationReport` with: `formatConfidence` (0-100), `issues[]` (16 issue codes with section text + line ranges), `unsupportedTypes[]`, and `stats`. Determines whether Pass 2 (repair), Compromise, or External Retry are needed. Depends on @task-{Pass1} (runs on its output).",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "core-module"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "ValidationReport interface with all required fields"
+          },
+          {
+            "completed": true,
+            "text": "All 16 issue codes detectable (one test per code)"
+          },
+          {
+            "completed": true,
+            "text": "unsupportedTypes[] detection for matching, true-false, translation, etc."
+          },
+          {
+            "completed": true,
+            "text": "stats object with section/question/answer/typeTag counts"
+          },
+          {
+            "completed": true,
+            "text": "Carries originalInput and processedText for downstream"
+          },
+          {
+            "completed": true,
+            "text": "formatConfidence weighted by issue severity"
+          },
+          {
+            "completed": true,
+            "text": "Runs on Pass 1 output (not raw text)"
+          },
+          {
+            "completed": true,
+            "text": "Order: 3 (depends on T6 q6lxtq - Pass 1)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### New file\n`src/services/test-creation/thcs-text-validator.ts`\n\n### Architecture\nA pure, deterministic text scanner — NO AI calls. Receives the restructured text from Pass 1, runs 16 regex-based checks, detects unsupported types, computes a weighted confidence score, and returns a `ValidationReport` that determines the pipeline's next step.\n\n### Interfaces\n\n```typescript\n// The 16 issue codes\ntype IssueCode =\n  | 'MERGED_QUESTIONS' | 'MISSING_Q_PREFIX' | 'OPTIONS_INLINE'\n  | 'COMPRESSED_ANSWER_KEY' | 'MISSING_ANSWER_KEY' | 'MISSING_TYPE_TAG'\n  | 'TYPE_CONTENT_MISMATCH' | 'MISSING_PASSAGE_BLOCK' | 'PASSAGE_NO_PARAGRAPHS'\n  | 'SECTION_NO_QUESTIONS' | 'AMBIGUOUS_SECTION_SPLIT' | 'NUMBERING_GAP'\n  | 'BLANK_FORMAT_WRONG' | 'MISSING_BRACKETS' | 'MISSING_ARROW'\n  | 'WORD_BANK_NOT_TAGGED';\n\n// Unsupported type slugs\ntype UnsupportedType =\n  | 'matching' | 'true-false' | 'translation' | 'matching-headings'\n  | 'gap-fill-open' | 'word-ordering' | 'picture-description'\n  | 'listening' | 'speaking' | 'essay' | 'composition';\n\ninterface ValidationIssue {\n  code: IssueCode;\n  severity: 'critical' | 'major' | 'minor';\n  sectionIndex: number;           // which section (0-based), -1 for global\n  lineRange: [number, number];    // start/end line in the text\n  sectionText: string;            // snippet of offending text (max 200 chars)\n  message: string;                // human-readable description\n}\n\ninterface ValidationStats {\n  sectionCount: number;\n  questionCount: number;\n  answerCount: number;\n  typeTagCount: number;\n}\n\ninterface ValidationReport {\n  formatConfidence: number;       // 0-100 weighted score\n  issues: ValidationIssue[];\n  unsupportedTypes: Array<{\n    type: UnsupportedType;\n    sectionIndex: number;\n    canCompromise: boolean;        // true if FR-10 has a route\n  }>;\n  stats: ValidationStats;\n  originalInput: string;          // raw teacher text (for repair prompt)\n  processedText: string;          // Pass 1 output (what was scanned)\n  aiConfidence: number;           // Pass 1's self-reported confidence (for FR-13 comparison)\n  confidenceDisagreement: boolean; // |aiConfidence - formatConfidence| > 25\n}\n```\n\n### Detection Functions (16 issue code detectors)\n\nEach detector receives `lines: string[]` and section boundaries. Returns `ValidationIssue[]`.\n\n#### Structural (severity: critical/major)\n1. **`detectMergedQuestions(lines, sections)`** — P:critical\n   - Regex: line matches `Question \\d+.*.+Question \\d+` or `Câu \\d+.*.+Câu \\d+`\n   - Also catches `\\d+\\.\\s+.+\\d+\\.\\s+` patterns (numbered questions on same line)\n\n2. **`detectMissingQPrefix(lines, sections)`** — P:major\n   - Lines with A/B/C/D options on following lines but no `Question \\d` or `Câu \\d` prefix\n   - Heuristic: look for option blocks where the preceding line doesn't match question pattern\n\n3. **`detectOptionsInline(lines, sections)`** — P:major\n   - Regex: `Question \\d+.+\\bA\\.\\s.+\\bB\\.\\s` (question + options on single line)\n\n4. **`detectNumberingGap(lines)`** — P:minor\n   - Collect all question numbers, check for non-sequential gaps\n\n5. **`detectSectionNoQuestions(lines, sections)`** — P:major\n   - Section header (e.g., line with `[TYPE:]` or all-caps instruction) with no subsequent questions before next section\n\n6. **`detectAmbiguousSectionSplit(lines, sections)`** — P:major\n   - Heuristic: within one section boundary, detect mixed patterns (e.g., some questions have MCQ options AND some have `______` fill-in blanks)\n\n#### Content & Type (severity: major)\n7. **`detectMissingTypeTag(lines, sections)`** — P:major\n   - Section header lines without `[TYPE: xxx]` tag\n\n8. **`detectTypeContentMismatch(lines, sections)`** — P:major\n   - `[TYPE: word-stress]` but content has `______` blanks (should be fill-in)\n   - `[TYPE: verb-form]` but content has A/B/C/D options (should be MCQ)\n   - Cross-reference type tag against content pattern signatures\n\n9. **`detectMissingPassageBlock(lines, sections)`** — P:major\n   - Section with reading type tag (`reading-*`) but no `PASSAGE:` delimiter and no substantial text block before questions\n\n10. **`detectPassageNoParagraphs(lines, sections)`** — P:minor\n    - Passage text > 200 chars with no `\n\n` breaks\n\n#### Marker & Formatting (severity: minor)\n11. **`detectBlankFormatWrong(lines, sections)`** — P:minor\n    - Fill-in sections where blanks are `...` or `___` (less than 6 underscores) instead of `______`\n\n12. **`detectMissingBrackets(lines, sections)`** — P:minor\n    - verb-form/word-form sections without `(verb)` or `(WORD)` markers in question text\n\n13. **`detectMissingArrow(lines, sections)`** — P:minor\n    - sentence-rewrite sections where questions lack `=>` separator\n\n14. **`detectWordBankNotTagged(lines, sections)`** — P:minor\n    - Section with cloze pattern + word list in text but not wrapped in `[WORD BANK: ...]`\n\n#### Key & Metadata (severity: critical)\n15. **`detectCompressedAnswerKey(lines)`** — P:critical\n    - Regex: `\\d+\\s*[-–]\\s*\\d+\\s*[:：]\\s*[A-D]{2,}` (e.g., \"1-5: BACDC\")\n\n16. **`detectMissingAnswerKey(lines)`** — P:critical\n    - No lines matching answer key patterns (`\\d+\\.\\s*[A-D]`, `Answer Key`, `Đáp án`)\n\n### Unsupported Type Detection\n\n```typescript\nfunction detectUnsupportedTypes(lines: string[], sections: SectionBoundary[]): UnsupportedType[]\n```\nScans `[TYPE: xxx]` tags and content patterns for:\n- `matching` — column A/B pattern, \"Match\" in header\n- `true-false` — \"True/False/Not Given\" in options\n- `translation` — \"Translate\", \"Dịch\" in header\n- `matching-headings` — \"Match heading\" patterns\n- `gap-fill-open` — fill-in blanks with NO word bank and NO brackets\n- `word-ordering` — \"Put words in order\", numbered word fragments\n- `picture-description` — \"Look at picture\", \"Describe\"\n- `listening` — \"Listen\", \"Nghe\" in header\n- `speaking` — \"Speak\", \"Nói\" in header\n- `essay`/`composition` — \"Write an essay\", \"Write about\"\n\n### Confidence Calculation\n\n```typescript\nfunction computeFormatConfidence(issues: ValidationIssue[], stats: ValidationStats): number\n```\n- Start at 100\n- Deduct per issue by severity:\n  - `critical`: -20 per issue (capped at -60)\n  - `major`: -10 per issue (capped at -40)\n  - `minor`: -3 per issue (capped at -15)\n- Bonus adjustments:\n  - +5 if all sections have type tags\n  - +5 if answer coverage > 90%\n- Floor at 0, cap at 100\n\n### Main Entry Point\n\n```typescript\nfunction validateRestructuredText(\n  processedText: string,\n  originalInput: string,\n  aiConfidence: number\n): ValidationReport\n```\n1. Split text into lines\n2. Detect section boundaries (headers, type tags, blank line groups)\n3. Run all 16 detectors → collect issues\n4. Detect unsupported types\n5. Compute stats (count sections, questions, answers, type tags)\n6. Compute `formatConfidence`\n7. Check confidence disagreement: `|aiConfidence - formatConfidence| > 25`\n8. Return `ValidationReport`\n\n### Pipeline Decision Logic (consumed by integration task)\n```\nif (report.unsupportedTypes.length > 0)\n  → route unsupported sections to Compromise (task 78pz92)\nif (report.formatConfidence >= 80 && report.issues.length === 0)\n  → proceed directly to Regex Engine (no Pass 2 needed)\nif (report.formatConfidence >= 50)\n  → route to Pass 2 Repair with relevant issue codes (task pqr0rq)\nif (report.formatConfidence < 50)\n  → route to External Retry (task le05g6)\n```\n\n### Files changed\n- `src/services/test-creation/thcs-text-validator.ts` (NEW — ~300-350 lines)\n\n### Dependencies\n- None (pure regex + heuristic logic, no AI calls, no imports beyond types)\n\n### Consumed by\n- Task `wei3uc` (Prompt Builder) — uses `IssueCode` type to select repair fragments\n- Task `pqr0rq` (Pass 2 Repair) — reads `ValidationReport.issues`\n- Task `78pz92` (Compromise) — reads `unsupportedTypes`\n- Task `le05g6` (External Retry) — triggered by `formatConfidence < 50`\n- Task `8085zl` (Integration) — calls `validateRestructuredText()` in main pipeline",
+        "implementationNotes": "## Implementation Notes\n- Created `thcs-text-validator.ts` (~390 lines)\n- 16 issue detectors: MERGED_QUESTIONS, MISSING_Q_PREFIX, OPTIONS_INLINE, NUMBERING_GAP, SECTION_NO_QUESTIONS, AMBIGUOUS_SECTION_SPLIT, MISSING_TYPE_TAG, TYPE_CONTENT_MISMATCH, MISSING_PASSAGE_BLOCK, PASSAGE_NO_PARAGRAPHS, BLANK_FORMAT_WRONG, MISSING_BRACKETS, MISSING_ARROW, WORD_BANK_NOT_TAGGED, COMPRESSED_ANSWER_KEY, MISSING_ANSWER_KEY\n- 11 unsupported types: matching, true-false, translation, matching-headings, gap-fill-open, word-ordering, picture-description, listening, speaking, essay, composition (7 can compromise, 4 skip)\n- Weighted confidence: critical -20/ea (cap 60), major -10/ea (cap 40), minor -3/ea (cap 15), bonuses for type tags + answer coverage\n- Section boundary detection via Roman numeral / Part / Section regex + [TYPE:] tag extraction\n- 29 unit tests passing\n- Zero TypeScript errors"
+      }
+    },
+    {
+      "id": "v5",
+      "taskId": "9vafnp",
+      "version": 5,
+      "timestamp": "2026-03-05T01:50:35.165Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Build Code Validation Module (Post-Pass 1)",
+        "description": "Create `thcs-text-validator.ts`. Scans restructured text **AFTER Pass 1** (not raw text) to produce `ValidationReport` with: `formatConfidence` (0-100), `issues[]` (16 issue codes with section text + line ranges), `unsupportedTypes[]`, and `stats`. Determines whether Pass 2 (repair), Compromise, or External Retry are needed. Depends on @task-{Pass1} (runs on its output).",
+        "status": "done",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "core-module"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "ValidationReport interface with all required fields"
+          },
+          {
+            "completed": true,
+            "text": "All 16 issue codes detectable (one test per code)"
+          },
+          {
+            "completed": true,
+            "text": "unsupportedTypes[] detection for matching, true-false, translation, etc."
+          },
+          {
+            "completed": true,
+            "text": "stats object with section/question/answer/typeTag counts"
+          },
+          {
+            "completed": true,
+            "text": "Carries originalInput and processedText for downstream"
+          },
+          {
+            "completed": true,
+            "text": "formatConfidence weighted by issue severity"
+          },
+          {
+            "completed": true,
+            "text": "Runs on Pass 1 output (not raw text)"
+          },
+          {
+            "completed": true,
+            "text": "Order: 3 (depends on T6 q6lxtq - Pass 1)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### New file\n`src/services/test-creation/thcs-text-validator.ts`\n\n### Architecture\nA pure, deterministic text scanner — NO AI calls. Receives the restructured text from Pass 1, runs 16 regex-based checks, detects unsupported types, computes a weighted confidence score, and returns a `ValidationReport` that determines the pipeline's next step.\n\n### Interfaces\n\n```typescript\n// The 16 issue codes\ntype IssueCode =\n  | 'MERGED_QUESTIONS' | 'MISSING_Q_PREFIX' | 'OPTIONS_INLINE'\n  | 'COMPRESSED_ANSWER_KEY' | 'MISSING_ANSWER_KEY' | 'MISSING_TYPE_TAG'\n  | 'TYPE_CONTENT_MISMATCH' | 'MISSING_PASSAGE_BLOCK' | 'PASSAGE_NO_PARAGRAPHS'\n  | 'SECTION_NO_QUESTIONS' | 'AMBIGUOUS_SECTION_SPLIT' | 'NUMBERING_GAP'\n  | 'BLANK_FORMAT_WRONG' | 'MISSING_BRACKETS' | 'MISSING_ARROW'\n  | 'WORD_BANK_NOT_TAGGED';\n\n// Unsupported type slugs\ntype UnsupportedType =\n  | 'matching' | 'true-false' | 'translation' | 'matching-headings'\n  | 'gap-fill-open' | 'word-ordering' | 'picture-description'\n  | 'listening' | 'speaking' | 'essay' | 'composition';\n\ninterface ValidationIssue {\n  code: IssueCode;\n  severity: 'critical' | 'major' | 'minor';\n  sectionIndex: number;           // which section (0-based), -1 for global\n  lineRange: [number, number];    // start/end line in the text\n  sectionText: string;            // snippet of offending text (max 200 chars)\n  message: string;                // human-readable description\n}\n\ninterface ValidationStats {\n  sectionCount: number;\n  questionCount: number;\n  answerCount: number;\n  typeTagCount: number;\n}\n\ninterface ValidationReport {\n  formatConfidence: number;       // 0-100 weighted score\n  issues: ValidationIssue[];\n  unsupportedTypes: Array<{\n    type: UnsupportedType;\n    sectionIndex: number;\n    canCompromise: boolean;        // true if FR-10 has a route\n  }>;\n  stats: ValidationStats;\n  originalInput: string;          // raw teacher text (for repair prompt)\n  processedText: string;          // Pass 1 output (what was scanned)\n  aiConfidence: number;           // Pass 1's self-reported confidence (for FR-13 comparison)\n  confidenceDisagreement: boolean; // |aiConfidence - formatConfidence| > 25\n}\n```\n\n### Detection Functions (16 issue code detectors)\n\nEach detector receives `lines: string[]` and section boundaries. Returns `ValidationIssue[]`.\n\n#### Structural (severity: critical/major)\n1. **`detectMergedQuestions(lines, sections)`** — P:critical\n   - Regex: line matches `Question \\d+.*.+Question \\d+` or `Câu \\d+.*.+Câu \\d+`\n   - Also catches `\\d+\\.\\s+.+\\d+\\.\\s+` patterns (numbered questions on same line)\n\n2. **`detectMissingQPrefix(lines, sections)`** — P:major\n   - Lines with A/B/C/D options on following lines but no `Question \\d` or `Câu \\d` prefix\n   - Heuristic: look for option blocks where the preceding line doesn't match question pattern\n\n3. **`detectOptionsInline(lines, sections)`** — P:major\n   - Regex: `Question \\d+.+\\bA\\.\\s.+\\bB\\.\\s` (question + options on single line)\n\n4. **`detectNumberingGap(lines)`** — P:minor\n   - Collect all question numbers, check for non-sequential gaps\n\n5. **`detectSectionNoQuestions(lines, sections)`** — P:major\n   - Section header (e.g., line with `[TYPE:]` or all-caps instruction) with no subsequent questions before next section\n\n6. **`detectAmbiguousSectionSplit(lines, sections)`** — P:major\n   - Heuristic: within one section boundary, detect mixed patterns (e.g., some questions have MCQ options AND some have `______` fill-in blanks)\n\n#### Content & Type (severity: major)\n7. **`detectMissingTypeTag(lines, sections)`** — P:major\n   - Section header lines without `[TYPE: xxx]` tag\n\n8. **`detectTypeContentMismatch(lines, sections)`** — P:major\n   - `[TYPE: word-stress]` but content has `______` blanks (should be fill-in)\n   - `[TYPE: verb-form]` but content has A/B/C/D options (should be MCQ)\n   - Cross-reference type tag against content pattern signatures\n\n9. **`detectMissingPassageBlock(lines, sections)`** — P:major\n   - Section with reading type tag (`reading-*`) but no `PASSAGE:` delimiter and no substantial text block before questions\n\n10. **`detectPassageNoParagraphs(lines, sections)`** — P:minor\n    - Passage text > 200 chars with no `\n\n` breaks\n\n#### Marker & Formatting (severity: minor)\n11. **`detectBlankFormatWrong(lines, sections)`** — P:minor\n    - Fill-in sections where blanks are `...` or `___` (less than 6 underscores) instead of `______`\n\n12. **`detectMissingBrackets(lines, sections)`** — P:minor\n    - verb-form/word-form sections without `(verb)` or `(WORD)` markers in question text\n\n13. **`detectMissingArrow(lines, sections)`** — P:minor\n    - sentence-rewrite sections where questions lack `=>` separator\n\n14. **`detectWordBankNotTagged(lines, sections)`** — P:minor\n    - Section with cloze pattern + word list in text but not wrapped in `[WORD BANK: ...]`\n\n#### Key & Metadata (severity: critical)\n15. **`detectCompressedAnswerKey(lines)`** — P:critical\n    - Regex: `\\d+\\s*[-–]\\s*\\d+\\s*[:：]\\s*[A-D]{2,}` (e.g., \"1-5: BACDC\")\n\n16. **`detectMissingAnswerKey(lines)`** — P:critical\n    - No lines matching answer key patterns (`\\d+\\.\\s*[A-D]`, `Answer Key`, `Đáp án`)\n\n### Unsupported Type Detection\n\n```typescript\nfunction detectUnsupportedTypes(lines: string[], sections: SectionBoundary[]): UnsupportedType[]\n```\nScans `[TYPE: xxx]` tags and content patterns for:\n- `matching` — column A/B pattern, \"Match\" in header\n- `true-false` — \"True/False/Not Given\" in options\n- `translation` — \"Translate\", \"Dịch\" in header\n- `matching-headings` — \"Match heading\" patterns\n- `gap-fill-open` — fill-in blanks with NO word bank and NO brackets\n- `word-ordering` — \"Put words in order\", numbered word fragments\n- `picture-description` — \"Look at picture\", \"Describe\"\n- `listening` — \"Listen\", \"Nghe\" in header\n- `speaking` — \"Speak\", \"Nói\" in header\n- `essay`/`composition` — \"Write an essay\", \"Write about\"\n\n### Confidence Calculation\n\n```typescript\nfunction computeFormatConfidence(issues: ValidationIssue[], stats: ValidationStats): number\n```\n- Start at 100\n- Deduct per issue by severity:\n  - `critical`: -20 per issue (capped at -60)\n  - `major`: -10 per issue (capped at -40)\n  - `minor`: -3 per issue (capped at -15)\n- Bonus adjustments:\n  - +5 if all sections have type tags\n  - +5 if answer coverage > 90%\n- Floor at 0, cap at 100\n\n### Main Entry Point\n\n```typescript\nfunction validateRestructuredText(\n  processedText: string,\n  originalInput: string,\n  aiConfidence: number\n): ValidationReport\n```\n1. Split text into lines\n2. Detect section boundaries (headers, type tags, blank line groups)\n3. Run all 16 detectors → collect issues\n4. Detect unsupported types\n5. Compute stats (count sections, questions, answers, type tags)\n6. Compute `formatConfidence`\n7. Check confidence disagreement: `|aiConfidence - formatConfidence| > 25`\n8. Return `ValidationReport`\n\n### Pipeline Decision Logic (consumed by integration task)\n```\nif (report.unsupportedTypes.length > 0)\n  → route unsupported sections to Compromise (task 78pz92)\nif (report.formatConfidence >= 80 && report.issues.length === 0)\n  → proceed directly to Regex Engine (no Pass 2 needed)\nif (report.formatConfidence >= 50)\n  → route to Pass 2 Repair with relevant issue codes (task pqr0rq)\nif (report.formatConfidence < 50)\n  → route to External Retry (task le05g6)\n```\n\n### Files changed\n- `src/services/test-creation/thcs-text-validator.ts` (NEW — ~300-350 lines)\n\n### Dependencies\n- None (pure regex + heuristic logic, no AI calls, no imports beyond types)\n\n### Consumed by\n- Task `wei3uc` (Prompt Builder) — uses `IssueCode` type to select repair fragments\n- Task `pqr0rq` (Pass 2 Repair) — reads `ValidationReport.issues`\n- Task `78pz92` (Compromise) — reads `unsupportedTypes`\n- Task `le05g6` (External Retry) — triggered by `formatConfidence < 50`\n- Task `8085zl` (Integration) — calls `validateRestructuredText()` in main pipeline",
+        "implementationNotes": "## Implementation Notes\n- Created `thcs-text-validator.ts` (~390 lines)\n- 16 issue detectors: MERGED_QUESTIONS, MISSING_Q_PREFIX, OPTIONS_INLINE, NUMBERING_GAP, SECTION_NO_QUESTIONS, AMBIGUOUS_SECTION_SPLIT, MISSING_TYPE_TAG, TYPE_CONTENT_MISMATCH, MISSING_PASSAGE_BLOCK, PASSAGE_NO_PARAGRAPHS, BLANK_FORMAT_WRONG, MISSING_BRACKETS, MISSING_ARROW, WORD_BANK_NOT_TAGGED, COMPRESSED_ANSWER_KEY, MISSING_ANSWER_KEY\n- 11 unsupported types: matching, true-false, translation, matching-headings, gap-fill-open, word-ordering, picture-description, listening, speaking, essay, composition (7 can compromise, 4 skip)\n- Weighted confidence: critical -20/ea (cap 60), major -10/ea (cap 40), minor -3/ea (cap 15), bonuses for type tags + answer coverage\n- Section boundary detection via Roman numeral / Part / Section regex + [TYPE:] tag extraction\n- 29 unit tests passing\n- Zero TypeScript errors"
+      }
+    }
+  ]
+}

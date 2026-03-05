@@ -1,0 +1,441 @@
+{
+  "taskId": "h1nooy",
+  "currentVersion": 6,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "h1nooy",
+      "version": 1,
+      "timestamp": "2026-03-01T17:15:34.097Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Overview mode: grid of pills (green/red/amber) with click-to-expand",
+              "completed": false
+            },
+            {
+              "text": "Detailed mode: scrollable card list with all questions, each expandable",
+              "completed": false
+            },
+            {
+              "text": "Toggle buttons for switching between Overview and Detailed modes",
+              "completed": false
+            },
+            {
+              "text": "Writing Qs show 'Graded by {teacherName}' when gradedByName exists",
+              "completed": false
+            },
+            {
+              "text": "Model answers only shown if correctAnswer is present (not always)",
+              "completed": false
+            },
+            {
+              "text": "Backward compat: no gradedByName → omit 'Graded by' line gracefully",
+              "completed": false
+            },
+            {
+              "text": "Follows student-view-design standard (flat bg, no glass, social-feed)",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "## Implementation Plan\n\n### Current State\nResultDetailPage.tsx (567 lines) shows test results as an expandable question list. No pills view, no overview/detailed toggle. Writing questions use WritingSpeakingPlaceholder. No student-view-design compliance.\n\n### Major Changes\n\n#### 1. Add view mode toggle\n```typescript\nconst [viewMode, setViewMode] = useState<'overview' | 'detailed'>('overview');\n```\nToggle buttons in sticky header area.\n\n#### 2. Overview Mode — Pills Grid\nGrid of circular pills for each question:\n- 🟢 Green: correct (isCorrect && score > 0)\n- 🔴 Red: incorrect (score === 0)\n- 🟡 Amber: partial credit (0 < score < maxScore)\n- Click any pill → expand detail card below\n\n#### 3. Detailed Mode — Card List\nScrollable list of cards, one per question:\n- Question number, type badge\n- Student answer + correct answer comparison\n- Writing questions: full student text, correction if not full marks, \"Graded by {teacherName}\" badge\n- Model answers only if `correctAnswer` is set\n\n#### 4. Student-view-design compliance\n- Flat background (#f3f4f6), white cards, no glass\n- Social-feed 3-column layout\n- Font: Inter, proper sizing\n\n#### 5. Writing question handling\nFor questions with `gradedByName`:\n- Show \"Graded by {teacherName}\" badge\n- Show correction/feedback if not full marks\n- Show model answers only if present in answer key\n\n### Files\n- `src/pages/ResultDetailPage.tsx` — major refactor of the rendering section\n\n### Risk: Medium\nSignificant UI changes but localized to one page. Needs careful testing with both THCS and IELTS result types."
+        }
+      ],
+      "snapshot": {
+        "title": "Student UI — Pills overview + detailed mode for test results",
+        "description": "Implement student result view for THCS tests with: (1) Overview mode — grid of colored pills (green correct, red incorrect, amber partial), click to expand detail card, (2) Detailed mode — scrollable card list with all questions, expandable, (3) Toggle between modes via buttons in sticky header, (4) Writing questions show: student answer, correction if not full marks, model answers ONLY if set in answer key, \"Graded by {teacherName}\" when teacher-graded, (5) Follow student-view-design standard (flat, no glass). Files: ResultDetailPage.tsx. Must handle backward compat (no gradedByName → omit \"Graded by\" line).",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "writing-grading",
+          "ui",
+          "student"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Overview mode: grid of pills (green/red/amber) with click-to-expand",
+            "completed": false
+          },
+          {
+            "text": "Detailed mode: scrollable card list with all questions, each expandable",
+            "completed": false
+          },
+          {
+            "text": "Toggle buttons for switching between Overview and Detailed modes",
+            "completed": false
+          },
+          {
+            "text": "Writing Qs show 'Graded by {teacherName}' when gradedByName exists",
+            "completed": false
+          },
+          {
+            "text": "Model answers only shown if correctAnswer is present (not always)",
+            "completed": false
+          },
+          {
+            "text": "Backward compat: no gradedByName → omit 'Graded by' line gracefully",
+            "completed": false
+          },
+          {
+            "text": "Follows student-view-design standard (flat bg, no glass, social-feed)",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### Current State\nResultDetailPage.tsx (567 lines) shows test results as an expandable question list. No pills view, no overview/detailed toggle. Writing questions use WritingSpeakingPlaceholder. No student-view-design compliance.\n\n### Major Changes\n\n#### 1. Add view mode toggle\n```typescript\nconst [viewMode, setViewMode] = useState<'overview' | 'detailed'>('overview');\n```\nToggle buttons in sticky header area.\n\n#### 2. Overview Mode — Pills Grid\nGrid of circular pills for each question:\n- 🟢 Green: correct (isCorrect && score > 0)\n- 🔴 Red: incorrect (score === 0)\n- 🟡 Amber: partial credit (0 < score < maxScore)\n- Click any pill → expand detail card below\n\n#### 3. Detailed Mode — Card List\nScrollable list of cards, one per question:\n- Question number, type badge\n- Student answer + correct answer comparison\n- Writing questions: full student text, correction if not full marks, \"Graded by {teacherName}\" badge\n- Model answers only if `correctAnswer` is set\n\n#### 4. Student-view-design compliance\n- Flat background (#f3f4f6), white cards, no glass\n- Social-feed 3-column layout\n- Font: Inter, proper sizing\n\n#### 5. Writing question handling\nFor questions with `gradedByName`:\n- Show \"Graded by {teacherName}\" badge\n- Show correction/feedback if not full marks\n- Show model answers only if present in answer key\n\n### Files\n- `src/pages/ResultDetailPage.tsx` — major refactor of the rendering section\n\n### Risk: Medium\nSignificant UI changes but localized to one page. Needs careful testing with both THCS and IELTS result types."
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "h1nooy",
+      "version": 2,
+      "timestamp": "2026-03-01T17:20:31.745Z",
+      "changes": [
+        {
+          "field": "implementationPlan",
+          "oldValue": "## Implementation Plan\n\n### Current State\nResultDetailPage.tsx (567 lines) shows test results as an expandable question list. No pills view, no overview/detailed toggle. Writing questions use WritingSpeakingPlaceholder. No student-view-design compliance.\n\n### Major Changes\n\n#### 1. Add view mode toggle\n```typescript\nconst [viewMode, setViewMode] = useState<'overview' | 'detailed'>('overview');\n```\nToggle buttons in sticky header area.\n\n#### 2. Overview Mode — Pills Grid\nGrid of circular pills for each question:\n- 🟢 Green: correct (isCorrect && score > 0)\n- 🔴 Red: incorrect (score === 0)\n- 🟡 Amber: partial credit (0 < score < maxScore)\n- Click any pill → expand detail card below\n\n#### 3. Detailed Mode — Card List\nScrollable list of cards, one per question:\n- Question number, type badge\n- Student answer + correct answer comparison\n- Writing questions: full student text, correction if not full marks, \"Graded by {teacherName}\" badge\n- Model answers only if `correctAnswer` is set\n\n#### 4. Student-view-design compliance\n- Flat background (#f3f4f6), white cards, no glass\n- Social-feed 3-column layout\n- Font: Inter, proper sizing\n\n#### 5. Writing question handling\nFor questions with `gradedByName`:\n- Show \"Graded by {teacherName}\" badge\n- Show correction/feedback if not full marks\n- Show model answers only if present in answer key\n\n### Files\n- `src/pages/ResultDetailPage.tsx` — major refactor of the rendering section\n\n### Risk: Medium\nSignificant UI changes but localized to one page. Needs careful testing with both THCS and IELTS result types.",
+          "newValue": "## Implementation Plan (REVISED)\n\n### Guards\n- Pills view ONLY for THCS tests (testType === 'THCS-THPT' or testSkill === 'Mixed')\n- IELTS Writing keeps existing WritingResultView flow (already has 'Graded by')\n- IELTS Reading/Listening keeps existing expandable list\n\n### Component Extraction\n- Create `src/components/results/QuestionPillsGrid.tsx` — reusable pills grid\n- Create `src/components/results/QuestionDetailedList.tsx` — detailed card list\n- Both imported by ResultDetailPage, switched via viewMode toggle\n\n### Data\n- Read from permanent record `TestResultRecord.questionResults[]`\n- Writing questions identified by `questionType` containing 'sentence-rewrite'\n- Show 'Graded by {gradedByName}' only when field exists (graceful degradation)\n- Model answers: for now, show `correctAnswer` if non-empty. (modelAnswers from test content would require extra fetch — defer)\n\n### Styling\n- Follow student-view-design FLAT styling (#f3f4f6 bg, white cards, no glass)\n- NOT the 3-column social-feed layout (this is a standalone results page)\n\n### Files\n- `src/components/results/QuestionPillsGrid.tsx` — NEW\n- `src/components/results/QuestionDetailedList.tsx` — NEW\n- `src/pages/ResultDetailPage.tsx` — import + conditional render"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "2026-03-02: Plan updated per independent assessment:\n- Add test type guard: pills view ONLY for THCS (40+ questions). IELTS keeps existing WritingResultView flow.\n- Extract QuestionPillsGrid and QuestionDetailedList into separate components\n- modelAnswers gap: updateThcsWritingGrade() already writes to permanent record but doesn't store modelAnswers. Need to check if we should add modelAnswers to permanent record questionResults[] or read them from the test content instead.\n- 3-column layout does NOT apply to ResultDetailPage (standalone page). Only flat styling applies."
+        }
+      ],
+      "snapshot": {
+        "title": "Student UI — Pills overview + detailed mode for test results",
+        "description": "Implement student result view for THCS tests with: (1) Overview mode — grid of colored pills (green correct, red incorrect, amber partial), click to expand detail card, (2) Detailed mode — scrollable card list with all questions, expandable, (3) Toggle between modes via buttons in sticky header, (4) Writing questions show: student answer, correction if not full marks, model answers ONLY if set in answer key, \"Graded by {teacherName}\" when teacher-graded, (5) Follow student-view-design standard (flat, no glass). Files: ResultDetailPage.tsx. Must handle backward compat (no gradedByName → omit \"Graded by\" line).",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "writing-grading",
+          "ui",
+          "student"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Overview mode: grid of pills (green/red/amber) with click-to-expand"
+          },
+          {
+            "completed": false,
+            "text": "Detailed mode: scrollable card list with all questions, each expandable"
+          },
+          {
+            "completed": false,
+            "text": "Toggle buttons for switching between Overview and Detailed modes"
+          },
+          {
+            "completed": false,
+            "text": "Writing Qs show 'Graded by {teacherName}' when gradedByName exists"
+          },
+          {
+            "completed": false,
+            "text": "Model answers only shown if correctAnswer is present (not always)"
+          },
+          {
+            "completed": false,
+            "text": "Backward compat: no gradedByName → omit 'Graded by' line gracefully"
+          },
+          {
+            "completed": false,
+            "text": "Follows student-view-design standard (flat bg, no glass, social-feed)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan (REVISED)\n\n### Guards\n- Pills view ONLY for THCS tests (testType === 'THCS-THPT' or testSkill === 'Mixed')\n- IELTS Writing keeps existing WritingResultView flow (already has 'Graded by')\n- IELTS Reading/Listening keeps existing expandable list\n\n### Component Extraction\n- Create `src/components/results/QuestionPillsGrid.tsx` — reusable pills grid\n- Create `src/components/results/QuestionDetailedList.tsx` — detailed card list\n- Both imported by ResultDetailPage, switched via viewMode toggle\n\n### Data\n- Read from permanent record `TestResultRecord.questionResults[]`\n- Writing questions identified by `questionType` containing 'sentence-rewrite'\n- Show 'Graded by {gradedByName}' only when field exists (graceful degradation)\n- Model answers: for now, show `correctAnswer` if non-empty. (modelAnswers from test content would require extra fetch — defer)\n\n### Styling\n- Follow student-view-design FLAT styling (#f3f4f6 bg, white cards, no glass)\n- NOT the 3-column social-feed layout (this is a standalone results page)\n\n### Files\n- `src/components/results/QuestionPillsGrid.tsx` — NEW\n- `src/components/results/QuestionDetailedList.tsx` — NEW\n- `src/pages/ResultDetailPage.tsx` — import + conditional render",
+        "implementationNotes": "2026-03-02: Plan updated per independent assessment:\n- Add test type guard: pills view ONLY for THCS (40+ questions). IELTS keeps existing WritingResultView flow.\n- Extract QuestionPillsGrid and QuestionDetailedList into separate components\n- modelAnswers gap: updateThcsWritingGrade() already writes to permanent record but doesn't store modelAnswers. Need to check if we should add modelAnswers to permanent record questionResults[] or read them from the test content instead.\n- 3-column layout does NOT apply to ResultDetailPage (standalone page). Only flat styling applies."
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "h1nooy",
+      "version": 3,
+      "timestamp": "2026-03-01T17:49:01.957Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        }
+      ],
+      "snapshot": {
+        "title": "Student UI — Pills overview + detailed mode for test results",
+        "description": "Implement student result view for THCS tests with: (1) Overview mode — grid of colored pills (green correct, red incorrect, amber partial), click to expand detail card, (2) Detailed mode — scrollable card list with all questions, expandable, (3) Toggle between modes via buttons in sticky header, (4) Writing questions show: student answer, correction if not full marks, model answers ONLY if set in answer key, \"Graded by {teacherName}\" when teacher-graded, (5) Follow student-view-design standard (flat, no glass). Files: ResultDetailPage.tsx. Must handle backward compat (no gradedByName → omit \"Graded by\" line).",
+        "status": "in-progress",
+        "priority": "medium",
+        "labels": [
+          "writing-grading",
+          "ui",
+          "student"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Overview mode: grid of pills (green/red/amber) with click-to-expand"
+          },
+          {
+            "completed": false,
+            "text": "Detailed mode: scrollable card list with all questions, each expandable"
+          },
+          {
+            "completed": false,
+            "text": "Toggle buttons for switching between Overview and Detailed modes"
+          },
+          {
+            "completed": false,
+            "text": "Writing Qs show 'Graded by {teacherName}' when gradedByName exists"
+          },
+          {
+            "completed": false,
+            "text": "Model answers only shown if correctAnswer is present (not always)"
+          },
+          {
+            "completed": false,
+            "text": "Backward compat: no gradedByName → omit 'Graded by' line gracefully"
+          },
+          {
+            "completed": false,
+            "text": "Follows student-view-design standard (flat bg, no glass, social-feed)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan (REVISED)\n\n### Guards\n- Pills view ONLY for THCS tests (testType === 'THCS-THPT' or testSkill === 'Mixed')\n- IELTS Writing keeps existing WritingResultView flow (already has 'Graded by')\n- IELTS Reading/Listening keeps existing expandable list\n\n### Component Extraction\n- Create `src/components/results/QuestionPillsGrid.tsx` — reusable pills grid\n- Create `src/components/results/QuestionDetailedList.tsx` — detailed card list\n- Both imported by ResultDetailPage, switched via viewMode toggle\n\n### Data\n- Read from permanent record `TestResultRecord.questionResults[]`\n- Writing questions identified by `questionType` containing 'sentence-rewrite'\n- Show 'Graded by {gradedByName}' only when field exists (graceful degradation)\n- Model answers: for now, show `correctAnswer` if non-empty. (modelAnswers from test content would require extra fetch — defer)\n\n### Styling\n- Follow student-view-design FLAT styling (#f3f4f6 bg, white cards, no glass)\n- NOT the 3-column social-feed layout (this is a standalone results page)\n\n### Files\n- `src/components/results/QuestionPillsGrid.tsx` — NEW\n- `src/components/results/QuestionDetailedList.tsx` — NEW\n- `src/pages/ResultDetailPage.tsx` — import + conditional render",
+        "implementationNotes": "2026-03-02: Plan updated per independent assessment:\n- Add test type guard: pills view ONLY for THCS (40+ questions). IELTS keeps existing WritingResultView flow.\n- Extract QuestionPillsGrid and QuestionDetailedList into separate components\n- modelAnswers gap: updateThcsWritingGrade() already writes to permanent record but doesn't store modelAnswers. Need to check if we should add modelAnswers to permanent record questionResults[] or read them from the test content instead.\n- 3-column layout does NOT apply to ResultDetailPage (standalone page). Only flat styling applies."
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "h1nooy",
+      "version": 4,
+      "timestamp": "2026-03-01T17:54:29.190Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Overview mode: grid of pills (green/red/amber) with click-to-expand"
+            },
+            {
+              "completed": false,
+              "text": "Detailed mode: scrollable card list with all questions, each expandable"
+            },
+            {
+              "completed": false,
+              "text": "Toggle buttons for switching between Overview and Detailed modes"
+            },
+            {
+              "completed": false,
+              "text": "Writing Qs show 'Graded by {teacherName}' when gradedByName exists"
+            },
+            {
+              "completed": false,
+              "text": "Model answers only shown if correctAnswer is present (not always)"
+            },
+            {
+              "completed": false,
+              "text": "Backward compat: no gradedByName → omit 'Graded by' line gracefully"
+            },
+            {
+              "completed": false,
+              "text": "Follows student-view-design standard (flat bg, no glass, social-feed)"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Overview mode: grid of pills (green/red/amber) with click-to-expand"
+            },
+            {
+              "completed": true,
+              "text": "Detailed mode: scrollable card list with all questions, each expandable"
+            },
+            {
+              "completed": true,
+              "text": "Toggle buttons for switching between Overview and Detailed modes"
+            },
+            {
+              "completed": true,
+              "text": "Writing Qs show 'Graded by {teacherName}' when gradedByName exists"
+            },
+            {
+              "completed": true,
+              "text": "Model answers only shown if correctAnswer is present (not always)"
+            },
+            {
+              "completed": true,
+              "text": "Backward compat: no gradedByName → omit 'Graded by' line gracefully"
+            },
+            {
+              "completed": true,
+              "text": "Follows student-view-design standard (flat bg, no glass, social-feed)"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "oldValue": "2026-03-02: Plan updated per independent assessment:\n- Add test type guard: pills view ONLY for THCS (40+ questions). IELTS keeps existing WritingResultView flow.\n- Extract QuestionPillsGrid and QuestionDetailedList into separate components\n- modelAnswers gap: updateThcsWritingGrade() already writes to permanent record but doesn't store modelAnswers. Need to check if we should add modelAnswers to permanent record questionResults[] or read them from the test content instead.\n- 3-column layout does NOT apply to ResultDetailPage (standalone page). Only flat styling applies.",
+          "newValue": "2026-03-02: Plan updated per independent assessment:\n- Add test type guard: pills view ONLY for THCS (40+ questions). IELTS keeps existing WritingResultView flow.\n- Extract QuestionPillsGrid and QuestionDetailedList into separate components\n- modelAnswers gap: updateThcsWritingGrade() already writes to permanent record but doesn't store modelAnswers. Need to check if we should add modelAnswers to permanent record questionResults[] or read them from the test content instead.\n- 3-column layout does NOT apply to ResultDetailPage (standalone page). Only flat styling applies.\n\n2026-03-02: Implemented Student UI task h1nooy.\n\nCreated:\n- src/components/results/QuestionPillsGrid.tsx (Overview mode: clickable colored pills grid)\n- src/components/results/QuestionDetailedList.tsx (Detailed mode: expandable card list)\n\nRefactored:\n- ResultDetailPage.tsx: Full student-view-design compliance\n  - Replaced all gradient/glass patterns with flat #f3f4f6 bg, white cards\n  - Added student-view-root class for CSS override\n  - Added THCS detection (testType/testSkill/question count)\n  - Added view mode toggle (Overview/Detailed) for THCS only\n  - IELTS keeps existing expandable list unchanged\n  - Writing Qs show 'Graded by {teacherName}' when gradedByName exists\n  - Model answers shown when available\n  - Backward compat: graceful degradation for missing fields\n  - Buttons changed to pill-shaped per design standard\n\nBuild clean. Validation passed."
+        }
+      ],
+      "snapshot": {
+        "title": "Student UI — Pills overview + detailed mode for test results",
+        "description": "Implement student result view for THCS tests with: (1) Overview mode — grid of colored pills (green correct, red incorrect, amber partial), click to expand detail card, (2) Detailed mode — scrollable card list with all questions, expandable, (3) Toggle between modes via buttons in sticky header, (4) Writing questions show: student answer, correction if not full marks, model answers ONLY if set in answer key, \"Graded by {teacherName}\" when teacher-graded, (5) Follow student-view-design standard (flat, no glass). Files: ResultDetailPage.tsx. Must handle backward compat (no gradedByName → omit \"Graded by\" line).",
+        "status": "in-progress",
+        "priority": "medium",
+        "labels": [
+          "writing-grading",
+          "ui",
+          "student"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Overview mode: grid of pills (green/red/amber) with click-to-expand"
+          },
+          {
+            "completed": true,
+            "text": "Detailed mode: scrollable card list with all questions, each expandable"
+          },
+          {
+            "completed": true,
+            "text": "Toggle buttons for switching between Overview and Detailed modes"
+          },
+          {
+            "completed": true,
+            "text": "Writing Qs show 'Graded by {teacherName}' when gradedByName exists"
+          },
+          {
+            "completed": true,
+            "text": "Model answers only shown if correctAnswer is present (not always)"
+          },
+          {
+            "completed": true,
+            "text": "Backward compat: no gradedByName → omit 'Graded by' line gracefully"
+          },
+          {
+            "completed": true,
+            "text": "Follows student-view-design standard (flat bg, no glass, social-feed)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan (REVISED)\n\n### Guards\n- Pills view ONLY for THCS tests (testType === 'THCS-THPT' or testSkill === 'Mixed')\n- IELTS Writing keeps existing WritingResultView flow (already has 'Graded by')\n- IELTS Reading/Listening keeps existing expandable list\n\n### Component Extraction\n- Create `src/components/results/QuestionPillsGrid.tsx` — reusable pills grid\n- Create `src/components/results/QuestionDetailedList.tsx` — detailed card list\n- Both imported by ResultDetailPage, switched via viewMode toggle\n\n### Data\n- Read from permanent record `TestResultRecord.questionResults[]`\n- Writing questions identified by `questionType` containing 'sentence-rewrite'\n- Show 'Graded by {gradedByName}' only when field exists (graceful degradation)\n- Model answers: for now, show `correctAnswer` if non-empty. (modelAnswers from test content would require extra fetch — defer)\n\n### Styling\n- Follow student-view-design FLAT styling (#f3f4f6 bg, white cards, no glass)\n- NOT the 3-column social-feed layout (this is a standalone results page)\n\n### Files\n- `src/components/results/QuestionPillsGrid.tsx` — NEW\n- `src/components/results/QuestionDetailedList.tsx` — NEW\n- `src/pages/ResultDetailPage.tsx` — import + conditional render",
+        "implementationNotes": "2026-03-02: Plan updated per independent assessment:\n- Add test type guard: pills view ONLY for THCS (40+ questions). IELTS keeps existing WritingResultView flow.\n- Extract QuestionPillsGrid and QuestionDetailedList into separate components\n- modelAnswers gap: updateThcsWritingGrade() already writes to permanent record but doesn't store modelAnswers. Need to check if we should add modelAnswers to permanent record questionResults[] or read them from the test content instead.\n- 3-column layout does NOT apply to ResultDetailPage (standalone page). Only flat styling applies.\n\n2026-03-02: Implemented Student UI task h1nooy.\n\nCreated:\n- src/components/results/QuestionPillsGrid.tsx (Overview mode: clickable colored pills grid)\n- src/components/results/QuestionDetailedList.tsx (Detailed mode: expandable card list)\n\nRefactored:\n- ResultDetailPage.tsx: Full student-view-design compliance\n  - Replaced all gradient/glass patterns with flat #f3f4f6 bg, white cards\n  - Added student-view-root class for CSS override\n  - Added THCS detection (testType/testSkill/question count)\n  - Added view mode toggle (Overview/Detailed) for THCS only\n  - IELTS keeps existing expandable list unchanged\n  - Writing Qs show 'Graded by {teacherName}' when gradedByName exists\n  - Model answers shown when available\n  - Backward compat: graceful degradation for missing fields\n  - Buttons changed to pill-shaped per design standard\n\nBuild clean. Validation passed."
+      }
+    },
+    {
+      "id": "v5",
+      "taskId": "h1nooy",
+      "version": 5,
+      "timestamp": "2026-03-01T17:54:34.080Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Student UI — Pills overview + detailed mode for test results",
+        "description": "Implement student result view for THCS tests with: (1) Overview mode — grid of colored pills (green correct, red incorrect, amber partial), click to expand detail card, (2) Detailed mode — scrollable card list with all questions, expandable, (3) Toggle between modes via buttons in sticky header, (4) Writing questions show: student answer, correction if not full marks, model answers ONLY if set in answer key, \"Graded by {teacherName}\" when teacher-graded, (5) Follow student-view-design standard (flat, no glass). Files: ResultDetailPage.tsx. Must handle backward compat (no gradedByName → omit \"Graded by\" line).",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "writing-grading",
+          "ui",
+          "student"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Overview mode: grid of pills (green/red/amber) with click-to-expand"
+          },
+          {
+            "completed": true,
+            "text": "Detailed mode: scrollable card list with all questions, each expandable"
+          },
+          {
+            "completed": true,
+            "text": "Toggle buttons for switching between Overview and Detailed modes"
+          },
+          {
+            "completed": true,
+            "text": "Writing Qs show 'Graded by {teacherName}' when gradedByName exists"
+          },
+          {
+            "completed": true,
+            "text": "Model answers only shown if correctAnswer is present (not always)"
+          },
+          {
+            "completed": true,
+            "text": "Backward compat: no gradedByName → omit 'Graded by' line gracefully"
+          },
+          {
+            "completed": true,
+            "text": "Follows student-view-design standard (flat bg, no glass, social-feed)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan (REVISED)\n\n### Guards\n- Pills view ONLY for THCS tests (testType === 'THCS-THPT' or testSkill === 'Mixed')\n- IELTS Writing keeps existing WritingResultView flow (already has 'Graded by')\n- IELTS Reading/Listening keeps existing expandable list\n\n### Component Extraction\n- Create `src/components/results/QuestionPillsGrid.tsx` — reusable pills grid\n- Create `src/components/results/QuestionDetailedList.tsx` — detailed card list\n- Both imported by ResultDetailPage, switched via viewMode toggle\n\n### Data\n- Read from permanent record `TestResultRecord.questionResults[]`\n- Writing questions identified by `questionType` containing 'sentence-rewrite'\n- Show 'Graded by {gradedByName}' only when field exists (graceful degradation)\n- Model answers: for now, show `correctAnswer` if non-empty. (modelAnswers from test content would require extra fetch — defer)\n\n### Styling\n- Follow student-view-design FLAT styling (#f3f4f6 bg, white cards, no glass)\n- NOT the 3-column social-feed layout (this is a standalone results page)\n\n### Files\n- `src/components/results/QuestionPillsGrid.tsx` — NEW\n- `src/components/results/QuestionDetailedList.tsx` — NEW\n- `src/pages/ResultDetailPage.tsx` — import + conditional render",
+        "implementationNotes": "2026-03-02: Plan updated per independent assessment:\n- Add test type guard: pills view ONLY for THCS (40+ questions). IELTS keeps existing WritingResultView flow.\n- Extract QuestionPillsGrid and QuestionDetailedList into separate components\n- modelAnswers gap: updateThcsWritingGrade() already writes to permanent record but doesn't store modelAnswers. Need to check if we should add modelAnswers to permanent record questionResults[] or read them from the test content instead.\n- 3-column layout does NOT apply to ResultDetailPage (standalone page). Only flat styling applies.\n\n2026-03-02: Implemented Student UI task h1nooy.\n\nCreated:\n- src/components/results/QuestionPillsGrid.tsx (Overview mode: clickable colored pills grid)\n- src/components/results/QuestionDetailedList.tsx (Detailed mode: expandable card list)\n\nRefactored:\n- ResultDetailPage.tsx: Full student-view-design compliance\n  - Replaced all gradient/glass patterns with flat #f3f4f6 bg, white cards\n  - Added student-view-root class for CSS override\n  - Added THCS detection (testType/testSkill/question count)\n  - Added view mode toggle (Overview/Detailed) for THCS only\n  - IELTS keeps existing expandable list unchanged\n  - Writing Qs show 'Graded by {teacherName}' when gradedByName exists\n  - Model answers shown when available\n  - Backward compat: graceful degradation for missing fields\n  - Buttons changed to pill-shaped per design standard\n\nBuild clean. Validation passed."
+      }
+    },
+    {
+      "id": "v6",
+      "taskId": "h1nooy",
+      "version": 6,
+      "timestamp": "2026-03-01T18:11:13.334Z",
+      "changes": [
+        {
+          "field": "implementationNotes",
+          "oldValue": "2026-03-02: Plan updated per independent assessment:\n- Add test type guard: pills view ONLY for THCS (40+ questions). IELTS keeps existing WritingResultView flow.\n- Extract QuestionPillsGrid and QuestionDetailedList into separate components\n- modelAnswers gap: updateThcsWritingGrade() already writes to permanent record but doesn't store modelAnswers. Need to check if we should add modelAnswers to permanent record questionResults[] or read them from the test content instead.\n- 3-column layout does NOT apply to ResultDetailPage (standalone page). Only flat styling applies.\n\n2026-03-02: Implemented Student UI task h1nooy.\n\nCreated:\n- src/components/results/QuestionPillsGrid.tsx (Overview mode: clickable colored pills grid)\n- src/components/results/QuestionDetailedList.tsx (Detailed mode: expandable card list)\n\nRefactored:\n- ResultDetailPage.tsx: Full student-view-design compliance\n  - Replaced all gradient/glass patterns with flat #f3f4f6 bg, white cards\n  - Added student-view-root class for CSS override\n  - Added THCS detection (testType/testSkill/question count)\n  - Added view mode toggle (Overview/Detailed) for THCS only\n  - IELTS keeps existing expandable list unchanged\n  - Writing Qs show 'Graded by {teacherName}' when gradedByName exists\n  - Model answers shown when available\n  - Backward compat: graceful degradation for missing fields\n  - Buttons changed to pill-shaped per design standard\n\nBuild clean. Validation passed.",
+          "newValue": "2026-03-02: Plan updated per independent assessment:\n- Add test type guard: pills view ONLY for THCS (40+ questions). IELTS keeps existing WritingResultView flow.\n- Extract QuestionPillsGrid and QuestionDetailedList into separate components\n- modelAnswers gap: updateThcsWritingGrade() already writes to permanent record but doesn't store modelAnswers. Need to check if we should add modelAnswers to permanent record questionResults[] or read them from the test content instead.\n- 3-column layout does NOT apply to ResultDetailPage (standalone page). Only flat styling applies.\n\n2026-03-02: Implemented Student UI task h1nooy.\n\nCreated:\n- src/components/results/QuestionPillsGrid.tsx (Overview mode: clickable colored pills grid)\n- src/components/results/QuestionDetailedList.tsx (Detailed mode: expandable card list)\n\nRefactored:\n- ResultDetailPage.tsx: Full student-view-design compliance\n  - Replaced all gradient/glass patterns with flat #f3f4f6 bg, white cards\n  - Added student-view-root class for CSS override\n  - Added THCS detection (testType/testSkill/question count)\n  - Added view mode toggle (Overview/Detailed) for THCS only\n  - IELTS keeps existing expandable list unchanged\n  - Writing Qs show 'Graded by {teacherName}' when gradedByName exists\n  - Model answers shown when available\n  - Backward compat: graceful degradation for missing fields\n  - Buttons changed to pill-shaped per design standard\n\nBuild clean. Validation passed.\n\n📚 Extracted to @doc/patterns/pattern-thcs-result-view-toggle"
+        }
+      ],
+      "snapshot": {
+        "title": "Student UI — Pills overview + detailed mode for test results",
+        "description": "Implement student result view for THCS tests with: (1) Overview mode — grid of colored pills (green correct, red incorrect, amber partial), click to expand detail card, (2) Detailed mode — scrollable card list with all questions, expandable, (3) Toggle between modes via buttons in sticky header, (4) Writing questions show: student answer, correction if not full marks, model answers ONLY if set in answer key, \"Graded by {teacherName}\" when teacher-graded, (5) Follow student-view-design standard (flat, no glass). Files: ResultDetailPage.tsx. Must handle backward compat (no gradedByName → omit \"Graded by\" line).",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "writing-grading",
+          "ui",
+          "student"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Overview mode: grid of pills (green/red/amber) with click-to-expand"
+          },
+          {
+            "completed": true,
+            "text": "Detailed mode: scrollable card list with all questions, each expandable"
+          },
+          {
+            "completed": true,
+            "text": "Toggle buttons for switching between Overview and Detailed modes"
+          },
+          {
+            "completed": true,
+            "text": "Writing Qs show 'Graded by {teacherName}' when gradedByName exists"
+          },
+          {
+            "completed": true,
+            "text": "Model answers only shown if correctAnswer is present (not always)"
+          },
+          {
+            "completed": true,
+            "text": "Backward compat: no gradedByName → omit 'Graded by' line gracefully"
+          },
+          {
+            "completed": true,
+            "text": "Follows student-view-design standard (flat bg, no glass, social-feed)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan (REVISED)\n\n### Guards\n- Pills view ONLY for THCS tests (testType === 'THCS-THPT' or testSkill === 'Mixed')\n- IELTS Writing keeps existing WritingResultView flow (already has 'Graded by')\n- IELTS Reading/Listening keeps existing expandable list\n\n### Component Extraction\n- Create `src/components/results/QuestionPillsGrid.tsx` — reusable pills grid\n- Create `src/components/results/QuestionDetailedList.tsx` — detailed card list\n- Both imported by ResultDetailPage, switched via viewMode toggle\n\n### Data\n- Read from permanent record `TestResultRecord.questionResults[]`\n- Writing questions identified by `questionType` containing 'sentence-rewrite'\n- Show 'Graded by {gradedByName}' only when field exists (graceful degradation)\n- Model answers: for now, show `correctAnswer` if non-empty. (modelAnswers from test content would require extra fetch — defer)\n\n### Styling\n- Follow student-view-design FLAT styling (#f3f4f6 bg, white cards, no glass)\n- NOT the 3-column social-feed layout (this is a standalone results page)\n\n### Files\n- `src/components/results/QuestionPillsGrid.tsx` — NEW\n- `src/components/results/QuestionDetailedList.tsx` — NEW\n- `src/pages/ResultDetailPage.tsx` — import + conditional render",
+        "implementationNotes": "2026-03-02: Plan updated per independent assessment:\n- Add test type guard: pills view ONLY for THCS (40+ questions). IELTS keeps existing WritingResultView flow.\n- Extract QuestionPillsGrid and QuestionDetailedList into separate components\n- modelAnswers gap: updateThcsWritingGrade() already writes to permanent record but doesn't store modelAnswers. Need to check if we should add modelAnswers to permanent record questionResults[] or read them from the test content instead.\n- 3-column layout does NOT apply to ResultDetailPage (standalone page). Only flat styling applies.\n\n2026-03-02: Implemented Student UI task h1nooy.\n\nCreated:\n- src/components/results/QuestionPillsGrid.tsx (Overview mode: clickable colored pills grid)\n- src/components/results/QuestionDetailedList.tsx (Detailed mode: expandable card list)\n\nRefactored:\n- ResultDetailPage.tsx: Full student-view-design compliance\n  - Replaced all gradient/glass patterns with flat #f3f4f6 bg, white cards\n  - Added student-view-root class for CSS override\n  - Added THCS detection (testType/testSkill/question count)\n  - Added view mode toggle (Overview/Detailed) for THCS only\n  - IELTS keeps existing expandable list unchanged\n  - Writing Qs show 'Graded by {teacherName}' when gradedByName exists\n  - Model answers shown when available\n  - Backward compat: graceful degradation for missing fields\n  - Buttons changed to pill-shaped per design standard\n\nBuild clean. Validation passed.\n\n📚 Extracted to @doc/patterns/pattern-thcs-result-view-toggle"
+      }
+    }
+  ]
+}

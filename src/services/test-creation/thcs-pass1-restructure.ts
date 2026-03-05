@@ -93,9 +93,17 @@ export function parsePass1Response(response: string): Pass1Result {
     // Detect [AI-INFERRED] presence
     const hasInferredAnswers = response.includes('[AI-INFERRED]');
 
-    // Everything is the restructured text (we keep confidence + stats lines too —
-    // they'll be ignored by the regex engine which doesn't match those patterns)
-    const restructuredText = response.trim();
+    // Strip any markdown code blocks that the AI included despite instructions
+    let restructuredText = response.trim();
+    if (restructuredText.startsWith('```')) {
+        const firstNewline = restructuredText.indexOf('\n');
+        if (firstNewline !== -1) {
+            restructuredText = restructuredText.substring(firstNewline + 1);
+        }
+    }
+    if (restructuredText.endsWith('```')) {
+        restructuredText = restructuredText.substring(0, restructuredText.length - 3).trim();
+    }
 
     return {
         confidence,
@@ -143,7 +151,7 @@ function extractStats(lines: string[]): Pass1Result['stats'] {
  * Execute Pass 1 on near-raw text.
  *
  * @param nearRawText  Output of preCleanText() — not yet touched by regex
- * @param session      Retry session for call counting (circuit breaker)
+ * @param session      Retry session for call counting
  * @param callAI       Callback to call AI — receives (systemMessage, prompt) → plain text or null
  * @returns Pass1Result — always succeeds (graceful degradation)
  */
@@ -159,12 +167,6 @@ export async function executePass1(
         stats: null,
         hasInferredAnswers: false,
     };
-
-    // Circuit breaker check (shared session)
-    if (session.totalCalls >= session.maxCalls) {
-        console.warn('[Pass1] Circuit breaker — returning raw text');
-        return fallback;
-    }
 
     // Build prompt
     const prompt = buildPass1Prompt(nearRawText);

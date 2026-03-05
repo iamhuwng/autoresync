@@ -4,8 +4,53 @@
  */
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Container, Text, Alert } from '@mantine/core';
-import { useMediaQuery } from '@mantine/hooks';
+// Native polyfills replacing Mantine components (Rule #15)
+function useMediaQuery(query: string) {
+    const [matches, setMatches] = useState(false);
+    useEffect(() => {
+        const media = window.matchMedia(query);
+        if (media.matches !== matches) setMatches(media.matches);
+        const listener = () => setMatches(media.matches);
+        media.addEventListener('change', listener);
+        return () => media.removeEventListener('change', listener);
+    }, [matches, query]);
+    return matches;
+}
+
+const Container: React.FC<{ size?: 'md' | 'xl', py?: string, children: React.ReactNode }> = ({ size, children }) => (
+    <div style={{ maxWidth: size === 'xl' ? 1140 : 960, margin: '0 auto', padding: '1rem' }}>
+        {children}
+    </div>
+);
+
+const Alert: React.FC<{ color: string, variant?: string, mx?: string, mt?: string, children: React.ReactNode }> = ({ color, children }) => {
+    const bg = color === 'orange' ? 'rgba(239,68,68,0.1)' : color === 'blue' ? 'rgba(59,130,246,0.1)' : '#f8fafc';
+    const text = color === 'orange' ? '#ef4444' : color === 'blue' ? '#3b82f6' : '#334155';
+    return (
+        <div style={{ background: bg, color: text, padding: '1rem', borderRadius: '0.5rem', margin: '1rem', fontWeight: 500 }}>
+            {children}
+        </div>
+    );
+};
+
+const Text: React.FC<any> = ({ size, fw, c, mt, lineClamp, style, children, ...props }) => {
+    const fontSize = size === 'xs' ? '0.75rem' : size === 'sm' ? '0.875rem' : size === 'md' ? '1rem' : '1rem';
+    const color = c === 'dimmed' ? '#64748b' : c === 'orange' ? '#f59e0b' : c || 'inherit';
+    const mergedStyle = {
+        fontSize,
+        fontWeight: fw || 400,
+        color,
+        marginTop: mt ? (typeof mt === 'number' ? mt : '0.25rem') : undefined,
+        ...(lineClamp ? {
+            display: '-webkit-box',
+            WebkitLineClamp: lineClamp,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden'
+        } : {}),
+        ...style
+    };
+    return <div style={mergedStyle} {...props}>{children}</div>;
+};
 import { ref, set, update, onValue, runTransaction } from 'firebase/database';
 import { database } from '../../services/firebase';
 import { useAuth } from '../../hooks/useAuth';
@@ -436,7 +481,7 @@ const THCSTestLayout: React.FC<THCSTestLayoutProps> = ({ testData, sessionCode }
             });
 
             // Save result
-            await saveTestResult(
+            const resultId = await saveTestResult(
                 sessionCode,
                 testData.id,
                 user.uid,
@@ -538,6 +583,14 @@ const THCSTestLayout: React.FC<THCSTestLayoutProps> = ({ testData, sessionCode }
                     .catch(err => console.warn('Background writing grading failed:', err));
                 console.info(`[THCS] ${thcsData.pendingWritingCount} writing question(s) pending grading`);
             }
+
+            // Fire-and-forget: AI formative feedback generation (async, non-blocking)
+            import('../../services/formativeFeedback.service').then(({ generateFormativeFeedback }) => {
+                generateFormativeFeedback(gradingResult, testData.sections, {
+                    title: testData.metadata.title,
+                    gradeLevel: testData.metadata.gradeLevel || 9,
+                }, resultId).catch(err => console.warn('[THCS] Formative feedback failed:', err));
+            }).catch(err => console.warn('Failed to load formativeFeedback service:', err));
         } catch (error) {
             console.error('Submission failed:', error);
             alert('Failed to submit. Please try again.');

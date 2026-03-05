@@ -1,0 +1,21 @@
+# Template: lazy-with-retry
+name: lazy-with-retry
+description: Generate the lazyWithRetry utility for stale chunk auto-recovery in React SPAs
+version: 1.0.0
+doc: patterns/pattern-stale-chunk-auto-recovery-lazywithretry
+
+# No variables needed — this is a fixed utility file
+prompts: []
+
+# File generation actions
+actions:
+  - type: add
+    template: "lazyWithRetry.ts.hbs"
+    path: "src/utils/lazyWithRetry.ts"
+
+# Success message
+messages:
+  success: |
+    ✓ Created src/utils/lazyWithRetry.ts
+    Next: Replace all lazy(() => import(...)) calls in App.jsx with lazyWithRetry(() => import(...))
+    See @doc/patterns/pattern-stale-chunk-auto-recovery-lazywithretry for full usage.

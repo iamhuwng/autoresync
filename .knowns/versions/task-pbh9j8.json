@@ -1,0 +1,303 @@
+{
+  "taskId": "pbh9j8",
+  "currentVersion": 5,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "pbh9j8",
+      "version": 1,
+      "timestamp": "2026-03-04T21:25:55.549Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "AI explanation shown for wrong answers in review mode when no teacher explanation exists",
+              "completed": false
+            },
+            {
+              "text": "Teacher explanation shown when it exists (priority over AI)",
+              "completed": false
+            },
+            {
+              "text": "(AI-generated) label displayed when showing AI explanation",
+              "completed": false
+            },
+            {
+              "text": "No explanation shown when neither exists (unchanged behavior)",
+              "completed": false
+            },
+            {
+              "text": "aiExplanation prop received from parent via questionExplanations map",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Integrate per-question AI explanations into THCSQuestionRenderer",
+        "description": "Modify THCSQuestionRenderer.tsx to display AI-generated explanations in review mode for wrong answers. Teacher-written explanations take priority over AI. Add '(AI-generated)' label when showing AI explanation. The aiExplanation data comes from formativeFeedback.questionExplanations map, keyed by question number.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "from-spec",
+          "formative-feedback"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "AI explanation shown for wrong answers in review mode when no teacher explanation exists",
+            "completed": false
+          },
+          {
+            "text": "Teacher explanation shown when it exists (priority over AI)",
+            "completed": false
+          },
+          {
+            "text": "(AI-generated) label displayed when showing AI explanation",
+            "completed": false
+          },
+          {
+            "text": "No explanation shown when neither exists (unchanged behavior)",
+            "completed": false
+          },
+          {
+            "text": "aiExplanation prop received from parent via questionExplanations map",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "pbh9j8",
+      "version": 2,
+      "timestamp": "2026-03-04T21:32:01.773Z",
+      "changes": [
+        {
+          "field": "implementationPlan",
+          "newValue": "## Implementation Plan: Per-Question AI Explanations in THCSQuestionRenderer\n\n### File: `src/components/thcs-student/THCSQuestionRenderer.tsx` (MODIFY)\n\n### What Changes\n\n#### 1. Add new optional prop: `aiExplanation`\n```typescript\ninterface THCSQuestionRendererProps {\n    question: THCSQuestion;\n    selectedAnswer: string | string[] | null;\n    onAnswer: (answer: string | string[] | null) => void;\n    isFlagged: boolean;\n    onToggleFlag: () => void;\n    isReviewMode: boolean;\n    isCorrect?: boolean;\n    blankResults?: BlankResult[];\n    writingResult?: WritingGradingResult;\n    aiExplanation?: string; // <-- NEW: AI-generated explanation for incorrect answers\n}\n```\n\n#### 2. Display Logic (lines 260-270, after the existing explanation block)\n\nCurrent code (lines 260-270):\n```tsx\n{/* Explanation (review mode only) */}\n{isReviewMode && question.explanation?.text && (\n    <div style={{...}}>\n        <strong>💡 Explanation:</strong> {question.explanation.text}\n    </div>\n)}\n```\n\nNew logic:\n```tsx\n{/* Explanation (review mode only) */}\n{isReviewMode && question.explanation?.text && (\n    <div style={{\n        marginTop: '0.5rem', padding: '0.5rem 0.75rem',\n        background: 'rgba(59,130,246,0.06)', borderRadius: '0.375rem',\n        border: '1px solid rgba(59,130,246,0.15)',\n        fontSize: '0.875rem', color: '#1e40af',\n    }}>\n        <strong>💡 Explanation:</strong> {question.explanation.text}\n    </div>\n)}\n\n{/* AI explanation for incorrect answers (review mode only, no teacher explanation) */}\n{isReviewMode && !question.explanation?.text && aiExplanation && isCorrect === false && (\n    <div style={{\n        marginTop: '0.5rem', padding: '0.5rem 0.75rem',\n        background: 'rgba(139,92,246,0.06)', borderRadius: '0.375rem',\n        border: '1px solid rgba(139,92,246,0.15)',\n        fontSize: '0.875rem', color: '#6d28d9',\n    }}>\n        <strong>🤖 AI Explanation:</strong> {aiExplanation}\n    </div>\n)}\n```\n\n**Priority rules:**\n1. Teacher explanation (`question.explanation.text`) always wins\n2. AI explanation only shown when:\n   - `isReviewMode === true`\n   - No teacher explanation exists\n   - `aiExplanation` prop is provided\n   - `isCorrect === false` (only for wrong answers)\n\n**Visual distinction:**\n- Teacher explanation: Blue theme (rgba(59,130,246,...)), 💡 icon\n- AI explanation: Purple theme (rgba(139,92,246,...)), 🤖 icon, clearly labeled \"AI Explanation\"\n\n### Callers to Update (prop threading)\n\nThere are **8 call sites** that render `<THCSQuestionRenderer>`. They all need the new optional `aiExplanation` prop, but only the ones in review/results context need to pass it:\n\n#### Call sites that need `aiExplanation` passed:\n1. **`StudentTestResultsPage.tsx`** — review mode, has access to `formativeFeedback`\n2. **`THCSPracticeView.tsx`** — review mode after submission (in-page review before redirect)\n3. **`THCSTestLayout.tsx`** — review mode after session submission\n\n#### Call sites that DON'T need changes (optional prop, undefined = no AI explanation):\n4. **`WritingGradingDashboard.tsx`** — teacher view, not student feedback\n5. **`TestPreview.tsx`** — teacher preview, not feedback context\n\n### Prop Threading Strategy\n\nThe parent components need a `questionExplanations` map: `Record<number, string>` (keyed by questionNumber). This map is extracted from `formativeFeedback.skillAnalysis[].questionNumbers[]` cross-referenced with `formativeFeedback.aiFeedback.questionExplanations`.\n\nHelper function (can live in the parent or as a utility):\n```typescript\nfunction buildQuestionExplanationMap(feedback: FormativeFeedback | undefined): Record<number, string> {\n    if (!feedback?.aiFeedback?.questionExplanations) return {};\n    return feedback.aiFeedback.questionExplanations;\n}\n```\n\nThen each `THCSQuestionRenderer` call passes:\n```tsx\n<THCSQuestionRenderer\n    question={q}\n    {...otherProps}\n    aiExplanation={questionExplanationMap[q.questionNumber]}\n/>\n```\n\n### Files Modified\n1. `THCSQuestionRenderer.tsx` — Add prop + render logic\n2. `StudentTestResultsPage.tsx` — Thread prop (Task 1opvmj handles this)\n3. `THCSTestLayout.tsx` — Thread prop (if review mode available post-submit)\n4. `THCSPracticeView.tsx` — Thread prop (if review mode available post-submit)"
+        }
+      ],
+      "snapshot": {
+        "title": "Integrate per-question AI explanations into THCSQuestionRenderer",
+        "description": "Modify THCSQuestionRenderer.tsx to display AI-generated explanations in review mode for wrong answers. Teacher-written explanations take priority over AI. Add '(AI-generated)' label when showing AI explanation. The aiExplanation data comes from formativeFeedback.questionExplanations map, keyed by question number.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "from-spec",
+          "formative-feedback"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "AI explanation shown for wrong answers in review mode when no teacher explanation exists"
+          },
+          {
+            "completed": false,
+            "text": "Teacher explanation shown when it exists (priority over AI)"
+          },
+          {
+            "completed": false,
+            "text": "(AI-generated) label displayed when showing AI explanation"
+          },
+          {
+            "completed": false,
+            "text": "No explanation shown when neither exists (unchanged behavior)"
+          },
+          {
+            "completed": false,
+            "text": "aiExplanation prop received from parent via questionExplanations map"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan: Per-Question AI Explanations in THCSQuestionRenderer\n\n### File: `src/components/thcs-student/THCSQuestionRenderer.tsx` (MODIFY)\n\n### What Changes\n\n#### 1. Add new optional prop: `aiExplanation`\n```typescript\ninterface THCSQuestionRendererProps {\n    question: THCSQuestion;\n    selectedAnswer: string | string[] | null;\n    onAnswer: (answer: string | string[] | null) => void;\n    isFlagged: boolean;\n    onToggleFlag: () => void;\n    isReviewMode: boolean;\n    isCorrect?: boolean;\n    blankResults?: BlankResult[];\n    writingResult?: WritingGradingResult;\n    aiExplanation?: string; // <-- NEW: AI-generated explanation for incorrect answers\n}\n```\n\n#### 2. Display Logic (lines 260-270, after the existing explanation block)\n\nCurrent code (lines 260-270):\n```tsx\n{/* Explanation (review mode only) */}\n{isReviewMode && question.explanation?.text && (\n    <div style={{...}}>\n        <strong>💡 Explanation:</strong> {question.explanation.text}\n    </div>\n)}\n```\n\nNew logic:\n```tsx\n{/* Explanation (review mode only) */}\n{isReviewMode && question.explanation?.text && (\n    <div style={{\n        marginTop: '0.5rem', padding: '0.5rem 0.75rem',\n        background: 'rgba(59,130,246,0.06)', borderRadius: '0.375rem',\n        border: '1px solid rgba(59,130,246,0.15)',\n        fontSize: '0.875rem', color: '#1e40af',\n    }}>\n        <strong>💡 Explanation:</strong> {question.explanation.text}\n    </div>\n)}\n\n{/* AI explanation for incorrect answers (review mode only, no teacher explanation) */}\n{isReviewMode && !question.explanation?.text && aiExplanation && isCorrect === false && (\n    <div style={{\n        marginTop: '0.5rem', padding: '0.5rem 0.75rem',\n        background: 'rgba(139,92,246,0.06)', borderRadius: '0.375rem',\n        border: '1px solid rgba(139,92,246,0.15)',\n        fontSize: '0.875rem', color: '#6d28d9',\n    }}>\n        <strong>🤖 AI Explanation:</strong> {aiExplanation}\n    </div>\n)}\n```\n\n**Priority rules:**\n1. Teacher explanation (`question.explanation.text`) always wins\n2. AI explanation only shown when:\n   - `isReviewMode === true`\n   - No teacher explanation exists\n   - `aiExplanation` prop is provided\n   - `isCorrect === false` (only for wrong answers)\n\n**Visual distinction:**\n- Teacher explanation: Blue theme (rgba(59,130,246,...)), 💡 icon\n- AI explanation: Purple theme (rgba(139,92,246,...)), 🤖 icon, clearly labeled \"AI Explanation\"\n\n### Callers to Update (prop threading)\n\nThere are **8 call sites** that render `<THCSQuestionRenderer>`. They all need the new optional `aiExplanation` prop, but only the ones in review/results context need to pass it:\n\n#### Call sites that need `aiExplanation` passed:\n1. **`StudentTestResultsPage.tsx`** — review mode, has access to `formativeFeedback`\n2. **`THCSPracticeView.tsx`** — review mode after submission (in-page review before redirect)\n3. **`THCSTestLayout.tsx`** — review mode after session submission\n\n#### Call sites that DON'T need changes (optional prop, undefined = no AI explanation):\n4. **`WritingGradingDashboard.tsx`** — teacher view, not student feedback\n5. **`TestPreview.tsx`** — teacher preview, not feedback context\n\n### Prop Threading Strategy\n\nThe parent components need a `questionExplanations` map: `Record<number, string>` (keyed by questionNumber). This map is extracted from `formativeFeedback.skillAnalysis[].questionNumbers[]` cross-referenced with `formativeFeedback.aiFeedback.questionExplanations`.\n\nHelper function (can live in the parent or as a utility):\n```typescript\nfunction buildQuestionExplanationMap(feedback: FormativeFeedback | undefined): Record<number, string> {\n    if (!feedback?.aiFeedback?.questionExplanations) return {};\n    return feedback.aiFeedback.questionExplanations;\n}\n```\n\nThen each `THCSQuestionRenderer` call passes:\n```tsx\n<THCSQuestionRenderer\n    question={q}\n    {...otherProps}\n    aiExplanation={questionExplanationMap[q.questionNumber]}\n/>\n```\n\n### Files Modified\n1. `THCSQuestionRenderer.tsx` — Add prop + render logic\n2. `StudentTestResultsPage.tsx` — Thread prop (Task 1opvmj handles this)\n3. `THCSTestLayout.tsx` — Thread prop (if review mode available post-submit)\n4. `THCSPracticeView.tsx` — Thread prop (if review mode available post-submit)"
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "pbh9j8",
+      "version": 3,
+      "timestamp": "2026-03-04T22:07:16.839Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        }
+      ],
+      "snapshot": {
+        "title": "Integrate per-question AI explanations into THCSQuestionRenderer",
+        "description": "Modify THCSQuestionRenderer.tsx to display AI-generated explanations in review mode for wrong answers. Teacher-written explanations take priority over AI. Add '(AI-generated)' label when showing AI explanation. The aiExplanation data comes from formativeFeedback.questionExplanations map, keyed by question number.",
+        "status": "in-progress",
+        "priority": "medium",
+        "labels": [
+          "from-spec",
+          "formative-feedback"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "AI explanation shown for wrong answers in review mode when no teacher explanation exists"
+          },
+          {
+            "completed": false,
+            "text": "Teacher explanation shown when it exists (priority over AI)"
+          },
+          {
+            "completed": false,
+            "text": "(AI-generated) label displayed when showing AI explanation"
+          },
+          {
+            "completed": false,
+            "text": "No explanation shown when neither exists (unchanged behavior)"
+          },
+          {
+            "completed": false,
+            "text": "aiExplanation prop received from parent via questionExplanations map"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan: Per-Question AI Explanations in THCSQuestionRenderer\n\n### File: `src/components/thcs-student/THCSQuestionRenderer.tsx` (MODIFY)\n\n### What Changes\n\n#### 1. Add new optional prop: `aiExplanation`\n```typescript\ninterface THCSQuestionRendererProps {\n    question: THCSQuestion;\n    selectedAnswer: string | string[] | null;\n    onAnswer: (answer: string | string[] | null) => void;\n    isFlagged: boolean;\n    onToggleFlag: () => void;\n    isReviewMode: boolean;\n    isCorrect?: boolean;\n    blankResults?: BlankResult[];\n    writingResult?: WritingGradingResult;\n    aiExplanation?: string; // <-- NEW: AI-generated explanation for incorrect answers\n}\n```\n\n#### 2. Display Logic (lines 260-270, after the existing explanation block)\n\nCurrent code (lines 260-270):\n```tsx\n{/* Explanation (review mode only) */}\n{isReviewMode && question.explanation?.text && (\n    <div style={{...}}>\n        <strong>💡 Explanation:</strong> {question.explanation.text}\n    </div>\n)}\n```\n\nNew logic:\n```tsx\n{/* Explanation (review mode only) */}\n{isReviewMode && question.explanation?.text && (\n    <div style={{\n        marginTop: '0.5rem', padding: '0.5rem 0.75rem',\n        background: 'rgba(59,130,246,0.06)', borderRadius: '0.375rem',\n        border: '1px solid rgba(59,130,246,0.15)',\n        fontSize: '0.875rem', color: '#1e40af',\n    }}>\n        <strong>💡 Explanation:</strong> {question.explanation.text}\n    </div>\n)}\n\n{/* AI explanation for incorrect answers (review mode only, no teacher explanation) */}\n{isReviewMode && !question.explanation?.text && aiExplanation && isCorrect === false && (\n    <div style={{\n        marginTop: '0.5rem', padding: '0.5rem 0.75rem',\n        background: 'rgba(139,92,246,0.06)', borderRadius: '0.375rem',\n        border: '1px solid rgba(139,92,246,0.15)',\n        fontSize: '0.875rem', color: '#6d28d9',\n    }}>\n        <strong>🤖 AI Explanation:</strong> {aiExplanation}\n    </div>\n)}\n```\n\n**Priority rules:**\n1. Teacher explanation (`question.explanation.text`) always wins\n2. AI explanation only shown when:\n   - `isReviewMode === true`\n   - No teacher explanation exists\n   - `aiExplanation` prop is provided\n   - `isCorrect === false` (only for wrong answers)\n\n**Visual distinction:**\n- Teacher explanation: Blue theme (rgba(59,130,246,...)), 💡 icon\n- AI explanation: Purple theme (rgba(139,92,246,...)), 🤖 icon, clearly labeled \"AI Explanation\"\n\n### Callers to Update (prop threading)\n\nThere are **8 call sites** that render `<THCSQuestionRenderer>`. They all need the new optional `aiExplanation` prop, but only the ones in review/results context need to pass it:\n\n#### Call sites that need `aiExplanation` passed:\n1. **`StudentTestResultsPage.tsx`** — review mode, has access to `formativeFeedback`\n2. **`THCSPracticeView.tsx`** — review mode after submission (in-page review before redirect)\n3. **`THCSTestLayout.tsx`** — review mode after session submission\n\n#### Call sites that DON'T need changes (optional prop, undefined = no AI explanation):\n4. **`WritingGradingDashboard.tsx`** — teacher view, not student feedback\n5. **`TestPreview.tsx`** — teacher preview, not feedback context\n\n### Prop Threading Strategy\n\nThe parent components need a `questionExplanations` map: `Record<number, string>` (keyed by questionNumber). This map is extracted from `formativeFeedback.skillAnalysis[].questionNumbers[]` cross-referenced with `formativeFeedback.aiFeedback.questionExplanations`.\n\nHelper function (can live in the parent or as a utility):\n```typescript\nfunction buildQuestionExplanationMap(feedback: FormativeFeedback | undefined): Record<number, string> {\n    if (!feedback?.aiFeedback?.questionExplanations) return {};\n    return feedback.aiFeedback.questionExplanations;\n}\n```\n\nThen each `THCSQuestionRenderer` call passes:\n```tsx\n<THCSQuestionRenderer\n    question={q}\n    {...otherProps}\n    aiExplanation={questionExplanationMap[q.questionNumber]}\n/>\n```\n\n### Files Modified\n1. `THCSQuestionRenderer.tsx` — Add prop + render logic\n2. `StudentTestResultsPage.tsx` — Thread prop (Task 1opvmj handles this)\n3. `THCSTestLayout.tsx` — Thread prop (if review mode available post-submit)\n4. `THCSPracticeView.tsx` — Thread prop (if review mode available post-submit)"
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "pbh9j8",
+      "version": 4,
+      "timestamp": "2026-03-04T22:08:42.147Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "AI explanation shown for wrong answers in review mode when no teacher explanation exists"
+            },
+            {
+              "completed": false,
+              "text": "Teacher explanation shown when it exists (priority over AI)"
+            },
+            {
+              "completed": false,
+              "text": "(AI-generated) label displayed when showing AI explanation"
+            },
+            {
+              "completed": false,
+              "text": "No explanation shown when neither exists (unchanged behavior)"
+            },
+            {
+              "completed": false,
+              "text": "aiExplanation prop received from parent via questionExplanations map"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "AI explanation shown for wrong answers in review mode when no teacher explanation exists"
+            },
+            {
+              "completed": true,
+              "text": "Teacher explanation shown when it exists (priority over AI)"
+            },
+            {
+              "completed": true,
+              "text": "(AI-generated) label displayed when showing AI explanation"
+            },
+            {
+              "completed": true,
+              "text": "No explanation shown when neither exists (unchanged behavior)"
+            },
+            {
+              "completed": true,
+              "text": "aiExplanation prop received from parent via questionExplanations map"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Modified `src/components/thcs-student/THCSQuestionRenderer.tsx`:\n\n**Changes:**\n1. Added `aiExplanation?: string` to `THCSQuestionRendererProps` interface\n2. Added destructured `aiExplanation` in component function signature\n3. Added AI explanation render block (lines 268-281) after teacher explanation\n\n**Priority logic:**\n- Teacher explanation (`question.explanation?.text`) always renders first\n- AI explanation renders ONLY when ALL of:\n  - `isReviewMode === true`\n  - No teacher explanation exists (`!question.explanation?.text`)\n  - `aiExplanation` prop provided\n  - `_isCorrect === false` (wrong answers only)\n\n**Visual distinction:**\n- Teacher: blue theme (rgba(59,130,246,...)) with 💡 icon\n- AI: purple theme (rgba(139,92,246,...)) with 🤖 icon + \"(AI-generated)\" label\n\n**Backward compatibility:**\n- `aiExplanation` is optional — all 8 existing call sites compile without it\n- Prop threading to be done in task 1opvmj (integration into StudentTestResultsPage)\n\n**TypeScript compilation verified** — no new errors."
+        }
+      ],
+      "snapshot": {
+        "title": "Integrate per-question AI explanations into THCSQuestionRenderer",
+        "description": "Modify THCSQuestionRenderer.tsx to display AI-generated explanations in review mode for wrong answers. Teacher-written explanations take priority over AI. Add '(AI-generated)' label when showing AI explanation. The aiExplanation data comes from formativeFeedback.questionExplanations map, keyed by question number.",
+        "status": "in-progress",
+        "priority": "medium",
+        "labels": [
+          "from-spec",
+          "formative-feedback"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "AI explanation shown for wrong answers in review mode when no teacher explanation exists"
+          },
+          {
+            "completed": true,
+            "text": "Teacher explanation shown when it exists (priority over AI)"
+          },
+          {
+            "completed": true,
+            "text": "(AI-generated) label displayed when showing AI explanation"
+          },
+          {
+            "completed": true,
+            "text": "No explanation shown when neither exists (unchanged behavior)"
+          },
+          {
+            "completed": true,
+            "text": "aiExplanation prop received from parent via questionExplanations map"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan: Per-Question AI Explanations in THCSQuestionRenderer\n\n### File: `src/components/thcs-student/THCSQuestionRenderer.tsx` (MODIFY)\n\n### What Changes\n\n#### 1. Add new optional prop: `aiExplanation`\n```typescript\ninterface THCSQuestionRendererProps {\n    question: THCSQuestion;\n    selectedAnswer: string | string[] | null;\n    onAnswer: (answer: string | string[] | null) => void;\n    isFlagged: boolean;\n    onToggleFlag: () => void;\n    isReviewMode: boolean;\n    isCorrect?: boolean;\n    blankResults?: BlankResult[];\n    writingResult?: WritingGradingResult;\n    aiExplanation?: string; // <-- NEW: AI-generated explanation for incorrect answers\n}\n```\n\n#### 2. Display Logic (lines 260-270, after the existing explanation block)\n\nCurrent code (lines 260-270):\n```tsx\n{/* Explanation (review mode only) */}\n{isReviewMode && question.explanation?.text && (\n    <div style={{...}}>\n        <strong>💡 Explanation:</strong> {question.explanation.text}\n    </div>\n)}\n```\n\nNew logic:\n```tsx\n{/* Explanation (review mode only) */}\n{isReviewMode && question.explanation?.text && (\n    <div style={{\n        marginTop: '0.5rem', padding: '0.5rem 0.75rem',\n        background: 'rgba(59,130,246,0.06)', borderRadius: '0.375rem',\n        border: '1px solid rgba(59,130,246,0.15)',\n        fontSize: '0.875rem', color: '#1e40af',\n    }}>\n        <strong>💡 Explanation:</strong> {question.explanation.text}\n    </div>\n)}\n\n{/* AI explanation for incorrect answers (review mode only, no teacher explanation) */}\n{isReviewMode && !question.explanation?.text && aiExplanation && isCorrect === false && (\n    <div style={{\n        marginTop: '0.5rem', padding: '0.5rem 0.75rem',\n        background: 'rgba(139,92,246,0.06)', borderRadius: '0.375rem',\n        border: '1px solid rgba(139,92,246,0.15)',\n        fontSize: '0.875rem', color: '#6d28d9',\n    }}>\n        <strong>🤖 AI Explanation:</strong> {aiExplanation}\n    </div>\n)}\n```\n\n**Priority rules:**\n1. Teacher explanation (`question.explanation.text`) always wins\n2. AI explanation only shown when:\n   - `isReviewMode === true`\n   - No teacher explanation exists\n   - `aiExplanation` prop is provided\n   - `isCorrect === false` (only for wrong answers)\n\n**Visual distinction:**\n- Teacher explanation: Blue theme (rgba(59,130,246,...)), 💡 icon\n- AI explanation: Purple theme (rgba(139,92,246,...)), 🤖 icon, clearly labeled \"AI Explanation\"\n\n### Callers to Update (prop threading)\n\nThere are **8 call sites** that render `<THCSQuestionRenderer>`. They all need the new optional `aiExplanation` prop, but only the ones in review/results context need to pass it:\n\n#### Call sites that need `aiExplanation` passed:\n1. **`StudentTestResultsPage.tsx`** — review mode, has access to `formativeFeedback`\n2. **`THCSPracticeView.tsx`** — review mode after submission (in-page review before redirect)\n3. **`THCSTestLayout.tsx`** — review mode after session submission\n\n#### Call sites that DON'T need changes (optional prop, undefined = no AI explanation):\n4. **`WritingGradingDashboard.tsx`** — teacher view, not student feedback\n5. **`TestPreview.tsx`** — teacher preview, not feedback context\n\n### Prop Threading Strategy\n\nThe parent components need a `questionExplanations` map: `Record<number, string>` (keyed by questionNumber). This map is extracted from `formativeFeedback.skillAnalysis[].questionNumbers[]` cross-referenced with `formativeFeedback.aiFeedback.questionExplanations`.\n\nHelper function (can live in the parent or as a utility):\n```typescript\nfunction buildQuestionExplanationMap(feedback: FormativeFeedback | undefined): Record<number, string> {\n    if (!feedback?.aiFeedback?.questionExplanations) return {};\n    return feedback.aiFeedback.questionExplanations;\n}\n```\n\nThen each `THCSQuestionRenderer` call passes:\n```tsx\n<THCSQuestionRenderer\n    question={q}\n    {...otherProps}\n    aiExplanation={questionExplanationMap[q.questionNumber]}\n/>\n```\n\n### Files Modified\n1. `THCSQuestionRenderer.tsx` — Add prop + render logic\n2. `StudentTestResultsPage.tsx` — Thread prop (Task 1opvmj handles this)\n3. `THCSTestLayout.tsx` — Thread prop (if review mode available post-submit)\n4. `THCSPracticeView.tsx` — Thread prop (if review mode available post-submit)",
+        "implementationNotes": "Modified `src/components/thcs-student/THCSQuestionRenderer.tsx`:\n\n**Changes:**\n1. Added `aiExplanation?: string` to `THCSQuestionRendererProps` interface\n2. Added destructured `aiExplanation` in component function signature\n3. Added AI explanation render block (lines 268-281) after teacher explanation\n\n**Priority logic:**\n- Teacher explanation (`question.explanation?.text`) always renders first\n- AI explanation renders ONLY when ALL of:\n  - `isReviewMode === true`\n  - No teacher explanation exists (`!question.explanation?.text`)\n  - `aiExplanation` prop provided\n  - `_isCorrect === false` (wrong answers only)\n\n**Visual distinction:**\n- Teacher: blue theme (rgba(59,130,246,...)) with 💡 icon\n- AI: purple theme (rgba(139,92,246,...)) with 🤖 icon + \"(AI-generated)\" label\n\n**Backward compatibility:**\n- `aiExplanation` is optional — all 8 existing call sites compile without it\n- Prop threading to be done in task 1opvmj (integration into StudentTestResultsPage)\n\n**TypeScript compilation verified** — no new errors."
+      }
+    },
+    {
+      "id": "v5",
+      "taskId": "pbh9j8",
+      "version": 5,
+      "timestamp": "2026-03-04T22:08:50.671Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Integrate per-question AI explanations into THCSQuestionRenderer",
+        "description": "Modify THCSQuestionRenderer.tsx to display AI-generated explanations in review mode for wrong answers. Teacher-written explanations take priority over AI. Add '(AI-generated)' label when showing AI explanation. The aiExplanation data comes from formativeFeedback.questionExplanations map, keyed by question number.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "from-spec",
+          "formative-feedback"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "AI explanation shown for wrong answers in review mode when no teacher explanation exists"
+          },
+          {
+            "completed": true,
+            "text": "Teacher explanation shown when it exists (priority over AI)"
+          },
+          {
+            "completed": true,
+            "text": "(AI-generated) label displayed when showing AI explanation"
+          },
+          {
+            "completed": true,
+            "text": "No explanation shown when neither exists (unchanged behavior)"
+          },
+          {
+            "completed": true,
+            "text": "aiExplanation prop received from parent via questionExplanations map"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan: Per-Question AI Explanations in THCSQuestionRenderer\n\n### File: `src/components/thcs-student/THCSQuestionRenderer.tsx` (MODIFY)\n\n### What Changes\n\n#### 1. Add new optional prop: `aiExplanation`\n```typescript\ninterface THCSQuestionRendererProps {\n    question: THCSQuestion;\n    selectedAnswer: string | string[] | null;\n    onAnswer: (answer: string | string[] | null) => void;\n    isFlagged: boolean;\n    onToggleFlag: () => void;\n    isReviewMode: boolean;\n    isCorrect?: boolean;\n    blankResults?: BlankResult[];\n    writingResult?: WritingGradingResult;\n    aiExplanation?: string; // <-- NEW: AI-generated explanation for incorrect answers\n}\n```\n\n#### 2. Display Logic (lines 260-270, after the existing explanation block)\n\nCurrent code (lines 260-270):\n```tsx\n{/* Explanation (review mode only) */}\n{isReviewMode && question.explanation?.text && (\n    <div style={{...}}>\n        <strong>💡 Explanation:</strong> {question.explanation.text}\n    </div>\n)}\n```\n\nNew logic:\n```tsx\n{/* Explanation (review mode only) */}\n{isReviewMode && question.explanation?.text && (\n    <div style={{\n        marginTop: '0.5rem', padding: '0.5rem 0.75rem',\n        background: 'rgba(59,130,246,0.06)', borderRadius: '0.375rem',\n        border: '1px solid rgba(59,130,246,0.15)',\n        fontSize: '0.875rem', color: '#1e40af',\n    }}>\n        <strong>💡 Explanation:</strong> {question.explanation.text}\n    </div>\n)}\n\n{/* AI explanation for incorrect answers (review mode only, no teacher explanation) */}\n{isReviewMode && !question.explanation?.text && aiExplanation && isCorrect === false && (\n    <div style={{\n        marginTop: '0.5rem', padding: '0.5rem 0.75rem',\n        background: 'rgba(139,92,246,0.06)', borderRadius: '0.375rem',\n        border: '1px solid rgba(139,92,246,0.15)',\n        fontSize: '0.875rem', color: '#6d28d9',\n    }}>\n        <strong>🤖 AI Explanation:</strong> {aiExplanation}\n    </div>\n)}\n```\n\n**Priority rules:**\n1. Teacher explanation (`question.explanation.text`) always wins\n2. AI explanation only shown when:\n   - `isReviewMode === true`\n   - No teacher explanation exists\n   - `aiExplanation` prop is provided\n   - `isCorrect === false` (only for wrong answers)\n\n**Visual distinction:**\n- Teacher explanation: Blue theme (rgba(59,130,246,...)), 💡 icon\n- AI explanation: Purple theme (rgba(139,92,246,...)), 🤖 icon, clearly labeled \"AI Explanation\"\n\n### Callers to Update (prop threading)\n\nThere are **8 call sites** that render `<THCSQuestionRenderer>`. They all need the new optional `aiExplanation` prop, but only the ones in review/results context need to pass it:\n\n#### Call sites that need `aiExplanation` passed:\n1. **`StudentTestResultsPage.tsx`** — review mode, has access to `formativeFeedback`\n2. **`THCSPracticeView.tsx`** — review mode after submission (in-page review before redirect)\n3. **`THCSTestLayout.tsx`** — review mode after session submission\n\n#### Call sites that DON'T need changes (optional prop, undefined = no AI explanation):\n4. **`WritingGradingDashboard.tsx`** — teacher view, not student feedback\n5. **`TestPreview.tsx`** — teacher preview, not feedback context\n\n### Prop Threading Strategy\n\nThe parent components need a `questionExplanations` map: `Record<number, string>` (keyed by questionNumber). This map is extracted from `formativeFeedback.skillAnalysis[].questionNumbers[]` cross-referenced with `formativeFeedback.aiFeedback.questionExplanations`.\n\nHelper function (can live in the parent or as a utility):\n```typescript\nfunction buildQuestionExplanationMap(feedback: FormativeFeedback | undefined): Record<number, string> {\n    if (!feedback?.aiFeedback?.questionExplanations) return {};\n    return feedback.aiFeedback.questionExplanations;\n}\n```\n\nThen each `THCSQuestionRenderer` call passes:\n```tsx\n<THCSQuestionRenderer\n    question={q}\n    {...otherProps}\n    aiExplanation={questionExplanationMap[q.questionNumber]}\n/>\n```\n\n### Files Modified\n1. `THCSQuestionRenderer.tsx` — Add prop + render logic\n2. `StudentTestResultsPage.tsx` — Thread prop (Task 1opvmj handles this)\n3. `THCSTestLayout.tsx` — Thread prop (if review mode available post-submit)\n4. `THCSPracticeView.tsx` — Thread prop (if review mode available post-submit)",
+        "implementationNotes": "Modified `src/components/thcs-student/THCSQuestionRenderer.tsx`:\n\n**Changes:**\n1. Added `aiExplanation?: string` to `THCSQuestionRendererProps` interface\n2. Added destructured `aiExplanation` in component function signature\n3. Added AI explanation render block (lines 268-281) after teacher explanation\n\n**Priority logic:**\n- Teacher explanation (`question.explanation?.text`) always renders first\n- AI explanation renders ONLY when ALL of:\n  - `isReviewMode === true`\n  - No teacher explanation exists (`!question.explanation?.text`)\n  - `aiExplanation` prop provided\n  - `_isCorrect === false` (wrong answers only)\n\n**Visual distinction:**\n- Teacher: blue theme (rgba(59,130,246,...)) with 💡 icon\n- AI: purple theme (rgba(139,92,246,...)) with 🤖 icon + \"(AI-generated)\" label\n\n**Backward compatibility:**\n- `aiExplanation` is optional — all 8 existing call sites compile without it\n- Prop threading to be done in task 1opvmj (integration into StudentTestResultsPage)\n\n**TypeScript compilation verified** — no new errors."
+      }
+    }
+  ]
+}

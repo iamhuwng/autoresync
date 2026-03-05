@@ -1,0 +1,326 @@
+{
+  "taskId": "3az3ao",
+  "currentVersion": 4,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "3az3ao",
+      "version": 1,
+      "timestamp": "2026-03-01T17:01:36.755Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        },
+        {
+          "field": "assignee",
+          "newValue": "@me"
+        }
+      ],
+      "snapshot": {
+        "title": "Service — Create updateThcsWritingGrade() for permanent records",
+        "description": "Create `updateThcsWritingGrade()` in testResults.service.ts. This function: (1) finds the permanent TestResultRecord for student+session, (2) updates the specific writing question's score/isCorrect/gradedBy fields, (3) recalculates totalScore and percentage across ALL questions, (4) counts remaining ungraded writing Qs and updates markingStatus accordingly (0 left → fully-graded).",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "writing-grading",
+          "service"
+        ],
+        "acceptanceCriteria": []
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "3az3ao",
+      "version": 2,
+      "timestamp": "2026-03-01T17:02:47.594Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "New exported function `updateThcsWritingGrade()` exists in testResults.service.ts",
+              "completed": false
+            },
+            {
+              "text": "Function finds permanent record by sessionCode+studentId via test_results_by_session index",
+              "completed": false
+            },
+            {
+              "text": "Function updates specific question's score, isCorrect, feedback, gradedByName, gradedByUid, gradedAt",
+              "completed": false
+            },
+            {
+              "text": "Function recalculates totalScore, percentage, correct/incorrect/partialCredit counts across ALL questions",
+              "completed": false
+            },
+            {
+              "text": "Function updates markingStatus: 'pending-review' if ungraded writing remains, 'reviewed' if all writing graded",
+              "completed": false
+            },
+            {
+              "text": "Function updates the updatedAt timestamp",
+              "completed": false
+            },
+            {
+              "text": "No side effects outside the permanent record (RTDB write handled separately by caller)",
+              "completed": false
+            },
+            {
+              "text": "Build succeeds with no new TypeScript errors",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "## Implementation Plan\n\n### Context\nNeed a function that updates a single writing question's grade in the permanent `test_results/{resultId}` record and recalculates aggregate scores.\n\n### Data flow\n```\nCaller passes: sessionCode, studentId, questionNumber, grade object\n    │\n    ├─ 1. Look up resultId from `test_results_by_session/{sessionCode}` index\n    │     → filter by studentId to find the right result\n    │\n    ├─ 2. Read full record from `test_results/{resultId}`\n    │\n    ├─ 3. Find the question in questionResults[] by questionNumber\n    │     → Update: score, isCorrect (score >= maxScore), teacherFeedback, \n    │               gradedByName, gradedByUid, gradedAt\n    │\n    ├─ 4. Recalculate aggregates across ALL questions:\n    │     → totalScore = sum of all question scores\n    │     → percentage = (totalScore / maxScore) * 100\n    │     → correct = count where isCorrect && score > 0\n    │     → incorrect = count where !isCorrect && score === 0\n    │     → partialCredit = count where score > 0 && score < maxScore\n    │\n    ├─ 5. Check markingStatus:\n    │     → count writing questions still ungraded (no gradedAt && type has 'writing')\n    │     → if 0 ungraded writing left → markingStatus = 'reviewed'\n    │     → else → keep 'pending-review'\n    │\n    └─ 6. Write updated record back via `update()`\n```\n\n### Function signature\n```typescript\nexport async function updateThcsWritingGrade(\n  sessionCode: string,\n  studentId: string,\n  questionNumber: number,\n  grade: {\n    score: number;\n    maxScore: number;\n    feedback: string;\n    teacherName: string;\n    teacherUid: string;\n  }\n): Promise<void>\n```\n\n### Location\nAppend to end of `testResults.service.ts` (after `saveGuestTestResult`, line ~945).\n\n### Imports needed\nNone new — `ref`, `get`, `update` already imported from firebase/database.\n\n### Risk\nMedium — modifying permanent records. Function must handle:\n- Result not found → throw descriptive error\n- Question not found in array → throw error\n- Writing question detection → check questionType includes 'sentence-rewrite'"
+        }
+      ],
+      "snapshot": {
+        "title": "Service — Create updateThcsWritingGrade() for permanent records",
+        "description": "Create `updateThcsWritingGrade()` in testResults.service.ts. This function: (1) finds the permanent TestResultRecord for student+session, (2) updates the specific writing question's score/isCorrect/gradedBy fields, (3) recalculates totalScore and percentage across ALL questions, (4) counts remaining ungraded writing Qs and updates markingStatus accordingly (0 left → fully-graded).",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "writing-grading",
+          "service"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "New exported function `updateThcsWritingGrade()` exists in testResults.service.ts",
+            "completed": false
+          },
+          {
+            "text": "Function finds permanent record by sessionCode+studentId via test_results_by_session index",
+            "completed": false
+          },
+          {
+            "text": "Function updates specific question's score, isCorrect, feedback, gradedByName, gradedByUid, gradedAt",
+            "completed": false
+          },
+          {
+            "text": "Function recalculates totalScore, percentage, correct/incorrect/partialCredit counts across ALL questions",
+            "completed": false
+          },
+          {
+            "text": "Function updates markingStatus: 'pending-review' if ungraded writing remains, 'reviewed' if all writing graded",
+            "completed": false
+          },
+          {
+            "text": "Function updates the updatedAt timestamp",
+            "completed": false
+          },
+          {
+            "text": "No side effects outside the permanent record (RTDB write handled separately by caller)",
+            "completed": false
+          },
+          {
+            "text": "Build succeeds with no new TypeScript errors",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### Context\nNeed a function that updates a single writing question's grade in the permanent `test_results/{resultId}` record and recalculates aggregate scores.\n\n### Data flow\n```\nCaller passes: sessionCode, studentId, questionNumber, grade object\n    │\n    ├─ 1. Look up resultId from `test_results_by_session/{sessionCode}` index\n    │     → filter by studentId to find the right result\n    │\n    ├─ 2. Read full record from `test_results/{resultId}`\n    │\n    ├─ 3. Find the question in questionResults[] by questionNumber\n    │     → Update: score, isCorrect (score >= maxScore), teacherFeedback, \n    │               gradedByName, gradedByUid, gradedAt\n    │\n    ├─ 4. Recalculate aggregates across ALL questions:\n    │     → totalScore = sum of all question scores\n    │     → percentage = (totalScore / maxScore) * 100\n    │     → correct = count where isCorrect && score > 0\n    │     → incorrect = count where !isCorrect && score === 0\n    │     → partialCredit = count where score > 0 && score < maxScore\n    │\n    ├─ 5. Check markingStatus:\n    │     → count writing questions still ungraded (no gradedAt && type has 'writing')\n    │     → if 0 ungraded writing left → markingStatus = 'reviewed'\n    │     → else → keep 'pending-review'\n    │\n    └─ 6. Write updated record back via `update()`\n```\n\n### Function signature\n```typescript\nexport async function updateThcsWritingGrade(\n  sessionCode: string,\n  studentId: string,\n  questionNumber: number,\n  grade: {\n    score: number;\n    maxScore: number;\n    feedback: string;\n    teacherName: string;\n    teacherUid: string;\n  }\n): Promise<void>\n```\n\n### Location\nAppend to end of `testResults.service.ts` (after `saveGuestTestResult`, line ~945).\n\n### Imports needed\nNone new — `ref`, `get`, `update` already imported from firebase/database.\n\n### Risk\nMedium — modifying permanent records. Function must handle:\n- Result not found → throw descriptive error\n- Question not found in array → throw error\n- Writing question detection → check questionType includes 'sentence-rewrite'"
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "3az3ao",
+      "version": 3,
+      "timestamp": "2026-03-01T17:04:50.040Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "New exported function `updateThcsWritingGrade()` exists in testResults.service.ts"
+            },
+            {
+              "completed": false,
+              "text": "Function finds permanent record by sessionCode+studentId via test_results_by_session index"
+            },
+            {
+              "completed": false,
+              "text": "Function updates specific question's score, isCorrect, feedback, gradedByName, gradedByUid, gradedAt"
+            },
+            {
+              "completed": false,
+              "text": "Function recalculates totalScore, percentage, correct/incorrect/partialCredit counts across ALL questions"
+            },
+            {
+              "completed": false,
+              "text": "Function updates markingStatus: 'pending-review' if ungraded writing remains, 'reviewed' if all writing graded"
+            },
+            {
+              "completed": false,
+              "text": "Function updates the updatedAt timestamp"
+            },
+            {
+              "completed": false,
+              "text": "No side effects outside the permanent record (RTDB write handled separately by caller)"
+            },
+            {
+              "completed": false,
+              "text": "Build succeeds with no new TypeScript errors"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "New exported function `updateThcsWritingGrade()` exists in testResults.service.ts"
+            },
+            {
+              "completed": true,
+              "text": "Function finds permanent record by sessionCode+studentId via test_results_by_session index"
+            },
+            {
+              "completed": true,
+              "text": "Function updates specific question's score, isCorrect, feedback, gradedByName, gradedByUid, gradedAt"
+            },
+            {
+              "completed": true,
+              "text": "Function recalculates totalScore, percentage, correct/incorrect/partialCredit counts across ALL questions"
+            },
+            {
+              "completed": true,
+              "text": "Function updates markingStatus: 'pending-review' if ungraded writing remains, 'reviewed' if all writing graded"
+            },
+            {
+              "completed": true,
+              "text": "Function updates the updatedAt timestamp"
+            },
+            {
+              "completed": true,
+              "text": "No side effects outside the permanent record (RTDB write handled separately by caller)"
+            },
+            {
+              "completed": true,
+              "text": "Build succeeds with no new TypeScript errors"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Implemented 2026-03-02:\n- Added updateThcsWritingGrade() at end of testResults.service.ts (~line 948-1098)\n- Finds record via test_results_by_session index, filters by studentId\n- Updates question score/isCorrect/feedback/gradedBy fields explicitly (no spread to avoid TS issues)\n- Recalculates totalScore, percentage, correct/incorrect/partialCredit, bandScore\n- Transitions markingStatus: 'reviewed' when all writing Qs graded, else 'pending-review'\n- Writing types detected: 'sentence-rewrite', 'sentence-rewrite-keyword'\n- Build verified: no new TS errors in this file"
+        }
+      ],
+      "snapshot": {
+        "title": "Service — Create updateThcsWritingGrade() for permanent records",
+        "description": "Create `updateThcsWritingGrade()` in testResults.service.ts. This function: (1) finds the permanent TestResultRecord for student+session, (2) updates the specific writing question's score/isCorrect/gradedBy fields, (3) recalculates totalScore and percentage across ALL questions, (4) counts remaining ungraded writing Qs and updates markingStatus accordingly (0 left → fully-graded).",
+        "status": "done",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "writing-grading",
+          "service"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "New exported function `updateThcsWritingGrade()` exists in testResults.service.ts"
+          },
+          {
+            "completed": true,
+            "text": "Function finds permanent record by sessionCode+studentId via test_results_by_session index"
+          },
+          {
+            "completed": true,
+            "text": "Function updates specific question's score, isCorrect, feedback, gradedByName, gradedByUid, gradedAt"
+          },
+          {
+            "completed": true,
+            "text": "Function recalculates totalScore, percentage, correct/incorrect/partialCredit counts across ALL questions"
+          },
+          {
+            "completed": true,
+            "text": "Function updates markingStatus: 'pending-review' if ungraded writing remains, 'reviewed' if all writing graded"
+          },
+          {
+            "completed": true,
+            "text": "Function updates the updatedAt timestamp"
+          },
+          {
+            "completed": true,
+            "text": "No side effects outside the permanent record (RTDB write handled separately by caller)"
+          },
+          {
+            "completed": true,
+            "text": "Build succeeds with no new TypeScript errors"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### Context\nNeed a function that updates a single writing question's grade in the permanent `test_results/{resultId}` record and recalculates aggregate scores.\n\n### Data flow\n```\nCaller passes: sessionCode, studentId, questionNumber, grade object\n    │\n    ├─ 1. Look up resultId from `test_results_by_session/{sessionCode}` index\n    │     → filter by studentId to find the right result\n    │\n    ├─ 2. Read full record from `test_results/{resultId}`\n    │\n    ├─ 3. Find the question in questionResults[] by questionNumber\n    │     → Update: score, isCorrect (score >= maxScore), teacherFeedback, \n    │               gradedByName, gradedByUid, gradedAt\n    │\n    ├─ 4. Recalculate aggregates across ALL questions:\n    │     → totalScore = sum of all question scores\n    │     → percentage = (totalScore / maxScore) * 100\n    │     → correct = count where isCorrect && score > 0\n    │     → incorrect = count where !isCorrect && score === 0\n    │     → partialCredit = count where score > 0 && score < maxScore\n    │\n    ├─ 5. Check markingStatus:\n    │     → count writing questions still ungraded (no gradedAt && type has 'writing')\n    │     → if 0 ungraded writing left → markingStatus = 'reviewed'\n    │     → else → keep 'pending-review'\n    │\n    └─ 6. Write updated record back via `update()`\n```\n\n### Function signature\n```typescript\nexport async function updateThcsWritingGrade(\n  sessionCode: string,\n  studentId: string,\n  questionNumber: number,\n  grade: {\n    score: number;\n    maxScore: number;\n    feedback: string;\n    teacherName: string;\n    teacherUid: string;\n  }\n): Promise<void>\n```\n\n### Location\nAppend to end of `testResults.service.ts` (after `saveGuestTestResult`, line ~945).\n\n### Imports needed\nNone new — `ref`, `get`, `update` already imported from firebase/database.\n\n### Risk\nMedium — modifying permanent records. Function must handle:\n- Result not found → throw descriptive error\n- Question not found in array → throw error\n- Writing question detection → check questionType includes 'sentence-rewrite'",
+        "implementationNotes": "Implemented 2026-03-02:\n- Added updateThcsWritingGrade() at end of testResults.service.ts (~line 948-1098)\n- Finds record via test_results_by_session index, filters by studentId\n- Updates question score/isCorrect/feedback/gradedBy fields explicitly (no spread to avoid TS issues)\n- Recalculates totalScore, percentage, correct/incorrect/partialCredit, bandScore\n- Transitions markingStatus: 'reviewed' when all writing Qs graded, else 'pending-review'\n- Writing types detected: 'sentence-rewrite', 'sentence-rewrite-keyword'\n- Build verified: no new TS errors in this file"
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "3az3ao",
+      "version": 4,
+      "timestamp": "2026-03-01T17:34:07.868Z",
+      "changes": [
+        {
+          "field": "implementationNotes",
+          "oldValue": "Implemented 2026-03-02:\n- Added updateThcsWritingGrade() at end of testResults.service.ts (~line 948-1098)\n- Finds record via test_results_by_session index, filters by studentId\n- Updates question score/isCorrect/feedback/gradedBy fields explicitly (no spread to avoid TS issues)\n- Recalculates totalScore, percentage, correct/incorrect/partialCredit, bandScore\n- Transitions markingStatus: 'reviewed' when all writing Qs graded, else 'pending-review'\n- Writing types detected: 'sentence-rewrite', 'sentence-rewrite-keyword'\n- Build verified: no new TS errors in this file",
+          "newValue": "Implemented 2026-03-02:\n- Added updateThcsWritingGrade() at end of testResults.service.ts (~line 948-1098)\n- Finds record via test_results_by_session index, filters by studentId\n- Updates question score/isCorrect/feedback/gradedBy fields explicitly (no spread to avoid TS issues)\n- Recalculates totalScore, percentage, correct/incorrect/partialCredit, bandScore\n- Transitions markingStatus: 'reviewed' when all writing Qs graded, else 'pending-review'\n- Writing types detected: 'sentence-rewrite', 'sentence-rewrite-keyword'\n- Build verified: no new TS errors in this file\n\n2026-03-02: HOTFIX — Fixed critical bug: WRITING_TYPES was ['sentence-rewrite', 'sentence-rewrite-keyword'] but permanent record stores questionType as 'writing' (mapped via mapQuestionType). Changed to ['writing']. Also added modelAnswers and originalSentence persistence to permanent record via thcsResultToTestMarkingResult mapping."
+        }
+      ],
+      "snapshot": {
+        "title": "Service — Create updateThcsWritingGrade() for permanent records",
+        "description": "Create `updateThcsWritingGrade()` in testResults.service.ts. This function: (1) finds the permanent TestResultRecord for student+session, (2) updates the specific writing question's score/isCorrect/gradedBy fields, (3) recalculates totalScore and percentage across ALL questions, (4) counts remaining ungraded writing Qs and updates markingStatus accordingly (0 left → fully-graded).",
+        "status": "done",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "writing-grading",
+          "service"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "New exported function `updateThcsWritingGrade()` exists in testResults.service.ts"
+          },
+          {
+            "completed": true,
+            "text": "Function finds permanent record by sessionCode+studentId via test_results_by_session index"
+          },
+          {
+            "completed": true,
+            "text": "Function updates specific question's score, isCorrect, feedback, gradedByName, gradedByUid, gradedAt"
+          },
+          {
+            "completed": true,
+            "text": "Function recalculates totalScore, percentage, correct/incorrect/partialCredit counts across ALL questions"
+          },
+          {
+            "completed": true,
+            "text": "Function updates markingStatus: 'pending-review' if ungraded writing remains, 'reviewed' if all writing graded"
+          },
+          {
+            "completed": true,
+            "text": "Function updates the updatedAt timestamp"
+          },
+          {
+            "completed": true,
+            "text": "No side effects outside the permanent record (RTDB write handled separately by caller)"
+          },
+          {
+            "completed": true,
+            "text": "Build succeeds with no new TypeScript errors"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### Context\nNeed a function that updates a single writing question's grade in the permanent `test_results/{resultId}` record and recalculates aggregate scores.\n\n### Data flow\n```\nCaller passes: sessionCode, studentId, questionNumber, grade object\n    │\n    ├─ 1. Look up resultId from `test_results_by_session/{sessionCode}` index\n    │     → filter by studentId to find the right result\n    │\n    ├─ 2. Read full record from `test_results/{resultId}`\n    │\n    ├─ 3. Find the question in questionResults[] by questionNumber\n    │     → Update: score, isCorrect (score >= maxScore), teacherFeedback, \n    │               gradedByName, gradedByUid, gradedAt\n    │\n    ├─ 4. Recalculate aggregates across ALL questions:\n    │     → totalScore = sum of all question scores\n    │     → percentage = (totalScore / maxScore) * 100\n    │     → correct = count where isCorrect && score > 0\n    │     → incorrect = count where !isCorrect && score === 0\n    │     → partialCredit = count where score > 0 && score < maxScore\n    │\n    ├─ 5. Check markingStatus:\n    │     → count writing questions still ungraded (no gradedAt && type has 'writing')\n    │     → if 0 ungraded writing left → markingStatus = 'reviewed'\n    │     → else → keep 'pending-review'\n    │\n    └─ 6. Write updated record back via `update()`\n```\n\n### Function signature\n```typescript\nexport async function updateThcsWritingGrade(\n  sessionCode: string,\n  studentId: string,\n  questionNumber: number,\n  grade: {\n    score: number;\n    maxScore: number;\n    feedback: string;\n    teacherName: string;\n    teacherUid: string;\n  }\n): Promise<void>\n```\n\n### Location\nAppend to end of `testResults.service.ts` (after `saveGuestTestResult`, line ~945).\n\n### Imports needed\nNone new — `ref`, `get`, `update` already imported from firebase/database.\n\n### Risk\nMedium — modifying permanent records. Function must handle:\n- Result not found → throw descriptive error\n- Question not found in array → throw error\n- Writing question detection → check questionType includes 'sentence-rewrite'",
+        "implementationNotes": "Implemented 2026-03-02:\n- Added updateThcsWritingGrade() at end of testResults.service.ts (~line 948-1098)\n- Finds record via test_results_by_session index, filters by studentId\n- Updates question score/isCorrect/feedback/gradedBy fields explicitly (no spread to avoid TS issues)\n- Recalculates totalScore, percentage, correct/incorrect/partialCredit, bandScore\n- Transitions markingStatus: 'reviewed' when all writing Qs graded, else 'pending-review'\n- Writing types detected: 'sentence-rewrite', 'sentence-rewrite-keyword'\n- Build verified: no new TS errors in this file\n\n2026-03-02: HOTFIX — Fixed critical bug: WRITING_TYPES was ['sentence-rewrite', 'sentence-rewrite-keyword'] but permanent record stores questionType as 'writing' (mapped via mapQuestionType). Changed to ['writing']. Also added modelAnswers and originalSentence persistence to permanent record via thcsResultToTestMarkingResult mapping."
+      }
+    }
+  ]
+}

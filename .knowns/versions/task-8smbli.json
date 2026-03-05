@@ -1,0 +1,37 @@
+{
+  "taskId": "8smbli",
+  "currentVersion": 1,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "8smbli",
+      "version": 1,
+      "timestamp": "2026-03-03T03:20:42.088Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Duplicate task — work completed under task p5cs6u. Marking done."
+        }
+      ],
+      "snapshot": {
+        "title": "Add Diagnostic Logs Panel to THCSReviewStep",
+        "description": "Add a collapsible \"Diagnostic Logs\" card to the THCSReviewStep left column (after the Warnings card). The card generates a structured plain-text diagnostic dump of test metadata, section breakdown, and per-question data integrity. Includes a \"📋 Copy Log\" button with visual feedback. Uses pure CSS accordion (no Mantine Collapse), existing cardStyle, and monospace log output.",
+        "status": "done",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "from-spec",
+          "thcs",
+          "diagnostics"
+        ],
+        "acceptanceCriteria": [],
+        "implementationNotes": "Duplicate task — work completed under task p5cs6u. Marking done."
+      }
+    }
+  ]
+}

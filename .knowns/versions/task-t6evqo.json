@@ -1,0 +1,406 @@
+{
+  "taskId": "t6evqo",
+  "currentVersion": 4,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "t6evqo",
+      "version": 1,
+      "timestamp": "2026-03-01T06:44:07.153Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "TipTap editor renders student essay in marks-only mode (text locked, only marks allowed)",
+              "completed": false
+            },
+            {
+              "text": "Fixed toolbar above editor: Highlight (6-color dropdown 🟡🟢🟣🟣🟠🔴), Comment, Strikethrough, Correction, Text Color, Undo, Redo",
+              "completed": false
+            },
+            {
+              "text": "BubbleMenu appears near text selection with annotation buttons ONLY (Highlight, Comment, Strikethrough, Correction, Text Color) — no Bold/Italic",
+              "completed": false
+            },
+            {
+              "text": "6 preset highlight colors available via dropdown — button applies last-used color, dropdown arrow shows options",
+              "completed": false
+            },
+            {
+              "text": "Left gutter shows colored SVG circle dots for lines with comment marks — visible regardless of active right-panel tab",
+              "completed": false
+            },
+            {
+              "text": "Original/Marked toggle: Original shows read-only div with plain student text; Marked shows TipTap editor",
+              "completed": false
+            },
+            {
+              "text": "When Original is active, emit event/callback to disable Comments tab on right panel",
+              "completed": false
+            },
+            {
+              "text": "Gutter dot click emits callback to focus the corresponding comment",
+              "completed": false
+            },
+            {
+              "text": "Keyboard shortcuts: Ctrl+Z undo, Ctrl+Y redo, Ctrl+Shift+H highlight, Ctrl+Shift+M comment, Escape dismiss",
+              "completed": false
+            },
+            {
+              "text": "Metadata bar below editor: word count + writing time",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "TipTap Essay Editor Component",
+        "description": "Build EssayEditor.tsx \\u2014 the main left-column component. TipTap editor with all extensions (StarterKit+History, Highlight multicolor, TextStyle+Color, Underline, BubbleMenu, Placeholder, custom commentMark, correctionMark, marks-only plugin). Fixed toolbar at top. BubbleMenu near selection with annotation buttons only. Left margin gutter with colored SVG dots for comment lines. Original/Marked toggle. Metadata bar. Keyboard shortcuts. See @doc/specs/grading-editor-redesign FR-GROUP-1.",
+        "status": "todo",
+        "priority": "high",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "TipTap editor renders student essay in marks-only mode (text locked, only marks allowed)",
+            "completed": false
+          },
+          {
+            "text": "Fixed toolbar above editor: Highlight (6-color dropdown 🟡🟢🟣🟣🟠🔴), Comment, Strikethrough, Correction, Text Color, Undo, Redo",
+            "completed": false
+          },
+          {
+            "text": "BubbleMenu appears near text selection with annotation buttons ONLY (Highlight, Comment, Strikethrough, Correction, Text Color) — no Bold/Italic",
+            "completed": false
+          },
+          {
+            "text": "6 preset highlight colors available via dropdown — button applies last-used color, dropdown arrow shows options",
+            "completed": false
+          },
+          {
+            "text": "Left gutter shows colored SVG circle dots for lines with comment marks — visible regardless of active right-panel tab",
+            "completed": false
+          },
+          {
+            "text": "Original/Marked toggle: Original shows read-only div with plain student text; Marked shows TipTap editor",
+            "completed": false
+          },
+          {
+            "text": "When Original is active, emit event/callback to disable Comments tab on right panel",
+            "completed": false
+          },
+          {
+            "text": "Gutter dot click emits callback to focus the corresponding comment",
+            "completed": false
+          },
+          {
+            "text": "Keyboard shortcuts: Ctrl+Z undo, Ctrl+Y redo, Ctrl+Shift+H highlight, Ctrl+Shift+M comment, Escape dismiss",
+            "completed": false
+          },
+          {
+            "text": "Metadata bar below editor: word count + writing time",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "t6evqo",
+      "version": 2,
+      "timestamp": "2026-03-01T07:22:37.518Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        },
+        {
+          "field": "assignee",
+          "newValue": "@me"
+        }
+      ],
+      "snapshot": {
+        "title": "TipTap Essay Editor Component",
+        "description": "Build EssayEditor.tsx \\u2014 the main left-column component. TipTap editor with all extensions (StarterKit+History, Highlight multicolor, TextStyle+Color, Underline, BubbleMenu, Placeholder, custom commentMark, correctionMark, marks-only plugin). Fixed toolbar at top. BubbleMenu near selection with annotation buttons only. Left margin gutter with colored SVG dots for comment lines. Original/Marked toggle. Metadata bar. Keyboard shortcuts. See @doc/specs/grading-editor-redesign FR-GROUP-1.",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "TipTap editor renders student essay in marks-only mode (text locked, only marks allowed)"
+          },
+          {
+            "completed": false,
+            "text": "Fixed toolbar above editor: Highlight (6-color dropdown 🟡🟢🟣🟣🟠🔴), Comment, Strikethrough, Correction, Text Color, Undo, Redo"
+          },
+          {
+            "completed": false,
+            "text": "BubbleMenu appears near text selection with annotation buttons ONLY (Highlight, Comment, Strikethrough, Correction, Text Color) — no Bold/Italic"
+          },
+          {
+            "completed": false,
+            "text": "6 preset highlight colors available via dropdown — button applies last-used color, dropdown arrow shows options"
+          },
+          {
+            "completed": false,
+            "text": "Left gutter shows colored SVG circle dots for lines with comment marks — visible regardless of active right-panel tab"
+          },
+          {
+            "completed": false,
+            "text": "Original/Marked toggle: Original shows read-only div with plain student text; Marked shows TipTap editor"
+          },
+          {
+            "completed": false,
+            "text": "When Original is active, emit event/callback to disable Comments tab on right panel"
+          },
+          {
+            "completed": false,
+            "text": "Gutter dot click emits callback to focus the corresponding comment"
+          },
+          {
+            "completed": false,
+            "text": "Keyboard shortcuts: Ctrl+Z undo, Ctrl+Y redo, Ctrl+Shift+H highlight, Ctrl+Shift+M comment, Escape dismiss"
+          },
+          {
+            "completed": false,
+            "text": "Metadata bar below editor: word count + writing time"
+          }
+        ]
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "t6evqo",
+      "version": 3,
+      "timestamp": "2026-03-01T07:46:26.870Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "TipTap editor renders student essay in marks-only mode (text locked, only marks allowed)"
+            },
+            {
+              "completed": false,
+              "text": "Fixed toolbar above editor: Highlight (6-color dropdown 🟡🟢🟣🟣🟠🔴), Comment, Strikethrough, Correction, Text Color, Undo, Redo"
+            },
+            {
+              "completed": false,
+              "text": "BubbleMenu appears near text selection with annotation buttons ONLY (Highlight, Comment, Strikethrough, Correction, Text Color) — no Bold/Italic"
+            },
+            {
+              "completed": false,
+              "text": "6 preset highlight colors available via dropdown — button applies last-used color, dropdown arrow shows options"
+            },
+            {
+              "completed": false,
+              "text": "Left gutter shows colored SVG circle dots for lines with comment marks — visible regardless of active right-panel tab"
+            },
+            {
+              "completed": false,
+              "text": "Original/Marked toggle: Original shows read-only div with plain student text; Marked shows TipTap editor"
+            },
+            {
+              "completed": false,
+              "text": "When Original is active, emit event/callback to disable Comments tab on right panel"
+            },
+            {
+              "completed": false,
+              "text": "Gutter dot click emits callback to focus the corresponding comment"
+            },
+            {
+              "completed": false,
+              "text": "Keyboard shortcuts: Ctrl+Z undo, Ctrl+Y redo, Ctrl+Shift+H highlight, Ctrl+Shift+M comment, Escape dismiss"
+            },
+            {
+              "completed": false,
+              "text": "Metadata bar below editor: word count + writing time"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "TipTap editor renders student essay in marks-only mode (text locked, only marks allowed)"
+            },
+            {
+              "completed": true,
+              "text": "Fixed toolbar above editor: Highlight (6-color dropdown 🟡🟢🟣🟣🟠🔴), Comment, Strikethrough, Correction, Text Color, Undo, Redo"
+            },
+            {
+              "completed": true,
+              "text": "BubbleMenu appears near text selection with annotation buttons ONLY (Highlight, Comment, Strikethrough, Correction, Text Color) — no Bold/Italic"
+            },
+            {
+              "completed": true,
+              "text": "6 preset highlight colors available via dropdown — button applies last-used color, dropdown arrow shows options"
+            },
+            {
+              "completed": true,
+              "text": "Left gutter shows colored SVG circle dots for lines with comment marks — visible regardless of active right-panel tab"
+            },
+            {
+              "completed": true,
+              "text": "Original/Marked toggle: Original shows read-only div with plain student text; Marked shows TipTap editor"
+            },
+            {
+              "completed": true,
+              "text": "When Original is active, emit event/callback to disable Comments tab on right panel"
+            },
+            {
+              "completed": true,
+              "text": "Gutter dot click emits callback to focus the corresponding comment"
+            },
+            {
+              "completed": true,
+              "text": "Keyboard shortcuts: Ctrl+Z undo, Ctrl+Y redo, Ctrl+Shift+H highlight, Ctrl+Shift+M comment, Escape dismiss"
+            },
+            {
+              "completed": true,
+              "text": "Metadata bar below editor: word count + writing time"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "## Implementation Log\n\n### EssayEditor.tsx created (555 lines)\nFull component with:\n- TipTap useEditor setup with StarterKit, Highlight (multicolor), TextStyle, Color, Placeholder, CommentMark, CorrectionMark, MarksOnlyMode\n- Fixed toolbar: Highlight (split button + 6-color dropdown), Comment, Strikethrough, Correction, Text Color (7-color dropdown), Undo, Redo\n- Custom floating bubble menu (replaced TipTap BubbleMenu component removed in v3.20) — positions near text selection using coordsAtPos, uses onMouseDown to prevent blur\n- Left gutter with colored SVG dots from commentPositions prop\n- Original/Marked toggle with onViewModeChange callback\n- Comment mark click handling via handleClick editorProp\n- Focused/hovered comment class management via useEffect + DOM queries\n- Keyboard shortcuts: Ctrl+Shift+H (highlight), Ctrl+Shift+M (comment)\n- Metadata bar: word count + writing time\n- convertTextToTipTapJson helper for initial content\n\n### EssayEditor.css created\n- View toggle styling (blue active state)\n- Toolbar buttons, dropdowns, separators\n- Editor container with gutter space\n- ProseMirror typography (Georgia serif, 1.8 line-height)\n- Original view styling\n- Metadata bar\n- Dark bubble menu with hover states\n\n### TipTap v3.20 compatibility notes\n- BubbleMenu React component removed from @tiptap/react in v3.20 → built custom floating div\n- TextStyle + Color now both exported from @tiptap/extension-text-style\n- Highlight multicolor works via `Highlight.configure({ multicolor: true })`\n\n### Build: Zero new TS errors\""
+        }
+      ],
+      "snapshot": {
+        "title": "TipTap Essay Editor Component",
+        "description": "Build EssayEditor.tsx \\u2014 the main left-column component. TipTap editor with all extensions (StarterKit+History, Highlight multicolor, TextStyle+Color, Underline, BubbleMenu, Placeholder, custom commentMark, correctionMark, marks-only plugin). Fixed toolbar at top. BubbleMenu near selection with annotation buttons only. Left margin gutter with colored SVG dots for comment lines. Original/Marked toggle. Metadata bar. Keyboard shortcuts. See @doc/specs/grading-editor-redesign FR-GROUP-1.",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "TipTap editor renders student essay in marks-only mode (text locked, only marks allowed)"
+          },
+          {
+            "completed": true,
+            "text": "Fixed toolbar above editor: Highlight (6-color dropdown 🟡🟢🟣🟣🟠🔴), Comment, Strikethrough, Correction, Text Color, Undo, Redo"
+          },
+          {
+            "completed": true,
+            "text": "BubbleMenu appears near text selection with annotation buttons ONLY (Highlight, Comment, Strikethrough, Correction, Text Color) — no Bold/Italic"
+          },
+          {
+            "completed": true,
+            "text": "6 preset highlight colors available via dropdown — button applies last-used color, dropdown arrow shows options"
+          },
+          {
+            "completed": true,
+            "text": "Left gutter shows colored SVG circle dots for lines with comment marks — visible regardless of active right-panel tab"
+          },
+          {
+            "completed": true,
+            "text": "Original/Marked toggle: Original shows read-only div with plain student text; Marked shows TipTap editor"
+          },
+          {
+            "completed": true,
+            "text": "When Original is active, emit event/callback to disable Comments tab on right panel"
+          },
+          {
+            "completed": true,
+            "text": "Gutter dot click emits callback to focus the corresponding comment"
+          },
+          {
+            "completed": true,
+            "text": "Keyboard shortcuts: Ctrl+Z undo, Ctrl+Y redo, Ctrl+Shift+H highlight, Ctrl+Shift+M comment, Escape dismiss"
+          },
+          {
+            "completed": true,
+            "text": "Metadata bar below editor: word count + writing time"
+          }
+        ],
+        "implementationNotes": "## Implementation Log\n\n### EssayEditor.tsx created (555 lines)\nFull component with:\n- TipTap useEditor setup with StarterKit, Highlight (multicolor), TextStyle, Color, Placeholder, CommentMark, CorrectionMark, MarksOnlyMode\n- Fixed toolbar: Highlight (split button + 6-color dropdown), Comment, Strikethrough, Correction, Text Color (7-color dropdown), Undo, Redo\n- Custom floating bubble menu (replaced TipTap BubbleMenu component removed in v3.20) — positions near text selection using coordsAtPos, uses onMouseDown to prevent blur\n- Left gutter with colored SVG dots from commentPositions prop\n- Original/Marked toggle with onViewModeChange callback\n- Comment mark click handling via handleClick editorProp\n- Focused/hovered comment class management via useEffect + DOM queries\n- Keyboard shortcuts: Ctrl+Shift+H (highlight), Ctrl+Shift+M (comment)\n- Metadata bar: word count + writing time\n- convertTextToTipTapJson helper for initial content\n\n### EssayEditor.css created\n- View toggle styling (blue active state)\n- Toolbar buttons, dropdowns, separators\n- Editor container with gutter space\n- ProseMirror typography (Georgia serif, 1.8 line-height)\n- Original view styling\n- Metadata bar\n- Dark bubble menu with hover states\n\n### TipTap v3.20 compatibility notes\n- BubbleMenu React component removed from @tiptap/react in v3.20 → built custom floating div\n- TextStyle + Color now both exported from @tiptap/extension-text-style\n- Highlight multicolor works via `Highlight.configure({ multicolor: true })`\n\n### Build: Zero new TS errors\""
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "t6evqo",
+      "version": 4,
+      "timestamp": "2026-03-01T07:46:34.780Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "TipTap Essay Editor Component",
+        "description": "Build EssayEditor.tsx \\u2014 the main left-column component. TipTap editor with all extensions (StarterKit+History, Highlight multicolor, TextStyle+Color, Underline, BubbleMenu, Placeholder, custom commentMark, correctionMark, marks-only plugin). Fixed toolbar at top. BubbleMenu near selection with annotation buttons only. Left margin gutter with colored SVG dots for comment lines. Original/Marked toggle. Metadata bar. Keyboard shortcuts. See @doc/specs/grading-editor-redesign FR-GROUP-1.",
+        "status": "done",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "TipTap editor renders student essay in marks-only mode (text locked, only marks allowed)"
+          },
+          {
+            "completed": true,
+            "text": "Fixed toolbar above editor: Highlight (6-color dropdown 🟡🟢🟣🟣🟠🔴), Comment, Strikethrough, Correction, Text Color, Undo, Redo"
+          },
+          {
+            "completed": true,
+            "text": "BubbleMenu appears near text selection with annotation buttons ONLY (Highlight, Comment, Strikethrough, Correction, Text Color) — no Bold/Italic"
+          },
+          {
+            "completed": true,
+            "text": "6 preset highlight colors available via dropdown — button applies last-used color, dropdown arrow shows options"
+          },
+          {
+            "completed": true,
+            "text": "Left gutter shows colored SVG circle dots for lines with comment marks — visible regardless of active right-panel tab"
+          },
+          {
+            "completed": true,
+            "text": "Original/Marked toggle: Original shows read-only div with plain student text; Marked shows TipTap editor"
+          },
+          {
+            "completed": true,
+            "text": "When Original is active, emit event/callback to disable Comments tab on right panel"
+          },
+          {
+            "completed": true,
+            "text": "Gutter dot click emits callback to focus the corresponding comment"
+          },
+          {
+            "completed": true,
+            "text": "Keyboard shortcuts: Ctrl+Z undo, Ctrl+Y redo, Ctrl+Shift+H highlight, Ctrl+Shift+M comment, Escape dismiss"
+          },
+          {
+            "completed": true,
+            "text": "Metadata bar below editor: word count + writing time"
+          }
+        ],
+        "implementationNotes": "## Implementation Log\n\n### EssayEditor.tsx created (555 lines)\nFull component with:\n- TipTap useEditor setup with StarterKit, Highlight (multicolor), TextStyle, Color, Placeholder, CommentMark, CorrectionMark, MarksOnlyMode\n- Fixed toolbar: Highlight (split button + 6-color dropdown), Comment, Strikethrough, Correction, Text Color (7-color dropdown), Undo, Redo\n- Custom floating bubble menu (replaced TipTap BubbleMenu component removed in v3.20) — positions near text selection using coordsAtPos, uses onMouseDown to prevent blur\n- Left gutter with colored SVG dots from commentPositions prop\n- Original/Marked toggle with onViewModeChange callback\n- Comment mark click handling via handleClick editorProp\n- Focused/hovered comment class management via useEffect + DOM queries\n- Keyboard shortcuts: Ctrl+Shift+H (highlight), Ctrl+Shift+M (comment)\n- Metadata bar: word count + writing time\n- convertTextToTipTapJson helper for initial content\n\n### EssayEditor.css created\n- View toggle styling (blue active state)\n- Toolbar buttons, dropdowns, separators\n- Editor container with gutter space\n- ProseMirror typography (Georgia serif, 1.8 line-height)\n- Original view styling\n- Metadata bar\n- Dark bubble menu with hover states\n\n### TipTap v3.20 compatibility notes\n- BubbleMenu React component removed from @tiptap/react in v3.20 → built custom floating div\n- TextStyle + Color now both exported from @tiptap/extension-text-style\n- Highlight multicolor works via `Highlight.configure({ multicolor: true })`\n\n### Build: Zero new TS errors\""
+      }
+    }
+  ]
+}

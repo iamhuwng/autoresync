@@ -1,0 +1,458 @@
+{
+  "taskId": "2gv1pn",
+  "currentVersion": 6,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "2gv1pn",
+      "version": 1,
+      "timestamp": "2026-03-04T21:25:17.542Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Prompt includes all question texts, options, student answers, correct answers, and test metadata",
+              "completed": false
+            },
+            {
+              "text": "AI returns per-question topic tags (topic + category) for ALL questions",
+              "completed": false
+            },
+            {
+              "text": "AI returns per-question explanations for WRONG answers only",
+              "completed": false
+            },
+            {
+              "text": "AI returns narrative feedback (summary/strengths/revision/critical) with question number references",
+              "completed": false
+            },
+            {
+              "text": "Gemini → Groq fallback works when all Gemini keys exhausted",
+              "completed": false
+            },
+            {
+              "text": "Graceful fallback to deterministic-only if both AI providers fail (no error exposed to student)",
+              "completed": false
+            },
+            {
+              "text": "Response validated against expected JSON schema before storing",
+              "completed": false
+            },
+            {
+              "text": "aiModel field records which provider was used",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Implement AI feedback generation (Gemini + Groq fallback)",
+        "description": "Add AI feedback generation to formativeFeedback.service.ts. Build the prompt from all question texts + student answers + correct answers + test metadata. Call Gemini 2.5 Flash first; if all keys exhausted, fall back to Groq with same prompt. Parse structured JSON response containing questionTopics, questionExplanations, and feedback narrative. Fall back to deterministic-only if both providers fail. See research artifact Section 3.6 for full prompt template and Section 3.5 for topic taxonomy.",
+        "status": "todo",
+        "priority": "high",
+        "labels": [
+          "from-spec",
+          "formative-feedback"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Prompt includes all question texts, options, student answers, correct answers, and test metadata",
+            "completed": false
+          },
+          {
+            "text": "AI returns per-question topic tags (topic + category) for ALL questions",
+            "completed": false
+          },
+          {
+            "text": "AI returns per-question explanations for WRONG answers only",
+            "completed": false
+          },
+          {
+            "text": "AI returns narrative feedback (summary/strengths/revision/critical) with question number references",
+            "completed": false
+          },
+          {
+            "text": "Gemini → Groq fallback works when all Gemini keys exhausted",
+            "completed": false
+          },
+          {
+            "text": "Graceful fallback to deterministic-only if both AI providers fail (no error exposed to student)",
+            "completed": false
+          },
+          {
+            "text": "Response validated against expected JSON schema before storing",
+            "completed": false
+          },
+          {
+            "text": "aiModel field records which provider was used",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "2gv1pn",
+      "version": 2,
+      "timestamp": "2026-03-04T21:29:08.873Z",
+      "changes": [
+        {
+          "field": "implementationPlan",
+          "newValue": "## Implementation Plan: AI Feedback Generation (Gemini + Groq Fallback)\n\n### File: `src/services/formativeFeedback.service.ts` (extends Task 23fbgf)\n\n**Step 1: Import AI providers + define types**\n```typescript\nimport { GeminiProvider } from './ai/gemini.provider';\nimport { GroqProvider } from './ai/groq.provider';\n```\nDefine local type for AI response validation:\n```typescript\ninterface AIFeedbackResponse {\n    questionTopics: Record<string, { topic: string; category: string }>;\n    questionExplanations: Record<string, string>;\n    feedback: { summary: string; strengths: string; revision: string; critical: string };\n}\n```\n\n**Step 2: Implement `buildFeedbackPrompt()`**\nInputs: `gradingResult`, `sections`, `testMetadata`\nLogic:\n1. Build header: score, grade level, test title\n2. For each question in each section:\n   - Format: `Q{num} [{intent}] {CORRECT|WRONG}`\n   - Include: questionText, options (for MCQ), studentAnswer, correctAnswer\n   - Include: teacher explanation if exists (so AI doesn't duplicate)\n3. Append the JSON output schema instructions with 8 rules (from research Section 3.6)\n4. Return { systemPrompt, userPrompt }\n\n**Step 3: Implement `callGeminiForFeedback()`**\nPattern: mirrors `GeminiProvider.gradeWritingAnswer()` structure\n1. Get GeminiProvider singleton (lazy-init)\n2. Use round-robin key selection + exhausted key cleanup\n3. Call `model.generateContent()` with:\n   - model: 'gemini-2.5-flash'\n   - temperature: 0.2\n   - maxOutputTokens: 8192\n   - responseMimeType: 'application/json'\n4. Parse response with extractJSON\n5. Validate against AIFeedbackResponse shape\n6. On rate limit (429), mark key exhausted\n7. On all keys exhausted, throw 'ALL_KEYS_EXHAUSTED' error\n\n**Step 4: Implement `callGroqForFeedback()`**\nPattern: mirrors `GroqProvider.gradeWritingAnswer()` structure\n1. Get GroqProvider singleton (lazy-init)\n2. Use same prompt (systemPrompt as system message, userPrompt as user message)\n3. Call `client.chat.completions.create()` with:\n   - model: 'llama-3.3-70b-versatile'\n   - temperature: 0.2\n   - max_tokens: 8192\n4. Parse response, validate same shape\n5. On failure, return error Result\n\n**Step 5: Implement `generateAIFeedback()` with fallback chain**\n```typescript\nasync function generateAIFeedback(\n    gradingResult: THCSGradingResult,\n    sections: THCSSection[],\n    testMetadata: { title: string; gradeLevel: number },\n): Promise<AIFeedbackResponse | null>\n```\nLogic:\n1. Build prompt\n2. Try Gemini first\n   - Success → return data with aiModel='gemini-2.5-flash'\n   - ALL_KEYS_EXHAUSTED → fall to step 3\n   - Other error → fall to step 3\n3. Try Groq fallback\n   - Success → return data with aiModel='groq-llama-3.3-70b'\n   - Failure → return null (deterministic only)\n4. Console.warn on any fallback for debugging\n\n**Step 6: Implement `validateAIFeedbackResponse()`**\nValidates the raw JSON against expected shape:\n- `questionTopics` is Record<string, { topic: string, category: string }>\n- `questionExplanations` is Record<string, string>\n- `feedback` has summary, strengths, revision, critical (all strings)\n- Return validated + sanitized object or null\n\n**Step 7: Update main `generateFormativeFeedback()` to call AI**\n```typescript\nexport async function generateFormativeFeedback(\n    gradingResult: THCSGradingResult,\n    sections: THCSSection[],\n    testMetadata: { title: string; gradeLevel: number },\n): Promise<FormativeFeedback>\n```\n1. First: run deterministic (sync, instant) → get base FormativeFeedback\n2. Then: try AI enhancement (async)\n3. If AI succeeds: merge questionTopics, questionExplanations, aiFeedback, aiModel into result\n4. If AI fails: return deterministic-only result (no error to caller)\n\n### Key Decisions\n- **NOT** extending IAIService interface — feedback gen is a separate concern from parsing\n- **Reusing** provider instances (singleton pattern already in GeminiProvider/GroqProvider)\n- **Direct Gemini SDK call** (same pattern as gradeWritingAnswer), not through IAIService.parseChunk\n- **Single service file** for both deterministic + AI (keeps it cohesive)\n\n### Verification\n- Test with mock: construct a fake THCSGradingResult, verify prompt contains all questions\n- Test fallback: temporarily disable Gemini keys, verify Groq is called\n- Test deterministic fallback: disable both, verify no error + deterministic feedback returned"
+        }
+      ],
+      "snapshot": {
+        "title": "Implement AI feedback generation (Gemini + Groq fallback)",
+        "description": "Add AI feedback generation to formativeFeedback.service.ts. Build the prompt from all question texts + student answers + correct answers + test metadata. Call Gemini 2.5 Flash first; if all keys exhausted, fall back to Groq with same prompt. Parse structured JSON response containing questionTopics, questionExplanations, and feedback narrative. Fall back to deterministic-only if both providers fail. See research artifact Section 3.6 for full prompt template and Section 3.5 for topic taxonomy.",
+        "status": "todo",
+        "priority": "high",
+        "labels": [
+          "from-spec",
+          "formative-feedback"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Prompt includes all question texts, options, student answers, correct answers, and test metadata"
+          },
+          {
+            "completed": false,
+            "text": "AI returns per-question topic tags (topic + category) for ALL questions"
+          },
+          {
+            "completed": false,
+            "text": "AI returns per-question explanations for WRONG answers only"
+          },
+          {
+            "completed": false,
+            "text": "AI returns narrative feedback (summary/strengths/revision/critical) with question number references"
+          },
+          {
+            "completed": false,
+            "text": "Gemini → Groq fallback works when all Gemini keys exhausted"
+          },
+          {
+            "completed": false,
+            "text": "Graceful fallback to deterministic-only if both AI providers fail (no error exposed to student)"
+          },
+          {
+            "completed": false,
+            "text": "Response validated against expected JSON schema before storing"
+          },
+          {
+            "completed": false,
+            "text": "aiModel field records which provider was used"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan: AI Feedback Generation (Gemini + Groq Fallback)\n\n### File: `src/services/formativeFeedback.service.ts` (extends Task 23fbgf)\n\n**Step 1: Import AI providers + define types**\n```typescript\nimport { GeminiProvider } from './ai/gemini.provider';\nimport { GroqProvider } from './ai/groq.provider';\n```\nDefine local type for AI response validation:\n```typescript\ninterface AIFeedbackResponse {\n    questionTopics: Record<string, { topic: string; category: string }>;\n    questionExplanations: Record<string, string>;\n    feedback: { summary: string; strengths: string; revision: string; critical: string };\n}\n```\n\n**Step 2: Implement `buildFeedbackPrompt()`**\nInputs: `gradingResult`, `sections`, `testMetadata`\nLogic:\n1. Build header: score, grade level, test title\n2. For each question in each section:\n   - Format: `Q{num} [{intent}] {CORRECT|WRONG}`\n   - Include: questionText, options (for MCQ), studentAnswer, correctAnswer\n   - Include: teacher explanation if exists (so AI doesn't duplicate)\n3. Append the JSON output schema instructions with 8 rules (from research Section 3.6)\n4. Return { systemPrompt, userPrompt }\n\n**Step 3: Implement `callGeminiForFeedback()`**\nPattern: mirrors `GeminiProvider.gradeWritingAnswer()` structure\n1. Get GeminiProvider singleton (lazy-init)\n2. Use round-robin key selection + exhausted key cleanup\n3. Call `model.generateContent()` with:\n   - model: 'gemini-2.5-flash'\n   - temperature: 0.2\n   - maxOutputTokens: 8192\n   - responseMimeType: 'application/json'\n4. Parse response with extractJSON\n5. Validate against AIFeedbackResponse shape\n6. On rate limit (429), mark key exhausted\n7. On all keys exhausted, throw 'ALL_KEYS_EXHAUSTED' error\n\n**Step 4: Implement `callGroqForFeedback()`**\nPattern: mirrors `GroqProvider.gradeWritingAnswer()` structure\n1. Get GroqProvider singleton (lazy-init)\n2. Use same prompt (systemPrompt as system message, userPrompt as user message)\n3. Call `client.chat.completions.create()` with:\n   - model: 'llama-3.3-70b-versatile'\n   - temperature: 0.2\n   - max_tokens: 8192\n4. Parse response, validate same shape\n5. On failure, return error Result\n\n**Step 5: Implement `generateAIFeedback()` with fallback chain**\n```typescript\nasync function generateAIFeedback(\n    gradingResult: THCSGradingResult,\n    sections: THCSSection[],\n    testMetadata: { title: string; gradeLevel: number },\n): Promise<AIFeedbackResponse | null>\n```\nLogic:\n1. Build prompt\n2. Try Gemini first\n   - Success → return data with aiModel='gemini-2.5-flash'\n   - ALL_KEYS_EXHAUSTED → fall to step 3\n   - Other error → fall to step 3\n3. Try Groq fallback\n   - Success → return data with aiModel='groq-llama-3.3-70b'\n   - Failure → return null (deterministic only)\n4. Console.warn on any fallback for debugging\n\n**Step 6: Implement `validateAIFeedbackResponse()`**\nValidates the raw JSON against expected shape:\n- `questionTopics` is Record<string, { topic: string, category: string }>\n- `questionExplanations` is Record<string, string>\n- `feedback` has summary, strengths, revision, critical (all strings)\n- Return validated + sanitized object or null\n\n**Step 7: Update main `generateFormativeFeedback()` to call AI**\n```typescript\nexport async function generateFormativeFeedback(\n    gradingResult: THCSGradingResult,\n    sections: THCSSection[],\n    testMetadata: { title: string; gradeLevel: number },\n): Promise<FormativeFeedback>\n```\n1. First: run deterministic (sync, instant) → get base FormativeFeedback\n2. Then: try AI enhancement (async)\n3. If AI succeeds: merge questionTopics, questionExplanations, aiFeedback, aiModel into result\n4. If AI fails: return deterministic-only result (no error to caller)\n\n### Key Decisions\n- **NOT** extending IAIService interface — feedback gen is a separate concern from parsing\n- **Reusing** provider instances (singleton pattern already in GeminiProvider/GroqProvider)\n- **Direct Gemini SDK call** (same pattern as gradeWritingAnswer), not through IAIService.parseChunk\n- **Single service file** for both deterministic + AI (keeps it cohesive)\n\n### Verification\n- Test with mock: construct a fake THCSGradingResult, verify prompt contains all questions\n- Test fallback: temporarily disable Gemini keys, verify Groq is called\n- Test deterministic fallback: disable both, verify no error + deterministic feedback returned"
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "2gv1pn",
+      "version": 3,
+      "timestamp": "2026-03-04T21:47:11.359Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        }
+      ],
+      "snapshot": {
+        "title": "Implement AI feedback generation (Gemini + Groq fallback)",
+        "description": "Add AI feedback generation to formativeFeedback.service.ts. Build the prompt from all question texts + student answers + correct answers + test metadata. Call Gemini 2.5 Flash first; if all keys exhausted, fall back to Groq with same prompt. Parse structured JSON response containing questionTopics, questionExplanations, and feedback narrative. Fall back to deterministic-only if both providers fail. See research artifact Section 3.6 for full prompt template and Section 3.5 for topic taxonomy.",
+        "status": "in-progress",
+        "priority": "high",
+        "labels": [
+          "from-spec",
+          "formative-feedback"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Prompt includes all question texts, options, student answers, correct answers, and test metadata"
+          },
+          {
+            "completed": false,
+            "text": "AI returns per-question topic tags (topic + category) for ALL questions"
+          },
+          {
+            "completed": false,
+            "text": "AI returns per-question explanations for WRONG answers only"
+          },
+          {
+            "completed": false,
+            "text": "AI returns narrative feedback (summary/strengths/revision/critical) with question number references"
+          },
+          {
+            "completed": false,
+            "text": "Gemini → Groq fallback works when all Gemini keys exhausted"
+          },
+          {
+            "completed": false,
+            "text": "Graceful fallback to deterministic-only if both AI providers fail (no error exposed to student)"
+          },
+          {
+            "completed": false,
+            "text": "Response validated against expected JSON schema before storing"
+          },
+          {
+            "completed": false,
+            "text": "aiModel field records which provider was used"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan: AI Feedback Generation (Gemini + Groq Fallback)\n\n### File: `src/services/formativeFeedback.service.ts` (extends Task 23fbgf)\n\n**Step 1: Import AI providers + define types**\n```typescript\nimport { GeminiProvider } from './ai/gemini.provider';\nimport { GroqProvider } from './ai/groq.provider';\n```\nDefine local type for AI response validation:\n```typescript\ninterface AIFeedbackResponse {\n    questionTopics: Record<string, { topic: string; category: string }>;\n    questionExplanations: Record<string, string>;\n    feedback: { summary: string; strengths: string; revision: string; critical: string };\n}\n```\n\n**Step 2: Implement `buildFeedbackPrompt()`**\nInputs: `gradingResult`, `sections`, `testMetadata`\nLogic:\n1. Build header: score, grade level, test title\n2. For each question in each section:\n   - Format: `Q{num} [{intent}] {CORRECT|WRONG}`\n   - Include: questionText, options (for MCQ), studentAnswer, correctAnswer\n   - Include: teacher explanation if exists (so AI doesn't duplicate)\n3. Append the JSON output schema instructions with 8 rules (from research Section 3.6)\n4. Return { systemPrompt, userPrompt }\n\n**Step 3: Implement `callGeminiForFeedback()`**\nPattern: mirrors `GeminiProvider.gradeWritingAnswer()` structure\n1. Get GeminiProvider singleton (lazy-init)\n2. Use round-robin key selection + exhausted key cleanup\n3. Call `model.generateContent()` with:\n   - model: 'gemini-2.5-flash'\n   - temperature: 0.2\n   - maxOutputTokens: 8192\n   - responseMimeType: 'application/json'\n4. Parse response with extractJSON\n5. Validate against AIFeedbackResponse shape\n6. On rate limit (429), mark key exhausted\n7. On all keys exhausted, throw 'ALL_KEYS_EXHAUSTED' error\n\n**Step 4: Implement `callGroqForFeedback()`**\nPattern: mirrors `GroqProvider.gradeWritingAnswer()` structure\n1. Get GroqProvider singleton (lazy-init)\n2. Use same prompt (systemPrompt as system message, userPrompt as user message)\n3. Call `client.chat.completions.create()` with:\n   - model: 'llama-3.3-70b-versatile'\n   - temperature: 0.2\n   - max_tokens: 8192\n4. Parse response, validate same shape\n5. On failure, return error Result\n\n**Step 5: Implement `generateAIFeedback()` with fallback chain**\n```typescript\nasync function generateAIFeedback(\n    gradingResult: THCSGradingResult,\n    sections: THCSSection[],\n    testMetadata: { title: string; gradeLevel: number },\n): Promise<AIFeedbackResponse | null>\n```\nLogic:\n1. Build prompt\n2. Try Gemini first\n   - Success → return data with aiModel='gemini-2.5-flash'\n   - ALL_KEYS_EXHAUSTED → fall to step 3\n   - Other error → fall to step 3\n3. Try Groq fallback\n   - Success → return data with aiModel='groq-llama-3.3-70b'\n   - Failure → return null (deterministic only)\n4. Console.warn on any fallback for debugging\n\n**Step 6: Implement `validateAIFeedbackResponse()`**\nValidates the raw JSON against expected shape:\n- `questionTopics` is Record<string, { topic: string, category: string }>\n- `questionExplanations` is Record<string, string>\n- `feedback` has summary, strengths, revision, critical (all strings)\n- Return validated + sanitized object or null\n\n**Step 7: Update main `generateFormativeFeedback()` to call AI**\n```typescript\nexport async function generateFormativeFeedback(\n    gradingResult: THCSGradingResult,\n    sections: THCSSection[],\n    testMetadata: { title: string; gradeLevel: number },\n): Promise<FormativeFeedback>\n```\n1. First: run deterministic (sync, instant) → get base FormativeFeedback\n2. Then: try AI enhancement (async)\n3. If AI succeeds: merge questionTopics, questionExplanations, aiFeedback, aiModel into result\n4. If AI fails: return deterministic-only result (no error to caller)\n\n### Key Decisions\n- **NOT** extending IAIService interface — feedback gen is a separate concern from parsing\n- **Reusing** provider instances (singleton pattern already in GeminiProvider/GroqProvider)\n- **Direct Gemini SDK call** (same pattern as gradeWritingAnswer), not through IAIService.parseChunk\n- **Single service file** for both deterministic + AI (keeps it cohesive)\n\n### Verification\n- Test with mock: construct a fake THCSGradingResult, verify prompt contains all questions\n- Test fallback: temporarily disable Gemini keys, verify Groq is called\n- Test deterministic fallback: disable both, verify no error + deterministic feedback returned"
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "2gv1pn",
+      "version": 4,
+      "timestamp": "2026-03-04T21:53:46.677Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Prompt includes all question texts, options, student answers, correct answers, and test metadata"
+            },
+            {
+              "completed": false,
+              "text": "AI returns per-question topic tags (topic + category) for ALL questions"
+            },
+            {
+              "completed": false,
+              "text": "AI returns per-question explanations for WRONG answers only"
+            },
+            {
+              "completed": false,
+              "text": "AI returns narrative feedback (summary/strengths/revision/critical) with question number references"
+            },
+            {
+              "completed": false,
+              "text": "Gemini → Groq fallback works when all Gemini keys exhausted"
+            },
+            {
+              "completed": false,
+              "text": "Graceful fallback to deterministic-only if both AI providers fail (no error exposed to student)"
+            },
+            {
+              "completed": false,
+              "text": "Response validated against expected JSON schema before storing"
+            },
+            {
+              "completed": false,
+              "text": "aiModel field records which provider was used"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Prompt includes all question texts, options, student answers, correct answers, and test metadata"
+            },
+            {
+              "completed": true,
+              "text": "AI returns per-question topic tags (topic + category) for ALL questions"
+            },
+            {
+              "completed": true,
+              "text": "AI returns per-question explanations for WRONG answers only"
+            },
+            {
+              "completed": true,
+              "text": "AI returns narrative feedback (summary/strengths/revision/critical) with question number references"
+            },
+            {
+              "completed": true,
+              "text": "Gemini → Groq fallback works when all Gemini keys exhausted"
+            },
+            {
+              "completed": true,
+              "text": "Graceful fallback to deterministic-only if both AI providers fail (no error exposed to student)"
+            },
+            {
+              "completed": true,
+              "text": "Response validated against expected JSON schema before storing"
+            },
+            {
+              "completed": true,
+              "text": "aiModel field records which provider was used"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Enhanced `src/services/formativeFeedback.service.ts` with complete AI feedback generation pipeline:\n\n**New functions added:**\n- `buildFeedbackPrompt()` — constructs system+user prompts with all question data, student answers, correct answers, and test metadata. Includes 8 structured rules for AI output.\n- `validateAIFeedbackResponse()` — validates raw AI JSON against expected schema (questionTopics, questionExplanations, feedback narrative). Returns null on invalid data.\n- `callGeminiForFeedback()` — calls Gemini 2.5 Flash with JSON mode, iterates all API keys on rate limit, uses extractJSON from shared ai-json-repair module\n- `callGroqForFeedback()` — calls Groq Llama 3.3 70B as fallback, same key rotation pattern, loads keys from .env + Firestore\n- `generateAIFeedback()` — orchestrates Gemini → Groq fallback chain, returns null if both fail\n\n**Updated functions:**\n- `generateFormativeFeedback()` — now calls AI pipeline, merges AI data into deterministic baseline, records aiModel field\n\n**Key design decisions:**\n- Direct SDK calls (not through IAIService) — feedback gen is a separate concern\n- Shared extractJSON from ai-json-repair module (5-strategy recovery)\n- Same prompt sent to both Gemini and Groq (systemPrompt + userPrompt)\n- Fire-and-forget: errors caught and logged, never thrown to student\n\n**TypeScript compilation verified** — no new errors introduced."
+        }
+      ],
+      "snapshot": {
+        "title": "Implement AI feedback generation (Gemini + Groq fallback)",
+        "description": "Add AI feedback generation to formativeFeedback.service.ts. Build the prompt from all question texts + student answers + correct answers + test metadata. Call Gemini 2.5 Flash first; if all keys exhausted, fall back to Groq with same prompt. Parse structured JSON response containing questionTopics, questionExplanations, and feedback narrative. Fall back to deterministic-only if both providers fail. See research artifact Section 3.6 for full prompt template and Section 3.5 for topic taxonomy.",
+        "status": "in-progress",
+        "priority": "high",
+        "labels": [
+          "from-spec",
+          "formative-feedback"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Prompt includes all question texts, options, student answers, correct answers, and test metadata"
+          },
+          {
+            "completed": true,
+            "text": "AI returns per-question topic tags (topic + category) for ALL questions"
+          },
+          {
+            "completed": true,
+            "text": "AI returns per-question explanations for WRONG answers only"
+          },
+          {
+            "completed": true,
+            "text": "AI returns narrative feedback (summary/strengths/revision/critical) with question number references"
+          },
+          {
+            "completed": true,
+            "text": "Gemini → Groq fallback works when all Gemini keys exhausted"
+          },
+          {
+            "completed": true,
+            "text": "Graceful fallback to deterministic-only if both AI providers fail (no error exposed to student)"
+          },
+          {
+            "completed": true,
+            "text": "Response validated against expected JSON schema before storing"
+          },
+          {
+            "completed": true,
+            "text": "aiModel field records which provider was used"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan: AI Feedback Generation (Gemini + Groq Fallback)\n\n### File: `src/services/formativeFeedback.service.ts` (extends Task 23fbgf)\n\n**Step 1: Import AI providers + define types**\n```typescript\nimport { GeminiProvider } from './ai/gemini.provider';\nimport { GroqProvider } from './ai/groq.provider';\n```\nDefine local type for AI response validation:\n```typescript\ninterface AIFeedbackResponse {\n    questionTopics: Record<string, { topic: string; category: string }>;\n    questionExplanations: Record<string, string>;\n    feedback: { summary: string; strengths: string; revision: string; critical: string };\n}\n```\n\n**Step 2: Implement `buildFeedbackPrompt()`**\nInputs: `gradingResult`, `sections`, `testMetadata`\nLogic:\n1. Build header: score, grade level, test title\n2. For each question in each section:\n   - Format: `Q{num} [{intent}] {CORRECT|WRONG}`\n   - Include: questionText, options (for MCQ), studentAnswer, correctAnswer\n   - Include: teacher explanation if exists (so AI doesn't duplicate)\n3. Append the JSON output schema instructions with 8 rules (from research Section 3.6)\n4. Return { systemPrompt, userPrompt }\n\n**Step 3: Implement `callGeminiForFeedback()`**\nPattern: mirrors `GeminiProvider.gradeWritingAnswer()` structure\n1. Get GeminiProvider singleton (lazy-init)\n2. Use round-robin key selection + exhausted key cleanup\n3. Call `model.generateContent()` with:\n   - model: 'gemini-2.5-flash'\n   - temperature: 0.2\n   - maxOutputTokens: 8192\n   - responseMimeType: 'application/json'\n4. Parse response with extractJSON\n5. Validate against AIFeedbackResponse shape\n6. On rate limit (429), mark key exhausted\n7. On all keys exhausted, throw 'ALL_KEYS_EXHAUSTED' error\n\n**Step 4: Implement `callGroqForFeedback()`**\nPattern: mirrors `GroqProvider.gradeWritingAnswer()` structure\n1. Get GroqProvider singleton (lazy-init)\n2. Use same prompt (systemPrompt as system message, userPrompt as user message)\n3. Call `client.chat.completions.create()` with:\n   - model: 'llama-3.3-70b-versatile'\n   - temperature: 0.2\n   - max_tokens: 8192\n4. Parse response, validate same shape\n5. On failure, return error Result\n\n**Step 5: Implement `generateAIFeedback()` with fallback chain**\n```typescript\nasync function generateAIFeedback(\n    gradingResult: THCSGradingResult,\n    sections: THCSSection[],\n    testMetadata: { title: string; gradeLevel: number },\n): Promise<AIFeedbackResponse | null>\n```\nLogic:\n1. Build prompt\n2. Try Gemini first\n   - Success → return data with aiModel='gemini-2.5-flash'\n   - ALL_KEYS_EXHAUSTED → fall to step 3\n   - Other error → fall to step 3\n3. Try Groq fallback\n   - Success → return data with aiModel='groq-llama-3.3-70b'\n   - Failure → return null (deterministic only)\n4. Console.warn on any fallback for debugging\n\n**Step 6: Implement `validateAIFeedbackResponse()`**\nValidates the raw JSON against expected shape:\n- `questionTopics` is Record<string, { topic: string, category: string }>\n- `questionExplanations` is Record<string, string>\n- `feedback` has summary, strengths, revision, critical (all strings)\n- Return validated + sanitized object or null\n\n**Step 7: Update main `generateFormativeFeedback()` to call AI**\n```typescript\nexport async function generateFormativeFeedback(\n    gradingResult: THCSGradingResult,\n    sections: THCSSection[],\n    testMetadata: { title: string; gradeLevel: number },\n): Promise<FormativeFeedback>\n```\n1. First: run deterministic (sync, instant) → get base FormativeFeedback\n2. Then: try AI enhancement (async)\n3. If AI succeeds: merge questionTopics, questionExplanations, aiFeedback, aiModel into result\n4. If AI fails: return deterministic-only result (no error to caller)\n\n### Key Decisions\n- **NOT** extending IAIService interface — feedback gen is a separate concern from parsing\n- **Reusing** provider instances (singleton pattern already in GeminiProvider/GroqProvider)\n- **Direct Gemini SDK call** (same pattern as gradeWritingAnswer), not through IAIService.parseChunk\n- **Single service file** for both deterministic + AI (keeps it cohesive)\n\n### Verification\n- Test with mock: construct a fake THCSGradingResult, verify prompt contains all questions\n- Test fallback: temporarily disable Gemini keys, verify Groq is called\n- Test deterministic fallback: disable both, verify no error + deterministic feedback returned",
+        "implementationNotes": "Enhanced `src/services/formativeFeedback.service.ts` with complete AI feedback generation pipeline:\n\n**New functions added:**\n- `buildFeedbackPrompt()` — constructs system+user prompts with all question data, student answers, correct answers, and test metadata. Includes 8 structured rules for AI output.\n- `validateAIFeedbackResponse()` — validates raw AI JSON against expected schema (questionTopics, questionExplanations, feedback narrative). Returns null on invalid data.\n- `callGeminiForFeedback()` — calls Gemini 2.5 Flash with JSON mode, iterates all API keys on rate limit, uses extractJSON from shared ai-json-repair module\n- `callGroqForFeedback()` — calls Groq Llama 3.3 70B as fallback, same key rotation pattern, loads keys from .env + Firestore\n- `generateAIFeedback()` — orchestrates Gemini → Groq fallback chain, returns null if both fail\n\n**Updated functions:**\n- `generateFormativeFeedback()` — now calls AI pipeline, merges AI data into deterministic baseline, records aiModel field\n\n**Key design decisions:**\n- Direct SDK calls (not through IAIService) — feedback gen is a separate concern\n- Shared extractJSON from ai-json-repair module (5-strategy recovery)\n- Same prompt sent to both Gemini and Groq (systemPrompt + userPrompt)\n- Fire-and-forget: errors caught and logged, never thrown to student\n\n**TypeScript compilation verified** — no new errors introduced."
+      }
+    },
+    {
+      "id": "v5",
+      "taskId": "2gv1pn",
+      "version": 5,
+      "timestamp": "2026-03-04T21:53:55.450Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Implement AI feedback generation (Gemini + Groq fallback)",
+        "description": "Add AI feedback generation to formativeFeedback.service.ts. Build the prompt from all question texts + student answers + correct answers + test metadata. Call Gemini 2.5 Flash first; if all keys exhausted, fall back to Groq with same prompt. Parse structured JSON response containing questionTopics, questionExplanations, and feedback narrative. Fall back to deterministic-only if both providers fail. See research artifact Section 3.6 for full prompt template and Section 3.5 for topic taxonomy.",
+        "status": "done",
+        "priority": "high",
+        "labels": [
+          "from-spec",
+          "formative-feedback"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Prompt includes all question texts, options, student answers, correct answers, and test metadata"
+          },
+          {
+            "completed": true,
+            "text": "AI returns per-question topic tags (topic + category) for ALL questions"
+          },
+          {
+            "completed": true,
+            "text": "AI returns per-question explanations for WRONG answers only"
+          },
+          {
+            "completed": true,
+            "text": "AI returns narrative feedback (summary/strengths/revision/critical) with question number references"
+          },
+          {
+            "completed": true,
+            "text": "Gemini → Groq fallback works when all Gemini keys exhausted"
+          },
+          {
+            "completed": true,
+            "text": "Graceful fallback to deterministic-only if both AI providers fail (no error exposed to student)"
+          },
+          {
+            "completed": true,
+            "text": "Response validated against expected JSON schema before storing"
+          },
+          {
+            "completed": true,
+            "text": "aiModel field records which provider was used"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan: AI Feedback Generation (Gemini + Groq Fallback)\n\n### File: `src/services/formativeFeedback.service.ts` (extends Task 23fbgf)\n\n**Step 1: Import AI providers + define types**\n```typescript\nimport { GeminiProvider } from './ai/gemini.provider';\nimport { GroqProvider } from './ai/groq.provider';\n```\nDefine local type for AI response validation:\n```typescript\ninterface AIFeedbackResponse {\n    questionTopics: Record<string, { topic: string; category: string }>;\n    questionExplanations: Record<string, string>;\n    feedback: { summary: string; strengths: string; revision: string; critical: string };\n}\n```\n\n**Step 2: Implement `buildFeedbackPrompt()`**\nInputs: `gradingResult`, `sections`, `testMetadata`\nLogic:\n1. Build header: score, grade level, test title\n2. For each question in each section:\n   - Format: `Q{num} [{intent}] {CORRECT|WRONG}`\n   - Include: questionText, options (for MCQ), studentAnswer, correctAnswer\n   - Include: teacher explanation if exists (so AI doesn't duplicate)\n3. Append the JSON output schema instructions with 8 rules (from research Section 3.6)\n4. Return { systemPrompt, userPrompt }\n\n**Step 3: Implement `callGeminiForFeedback()`**\nPattern: mirrors `GeminiProvider.gradeWritingAnswer()` structure\n1. Get GeminiProvider singleton (lazy-init)\n2. Use round-robin key selection + exhausted key cleanup\n3. Call `model.generateContent()` with:\n   - model: 'gemini-2.5-flash'\n   - temperature: 0.2\n   - maxOutputTokens: 8192\n   - responseMimeType: 'application/json'\n4. Parse response with extractJSON\n5. Validate against AIFeedbackResponse shape\n6. On rate limit (429), mark key exhausted\n7. On all keys exhausted, throw 'ALL_KEYS_EXHAUSTED' error\n\n**Step 4: Implement `callGroqForFeedback()`**\nPattern: mirrors `GroqProvider.gradeWritingAnswer()` structure\n1. Get GroqProvider singleton (lazy-init)\n2. Use same prompt (systemPrompt as system message, userPrompt as user message)\n3. Call `client.chat.completions.create()` with:\n   - model: 'llama-3.3-70b-versatile'\n   - temperature: 0.2\n   - max_tokens: 8192\n4. Parse response, validate same shape\n5. On failure, return error Result\n\n**Step 5: Implement `generateAIFeedback()` with fallback chain**\n```typescript\nasync function generateAIFeedback(\n    gradingResult: THCSGradingResult,\n    sections: THCSSection[],\n    testMetadata: { title: string; gradeLevel: number },\n): Promise<AIFeedbackResponse | null>\n```\nLogic:\n1. Build prompt\n2. Try Gemini first\n   - Success → return data with aiModel='gemini-2.5-flash'\n   - ALL_KEYS_EXHAUSTED → fall to step 3\n   - Other error → fall to step 3\n3. Try Groq fallback\n   - Success → return data with aiModel='groq-llama-3.3-70b'\n   - Failure → return null (deterministic only)\n4. Console.warn on any fallback for debugging\n\n**Step 6: Implement `validateAIFeedbackResponse()`**\nValidates the raw JSON against expected shape:\n- `questionTopics` is Record<string, { topic: string, category: string }>\n- `questionExplanations` is Record<string, string>\n- `feedback` has summary, strengths, revision, critical (all strings)\n- Return validated + sanitized object or null\n\n**Step 7: Update main `generateFormativeFeedback()` to call AI**\n```typescript\nexport async function generateFormativeFeedback(\n    gradingResult: THCSGradingResult,\n    sections: THCSSection[],\n    testMetadata: { title: string; gradeLevel: number },\n): Promise<FormativeFeedback>\n```\n1. First: run deterministic (sync, instant) → get base FormativeFeedback\n2. Then: try AI enhancement (async)\n3. If AI succeeds: merge questionTopics, questionExplanations, aiFeedback, aiModel into result\n4. If AI fails: return deterministic-only result (no error to caller)\n\n### Key Decisions\n- **NOT** extending IAIService interface — feedback gen is a separate concern from parsing\n- **Reusing** provider instances (singleton pattern already in GeminiProvider/GroqProvider)\n- **Direct Gemini SDK call** (same pattern as gradeWritingAnswer), not through IAIService.parseChunk\n- **Single service file** for both deterministic + AI (keeps it cohesive)\n\n### Verification\n- Test with mock: construct a fake THCSGradingResult, verify prompt contains all questions\n- Test fallback: temporarily disable Gemini keys, verify Groq is called\n- Test deterministic fallback: disable both, verify no error + deterministic feedback returned",
+        "implementationNotes": "Enhanced `src/services/formativeFeedback.service.ts` with complete AI feedback generation pipeline:\n\n**New functions added:**\n- `buildFeedbackPrompt()` — constructs system+user prompts with all question data, student answers, correct answers, and test metadata. Includes 8 structured rules for AI output.\n- `validateAIFeedbackResponse()` — validates raw AI JSON against expected schema (questionTopics, questionExplanations, feedback narrative). Returns null on invalid data.\n- `callGeminiForFeedback()` — calls Gemini 2.5 Flash with JSON mode, iterates all API keys on rate limit, uses extractJSON from shared ai-json-repair module\n- `callGroqForFeedback()` — calls Groq Llama 3.3 70B as fallback, same key rotation pattern, loads keys from .env + Firestore\n- `generateAIFeedback()` — orchestrates Gemini → Groq fallback chain, returns null if both fail\n\n**Updated functions:**\n- `generateFormativeFeedback()` — now calls AI pipeline, merges AI data into deterministic baseline, records aiModel field\n\n**Key design decisions:**\n- Direct SDK calls (not through IAIService) — feedback gen is a separate concern\n- Shared extractJSON from ai-json-repair module (5-strategy recovery)\n- Same prompt sent to both Gemini and Groq (systemPrompt + userPrompt)\n- Fire-and-forget: errors caught and logged, never thrown to student\n\n**TypeScript compilation verified** — no new errors introduced."
+      }
+    },
+    {
+      "id": "v6",
+      "taskId": "2gv1pn",
+      "version": 6,
+      "timestamp": "2026-03-04T22:25:51.801Z",
+      "changes": [
+        {
+          "field": "implementationNotes",
+          "oldValue": "Enhanced `src/services/formativeFeedback.service.ts` with complete AI feedback generation pipeline:\n\n**New functions added:**\n- `buildFeedbackPrompt()` — constructs system+user prompts with all question data, student answers, correct answers, and test metadata. Includes 8 structured rules for AI output.\n- `validateAIFeedbackResponse()` — validates raw AI JSON against expected schema (questionTopics, questionExplanations, feedback narrative). Returns null on invalid data.\n- `callGeminiForFeedback()` — calls Gemini 2.5 Flash with JSON mode, iterates all API keys on rate limit, uses extractJSON from shared ai-json-repair module\n- `callGroqForFeedback()` — calls Groq Llama 3.3 70B as fallback, same key rotation pattern, loads keys from .env + Firestore\n- `generateAIFeedback()` — orchestrates Gemini → Groq fallback chain, returns null if both fail\n\n**Updated functions:**\n- `generateFormativeFeedback()` — now calls AI pipeline, merges AI data into deterministic baseline, records aiModel field\n\n**Key design decisions:**\n- Direct SDK calls (not through IAIService) — feedback gen is a separate concern\n- Shared extractJSON from ai-json-repair module (5-strategy recovery)\n- Same prompt sent to both Gemini and Groq (systemPrompt + userPrompt)\n- Fire-and-forget: errors caught and logged, never thrown to student\n\n**TypeScript compilation verified** — no new errors introduced.",
+          "newValue": "Enhanced `src/services/formativeFeedback.service.ts` with complete AI feedback generation pipeline:\n\n**New functions added:**\n- `buildFeedbackPrompt()` — constructs system+user prompts with all question data, student answers, correct answers, and test metadata. Includes 8 structured rules for AI output.\n- `validateAIFeedbackResponse()` — validates raw AI JSON against expected schema (questionTopics, questionExplanations, feedback narrative). Returns null on invalid data.\n- `callGeminiForFeedback()` — calls Gemini 2.5 Flash with JSON mode, iterates all API keys on rate limit, uses extractJSON from shared ai-json-repair module\n- `callGroqForFeedback()` — calls Groq Llama 3.3 70B as fallback, same key rotation pattern, loads keys from .env + Firestore\n- `generateAIFeedback()` — orchestrates Gemini → Groq fallback chain, returns null if both fail\n\n**Updated functions:**\n- `generateFormativeFeedback()` — now calls AI pipeline, merges AI data into deterministic baseline, records aiModel field\n\n**Key design decisions:**\n- Direct SDK calls (not through IAIService) — feedback gen is a separate concern\n- Shared extractJSON from ai-json-repair module (5-strategy recovery)\n- Same prompt sent to both Gemini and Groq (systemPrompt + userPrompt)\n- Fire-and-forget: errors caught and logged, never thrown to student\n\n**TypeScript compilation verified** — no new errors introduced.\n\n📚 Extracted to @doc/patterns/pattern-ai-provider-fallback-chain-with-key-rotation"
+        }
+      ],
+      "snapshot": {
+        "title": "Implement AI feedback generation (Gemini + Groq fallback)",
+        "description": "Add AI feedback generation to formativeFeedback.service.ts. Build the prompt from all question texts + student answers + correct answers + test metadata. Call Gemini 2.5 Flash first; if all keys exhausted, fall back to Groq with same prompt. Parse structured JSON response containing questionTopics, questionExplanations, and feedback narrative. Fall back to deterministic-only if both providers fail. See research artifact Section 3.6 for full prompt template and Section 3.5 for topic taxonomy.",
+        "status": "done",
+        "priority": "high",
+        "labels": [
+          "from-spec",
+          "formative-feedback"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Prompt includes all question texts, options, student answers, correct answers, and test metadata"
+          },
+          {
+            "completed": true,
+            "text": "AI returns per-question topic tags (topic + category) for ALL questions"
+          },
+          {
+            "completed": true,
+            "text": "AI returns per-question explanations for WRONG answers only"
+          },
+          {
+            "completed": true,
+            "text": "AI returns narrative feedback (summary/strengths/revision/critical) with question number references"
+          },
+          {
+            "completed": true,
+            "text": "Gemini → Groq fallback works when all Gemini keys exhausted"
+          },
+          {
+            "completed": true,
+            "text": "Graceful fallback to deterministic-only if both AI providers fail (no error exposed to student)"
+          },
+          {
+            "completed": true,
+            "text": "Response validated against expected JSON schema before storing"
+          },
+          {
+            "completed": true,
+            "text": "aiModel field records which provider was used"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan: AI Feedback Generation (Gemini + Groq Fallback)\n\n### File: `src/services/formativeFeedback.service.ts` (extends Task 23fbgf)\n\n**Step 1: Import AI providers + define types**\n```typescript\nimport { GeminiProvider } from './ai/gemini.provider';\nimport { GroqProvider } from './ai/groq.provider';\n```\nDefine local type for AI response validation:\n```typescript\ninterface AIFeedbackResponse {\n    questionTopics: Record<string, { topic: string; category: string }>;\n    questionExplanations: Record<string, string>;\n    feedback: { summary: string; strengths: string; revision: string; critical: string };\n}\n```\n\n**Step 2: Implement `buildFeedbackPrompt()`**\nInputs: `gradingResult`, `sections`, `testMetadata`\nLogic:\n1. Build header: score, grade level, test title\n2. For each question in each section:\n   - Format: `Q{num} [{intent}] {CORRECT|WRONG}`\n   - Include: questionText, options (for MCQ), studentAnswer, correctAnswer\n   - Include: teacher explanation if exists (so AI doesn't duplicate)\n3. Append the JSON output schema instructions with 8 rules (from research Section 3.6)\n4. Return { systemPrompt, userPrompt }\n\n**Step 3: Implement `callGeminiForFeedback()`**\nPattern: mirrors `GeminiProvider.gradeWritingAnswer()` structure\n1. Get GeminiProvider singleton (lazy-init)\n2. Use round-robin key selection + exhausted key cleanup\n3. Call `model.generateContent()` with:\n   - model: 'gemini-2.5-flash'\n   - temperature: 0.2\n   - maxOutputTokens: 8192\n   - responseMimeType: 'application/json'\n4. Parse response with extractJSON\n5. Validate against AIFeedbackResponse shape\n6. On rate limit (429), mark key exhausted\n7. On all keys exhausted, throw 'ALL_KEYS_EXHAUSTED' error\n\n**Step 4: Implement `callGroqForFeedback()`**\nPattern: mirrors `GroqProvider.gradeWritingAnswer()` structure\n1. Get GroqProvider singleton (lazy-init)\n2. Use same prompt (systemPrompt as system message, userPrompt as user message)\n3. Call `client.chat.completions.create()` with:\n   - model: 'llama-3.3-70b-versatile'\n   - temperature: 0.2\n   - max_tokens: 8192\n4. Parse response, validate same shape\n5. On failure, return error Result\n\n**Step 5: Implement `generateAIFeedback()` with fallback chain**\n```typescript\nasync function generateAIFeedback(\n    gradingResult: THCSGradingResult,\n    sections: THCSSection[],\n    testMetadata: { title: string; gradeLevel: number },\n): Promise<AIFeedbackResponse | null>\n```\nLogic:\n1. Build prompt\n2. Try Gemini first\n   - Success → return data with aiModel='gemini-2.5-flash'\n   - ALL_KEYS_EXHAUSTED → fall to step 3\n   - Other error → fall to step 3\n3. Try Groq fallback\n   - Success → return data with aiModel='groq-llama-3.3-70b'\n   - Failure → return null (deterministic only)\n4. Console.warn on any fallback for debugging\n\n**Step 6: Implement `validateAIFeedbackResponse()`**\nValidates the raw JSON against expected shape:\n- `questionTopics` is Record<string, { topic: string, category: string }>\n- `questionExplanations` is Record<string, string>\n- `feedback` has summary, strengths, revision, critical (all strings)\n- Return validated + sanitized object or null\n\n**Step 7: Update main `generateFormativeFeedback()` to call AI**\n```typescript\nexport async function generateFormativeFeedback(\n    gradingResult: THCSGradingResult,\n    sections: THCSSection[],\n    testMetadata: { title: string; gradeLevel: number },\n): Promise<FormativeFeedback>\n```\n1. First: run deterministic (sync, instant) → get base FormativeFeedback\n2. Then: try AI enhancement (async)\n3. If AI succeeds: merge questionTopics, questionExplanations, aiFeedback, aiModel into result\n4. If AI fails: return deterministic-only result (no error to caller)\n\n### Key Decisions\n- **NOT** extending IAIService interface — feedback gen is a separate concern from parsing\n- **Reusing** provider instances (singleton pattern already in GeminiProvider/GroqProvider)\n- **Direct Gemini SDK call** (same pattern as gradeWritingAnswer), not through IAIService.parseChunk\n- **Single service file** for both deterministic + AI (keeps it cohesive)\n\n### Verification\n- Test with mock: construct a fake THCSGradingResult, verify prompt contains all questions\n- Test fallback: temporarily disable Gemini keys, verify Groq is called\n- Test deterministic fallback: disable both, verify no error + deterministic feedback returned",
+        "implementationNotes": "Enhanced `src/services/formativeFeedback.service.ts` with complete AI feedback generation pipeline:\n\n**New functions added:**\n- `buildFeedbackPrompt()` — constructs system+user prompts with all question data, student answers, correct answers, and test metadata. Includes 8 structured rules for AI output.\n- `validateAIFeedbackResponse()` — validates raw AI JSON against expected schema (questionTopics, questionExplanations, feedback narrative). Returns null on invalid data.\n- `callGeminiForFeedback()` — calls Gemini 2.5 Flash with JSON mode, iterates all API keys on rate limit, uses extractJSON from shared ai-json-repair module\n- `callGroqForFeedback()` — calls Groq Llama 3.3 70B as fallback, same key rotation pattern, loads keys from .env + Firestore\n- `generateAIFeedback()` — orchestrates Gemini → Groq fallback chain, returns null if both fail\n\n**Updated functions:**\n- `generateFormativeFeedback()` — now calls AI pipeline, merges AI data into deterministic baseline, records aiModel field\n\n**Key design decisions:**\n- Direct SDK calls (not through IAIService) — feedback gen is a separate concern\n- Shared extractJSON from ai-json-repair module (5-strategy recovery)\n- Same prompt sent to both Gemini and Groq (systemPrompt + userPrompt)\n- Fire-and-forget: errors caught and logged, never thrown to student\n\n**TypeScript compilation verified** — no new errors introduced.\n\n📚 Extracted to @doc/patterns/pattern-ai-provider-fallback-chain-with-key-rotation"
+      }
+    }
+  ]
+}

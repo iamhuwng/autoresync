@@ -1,0 +1,322 @@
+{
+  "taskId": "gmr6z8",
+  "currentVersion": 4,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "gmr6z8",
+      "version": 1,
+      "timestamp": "2026-03-01T06:45:29.196Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Single TipTap editor instance with 5 tab pills above it: [Overall] [TA/TR] [CC] [LR] [GRA]",
+              "completed": false
+            },
+            {
+              "text": "Active tab: filled blue (#3b82f6) bg + white text. Inactive: gray (#9ca3af) outline",
+              "completed": false
+            },
+            {
+              "text": "Toolbar: Bold, Italic, Underline, Bullet List, Numbered List, Undo, Redo",
+              "completed": false
+            },
+            {
+              "text": "Content preserved when switching tabs — stored as {overall:string, ta:string, cc:string, lr:string, gra:string} HTML strings",
+              "completed": false
+            },
+            {
+              "text": "Editor area min-height: 180px with comfortable typography",
+              "completed": false
+            },
+            {
+              "text": "Placeholder text: 'Write your {criterionName} feedback for Task {taskNumber}...'",
+              "completed": false
+            },
+            {
+              "text": "First criterion tab label dynamically shows TA (Task 1) or TR (Task 2)",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Tabbed Feedback Editor (Single TipTap)",
+        "description": "Rewrite FeedbackPanel.tsx. Replace 5 separate TipTap editors with 1 tabbed TipTap editor. Tab pills: [Overall] [TA/TR] [CC] [LR] [GRA]. Toolbar: B, I, U, bullet list, numbered list, undo, redo. Content preserved on tab switch via state object {overall, ta, cc, lr, gra} stored as HTML. Dynamic TA/TR label based on task number. See @doc/specs/grading-editor-redesign FR-60 through FR-65.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Single TipTap editor instance with 5 tab pills above it: [Overall] [TA/TR] [CC] [LR] [GRA]",
+            "completed": false
+          },
+          {
+            "text": "Active tab: filled blue (#3b82f6) bg + white text. Inactive: gray (#9ca3af) outline",
+            "completed": false
+          },
+          {
+            "text": "Toolbar: Bold, Italic, Underline, Bullet List, Numbered List, Undo, Redo",
+            "completed": false
+          },
+          {
+            "text": "Content preserved when switching tabs — stored as {overall:string, ta:string, cc:string, lr:string, gra:string} HTML strings",
+            "completed": false
+          },
+          {
+            "text": "Editor area min-height: 180px with comfortable typography",
+            "completed": false
+          },
+          {
+            "text": "Placeholder text: 'Write your {criterionName} feedback for Task {taskNumber}...'",
+            "completed": false
+          },
+          {
+            "text": "First criterion tab label dynamically shows TA (Task 1) or TR (Task 2)",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "gmr6z8",
+      "version": 2,
+      "timestamp": "2026-03-01T07:57:20.523Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        },
+        {
+          "field": "assignee",
+          "newValue": "@me"
+        }
+      ],
+      "snapshot": {
+        "title": "Tabbed Feedback Editor (Single TipTap)",
+        "description": "Rewrite FeedbackPanel.tsx. Replace 5 separate TipTap editors with 1 tabbed TipTap editor. Tab pills: [Overall] [TA/TR] [CC] [LR] [GRA]. Toolbar: B, I, U, bullet list, numbered list, undo, redo. Content preserved on tab switch via state object {overall, ta, cc, lr, gra} stored as HTML. Dynamic TA/TR label based on task number. See @doc/specs/grading-editor-redesign FR-60 through FR-65.",
+        "status": "in-progress",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Single TipTap editor instance with 5 tab pills above it: [Overall] [TA/TR] [CC] [LR] [GRA]"
+          },
+          {
+            "completed": false,
+            "text": "Active tab: filled blue (#3b82f6) bg + white text. Inactive: gray (#9ca3af) outline"
+          },
+          {
+            "completed": false,
+            "text": "Toolbar: Bold, Italic, Underline, Bullet List, Numbered List, Undo, Redo"
+          },
+          {
+            "completed": false,
+            "text": "Content preserved when switching tabs — stored as {overall:string, ta:string, cc:string, lr:string, gra:string} HTML strings"
+          },
+          {
+            "completed": false,
+            "text": "Editor area min-height: 180px with comfortable typography"
+          },
+          {
+            "completed": false,
+            "text": "Placeholder text: 'Write your {criterionName} feedback for Task {taskNumber}...'"
+          },
+          {
+            "completed": false,
+            "text": "First criterion tab label dynamically shows TA (Task 1) or TR (Task 2)"
+          }
+        ]
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "gmr6z8",
+      "version": 3,
+      "timestamp": "2026-03-01T07:59:23.574Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Single TipTap editor instance with 5 tab pills above it: [Overall] [TA/TR] [CC] [LR] [GRA]"
+            },
+            {
+              "completed": false,
+              "text": "Active tab: filled blue (#3b82f6) bg + white text. Inactive: gray (#9ca3af) outline"
+            },
+            {
+              "completed": false,
+              "text": "Toolbar: Bold, Italic, Underline, Bullet List, Numbered List, Undo, Redo"
+            },
+            {
+              "completed": false,
+              "text": "Content preserved when switching tabs — stored as {overall:string, ta:string, cc:string, lr:string, gra:string} HTML strings"
+            },
+            {
+              "completed": false,
+              "text": "Editor area min-height: 180px with comfortable typography"
+            },
+            {
+              "completed": false,
+              "text": "Placeholder text: 'Write your {criterionName} feedback for Task {taskNumber}...'"
+            },
+            {
+              "completed": false,
+              "text": "First criterion tab label dynamically shows TA (Task 1) or TR (Task 2)"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Single TipTap editor instance with 5 tab pills above it: [Overall] [TA/TR] [CC] [LR] [GRA]"
+            },
+            {
+              "completed": true,
+              "text": "Active tab: filled blue (#3b82f6) bg + white text. Inactive: gray (#9ca3af) outline"
+            },
+            {
+              "completed": true,
+              "text": "Toolbar: Bold, Italic, Underline, Bullet List, Numbered List, Undo, Redo"
+            },
+            {
+              "completed": true,
+              "text": "Content preserved when switching tabs — stored as {overall:string, ta:string, cc:string, lr:string, gra:string} HTML strings"
+            },
+            {
+              "completed": true,
+              "text": "Editor area min-height: 180px with comfortable typography"
+            },
+            {
+              "completed": true,
+              "text": "Placeholder text: 'Write your {criterionName} feedback for Task {taskNumber}...'"
+            },
+            {
+              "completed": true,
+              "text": "First criterion tab label dynamically shows TA (Task 1) or TR (Task 2)"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "## Implementation Log\n\n### TabbedFeedbackEditor.tsx (190 lines)\n- Single TipTap editor with 5 tab pills: Overall, TA/TR, CC, LR, GRA\n- Tab switching: saves current content to ref → sets new tab → loads new content\n- Toolbar: Bold, Italic, Underline, Bullet List, Numbered List, Undo, Redo\n- Active states on toolbar buttons\n- Dynamic TA→TR label based on taskNumber\n- Dynamic placeholder via data-attribute on editor element\n- StarterKit configured with heading/codeBlock/code/blockquote/hr disabled\n- Underline extension added\n- Content preserved via contentRef (FeedbackContent object)\n- onChange fires on every update with full FeedbackContent\n\n### TabbedFeedbackEditor.css\n- Tab pills: gray outline (inactive), blue filled (active), 16px radius\n- Toolbar: 28px buttons, active state with e2e8f0 bg, separators\n- Editor content: 180px min-height, 14px/1.7 typography\n- Placeholder styling via CSS ::before pseudo-element\n\n### Build: Zero new TS errors\""
+        }
+      ],
+      "snapshot": {
+        "title": "Tabbed Feedback Editor (Single TipTap)",
+        "description": "Rewrite FeedbackPanel.tsx. Replace 5 separate TipTap editors with 1 tabbed TipTap editor. Tab pills: [Overall] [TA/TR] [CC] [LR] [GRA]. Toolbar: B, I, U, bullet list, numbered list, undo, redo. Content preserved on tab switch via state object {overall, ta, cc, lr, gra} stored as HTML. Dynamic TA/TR label based on task number. See @doc/specs/grading-editor-redesign FR-60 through FR-65.",
+        "status": "in-progress",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Single TipTap editor instance with 5 tab pills above it: [Overall] [TA/TR] [CC] [LR] [GRA]"
+          },
+          {
+            "completed": true,
+            "text": "Active tab: filled blue (#3b82f6) bg + white text. Inactive: gray (#9ca3af) outline"
+          },
+          {
+            "completed": true,
+            "text": "Toolbar: Bold, Italic, Underline, Bullet List, Numbered List, Undo, Redo"
+          },
+          {
+            "completed": true,
+            "text": "Content preserved when switching tabs — stored as {overall:string, ta:string, cc:string, lr:string, gra:string} HTML strings"
+          },
+          {
+            "completed": true,
+            "text": "Editor area min-height: 180px with comfortable typography"
+          },
+          {
+            "completed": true,
+            "text": "Placeholder text: 'Write your {criterionName} feedback for Task {taskNumber}...'"
+          },
+          {
+            "completed": true,
+            "text": "First criterion tab label dynamically shows TA (Task 1) or TR (Task 2)"
+          }
+        ],
+        "implementationNotes": "## Implementation Log\n\n### TabbedFeedbackEditor.tsx (190 lines)\n- Single TipTap editor with 5 tab pills: Overall, TA/TR, CC, LR, GRA\n- Tab switching: saves current content to ref → sets new tab → loads new content\n- Toolbar: Bold, Italic, Underline, Bullet List, Numbered List, Undo, Redo\n- Active states on toolbar buttons\n- Dynamic TA→TR label based on taskNumber\n- Dynamic placeholder via data-attribute on editor element\n- StarterKit configured with heading/codeBlock/code/blockquote/hr disabled\n- Underline extension added\n- Content preserved via contentRef (FeedbackContent object)\n- onChange fires on every update with full FeedbackContent\n\n### TabbedFeedbackEditor.css\n- Tab pills: gray outline (inactive), blue filled (active), 16px radius\n- Toolbar: 28px buttons, active state with e2e8f0 bg, separators\n- Editor content: 180px min-height, 14px/1.7 typography\n- Placeholder styling via CSS ::before pseudo-element\n\n### Build: Zero new TS errors\""
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "gmr6z8",
+      "version": 4,
+      "timestamp": "2026-03-01T07:59:29.235Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Tabbed Feedback Editor (Single TipTap)",
+        "description": "Rewrite FeedbackPanel.tsx. Replace 5 separate TipTap editors with 1 tabbed TipTap editor. Tab pills: [Overall] [TA/TR] [CC] [LR] [GRA]. Toolbar: B, I, U, bullet list, numbered list, undo, redo. Content preserved on tab switch via state object {overall, ta, cc, lr, gra} stored as HTML. Dynamic TA/TR label based on task number. See @doc/specs/grading-editor-redesign FR-60 through FR-65.",
+        "status": "done",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "phase-1",
+          "from-spec",
+          "grading-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Single TipTap editor instance with 5 tab pills above it: [Overall] [TA/TR] [CC] [LR] [GRA]"
+          },
+          {
+            "completed": true,
+            "text": "Active tab: filled blue (#3b82f6) bg + white text. Inactive: gray (#9ca3af) outline"
+          },
+          {
+            "completed": true,
+            "text": "Toolbar: Bold, Italic, Underline, Bullet List, Numbered List, Undo, Redo"
+          },
+          {
+            "completed": true,
+            "text": "Content preserved when switching tabs — stored as {overall:string, ta:string, cc:string, lr:string, gra:string} HTML strings"
+          },
+          {
+            "completed": true,
+            "text": "Editor area min-height: 180px with comfortable typography"
+          },
+          {
+            "completed": true,
+            "text": "Placeholder text: 'Write your {criterionName} feedback for Task {taskNumber}...'"
+          },
+          {
+            "completed": true,
+            "text": "First criterion tab label dynamically shows TA (Task 1) or TR (Task 2)"
+          }
+        ],
+        "implementationNotes": "## Implementation Log\n\n### TabbedFeedbackEditor.tsx (190 lines)\n- Single TipTap editor with 5 tab pills: Overall, TA/TR, CC, LR, GRA\n- Tab switching: saves current content to ref → sets new tab → loads new content\n- Toolbar: Bold, Italic, Underline, Bullet List, Numbered List, Undo, Redo\n- Active states on toolbar buttons\n- Dynamic TA→TR label based on taskNumber\n- Dynamic placeholder via data-attribute on editor element\n- StarterKit configured with heading/codeBlock/code/blockquote/hr disabled\n- Underline extension added\n- Content preserved via contentRef (FeedbackContent object)\n- onChange fires on every update with full FeedbackContent\n\n### TabbedFeedbackEditor.css\n- Tab pills: gray outline (inactive), blue filled (active), 16px radius\n- Toolbar: 28px buttons, active state with e2e8f0 bg, separators\n- Editor content: 180px min-height, 14px/1.7 typography\n- Placeholder styling via CSS ::before pseudo-element\n\n### Build: Zero new TS errors\""
+      }
+    }
+  ]
+}

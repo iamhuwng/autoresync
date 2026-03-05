@@ -1,0 +1,252 @@
+{
+  "taskId": "u2ovxj",
+  "currentVersion": 3,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "u2ovxj",
+      "version": 1,
+      "timestamp": "2026-03-01T17:15:12.033Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Add `teacherUid` and `teacherName` to InlineWritingGraderProps",
+              "completed": false
+            },
+            {
+              "text": "Replace SCORE_PRESETS buttons with HTML range slider (0 to pointsMax)",
+              "completed": false
+            },
+            {
+              "text": "Student answer rendered read-only (gray bg, lock icon, not editable)",
+              "completed": false
+            },
+            {
+              "text": "Feedback: full marks → auto '✓ Correct', partial/zero → editable text field",
+              "completed": false
+            },
+            {
+              "text": "Dual-write: RTDB session write + updateThcsWritingGrade() for permanent record",
+              "completed": false
+            },
+            {
+              "text": "Auto-save: debounced ~5s on score/feedback change",
+              "completed": false
+            },
+            {
+              "text": "Explicit 'Save All Grades' button at bottom (saves all at once)",
+              "completed": false
+            },
+            {
+              "text": "Show full question results table at top (all Q1-Q40 as rows with status)",
+              "completed": false
+            },
+            {
+              "text": "All writing Qs shown simultaneously (not one-at-a-time stepper)",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "## Implementation Plan\n\n### Current State\nInlineWritingGrader.tsx (344 lines) is a stepper component that shows one writing question at a time with SCORE_PRESETS buttons [0, 0.25, 0.5, 0.75, 1.0]. It only writes to RTDB session. No dual-write, no auto-save, no teacher identity.\n\n### Major Changes\n\n#### 1. Props — Add teacher identity\n```typescript\ninterface InlineWritingGraderProps {\n    // ... existing props\n    teacherUid: string;    // NEW\n    teacherName: string;   // NEW\n}\n```\nAlso need to update TeacherTestMonitorPage.tsx where it renders InlineWritingGrader to pass these props.\n\n#### 2. Layout — All Qs at once (not stepper)\nRemove `currentIndex` stepper pattern. Render ALL writing questions simultaneously in a scrollable list. Each question card contains:\n- Question prompt (read-only)\n- Student answer (read-only, gray bg)\n- Score slider (horizontal range input, 0 to pointsMax)\n- Feedback (conditional: full marks = auto correct, else text field)\n\n#### 3. Score — HTML range slider\nReplace SCORE_PRESETS array + button row with:\n```html\n<input type=\"range\" min=\"0\" max={pointsMax} step=\"0.25\" />\n```\nWith labels showing 0 and max on ends, and current value displayed.\n\n#### 4. Dual-write in handleSubmitGrade\n```typescript\n// Write 1: RTDB session (existing)\nawait update(ref(database, updatePath), { ... });\n\n// Write 2: Permanent record (NEW)\nawait updateThcsWritingGrade(sessionCode, studentId, qNum, {\n    score, maxScore, feedback, teacherName, teacherUid\n});\n```\n\n#### 5. Auto-save (debounced ~5s)\nUse useRef + setTimeout pattern for debounced auto-save. On score/feedback change, start 5s timer. Only saves to RTDB (not permanent) as draft. The \"Save All Grades\" button triggers permanent save.\n\n#### 6. Question results table at top\nRender a table showing all questions (Q1-Q40) with: number, type, student answer, correct/incorrect status, score. Writing questions show \"⏳ Pending\" or \"✓ Graded\".\n\n### Files to modify\n- `src/components/thcs-grading/InlineWritingGrader.tsx` — main refactor\n- `src/pages/TeacherTestMonitorPage.tsx` — pass teacherUid/teacherName props\n\n### Risk: High\nComplete UI restructure. The existing stepper UX is being replaced with a full-page grading view."
+        }
+      ],
+      "snapshot": {
+        "title": "Teacher UI — Refactor InlineWritingGrader with slider + dual-write",
+        "description": "Refactor InlineWritingGrader.tsx: (1) Accept teacherUid/teacherName props from TeacherTestMonitorPage, (2) Replace score preset buttons with horizontal slider (0 to question max), (3) Make student answer read-only (gray bg, lock icon), (4) Conditional feedback: full marks → auto \"✓ Correct\", partial → editable correction field, (5) Implement auto-save (debounced ~5s) + \"Save All Grades\" button, (6) Dual-write: RTDB session + permanent record via updateThcsWritingGrade(), (7) Add question results table showing all Qs at top. Also update TeacherTestMonitorPage to pass teacher props.",
+        "status": "todo",
+        "priority": "high",
+        "labels": [
+          "writing-grading",
+          "ui",
+          "teacher"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Add `teacherUid` and `teacherName` to InlineWritingGraderProps",
+            "completed": false
+          },
+          {
+            "text": "Replace SCORE_PRESETS buttons with HTML range slider (0 to pointsMax)",
+            "completed": false
+          },
+          {
+            "text": "Student answer rendered read-only (gray bg, lock icon, not editable)",
+            "completed": false
+          },
+          {
+            "text": "Feedback: full marks → auto '✓ Correct', partial/zero → editable text field",
+            "completed": false
+          },
+          {
+            "text": "Dual-write: RTDB session write + updateThcsWritingGrade() for permanent record",
+            "completed": false
+          },
+          {
+            "text": "Auto-save: debounced ~5s on score/feedback change",
+            "completed": false
+          },
+          {
+            "text": "Explicit 'Save All Grades' button at bottom (saves all at once)",
+            "completed": false
+          },
+          {
+            "text": "Show full question results table at top (all Q1-Q40 as rows with status)",
+            "completed": false
+          },
+          {
+            "text": "All writing Qs shown simultaneously (not one-at-a-time stepper)",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### Current State\nInlineWritingGrader.tsx (344 lines) is a stepper component that shows one writing question at a time with SCORE_PRESETS buttons [0, 0.25, 0.5, 0.75, 1.0]. It only writes to RTDB session. No dual-write, no auto-save, no teacher identity.\n\n### Major Changes\n\n#### 1. Props — Add teacher identity\n```typescript\ninterface InlineWritingGraderProps {\n    // ... existing props\n    teacherUid: string;    // NEW\n    teacherName: string;   // NEW\n}\n```\nAlso need to update TeacherTestMonitorPage.tsx where it renders InlineWritingGrader to pass these props.\n\n#### 2. Layout — All Qs at once (not stepper)\nRemove `currentIndex` stepper pattern. Render ALL writing questions simultaneously in a scrollable list. Each question card contains:\n- Question prompt (read-only)\n- Student answer (read-only, gray bg)\n- Score slider (horizontal range input, 0 to pointsMax)\n- Feedback (conditional: full marks = auto correct, else text field)\n\n#### 3. Score — HTML range slider\nReplace SCORE_PRESETS array + button row with:\n```html\n<input type=\"range\" min=\"0\" max={pointsMax} step=\"0.25\" />\n```\nWith labels showing 0 and max on ends, and current value displayed.\n\n#### 4. Dual-write in handleSubmitGrade\n```typescript\n// Write 1: RTDB session (existing)\nawait update(ref(database, updatePath), { ... });\n\n// Write 2: Permanent record (NEW)\nawait updateThcsWritingGrade(sessionCode, studentId, qNum, {\n    score, maxScore, feedback, teacherName, teacherUid\n});\n```\n\n#### 5. Auto-save (debounced ~5s)\nUse useRef + setTimeout pattern for debounced auto-save. On score/feedback change, start 5s timer. Only saves to RTDB (not permanent) as draft. The \"Save All Grades\" button triggers permanent save.\n\n#### 6. Question results table at top\nRender a table showing all questions (Q1-Q40) with: number, type, student answer, correct/incorrect status, score. Writing questions show \"⏳ Pending\" or \"✓ Graded\".\n\n### Files to modify\n- `src/components/thcs-grading/InlineWritingGrader.tsx` — main refactor\n- `src/pages/TeacherTestMonitorPage.tsx` — pass teacherUid/teacherName props\n\n### Risk: High\nComplete UI restructure. The existing stepper UX is being replaced with a full-page grading view."
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "u2ovxj",
+      "version": 2,
+      "timestamp": "2026-03-01T17:19:33.357Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": "Teacher UI — Refactor InlineWritingGrader with slider + dual-write",
+          "newValue": "Teacher UI — InlineWritingGrader refactor (PARENT — see sub-tasks)"
+        },
+        {
+          "field": "description",
+          "oldValue": "Refactor InlineWritingGrader.tsx: (1) Accept teacherUid/teacherName props from TeacherTestMonitorPage, (2) Replace score preset buttons with horizontal slider (0 to question max), (3) Make student answer read-only (gray bg, lock icon), (4) Conditional feedback: full marks → auto \"✓ Correct\", partial → editable correction field, (5) Implement auto-save (debounced ~5s) + \"Save All Grades\" button, (6) Dual-write: RTDB session + permanent record via updateThcsWritingGrade(), (7) Add question results table showing all Qs at top. Also update TeacherTestMonitorPage to pass teacher props.",
+          "newValue": "PARENT TASK — Split into 4 sub-tasks. See children for implementation details. Original scope was too large for a single task (9 ACs spanning complete UI rewrite, data fetching, auto-save, and dual-write)."
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "2026-03-02: SPLIT into 4 sub-tasks after independent assessment found scope too large. Sub-tasks: u2ovxj-A (UI), u2ovxj-B (dual-write), u2ovxj-C (auto-save), u2ovxj-D (question table). This parent task is now a tracking container."
+        }
+      ],
+      "snapshot": {
+        "title": "Teacher UI — InlineWritingGrader refactor (PARENT — see sub-tasks)",
+        "description": "PARENT TASK — Split into 4 sub-tasks. See children for implementation details. Original scope was too large for a single task (9 ACs spanning complete UI rewrite, data fetching, auto-save, and dual-write).",
+        "status": "todo",
+        "priority": "high",
+        "labels": [
+          "writing-grading",
+          "ui",
+          "teacher"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Add `teacherUid` and `teacherName` to InlineWritingGraderProps"
+          },
+          {
+            "completed": false,
+            "text": "Replace SCORE_PRESETS buttons with HTML range slider (0 to pointsMax)"
+          },
+          {
+            "completed": false,
+            "text": "Student answer rendered read-only (gray bg, lock icon, not editable)"
+          },
+          {
+            "completed": false,
+            "text": "Feedback: full marks → auto '✓ Correct', partial/zero → editable text field"
+          },
+          {
+            "completed": false,
+            "text": "Dual-write: RTDB session write + updateThcsWritingGrade() for permanent record"
+          },
+          {
+            "completed": false,
+            "text": "Auto-save: debounced ~5s on score/feedback change"
+          },
+          {
+            "completed": false,
+            "text": "Explicit 'Save All Grades' button at bottom (saves all at once)"
+          },
+          {
+            "completed": false,
+            "text": "Show full question results table at top (all Q1-Q40 as rows with status)"
+          },
+          {
+            "completed": false,
+            "text": "All writing Qs shown simultaneously (not one-at-a-time stepper)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### Current State\nInlineWritingGrader.tsx (344 lines) is a stepper component that shows one writing question at a time with SCORE_PRESETS buttons [0, 0.25, 0.5, 0.75, 1.0]. It only writes to RTDB session. No dual-write, no auto-save, no teacher identity.\n\n### Major Changes\n\n#### 1. Props — Add teacher identity\n```typescript\ninterface InlineWritingGraderProps {\n    // ... existing props\n    teacherUid: string;    // NEW\n    teacherName: string;   // NEW\n}\n```\nAlso need to update TeacherTestMonitorPage.tsx where it renders InlineWritingGrader to pass these props.\n\n#### 2. Layout — All Qs at once (not stepper)\nRemove `currentIndex` stepper pattern. Render ALL writing questions simultaneously in a scrollable list. Each question card contains:\n- Question prompt (read-only)\n- Student answer (read-only, gray bg)\n- Score slider (horizontal range input, 0 to pointsMax)\n- Feedback (conditional: full marks = auto correct, else text field)\n\n#### 3. Score — HTML range slider\nReplace SCORE_PRESETS array + button row with:\n```html\n<input type=\"range\" min=\"0\" max={pointsMax} step=\"0.25\" />\n```\nWith labels showing 0 and max on ends, and current value displayed.\n\n#### 4. Dual-write in handleSubmitGrade\n```typescript\n// Write 1: RTDB session (existing)\nawait update(ref(database, updatePath), { ... });\n\n// Write 2: Permanent record (NEW)\nawait updateThcsWritingGrade(sessionCode, studentId, qNum, {\n    score, maxScore, feedback, teacherName, teacherUid\n});\n```\n\n#### 5. Auto-save (debounced ~5s)\nUse useRef + setTimeout pattern for debounced auto-save. On score/feedback change, start 5s timer. Only saves to RTDB (not permanent) as draft. The \"Save All Grades\" button triggers permanent save.\n\n#### 6. Question results table at top\nRender a table showing all questions (Q1-Q40) with: number, type, student answer, correct/incorrect status, score. Writing questions show \"⏳ Pending\" or \"✓ Graded\".\n\n### Files to modify\n- `src/components/thcs-grading/InlineWritingGrader.tsx` — main refactor\n- `src/pages/TeacherTestMonitorPage.tsx` — pass teacherUid/teacherName props\n\n### Risk: High\nComplete UI restructure. The existing stepper UX is being replaced with a full-page grading view.",
+        "implementationNotes": "2026-03-02: SPLIT into 4 sub-tasks after independent assessment found scope too large. Sub-tasks: u2ovxj-A (UI), u2ovxj-B (dual-write), u2ovxj-C (auto-save), u2ovxj-D (question table). This parent task is now a tracking container."
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "u2ovxj",
+      "version": 3,
+      "timestamp": "2026-03-01T17:45:20.892Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "done"
+        },
+        {
+          "field": "implementationNotes",
+          "oldValue": "2026-03-02: SPLIT into 4 sub-tasks after independent assessment found scope too large. Sub-tasks: u2ovxj-A (UI), u2ovxj-B (dual-write), u2ovxj-C (auto-save), u2ovxj-D (question table). This parent task is now a tracking container.",
+          "newValue": "2026-03-02: SPLIT into 4 sub-tasks after independent assessment found scope too large. Sub-tasks: u2ovxj-A (UI), u2ovxj-B (dual-write), u2ovxj-C (auto-save), u2ovxj-D (question table). This parent task is now a tracking container.\n\n2026-03-02: All 4 sub-tasks completed:\n- l4q0sd (Sub-A): UI refactor done\n- qj9kv1 (Sub-B): Dual-write done\n- qd4tcr (Sub-C): Auto-save done\n- odi2nt (Sub-D): Results table done\nAlso completed 864xav (BatchGradingPanel cleanup)."
+        }
+      ],
+      "snapshot": {
+        "title": "Teacher UI — InlineWritingGrader refactor (PARENT — see sub-tasks)",
+        "description": "PARENT TASK — Split into 4 sub-tasks. See children for implementation details. Original scope was too large for a single task (9 ACs spanning complete UI rewrite, data fetching, auto-save, and dual-write).",
+        "status": "done",
+        "priority": "high",
+        "labels": [
+          "writing-grading",
+          "ui",
+          "teacher"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Add `teacherUid` and `teacherName` to InlineWritingGraderProps"
+          },
+          {
+            "completed": false,
+            "text": "Replace SCORE_PRESETS buttons with HTML range slider (0 to pointsMax)"
+          },
+          {
+            "completed": false,
+            "text": "Student answer rendered read-only (gray bg, lock icon, not editable)"
+          },
+          {
+            "completed": false,
+            "text": "Feedback: full marks → auto '✓ Correct', partial/zero → editable text field"
+          },
+          {
+            "completed": false,
+            "text": "Dual-write: RTDB session write + updateThcsWritingGrade() for permanent record"
+          },
+          {
+            "completed": false,
+            "text": "Auto-save: debounced ~5s on score/feedback change"
+          },
+          {
+            "completed": false,
+            "text": "Explicit 'Save All Grades' button at bottom (saves all at once)"
+          },
+          {
+            "completed": false,
+            "text": "Show full question results table at top (all Q1-Q40 as rows with status)"
+          },
+          {
+            "completed": false,
+            "text": "All writing Qs shown simultaneously (not one-at-a-time stepper)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### Current State\nInlineWritingGrader.tsx (344 lines) is a stepper component that shows one writing question at a time with SCORE_PRESETS buttons [0, 0.25, 0.5, 0.75, 1.0]. It only writes to RTDB session. No dual-write, no auto-save, no teacher identity.\n\n### Major Changes\n\n#### 1. Props — Add teacher identity\n```typescript\ninterface InlineWritingGraderProps {\n    // ... existing props\n    teacherUid: string;    // NEW\n    teacherName: string;   // NEW\n}\n```\nAlso need to update TeacherTestMonitorPage.tsx where it renders InlineWritingGrader to pass these props.\n\n#### 2. Layout — All Qs at once (not stepper)\nRemove `currentIndex` stepper pattern. Render ALL writing questions simultaneously in a scrollable list. Each question card contains:\n- Question prompt (read-only)\n- Student answer (read-only, gray bg)\n- Score slider (horizontal range input, 0 to pointsMax)\n- Feedback (conditional: full marks = auto correct, else text field)\n\n#### 3. Score — HTML range slider\nReplace SCORE_PRESETS array + button row with:\n```html\n<input type=\"range\" min=\"0\" max={pointsMax} step=\"0.25\" />\n```\nWith labels showing 0 and max on ends, and current value displayed.\n\n#### 4. Dual-write in handleSubmitGrade\n```typescript\n// Write 1: RTDB session (existing)\nawait update(ref(database, updatePath), { ... });\n\n// Write 2: Permanent record (NEW)\nawait updateThcsWritingGrade(sessionCode, studentId, qNum, {\n    score, maxScore, feedback, teacherName, teacherUid\n});\n```\n\n#### 5. Auto-save (debounced ~5s)\nUse useRef + setTimeout pattern for debounced auto-save. On score/feedback change, start 5s timer. Only saves to RTDB (not permanent) as draft. The \"Save All Grades\" button triggers permanent save.\n\n#### 6. Question results table at top\nRender a table showing all questions (Q1-Q40) with: number, type, student answer, correct/incorrect status, score. Writing questions show \"⏳ Pending\" or \"✓ Graded\".\n\n### Files to modify\n- `src/components/thcs-grading/InlineWritingGrader.tsx` — main refactor\n- `src/pages/TeacherTestMonitorPage.tsx` — pass teacherUid/teacherName props\n\n### Risk: High\nComplete UI restructure. The existing stepper UX is being replaced with a full-page grading view.",
+        "implementationNotes": "2026-03-02: SPLIT into 4 sub-tasks after independent assessment found scope too large. Sub-tasks: u2ovxj-A (UI), u2ovxj-B (dual-write), u2ovxj-C (auto-save), u2ovxj-D (question table). This parent task is now a tracking container.\n\n2026-03-02: All 4 sub-tasks completed:\n- l4q0sd (Sub-A): UI refactor done\n- qj9kv1 (Sub-B): Dual-write done\n- qd4tcr (Sub-C): Auto-save done\n- odi2nt (Sub-D): Results table done\nAlso completed 864xav (BatchGradingPanel cleanup)."
+      }
+    }
+  ]
+}

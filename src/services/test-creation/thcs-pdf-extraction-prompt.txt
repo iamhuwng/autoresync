@@ -1,0 +1,315 @@
+You are extracting a Vietnamese THCS/THPT English test from images into structured plain text. A regex parser will process your output — follow this format EXACTLY.
+
+=== 1. METADATA (first 5 lines) ===
+TITLE: [full test title, e.g., "ĐỀ KIỂM TRA GIỮA HỌC KÌ 1 — TIẾNG ANH 9"]
+GRADE: [number only, e.g., 9]
+DURATION: [number] minutes
+EXAM TYPE: [one of: giữa kì, cuối kì, thi vào 10, ôn tập, or unit N]
+TEST CODE: [mã đề if visible, otherwise omit this line]
+
+=== 2. SECTION HEADERS ===
+Copy the section name EXACTLY as written in the original document.
+Append a [TYPE: xxx] tag at the END of each section header line.
+If point allocation is visible (e.g., "(2 điểm)"), copy it on the header line.
+If a section contains questions of DIFFERENT types (e.g., both MCQ and fill-in-the-blank),
+split it into sub-sections. Use the section name with a suffix:
+  III. LANGUAGE (a) [TYPE: mcq-grammar]
+  ...MCQ questions...
+  III. LANGUAGE (b) [TYPE: verb-form]
+  ...fill-in questions...
+
+Example:
+I. PHONETICS (1 điểm) [TYPE: pronunciation]
+II. CHOOSE THE BEST ANSWER [TYPE: mcq-grammar]
+
+=== 3. TYPE SLUG TABLE ===
+Choose the BEST matching [TYPE:] tag from this table:
+
+| Slug                      | Use when                                              |
+|---------------------------|-------------------------------------------------------|
+| pronunciation             | Underlined letters/syllables differ in pronunciation  |
+| word-stress               | Primary stress position differs between words         |
+| mcq-grammar               | Grammar gap-fill MCQ (_______ with A/B/C/D)           |
+| mcq-vocabulary            | Vocabulary, phrasal verb, or collocation MCQ          |
+| mcq-sign-notice           | Sign, notice, or advertisement interpretation MCQ     |
+| dialogue-response         | Conversation response selection                       |
+| reading-cloze-mcq         | Passage with numbered blanks + MCQ per blank          |
+| reading-comprehension     | Long passage (article/story) + MCQ questions          |
+| reading-announcement      | Short notice, ad, letter, timetable + MCQ             |
+| sentence-arrangement      | Arrange words/sentences into correct order            |
+| closest-meaning           | Sentence closest in meaning to the given one          |
+| error-identification      | Find the underlined part that needs correction        |
+| synonym-mcq               | Word CLOSEST in meaning (vocabulary MCQ)              |
+| antonym-mcq               | Word OPPOSITE in meaning (vocabulary MCQ)             |
+| word-reference             | What does a pronoun/word refer to in a passage        |
+| verb-form                 | Supply correct verb form from brackets                |
+| word-form                 | Supply correct word form from brackets                |
+| reading-cloze-wordbank    | Fill blanks in passage from a provided word bank      |
+| sentence-rewrite          | Rewrite sentence starting with given words            |
+| sentence-rewrite-keyword  | Rewrite sentence using a given keyword                |
+
+If the section does not match any type above, OMIT the [TYPE:] tag entirely.
+Write only the section header without any tag. The downstream engine will classify it.
+Do NOT guess — an absent tag is better than a wrong tag.
+
+=== 3b. INSTRUCTION PATTERN → TYPE MAPPING ===
+Use these instruction text patterns to identify the correct [TYPE:] tag:
+
+INSTRUCTION CONTAINS                              → TYPE TAG
+"underlined part differs in pronunciation"         → pronunciation
+"primary stress" / "stressed differently"          → word-stress
+"Choose the best answer" (generic grammar)         → mcq-grammar
+"Choose the word/phrase" (vocabulary focus)         → mcq-vocabulary
+"sign" / "notice" / "advertisement" / "biển báo"  → mcq-sign-notice
+"suitable response" / "dialogue" / "exchange"      → dialogue-response
+"Read the passage" / "đọc hiểu"                  → reading-comprehension
+"announcement" / "notice" / "advertisement"        → reading-announcement
+"closest in meaning to the sentence"               → closest-meaning
+"opposite in meaning" / "trái nghĩa"             → antonym-mcq
+"closest in meaning" (to a WORD, not sentence)     → synonym-mcq
+"error" / "needs correction" / "tìm lỗi"         → error-identification
+"Put in correct order" / "arrange" / "sắp xếp"   → sentence-arrangement
+"sentence from cues" / "given words"               → sentence-arrangement
+"correct form of the verb" / "chia động từ"       → verb-form
+"correct form of the word" (CAPITAL letters)       → word-form
+"Rewrite" / "viết lại" (no keyword given)         → sentence-rewrite
+"Rewrite using the word given" / "keyword"         → sentence-rewrite-keyword
+"word bank" / "words in the box"                   → reading-cloze-wordbank
+"blank" + passage + numbered gaps                  → reading-cloze-mcq
+"refers to" / "pronoun" / "the word X refers to"   → word-reference
+
+IMPORTANT DIFFERENTIATORS — read carefully:
+- synonym-mcq vs closest-meaning: If options are SINGLE WORDS → synonym-mcq. If options are FULL SENTENCES → closest-meaning.
+- reading-cloze-mcq vs reading-cloze-wordbank: If there is a word bank → ALWAYS use reading-cloze-wordbank, even if MCQ options also exist.
+- sentence-rewrite vs closest-meaning: If questions have 4 MCQ options (A/B/C/D) → closest-meaning, even if instruction says "rewrite".
+
+=== 4. INSTRUCTION TEXT ===
+After each section header, copy the instruction text (usually italicized) on a new line, in plain text.
+
+Example:
+I. PHONETICS (1 điểm) [TYPE: pronunciation]
+Mark the letter A, B, C or D to indicate the word whose underlined part differs from the other three in pronunciation.
+
+=== 5. QUESTIONS FORMAT ===
+Each question MUST follow this pattern:
+
+Question [N]. [question text]
+A. [option A text]
+B. [option B text]
+C. [option C text]
+D. [option D text]
+
+RULES:
+- "Question" capitalized, period and space after number
+- Each option on its OWN line: "A. ", "B. ", "C. ", "D. "
+- Blanks in sentences = 6 underscores: ______
+- One blank line between questions
+- Do NOT add answer annotations to options (no asterisks, no "correct" markers)
+- Keep all Vietnamese diacritics exactly as shown
+- If a question has only 3 options (A, B, C), extract all three. Do NOT fabricate a 4th option.
+
+=== 6. PER-TYPE EXTRACTION RULES ===
+
+PRONUNCIATION / WORD-STRESS:
+Wrap the UNDERLINED letters/syllables in {{double braces}}.
+  Question 1. A. {{a}}ccept  B. {{e}}ducate  C. {{a}}chieve  D. {{a}}pply
+  Or on separate lines:
+  Question 1.
+  A. educ{{a}}te
+  B. perf{{e}}ction
+
+ERROR-IDENTIFICATION:
+Wrap each underlined word/phrase in the question with {{double braces}}.
+  Question 24. He should {{study}} in a quiet place with {{light enough}} and a {{comfortable}} chair.
+  A. study
+  B. light enough
+  C. comfortable
+  D. quiet place
+
+SYNONYM-MCQ / ANTONYM-MCQ:
+Wrap the tested word in the question text with {{double braces}}.
+  Question 15. The word {{essential}} in the passage is closest in meaning to:
+  A. important
+  B. necessary
+  C. vital
+  D. optional
+
+WORD-REFERENCE:
+Wrap the reference word in the question text with {{double braces}}.
+  Question 28. The word {{they}} in paragraph 2 refers to:
+
+READING-COMPREHENSION / READING-ANNOUNCEMENT:
+Use reading-comprehension for long passages (articles, stories, essays).
+Use reading-announcement for SHORT texts (notices, ads, letters, timetables, signs).
+Include the passage BEFORE the questions:
+
+  III. READING COMPREHENSION (2 điểm) [TYPE: reading-comprehension]
+  Read the passage and answer the questions.
+
+  PASSAGE:
+  Passage Title Here
+
+  Paragraph 1 text here...
+
+  Paragraph 2 text here...
+
+  Question 27. What is the main idea?
+  A. ...
+
+READING-ANNOUNCEMENT example (SHORT texts: notices, ads, letters, timetables):
+  VII. READING [TYPE: reading-announcement]
+  Read the following advertisement and answer the questions.
+
+  PASSAGE:
+  *** SUMMER ENGLISH CAMP 2026 ***
+  Dates: July 15 - August 10
+  Location: Youth Cultural Center, Ho Chi Minh City
+  Fee: 2,500,000 VND (includes materials and lunch)
+
+  Question 20. How long does the summer camp last?
+  A. About 4 weeks
+  B. About 3 weeks
+  C. About 2 weeks
+  D. About 1 month
+
+PASSAGE FORMATTING (inside PASSAGE: blocks ONLY):
+- **Bold words**: Wrap vocabulary/tested words with **double asterisks**: **word**
+- __Underlined text__: Wrap underlined sentences/phrases with __double underscores__
+- Preserve ➤ and • bullet characters as-is
+- Passage title on the first line after PASSAGE:, then blank line
+- Blank lines between paragraphs — NEVER one giant block
+
+READING-CLOZE-MCQ:
+Include the full passage with numbered blanks BEFORE the questions.
+
+  IX. READING CLOZE [TYPE: reading-cloze-mcq]
+  Read the passage and choose the correct word for each blank.
+
+  PASSAGE:
+  Solar energy can be (36)______ almost anywhere. To generate it, we need solar cells and the (37)______.
+
+  Question 36.
+  A. used
+  B. using
+  C. use
+  D. to use
+
+READING-CLOZE-WORDBANK:
+Include the word bank on the line immediately after the instruction, tagged with [WORD BANK:].
+  X. GAP FILLING [TYPE: reading-cloze-wordbank]
+  Fill in each blank with ONE word from the box.
+  [WORD BANK: pollution / resources / protect / harmful / benefits]
+
+  PASSAGE:
+  We should (1)______ the environment. Air (2)______ is very (3)______ to our health.
+
+VERB-FORM:
+Keep the verb in brackets in the question text.
+  Question 31. The children ______ (play) in the garden when it started to rain.
+
+WORD-FORM:
+Keep the root word in brackets (UPPERCASE) in the question text.
+  Question 33. This river is heavily ______ (POLLUTE).
+
+SENTENCE-REWRITE / SENTENCE-REWRITE-KEYWORD:
+Use => separator between original and given start.
+  Question 35. "Does she see her tutor every Thursday?" asked Thanh.
+  => Thanh asked ...
+For keyword rewrites, include the keyword in parentheses:
+  Question 37. He is too young to drive a car. (enough)
+  => He ...
+
+SENTENCE-ARRANGEMENT:
+Question text = the scrambled words/phrases. Options = full reordered sentences.
+  V. ARRANGE THE WORDS [TYPE: sentence-arrangement]
+  Put the words in the correct order to make a meaningful sentence.
+
+  Question 21. school / every day / goes / She / to
+  A. She goes to school every day.
+  B. She to school goes every day.
+  C. Every day she goes to school.
+  D. Goes she to school every day.
+
+If options look like ordering sequences (e.g., a-b-c-d-e, c-a-d-b-e), this is also sentence-arrangement.
+If the question text is fragmented words separated by slashes (/), this is sentence-arrangement.
+
+DIALOGUE-RESPONSE:
+Extract the dialogue exchange verbatim as the question text. Options are the response choices.
+  VI. COMMUNICATION [TYPE: dialogue-response]
+  Choose the most suitable response to complete each exchange.
+
+  Question 25. "Would you like to go to the cinema tonight?" - "______"
+  A. Yes, I'd love to.
+  B. No, I don't like it.
+  C. Yes, please do.
+  D. That's right.
+
+CLOSEST-MEANING:
+Question text = the full original sentence. Options = alternative sentences with closest meaning.
+Do NOT use {{}} markers (there is no single target word).
+If options are full sentences (5+ words each), use closest-meaning.
+If options are single words, use synonym-mcq instead.
+  VIII. SENTENCE TRANSFORMATION [TYPE: closest-meaning]
+  Choose the sentence closest in meaning to the given one.
+
+  Question 30. "You should study harder," the teacher said to me.
+  A. The teacher advised me to study harder.
+  B. The teacher told me study harder.
+  C. The teacher said me to study harder.
+  D. The teacher asked me study harder.
+
+If the instruction says "rewrite" but questions have 4 MCQ options (A/B/C/D) with paraphrased sentences, use closest-meaning, NOT sentence-rewrite.
+
+MCQ-GRAMMAR / MCQ-VOCABULARY:
+Standard MCQ format. Keep blanks as 6 underscores (______). No special markers needed.
+Use mcq-grammar for grammar focus (tense, preposition, conjunction, etc.).
+Use mcq-vocabulary for vocabulary focus (word meaning, phrasal verb, collocation).
+  II. GRAMMAR [TYPE: mcq-grammar]
+  Choose the best answer.
+
+  Question 5. She ______ to school every day.
+  A. go
+  B. goes
+  C. going
+  D. gone
+
+MCQ-SIGN-NOTICE:
+Include the sign/notice text as a PASSAGE: block before the questions, same as reading-announcement.
+  IV. SIGNS AND NOTICES [TYPE: mcq-sign-notice]
+  Read the following sign and choose the correct answer.
+
+  PASSAGE:
+  NO PARKING — Violators will be towed
+
+  Question 15. What does the sign mean?
+  A. You can park here.
+  B. You cannot park here.
+  C. You can park here for a short time.
+  D. Parking is free here.
+
+=== 7. ANSWER KEY (MUST INCLUDE) ===
+The answer key MUST be the LAST section. One answer per line:
+
+ANSWER KEY
+1. B
+2. C
+3. D
+
+ALWAYS use one answer per line. Do NOT put multiple answers on one line.
+
+=== 8. GENERAL RULES ===
+- Copy section names EXACTLY as written in the original (do NOT rename)
+- Inside PASSAGE: blocks: **bold** and __underline__ markers are REQUIRED
+- Outside PASSAGE: blocks: use {{}} markers only, no other markdown
+- Do NOT add your own commentary or explanations
+- Do NOT skip or summarize questions — extract ALL questions VERBATIM
+- Do NOT reorder questions — keep original numbering
+- If a question spans multiple lines in the original, join into one line
+- If an option is cut off between pages, combine into one complete option
+- If an image/figure is referenced, write [Figure: description] on its own line immediately above the question that references it
+- If a reading passage spans multiple pages, combine it into ONE continuous PASSAGE: block
+- Vietnamese characters must be preserved exactly with all diacritics
+- Empty lines between sections are ok (the parser ignores them)
+- If you see "Mã đề" (test code), only extract ONE variant (the first one)
+
+Now extract the test from the provided images following this EXACT format. Output ONLY the structured text, nothing else.

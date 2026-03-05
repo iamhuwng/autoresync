@@ -1,0 +1,342 @@
+{
+  "taskId": "bwks27",
+  "currentVersion": 5,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "bwks27",
+      "version": 1,
+      "timestamp": "2026-03-04T18:00:31.728Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Remove old debug tools div (lines 227-282) from THCSQuestionsStep.tsx",
+              "completed": false
+            },
+            {
+              "text": "Add collapsible accordion below section navigator in sidebar (collapsed by default)",
+              "completed": false
+            },
+            {
+              "text": "Add diagnosticsOpen state toggled by clicking the accordion header",
+              "completed": false
+            },
+            {
+              "text": "Show <pre> block with generateDiagnosticLog() output when expanded",
+              "completed": false
+            },
+            {
+              "text": "Add Copy Full Log button with clipboard.writeText and 2s 'Copied!' feedback",
+              "completed": false
+            },
+            {
+              "text": "No new Mantine imports — use vanilla HTML/CSS only",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Add diagnostics accordion to editor sidebar",
+        "description": "Replace the 3 debug buttons in `THCSQuestionsStep.tsx` (lines 227-282) with a collapsible \"🔍 Diagnostics\" accordion in the section sidebar. Collapsed by default, shows `<pre>` log and \"📋 Copy Full Log\" button when expanded. Uses vanilla HTML/CSS — no new Mantine imports.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "from-spec",
+          "thcs-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Remove old debug tools div (lines 227-282) from THCSQuestionsStep.tsx",
+            "completed": false
+          },
+          {
+            "text": "Add collapsible accordion below section navigator in sidebar (collapsed by default)",
+            "completed": false
+          },
+          {
+            "text": "Add diagnosticsOpen state toggled by clicking the accordion header",
+            "completed": false
+          },
+          {
+            "text": "Show <pre> block with generateDiagnosticLog() output when expanded",
+            "completed": false
+          },
+          {
+            "text": "Add Copy Full Log button with clipboard.writeText and 2s 'Copied!' feedback",
+            "completed": false
+          },
+          {
+            "text": "No new Mantine imports — use vanilla HTML/CSS only",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "bwks27",
+      "version": 2,
+      "timestamp": "2026-03-04T18:02:52.752Z",
+      "changes": [
+        {
+          "field": "implementationPlan",
+          "newValue": "## Implementation Plan\n\n1. **Add `metadata` prop** to `THCSQuestionsStepProps` interface (currently missing — needed for diagnostic log)\n2. **Update parent** `THCSTestEditorPage.tsx` L550-561 to pass `metadata={metadata}` to `THCSQuestionsStep`\n3. **Add state**: `const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)` + `const [logCopied, setLogCopied] = useState(false)`\n4. **Import** `generateDiagnosticLog` from `thcs-diagnostic-log.ts` and `THCSTestMetadata` type\n5. **Remove** old debug tools div (lines 227-282)\n6. **Add diagnostics accordion** in the sidebar div (after section navigator, before or instead of sidebar \"Add Section\" button):\n   - Collapsible header: \"🔍 Diagnostics\" with rotate-on-open ▶ arrow\n   - When expanded: \"📋 Copy Full Log\" button + `<pre>` block\n   - Copy handler: `navigator.clipboard.writeText(...)` with 2s feedback\n7. Read `window.__PARSE_DEBUG` inside the component for parse-time data\n8. No Mantine imports — all vanilla HTML/CSS (existing import of Alert stays for the empty-sections message)"
+        }
+      ],
+      "snapshot": {
+        "title": "Add diagnostics accordion to editor sidebar",
+        "description": "Replace the 3 debug buttons in `THCSQuestionsStep.tsx` (lines 227-282) with a collapsible \"🔍 Diagnostics\" accordion in the section sidebar. Collapsed by default, shows `<pre>` log and \"📋 Copy Full Log\" button when expanded. Uses vanilla HTML/CSS — no new Mantine imports.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "from-spec",
+          "thcs-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Remove old debug tools div (lines 227-282) from THCSQuestionsStep.tsx"
+          },
+          {
+            "completed": false,
+            "text": "Add collapsible accordion below section navigator in sidebar (collapsed by default)"
+          },
+          {
+            "completed": false,
+            "text": "Add diagnosticsOpen state toggled by clicking the accordion header"
+          },
+          {
+            "completed": false,
+            "text": "Show <pre> block with generateDiagnosticLog() output when expanded"
+          },
+          {
+            "completed": false,
+            "text": "Add Copy Full Log button with clipboard.writeText and 2s 'Copied!' feedback"
+          },
+          {
+            "completed": false,
+            "text": "No new Mantine imports — use vanilla HTML/CSS only"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n1. **Add `metadata` prop** to `THCSQuestionsStepProps` interface (currently missing — needed for diagnostic log)\n2. **Update parent** `THCSTestEditorPage.tsx` L550-561 to pass `metadata={metadata}` to `THCSQuestionsStep`\n3. **Add state**: `const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)` + `const [logCopied, setLogCopied] = useState(false)`\n4. **Import** `generateDiagnosticLog` from `thcs-diagnostic-log.ts` and `THCSTestMetadata` type\n5. **Remove** old debug tools div (lines 227-282)\n6. **Add diagnostics accordion** in the sidebar div (after section navigator, before or instead of sidebar \"Add Section\" button):\n   - Collapsible header: \"🔍 Diagnostics\" with rotate-on-open ▶ arrow\n   - When expanded: \"📋 Copy Full Log\" button + `<pre>` block\n   - Copy handler: `navigator.clipboard.writeText(...)` with 2s feedback\n7. Read `window.__PARSE_DEBUG` inside the component for parse-time data\n8. No Mantine imports — all vanilla HTML/CSS (existing import of Alert stays for the empty-sections message)"
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "bwks27",
+      "version": 3,
+      "timestamp": "2026-03-04T18:14:41.808Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        },
+        {
+          "field": "assignee",
+          "newValue": "@me"
+        }
+      ],
+      "snapshot": {
+        "title": "Add diagnostics accordion to editor sidebar",
+        "description": "Replace the 3 debug buttons in `THCSQuestionsStep.tsx` (lines 227-282) with a collapsible \"🔍 Diagnostics\" accordion in the section sidebar. Collapsed by default, shows `<pre>` log and \"📋 Copy Full Log\" button when expanded. Uses vanilla HTML/CSS — no new Mantine imports.",
+        "status": "in-progress",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "from-spec",
+          "thcs-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Remove old debug tools div (lines 227-282) from THCSQuestionsStep.tsx"
+          },
+          {
+            "completed": false,
+            "text": "Add collapsible accordion below section navigator in sidebar (collapsed by default)"
+          },
+          {
+            "completed": false,
+            "text": "Add diagnosticsOpen state toggled by clicking the accordion header"
+          },
+          {
+            "completed": false,
+            "text": "Show <pre> block with generateDiagnosticLog() output when expanded"
+          },
+          {
+            "completed": false,
+            "text": "Add Copy Full Log button with clipboard.writeText and 2s 'Copied!' feedback"
+          },
+          {
+            "completed": false,
+            "text": "No new Mantine imports — use vanilla HTML/CSS only"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n1. **Add `metadata` prop** to `THCSQuestionsStepProps` interface (currently missing — needed for diagnostic log)\n2. **Update parent** `THCSTestEditorPage.tsx` L550-561 to pass `metadata={metadata}` to `THCSQuestionsStep`\n3. **Add state**: `const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)` + `const [logCopied, setLogCopied] = useState(false)`\n4. **Import** `generateDiagnosticLog` from `thcs-diagnostic-log.ts` and `THCSTestMetadata` type\n5. **Remove** old debug tools div (lines 227-282)\n6. **Add diagnostics accordion** in the sidebar div (after section navigator, before or instead of sidebar \"Add Section\" button):\n   - Collapsible header: \"🔍 Diagnostics\" with rotate-on-open ▶ arrow\n   - When expanded: \"📋 Copy Full Log\" button + `<pre>` block\n   - Copy handler: `navigator.clipboard.writeText(...)` with 2s feedback\n7. Read `window.__PARSE_DEBUG` inside the component for parse-time data\n8. No Mantine imports — all vanilla HTML/CSS (existing import of Alert stays for the empty-sections message)"
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "bwks27",
+      "version": 4,
+      "timestamp": "2026-03-04T18:17:23.521Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Remove old debug tools div (lines 227-282) from THCSQuestionsStep.tsx"
+            },
+            {
+              "completed": false,
+              "text": "Add collapsible accordion below section navigator in sidebar (collapsed by default)"
+            },
+            {
+              "completed": false,
+              "text": "Add diagnosticsOpen state toggled by clicking the accordion header"
+            },
+            {
+              "completed": false,
+              "text": "Show <pre> block with generateDiagnosticLog() output when expanded"
+            },
+            {
+              "completed": false,
+              "text": "Add Copy Full Log button with clipboard.writeText and 2s 'Copied!' feedback"
+            },
+            {
+              "completed": false,
+              "text": "No new Mantine imports — use vanilla HTML/CSS only"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Remove old debug tools div (lines 227-282) from THCSQuestionsStep.tsx"
+            },
+            {
+              "completed": true,
+              "text": "Add collapsible accordion below section navigator in sidebar (collapsed by default)"
+            },
+            {
+              "completed": true,
+              "text": "Add diagnosticsOpen state toggled by clicking the accordion header"
+            },
+            {
+              "completed": true,
+              "text": "Show <pre> block with generateDiagnosticLog() output when expanded"
+            },
+            {
+              "completed": true,
+              "text": "Add Copy Full Log button with clipboard.writeText and 2s 'Copied!' feedback"
+            },
+            {
+              "completed": true,
+              "text": "No new Mantine imports — use vanilla HTML/CSS only"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Implemented: added metadata prop (threaded from parent THCSTestEditorPage), removed 3 old debug buttons, added collapsible diagnostics accordion in sidebar with generateDiagnosticLog() output and copy-to-clipboard with 2s feedback. All vanilla HTML/CSS, no new Mantine imports. Build verified."
+        }
+      ],
+      "snapshot": {
+        "title": "Add diagnostics accordion to editor sidebar",
+        "description": "Replace the 3 debug buttons in `THCSQuestionsStep.tsx` (lines 227-282) with a collapsible \"🔍 Diagnostics\" accordion in the section sidebar. Collapsed by default, shows `<pre>` log and \"📋 Copy Full Log\" button when expanded. Uses vanilla HTML/CSS — no new Mantine imports.",
+        "status": "in-progress",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "from-spec",
+          "thcs-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Remove old debug tools div (lines 227-282) from THCSQuestionsStep.tsx"
+          },
+          {
+            "completed": true,
+            "text": "Add collapsible accordion below section navigator in sidebar (collapsed by default)"
+          },
+          {
+            "completed": true,
+            "text": "Add diagnosticsOpen state toggled by clicking the accordion header"
+          },
+          {
+            "completed": true,
+            "text": "Show <pre> block with generateDiagnosticLog() output when expanded"
+          },
+          {
+            "completed": true,
+            "text": "Add Copy Full Log button with clipboard.writeText and 2s 'Copied!' feedback"
+          },
+          {
+            "completed": true,
+            "text": "No new Mantine imports — use vanilla HTML/CSS only"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n1. **Add `metadata` prop** to `THCSQuestionsStepProps` interface (currently missing — needed for diagnostic log)\n2. **Update parent** `THCSTestEditorPage.tsx` L550-561 to pass `metadata={metadata}` to `THCSQuestionsStep`\n3. **Add state**: `const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)` + `const [logCopied, setLogCopied] = useState(false)`\n4. **Import** `generateDiagnosticLog` from `thcs-diagnostic-log.ts` and `THCSTestMetadata` type\n5. **Remove** old debug tools div (lines 227-282)\n6. **Add diagnostics accordion** in the sidebar div (after section navigator, before or instead of sidebar \"Add Section\" button):\n   - Collapsible header: \"🔍 Diagnostics\" with rotate-on-open ▶ arrow\n   - When expanded: \"📋 Copy Full Log\" button + `<pre>` block\n   - Copy handler: `navigator.clipboard.writeText(...)` with 2s feedback\n7. Read `window.__PARSE_DEBUG` inside the component for parse-time data\n8. No Mantine imports — all vanilla HTML/CSS (existing import of Alert stays for the empty-sections message)",
+        "implementationNotes": "Implemented: added metadata prop (threaded from parent THCSTestEditorPage), removed 3 old debug buttons, added collapsible diagnostics accordion in sidebar with generateDiagnosticLog() output and copy-to-clipboard with 2s feedback. All vanilla HTML/CSS, no new Mantine imports. Build verified."
+      }
+    },
+    {
+      "id": "v5",
+      "taskId": "bwks27",
+      "version": 5,
+      "timestamp": "2026-03-04T18:17:26.899Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Add diagnostics accordion to editor sidebar",
+        "description": "Replace the 3 debug buttons in `THCSQuestionsStep.tsx` (lines 227-282) with a collapsible \"🔍 Diagnostics\" accordion in the section sidebar. Collapsed by default, shows `<pre>` log and \"📋 Copy Full Log\" button when expanded. Uses vanilla HTML/CSS — no new Mantine imports.",
+        "status": "done",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "from-spec",
+          "thcs-editor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Remove old debug tools div (lines 227-282) from THCSQuestionsStep.tsx"
+          },
+          {
+            "completed": true,
+            "text": "Add collapsible accordion below section navigator in sidebar (collapsed by default)"
+          },
+          {
+            "completed": true,
+            "text": "Add diagnosticsOpen state toggled by clicking the accordion header"
+          },
+          {
+            "completed": true,
+            "text": "Show <pre> block with generateDiagnosticLog() output when expanded"
+          },
+          {
+            "completed": true,
+            "text": "Add Copy Full Log button with clipboard.writeText and 2s 'Copied!' feedback"
+          },
+          {
+            "completed": true,
+            "text": "No new Mantine imports — use vanilla HTML/CSS only"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n1. **Add `metadata` prop** to `THCSQuestionsStepProps` interface (currently missing — needed for diagnostic log)\n2. **Update parent** `THCSTestEditorPage.tsx` L550-561 to pass `metadata={metadata}` to `THCSQuestionsStep`\n3. **Add state**: `const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)` + `const [logCopied, setLogCopied] = useState(false)`\n4. **Import** `generateDiagnosticLog` from `thcs-diagnostic-log.ts` and `THCSTestMetadata` type\n5. **Remove** old debug tools div (lines 227-282)\n6. **Add diagnostics accordion** in the sidebar div (after section navigator, before or instead of sidebar \"Add Section\" button):\n   - Collapsible header: \"🔍 Diagnostics\" with rotate-on-open ▶ arrow\n   - When expanded: \"📋 Copy Full Log\" button + `<pre>` block\n   - Copy handler: `navigator.clipboard.writeText(...)` with 2s feedback\n7. Read `window.__PARSE_DEBUG` inside the component for parse-time data\n8. No Mantine imports — all vanilla HTML/CSS (existing import of Alert stays for the empty-sections message)",
+        "implementationNotes": "Implemented: added metadata prop (threaded from parent THCSTestEditorPage), removed 3 old debug buttons, added collapsible diagnostics accordion in sidebar with generateDiagnosticLog() output and copy-to-clipboard with 2s feedback. All vanilla HTML/CSS, no new Mantine imports. Build verified."
+      }
+    }
+  ]
+}

@@ -1,0 +1,422 @@
+{
+  "taskId": "86hnh4",
+  "currentVersion": 6,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "86hnh4",
+      "version": 1,
+      "timestamp": "2026-03-04T21:25:45.539Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Panel displays summary line (You achieved X/Y correct answers, Z/10)",
+              "completed": false
+            },
+            {
+              "text": "Strengths section shown with ✅ icon and green accent",
+              "completed": false
+            },
+            {
+              "text": "Revision section shown with ⚠️ icon and amber accent",
+              "completed": false
+            },
+            {
+              "text": "Critical section shown with 🔴 icon and red accent",
+              "completed": false
+            },
+            {
+              "text": "Question numbers referenced in parentheses in AI feedback text",
+              "completed": false
+            },
+            {
+              "text": "Graceful display when only deterministic feedback available (no AI)",
+              "completed": false
+            },
+            {
+              "text": "No panel shown when formativeFeedback is null/undefined (backward compat)",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Create FormativeFeedbackPanel UI component",
+        "description": "Build FormativeFeedbackPanel.tsx that displays the overall narrative feedback with three sections (strengths/revision/critical) using icons and color coding. Shows deterministic fallback while AI feedback loads, then upgrades to AI version. Panel placed below score, above question pills grid.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "from-spec",
+          "formative-feedback"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Panel displays summary line (You achieved X/Y correct answers, Z/10)",
+            "completed": false
+          },
+          {
+            "text": "Strengths section shown with ✅ icon and green accent",
+            "completed": false
+          },
+          {
+            "text": "Revision section shown with ⚠️ icon and amber accent",
+            "completed": false
+          },
+          {
+            "text": "Critical section shown with 🔴 icon and red accent",
+            "completed": false
+          },
+          {
+            "text": "Question numbers referenced in parentheses in AI feedback text",
+            "completed": false
+          },
+          {
+            "text": "Graceful display when only deterministic feedback available (no AI)",
+            "completed": false
+          },
+          {
+            "text": "No panel shown when formativeFeedback is null/undefined (backward compat)",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "86hnh4",
+      "version": 2,
+      "timestamp": "2026-03-04T21:31:26.428Z",
+      "changes": [
+        {
+          "field": "implementationPlan",
+          "newValue": "## Implementation Plan: Create FormativeFeedbackPanel UI Component\n\n### File: `src/components/thcs-student/FormativeFeedbackPanel.tsx` (NEW)\n\n### Props Interface\n```typescript\ninterface FormativeFeedbackPanelProps {\n    feedback: FormativeFeedback;\n}\n```\n\n### Design Decisions\n- **Match existing design language**: Use inline styles (same as THCSTestLayout, StudentTestResultsPage)\n- **Use the project's glassmorphism Card component**: `import { Card, CardBody } from '../modern';`\n- **Color palette**: Match existing `QUESTION_NAV_COLORS` and the student view purple theme\n- **NO Mantine** for this component (per Rule #15) — only Card from `../modern`\n\n### Component Structure\n\n```\n┌─────────────────────────────────────────────┐\n│ 📊 Performance Analysis                     │\n│                                             │\n│ \"You achieved X/Y correct answers (Z/10)\"   │\n│                                             │\n│ ┌─────────────────────────────────────────┐ │\n│ │ ✅ Strengths                            │ │\n│ │ • Vocabulary (Q1, Q2) — 5/5 correct    │ │\n│ │ • Reading Comprehension (Q8, Q9, Q10)  │ │\n│ │                                        │ │\n│ │ AI: \"Your vocabulary range is...\"      │ │\n│ └─────────────────────────────────────────┘ │\n│ ┌─────────────────────────────────────────┐ │\n│ │ ⚠️ Needs Revision                       │ │\n│ │ • Grammar (Q3, Q4, Q5) — 2/4 correct  │ │\n│ │                                        │ │\n│ │ AI: \"Focus on present perfect vs...\"   │ │\n│ └─────────────────────────────────────────┘ │\n│ ┌─────────────────────────────────────────┐ │\n│ │ 🔴 Critical Gaps                        │ │\n│ │ • Pronunciation (Q6, Q7) — 0/3 correct│ │\n│ │                                        │ │\n│ │ AI: \"You need to urgently review...\"   │ │\n│ └─────────────────────────────────────────┘ │\n└─────────────────────────────────────────────┘\n```\n\n### Step 1: Summary Line\n```typescript\n<div style={{ fontSize: '1rem', fontWeight: 600, color: '#1e293b', marginBottom: '1rem' }}>\n    You achieved {feedback.totalCorrect}/{feedback.totalQuestions} correct answers ({feedback.scaledScore.toFixed(1)}/10)\n</div>\n```\n\n### Step 2: Three Section Panels (Strengths, Revision, Critical)\n\nEach section rendered by a helper function:\n```typescript\nfunction renderSection(\n    title: string,\n    icon: string,\n    skills: SkillAnalysis[],\n    aiText: string | undefined,\n    accentColor: string,\n    bgColor: string,\n)\n```\n\nColor mapping:\n| Section | Icon | Accent | Background |\n|---------|------|--------|------------|\n| Strengths | ✅ | #10b981 (green) | rgba(16,185,129,0.06) |\n| Revision | ⚠️ | #f59e0b (amber) | rgba(245,158,11,0.06) |\n| Critical | 🔴 | #ef4444 (red) | rgba(239,68,68,0.06) |\n\nEach section:\n1. Header line: `{icon} {title}` with color accent\n2. Bullet list of `SkillAnalysis` entries:\n   - `• {skillName} (Q{questionNumbers.join(', Q')}) — {correct}/{total} correct`\n   - Wrong questions highlighted: `(wrong: Q{wrongQuestionNumbers.join(', Q')})`\n3. AI narrative text (if available) in slightly different style — italicized, lighter color\n\n### Step 3: AI vs Deterministic Display Logic\n```typescript\n// If AI feedback available, show rich narrative\nif (feedback.aiFeedback) {\n    // Render AI summary + per-section AI text\n    // Show within each section panel\n}\n\n// If only deterministic, show plain bulleted analysis\n// (same structure, just no AI narrative text beneath each section)\n```\n\n### Step 4: Backward Compatibility / Null Guard\nThe parent component handles the null check:\n```typescript\n// In parent:\n{feedback && <FormativeFeedbackPanel feedback={feedback} />}\n```\nSo the component itself can assume `feedback` is non-null.\n\n### Step 5: Skeleton/Empty States\n- Empty strengths → don't render strengths section at all\n- Empty revision → don't render revision section\n- Empty critical → don't render critical section\n- All empty (shouldn't happen, but guard) → show only summary line\n\n### Animations\n- Use CSS `transition: all 0.3s ease` on section panels\n- Subtle slide-in when AI feedback arrives (can be done with simple opacity transition if parent re-renders with AI data)"
+        }
+      ],
+      "snapshot": {
+        "title": "Create FormativeFeedbackPanel UI component",
+        "description": "Build FormativeFeedbackPanel.tsx that displays the overall narrative feedback with three sections (strengths/revision/critical) using icons and color coding. Shows deterministic fallback while AI feedback loads, then upgrades to AI version. Panel placed below score, above question pills grid.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "from-spec",
+          "formative-feedback"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Panel displays summary line (You achieved X/Y correct answers, Z/10)"
+          },
+          {
+            "completed": false,
+            "text": "Strengths section shown with ✅ icon and green accent"
+          },
+          {
+            "completed": false,
+            "text": "Revision section shown with ⚠️ icon and amber accent"
+          },
+          {
+            "completed": false,
+            "text": "Critical section shown with 🔴 icon and red accent"
+          },
+          {
+            "completed": false,
+            "text": "Question numbers referenced in parentheses in AI feedback text"
+          },
+          {
+            "completed": false,
+            "text": "Graceful display when only deterministic feedback available (no AI)"
+          },
+          {
+            "completed": false,
+            "text": "No panel shown when formativeFeedback is null/undefined (backward compat)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan: Create FormativeFeedbackPanel UI Component\n\n### File: `src/components/thcs-student/FormativeFeedbackPanel.tsx` (NEW)\n\n### Props Interface\n```typescript\ninterface FormativeFeedbackPanelProps {\n    feedback: FormativeFeedback;\n}\n```\n\n### Design Decisions\n- **Match existing design language**: Use inline styles (same as THCSTestLayout, StudentTestResultsPage)\n- **Use the project's glassmorphism Card component**: `import { Card, CardBody } from '../modern';`\n- **Color palette**: Match existing `QUESTION_NAV_COLORS` and the student view purple theme\n- **NO Mantine** for this component (per Rule #15) — only Card from `../modern`\n\n### Component Structure\n\n```\n┌─────────────────────────────────────────────┐\n│ 📊 Performance Analysis                     │\n│                                             │\n│ \"You achieved X/Y correct answers (Z/10)\"   │\n│                                             │\n│ ┌─────────────────────────────────────────┐ │\n│ │ ✅ Strengths                            │ │\n│ │ • Vocabulary (Q1, Q2) — 5/5 correct    │ │\n│ │ • Reading Comprehension (Q8, Q9, Q10)  │ │\n│ │                                        │ │\n│ │ AI: \"Your vocabulary range is...\"      │ │\n│ └─────────────────────────────────────────┘ │\n│ ┌─────────────────────────────────────────┐ │\n│ │ ⚠️ Needs Revision                       │ │\n│ │ • Grammar (Q3, Q4, Q5) — 2/4 correct  │ │\n│ │                                        │ │\n│ │ AI: \"Focus on present perfect vs...\"   │ │\n│ └─────────────────────────────────────────┘ │\n│ ┌─────────────────────────────────────────┐ │\n│ │ 🔴 Critical Gaps                        │ │\n│ │ • Pronunciation (Q6, Q7) — 0/3 correct│ │\n│ │                                        │ │\n│ │ AI: \"You need to urgently review...\"   │ │\n│ └─────────────────────────────────────────┘ │\n└─────────────────────────────────────────────┘\n```\n\n### Step 1: Summary Line\n```typescript\n<div style={{ fontSize: '1rem', fontWeight: 600, color: '#1e293b', marginBottom: '1rem' }}>\n    You achieved {feedback.totalCorrect}/{feedback.totalQuestions} correct answers ({feedback.scaledScore.toFixed(1)}/10)\n</div>\n```\n\n### Step 2: Three Section Panels (Strengths, Revision, Critical)\n\nEach section rendered by a helper function:\n```typescript\nfunction renderSection(\n    title: string,\n    icon: string,\n    skills: SkillAnalysis[],\n    aiText: string | undefined,\n    accentColor: string,\n    bgColor: string,\n)\n```\n\nColor mapping:\n| Section | Icon | Accent | Background |\n|---------|------|--------|------------|\n| Strengths | ✅ | #10b981 (green) | rgba(16,185,129,0.06) |\n| Revision | ⚠️ | #f59e0b (amber) | rgba(245,158,11,0.06) |\n| Critical | 🔴 | #ef4444 (red) | rgba(239,68,68,0.06) |\n\nEach section:\n1. Header line: `{icon} {title}` with color accent\n2. Bullet list of `SkillAnalysis` entries:\n   - `• {skillName} (Q{questionNumbers.join(', Q')}) — {correct}/{total} correct`\n   - Wrong questions highlighted: `(wrong: Q{wrongQuestionNumbers.join(', Q')})`\n3. AI narrative text (if available) in slightly different style — italicized, lighter color\n\n### Step 3: AI vs Deterministic Display Logic\n```typescript\n// If AI feedback available, show rich narrative\nif (feedback.aiFeedback) {\n    // Render AI summary + per-section AI text\n    // Show within each section panel\n}\n\n// If only deterministic, show plain bulleted analysis\n// (same structure, just no AI narrative text beneath each section)\n```\n\n### Step 4: Backward Compatibility / Null Guard\nThe parent component handles the null check:\n```typescript\n// In parent:\n{feedback && <FormativeFeedbackPanel feedback={feedback} />}\n```\nSo the component itself can assume `feedback` is non-null.\n\n### Step 5: Skeleton/Empty States\n- Empty strengths → don't render strengths section at all\n- Empty revision → don't render revision section\n- Empty critical → don't render critical section\n- All empty (shouldn't happen, but guard) → show only summary line\n\n### Animations\n- Use CSS `transition: all 0.3s ease` on section panels\n- Subtle slide-in when AI feedback arrives (can be done with simple opacity transition if parent re-renders with AI data)"
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "86hnh4",
+      "version": 3,
+      "timestamp": "2026-03-04T22:01:07.714Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        }
+      ],
+      "snapshot": {
+        "title": "Create FormativeFeedbackPanel UI component",
+        "description": "Build FormativeFeedbackPanel.tsx that displays the overall narrative feedback with three sections (strengths/revision/critical) using icons and color coding. Shows deterministic fallback while AI feedback loads, then upgrades to AI version. Panel placed below score, above question pills grid.",
+        "status": "in-progress",
+        "priority": "medium",
+        "labels": [
+          "from-spec",
+          "formative-feedback"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Panel displays summary line (You achieved X/Y correct answers, Z/10)"
+          },
+          {
+            "completed": false,
+            "text": "Strengths section shown with ✅ icon and green accent"
+          },
+          {
+            "completed": false,
+            "text": "Revision section shown with ⚠️ icon and amber accent"
+          },
+          {
+            "completed": false,
+            "text": "Critical section shown with 🔴 icon and red accent"
+          },
+          {
+            "completed": false,
+            "text": "Question numbers referenced in parentheses in AI feedback text"
+          },
+          {
+            "completed": false,
+            "text": "Graceful display when only deterministic feedback available (no AI)"
+          },
+          {
+            "completed": false,
+            "text": "No panel shown when formativeFeedback is null/undefined (backward compat)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan: Create FormativeFeedbackPanel UI Component\n\n### File: `src/components/thcs-student/FormativeFeedbackPanel.tsx` (NEW)\n\n### Props Interface\n```typescript\ninterface FormativeFeedbackPanelProps {\n    feedback: FormativeFeedback;\n}\n```\n\n### Design Decisions\n- **Match existing design language**: Use inline styles (same as THCSTestLayout, StudentTestResultsPage)\n- **Use the project's glassmorphism Card component**: `import { Card, CardBody } from '../modern';`\n- **Color palette**: Match existing `QUESTION_NAV_COLORS` and the student view purple theme\n- **NO Mantine** for this component (per Rule #15) — only Card from `../modern`\n\n### Component Structure\n\n```\n┌─────────────────────────────────────────────┐\n│ 📊 Performance Analysis                     │\n│                                             │\n│ \"You achieved X/Y correct answers (Z/10)\"   │\n│                                             │\n│ ┌─────────────────────────────────────────┐ │\n│ │ ✅ Strengths                            │ │\n│ │ • Vocabulary (Q1, Q2) — 5/5 correct    │ │\n│ │ • Reading Comprehension (Q8, Q9, Q10)  │ │\n│ │                                        │ │\n│ │ AI: \"Your vocabulary range is...\"      │ │\n│ └─────────────────────────────────────────┘ │\n│ ┌─────────────────────────────────────────┐ │\n│ │ ⚠️ Needs Revision                       │ │\n│ │ • Grammar (Q3, Q4, Q5) — 2/4 correct  │ │\n│ │                                        │ │\n│ │ AI: \"Focus on present perfect vs...\"   │ │\n│ └─────────────────────────────────────────┘ │\n│ ┌─────────────────────────────────────────┐ │\n│ │ 🔴 Critical Gaps                        │ │\n│ │ • Pronunciation (Q6, Q7) — 0/3 correct│ │\n│ │                                        │ │\n│ │ AI: \"You need to urgently review...\"   │ │\n│ └─────────────────────────────────────────┘ │\n└─────────────────────────────────────────────┘\n```\n\n### Step 1: Summary Line\n```typescript\n<div style={{ fontSize: '1rem', fontWeight: 600, color: '#1e293b', marginBottom: '1rem' }}>\n    You achieved {feedback.totalCorrect}/{feedback.totalQuestions} correct answers ({feedback.scaledScore.toFixed(1)}/10)\n</div>\n```\n\n### Step 2: Three Section Panels (Strengths, Revision, Critical)\n\nEach section rendered by a helper function:\n```typescript\nfunction renderSection(\n    title: string,\n    icon: string,\n    skills: SkillAnalysis[],\n    aiText: string | undefined,\n    accentColor: string,\n    bgColor: string,\n)\n```\n\nColor mapping:\n| Section | Icon | Accent | Background |\n|---------|------|--------|------------|\n| Strengths | ✅ | #10b981 (green) | rgba(16,185,129,0.06) |\n| Revision | ⚠️ | #f59e0b (amber) | rgba(245,158,11,0.06) |\n| Critical | 🔴 | #ef4444 (red) | rgba(239,68,68,0.06) |\n\nEach section:\n1. Header line: `{icon} {title}` with color accent\n2. Bullet list of `SkillAnalysis` entries:\n   - `• {skillName} (Q{questionNumbers.join(', Q')}) — {correct}/{total} correct`\n   - Wrong questions highlighted: `(wrong: Q{wrongQuestionNumbers.join(', Q')})`\n3. AI narrative text (if available) in slightly different style — italicized, lighter color\n\n### Step 3: AI vs Deterministic Display Logic\n```typescript\n// If AI feedback available, show rich narrative\nif (feedback.aiFeedback) {\n    // Render AI summary + per-section AI text\n    // Show within each section panel\n}\n\n// If only deterministic, show plain bulleted analysis\n// (same structure, just no AI narrative text beneath each section)\n```\n\n### Step 4: Backward Compatibility / Null Guard\nThe parent component handles the null check:\n```typescript\n// In parent:\n{feedback && <FormativeFeedbackPanel feedback={feedback} />}\n```\nSo the component itself can assume `feedback` is non-null.\n\n### Step 5: Skeleton/Empty States\n- Empty strengths → don't render strengths section at all\n- Empty revision → don't render revision section\n- Empty critical → don't render critical section\n- All empty (shouldn't happen, but guard) → show only summary line\n\n### Animations\n- Use CSS `transition: all 0.3s ease` on section panels\n- Subtle slide-in when AI feedback arrives (can be done with simple opacity transition if parent re-renders with AI data)"
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "86hnh4",
+      "version": 4,
+      "timestamp": "2026-03-04T22:03:45.523Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Panel displays summary line (You achieved X/Y correct answers, Z/10)"
+            },
+            {
+              "completed": false,
+              "text": "Strengths section shown with ✅ icon and green accent"
+            },
+            {
+              "completed": false,
+              "text": "Revision section shown with ⚠️ icon and amber accent"
+            },
+            {
+              "completed": false,
+              "text": "Critical section shown with 🔴 icon and red accent"
+            },
+            {
+              "completed": false,
+              "text": "Question numbers referenced in parentheses in AI feedback text"
+            },
+            {
+              "completed": false,
+              "text": "Graceful display when only deterministic feedback available (no AI)"
+            },
+            {
+              "completed": false,
+              "text": "No panel shown when formativeFeedback is null/undefined (backward compat)"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Panel displays summary line (You achieved X/Y correct answers, Z/10)"
+            },
+            {
+              "completed": true,
+              "text": "Strengths section shown with ✅ icon and green accent"
+            },
+            {
+              "completed": true,
+              "text": "Revision section shown with ⚠️ icon and amber accent"
+            },
+            {
+              "completed": true,
+              "text": "Critical section shown with 🔴 icon and red accent"
+            },
+            {
+              "completed": true,
+              "text": "Question numbers referenced in parentheses in AI feedback text"
+            },
+            {
+              "completed": true,
+              "text": "Graceful display when only deterministic feedback available (no AI)"
+            },
+            {
+              "completed": true,
+              "text": "No panel shown when formativeFeedback is null/undefined (backward compat)"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Created `src/components/thcs-student/FormativeFeedbackPanel.tsx` (267 lines)\n\n**Component structure:**\n- `FormativeFeedbackPanel` — main component, takes `{ feedback: FormativeFeedback }`\n- `TierSection` — renders one tier (strengths/revision/critical) with colored bg, skill bullets, and optional AI narrative\n- `SkillBullet` — renders one skill entry with skill name, question numbers, score, and wrong question indicators\n\n**Design compliance:**\n- Follows student-view-design standard: flat white card, `#ffffff` bg, `1px solid #e5e7eb` border\n- Uses standard color palette: `#059669` green / `#d97706` amber / `#dc2626` red\n- No glassmorphism, no Mantine, no gradient backgrounds\n- Pill-shaped badge for \"AI-enhanced\" indicator\n- `border-radius: 16px` on outer card, `12px` on inner tier cards\n\n**Features:**\n- Summary line shows AI summary (when available) or deterministic \\\"You achieved X/Y\\\" text\n- Each tier section has colored bg, header with icon + skill count badge, bullet list\n- AI narrative rendered in italicized bordered box under each tier's bullet list\n- Empty tiers hidden — only renders sections with skills\n- Backward compatible: parent does null check before rendering\n\n**TypeScript compilation verified** — no new errors."
+        }
+      ],
+      "snapshot": {
+        "title": "Create FormativeFeedbackPanel UI component",
+        "description": "Build FormativeFeedbackPanel.tsx that displays the overall narrative feedback with three sections (strengths/revision/critical) using icons and color coding. Shows deterministic fallback while AI feedback loads, then upgrades to AI version. Panel placed below score, above question pills grid.",
+        "status": "in-progress",
+        "priority": "medium",
+        "labels": [
+          "from-spec",
+          "formative-feedback"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Panel displays summary line (You achieved X/Y correct answers, Z/10)"
+          },
+          {
+            "completed": true,
+            "text": "Strengths section shown with ✅ icon and green accent"
+          },
+          {
+            "completed": true,
+            "text": "Revision section shown with ⚠️ icon and amber accent"
+          },
+          {
+            "completed": true,
+            "text": "Critical section shown with 🔴 icon and red accent"
+          },
+          {
+            "completed": true,
+            "text": "Question numbers referenced in parentheses in AI feedback text"
+          },
+          {
+            "completed": true,
+            "text": "Graceful display when only deterministic feedback available (no AI)"
+          },
+          {
+            "completed": true,
+            "text": "No panel shown when formativeFeedback is null/undefined (backward compat)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan: Create FormativeFeedbackPanel UI Component\n\n### File: `src/components/thcs-student/FormativeFeedbackPanel.tsx` (NEW)\n\n### Props Interface\n```typescript\ninterface FormativeFeedbackPanelProps {\n    feedback: FormativeFeedback;\n}\n```\n\n### Design Decisions\n- **Match existing design language**: Use inline styles (same as THCSTestLayout, StudentTestResultsPage)\n- **Use the project's glassmorphism Card component**: `import { Card, CardBody } from '../modern';`\n- **Color palette**: Match existing `QUESTION_NAV_COLORS` and the student view purple theme\n- **NO Mantine** for this component (per Rule #15) — only Card from `../modern`\n\n### Component Structure\n\n```\n┌─────────────────────────────────────────────┐\n│ 📊 Performance Analysis                     │\n│                                             │\n│ \"You achieved X/Y correct answers (Z/10)\"   │\n│                                             │\n│ ┌─────────────────────────────────────────┐ │\n│ │ ✅ Strengths                            │ │\n│ │ • Vocabulary (Q1, Q2) — 5/5 correct    │ │\n│ │ • Reading Comprehension (Q8, Q9, Q10)  │ │\n│ │                                        │ │\n│ │ AI: \"Your vocabulary range is...\"      │ │\n│ └─────────────────────────────────────────┘ │\n│ ┌─────────────────────────────────────────┐ │\n│ │ ⚠️ Needs Revision                       │ │\n│ │ • Grammar (Q3, Q4, Q5) — 2/4 correct  │ │\n│ │                                        │ │\n│ │ AI: \"Focus on present perfect vs...\"   │ │\n│ └─────────────────────────────────────────┘ │\n│ ┌─────────────────────────────────────────┐ │\n│ │ 🔴 Critical Gaps                        │ │\n│ │ • Pronunciation (Q6, Q7) — 0/3 correct│ │\n│ │                                        │ │\n│ │ AI: \"You need to urgently review...\"   │ │\n│ └─────────────────────────────────────────┘ │\n└─────────────────────────────────────────────┘\n```\n\n### Step 1: Summary Line\n```typescript\n<div style={{ fontSize: '1rem', fontWeight: 600, color: '#1e293b', marginBottom: '1rem' }}>\n    You achieved {feedback.totalCorrect}/{feedback.totalQuestions} correct answers ({feedback.scaledScore.toFixed(1)}/10)\n</div>\n```\n\n### Step 2: Three Section Panels (Strengths, Revision, Critical)\n\nEach section rendered by a helper function:\n```typescript\nfunction renderSection(\n    title: string,\n    icon: string,\n    skills: SkillAnalysis[],\n    aiText: string | undefined,\n    accentColor: string,\n    bgColor: string,\n)\n```\n\nColor mapping:\n| Section | Icon | Accent | Background |\n|---------|------|--------|------------|\n| Strengths | ✅ | #10b981 (green) | rgba(16,185,129,0.06) |\n| Revision | ⚠️ | #f59e0b (amber) | rgba(245,158,11,0.06) |\n| Critical | 🔴 | #ef4444 (red) | rgba(239,68,68,0.06) |\n\nEach section:\n1. Header line: `{icon} {title}` with color accent\n2. Bullet list of `SkillAnalysis` entries:\n   - `• {skillName} (Q{questionNumbers.join(', Q')}) — {correct}/{total} correct`\n   - Wrong questions highlighted: `(wrong: Q{wrongQuestionNumbers.join(', Q')})`\n3. AI narrative text (if available) in slightly different style — italicized, lighter color\n\n### Step 3: AI vs Deterministic Display Logic\n```typescript\n// If AI feedback available, show rich narrative\nif (feedback.aiFeedback) {\n    // Render AI summary + per-section AI text\n    // Show within each section panel\n}\n\n// If only deterministic, show plain bulleted analysis\n// (same structure, just no AI narrative text beneath each section)\n```\n\n### Step 4: Backward Compatibility / Null Guard\nThe parent component handles the null check:\n```typescript\n// In parent:\n{feedback && <FormativeFeedbackPanel feedback={feedback} />}\n```\nSo the component itself can assume `feedback` is non-null.\n\n### Step 5: Skeleton/Empty States\n- Empty strengths → don't render strengths section at all\n- Empty revision → don't render revision section\n- Empty critical → don't render critical section\n- All empty (shouldn't happen, but guard) → show only summary line\n\n### Animations\n- Use CSS `transition: all 0.3s ease` on section panels\n- Subtle slide-in when AI feedback arrives (can be done with simple opacity transition if parent re-renders with AI data)",
+        "implementationNotes": "Created `src/components/thcs-student/FormativeFeedbackPanel.tsx` (267 lines)\n\n**Component structure:**\n- `FormativeFeedbackPanel` — main component, takes `{ feedback: FormativeFeedback }`\n- `TierSection` — renders one tier (strengths/revision/critical) with colored bg, skill bullets, and optional AI narrative\n- `SkillBullet` — renders one skill entry with skill name, question numbers, score, and wrong question indicators\n\n**Design compliance:**\n- Follows student-view-design standard: flat white card, `#ffffff` bg, `1px solid #e5e7eb` border\n- Uses standard color palette: `#059669` green / `#d97706` amber / `#dc2626` red\n- No glassmorphism, no Mantine, no gradient backgrounds\n- Pill-shaped badge for \"AI-enhanced\" indicator\n- `border-radius: 16px` on outer card, `12px` on inner tier cards\n\n**Features:**\n- Summary line shows AI summary (when available) or deterministic \\\"You achieved X/Y\\\" text\n- Each tier section has colored bg, header with icon + skill count badge, bullet list\n- AI narrative rendered in italicized bordered box under each tier's bullet list\n- Empty tiers hidden — only renders sections with skills\n- Backward compatible: parent does null check before rendering\n\n**TypeScript compilation verified** — no new errors."
+      }
+    },
+    {
+      "id": "v5",
+      "taskId": "86hnh4",
+      "version": 5,
+      "timestamp": "2026-03-04T22:03:55.376Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Create FormativeFeedbackPanel UI component",
+        "description": "Build FormativeFeedbackPanel.tsx that displays the overall narrative feedback with three sections (strengths/revision/critical) using icons and color coding. Shows deterministic fallback while AI feedback loads, then upgrades to AI version. Panel placed below score, above question pills grid.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "from-spec",
+          "formative-feedback"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Panel displays summary line (You achieved X/Y correct answers, Z/10)"
+          },
+          {
+            "completed": true,
+            "text": "Strengths section shown with ✅ icon and green accent"
+          },
+          {
+            "completed": true,
+            "text": "Revision section shown with ⚠️ icon and amber accent"
+          },
+          {
+            "completed": true,
+            "text": "Critical section shown with 🔴 icon and red accent"
+          },
+          {
+            "completed": true,
+            "text": "Question numbers referenced in parentheses in AI feedback text"
+          },
+          {
+            "completed": true,
+            "text": "Graceful display when only deterministic feedback available (no AI)"
+          },
+          {
+            "completed": true,
+            "text": "No panel shown when formativeFeedback is null/undefined (backward compat)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan: Create FormativeFeedbackPanel UI Component\n\n### File: `src/components/thcs-student/FormativeFeedbackPanel.tsx` (NEW)\n\n### Props Interface\n```typescript\ninterface FormativeFeedbackPanelProps {\n    feedback: FormativeFeedback;\n}\n```\n\n### Design Decisions\n- **Match existing design language**: Use inline styles (same as THCSTestLayout, StudentTestResultsPage)\n- **Use the project's glassmorphism Card component**: `import { Card, CardBody } from '../modern';`\n- **Color palette**: Match existing `QUESTION_NAV_COLORS` and the student view purple theme\n- **NO Mantine** for this component (per Rule #15) — only Card from `../modern`\n\n### Component Structure\n\n```\n┌─────────────────────────────────────────────┐\n│ 📊 Performance Analysis                     │\n│                                             │\n│ \"You achieved X/Y correct answers (Z/10)\"   │\n│                                             │\n│ ┌─────────────────────────────────────────┐ │\n│ │ ✅ Strengths                            │ │\n│ │ • Vocabulary (Q1, Q2) — 5/5 correct    │ │\n│ │ • Reading Comprehension (Q8, Q9, Q10)  │ │\n│ │                                        │ │\n│ │ AI: \"Your vocabulary range is...\"      │ │\n│ └─────────────────────────────────────────┘ │\n│ ┌─────────────────────────────────────────┐ │\n│ │ ⚠️ Needs Revision                       │ │\n│ │ • Grammar (Q3, Q4, Q5) — 2/4 correct  │ │\n│ │                                        │ │\n│ │ AI: \"Focus on present perfect vs...\"   │ │\n│ └─────────────────────────────────────────┘ │\n│ ┌─────────────────────────────────────────┐ │\n│ │ 🔴 Critical Gaps                        │ │\n│ │ • Pronunciation (Q6, Q7) — 0/3 correct│ │\n│ │                                        │ │\n│ │ AI: \"You need to urgently review...\"   │ │\n│ └─────────────────────────────────────────┘ │\n└─────────────────────────────────────────────┘\n```\n\n### Step 1: Summary Line\n```typescript\n<div style={{ fontSize: '1rem', fontWeight: 600, color: '#1e293b', marginBottom: '1rem' }}>\n    You achieved {feedback.totalCorrect}/{feedback.totalQuestions} correct answers ({feedback.scaledScore.toFixed(1)}/10)\n</div>\n```\n\n### Step 2: Three Section Panels (Strengths, Revision, Critical)\n\nEach section rendered by a helper function:\n```typescript\nfunction renderSection(\n    title: string,\n    icon: string,\n    skills: SkillAnalysis[],\n    aiText: string | undefined,\n    accentColor: string,\n    bgColor: string,\n)\n```\n\nColor mapping:\n| Section | Icon | Accent | Background |\n|---------|------|--------|------------|\n| Strengths | ✅ | #10b981 (green) | rgba(16,185,129,0.06) |\n| Revision | ⚠️ | #f59e0b (amber) | rgba(245,158,11,0.06) |\n| Critical | 🔴 | #ef4444 (red) | rgba(239,68,68,0.06) |\n\nEach section:\n1. Header line: `{icon} {title}` with color accent\n2. Bullet list of `SkillAnalysis` entries:\n   - `• {skillName} (Q{questionNumbers.join(', Q')}) — {correct}/{total} correct`\n   - Wrong questions highlighted: `(wrong: Q{wrongQuestionNumbers.join(', Q')})`\n3. AI narrative text (if available) in slightly different style — italicized, lighter color\n\n### Step 3: AI vs Deterministic Display Logic\n```typescript\n// If AI feedback available, show rich narrative\nif (feedback.aiFeedback) {\n    // Render AI summary + per-section AI text\n    // Show within each section panel\n}\n\n// If only deterministic, show plain bulleted analysis\n// (same structure, just no AI narrative text beneath each section)\n```\n\n### Step 4: Backward Compatibility / Null Guard\nThe parent component handles the null check:\n```typescript\n// In parent:\n{feedback && <FormativeFeedbackPanel feedback={feedback} />}\n```\nSo the component itself can assume `feedback` is non-null.\n\n### Step 5: Skeleton/Empty States\n- Empty strengths → don't render strengths section at all\n- Empty revision → don't render revision section\n- Empty critical → don't render critical section\n- All empty (shouldn't happen, but guard) → show only summary line\n\n### Animations\n- Use CSS `transition: all 0.3s ease` on section panels\n- Subtle slide-in when AI feedback arrives (can be done with simple opacity transition if parent re-renders with AI data)",
+        "implementationNotes": "Created `src/components/thcs-student/FormativeFeedbackPanel.tsx` (267 lines)\n\n**Component structure:**\n- `FormativeFeedbackPanel` — main component, takes `{ feedback: FormativeFeedback }`\n- `TierSection` — renders one tier (strengths/revision/critical) with colored bg, skill bullets, and optional AI narrative\n- `SkillBullet` — renders one skill entry with skill name, question numbers, score, and wrong question indicators\n\n**Design compliance:**\n- Follows student-view-design standard: flat white card, `#ffffff` bg, `1px solid #e5e7eb` border\n- Uses standard color palette: `#059669` green / `#d97706` amber / `#dc2626` red\n- No glassmorphism, no Mantine, no gradient backgrounds\n- Pill-shaped badge for \"AI-enhanced\" indicator\n- `border-radius: 16px` on outer card, `12px` on inner tier cards\n\n**Features:**\n- Summary line shows AI summary (when available) or deterministic \\\"You achieved X/Y\\\" text\n- Each tier section has colored bg, header with icon + skill count badge, bullet list\n- AI narrative rendered in italicized bordered box under each tier's bullet list\n- Empty tiers hidden — only renders sections with skills\n- Backward compatible: parent does null check before rendering\n\n**TypeScript compilation verified** — no new errors."
+      }
+    },
+    {
+      "id": "v6",
+      "taskId": "86hnh4",
+      "version": 6,
+      "timestamp": "2026-03-04T22:25:54.603Z",
+      "changes": [
+        {
+          "field": "implementationNotes",
+          "oldValue": "Created `src/components/thcs-student/FormativeFeedbackPanel.tsx` (267 lines)\n\n**Component structure:**\n- `FormativeFeedbackPanel` — main component, takes `{ feedback: FormativeFeedback }`\n- `TierSection` — renders one tier (strengths/revision/critical) with colored bg, skill bullets, and optional AI narrative\n- `SkillBullet` — renders one skill entry with skill name, question numbers, score, and wrong question indicators\n\n**Design compliance:**\n- Follows student-view-design standard: flat white card, `#ffffff` bg, `1px solid #e5e7eb` border\n- Uses standard color palette: `#059669` green / `#d97706` amber / `#dc2626` red\n- No glassmorphism, no Mantine, no gradient backgrounds\n- Pill-shaped badge for \"AI-enhanced\" indicator\n- `border-radius: 16px` on outer card, `12px` on inner tier cards\n\n**Features:**\n- Summary line shows AI summary (when available) or deterministic \\\"You achieved X/Y\\\" text\n- Each tier section has colored bg, header with icon + skill count badge, bullet list\n- AI narrative rendered in italicized bordered box under each tier's bullet list\n- Empty tiers hidden — only renders sections with skills\n- Backward compatible: parent does null check before rendering\n\n**TypeScript compilation verified** — no new errors.",
+          "newValue": "Created `src/components/thcs-student/FormativeFeedbackPanel.tsx` (267 lines)\n\n**Component structure:**\n- `FormativeFeedbackPanel` — main component, takes `{ feedback: FormativeFeedback }`\n- `TierSection` — renders one tier (strengths/revision/critical) with colored bg, skill bullets, and optional AI narrative\n- `SkillBullet` — renders one skill entry with skill name, question numbers, score, and wrong question indicators\n\n**Design compliance:**\n- Follows student-view-design standard: flat white card, `#ffffff` bg, `1px solid #e5e7eb` border\n- Uses standard color palette: `#059669` green / `#d97706` amber / `#dc2626` red\n- No glassmorphism, no Mantine, no gradient backgrounds\n- Pill-shaped badge for \"AI-enhanced\" indicator\n- `border-radius: 16px` on outer card, `12px` on inner tier cards\n\n**Features:**\n- Summary line shows AI summary (when available) or deterministic \\\"You achieved X/Y\\\" text\n- Each tier section has colored bg, header with icon + skill count badge, bullet list\n- AI narrative rendered in italicized bordered box under each tier's bullet list\n- Empty tiers hidden — only renders sections with skills\n- Backward compatible: parent does null check before rendering\n\n**TypeScript compilation verified** — no new errors.\n\n📚 Extracted to @doc/patterns/pattern-deterministic-first-ai-enhancement"
+        }
+      ],
+      "snapshot": {
+        "title": "Create FormativeFeedbackPanel UI component",
+        "description": "Build FormativeFeedbackPanel.tsx that displays the overall narrative feedback with three sections (strengths/revision/critical) using icons and color coding. Shows deterministic fallback while AI feedback loads, then upgrades to AI version. Panel placed below score, above question pills grid.",
+        "status": "done",
+        "priority": "medium",
+        "labels": [
+          "from-spec",
+          "formative-feedback"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Panel displays summary line (You achieved X/Y correct answers, Z/10)"
+          },
+          {
+            "completed": true,
+            "text": "Strengths section shown with ✅ icon and green accent"
+          },
+          {
+            "completed": true,
+            "text": "Revision section shown with ⚠️ icon and amber accent"
+          },
+          {
+            "completed": true,
+            "text": "Critical section shown with 🔴 icon and red accent"
+          },
+          {
+            "completed": true,
+            "text": "Question numbers referenced in parentheses in AI feedback text"
+          },
+          {
+            "completed": true,
+            "text": "Graceful display when only deterministic feedback available (no AI)"
+          },
+          {
+            "completed": true,
+            "text": "No panel shown when formativeFeedback is null/undefined (backward compat)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan: Create FormativeFeedbackPanel UI Component\n\n### File: `src/components/thcs-student/FormativeFeedbackPanel.tsx` (NEW)\n\n### Props Interface\n```typescript\ninterface FormativeFeedbackPanelProps {\n    feedback: FormativeFeedback;\n}\n```\n\n### Design Decisions\n- **Match existing design language**: Use inline styles (same as THCSTestLayout, StudentTestResultsPage)\n- **Use the project's glassmorphism Card component**: `import { Card, CardBody } from '../modern';`\n- **Color palette**: Match existing `QUESTION_NAV_COLORS` and the student view purple theme\n- **NO Mantine** for this component (per Rule #15) — only Card from `../modern`\n\n### Component Structure\n\n```\n┌─────────────────────────────────────────────┐\n│ 📊 Performance Analysis                     │\n│                                             │\n│ \"You achieved X/Y correct answers (Z/10)\"   │\n│                                             │\n│ ┌─────────────────────────────────────────┐ │\n│ │ ✅ Strengths                            │ │\n│ │ • Vocabulary (Q1, Q2) — 5/5 correct    │ │\n│ │ • Reading Comprehension (Q8, Q9, Q10)  │ │\n│ │                                        │ │\n│ │ AI: \"Your vocabulary range is...\"      │ │\n│ └─────────────────────────────────────────┘ │\n│ ┌─────────────────────────────────────────┐ │\n│ │ ⚠️ Needs Revision                       │ │\n│ │ • Grammar (Q3, Q4, Q5) — 2/4 correct  │ │\n│ │                                        │ │\n│ │ AI: \"Focus on present perfect vs...\"   │ │\n│ └─────────────────────────────────────────┘ │\n│ ┌─────────────────────────────────────────┐ │\n│ │ 🔴 Critical Gaps                        │ │\n│ │ • Pronunciation (Q6, Q7) — 0/3 correct│ │\n│ │                                        │ │\n│ │ AI: \"You need to urgently review...\"   │ │\n│ └─────────────────────────────────────────┘ │\n└─────────────────────────────────────────────┘\n```\n\n### Step 1: Summary Line\n```typescript\n<div style={{ fontSize: '1rem', fontWeight: 600, color: '#1e293b', marginBottom: '1rem' }}>\n    You achieved {feedback.totalCorrect}/{feedback.totalQuestions} correct answers ({feedback.scaledScore.toFixed(1)}/10)\n</div>\n```\n\n### Step 2: Three Section Panels (Strengths, Revision, Critical)\n\nEach section rendered by a helper function:\n```typescript\nfunction renderSection(\n    title: string,\n    icon: string,\n    skills: SkillAnalysis[],\n    aiText: string | undefined,\n    accentColor: string,\n    bgColor: string,\n)\n```\n\nColor mapping:\n| Section | Icon | Accent | Background |\n|---------|------|--------|------------|\n| Strengths | ✅ | #10b981 (green) | rgba(16,185,129,0.06) |\n| Revision | ⚠️ | #f59e0b (amber) | rgba(245,158,11,0.06) |\n| Critical | 🔴 | #ef4444 (red) | rgba(239,68,68,0.06) |\n\nEach section:\n1. Header line: `{icon} {title}` with color accent\n2. Bullet list of `SkillAnalysis` entries:\n   - `• {skillName} (Q{questionNumbers.join(', Q')}) — {correct}/{total} correct`\n   - Wrong questions highlighted: `(wrong: Q{wrongQuestionNumbers.join(', Q')})`\n3. AI narrative text (if available) in slightly different style — italicized, lighter color\n\n### Step 3: AI vs Deterministic Display Logic\n```typescript\n// If AI feedback available, show rich narrative\nif (feedback.aiFeedback) {\n    // Render AI summary + per-section AI text\n    // Show within each section panel\n}\n\n// If only deterministic, show plain bulleted analysis\n// (same structure, just no AI narrative text beneath each section)\n```\n\n### Step 4: Backward Compatibility / Null Guard\nThe parent component handles the null check:\n```typescript\n// In parent:\n{feedback && <FormativeFeedbackPanel feedback={feedback} />}\n```\nSo the component itself can assume `feedback` is non-null.\n\n### Step 5: Skeleton/Empty States\n- Empty strengths → don't render strengths section at all\n- Empty revision → don't render revision section\n- Empty critical → don't render critical section\n- All empty (shouldn't happen, but guard) → show only summary line\n\n### Animations\n- Use CSS `transition: all 0.3s ease` on section panels\n- Subtle slide-in when AI feedback arrives (can be done with simple opacity transition if parent re-renders with AI data)",
+        "implementationNotes": "Created `src/components/thcs-student/FormativeFeedbackPanel.tsx` (267 lines)\n\n**Component structure:**\n- `FormativeFeedbackPanel` — main component, takes `{ feedback: FormativeFeedback }`\n- `TierSection` — renders one tier (strengths/revision/critical) with colored bg, skill bullets, and optional AI narrative\n- `SkillBullet` — renders one skill entry with skill name, question numbers, score, and wrong question indicators\n\n**Design compliance:**\n- Follows student-view-design standard: flat white card, `#ffffff` bg, `1px solid #e5e7eb` border\n- Uses standard color palette: `#059669` green / `#d97706` amber / `#dc2626` red\n- No glassmorphism, no Mantine, no gradient backgrounds\n- Pill-shaped badge for \"AI-enhanced\" indicator\n- `border-radius: 16px` on outer card, `12px` on inner tier cards\n\n**Features:**\n- Summary line shows AI summary (when available) or deterministic \\\"You achieved X/Y\\\" text\n- Each tier section has colored bg, header with icon + skill count badge, bullet list\n- AI narrative rendered in italicized bordered box under each tier's bullet list\n- Empty tiers hidden — only renders sections with skills\n- Backward compatible: parent does null check before rendering\n\n**TypeScript compilation verified** — no new errors.\n\n📚 Extracted to @doc/patterns/pattern-deterministic-first-ai-enhancement"
+      }
+    }
+  ]
+}

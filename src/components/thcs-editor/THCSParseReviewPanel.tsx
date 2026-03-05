@@ -30,6 +30,32 @@ interface ParsedTest {
     answerKey: Record<number, string>;
     warnings: ParseWarning[];
     overallConfidence: number;
+    _pipelineDebug?: {
+        pass1Confidence: number;
+        codeConfidence: number;
+        issuesFound: string[];
+        auditLog: Array<{
+            timestamp: number;
+            model: string;
+            temperature: number;
+            issueCodes: string[];
+            resultConfidence: number;
+        }>;
+        compromisedSections: Array<{
+            sectionIndex: number;
+            originalType: string;
+            convertedType: string;
+        }>;
+        skippedSections: Array<{
+            sectionIndex: number;
+            type: string;
+            reason: string;
+        }>;
+        hasInferredAnswers: boolean;
+        pipeline: string;
+        provider: string;
+        parseDurationMs: number;
+    };
 }
 
 interface THCSParseReviewPanelProps {
@@ -49,6 +75,13 @@ export function THCSParseReviewPanel({ parsedTest, onBack, onProceed }: THCSPars
     const totalQuestions = editedTest.sections.reduce((sum, s) => sum + s.questions.length, 0);
     const answeredCount = Object.keys(editedTest.answerKey).length;
     const missingAnswers = totalQuestions - answeredCount;
+    const [showAuditLog, setShowAuditLog] = useState(false);
+    const debug = editedTest._pipelineDebug;
+
+    // Check if a section was compromised
+    const isCompromised = (si: number) => debug?.compromisedSections?.some(c => c.sectionIndex === si);
+    const getCompromiseInfo = (si: number) => debug?.compromisedSections?.find(c => c.sectionIndex === si);
+    const isSkipped = (si: number) => debug?.skippedSections?.some(s => s.sectionIndex === si);
 
     const handleTypeChange = (sectionIndex: number, newType: THCSQuestionType) => {
         const updated = { ...editedTest };
@@ -93,8 +126,25 @@ export function THCSParseReviewPanel({ parsedTest, onBack, onProceed }: THCSPars
                 </Group>
                 <Text size="xs" c="dimmed">
                     {editedTest.sections.length} sections · {totalQuestions} questions · {answeredCount} answers extracted
+                    {debug && <> · Pipeline: {debug.pipeline} ({debug.parseDurationMs}ms)</>}
                 </Text>
             </div>
+
+            {/* Confidence Comparison Warning (FR-13) */}
+            {debug && Math.abs(debug.pass1Confidence - debug.codeConfidence) > 25 && (
+                <Alert
+                    color="yellow"
+                    icon={<IconAlertTriangle size={16} />}
+                    title="Confidence Disagreement"
+                >
+                    <Text size="xs">
+                        AI reports {debug.pass1Confidence}% confidence but code validation found {debug.codeConfidence}%.
+                        {debug.pass1Confidence > debug.codeConfidence
+                            ? ' AI may be overconfident. Review flagged issues carefully.'
+                            : ' The text may be better than AI suggests.'}
+                    </Text>
+                </Alert>
+            )}
 
             {/* Warnings */}
             {editedTest.warnings.length > 0 && (
@@ -122,6 +172,20 @@ export function THCSParseReviewPanel({ parsedTest, onBack, onProceed }: THCSPars
                                 <Text size="sm">{CONFIDENCE_ICON(section.typeConfidence)}</Text>
                                 <Text fw={600} size="sm">{section.name}</Text>
                                 <Badge size="xs" variant="light">{section.questions.length} Q</Badge>
+                                {/* Pipeline V2: AI-Inferred badge */}
+                                {debug?.hasInferredAnswers && section.questions.some(q => !q.correctAnswer) && (
+                                    <Badge size="xs" color="yellow" variant="light">AI-Inferred</Badge>
+                                )}
+                                {/* Pipeline V2: Compromised badge */}
+                                {isCompromised(si) && (
+                                    <Badge size="xs" color="orange" variant="light">
+                                        ⚡ {getCompromiseInfo(si)!.originalType} → {getCompromiseInfo(si)!.convertedType}
+                                    </Badge>
+                                )}
+                                {/* Pipeline V2: Skipped badge */}
+                                {isSkipped(si) && (
+                                    <Badge size="xs" color="red" variant="light">⏭ Skipped</Badge>
+                                )}
                             </Group>
                             <Badge size="sm" color={CONFIDENCE_COLOR(section.typeConfidence)}>
                                 {section.detectedType} ({section.typeConfidence}%)
@@ -215,8 +279,41 @@ export function THCSParseReviewPanel({ parsedTest, onBack, onProceed }: THCSPars
                 })}
             </SimpleGrid>
 
-
-
+            {/* Pipeline V2: Audit Log (expandable) */}
+            {debug && debug.auditLog.length > 0 && (
+                <div style={{ marginTop: '0.5rem' }}>
+                    <button
+                        onClick={() => setShowAuditLog(!showAuditLog)}
+                        style={{
+                            padding: '0.25rem 0.5rem', border: '1px solid rgba(139,92,246,0.2)',
+                            borderRadius: '0.375rem', background: 'transparent',
+                            color: '#8b5cf6', fontWeight: 600, fontSize: '0.75rem', cursor: 'pointer',
+                            width: '100%', textAlign: 'left',
+                        }}
+                    >
+                        {showAuditLog ? '▼' : '▶'} Reasoning Log ({debug.auditLog.length} repair attempts)
+                    </button>
+                    {showAuditLog && (
+                        <div style={{
+                            padding: '0.75rem', marginTop: '0.25rem',
+                            background: 'rgba(139,92,246,0.04)', borderRadius: '0.5rem',
+                            border: '1px solid rgba(139,92,246,0.1)',
+                            maxHeight: '200px', overflowY: 'auto',
+                        }}>
+                            <Stack gap={4}>
+                                {debug.auditLog.map((entry, i) => (
+                                    <div key={i} style={{ borderBottom: '1px solid rgba(0,0,0,0.05)', paddingBottom: '4px' }}>
+                                        <Text size="xs" fw={600}>Attempt {i + 1}: {entry.model} (temp {entry.temperature})</Text>
+                                        <Text size="xs" c="dimmed">
+                                            Issues: {entry.issueCodes.join(', ') || 'none'} · Confidence: {entry.resultConfidence}%
+                                        </Text>
+                                    </div>
+                                ))}
+                            </Stack>
+                        </div>
+                    )}
+                </div>
+            )}
             {/* Actions */}
             <Group justify="space-between" mt="md">
                 <Button

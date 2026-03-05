@@ -176,134 +176,123 @@ const LoginPage = () => {
                 New users will be registered as students by default
               </p>
 
-              {/* Dev Quick-Login Buttons - only shown in development */}
-              {import.meta.env.DEV && (
-                <div style={{ marginTop: '1.5rem' }}>
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.75rem',
-                    marginBottom: '1rem'
-                  }}>
-                    <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }} />
-                    <span style={{
-                      fontSize: '0.6875rem',
-                      fontWeight: '600',
-                      color: '#94a3b8',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.05em'
-                    }}>
-                      Dev Quick Login
-                    </span>
-                    <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }} />
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.75rem' }}>
-                    <button
-                      id="dev-login-teacher"
-                      onClick={() => handleDevLogin('teacher')}
-                      disabled={devLoading !== null}
-                      style={{
-                        flex: 1,
-                        padding: '0.625rem 1rem',
-                        borderRadius: '0.75rem',
-                        border: '1.5px solid #8b5cf6',
-                        background: devLoading === 'teacher'
-                          ? 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)'
-                          : 'rgba(139, 92, 246, 0.05)',
-                        color: devLoading === 'teacher' ? '#fff' : '#7c3aed',
-                        fontWeight: '600',
-                        fontSize: '0.875rem',
-                        cursor: devLoading !== null ? 'not-allowed' : 'pointer',
-                        opacity: devLoading !== null && devLoading !== 'teacher' ? 0.5 : 1,
-                        transition: 'all 0.2s ease',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.5rem'
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!devLoading) {
-                          e.currentTarget.style.background = 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)';
-                          e.currentTarget.style.color = '#fff';
-                          e.currentTarget.style.transform = 'translateY(-1px)';
-                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(139, 92, 246, 0.3)';
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!devLoading || devLoading !== 'teacher') {
-                          e.currentTarget.style.background = 'rgba(139, 92, 246, 0.05)';
-                          e.currentTarget.style.color = '#7c3aed';
-                          e.currentTarget.style.transform = 'translateY(0)';
-                          e.currentTarget.style.boxShadow = 'none';
-                        }
-                      }}
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                        <circle cx="9" cy="7" r="4" />
-                        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                      </svg>
-                      {devLoading === 'teacher' ? 'Logging in...' : 'Teacher'}
-                    </button>
-                    <button
-                      id="dev-login-student"
-                      onClick={() => handleDevLogin('student')}
-                      disabled={devLoading !== null}
-                      style={{
-                        flex: 1,
-                        padding: '0.625rem 1rem',
-                        borderRadius: '0.75rem',
-                        border: '1.5px solid #06b6d4',
-                        background: devLoading === 'student'
-                          ? 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)'
-                          : 'rgba(6, 182, 212, 0.05)',
-                        color: devLoading === 'student' ? '#fff' : '#0891b2',
-                        fontWeight: '600',
-                        fontSize: '0.875rem',
-                        cursor: devLoading !== null ? 'not-allowed' : 'pointer',
-                        opacity: devLoading !== null && devLoading !== 'student' ? 0.5 : 1,
-                        transition: 'all 0.2s ease',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.5rem'
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!devLoading) {
-                          e.currentTarget.style.background = 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)';
-                          e.currentTarget.style.color = '#fff';
-                          e.currentTarget.style.transform = 'translateY(-1px)';
-                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(6, 182, 212, 0.3)';
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!devLoading || devLoading !== 'student') {
-                          e.currentTarget.style.background = 'rgba(6, 182, 212, 0.05)';
-                          e.currentTarget.style.color = '#0891b2';
-                          e.currentTarget.style.transform = 'translateY(0)';
-                          e.currentTarget.style.boxShadow = 'none';
-                        }
-                      }}
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                        <circle cx="12" cy="7" r="4" />
-                      </svg>
-                      {devLoading === 'student' ? 'Logging in...' : 'Student'}
-                    </button>
-                  </div>
-                  <p style={{
-                    color: '#cbd5e1',
+              {/* Demo Quick-Login Buttons */}
+              <div style={{ marginTop: '1.5rem' }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  marginBottom: '1rem'
+                }}>
+                  <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }} />
+                  <span style={{
                     fontSize: '0.6875rem',
-                    textAlign: 'center',
-                    marginTop: '0.5rem',
-                    fontStyle: 'italic'
+                    fontWeight: '600',
+                    color: '#94a3b8',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em'
                   }}>
-                    Only visible in development mode
-                  </p>
+                    Demo Quick Login
+                  </span>
+                  <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }} />
                 </div>
-              )}
+                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                  <button
+                    id="dev-login-teacher"
+                    onClick={() => handleDevLogin('teacher')}
+                    disabled={devLoading !== null}
+                    style={{
+                      flex: 1,
+                      padding: '0.625rem 1rem',
+                      borderRadius: '0.75rem',
+                      border: '1.5px solid #8b5cf6',
+                      background: devLoading === 'teacher'
+                        ? 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)'
+                        : 'rgba(139, 92, 246, 0.05)',
+                      color: devLoading === 'teacher' ? '#fff' : '#7c3aed',
+                      fontWeight: '600',
+                      fontSize: '0.875rem',
+                      cursor: devLoading !== null ? 'not-allowed' : 'pointer',
+                      opacity: devLoading !== null && devLoading !== 'teacher' ? 0.5 : 1,
+                      transition: 'all 0.2s ease',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.5rem'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!devLoading) {
+                        e.currentTarget.style.background = 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)';
+                        e.currentTarget.style.color = '#fff';
+                        e.currentTarget.style.transform = 'translateY(-1px)';
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(139, 92, 246, 0.3)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!devLoading || devLoading !== 'teacher') {
+                        e.currentTarget.style.background = 'rgba(139, 92, 246, 0.05)';
+                        e.currentTarget.style.color = '#7c3aed';
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }
+                    }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                      <circle cx="9" cy="7" r="4" />
+                      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                    </svg>
+                    {devLoading === 'teacher' ? 'Logging in...' : 'Teacher'}
+                  </button>
+                  <button
+                    id="dev-login-student"
+                    onClick={() => handleDevLogin('student')}
+                    disabled={devLoading !== null}
+                    style={{
+                      flex: 1,
+                      padding: '0.625rem 1rem',
+                      borderRadius: '0.75rem',
+                      border: '1.5px solid #06b6d4',
+                      background: devLoading === 'student'
+                        ? 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)'
+                        : 'rgba(6, 182, 212, 0.05)',
+                      color: devLoading === 'student' ? '#fff' : '#0891b2',
+                      fontWeight: '600',
+                      fontSize: '0.875rem',
+                      cursor: devLoading !== null ? 'not-allowed' : 'pointer',
+                      opacity: devLoading !== null && devLoading !== 'student' ? 0.5 : 1,
+                      transition: 'all 0.2s ease',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.5rem'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!devLoading) {
+                        e.currentTarget.style.background = 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)';
+                        e.currentTarget.style.color = '#fff';
+                        e.currentTarget.style.transform = 'translateY(-1px)';
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(6, 182, 212, 0.3)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!devLoading || devLoading !== 'student') {
+                        e.currentTarget.style.background = 'rgba(6, 182, 212, 0.05)';
+                        e.currentTarget.style.color = '#0891b2';
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }
+                    }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                      <circle cx="12" cy="7" r="4" />
+                    </svg>
+                    {devLoading === 'student' ? 'Logging in...' : 'Student'}
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </CardBody>

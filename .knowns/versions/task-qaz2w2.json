@@ -1,0 +1,126 @@
+{
+  "taskId": "qaz2w2",
+  "currentVersion": 2,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "qaz2w2",
+      "version": 1,
+      "timestamp": "2026-03-01T17:15:49.345Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Store full QuestionResult map in THCSTestLayout state (not just boolean)",
+              "completed": false
+            },
+            {
+              "text": "Pass writingResult prop from stored map to THCSQuestionRenderer",
+              "completed": false
+            },
+            {
+              "text": "THCSWritingRenderer displays 'Graded by {gradedByName}' when present",
+              "completed": false
+            },
+            {
+              "text": "No visual regression for MCQ/fill-in questions",
+              "completed": false
+            }
+          ]
+        },
+        {
+          "field": "implementationPlan",
+          "newValue": "## Implementation Plan\n\n### Current State\nTHCSTestLayout.tsx stores `questionResults` as `Record<string, boolean>` (just isCorrect). The full `QuestionResult` with `writingResult` is computed but thrown away. THCSQuestionRenderer already accepts `writingResult?: WritingGradingResult` but it's never passed.\n\n### Changes\n\n#### 1. Store full QuestionResult map in THCSTestLayout\n```typescript\n// Change from:\nconst [questionResults, setQuestionResults] = useState<Record<string, boolean>>({});\n\n// To: add a parallel map\nconst [fullQuestionResults, setFullQuestionResults] = useState<Record<string, QuestionResult>>({});\n```\nIn the grading callback (line ~412-417), also store the full results:\n```typescript\nconst fullResults: Record<string, QuestionResult> = {};\nfor (const [qNum, qr] of Object.entries(gradingResult.questionResults)) {\n    fullResults[qNum] = qr;\n}\nsetFullQuestionResults(fullResults);\n```\n\n#### 2. Pass writingResult to THCSQuestionRenderer\nAt both render sites (lines 897-905 and 931-939):\n```tsx\n<THCSQuestionRenderer\n    question={q}\n    // ... existing props\n    writingResult={fullQuestionResults[q.questionNumber.toString()]?.writingResult}\n/>\n```\n\n#### 3. Update THCSWritingRenderer\nAdd \"Graded by {gradedByName}\" display when `writingResult.gradedByName` exists and `gradingTier === 'teacher-graded'`.\n\n### Files\n- `src/components/thcs-student/THCSTestLayout.tsx` — store full results + pass prop\n- `src/components/thcs-student/THCSWritingRenderer.tsx` — show \"Graded by\" badge\n\n### Risk: Low\nAdditive changes. No existing behavior is modified — we just pass an additional prop that was already defined but never used."
+        }
+      ],
+      "snapshot": {
+        "title": "Fix THCSTestLayout data pipe — pass writingResult in review mode",
+        "description": "Fix THCSTestLayout.tsx to pass `writingResult` prop to THCSQuestionRenderer when in review mode (isSubmitted). Currently the writingResult is never passed, so students cannot see grading info during in-session review. Also update THCSWritingRenderer.tsx to display \"Graded by {teacherName}\" when gradingTier === 'teacher-graded'.",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "writing-grading",
+          "bugfix"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Store full QuestionResult map in THCSTestLayout state (not just boolean)",
+            "completed": false
+          },
+          {
+            "text": "Pass writingResult prop from stored map to THCSQuestionRenderer",
+            "completed": false
+          },
+          {
+            "text": "THCSWritingRenderer displays 'Graded by {gradedByName}' when present",
+            "completed": false
+          },
+          {
+            "text": "No visual regression for MCQ/fill-in questions",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### Current State\nTHCSTestLayout.tsx stores `questionResults` as `Record<string, boolean>` (just isCorrect). The full `QuestionResult` with `writingResult` is computed but thrown away. THCSQuestionRenderer already accepts `writingResult?: WritingGradingResult` but it's never passed.\n\n### Changes\n\n#### 1. Store full QuestionResult map in THCSTestLayout\n```typescript\n// Change from:\nconst [questionResults, setQuestionResults] = useState<Record<string, boolean>>({});\n\n// To: add a parallel map\nconst [fullQuestionResults, setFullQuestionResults] = useState<Record<string, QuestionResult>>({});\n```\nIn the grading callback (line ~412-417), also store the full results:\n```typescript\nconst fullResults: Record<string, QuestionResult> = {};\nfor (const [qNum, qr] of Object.entries(gradingResult.questionResults)) {\n    fullResults[qNum] = qr;\n}\nsetFullQuestionResults(fullResults);\n```\n\n#### 2. Pass writingResult to THCSQuestionRenderer\nAt both render sites (lines 897-905 and 931-939):\n```tsx\n<THCSQuestionRenderer\n    question={q}\n    // ... existing props\n    writingResult={fullQuestionResults[q.questionNumber.toString()]?.writingResult}\n/>\n```\n\n#### 3. Update THCSWritingRenderer\nAdd \"Graded by {gradedByName}\" display when `writingResult.gradedByName` exists and `gradingTier === 'teacher-graded'`.\n\n### Files\n- `src/components/thcs-student/THCSTestLayout.tsx` — store full results + pass prop\n- `src/components/thcs-student/THCSWritingRenderer.tsx` — show \"Graded by\" badge\n\n### Risk: Low\nAdditive changes. No existing behavior is modified — we just pass an additional prop that was already defined but never used."
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "qaz2w2",
+      "version": 2,
+      "timestamp": "2026-03-01T17:19:23.613Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": "Fix THCSTestLayout data pipe — pass writingResult in review mode",
+          "newValue": "DEFERRED — Fix THCSTestLayout data pipe (non-problem currently)"
+        },
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "blocked"
+        },
+        {
+          "field": "priority",
+          "oldValue": "medium",
+          "newValue": "low"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "2026-03-02: DEPRIORITIZED — Independent assessment found this solves a non-problem. Students never see THCSTestLayout review mode because they navigate to waiting room immediately after submission. Real student result display happens in ResultDetailPage (task h1nooy) which reads from permanent records. This task only matters if we later add a 'review your test' feature that navigates back to THCSTestLayout."
+        }
+      ],
+      "snapshot": {
+        "title": "DEFERRED — Fix THCSTestLayout data pipe (non-problem currently)",
+        "description": "Fix THCSTestLayout.tsx to pass `writingResult` prop to THCSQuestionRenderer when in review mode (isSubmitted). Currently the writingResult is never passed, so students cannot see grading info during in-session review. Also update THCSWritingRenderer.tsx to display \"Graded by {teacherName}\" when gradingTier === 'teacher-graded'.",
+        "status": "blocked",
+        "priority": "low",
+        "labels": [
+          "writing-grading",
+          "bugfix"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Store full QuestionResult map in THCSTestLayout state (not just boolean)"
+          },
+          {
+            "completed": false,
+            "text": "Pass writingResult prop from stored map to THCSQuestionRenderer"
+          },
+          {
+            "completed": false,
+            "text": "THCSWritingRenderer displays 'Graded by {gradedByName}' when present"
+          },
+          {
+            "completed": false,
+            "text": "No visual regression for MCQ/fill-in questions"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### Current State\nTHCSTestLayout.tsx stores `questionResults` as `Record<string, boolean>` (just isCorrect). The full `QuestionResult` with `writingResult` is computed but thrown away. THCSQuestionRenderer already accepts `writingResult?: WritingGradingResult` but it's never passed.\n\n### Changes\n\n#### 1. Store full QuestionResult map in THCSTestLayout\n```typescript\n// Change from:\nconst [questionResults, setQuestionResults] = useState<Record<string, boolean>>({});\n\n// To: add a parallel map\nconst [fullQuestionResults, setFullQuestionResults] = useState<Record<string, QuestionResult>>({});\n```\nIn the grading callback (line ~412-417), also store the full results:\n```typescript\nconst fullResults: Record<string, QuestionResult> = {};\nfor (const [qNum, qr] of Object.entries(gradingResult.questionResults)) {\n    fullResults[qNum] = qr;\n}\nsetFullQuestionResults(fullResults);\n```\n\n#### 2. Pass writingResult to THCSQuestionRenderer\nAt both render sites (lines 897-905 and 931-939):\n```tsx\n<THCSQuestionRenderer\n    question={q}\n    // ... existing props\n    writingResult={fullQuestionResults[q.questionNumber.toString()]?.writingResult}\n/>\n```\n\n#### 3. Update THCSWritingRenderer\nAdd \"Graded by {gradedByName}\" display when `writingResult.gradedByName` exists and `gradingTier === 'teacher-graded'`.\n\n### Files\n- `src/components/thcs-student/THCSTestLayout.tsx` — store full results + pass prop\n- `src/components/thcs-student/THCSWritingRenderer.tsx` — show \"Graded by\" badge\n\n### Risk: Low\nAdditive changes. No existing behavior is modified — we just pass an additional prop that was already defined but never used.",
+        "implementationNotes": "2026-03-02: DEPRIORITIZED — Independent assessment found this solves a non-problem. Students never see THCSTestLayout review mode because they navigate to waiting room immediately after submission. Real student result display happens in ResultDetailPage (task h1nooy) which reads from permanent records. This task only matters if we later add a 'review your test' feature that navigates back to THCSTestLayout."
+      }
+    }
+  ]
+}

@@ -1,0 +1,427 @@
+{
+  "taskId": "1is5nf",
+  "currentVersion": 7,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "1is5nf",
+      "version": 1,
+      "timestamp": "2026-03-01T04:31:03.723Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        },
+        {
+          "field": "assignee",
+          "newValue": "me"
+        }
+      ],
+      "snapshot": {
+        "title": "Complete removal of WebMCP system",
+        "description": "Remove the entire WebMCP AI agent tool system from the codebase. This includes the src/webmcp/ directory, all references in main.jsx, documentation, knowns docs, safety rules, enforcement skills, and pre-commit scripts.",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "me",
+        "labels": [
+          "cleanup",
+          "removal"
+        ],
+        "acceptanceCriteria": []
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "1is5nf",
+      "version": 2,
+      "timestamp": "2026-03-01T04:31:47.283Z",
+      "changes": [
+        {
+          "field": "implementationPlan",
+          "newValue": "## Implementation Plan: Complete WebMCP Removal"
+        }
+      ],
+      "snapshot": {
+        "title": "Complete removal of WebMCP system",
+        "description": "Remove the entire WebMCP AI agent tool system from the codebase. This includes the src/webmcp/ directory, all references in main.jsx, documentation, knowns docs, safety rules, enforcement skills, and pre-commit scripts.",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "me",
+        "labels": [
+          "cleanup",
+          "removal"
+        ],
+        "acceptanceCriteria": [],
+        "implementationPlan": "## Implementation Plan: Complete WebMCP Removal"
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "1is5nf",
+      "version": 3,
+      "timestamp": "2026-03-01T04:36:52.112Z",
+      "changes": [
+        {
+          "field": "implementationPlan",
+          "oldValue": "## Implementation Plan: Complete WebMCP Removal",
+          "newValue": "Step 1: Backup src/webmcp/ to documentation/archive/webmcp-backup/. Step 2: Delete entire src/webmcp/ directory (9 files). Step 3: Remove lines 19-22 from src/main.jsx (initWebMCP bootstrap). Step 4: Remove Rule 16 from documentation/integration-safety-rules.md and user_global trigger table. Step 5: Delete knowns doc architecture/webmcp-architecture, clean README and CONVENTIONS refs. Step 6: Delete webmcp-enforcement skill. Step 7: Remove Rule 16 check from scripts/pre-commit-enforcement.js and vite-rule-enforcement.js. Step 8: Delete documentation/samples/WebMCP Early Preview.md, clean task docs. Step 9: npm run build to verify."
+        }
+      ],
+      "snapshot": {
+        "title": "Complete removal of WebMCP system",
+        "description": "Remove the entire WebMCP AI agent tool system from the codebase. This includes the src/webmcp/ directory, all references in main.jsx, documentation, knowns docs, safety rules, enforcement skills, and pre-commit scripts.",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "me",
+        "labels": [
+          "cleanup",
+          "removal"
+        ],
+        "acceptanceCriteria": [],
+        "implementationPlan": "Step 1: Backup src/webmcp/ to documentation/archive/webmcp-backup/. Step 2: Delete entire src/webmcp/ directory (9 files). Step 3: Remove lines 19-22 from src/main.jsx (initWebMCP bootstrap). Step 4: Remove Rule 16 from documentation/integration-safety-rules.md and user_global trigger table. Step 5: Delete knowns doc architecture/webmcp-architecture, clean README and CONVENTIONS refs. Step 6: Delete webmcp-enforcement skill. Step 7: Remove Rule 16 check from scripts/pre-commit-enforcement.js and vite-rule-enforcement.js. Step 8: Delete documentation/samples/WebMCP Early Preview.md, clean task docs. Step 9: npm run build to verify."
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "1is5nf",
+      "version": 4,
+      "timestamp": "2026-03-01T04:37:05.697Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "src/webmcp/ directory completely removed",
+              "completed": false
+            },
+            {
+              "text": "main.jsx has no webmcp import",
+              "completed": false
+            },
+            {
+              "text": "Rule 16 removed from integration-safety-rules.md",
+              "completed": false
+            },
+            {
+              "text": "webmcp-enforcement skill deleted",
+              "completed": false
+            },
+            {
+              "text": "Pre-commit script Rule 16 check removed",
+              "completed": false
+            },
+            {
+              "text": "Knowns docs cleaned (webmcp-architecture deleted, README/CONVENTIONS updated)",
+              "completed": false
+            },
+            {
+              "text": "npm run build succeeds with zero webmcp references",
+              "completed": false
+            },
+            {
+              "text": "Backup exists in documentation/archive/",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Complete removal of WebMCP system",
+        "description": "Remove the entire WebMCP AI agent tool system from the codebase. This includes the src/webmcp/ directory, all references in main.jsx, documentation, knowns docs, safety rules, enforcement skills, and pre-commit scripts.",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "me",
+        "labels": [
+          "cleanup",
+          "removal"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "src/webmcp/ directory completely removed",
+            "completed": false
+          },
+          {
+            "text": "main.jsx has no webmcp import",
+            "completed": false
+          },
+          {
+            "text": "Rule 16 removed from integration-safety-rules.md",
+            "completed": false
+          },
+          {
+            "text": "webmcp-enforcement skill deleted",
+            "completed": false
+          },
+          {
+            "text": "Pre-commit script Rule 16 check removed",
+            "completed": false
+          },
+          {
+            "text": "Knowns docs cleaned (webmcp-architecture deleted, README/CONVENTIONS updated)",
+            "completed": false
+          },
+          {
+            "text": "npm run build succeeds with zero webmcp references",
+            "completed": false
+          },
+          {
+            "text": "Backup exists in documentation/archive/",
+            "completed": false
+          }
+        ],
+        "implementationPlan": "Step 1: Backup src/webmcp/ to documentation/archive/webmcp-backup/. Step 2: Delete entire src/webmcp/ directory (9 files). Step 3: Remove lines 19-22 from src/main.jsx (initWebMCP bootstrap). Step 4: Remove Rule 16 from documentation/integration-safety-rules.md and user_global trigger table. Step 5: Delete knowns doc architecture/webmcp-architecture, clean README and CONVENTIONS refs. Step 6: Delete webmcp-enforcement skill. Step 7: Remove Rule 16 check from scripts/pre-commit-enforcement.js and vite-rule-enforcement.js. Step 8: Delete documentation/samples/WebMCP Early Preview.md, clean task docs. Step 9: npm run build to verify."
+      }
+    },
+    {
+      "id": "v5",
+      "taskId": "1is5nf",
+      "version": 5,
+      "timestamp": "2026-03-01T04:40:14.243Z",
+      "changes": [
+        {
+          "field": "implementationPlan",
+          "oldValue": "Step 1: Backup src/webmcp/ to documentation/archive/webmcp-backup/. Step 2: Delete entire src/webmcp/ directory (9 files). Step 3: Remove lines 19-22 from src/main.jsx (initWebMCP bootstrap). Step 4: Remove Rule 16 from documentation/integration-safety-rules.md and user_global trigger table. Step 5: Delete knowns doc architecture/webmcp-architecture, clean README and CONVENTIONS refs. Step 6: Delete webmcp-enforcement skill. Step 7: Remove Rule 16 check from scripts/pre-commit-enforcement.js and vite-rule-enforcement.js. Step 8: Delete documentation/samples/WebMCP Early Preview.md, clean task docs. Step 9: npm run build to verify.",
+          "newValue": "Step 1: Backup src/webmcp/ to documentation/archive/webmcp-backup/. Step 2: Delete entire src/webmcp/ directory (9 files). Step 3: Remove lines 19-22 from src/main.jsx (initWebMCP bootstrap). Step 4: Remove Rule 16 from documentation/integration-safety-rules.md and user_global trigger table. Step 5: Delete knowns doc architecture/webmcp-architecture, clean README and CONVENTIONS refs. Step 6: Delete webmcp-enforcement skill. Step 7: Remove Rule 16 check from scripts/pre-commit-enforcement.js and vite-rule-enforcement.js. Step 8: Delete documentation/samples/WebMCP Early Preview.md, clean PRD task docs. Step 9: Clean knowns tasks - remove WebMCP requirements from task-6emz0n, task-mehsel, task-zrnpte so future implementation doesnt try to create WebMCP tools. Step 10: npm run build to verify clean compilation."
+        }
+      ],
+      "snapshot": {
+        "title": "Complete removal of WebMCP system",
+        "description": "Remove the entire WebMCP AI agent tool system from the codebase. This includes the src/webmcp/ directory, all references in main.jsx, documentation, knowns docs, safety rules, enforcement skills, and pre-commit scripts.",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "me",
+        "labels": [
+          "cleanup",
+          "removal"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "src/webmcp/ directory completely removed"
+          },
+          {
+            "completed": false,
+            "text": "main.jsx has no webmcp import"
+          },
+          {
+            "completed": false,
+            "text": "Rule 16 removed from integration-safety-rules.md"
+          },
+          {
+            "completed": false,
+            "text": "webmcp-enforcement skill deleted"
+          },
+          {
+            "completed": false,
+            "text": "Pre-commit script Rule 16 check removed"
+          },
+          {
+            "completed": false,
+            "text": "Knowns docs cleaned (webmcp-architecture deleted, README/CONVENTIONS updated)"
+          },
+          {
+            "completed": false,
+            "text": "npm run build succeeds with zero webmcp references"
+          },
+          {
+            "completed": false,
+            "text": "Backup exists in documentation/archive/"
+          }
+        ],
+        "implementationPlan": "Step 1: Backup src/webmcp/ to documentation/archive/webmcp-backup/. Step 2: Delete entire src/webmcp/ directory (9 files). Step 3: Remove lines 19-22 from src/main.jsx (initWebMCP bootstrap). Step 4: Remove Rule 16 from documentation/integration-safety-rules.md and user_global trigger table. Step 5: Delete knowns doc architecture/webmcp-architecture, clean README and CONVENTIONS refs. Step 6: Delete webmcp-enforcement skill. Step 7: Remove Rule 16 check from scripts/pre-commit-enforcement.js and vite-rule-enforcement.js. Step 8: Delete documentation/samples/WebMCP Early Preview.md, clean PRD task docs. Step 9: Clean knowns tasks - remove WebMCP requirements from task-6emz0n, task-mehsel, task-zrnpte so future implementation doesnt try to create WebMCP tools. Step 10: npm run build to verify clean compilation."
+      }
+    },
+    {
+      "id": "v6",
+      "taskId": "1is5nf",
+      "version": 6,
+      "timestamp": "2026-03-01T05:00:53.452Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "src/webmcp/ directory completely removed"
+            },
+            {
+              "completed": false,
+              "text": "main.jsx has no webmcp import"
+            },
+            {
+              "completed": false,
+              "text": "Rule 16 removed from integration-safety-rules.md"
+            },
+            {
+              "completed": false,
+              "text": "webmcp-enforcement skill deleted"
+            },
+            {
+              "completed": false,
+              "text": "Pre-commit script Rule 16 check removed"
+            },
+            {
+              "completed": false,
+              "text": "Knowns docs cleaned (webmcp-architecture deleted, README/CONVENTIONS updated)"
+            },
+            {
+              "completed": false,
+              "text": "npm run build succeeds with zero webmcp references"
+            },
+            {
+              "completed": false,
+              "text": "Backup exists in documentation/archive/"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "src/webmcp/ directory completely removed"
+            },
+            {
+              "completed": true,
+              "text": "main.jsx has no webmcp import"
+            },
+            {
+              "completed": true,
+              "text": "Rule 16 removed from integration-safety-rules.md"
+            },
+            {
+              "completed": true,
+              "text": "webmcp-enforcement skill deleted"
+            },
+            {
+              "completed": false,
+              "text": "Pre-commit script Rule 16 check removed"
+            },
+            {
+              "completed": true,
+              "text": "Knowns docs cleaned (webmcp-architecture deleted, README/CONVENTIONS updated)"
+            },
+            {
+              "completed": true,
+              "text": "npm run build succeeds with zero webmcp references"
+            },
+            {
+              "completed": true,
+              "text": "Backup exists in documentation/archive/"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "Completed all removal steps. AC-5 (user_global memory) requires manual user action."
+        }
+      ],
+      "snapshot": {
+        "title": "Complete removal of WebMCP system",
+        "description": "Remove the entire WebMCP AI agent tool system from the codebase. This includes the src/webmcp/ directory, all references in main.jsx, documentation, knowns docs, safety rules, enforcement skills, and pre-commit scripts.",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "me",
+        "labels": [
+          "cleanup",
+          "removal"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "src/webmcp/ directory completely removed"
+          },
+          {
+            "completed": true,
+            "text": "main.jsx has no webmcp import"
+          },
+          {
+            "completed": true,
+            "text": "Rule 16 removed from integration-safety-rules.md"
+          },
+          {
+            "completed": true,
+            "text": "webmcp-enforcement skill deleted"
+          },
+          {
+            "completed": false,
+            "text": "Pre-commit script Rule 16 check removed"
+          },
+          {
+            "completed": true,
+            "text": "Knowns docs cleaned (webmcp-architecture deleted, README/CONVENTIONS updated)"
+          },
+          {
+            "completed": true,
+            "text": "npm run build succeeds with zero webmcp references"
+          },
+          {
+            "completed": true,
+            "text": "Backup exists in documentation/archive/"
+          }
+        ],
+        "implementationPlan": "Step 1: Backup src/webmcp/ to documentation/archive/webmcp-backup/. Step 2: Delete entire src/webmcp/ directory (9 files). Step 3: Remove lines 19-22 from src/main.jsx (initWebMCP bootstrap). Step 4: Remove Rule 16 from documentation/integration-safety-rules.md and user_global trigger table. Step 5: Delete knowns doc architecture/webmcp-architecture, clean README and CONVENTIONS refs. Step 6: Delete webmcp-enforcement skill. Step 7: Remove Rule 16 check from scripts/pre-commit-enforcement.js and vite-rule-enforcement.js. Step 8: Delete documentation/samples/WebMCP Early Preview.md, clean PRD task docs. Step 9: Clean knowns tasks - remove WebMCP requirements from task-6emz0n, task-mehsel, task-zrnpte so future implementation doesnt try to create WebMCP tools. Step 10: npm run build to verify clean compilation.",
+        "implementationNotes": "Completed all removal steps. AC-5 (user_global memory) requires manual user action."
+      }
+    },
+    {
+      "id": "v7",
+      "taskId": "1is5nf",
+      "version": 7,
+      "timestamp": "2026-03-01T05:01:20.535Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Complete removal of WebMCP system",
+        "description": "Remove the entire WebMCP AI agent tool system from the codebase. This includes the src/webmcp/ directory, all references in main.jsx, documentation, knowns docs, safety rules, enforcement skills, and pre-commit scripts.",
+        "status": "done",
+        "priority": "high",
+        "assignee": "me",
+        "labels": [
+          "cleanup",
+          "removal"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "src/webmcp/ directory completely removed"
+          },
+          {
+            "completed": true,
+            "text": "main.jsx has no webmcp import"
+          },
+          {
+            "completed": true,
+            "text": "Rule 16 removed from integration-safety-rules.md"
+          },
+          {
+            "completed": true,
+            "text": "webmcp-enforcement skill deleted"
+          },
+          {
+            "completed": false,
+            "text": "Pre-commit script Rule 16 check removed"
+          },
+          {
+            "completed": true,
+            "text": "Knowns docs cleaned (webmcp-architecture deleted, README/CONVENTIONS updated)"
+          },
+          {
+            "completed": true,
+            "text": "npm run build succeeds with zero webmcp references"
+          },
+          {
+            "completed": true,
+            "text": "Backup exists in documentation/archive/"
+          }
+        ],
+        "implementationPlan": "Step 1: Backup src/webmcp/ to documentation/archive/webmcp-backup/. Step 2: Delete entire src/webmcp/ directory (9 files). Step 3: Remove lines 19-22 from src/main.jsx (initWebMCP bootstrap). Step 4: Remove Rule 16 from documentation/integration-safety-rules.md and user_global trigger table. Step 5: Delete knowns doc architecture/webmcp-architecture, clean README and CONVENTIONS refs. Step 6: Delete webmcp-enforcement skill. Step 7: Remove Rule 16 check from scripts/pre-commit-enforcement.js and vite-rule-enforcement.js. Step 8: Delete documentation/samples/WebMCP Early Preview.md, clean PRD task docs. Step 9: Clean knowns tasks - remove WebMCP requirements from task-6emz0n, task-mehsel, task-zrnpte so future implementation doesnt try to create WebMCP tools. Step 10: npm run build to verify clean compilation.",
+        "implementationNotes": "Completed all removal steps. AC-5 (user_global memory) requires manual user action."
+      }
+    }
+  ]
+}

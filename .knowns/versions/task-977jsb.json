@@ -1,0 +1,217 @@
+{
+  "taskId": "977jsb",
+  "currentVersion": 3,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "977jsb",
+      "version": 1,
+      "timestamp": "2026-03-04T04:07:10.631Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Replace s.name === regexSection.name with Q# range overlap logic",
+              "completed": false
+            },
+            {
+              "text": "Build regex→AI section map using question number set intersection",
+              "completed": false
+            },
+            {
+              "text": "Verify empty regex sections still fall back correctly",
+              "completed": false
+            },
+            {
+              "text": "Verify ≥80% threshold check still applies",
+              "completed": false
+            },
+            {
+              "text": "npx tsc --noEmit passes cleanly",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Fix reconciliation matching — Q# range overlap",
+        "description": "FR-5: Replace fragile section name equality matching (`s.name === regexSection.name`, L904) with question-number range overlap. Build a mapping of regex section → AI section by comparing which question numbers they each contain, instead of relying on name strings matching exactly. This prevents silent question drops when AI and regex produce different section names for the same content.",
+        "status": "todo",
+        "priority": "high",
+        "labels": [
+          "from-spec",
+          "refactor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Replace s.name === regexSection.name with Q# range overlap logic",
+            "completed": false
+          },
+          {
+            "text": "Build regex→AI section map using question number set intersection",
+            "completed": false
+          },
+          {
+            "text": "Verify empty regex sections still fall back correctly",
+            "completed": false
+          },
+          {
+            "text": "Verify ≥80% threshold check still applies",
+            "completed": false
+          },
+          {
+            "text": "npx tsc --noEmit passes cleanly",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "977jsb",
+      "version": 2,
+      "timestamp": "2026-03-04T10:15:08.408Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        }
+      ],
+      "snapshot": {
+        "title": "Fix reconciliation matching — Q# range overlap",
+        "description": "FR-5: Replace fragile section name equality matching (`s.name === regexSection.name`, L904) with question-number range overlap. Build a mapping of regex section → AI section by comparing which question numbers they each contain, instead of relying on name strings matching exactly. This prevents silent question drops when AI and regex produce different section names for the same content.",
+        "status": "in-progress",
+        "priority": "high",
+        "labels": [
+          "from-spec",
+          "refactor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Replace s.name === regexSection.name with Q# range overlap logic"
+          },
+          {
+            "completed": false,
+            "text": "Build regex→AI section map using question number set intersection"
+          },
+          {
+            "completed": false,
+            "text": "Verify empty regex sections still fall back correctly"
+          },
+          {
+            "completed": false,
+            "text": "Verify ≥80% threshold check still applies"
+          },
+          {
+            "completed": false,
+            "text": "npx tsc --noEmit passes cleanly"
+          }
+        ]
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "977jsb",
+      "version": 3,
+      "timestamp": "2026-03-04T10:20:18.723Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        },
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Replace s.name === regexSection.name with Q# range overlap logic"
+            },
+            {
+              "completed": false,
+              "text": "Build regex→AI section map using question number set intersection"
+            },
+            {
+              "completed": false,
+              "text": "Verify empty regex sections still fall back correctly"
+            },
+            {
+              "completed": false,
+              "text": "Verify ≥80% threshold check still applies"
+            },
+            {
+              "completed": false,
+              "text": "npx tsc --noEmit passes cleanly"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": false,
+              "text": "Replace s.name === regexSection.name with Q# range overlap logic"
+            },
+            {
+              "completed": false,
+              "text": "Build regex→AI section map using question number set intersection"
+            },
+            {
+              "completed": false,
+              "text": "Verify empty regex sections still fall back correctly"
+            },
+            {
+              "completed": false,
+              "text": "Verify ≥80% threshold check still applies"
+            },
+            {
+              "completed": false,
+              "text": "npx tsc --noEmit passes cleanly"
+            },
+            {
+              "text": "1,2,3,4,5",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Fix reconciliation matching — Q# range overlap",
+        "description": "FR-5: Replace fragile section name equality matching (`s.name === regexSection.name`, L904) with question-number range overlap. Build a mapping of regex section → AI section by comparing which question numbers they each contain, instead of relying on name strings matching exactly. This prevents silent question drops when AI and regex produce different section names for the same content.",
+        "status": "done",
+        "priority": "high",
+        "labels": [
+          "from-spec",
+          "refactor"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Replace s.name === regexSection.name with Q# range overlap logic"
+          },
+          {
+            "completed": false,
+            "text": "Build regex→AI section map using question number set intersection"
+          },
+          {
+            "completed": false,
+            "text": "Verify empty regex sections still fall back correctly"
+          },
+          {
+            "completed": false,
+            "text": "Verify ≥80% threshold check still applies"
+          },
+          {
+            "completed": false,
+            "text": "npx tsc --noEmit passes cleanly"
+          },
+          {
+            "text": "1,2,3,4,5",
+            "completed": false
+          }
+        ]
+      }
+    }
+  ]
+}

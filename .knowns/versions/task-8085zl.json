@@ -1,0 +1,406 @@
+{
+  "taskId": "8085zl",
+  "currentVersion": 5,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "8085zl",
+      "version": 1,
+      "timestamp": "2026-03-04T22:47:39.970Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "parseThcsText() uses new pipeline (preClean → Pass 1 → validation → repair → compromise → retry → engine)",
+              "completed": false
+            },
+            {
+              "text": "ParsedTest output structure unchanged (existing consumers work)",
+              "completed": false
+            },
+            {
+              "text": "Review Panel: yellow for AI-inferred, orange for compromised, warning for uncertain",
+              "completed": false
+            },
+            {
+              "text": "Review Panel: expandable reasoning logs",
+              "completed": false
+            },
+            {
+              "text": "Old 97-line JSON prompt removed",
+              "completed": false
+            },
+            {
+              "text": "Old band-aid steps simplified/removed (TYPE_FIX_MAP, reconciliation)",
+              "completed": false
+            },
+            {
+              "text": "Metadata override preserved as safety net",
+              "completed": false
+            },
+            {
+              "text": "Order: 6 (depends on T6A 4f54n5 + T7 pqr0rq + T8 78pz92 + T9 le05g6)",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Pipeline Integration + Review Panel Updates",
+        "description": "Wire everything into `parseThcsText()` replacing current internal AI call. Preserve `ParsedTest` output interface. Update `THCSParseReviewPanel.tsx` with new visual indicators: yellow (AI-inferred), orange (compromised), warning icon (uncertain), expandable reasoning logs. Remove old 97-line JSON prompt and band-aid steps. Depends on @task-4f54n5 (engine), @task-pqr0rq (repair), @task-78pz92 (compromise), @task-le05g6 (external retry).",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "from-spec-v2",
+          "integration"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "parseThcsText() uses new pipeline (preClean → Pass 1 → validation → repair → compromise → retry → engine)",
+            "completed": false
+          },
+          {
+            "text": "ParsedTest output structure unchanged (existing consumers work)",
+            "completed": false
+          },
+          {
+            "text": "Review Panel: yellow for AI-inferred, orange for compromised, warning for uncertain",
+            "completed": false
+          },
+          {
+            "text": "Review Panel: expandable reasoning logs",
+            "completed": false
+          },
+          {
+            "text": "Old 97-line JSON prompt removed",
+            "completed": false
+          },
+          {
+            "text": "Old band-aid steps simplified/removed (TYPE_FIX_MAP, reconciliation)",
+            "completed": false
+          },
+          {
+            "text": "Metadata override preserved as safety net",
+            "completed": false
+          },
+          {
+            "text": "Order: 6 (depends on T6A 4f54n5 + T7 pqr0rq + T8 78pz92 + T9 le05g6)",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "8085zl",
+      "version": 2,
+      "timestamp": "2026-03-04T23:11:46.436Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        },
+        {
+          "field": "assignee",
+          "newValue": "@me"
+        }
+      ],
+      "snapshot": {
+        "title": "Pipeline Integration + Review Panel Updates",
+        "description": "Wire everything into `parseThcsText()` replacing current internal AI call. Preserve `ParsedTest` output interface. Update `THCSParseReviewPanel.tsx` with new visual indicators: yellow (AI-inferred), orange (compromised), warning icon (uncertain), expandable reasoning logs. Remove old 97-line JSON prompt and band-aid steps. Depends on @task-4f54n5 (engine), @task-pqr0rq (repair), @task-78pz92 (compromise), @task-le05g6 (external retry).",
+        "status": "in-progress",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "integration"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "parseThcsText() uses new pipeline (preClean → Pass 1 → validation → repair → compromise → retry → engine)"
+          },
+          {
+            "completed": false,
+            "text": "ParsedTest output structure unchanged (existing consumers work)"
+          },
+          {
+            "completed": false,
+            "text": "Review Panel: yellow for AI-inferred, orange for compromised, warning for uncertain"
+          },
+          {
+            "completed": false,
+            "text": "Review Panel: expandable reasoning logs"
+          },
+          {
+            "completed": false,
+            "text": "Old 97-line JSON prompt removed"
+          },
+          {
+            "completed": false,
+            "text": "Old band-aid steps simplified/removed (TYPE_FIX_MAP, reconciliation)"
+          },
+          {
+            "completed": false,
+            "text": "Metadata override preserved as safety net"
+          },
+          {
+            "completed": false,
+            "text": "Order: 6 (depends on T6A 4f54n5 + T7 pqr0rq + T8 78pz92 + T9 le05g6)"
+          }
+        ]
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "8085zl",
+      "version": 3,
+      "timestamp": "2026-03-04T23:14:03.596Z",
+      "changes": [
+        {
+          "field": "implementationPlan",
+          "newValue": "## Implementation Plan\n\n### The \"Big Rewrite\" — replaces `parseThcsText()` internals + updates review panel\n\n### Files changed\n1. `src/services/test-creation/thcsDocumentParser.service.ts` — rewrite `parseThcsText()` (lines 415-610)\n2. `src/components/thcs-editor/THCSParseReviewPanel.tsx` — add new visual indicators (242 lines, modify ~80)\n\n---\n\n### Part 1: Rewrite `parseThcsText()` (thcsDocumentParser.service.ts)\n\n#### Current pipeline (to REMOVE — lines 433-604):\n```\nStage 2: AI Extraction → callGroqDirect/callGeminiDirect → JSON ParsedTest\nStage 3: Regex fallback\nStage 3b: Section reconciliation (Q# overlap)\nStage 4: Post-processing (answer key apply)\nStage 5: Diagnostics\n```\n\n#### New pipeline (to REPLACE WITH):\n```typescript\nasync function parseThcsText(rawText, onProgress): Promise<Result<ParsedTest>> {\n  // ─── Stage 1: Pre-clean (KEEP) ───\n  const cleaned = preCleanText(rawText);\n  if (cleaned.trim().length < 50) return { success: false, error: '...' };\n\n  // ─── Stage 2: Pass 1 — Restructure + Confidence (NEW) ───\n  onProgress?.({ stage: 'parsing', percent: 10, message: 'Analyzing text structure...' });\n  const retrySession = createRetrySession(5);\n  const pass1 = await executePass1(cleaned, retrySession);\n\n  // ─── Stage 3: Code Validation (NEW) ───\n  onProgress?.({ stage: 'parsing', percent: 25, message: 'Validating format...' });\n  const validationReport = validateRestructuredText(\n    pass1.restructuredText, rawText, pass1.confidence\n  );\n\n  // ─── Stage 4: Branch Decision (NEW) ───\n  let bestText = pass1.restructuredText;\n  let allAuditEntries: RepairAuditEntry[] = [];\n  let compromiseResult: CompromiseResult | null = null;\n  let confidenceWarning: string | null = null;\n\n  // 4a: Compromise unsupported types (if any)\n  if (validationReport.unsupportedTypes.length > 0) {\n    onProgress?.({ stage: 'parsing', percent: 35, message: 'Converting unsupported sections...' });\n    compromiseResult = await executeCompromiseStep(\n      validationReport.unsupportedTypes, bestText, rawText, retrySession, callAI\n    );\n  }\n\n  // 4b: Repair known issues (if formatConfidence 50-79)\n  if (validationReport.formatConfidence >= 50 && validationReport.issues.length > 0) {\n    onProgress?.({ stage: 'parsing', percent: 45, message: 'Repairing formatting issues...' });\n    const pass2 = await executePass2Repair(\n      validationReport, pass1.confidence, retrySession, callAI\n    );\n    bestText = pass2.repairedText;\n    allAuditEntries.push(...pass2.auditLog);\n    confidenceWarning = pass2.confidenceWarning;\n  }\n\n  // 4c: External retry (if formatConfidence < 50 after all internal passes)\n  if (validationReport.formatConfidence < 50) {\n    onProgress?.({ stage: 'parsing', percent: 50, message: 'Requesting external re-extraction...' });\n    const extRetry = await executeExternalRetry(rawText, allAuditEntries, validationReport, callExternalAI);\n    if (extRetry.outcome === 'success' && extRetry.bestText) {\n      bestText = extRetry.bestText;\n    } else {\n      // Teacher escalation — return error with audit log\n      return {\n        success: false,\n        error: extRetry.teacherMessage || 'Automatic parsing failed. Please review text format.',\n      };\n    }\n  }\n\n  // ─── Stage 5: Regex Engine Parse (EXISTING — adapted) ───\n  onProgress?.({ stage: 'parsing', percent: 65, message: 'Parsing content...' });\n  const parsedTest = await parseThcsTextRegex(bestText, undefined, true);\n  if (!parsedTest.success || !parsedTest.data) {\n    return { success: false, error: 'Regex parsing failed on processed text.' };\n  }\n\n  // ─── Stage 6: Engine Enhancements (NEW) ───\n  onProgress?.({ stage: 'classifying', percent: 80, message: 'Applying engine enhancements...' });\n  // Type classification (existing)\n  classifyQuestionTypes(parsedTest.data.sections);\n  reclassifyByContent(parsedTest.data.sections);\n  // Engine enhancements (new — task 4f54n5)\n  // runEngineEnhancements called inside draft converter\n\n  // ─── Stage 7: Diagnostics (ENHANCED) ───\n  // Attach pipeline debug data (same pattern as current, but with new fields)\n  parsedTest.data.warnings = [...(parsedTest.data.warnings || [])];\n  if (confidenceWarning) {\n    parsedTest.data.warnings.push({ type: 'confidence-mismatch', message: confidenceWarning });\n  }\n  if (compromiseResult) {\n    for (const skip of compromiseResult.skippedSections) {\n      parsedTest.data.warnings.push({ type: 'skipped-section', message: skip.reason });\n    }\n  }\n\n  // Attach audit data for review panel\n  (parsedTest.data as any)._pipelineDebug = {\n    pass1Confidence: pass1.confidence,\n    codeConfidence: validationReport.formatConfidence,\n    issuesFound: validationReport.issues.map(i => i.code),\n    auditLog: allAuditEntries,\n    compromisedSections: compromiseResult?.compromisedSections || [],\n    skippedSections: compromiseResult?.skippedSections || [],\n    hasInferredAnswers: pass1.hasInferredAnswers,\n  };\n\n  onProgress?.({ stage: 'done', percent: 100, message: 'Done!' });\n  return parsedTest;\n}\n```\n\n#### What gets REMOVED from parseThcsText:\n- Lines 438-462: `attemptAIParse(fullPrompt, 'groq'/'gemini')` — the old JSON AI call\n- Lines 479-534: Q# overlap reconciliation — no longer needed (pipeline handles quality internally)\n- Lines 440: `thcs-ai-extraction-prompt.txt` import — old 97-line JSON prompt\n\n#### What gets KEPT:\n- `preCleanText()` call (line 427)\n- `parseThcsTextRegex()` — still used as the regex engine\n- `classifyQuestionTypes() + reclassifyByContent()` — still used\n- Metadata override pattern (if exists)\n- `window.__PARSE_DEBUG` diagnostics (enhanced, not removed)\n\n#### `callAI` callback implementation\n```typescript\n// Created in parseThcsText, passed to all sub-modules\nconst callAI = async (step: { provider: string; model: string; temperature: number }, prompt: string) => {\n  if (step.provider === 'groq') {\n    return await callGroqDirectPlainText(prompt, step.model, step.temperature);\n  } else {\n    return await callGeminiDirectPlainText(prompt, step.model, step.temperature);\n  }\n};\n```\n\nMust create `callGroqDirectPlainText` and `callGeminiDirectPlainText` — same as existing `callGroqDirect`/`callGeminiDirect` but expecting plain text response (no JSON parsing, no `extractJSON` call).\n\n---\n\n### Part 2: Review Panel Updates (THCSParseReviewPanel.tsx)\n\n#### New visual indicators (AC-12):\n\n1. **Yellow badge**: Questions with `answerSource: 'ai-inferred'`\n   - Small yellow badge next to question number: \"AI-Inferred\"\n\n2. **Orange badge**: Sections with `compromised: true`\n   - Section header has orange badge: \"Compromised: {originalType} → {convertedType}\"\n\n3. **Warning icon**: Sections with `[UNCERTAIN]` tags in warnings\n   - IconAlertTriangle next to section name\n\n4. **Expandable reasoning logs**:\n   - Collapsible section at bottom of panel\n   - Shows `_pipelineDebug.auditLog` entries in a formatted list\n   - Each entry: model, temperature, issues targeted, confidence result\n\n5. **Confidence comparison warning** (FR-13):\n   - Alert banner at top if `_pipelineDebug.pass1Confidence` and `_pipelineDebug.codeConfidence` disagree by >25 points\n\n#### Implementation approach:\n- The panel already uses Mantine components (existing code, not adding new Mantine imports)\n- Add conditional rendering based on `_pipelineDebug` data\n- Use existing `Badge`, `Alert`, `Text` components\n- Add `Collapse` for reasoning log expandability (already in Mantine)\n\n---\n\n### Part 3: Old Code Cleanup\n\n#### Remove:\n- `thcs-ai-extraction-prompt.txt` — old 97-line JSON extraction prompt (REPLACED by Pass 1 static prompt)\n- `attemptAIParse()` function — no longer needed\n- `callGroqDirect()` JSON path — refactored into `callGroqDirectPlainText()`\n- `callGeminiDirect()` JSON path — refactored into `callGeminiDirectPlainText()`\n\n#### Keep as fallback (safety net):\n- `callGroqDirect()` / `callGeminiDirect()` original functions — keep for now, rename to `_legacy_callGroqDirect` etc. Remove in a follow-up cleanup after the new pipeline is validated.\n\n---\n\n### Files changed\n- `src/services/test-creation/thcsDocumentParser.service.ts` — rewrite `parseThcsText()` (~200 lines changed), add `callXxxDirectPlainText()` functions\n- `src/components/thcs-editor/THCSParseReviewPanel.tsx` — add 4 new visual indicator sections (~80 lines added)\n\n### Dependencies (ALL upstream tasks must be complete)\n- `thcs-pass1-restructure.ts` (task `q6lxtq`) → `executePass1`\n- `thcs-text-validator.ts` (task `9vafnp`) → `validateRestructuredText`\n- `thcs-pass2-repair.ts` (task `pqr0rq`) → `executePass2Repair`\n- `thcs-compromise-step.ts` (task `78pz92`) → `executeCompromiseStep`\n- `thcs-external-retry.ts` (task `le05g6`) → `executeExternalRetry`\n- `thcs-retry-manager.ts` (task `0yg6fx`) → `createRetrySession`\n- `thcs-engine-enhancements.ts` (task `4f54n5`) → `runEngineEnhancements` (via converter)"
+        }
+      ],
+      "snapshot": {
+        "title": "Pipeline Integration + Review Panel Updates",
+        "description": "Wire everything into `parseThcsText()` replacing current internal AI call. Preserve `ParsedTest` output interface. Update `THCSParseReviewPanel.tsx` with new visual indicators: yellow (AI-inferred), orange (compromised), warning icon (uncertain), expandable reasoning logs. Remove old 97-line JSON prompt and band-aid steps. Depends on @task-4f54n5 (engine), @task-pqr0rq (repair), @task-78pz92 (compromise), @task-le05g6 (external retry).",
+        "status": "in-progress",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "integration"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "parseThcsText() uses new pipeline (preClean → Pass 1 → validation → repair → compromise → retry → engine)"
+          },
+          {
+            "completed": false,
+            "text": "ParsedTest output structure unchanged (existing consumers work)"
+          },
+          {
+            "completed": false,
+            "text": "Review Panel: yellow for AI-inferred, orange for compromised, warning for uncertain"
+          },
+          {
+            "completed": false,
+            "text": "Review Panel: expandable reasoning logs"
+          },
+          {
+            "completed": false,
+            "text": "Old 97-line JSON prompt removed"
+          },
+          {
+            "completed": false,
+            "text": "Old band-aid steps simplified/removed (TYPE_FIX_MAP, reconciliation)"
+          },
+          {
+            "completed": false,
+            "text": "Metadata override preserved as safety net"
+          },
+          {
+            "completed": false,
+            "text": "Order: 6 (depends on T6A 4f54n5 + T7 pqr0rq + T8 78pz92 + T9 le05g6)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### The \"Big Rewrite\" — replaces `parseThcsText()` internals + updates review panel\n\n### Files changed\n1. `src/services/test-creation/thcsDocumentParser.service.ts` — rewrite `parseThcsText()` (lines 415-610)\n2. `src/components/thcs-editor/THCSParseReviewPanel.tsx` — add new visual indicators (242 lines, modify ~80)\n\n---\n\n### Part 1: Rewrite `parseThcsText()` (thcsDocumentParser.service.ts)\n\n#### Current pipeline (to REMOVE — lines 433-604):\n```\nStage 2: AI Extraction → callGroqDirect/callGeminiDirect → JSON ParsedTest\nStage 3: Regex fallback\nStage 3b: Section reconciliation (Q# overlap)\nStage 4: Post-processing (answer key apply)\nStage 5: Diagnostics\n```\n\n#### New pipeline (to REPLACE WITH):\n```typescript\nasync function parseThcsText(rawText, onProgress): Promise<Result<ParsedTest>> {\n  // ─── Stage 1: Pre-clean (KEEP) ───\n  const cleaned = preCleanText(rawText);\n  if (cleaned.trim().length < 50) return { success: false, error: '...' };\n\n  // ─── Stage 2: Pass 1 — Restructure + Confidence (NEW) ───\n  onProgress?.({ stage: 'parsing', percent: 10, message: 'Analyzing text structure...' });\n  const retrySession = createRetrySession(5);\n  const pass1 = await executePass1(cleaned, retrySession);\n\n  // ─── Stage 3: Code Validation (NEW) ───\n  onProgress?.({ stage: 'parsing', percent: 25, message: 'Validating format...' });\n  const validationReport = validateRestructuredText(\n    pass1.restructuredText, rawText, pass1.confidence\n  );\n\n  // ─── Stage 4: Branch Decision (NEW) ───\n  let bestText = pass1.restructuredText;\n  let allAuditEntries: RepairAuditEntry[] = [];\n  let compromiseResult: CompromiseResult | null = null;\n  let confidenceWarning: string | null = null;\n\n  // 4a: Compromise unsupported types (if any)\n  if (validationReport.unsupportedTypes.length > 0) {\n    onProgress?.({ stage: 'parsing', percent: 35, message: 'Converting unsupported sections...' });\n    compromiseResult = await executeCompromiseStep(\n      validationReport.unsupportedTypes, bestText, rawText, retrySession, callAI\n    );\n  }\n\n  // 4b: Repair known issues (if formatConfidence 50-79)\n  if (validationReport.formatConfidence >= 50 && validationReport.issues.length > 0) {\n    onProgress?.({ stage: 'parsing', percent: 45, message: 'Repairing formatting issues...' });\n    const pass2 = await executePass2Repair(\n      validationReport, pass1.confidence, retrySession, callAI\n    );\n    bestText = pass2.repairedText;\n    allAuditEntries.push(...pass2.auditLog);\n    confidenceWarning = pass2.confidenceWarning;\n  }\n\n  // 4c: External retry (if formatConfidence < 50 after all internal passes)\n  if (validationReport.formatConfidence < 50) {\n    onProgress?.({ stage: 'parsing', percent: 50, message: 'Requesting external re-extraction...' });\n    const extRetry = await executeExternalRetry(rawText, allAuditEntries, validationReport, callExternalAI);\n    if (extRetry.outcome === 'success' && extRetry.bestText) {\n      bestText = extRetry.bestText;\n    } else {\n      // Teacher escalation — return error with audit log\n      return {\n        success: false,\n        error: extRetry.teacherMessage || 'Automatic parsing failed. Please review text format.',\n      };\n    }\n  }\n\n  // ─── Stage 5: Regex Engine Parse (EXISTING — adapted) ───\n  onProgress?.({ stage: 'parsing', percent: 65, message: 'Parsing content...' });\n  const parsedTest = await parseThcsTextRegex(bestText, undefined, true);\n  if (!parsedTest.success || !parsedTest.data) {\n    return { success: false, error: 'Regex parsing failed on processed text.' };\n  }\n\n  // ─── Stage 6: Engine Enhancements (NEW) ───\n  onProgress?.({ stage: 'classifying', percent: 80, message: 'Applying engine enhancements...' });\n  // Type classification (existing)\n  classifyQuestionTypes(parsedTest.data.sections);\n  reclassifyByContent(parsedTest.data.sections);\n  // Engine enhancements (new — task 4f54n5)\n  // runEngineEnhancements called inside draft converter\n\n  // ─── Stage 7: Diagnostics (ENHANCED) ───\n  // Attach pipeline debug data (same pattern as current, but with new fields)\n  parsedTest.data.warnings = [...(parsedTest.data.warnings || [])];\n  if (confidenceWarning) {\n    parsedTest.data.warnings.push({ type: 'confidence-mismatch', message: confidenceWarning });\n  }\n  if (compromiseResult) {\n    for (const skip of compromiseResult.skippedSections) {\n      parsedTest.data.warnings.push({ type: 'skipped-section', message: skip.reason });\n    }\n  }\n\n  // Attach audit data for review panel\n  (parsedTest.data as any)._pipelineDebug = {\n    pass1Confidence: pass1.confidence,\n    codeConfidence: validationReport.formatConfidence,\n    issuesFound: validationReport.issues.map(i => i.code),\n    auditLog: allAuditEntries,\n    compromisedSections: compromiseResult?.compromisedSections || [],\n    skippedSections: compromiseResult?.skippedSections || [],\n    hasInferredAnswers: pass1.hasInferredAnswers,\n  };\n\n  onProgress?.({ stage: 'done', percent: 100, message: 'Done!' });\n  return parsedTest;\n}\n```\n\n#### What gets REMOVED from parseThcsText:\n- Lines 438-462: `attemptAIParse(fullPrompt, 'groq'/'gemini')` — the old JSON AI call\n- Lines 479-534: Q# overlap reconciliation — no longer needed (pipeline handles quality internally)\n- Lines 440: `thcs-ai-extraction-prompt.txt` import — old 97-line JSON prompt\n\n#### What gets KEPT:\n- `preCleanText()` call (line 427)\n- `parseThcsTextRegex()` — still used as the regex engine\n- `classifyQuestionTypes() + reclassifyByContent()` — still used\n- Metadata override pattern (if exists)\n- `window.__PARSE_DEBUG` diagnostics (enhanced, not removed)\n\n#### `callAI` callback implementation\n```typescript\n// Created in parseThcsText, passed to all sub-modules\nconst callAI = async (step: { provider: string; model: string; temperature: number }, prompt: string) => {\n  if (step.provider === 'groq') {\n    return await callGroqDirectPlainText(prompt, step.model, step.temperature);\n  } else {\n    return await callGeminiDirectPlainText(prompt, step.model, step.temperature);\n  }\n};\n```\n\nMust create `callGroqDirectPlainText` and `callGeminiDirectPlainText` — same as existing `callGroqDirect`/`callGeminiDirect` but expecting plain text response (no JSON parsing, no `extractJSON` call).\n\n---\n\n### Part 2: Review Panel Updates (THCSParseReviewPanel.tsx)\n\n#### New visual indicators (AC-12):\n\n1. **Yellow badge**: Questions with `answerSource: 'ai-inferred'`\n   - Small yellow badge next to question number: \"AI-Inferred\"\n\n2. **Orange badge**: Sections with `compromised: true`\n   - Section header has orange badge: \"Compromised: {originalType} → {convertedType}\"\n\n3. **Warning icon**: Sections with `[UNCERTAIN]` tags in warnings\n   - IconAlertTriangle next to section name\n\n4. **Expandable reasoning logs**:\n   - Collapsible section at bottom of panel\n   - Shows `_pipelineDebug.auditLog` entries in a formatted list\n   - Each entry: model, temperature, issues targeted, confidence result\n\n5. **Confidence comparison warning** (FR-13):\n   - Alert banner at top if `_pipelineDebug.pass1Confidence` and `_pipelineDebug.codeConfidence` disagree by >25 points\n\n#### Implementation approach:\n- The panel already uses Mantine components (existing code, not adding new Mantine imports)\n- Add conditional rendering based on `_pipelineDebug` data\n- Use existing `Badge`, `Alert`, `Text` components\n- Add `Collapse` for reasoning log expandability (already in Mantine)\n\n---\n\n### Part 3: Old Code Cleanup\n\n#### Remove:\n- `thcs-ai-extraction-prompt.txt` — old 97-line JSON extraction prompt (REPLACED by Pass 1 static prompt)\n- `attemptAIParse()` function — no longer needed\n- `callGroqDirect()` JSON path — refactored into `callGroqDirectPlainText()`\n- `callGeminiDirect()` JSON path — refactored into `callGeminiDirectPlainText()`\n\n#### Keep as fallback (safety net):\n- `callGroqDirect()` / `callGeminiDirect()` original functions — keep for now, rename to `_legacy_callGroqDirect` etc. Remove in a follow-up cleanup after the new pipeline is validated.\n\n---\n\n### Files changed\n- `src/services/test-creation/thcsDocumentParser.service.ts` — rewrite `parseThcsText()` (~200 lines changed), add `callXxxDirectPlainText()` functions\n- `src/components/thcs-editor/THCSParseReviewPanel.tsx` — add 4 new visual indicator sections (~80 lines added)\n\n### Dependencies (ALL upstream tasks must be complete)\n- `thcs-pass1-restructure.ts` (task `q6lxtq`) → `executePass1`\n- `thcs-text-validator.ts` (task `9vafnp`) → `validateRestructuredText`\n- `thcs-pass2-repair.ts` (task `pqr0rq`) → `executePass2Repair`\n- `thcs-compromise-step.ts` (task `78pz92`) → `executeCompromiseStep`\n- `thcs-external-retry.ts` (task `le05g6`) → `executeExternalRetry`\n- `thcs-retry-manager.ts` (task `0yg6fx`) → `createRetrySession`\n- `thcs-engine-enhancements.ts` (task `4f54n5`) → `runEngineEnhancements` (via converter)"
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "8085zl",
+      "version": 4,
+      "timestamp": "2026-03-05T03:02:36.815Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "## Implementation Complete (Session 2)\n\n### Parser Service (`thcsDocumentParser.service.ts`)\n- **New imports**: executePass1, validateRestructuredText, executePass2Repair, executeCompromiseStep, executeExternalRetry, createRetrySession\n- **Extended ParseWarning type**: Added 'confidence-mismatch', 'skipped-section', 'compromised-section'\n- **New PipelineDebug interface**: pass1Confidence, codeConfidence, issuesFound, auditLog, compromisedSections, skippedSections, hasInferredAnswers, pipeline, provider, parseDurationMs\n- **Rewrote parseThcsText()**: 7-stage pipeline (pre-clean → Pass 1 → validation → branch decision → regex engine → type classification → diagnostics)\n- **Added callGroqDirectPlainText()**: Plain text Groq API call for Pass 1/2/Compromise\n- **Added callGeminiDirectPlainText()**: Plain text Gemini API call for Pass 2/External Retry\n- **Removed legacy code**: validateAIResult(), callGroqDirect(), callGeminiDirect(), _legacy_attemptAIParse(), extractJSON import, _lastReclassifications module variable\n\n### Review Panel (`THCSParseReviewPanel.tsx`)\n- **Added _pipelineDebug to ParsedTest interface**: Full pipeline debug data structure\n- **Confidence disagreement warning (FR-13)**: Yellow Alert when AI vs code confidence gap >25\n- **Section badges**: Yellow \"AI-Inferred\" for sections with missing answers when AI inferred, Orange compromise badge showing original→converted type, Red \"Skipped\" badge for unsupported sections\n- **Expandable audit log**: Collapsible reasoning log showing repair attempts with model, temperature, issues, and confidence\n- **Pipeline info**: Duration and pipeline name in header stats\n\n### Type Check\n- Zero errors in thcsDocumentParser.service.ts\n- Zero errors in THCSParseReviewPanel.tsx\n- Only pre-existing errors in THCSDocumentUpload.tsx (unrelated)"
+        }
+      ],
+      "snapshot": {
+        "title": "Pipeline Integration + Review Panel Updates",
+        "description": "Wire everything into `parseThcsText()` replacing current internal AI call. Preserve `ParsedTest` output interface. Update `THCSParseReviewPanel.tsx` with new visual indicators: yellow (AI-inferred), orange (compromised), warning icon (uncertain), expandable reasoning logs. Remove old 97-line JSON prompt and band-aid steps. Depends on @task-4f54n5 (engine), @task-pqr0rq (repair), @task-78pz92 (compromise), @task-le05g6 (external retry).",
+        "status": "done",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "integration"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "parseThcsText() uses new pipeline (preClean → Pass 1 → validation → repair → compromise → retry → engine)"
+          },
+          {
+            "completed": false,
+            "text": "ParsedTest output structure unchanged (existing consumers work)"
+          },
+          {
+            "completed": false,
+            "text": "Review Panel: yellow for AI-inferred, orange for compromised, warning for uncertain"
+          },
+          {
+            "completed": false,
+            "text": "Review Panel: expandable reasoning logs"
+          },
+          {
+            "completed": false,
+            "text": "Old 97-line JSON prompt removed"
+          },
+          {
+            "completed": false,
+            "text": "Old band-aid steps simplified/removed (TYPE_FIX_MAP, reconciliation)"
+          },
+          {
+            "completed": false,
+            "text": "Metadata override preserved as safety net"
+          },
+          {
+            "completed": false,
+            "text": "Order: 6 (depends on T6A 4f54n5 + T7 pqr0rq + T8 78pz92 + T9 le05g6)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### The \"Big Rewrite\" — replaces `parseThcsText()` internals + updates review panel\n\n### Files changed\n1. `src/services/test-creation/thcsDocumentParser.service.ts` — rewrite `parseThcsText()` (lines 415-610)\n2. `src/components/thcs-editor/THCSParseReviewPanel.tsx` — add new visual indicators (242 lines, modify ~80)\n\n---\n\n### Part 1: Rewrite `parseThcsText()` (thcsDocumentParser.service.ts)\n\n#### Current pipeline (to REMOVE — lines 433-604):\n```\nStage 2: AI Extraction → callGroqDirect/callGeminiDirect → JSON ParsedTest\nStage 3: Regex fallback\nStage 3b: Section reconciliation (Q# overlap)\nStage 4: Post-processing (answer key apply)\nStage 5: Diagnostics\n```\n\n#### New pipeline (to REPLACE WITH):\n```typescript\nasync function parseThcsText(rawText, onProgress): Promise<Result<ParsedTest>> {\n  // ─── Stage 1: Pre-clean (KEEP) ───\n  const cleaned = preCleanText(rawText);\n  if (cleaned.trim().length < 50) return { success: false, error: '...' };\n\n  // ─── Stage 2: Pass 1 — Restructure + Confidence (NEW) ───\n  onProgress?.({ stage: 'parsing', percent: 10, message: 'Analyzing text structure...' });\n  const retrySession = createRetrySession(5);\n  const pass1 = await executePass1(cleaned, retrySession);\n\n  // ─── Stage 3: Code Validation (NEW) ───\n  onProgress?.({ stage: 'parsing', percent: 25, message: 'Validating format...' });\n  const validationReport = validateRestructuredText(\n    pass1.restructuredText, rawText, pass1.confidence\n  );\n\n  // ─── Stage 4: Branch Decision (NEW) ───\n  let bestText = pass1.restructuredText;\n  let allAuditEntries: RepairAuditEntry[] = [];\n  let compromiseResult: CompromiseResult | null = null;\n  let confidenceWarning: string | null = null;\n\n  // 4a: Compromise unsupported types (if any)\n  if (validationReport.unsupportedTypes.length > 0) {\n    onProgress?.({ stage: 'parsing', percent: 35, message: 'Converting unsupported sections...' });\n    compromiseResult = await executeCompromiseStep(\n      validationReport.unsupportedTypes, bestText, rawText, retrySession, callAI\n    );\n  }\n\n  // 4b: Repair known issues (if formatConfidence 50-79)\n  if (validationReport.formatConfidence >= 50 && validationReport.issues.length > 0) {\n    onProgress?.({ stage: 'parsing', percent: 45, message: 'Repairing formatting issues...' });\n    const pass2 = await executePass2Repair(\n      validationReport, pass1.confidence, retrySession, callAI\n    );\n    bestText = pass2.repairedText;\n    allAuditEntries.push(...pass2.auditLog);\n    confidenceWarning = pass2.confidenceWarning;\n  }\n\n  // 4c: External retry (if formatConfidence < 50 after all internal passes)\n  if (validationReport.formatConfidence < 50) {\n    onProgress?.({ stage: 'parsing', percent: 50, message: 'Requesting external re-extraction...' });\n    const extRetry = await executeExternalRetry(rawText, allAuditEntries, validationReport, callExternalAI);\n    if (extRetry.outcome === 'success' && extRetry.bestText) {\n      bestText = extRetry.bestText;\n    } else {\n      // Teacher escalation — return error with audit log\n      return {\n        success: false,\n        error: extRetry.teacherMessage || 'Automatic parsing failed. Please review text format.',\n      };\n    }\n  }\n\n  // ─── Stage 5: Regex Engine Parse (EXISTING — adapted) ───\n  onProgress?.({ stage: 'parsing', percent: 65, message: 'Parsing content...' });\n  const parsedTest = await parseThcsTextRegex(bestText, undefined, true);\n  if (!parsedTest.success || !parsedTest.data) {\n    return { success: false, error: 'Regex parsing failed on processed text.' };\n  }\n\n  // ─── Stage 6: Engine Enhancements (NEW) ───\n  onProgress?.({ stage: 'classifying', percent: 80, message: 'Applying engine enhancements...' });\n  // Type classification (existing)\n  classifyQuestionTypes(parsedTest.data.sections);\n  reclassifyByContent(parsedTest.data.sections);\n  // Engine enhancements (new — task 4f54n5)\n  // runEngineEnhancements called inside draft converter\n\n  // ─── Stage 7: Diagnostics (ENHANCED) ───\n  // Attach pipeline debug data (same pattern as current, but with new fields)\n  parsedTest.data.warnings = [...(parsedTest.data.warnings || [])];\n  if (confidenceWarning) {\n    parsedTest.data.warnings.push({ type: 'confidence-mismatch', message: confidenceWarning });\n  }\n  if (compromiseResult) {\n    for (const skip of compromiseResult.skippedSections) {\n      parsedTest.data.warnings.push({ type: 'skipped-section', message: skip.reason });\n    }\n  }\n\n  // Attach audit data for review panel\n  (parsedTest.data as any)._pipelineDebug = {\n    pass1Confidence: pass1.confidence,\n    codeConfidence: validationReport.formatConfidence,\n    issuesFound: validationReport.issues.map(i => i.code),\n    auditLog: allAuditEntries,\n    compromisedSections: compromiseResult?.compromisedSections || [],\n    skippedSections: compromiseResult?.skippedSections || [],\n    hasInferredAnswers: pass1.hasInferredAnswers,\n  };\n\n  onProgress?.({ stage: 'done', percent: 100, message: 'Done!' });\n  return parsedTest;\n}\n```\n\n#### What gets REMOVED from parseThcsText:\n- Lines 438-462: `attemptAIParse(fullPrompt, 'groq'/'gemini')` — the old JSON AI call\n- Lines 479-534: Q# overlap reconciliation — no longer needed (pipeline handles quality internally)\n- Lines 440: `thcs-ai-extraction-prompt.txt` import — old 97-line JSON prompt\n\n#### What gets KEPT:\n- `preCleanText()` call (line 427)\n- `parseThcsTextRegex()` — still used as the regex engine\n- `classifyQuestionTypes() + reclassifyByContent()` — still used\n- Metadata override pattern (if exists)\n- `window.__PARSE_DEBUG` diagnostics (enhanced, not removed)\n\n#### `callAI` callback implementation\n```typescript\n// Created in parseThcsText, passed to all sub-modules\nconst callAI = async (step: { provider: string; model: string; temperature: number }, prompt: string) => {\n  if (step.provider === 'groq') {\n    return await callGroqDirectPlainText(prompt, step.model, step.temperature);\n  } else {\n    return await callGeminiDirectPlainText(prompt, step.model, step.temperature);\n  }\n};\n```\n\nMust create `callGroqDirectPlainText` and `callGeminiDirectPlainText` — same as existing `callGroqDirect`/`callGeminiDirect` but expecting plain text response (no JSON parsing, no `extractJSON` call).\n\n---\n\n### Part 2: Review Panel Updates (THCSParseReviewPanel.tsx)\n\n#### New visual indicators (AC-12):\n\n1. **Yellow badge**: Questions with `answerSource: 'ai-inferred'`\n   - Small yellow badge next to question number: \"AI-Inferred\"\n\n2. **Orange badge**: Sections with `compromised: true`\n   - Section header has orange badge: \"Compromised: {originalType} → {convertedType}\"\n\n3. **Warning icon**: Sections with `[UNCERTAIN]` tags in warnings\n   - IconAlertTriangle next to section name\n\n4. **Expandable reasoning logs**:\n   - Collapsible section at bottom of panel\n   - Shows `_pipelineDebug.auditLog` entries in a formatted list\n   - Each entry: model, temperature, issues targeted, confidence result\n\n5. **Confidence comparison warning** (FR-13):\n   - Alert banner at top if `_pipelineDebug.pass1Confidence` and `_pipelineDebug.codeConfidence` disagree by >25 points\n\n#### Implementation approach:\n- The panel already uses Mantine components (existing code, not adding new Mantine imports)\n- Add conditional rendering based on `_pipelineDebug` data\n- Use existing `Badge`, `Alert`, `Text` components\n- Add `Collapse` for reasoning log expandability (already in Mantine)\n\n---\n\n### Part 3: Old Code Cleanup\n\n#### Remove:\n- `thcs-ai-extraction-prompt.txt` — old 97-line JSON extraction prompt (REPLACED by Pass 1 static prompt)\n- `attemptAIParse()` function — no longer needed\n- `callGroqDirect()` JSON path — refactored into `callGroqDirectPlainText()`\n- `callGeminiDirect()` JSON path — refactored into `callGeminiDirectPlainText()`\n\n#### Keep as fallback (safety net):\n- `callGroqDirect()` / `callGeminiDirect()` original functions — keep for now, rename to `_legacy_callGroqDirect` etc. Remove in a follow-up cleanup after the new pipeline is validated.\n\n---\n\n### Files changed\n- `src/services/test-creation/thcsDocumentParser.service.ts` — rewrite `parseThcsText()` (~200 lines changed), add `callXxxDirectPlainText()` functions\n- `src/components/thcs-editor/THCSParseReviewPanel.tsx` — add 4 new visual indicator sections (~80 lines added)\n\n### Dependencies (ALL upstream tasks must be complete)\n- `thcs-pass1-restructure.ts` (task `q6lxtq`) → `executePass1`\n- `thcs-text-validator.ts` (task `9vafnp`) → `validateRestructuredText`\n- `thcs-pass2-repair.ts` (task `pqr0rq`) → `executePass2Repair`\n- `thcs-compromise-step.ts` (task `78pz92`) → `executeCompromiseStep`\n- `thcs-external-retry.ts` (task `le05g6`) → `executeExternalRetry`\n- `thcs-retry-manager.ts` (task `0yg6fx`) → `createRetrySession`\n- `thcs-engine-enhancements.ts` (task `4f54n5`) → `runEngineEnhancements` (via converter)",
+        "implementationNotes": "## Implementation Complete (Session 2)\n\n### Parser Service (`thcsDocumentParser.service.ts`)\n- **New imports**: executePass1, validateRestructuredText, executePass2Repair, executeCompromiseStep, executeExternalRetry, createRetrySession\n- **Extended ParseWarning type**: Added 'confidence-mismatch', 'skipped-section', 'compromised-section'\n- **New PipelineDebug interface**: pass1Confidence, codeConfidence, issuesFound, auditLog, compromisedSections, skippedSections, hasInferredAnswers, pipeline, provider, parseDurationMs\n- **Rewrote parseThcsText()**: 7-stage pipeline (pre-clean → Pass 1 → validation → branch decision → regex engine → type classification → diagnostics)\n- **Added callGroqDirectPlainText()**: Plain text Groq API call for Pass 1/2/Compromise\n- **Added callGeminiDirectPlainText()**: Plain text Gemini API call for Pass 2/External Retry\n- **Removed legacy code**: validateAIResult(), callGroqDirect(), callGeminiDirect(), _legacy_attemptAIParse(), extractJSON import, _lastReclassifications module variable\n\n### Review Panel (`THCSParseReviewPanel.tsx`)\n- **Added _pipelineDebug to ParsedTest interface**: Full pipeline debug data structure\n- **Confidence disagreement warning (FR-13)**: Yellow Alert when AI vs code confidence gap >25\n- **Section badges**: Yellow \"AI-Inferred\" for sections with missing answers when AI inferred, Orange compromise badge showing original→converted type, Red \"Skipped\" badge for unsupported sections\n- **Expandable audit log**: Collapsible reasoning log showing repair attempts with model, temperature, issues, and confidence\n- **Pipeline info**: Duration and pipeline name in header stats\n\n### Type Check\n- Zero errors in thcsDocumentParser.service.ts\n- Zero errors in THCSParseReviewPanel.tsx\n- Only pre-existing errors in THCSDocumentUpload.tsx (unrelated)"
+      }
+    },
+    {
+      "id": "v5",
+      "taskId": "8085zl",
+      "version": 5,
+      "timestamp": "2026-03-05T03:02:54.749Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "parseThcsText() uses new pipeline (preClean → Pass 1 → validation → repair → compromise → retry → engine)"
+            },
+            {
+              "completed": false,
+              "text": "ParsedTest output structure unchanged (existing consumers work)"
+            },
+            {
+              "completed": false,
+              "text": "Review Panel: yellow for AI-inferred, orange for compromised, warning for uncertain"
+            },
+            {
+              "completed": false,
+              "text": "Review Panel: expandable reasoning logs"
+            },
+            {
+              "completed": false,
+              "text": "Old 97-line JSON prompt removed"
+            },
+            {
+              "completed": false,
+              "text": "Old band-aid steps simplified/removed (TYPE_FIX_MAP, reconciliation)"
+            },
+            {
+              "completed": false,
+              "text": "Metadata override preserved as safety net"
+            },
+            {
+              "completed": false,
+              "text": "Order: 6 (depends on T6A 4f54n5 + T7 pqr0rq + T8 78pz92 + T9 le05g6)"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "parseThcsText() uses new pipeline (preClean → Pass 1 → validation → repair → compromise → retry → engine)"
+            },
+            {
+              "completed": true,
+              "text": "ParsedTest output structure unchanged (existing consumers work)"
+            },
+            {
+              "completed": true,
+              "text": "Review Panel: yellow for AI-inferred, orange for compromised, warning for uncertain"
+            },
+            {
+              "completed": true,
+              "text": "Review Panel: expandable reasoning logs"
+            },
+            {
+              "completed": true,
+              "text": "Old 97-line JSON prompt removed"
+            },
+            {
+              "completed": true,
+              "text": "Old band-aid steps simplified/removed (TYPE_FIX_MAP, reconciliation)"
+            },
+            {
+              "completed": true,
+              "text": "Metadata override preserved as safety net"
+            },
+            {
+              "completed": true,
+              "text": "Order: 6 (depends on T6A 4f54n5 + T7 pqr0rq + T8 78pz92 + T9 le05g6)"
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Pipeline Integration + Review Panel Updates",
+        "description": "Wire everything into `parseThcsText()` replacing current internal AI call. Preserve `ParsedTest` output interface. Update `THCSParseReviewPanel.tsx` with new visual indicators: yellow (AI-inferred), orange (compromised), warning icon (uncertain), expandable reasoning logs. Remove old 97-line JSON prompt and band-aid steps. Depends on @task-4f54n5 (engine), @task-pqr0rq (repair), @task-78pz92 (compromise), @task-le05g6 (external retry).",
+        "status": "done",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "integration"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "parseThcsText() uses new pipeline (preClean → Pass 1 → validation → repair → compromise → retry → engine)"
+          },
+          {
+            "completed": true,
+            "text": "ParsedTest output structure unchanged (existing consumers work)"
+          },
+          {
+            "completed": true,
+            "text": "Review Panel: yellow for AI-inferred, orange for compromised, warning for uncertain"
+          },
+          {
+            "completed": true,
+            "text": "Review Panel: expandable reasoning logs"
+          },
+          {
+            "completed": true,
+            "text": "Old 97-line JSON prompt removed"
+          },
+          {
+            "completed": true,
+            "text": "Old band-aid steps simplified/removed (TYPE_FIX_MAP, reconciliation)"
+          },
+          {
+            "completed": true,
+            "text": "Metadata override preserved as safety net"
+          },
+          {
+            "completed": true,
+            "text": "Order: 6 (depends on T6A 4f54n5 + T7 pqr0rq + T8 78pz92 + T9 le05g6)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### The \"Big Rewrite\" — replaces `parseThcsText()` internals + updates review panel\n\n### Files changed\n1. `src/services/test-creation/thcsDocumentParser.service.ts` — rewrite `parseThcsText()` (lines 415-610)\n2. `src/components/thcs-editor/THCSParseReviewPanel.tsx` — add new visual indicators (242 lines, modify ~80)\n\n---\n\n### Part 1: Rewrite `parseThcsText()` (thcsDocumentParser.service.ts)\n\n#### Current pipeline (to REMOVE — lines 433-604):\n```\nStage 2: AI Extraction → callGroqDirect/callGeminiDirect → JSON ParsedTest\nStage 3: Regex fallback\nStage 3b: Section reconciliation (Q# overlap)\nStage 4: Post-processing (answer key apply)\nStage 5: Diagnostics\n```\n\n#### New pipeline (to REPLACE WITH):\n```typescript\nasync function parseThcsText(rawText, onProgress): Promise<Result<ParsedTest>> {\n  // ─── Stage 1: Pre-clean (KEEP) ───\n  const cleaned = preCleanText(rawText);\n  if (cleaned.trim().length < 50) return { success: false, error: '...' };\n\n  // ─── Stage 2: Pass 1 — Restructure + Confidence (NEW) ───\n  onProgress?.({ stage: 'parsing', percent: 10, message: 'Analyzing text structure...' });\n  const retrySession = createRetrySession(5);\n  const pass1 = await executePass1(cleaned, retrySession);\n\n  // ─── Stage 3: Code Validation (NEW) ───\n  onProgress?.({ stage: 'parsing', percent: 25, message: 'Validating format...' });\n  const validationReport = validateRestructuredText(\n    pass1.restructuredText, rawText, pass1.confidence\n  );\n\n  // ─── Stage 4: Branch Decision (NEW) ───\n  let bestText = pass1.restructuredText;\n  let allAuditEntries: RepairAuditEntry[] = [];\n  let compromiseResult: CompromiseResult | null = null;\n  let confidenceWarning: string | null = null;\n\n  // 4a: Compromise unsupported types (if any)\n  if (validationReport.unsupportedTypes.length > 0) {\n    onProgress?.({ stage: 'parsing', percent: 35, message: 'Converting unsupported sections...' });\n    compromiseResult = await executeCompromiseStep(\n      validationReport.unsupportedTypes, bestText, rawText, retrySession, callAI\n    );\n  }\n\n  // 4b: Repair known issues (if formatConfidence 50-79)\n  if (validationReport.formatConfidence >= 50 && validationReport.issues.length > 0) {\n    onProgress?.({ stage: 'parsing', percent: 45, message: 'Repairing formatting issues...' });\n    const pass2 = await executePass2Repair(\n      validationReport, pass1.confidence, retrySession, callAI\n    );\n    bestText = pass2.repairedText;\n    allAuditEntries.push(...pass2.auditLog);\n    confidenceWarning = pass2.confidenceWarning;\n  }\n\n  // 4c: External retry (if formatConfidence < 50 after all internal passes)\n  if (validationReport.formatConfidence < 50) {\n    onProgress?.({ stage: 'parsing', percent: 50, message: 'Requesting external re-extraction...' });\n    const extRetry = await executeExternalRetry(rawText, allAuditEntries, validationReport, callExternalAI);\n    if (extRetry.outcome === 'success' && extRetry.bestText) {\n      bestText = extRetry.bestText;\n    } else {\n      // Teacher escalation — return error with audit log\n      return {\n        success: false,\n        error: extRetry.teacherMessage || 'Automatic parsing failed. Please review text format.',\n      };\n    }\n  }\n\n  // ─── Stage 5: Regex Engine Parse (EXISTING — adapted) ───\n  onProgress?.({ stage: 'parsing', percent: 65, message: 'Parsing content...' });\n  const parsedTest = await parseThcsTextRegex(bestText, undefined, true);\n  if (!parsedTest.success || !parsedTest.data) {\n    return { success: false, error: 'Regex parsing failed on processed text.' };\n  }\n\n  // ─── Stage 6: Engine Enhancements (NEW) ───\n  onProgress?.({ stage: 'classifying', percent: 80, message: 'Applying engine enhancements...' });\n  // Type classification (existing)\n  classifyQuestionTypes(parsedTest.data.sections);\n  reclassifyByContent(parsedTest.data.sections);\n  // Engine enhancements (new — task 4f54n5)\n  // runEngineEnhancements called inside draft converter\n\n  // ─── Stage 7: Diagnostics (ENHANCED) ───\n  // Attach pipeline debug data (same pattern as current, but with new fields)\n  parsedTest.data.warnings = [...(parsedTest.data.warnings || [])];\n  if (confidenceWarning) {\n    parsedTest.data.warnings.push({ type: 'confidence-mismatch', message: confidenceWarning });\n  }\n  if (compromiseResult) {\n    for (const skip of compromiseResult.skippedSections) {\n      parsedTest.data.warnings.push({ type: 'skipped-section', message: skip.reason });\n    }\n  }\n\n  // Attach audit data for review panel\n  (parsedTest.data as any)._pipelineDebug = {\n    pass1Confidence: pass1.confidence,\n    codeConfidence: validationReport.formatConfidence,\n    issuesFound: validationReport.issues.map(i => i.code),\n    auditLog: allAuditEntries,\n    compromisedSections: compromiseResult?.compromisedSections || [],\n    skippedSections: compromiseResult?.skippedSections || [],\n    hasInferredAnswers: pass1.hasInferredAnswers,\n  };\n\n  onProgress?.({ stage: 'done', percent: 100, message: 'Done!' });\n  return parsedTest;\n}\n```\n\n#### What gets REMOVED from parseThcsText:\n- Lines 438-462: `attemptAIParse(fullPrompt, 'groq'/'gemini')` — the old JSON AI call\n- Lines 479-534: Q# overlap reconciliation — no longer needed (pipeline handles quality internally)\n- Lines 440: `thcs-ai-extraction-prompt.txt` import — old 97-line JSON prompt\n\n#### What gets KEPT:\n- `preCleanText()` call (line 427)\n- `parseThcsTextRegex()` — still used as the regex engine\n- `classifyQuestionTypes() + reclassifyByContent()` — still used\n- Metadata override pattern (if exists)\n- `window.__PARSE_DEBUG` diagnostics (enhanced, not removed)\n\n#### `callAI` callback implementation\n```typescript\n// Created in parseThcsText, passed to all sub-modules\nconst callAI = async (step: { provider: string; model: string; temperature: number }, prompt: string) => {\n  if (step.provider === 'groq') {\n    return await callGroqDirectPlainText(prompt, step.model, step.temperature);\n  } else {\n    return await callGeminiDirectPlainText(prompt, step.model, step.temperature);\n  }\n};\n```\n\nMust create `callGroqDirectPlainText` and `callGeminiDirectPlainText` — same as existing `callGroqDirect`/`callGeminiDirect` but expecting plain text response (no JSON parsing, no `extractJSON` call).\n\n---\n\n### Part 2: Review Panel Updates (THCSParseReviewPanel.tsx)\n\n#### New visual indicators (AC-12):\n\n1. **Yellow badge**: Questions with `answerSource: 'ai-inferred'`\n   - Small yellow badge next to question number: \"AI-Inferred\"\n\n2. **Orange badge**: Sections with `compromised: true`\n   - Section header has orange badge: \"Compromised: {originalType} → {convertedType}\"\n\n3. **Warning icon**: Sections with `[UNCERTAIN]` tags in warnings\n   - IconAlertTriangle next to section name\n\n4. **Expandable reasoning logs**:\n   - Collapsible section at bottom of panel\n   - Shows `_pipelineDebug.auditLog` entries in a formatted list\n   - Each entry: model, temperature, issues targeted, confidence result\n\n5. **Confidence comparison warning** (FR-13):\n   - Alert banner at top if `_pipelineDebug.pass1Confidence` and `_pipelineDebug.codeConfidence` disagree by >25 points\n\n#### Implementation approach:\n- The panel already uses Mantine components (existing code, not adding new Mantine imports)\n- Add conditional rendering based on `_pipelineDebug` data\n- Use existing `Badge`, `Alert`, `Text` components\n- Add `Collapse` for reasoning log expandability (already in Mantine)\n\n---\n\n### Part 3: Old Code Cleanup\n\n#### Remove:\n- `thcs-ai-extraction-prompt.txt` — old 97-line JSON extraction prompt (REPLACED by Pass 1 static prompt)\n- `attemptAIParse()` function — no longer needed\n- `callGroqDirect()` JSON path — refactored into `callGroqDirectPlainText()`\n- `callGeminiDirect()` JSON path — refactored into `callGeminiDirectPlainText()`\n\n#### Keep as fallback (safety net):\n- `callGroqDirect()` / `callGeminiDirect()` original functions — keep for now, rename to `_legacy_callGroqDirect` etc. Remove in a follow-up cleanup after the new pipeline is validated.\n\n---\n\n### Files changed\n- `src/services/test-creation/thcsDocumentParser.service.ts` — rewrite `parseThcsText()` (~200 lines changed), add `callXxxDirectPlainText()` functions\n- `src/components/thcs-editor/THCSParseReviewPanel.tsx` — add 4 new visual indicator sections (~80 lines added)\n\n### Dependencies (ALL upstream tasks must be complete)\n- `thcs-pass1-restructure.ts` (task `q6lxtq`) → `executePass1`\n- `thcs-text-validator.ts` (task `9vafnp`) → `validateRestructuredText`\n- `thcs-pass2-repair.ts` (task `pqr0rq`) → `executePass2Repair`\n- `thcs-compromise-step.ts` (task `78pz92`) → `executeCompromiseStep`\n- `thcs-external-retry.ts` (task `le05g6`) → `executeExternalRetry`\n- `thcs-retry-manager.ts` (task `0yg6fx`) → `createRetrySession`\n- `thcs-engine-enhancements.ts` (task `4f54n5`) → `runEngineEnhancements` (via converter)",
+        "implementationNotes": "## Implementation Complete (Session 2)\n\n### Parser Service (`thcsDocumentParser.service.ts`)\n- **New imports**: executePass1, validateRestructuredText, executePass2Repair, executeCompromiseStep, executeExternalRetry, createRetrySession\n- **Extended ParseWarning type**: Added 'confidence-mismatch', 'skipped-section', 'compromised-section'\n- **New PipelineDebug interface**: pass1Confidence, codeConfidence, issuesFound, auditLog, compromisedSections, skippedSections, hasInferredAnswers, pipeline, provider, parseDurationMs\n- **Rewrote parseThcsText()**: 7-stage pipeline (pre-clean → Pass 1 → validation → branch decision → regex engine → type classification → diagnostics)\n- **Added callGroqDirectPlainText()**: Plain text Groq API call for Pass 1/2/Compromise\n- **Added callGeminiDirectPlainText()**: Plain text Gemini API call for Pass 2/External Retry\n- **Removed legacy code**: validateAIResult(), callGroqDirect(), callGeminiDirect(), _legacy_attemptAIParse(), extractJSON import, _lastReclassifications module variable\n\n### Review Panel (`THCSParseReviewPanel.tsx`)\n- **Added _pipelineDebug to ParsedTest interface**: Full pipeline debug data structure\n- **Confidence disagreement warning (FR-13)**: Yellow Alert when AI vs code confidence gap >25\n- **Section badges**: Yellow \"AI-Inferred\" for sections with missing answers when AI inferred, Orange compromise badge showing original→converted type, Red \"Skipped\" badge for unsupported sections\n- **Expandable audit log**: Collapsible reasoning log showing repair attempts with model, temperature, issues, and confidence\n- **Pipeline info**: Duration and pipeline name in header stats\n\n### Type Check\n- Zero errors in thcsDocumentParser.service.ts\n- Zero errors in THCSParseReviewPanel.tsx\n- Only pre-existing errors in THCSDocumentUpload.tsx (unrelated)"
+      }
+    }
+  ]
+}

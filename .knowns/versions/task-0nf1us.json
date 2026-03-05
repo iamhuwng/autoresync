@@ -1,0 +1,80 @@
+{
+  "taskId": "0nf1us",
+  "currentVersion": 1,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "0nf1us",
+      "version": 1,
+      "timestamp": "2026-03-04T21:58:25.230Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Pass 2 fires only when code validation finds issues after Pass 1 (conf 50-79)",
+              "completed": false
+            },
+            {
+              "text": "Uses buildRepairPrompt() with detected issues + both texts",
+              "completed": false
+            },
+            {
+              "text": "Uses retry manager for model escalation (Groq → Flash → teacher)",
+              "completed": false
+            },
+            {
+              "text": "[UNCERTAIN] tags consumed by engine → warnings[]",
+              "completed": false
+            },
+            {
+              "text": "Confidence comparison: AI vs code > 25pts → teacher warning displayed",
+              "completed": false
+            },
+            {
+              "text": "Reasoning log parsed and stored in audit entry",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Implement Pass 2 Repair + Confidence Warning",
+        "description": "Wire Pass 2 adaptive repair into the pipeline. After Pass 1 + code validation, if issues remain (conf 50-79), call `buildRepairPrompt()` → AI → re-validate → better/worse comparison. Consume `[UNCERTAIN]` tags → warnings[]. Add confidence disagreement warning (AI vs code > 25pts). Depends on @task-xup4uy (retry manager), @task-f6s95f (code validator prompt builder).",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "from-spec",
+          "pipeline"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Pass 2 fires only when code validation finds issues after Pass 1 (conf 50-79)",
+            "completed": false
+          },
+          {
+            "text": "Uses buildRepairPrompt() with detected issues + both texts",
+            "completed": false
+          },
+          {
+            "text": "Uses retry manager for model escalation (Groq → Flash → teacher)",
+            "completed": false
+          },
+          {
+            "text": "[UNCERTAIN] tags consumed by engine → warnings[]",
+            "completed": false
+          },
+          {
+            "text": "Confidence comparison: AI vs code > 25pts → teacher warning displayed",
+            "completed": false
+          },
+          {
+            "text": "Reasoning log parsed and stored in audit entry",
+            "completed": false
+          }
+        ]
+      }
+    }
+  ]
+}

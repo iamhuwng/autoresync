@@ -1,0 +1,80 @@
+{
+  "taskId": "f6s95f",
+  "currentVersion": 1,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "f6s95f",
+      "version": 1,
+      "timestamp": "2026-03-04T21:57:58.072Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "ValidationReport interface with formatConfidence, issues[], unsupportedTypes[], stats, originalInput, processedText",
+              "completed": false
+            },
+            {
+              "text": "All 16 issue codes detectable with section text + line ranges",
+              "completed": false
+            },
+            {
+              "text": "formatConfidence scoring algorithm (weighted by issue severity)",
+              "completed": false
+            },
+            {
+              "text": "unsupportedTypes[] detection for all 12 types (8 compromise + 4 skip)",
+              "completed": false
+            },
+            {
+              "text": "Stats: section, question, answer, typeTag counts",
+              "completed": false
+            },
+            {
+              "text": "Unit tests for each issue code detection",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Build Code Validation Module",
+        "description": "Create `thcs-text-validator.ts` — scans raw text pre-parse to produce `ValidationReport` with `formatConfidence` (0-100), `issues[]` (16 issue codes with section text + line ranges), `unsupportedTypes[]`, and `stats`. Carries `originalInput` and `processedText`.",
+        "status": "todo",
+        "priority": "high",
+        "labels": [
+          "from-spec",
+          "core-module"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "ValidationReport interface with formatConfidence, issues[], unsupportedTypes[], stats, originalInput, processedText",
+            "completed": false
+          },
+          {
+            "text": "All 16 issue codes detectable with section text + line ranges",
+            "completed": false
+          },
+          {
+            "text": "formatConfidence scoring algorithm (weighted by issue severity)",
+            "completed": false
+          },
+          {
+            "text": "unsupportedTypes[] detection for all 12 types (8 compromise + 4 skip)",
+            "completed": false
+          },
+          {
+            "text": "Stats: section, question, answer, typeTag counts",
+            "completed": false
+          },
+          {
+            "text": "Unit tests for each issue code detection",
+            "completed": false
+          }
+        ]
+      }
+    }
+  ]
+}

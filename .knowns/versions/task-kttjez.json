@@ -1,0 +1,310 @@
+{
+  "taskId": "kttjez",
+  "currentVersion": 5,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "kttjez",
+      "version": 1,
+      "timestamp": "2026-03-04T22:46:51.474Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "**bold** markers pass through preCleanText unchanged",
+              "completed": false
+            },
+            {
+              "text": "__underline__ markers pass through unchanged",
+              "completed": false
+            },
+            {
+              "text": "{{}} markers pass through unchanged",
+              "completed": false
+            },
+            {
+              "text": "Unit test covers all 3 marker types",
+              "completed": false
+            },
+            {
+              "text": "Order: 1 (start here)",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Fix preCleanText Marker Preservation",
+        "description": "Remove the `**` stripping regex on lines 405-406 in `thcsDocumentParser.service.ts`. Preserve `**bold**`, `__underline__`, and `{{}}` markers through pre-clean. This is a confirmed active bug — the `preCleanText` function currently destroys formatting markers that the external prompt specifically asks the AI to preserve.",
+        "status": "todo",
+        "priority": "high",
+        "labels": [
+          "from-spec-v2",
+          "foundation"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "**bold** markers pass through preCleanText unchanged",
+            "completed": false
+          },
+          {
+            "text": "__underline__ markers pass through unchanged",
+            "completed": false
+          },
+          {
+            "text": "{{}} markers pass through unchanged",
+            "completed": false
+          },
+          {
+            "text": "Unit test covers all 3 marker types",
+            "completed": false
+          },
+          {
+            "text": "Order: 1 (start here)",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "kttjez",
+      "version": 2,
+      "timestamp": "2026-03-04T22:51:07.465Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        },
+        {
+          "field": "assignee",
+          "newValue": "@me"
+        }
+      ],
+      "snapshot": {
+        "title": "Fix preCleanText Marker Preservation",
+        "description": "Remove the `**` stripping regex on lines 405-406 in `thcsDocumentParser.service.ts`. Preserve `**bold**`, `__underline__`, and `{{}}` markers through pre-clean. This is a confirmed active bug — the `preCleanText` function currently destroys formatting markers that the external prompt specifically asks the AI to preserve.",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "foundation"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "**bold** markers pass through preCleanText unchanged"
+          },
+          {
+            "completed": false,
+            "text": "__underline__ markers pass through unchanged"
+          },
+          {
+            "completed": false,
+            "text": "{{}} markers pass through unchanged"
+          },
+          {
+            "completed": false,
+            "text": "Unit test covers all 3 marker types"
+          },
+          {
+            "completed": false,
+            "text": "Order: 1 (start here)"
+          }
+        ]
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "kttjez",
+      "version": 3,
+      "timestamp": "2026-03-04T22:54:48.104Z",
+      "changes": [
+        {
+          "field": "implementationPlan",
+          "newValue": "## Implementation Plan\n\n### 1. Fix `preCleanText()` (line 395-396)\n- Remove `.replace(/\\\\*\\\\*(.*?)\\\\*\\\\*/g, '$1')` (line 395) — destroys **bold**\n- Remove `.replace(/\\\\*(.*?)\\\\*/g, '$1')` (line 396) — destroys *italic*\n- Keep all other cleaning rules (cite markers, markdown headers, whitespace normalization)\n\n### 2. Fix `parseThcsTextRegex()` fallback (line 792-793)\n- Same two regexes duplicated here — remove both\n- Keep other cleaning rules (cite, headers, table rows, horizontal rules)\n\n### 3. Verify no other stripping\n- `__underline__` — NOT stripped anywhere (confirmed) ✅\n- `{{}}` — NOT stripped anywhere (confirmed) ✅\n\n### 4. Create unit test\n- Create `src/services/test-creation/thcsDocumentParser.service.test.ts`\n- Test: `**bold**` passes through `preCleanText` unchanged\n- Test: `__underline__` passes through unchanged\n- Test: `{{target_word}}` passes through unchanged\n- Test: cite markers ARE still stripped\n- Test: markdown headers ARE still stripped\n- Test: triple+ newlines ARE still normalized\n\n### Files changed\n- `src/services/test-creation/thcsDocumentParser.service.ts` (lines 395-396, 792-793)\n- `src/services/test-creation/thcsDocumentParser.service.test.ts` (NEW)"
+        }
+      ],
+      "snapshot": {
+        "title": "Fix preCleanText Marker Preservation",
+        "description": "Remove the `**` stripping regex on lines 405-406 in `thcsDocumentParser.service.ts`. Preserve `**bold**`, `__underline__`, and `{{}}` markers through pre-clean. This is a confirmed active bug — the `preCleanText` function currently destroys formatting markers that the external prompt specifically asks the AI to preserve.",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "foundation"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "**bold** markers pass through preCleanText unchanged"
+          },
+          {
+            "completed": false,
+            "text": "__underline__ markers pass through unchanged"
+          },
+          {
+            "completed": false,
+            "text": "{{}} markers pass through unchanged"
+          },
+          {
+            "completed": false,
+            "text": "Unit test covers all 3 marker types"
+          },
+          {
+            "completed": false,
+            "text": "Order: 1 (start here)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### 1. Fix `preCleanText()` (line 395-396)\n- Remove `.replace(/\\\\*\\\\*(.*?)\\\\*\\\\*/g, '$1')` (line 395) — destroys **bold**\n- Remove `.replace(/\\\\*(.*?)\\\\*/g, '$1')` (line 396) — destroys *italic*\n- Keep all other cleaning rules (cite markers, markdown headers, whitespace normalization)\n\n### 2. Fix `parseThcsTextRegex()` fallback (line 792-793)\n- Same two regexes duplicated here — remove both\n- Keep other cleaning rules (cite, headers, table rows, horizontal rules)\n\n### 3. Verify no other stripping\n- `__underline__` — NOT stripped anywhere (confirmed) ✅\n- `{{}}` — NOT stripped anywhere (confirmed) ✅\n\n### 4. Create unit test\n- Create `src/services/test-creation/thcsDocumentParser.service.test.ts`\n- Test: `**bold**` passes through `preCleanText` unchanged\n- Test: `__underline__` passes through unchanged\n- Test: `{{target_word}}` passes through unchanged\n- Test: cite markers ARE still stripped\n- Test: markdown headers ARE still stripped\n- Test: triple+ newlines ARE still normalized\n\n### Files changed\n- `src/services/test-creation/thcsDocumentParser.service.ts` (lines 395-396, 792-793)\n- `src/services/test-creation/thcsDocumentParser.service.test.ts` (NEW)"
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "kttjez",
+      "version": 4,
+      "timestamp": "2026-03-04T23:16:24.869Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "**bold** markers pass through preCleanText unchanged"
+            },
+            {
+              "completed": false,
+              "text": "__underline__ markers pass through unchanged"
+            },
+            {
+              "completed": false,
+              "text": "{{}} markers pass through unchanged"
+            },
+            {
+              "completed": false,
+              "text": "Unit test covers all 3 marker types"
+            },
+            {
+              "completed": false,
+              "text": "Order: 1 (start here)"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "**bold** markers pass through preCleanText unchanged"
+            },
+            {
+              "completed": true,
+              "text": "__underline__ markers pass through unchanged"
+            },
+            {
+              "completed": true,
+              "text": "{{}} markers pass through unchanged"
+            },
+            {
+              "completed": true,
+              "text": "Unit test covers all 3 marker types"
+            },
+            {
+              "completed": true,
+              "text": "Order: 1 (start here)"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "## Implementation Notes\n- Removed 2 regex lines from `preCleanText()` (line 395-396): `**bold**` and `*italic*` stripping\n- Removed same 2 lines from `parseThcsTextRegex()` fallback (line 792-793)\n- Added explanatory comments noting markers are intentionally preserved (AC-2)\n- Created unit test with 13 cases: 6 marker preservation + 5 cleaning verification + 2 edge cases\n- All tests pass (vitest, 4ms)"
+        }
+      ],
+      "snapshot": {
+        "title": "Fix preCleanText Marker Preservation",
+        "description": "Remove the `**` stripping regex on lines 405-406 in `thcsDocumentParser.service.ts`. Preserve `**bold**`, `__underline__`, and `{{}}` markers through pre-clean. This is a confirmed active bug — the `preCleanText` function currently destroys formatting markers that the external prompt specifically asks the AI to preserve.",
+        "status": "in-progress",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "foundation"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "**bold** markers pass through preCleanText unchanged"
+          },
+          {
+            "completed": true,
+            "text": "__underline__ markers pass through unchanged"
+          },
+          {
+            "completed": true,
+            "text": "{{}} markers pass through unchanged"
+          },
+          {
+            "completed": true,
+            "text": "Unit test covers all 3 marker types"
+          },
+          {
+            "completed": true,
+            "text": "Order: 1 (start here)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### 1. Fix `preCleanText()` (line 395-396)\n- Remove `.replace(/\\\\*\\\\*(.*?)\\\\*\\\\*/g, '$1')` (line 395) — destroys **bold**\n- Remove `.replace(/\\\\*(.*?)\\\\*/g, '$1')` (line 396) — destroys *italic*\n- Keep all other cleaning rules (cite markers, markdown headers, whitespace normalization)\n\n### 2. Fix `parseThcsTextRegex()` fallback (line 792-793)\n- Same two regexes duplicated here — remove both\n- Keep other cleaning rules (cite, headers, table rows, horizontal rules)\n\n### 3. Verify no other stripping\n- `__underline__` — NOT stripped anywhere (confirmed) ✅\n- `{{}}` — NOT stripped anywhere (confirmed) ✅\n\n### 4. Create unit test\n- Create `src/services/test-creation/thcsDocumentParser.service.test.ts`\n- Test: `**bold**` passes through `preCleanText` unchanged\n- Test: `__underline__` passes through unchanged\n- Test: `{{target_word}}` passes through unchanged\n- Test: cite markers ARE still stripped\n- Test: markdown headers ARE still stripped\n- Test: triple+ newlines ARE still normalized\n\n### Files changed\n- `src/services/test-creation/thcsDocumentParser.service.ts` (lines 395-396, 792-793)\n- `src/services/test-creation/thcsDocumentParser.service.test.ts` (NEW)",
+        "implementationNotes": "## Implementation Notes\n- Removed 2 regex lines from `preCleanText()` (line 395-396): `**bold**` and `*italic*` stripping\n- Removed same 2 lines from `parseThcsTextRegex()` fallback (line 792-793)\n- Added explanatory comments noting markers are intentionally preserved (AC-2)\n- Created unit test with 13 cases: 6 marker preservation + 5 cleaning verification + 2 edge cases\n- All tests pass (vitest, 4ms)"
+      }
+    },
+    {
+      "id": "v5",
+      "taskId": "kttjez",
+      "version": 5,
+      "timestamp": "2026-03-04T23:16:34.507Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Fix preCleanText Marker Preservation",
+        "description": "Remove the `**` stripping regex on lines 405-406 in `thcsDocumentParser.service.ts`. Preserve `**bold**`, `__underline__`, and `{{}}` markers through pre-clean. This is a confirmed active bug — the `preCleanText` function currently destroys formatting markers that the external prompt specifically asks the AI to preserve.",
+        "status": "done",
+        "priority": "high",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "foundation"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "**bold** markers pass through preCleanText unchanged"
+          },
+          {
+            "completed": true,
+            "text": "__underline__ markers pass through unchanged"
+          },
+          {
+            "completed": true,
+            "text": "{{}} markers pass through unchanged"
+          },
+          {
+            "completed": true,
+            "text": "Unit test covers all 3 marker types"
+          },
+          {
+            "completed": true,
+            "text": "Order: 1 (start here)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### 1. Fix `preCleanText()` (line 395-396)\n- Remove `.replace(/\\\\*\\\\*(.*?)\\\\*\\\\*/g, '$1')` (line 395) — destroys **bold**\n- Remove `.replace(/\\\\*(.*?)\\\\*/g, '$1')` (line 396) — destroys *italic*\n- Keep all other cleaning rules (cite markers, markdown headers, whitespace normalization)\n\n### 2. Fix `parseThcsTextRegex()` fallback (line 792-793)\n- Same two regexes duplicated here — remove both\n- Keep other cleaning rules (cite, headers, table rows, horizontal rules)\n\n### 3. Verify no other stripping\n- `__underline__` — NOT stripped anywhere (confirmed) ✅\n- `{{}}` — NOT stripped anywhere (confirmed) ✅\n\n### 4. Create unit test\n- Create `src/services/test-creation/thcsDocumentParser.service.test.ts`\n- Test: `**bold**` passes through `preCleanText` unchanged\n- Test: `__underline__` passes through unchanged\n- Test: `{{target_word}}` passes through unchanged\n- Test: cite markers ARE still stripped\n- Test: markdown headers ARE still stripped\n- Test: triple+ newlines ARE still normalized\n\n### Files changed\n- `src/services/test-creation/thcsDocumentParser.service.ts` (lines 395-396, 792-793)\n- `src/services/test-creation/thcsDocumentParser.service.test.ts` (NEW)",
+        "implementationNotes": "## Implementation Notes\n- Removed 2 regex lines from `preCleanText()` (line 395-396): `**bold**` and `*italic*` stripping\n- Removed same 2 lines from `parseThcsTextRegex()` fallback (line 792-793)\n- Added explanatory comments noting markers are intentionally preserved (AC-2)\n- Created unit test with 13 cases: 6 marker preservation + 5 cleaning verification + 2 edge cases\n- All tests pass (vitest, 4ms)"
+      }
+    }
+  ]
+}

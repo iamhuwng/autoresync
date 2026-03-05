@@ -1,0 +1,406 @@
+{
+  "taskId": "pqr0rq",
+  "currentVersion": 5,
+  "versions": [
+    {
+      "id": "v1",
+      "taskId": "pqr0rq",
+      "version": 1,
+      "timestamp": "2026-03-04T22:47:27.264Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [],
+          "newValue": [
+            {
+              "text": "Code validation issues trigger buildRepairPrompt()",
+              "completed": false
+            },
+            {
+              "text": "AI response parsed by parseAIRepairResponse()",
+              "completed": false
+            },
+            {
+              "text": "Re-validation runs on fixed text",
+              "completed": false
+            },
+            {
+              "text": "Better/worse comparison: keep better, escalate if worse",
+              "completed": false
+            },
+            {
+              "text": "Retry follows model/temp progression from retry manager",
+              "completed": false
+            },
+            {
+              "text": "Confidence comparison: >25pt gap → teacher warning displayed",
+              "completed": false
+            },
+            {
+              "text": "RepairAuditEntry logged for each AI call",
+              "completed": false
+            },
+            {
+              "text": "Order: 4 (depends on T3 9vafnp + T4 0yg6fx + T5 wei3uc)",
+              "completed": false
+            }
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Implement Pass 2 Repair + Confidence Warning",
+        "description": "Wire Pass 2 adaptive repair: code validation flags issues → `buildRepairPrompt()` → internal AI → re-validate → better/worse decision. Implement FR-13 confidence comparison warning (>25pt gap between AI and code → teacher warning). Depends on @task-9vafnp (code validator), @task-0yg6fx (retry manager), @task-wei3uc (prompt builder).",
+        "status": "todo",
+        "priority": "medium",
+        "labels": [
+          "from-spec-v2",
+          "pipeline"
+        ],
+        "acceptanceCriteria": [
+          {
+            "text": "Code validation issues trigger buildRepairPrompt()",
+            "completed": false
+          },
+          {
+            "text": "AI response parsed by parseAIRepairResponse()",
+            "completed": false
+          },
+          {
+            "text": "Re-validation runs on fixed text",
+            "completed": false
+          },
+          {
+            "text": "Better/worse comparison: keep better, escalate if worse",
+            "completed": false
+          },
+          {
+            "text": "Retry follows model/temp progression from retry manager",
+            "completed": false
+          },
+          {
+            "text": "Confidence comparison: >25pt gap → teacher warning displayed",
+            "completed": false
+          },
+          {
+            "text": "RepairAuditEntry logged for each AI call",
+            "completed": false
+          },
+          {
+            "text": "Order: 4 (depends on T3 9vafnp + T4 0yg6fx + T5 wei3uc)",
+            "completed": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "taskId": "pqr0rq",
+      "version": 2,
+      "timestamp": "2026-03-04T23:09:04.302Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "todo",
+          "newValue": "in-progress"
+        },
+        {
+          "field": "assignee",
+          "newValue": "@me"
+        }
+      ],
+      "snapshot": {
+        "title": "Implement Pass 2 Repair + Confidence Warning",
+        "description": "Wire Pass 2 adaptive repair: code validation flags issues → `buildRepairPrompt()` → internal AI → re-validate → better/worse decision. Implement FR-13 confidence comparison warning (>25pt gap between AI and code → teacher warning). Depends on @task-9vafnp (code validator), @task-0yg6fx (retry manager), @task-wei3uc (prompt builder).",
+        "status": "in-progress",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "pipeline"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Code validation issues trigger buildRepairPrompt()"
+          },
+          {
+            "completed": false,
+            "text": "AI response parsed by parseAIRepairResponse()"
+          },
+          {
+            "completed": false,
+            "text": "Re-validation runs on fixed text"
+          },
+          {
+            "completed": false,
+            "text": "Better/worse comparison: keep better, escalate if worse"
+          },
+          {
+            "completed": false,
+            "text": "Retry follows model/temp progression from retry manager"
+          },
+          {
+            "completed": false,
+            "text": "Confidence comparison: >25pt gap → teacher warning displayed"
+          },
+          {
+            "completed": false,
+            "text": "RepairAuditEntry logged for each AI call"
+          },
+          {
+            "completed": false,
+            "text": "Order: 4 (depends on T3 9vafnp + T4 0yg6fx + T5 wei3uc)"
+          }
+        ]
+      }
+    },
+    {
+      "id": "v3",
+      "taskId": "pqr0rq",
+      "version": 3,
+      "timestamp": "2026-03-04T23:09:41.670Z",
+      "changes": [
+        {
+          "field": "implementationPlan",
+          "newValue": "## Implementation Plan\n\n### New file\n`src/services/test-creation/thcs-pass2-repair.ts`\n\n### Architecture\nAn orchestrator that connects the three upstream modules to implement the adaptive repair loop. This is NOT a large module — it's ~80 lines of glue code.\n\n### Flow\n```\nValidationReport (from code validator)\n  → filter to repairable issues (exclude unsupported types — those go to Compromise)\n  → if 0 repair issues → skip Pass 2\n  → buildRepairPrompt(issues, originalInput, processedText)\n  → call AI via retry manager (REPAIR_CHAIN)\n  → parseAIRepairResponse(rawResponse)\n  → re-validate fixed text\n  → compare: fewer issues = better\n  → if better: use as new base, continue chain\n  → if worse/same: keep previous, escalate\n  → log RepairAuditEntry per AI call\n  → check confidence disagreement (FR-13)\n  → return Pass2Result\n```\n\n### Interfaces\n\n```typescript\ninterface Pass2Result {\n  repairedText: string;            // best text after repair attempts\n  wasRepaired: boolean;            // true if any successful repair happened\n  finalReport: ValidationReport;   // re-validated report on the repaired text\n  auditLog: RepairAuditEntry[];    // one entry per AI call\n  confidenceWarning: string | null; // FR-13: message if >25pt disagreement\n  reasoningLog: ReasoningEntry[];  // aggregated from all repair attempts\n}\n```\n\n### Core Function\n\n```typescript\nasync function executePass2Repair(\n  validationReport: ValidationReport,\n  aiConfidence: number,          // from Pass 1\n  retrySession: RetrySession,    // shared session (circuit breaker)\n  callAI: (step: RetryStep) => Promise<AICallResult | null>,\n): Promise<Pass2Result>\n```\n\n#### Logic:\n1. **Filter repairable issues**: `report.issues.filter(i => !isUnsupportedTypeIssue(i))`\n   - If 0 repair issues → return early with `wasRepaired: false`\n\n2. **Build repair prompt**: `buildRepairPrompt(repairIssues, report.originalInput, report.processedText)`\n   - Also computes `fragmentHash` via `computeFragmentHash()`\n\n3. **Execute retry chain**: `executeRetryChain(session, REPAIR_CHAIN, callRepair, compareRepair)`\n   - `callRepair(step)`:\n     a. Call AI with step's provider/model/temperature + the repair prompt\n     b. Parse response: `parseAIRepairResponse(rawResponse)`\n     c. Re-validate: `validateRestructuredText(fixedText, report.originalInput, aiConfidence)`\n     d. Return `{ result: { fixedText, validationReport, reasoningLog }, issueCount: newReport.issues.length }`\n   - `compareRepair(prev, curr)`:\n     a. Compare `prev.issueCount` vs `curr.issueCount`\n     b. `fewer issues` → `better`, `more` → `worse`, `same` → `same`\n\n4. **Log audit entries**: For each AI call in the chain, create `RepairAuditEntry` via `createAuditEntry()`\n\n5. **Confidence comparison (FR-13)**:\n   - Compare `aiConfidence` (Pass 1 self-report) vs `finalReport.formatConfidence` (code validator)\n   - If `|aiConfidence - formatConfidence| > 25` → set `confidenceWarning` to human-readable message\n\n6. **Return `Pass2Result`** with the best text and aggregated diagnostics\n\n### Key Design Decisions\n\n1. **Pass 2 only handles REPAIRS** — unsupported types route to Compromise (separate task `78pz92`). The filtering happens at step 1.\n\n2. **Re-validation after each attempt** — the `callRepair` callback re-runs the full validator on the fixed text. This is cheap (deterministic regex, <50ms) and gives accurate issue counts for comparison.\n\n3. **Shared `RetrySession`** — Pass 2 shares the same session as the rest of the pipeline. If Pass 1 used 1 call, Pass 2 has 4 remaining toward the circuit breaker.\n\n4. **`callAI` callback** — Pass 2 doesn't initialize SDKs or manage API keys. The integration task (T11) provides a callback that handles provider routing.\n\n5. **Aggregated reasoning log** — Each retry produces a `ReasoningEntry[]`. Pass 2 concatenates them all for the review panel.\n\n### FR-13 Confidence Warning Implementation\n\n```typescript\nfunction checkConfidenceDisagreement(\n  aiConfidence: number,\n  codeConfidence: number\n): string | null {\n  const gap = Math.abs(aiConfidence - codeConfidence);\n  if (gap > 25) {\n    if (aiConfidence > codeConfidence) {\n      return `AI reports ${aiConfidence}% confidence but code validation found ${codeConfidence}% — AI may be overconfident. Review flagged issues.`;\n    } else {\n      return `AI reports ${aiConfidence}% confidence but code validation found ${codeConfidence}% — the text may be better than AI suggests.`;\n    }\n  }\n  return null;\n}\n```\n\n### Files changed\n- `src/services/test-creation/thcs-pass2-repair.ts` (NEW — ~80 lines)\n\n### Dependencies (all planned upstream)\n- `thcs-text-validator.ts` (task `9vafnp`) → `validateRestructuredText`, `ValidationReport`\n- `thcs-prompt-builder.ts` (task `wei3uc`) → `buildRepairPrompt`, `parseAIRepairResponse`, `computeFragmentHash`, `createAuditEntry`\n- `thcs-retry-manager.ts` (task `0yg6fx`) → `executeRetryChain`, `REPAIR_CHAIN`, `RetrySession`\n\n### Consumed by\n- Task `8085zl` (Integration) → calls `executePass2Repair()` when `50 ≤ formatConfidence < 80`"
+        }
+      ],
+      "snapshot": {
+        "title": "Implement Pass 2 Repair + Confidence Warning",
+        "description": "Wire Pass 2 adaptive repair: code validation flags issues → `buildRepairPrompt()` → internal AI → re-validate → better/worse decision. Implement FR-13 confidence comparison warning (>25pt gap between AI and code → teacher warning). Depends on @task-9vafnp (code validator), @task-0yg6fx (retry manager), @task-wei3uc (prompt builder).",
+        "status": "in-progress",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "pipeline"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": false,
+            "text": "Code validation issues trigger buildRepairPrompt()"
+          },
+          {
+            "completed": false,
+            "text": "AI response parsed by parseAIRepairResponse()"
+          },
+          {
+            "completed": false,
+            "text": "Re-validation runs on fixed text"
+          },
+          {
+            "completed": false,
+            "text": "Better/worse comparison: keep better, escalate if worse"
+          },
+          {
+            "completed": false,
+            "text": "Retry follows model/temp progression from retry manager"
+          },
+          {
+            "completed": false,
+            "text": "Confidence comparison: >25pt gap → teacher warning displayed"
+          },
+          {
+            "completed": false,
+            "text": "RepairAuditEntry logged for each AI call"
+          },
+          {
+            "completed": false,
+            "text": "Order: 4 (depends on T3 9vafnp + T4 0yg6fx + T5 wei3uc)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### New file\n`src/services/test-creation/thcs-pass2-repair.ts`\n\n### Architecture\nAn orchestrator that connects the three upstream modules to implement the adaptive repair loop. This is NOT a large module — it's ~80 lines of glue code.\n\n### Flow\n```\nValidationReport (from code validator)\n  → filter to repairable issues (exclude unsupported types — those go to Compromise)\n  → if 0 repair issues → skip Pass 2\n  → buildRepairPrompt(issues, originalInput, processedText)\n  → call AI via retry manager (REPAIR_CHAIN)\n  → parseAIRepairResponse(rawResponse)\n  → re-validate fixed text\n  → compare: fewer issues = better\n  → if better: use as new base, continue chain\n  → if worse/same: keep previous, escalate\n  → log RepairAuditEntry per AI call\n  → check confidence disagreement (FR-13)\n  → return Pass2Result\n```\n\n### Interfaces\n\n```typescript\ninterface Pass2Result {\n  repairedText: string;            // best text after repair attempts\n  wasRepaired: boolean;            // true if any successful repair happened\n  finalReport: ValidationReport;   // re-validated report on the repaired text\n  auditLog: RepairAuditEntry[];    // one entry per AI call\n  confidenceWarning: string | null; // FR-13: message if >25pt disagreement\n  reasoningLog: ReasoningEntry[];  // aggregated from all repair attempts\n}\n```\n\n### Core Function\n\n```typescript\nasync function executePass2Repair(\n  validationReport: ValidationReport,\n  aiConfidence: number,          // from Pass 1\n  retrySession: RetrySession,    // shared session (circuit breaker)\n  callAI: (step: RetryStep) => Promise<AICallResult | null>,\n): Promise<Pass2Result>\n```\n\n#### Logic:\n1. **Filter repairable issues**: `report.issues.filter(i => !isUnsupportedTypeIssue(i))`\n   - If 0 repair issues → return early with `wasRepaired: false`\n\n2. **Build repair prompt**: `buildRepairPrompt(repairIssues, report.originalInput, report.processedText)`\n   - Also computes `fragmentHash` via `computeFragmentHash()`\n\n3. **Execute retry chain**: `executeRetryChain(session, REPAIR_CHAIN, callRepair, compareRepair)`\n   - `callRepair(step)`:\n     a. Call AI with step's provider/model/temperature + the repair prompt\n     b. Parse response: `parseAIRepairResponse(rawResponse)`\n     c. Re-validate: `validateRestructuredText(fixedText, report.originalInput, aiConfidence)`\n     d. Return `{ result: { fixedText, validationReport, reasoningLog }, issueCount: newReport.issues.length }`\n   - `compareRepair(prev, curr)`:\n     a. Compare `prev.issueCount` vs `curr.issueCount`\n     b. `fewer issues` → `better`, `more` → `worse`, `same` → `same`\n\n4. **Log audit entries**: For each AI call in the chain, create `RepairAuditEntry` via `createAuditEntry()`\n\n5. **Confidence comparison (FR-13)**:\n   - Compare `aiConfidence` (Pass 1 self-report) vs `finalReport.formatConfidence` (code validator)\n   - If `|aiConfidence - formatConfidence| > 25` → set `confidenceWarning` to human-readable message\n\n6. **Return `Pass2Result`** with the best text and aggregated diagnostics\n\n### Key Design Decisions\n\n1. **Pass 2 only handles REPAIRS** — unsupported types route to Compromise (separate task `78pz92`). The filtering happens at step 1.\n\n2. **Re-validation after each attempt** — the `callRepair` callback re-runs the full validator on the fixed text. This is cheap (deterministic regex, <50ms) and gives accurate issue counts for comparison.\n\n3. **Shared `RetrySession`** — Pass 2 shares the same session as the rest of the pipeline. If Pass 1 used 1 call, Pass 2 has 4 remaining toward the circuit breaker.\n\n4. **`callAI` callback** — Pass 2 doesn't initialize SDKs or manage API keys. The integration task (T11) provides a callback that handles provider routing.\n\n5. **Aggregated reasoning log** — Each retry produces a `ReasoningEntry[]`. Pass 2 concatenates them all for the review panel.\n\n### FR-13 Confidence Warning Implementation\n\n```typescript\nfunction checkConfidenceDisagreement(\n  aiConfidence: number,\n  codeConfidence: number\n): string | null {\n  const gap = Math.abs(aiConfidence - codeConfidence);\n  if (gap > 25) {\n    if (aiConfidence > codeConfidence) {\n      return `AI reports ${aiConfidence}% confidence but code validation found ${codeConfidence}% — AI may be overconfident. Review flagged issues.`;\n    } else {\n      return `AI reports ${aiConfidence}% confidence but code validation found ${codeConfidence}% — the text may be better than AI suggests.`;\n    }\n  }\n  return null;\n}\n```\n\n### Files changed\n- `src/services/test-creation/thcs-pass2-repair.ts` (NEW — ~80 lines)\n\n### Dependencies (all planned upstream)\n- `thcs-text-validator.ts` (task `9vafnp`) → `validateRestructuredText`, `ValidationReport`\n- `thcs-prompt-builder.ts` (task `wei3uc`) → `buildRepairPrompt`, `parseAIRepairResponse`, `computeFragmentHash`, `createAuditEntry`\n- `thcs-retry-manager.ts` (task `0yg6fx`) → `executeRetryChain`, `REPAIR_CHAIN`, `RetrySession`\n\n### Consumed by\n- Task `8085zl` (Integration) → calls `executePass2Repair()` when `50 ≤ formatConfidence < 80`"
+      }
+    },
+    {
+      "id": "v4",
+      "taskId": "pqr0rq",
+      "version": 4,
+      "timestamp": "2026-03-05T02:22:23.100Z",
+      "changes": [
+        {
+          "field": "acceptanceCriteria",
+          "oldValue": [
+            {
+              "completed": false,
+              "text": "Code validation issues trigger buildRepairPrompt()"
+            },
+            {
+              "completed": false,
+              "text": "AI response parsed by parseAIRepairResponse()"
+            },
+            {
+              "completed": false,
+              "text": "Re-validation runs on fixed text"
+            },
+            {
+              "completed": false,
+              "text": "Better/worse comparison: keep better, escalate if worse"
+            },
+            {
+              "completed": false,
+              "text": "Retry follows model/temp progression from retry manager"
+            },
+            {
+              "completed": false,
+              "text": "Confidence comparison: >25pt gap → teacher warning displayed"
+            },
+            {
+              "completed": false,
+              "text": "RepairAuditEntry logged for each AI call"
+            },
+            {
+              "completed": false,
+              "text": "Order: 4 (depends on T3 9vafnp + T4 0yg6fx + T5 wei3uc)"
+            }
+          ],
+          "newValue": [
+            {
+              "completed": true,
+              "text": "Code validation issues trigger buildRepairPrompt()"
+            },
+            {
+              "completed": true,
+              "text": "AI response parsed by parseAIRepairResponse()"
+            },
+            {
+              "completed": true,
+              "text": "Re-validation runs on fixed text"
+            },
+            {
+              "completed": true,
+              "text": "Better/worse comparison: keep better, escalate if worse"
+            },
+            {
+              "completed": true,
+              "text": "Retry follows model/temp progression from retry manager"
+            },
+            {
+              "completed": true,
+              "text": "Confidence comparison: >25pt gap → teacher warning displayed"
+            },
+            {
+              "completed": true,
+              "text": "RepairAuditEntry logged for each AI call"
+            },
+            {
+              "completed": true,
+              "text": "Order: 4 (depends on T3 9vafnp + T4 0yg6fx + T5 wei3uc)"
+            }
+          ]
+        },
+        {
+          "field": "implementationNotes",
+          "newValue": "## Implementation Notes\n- Created `thcs-pass2-repair.ts` (~150 lines)\n- Glue module connecting 3 upstream modules:\n  - thcs-text-validator → ValidationReport, re-validation\n  - thcs-prompt-builder → buildRepairPrompt, parseAIRepairResponse, audit entries\n  - thcs-retry-manager → executeRetryChain, REPAIR_CHAIN, shared session\n- Key function: executePass2Repair() — async orchestrator\n- FR-13 confidence disagreement: checkConfidenceDisagreement() warns on >25pt gap\n- callAI callback pattern: integration task provides the actual AI call\n- 12 unit tests passing"
+        }
+      ],
+      "snapshot": {
+        "title": "Implement Pass 2 Repair + Confidence Warning",
+        "description": "Wire Pass 2 adaptive repair: code validation flags issues → `buildRepairPrompt()` → internal AI → re-validate → better/worse decision. Implement FR-13 confidence comparison warning (>25pt gap between AI and code → teacher warning). Depends on @task-9vafnp (code validator), @task-0yg6fx (retry manager), @task-wei3uc (prompt builder).",
+        "status": "in-progress",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "pipeline"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Code validation issues trigger buildRepairPrompt()"
+          },
+          {
+            "completed": true,
+            "text": "AI response parsed by parseAIRepairResponse()"
+          },
+          {
+            "completed": true,
+            "text": "Re-validation runs on fixed text"
+          },
+          {
+            "completed": true,
+            "text": "Better/worse comparison: keep better, escalate if worse"
+          },
+          {
+            "completed": true,
+            "text": "Retry follows model/temp progression from retry manager"
+          },
+          {
+            "completed": true,
+            "text": "Confidence comparison: >25pt gap → teacher warning displayed"
+          },
+          {
+            "completed": true,
+            "text": "RepairAuditEntry logged for each AI call"
+          },
+          {
+            "completed": true,
+            "text": "Order: 4 (depends on T3 9vafnp + T4 0yg6fx + T5 wei3uc)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### New file\n`src/services/test-creation/thcs-pass2-repair.ts`\n\n### Architecture\nAn orchestrator that connects the three upstream modules to implement the adaptive repair loop. This is NOT a large module — it's ~80 lines of glue code.\n\n### Flow\n```\nValidationReport (from code validator)\n  → filter to repairable issues (exclude unsupported types — those go to Compromise)\n  → if 0 repair issues → skip Pass 2\n  → buildRepairPrompt(issues, originalInput, processedText)\n  → call AI via retry manager (REPAIR_CHAIN)\n  → parseAIRepairResponse(rawResponse)\n  → re-validate fixed text\n  → compare: fewer issues = better\n  → if better: use as new base, continue chain\n  → if worse/same: keep previous, escalate\n  → log RepairAuditEntry per AI call\n  → check confidence disagreement (FR-13)\n  → return Pass2Result\n```\n\n### Interfaces\n\n```typescript\ninterface Pass2Result {\n  repairedText: string;            // best text after repair attempts\n  wasRepaired: boolean;            // true if any successful repair happened\n  finalReport: ValidationReport;   // re-validated report on the repaired text\n  auditLog: RepairAuditEntry[];    // one entry per AI call\n  confidenceWarning: string | null; // FR-13: message if >25pt disagreement\n  reasoningLog: ReasoningEntry[];  // aggregated from all repair attempts\n}\n```\n\n### Core Function\n\n```typescript\nasync function executePass2Repair(\n  validationReport: ValidationReport,\n  aiConfidence: number,          // from Pass 1\n  retrySession: RetrySession,    // shared session (circuit breaker)\n  callAI: (step: RetryStep) => Promise<AICallResult | null>,\n): Promise<Pass2Result>\n```\n\n#### Logic:\n1. **Filter repairable issues**: `report.issues.filter(i => !isUnsupportedTypeIssue(i))`\n   - If 0 repair issues → return early with `wasRepaired: false`\n\n2. **Build repair prompt**: `buildRepairPrompt(repairIssues, report.originalInput, report.processedText)`\n   - Also computes `fragmentHash` via `computeFragmentHash()`\n\n3. **Execute retry chain**: `executeRetryChain(session, REPAIR_CHAIN, callRepair, compareRepair)`\n   - `callRepair(step)`:\n     a. Call AI with step's provider/model/temperature + the repair prompt\n     b. Parse response: `parseAIRepairResponse(rawResponse)`\n     c. Re-validate: `validateRestructuredText(fixedText, report.originalInput, aiConfidence)`\n     d. Return `{ result: { fixedText, validationReport, reasoningLog }, issueCount: newReport.issues.length }`\n   - `compareRepair(prev, curr)`:\n     a. Compare `prev.issueCount` vs `curr.issueCount`\n     b. `fewer issues` → `better`, `more` → `worse`, `same` → `same`\n\n4. **Log audit entries**: For each AI call in the chain, create `RepairAuditEntry` via `createAuditEntry()`\n\n5. **Confidence comparison (FR-13)**:\n   - Compare `aiConfidence` (Pass 1 self-report) vs `finalReport.formatConfidence` (code validator)\n   - If `|aiConfidence - formatConfidence| > 25` → set `confidenceWarning` to human-readable message\n\n6. **Return `Pass2Result`** with the best text and aggregated diagnostics\n\n### Key Design Decisions\n\n1. **Pass 2 only handles REPAIRS** — unsupported types route to Compromise (separate task `78pz92`). The filtering happens at step 1.\n\n2. **Re-validation after each attempt** — the `callRepair` callback re-runs the full validator on the fixed text. This is cheap (deterministic regex, <50ms) and gives accurate issue counts for comparison.\n\n3. **Shared `RetrySession`** — Pass 2 shares the same session as the rest of the pipeline. If Pass 1 used 1 call, Pass 2 has 4 remaining toward the circuit breaker.\n\n4. **`callAI` callback** — Pass 2 doesn't initialize SDKs or manage API keys. The integration task (T11) provides a callback that handles provider routing.\n\n5. **Aggregated reasoning log** — Each retry produces a `ReasoningEntry[]`. Pass 2 concatenates them all for the review panel.\n\n### FR-13 Confidence Warning Implementation\n\n```typescript\nfunction checkConfidenceDisagreement(\n  aiConfidence: number,\n  codeConfidence: number\n): string | null {\n  const gap = Math.abs(aiConfidence - codeConfidence);\n  if (gap > 25) {\n    if (aiConfidence > codeConfidence) {\n      return `AI reports ${aiConfidence}% confidence but code validation found ${codeConfidence}% — AI may be overconfident. Review flagged issues.`;\n    } else {\n      return `AI reports ${aiConfidence}% confidence but code validation found ${codeConfidence}% — the text may be better than AI suggests.`;\n    }\n  }\n  return null;\n}\n```\n\n### Files changed\n- `src/services/test-creation/thcs-pass2-repair.ts` (NEW — ~80 lines)\n\n### Dependencies (all planned upstream)\n- `thcs-text-validator.ts` (task `9vafnp`) → `validateRestructuredText`, `ValidationReport`\n- `thcs-prompt-builder.ts` (task `wei3uc`) → `buildRepairPrompt`, `parseAIRepairResponse`, `computeFragmentHash`, `createAuditEntry`\n- `thcs-retry-manager.ts` (task `0yg6fx`) → `executeRetryChain`, `REPAIR_CHAIN`, `RetrySession`\n\n### Consumed by\n- Task `8085zl` (Integration) → calls `executePass2Repair()` when `50 ≤ formatConfidence < 80`",
+        "implementationNotes": "## Implementation Notes\n- Created `thcs-pass2-repair.ts` (~150 lines)\n- Glue module connecting 3 upstream modules:\n  - thcs-text-validator → ValidationReport, re-validation\n  - thcs-prompt-builder → buildRepairPrompt, parseAIRepairResponse, audit entries\n  - thcs-retry-manager → executeRetryChain, REPAIR_CHAIN, shared session\n- Key function: executePass2Repair() — async orchestrator\n- FR-13 confidence disagreement: checkConfidenceDisagreement() warns on >25pt gap\n- callAI callback pattern: integration task provides the actual AI call\n- 12 unit tests passing"
+      }
+    },
+    {
+      "id": "v5",
+      "taskId": "pqr0rq",
+      "version": 5,
+      "timestamp": "2026-03-05T02:22:34.266Z",
+      "changes": [
+        {
+          "field": "status",
+          "oldValue": "in-progress",
+          "newValue": "done"
+        }
+      ],
+      "snapshot": {
+        "title": "Implement Pass 2 Repair + Confidence Warning",
+        "description": "Wire Pass 2 adaptive repair: code validation flags issues → `buildRepairPrompt()` → internal AI → re-validate → better/worse decision. Implement FR-13 confidence comparison warning (>25pt gap between AI and code → teacher warning). Depends on @task-9vafnp (code validator), @task-0yg6fx (retry manager), @task-wei3uc (prompt builder).",
+        "status": "done",
+        "priority": "medium",
+        "assignee": "@me",
+        "labels": [
+          "from-spec-v2",
+          "pipeline"
+        ],
+        "acceptanceCriteria": [
+          {
+            "completed": true,
+            "text": "Code validation issues trigger buildRepairPrompt()"
+          },
+          {
+            "completed": true,
+            "text": "AI response parsed by parseAIRepairResponse()"
+          },
+          {
+            "completed": true,
+            "text": "Re-validation runs on fixed text"
+          },
+          {
+            "completed": true,
+            "text": "Better/worse comparison: keep better, escalate if worse"
+          },
+          {
+            "completed": true,
+            "text": "Retry follows model/temp progression from retry manager"
+          },
+          {
+            "completed": true,
+            "text": "Confidence comparison: >25pt gap → teacher warning displayed"
+          },
+          {
+            "completed": true,
+            "text": "RepairAuditEntry logged for each AI call"
+          },
+          {
+            "completed": true,
+            "text": "Order: 4 (depends on T3 9vafnp + T4 0yg6fx + T5 wei3uc)"
+          }
+        ],
+        "implementationPlan": "## Implementation Plan\n\n### New file\n`src/services/test-creation/thcs-pass2-repair.ts`\n\n### Architecture\nAn orchestrator that connects the three upstream modules to implement the adaptive repair loop. This is NOT a large module — it's ~80 lines of glue code.\n\n### Flow\n```\nValidationReport (from code validator)\n  → filter to repairable issues (exclude unsupported types — those go to Compromise)\n  → if 0 repair issues → skip Pass 2\n  → buildRepairPrompt(issues, originalInput, processedText)\n  → call AI via retry manager (REPAIR_CHAIN)\n  → parseAIRepairResponse(rawResponse)\n  → re-validate fixed text\n  → compare: fewer issues = better\n  → if better: use as new base, continue chain\n  → if worse/same: keep previous, escalate\n  → log RepairAuditEntry per AI call\n  → check confidence disagreement (FR-13)\n  → return Pass2Result\n```\n\n### Interfaces\n\n```typescript\ninterface Pass2Result {\n  repairedText: string;            // best text after repair attempts\n  wasRepaired: boolean;            // true if any successful repair happened\n  finalReport: ValidationReport;   // re-validated report on the repaired text\n  auditLog: RepairAuditEntry[];    // one entry per AI call\n  confidenceWarning: string | null; // FR-13: message if >25pt disagreement\n  reasoningLog: ReasoningEntry[];  // aggregated from all repair attempts\n}\n```\n\n### Core Function\n\n```typescript\nasync function executePass2Repair(\n  validationReport: ValidationReport,\n  aiConfidence: number,          // from Pass 1\n  retrySession: RetrySession,    // shared session (circuit breaker)\n  callAI: (step: RetryStep) => Promise<AICallResult | null>,\n): Promise<Pass2Result>\n```\n\n#### Logic:\n1. **Filter repairable issues**: `report.issues.filter(i => !isUnsupportedTypeIssue(i))`\n   - If 0 repair issues → return early with `wasRepaired: false`\n\n2. **Build repair prompt**: `buildRepairPrompt(repairIssues, report.originalInput, report.processedText)`\n   - Also computes `fragmentHash` via `computeFragmentHash()`\n\n3. **Execute retry chain**: `executeRetryChain(session, REPAIR_CHAIN, callRepair, compareRepair)`\n   - `callRepair(step)`:\n     a. Call AI with step's provider/model/temperature + the repair prompt\n     b. Parse response: `parseAIRepairResponse(rawResponse)`\n     c. Re-validate: `validateRestructuredText(fixedText, report.originalInput, aiConfidence)`\n     d. Return `{ result: { fixedText, validationReport, reasoningLog }, issueCount: newReport.issues.length }`\n   - `compareRepair(prev, curr)`:\n     a. Compare `prev.issueCount` vs `curr.issueCount`\n     b. `fewer issues` → `better`, `more` → `worse`, `same` → `same`\n\n4. **Log audit entries**: For each AI call in the chain, create `RepairAuditEntry` via `createAuditEntry()`\n\n5. **Confidence comparison (FR-13)**:\n   - Compare `aiConfidence` (Pass 1 self-report) vs `finalReport.formatConfidence` (code validator)\n   - If `|aiConfidence - formatConfidence| > 25` → set `confidenceWarning` to human-readable message\n\n6. **Return `Pass2Result`** with the best text and aggregated diagnostics\n\n### Key Design Decisions\n\n1. **Pass 2 only handles REPAIRS** — unsupported types route to Compromise (separate task `78pz92`). The filtering happens at step 1.\n\n2. **Re-validation after each attempt** — the `callRepair` callback re-runs the full validator on the fixed text. This is cheap (deterministic regex, <50ms) and gives accurate issue counts for comparison.\n\n3. **Shared `RetrySession`** — Pass 2 shares the same session as the rest of the pipeline. If Pass 1 used 1 call, Pass 2 has 4 remaining toward the circuit breaker.\n\n4. **`callAI` callback** — Pass 2 doesn't initialize SDKs or manage API keys. The integration task (T11) provides a callback that handles provider routing.\n\n5. **Aggregated reasoning log** — Each retry produces a `ReasoningEntry[]`. Pass 2 concatenates them all for the review panel.\n\n### FR-13 Confidence Warning Implementation\n\n```typescript\nfunction checkConfidenceDisagreement(\n  aiConfidence: number,\n  codeConfidence: number\n): string | null {\n  const gap = Math.abs(aiConfidence - codeConfidence);\n  if (gap > 25) {\n    if (aiConfidence > codeConfidence) {\n      return `AI reports ${aiConfidence}% confidence but code validation found ${codeConfidence}% — AI may be overconfident. Review flagged issues.`;\n    } else {\n      return `AI reports ${aiConfidence}% confidence but code validation found ${codeConfidence}% — the text may be better than AI suggests.`;\n    }\n  }\n  return null;\n}\n```\n\n### Files changed\n- `src/services/test-creation/thcs-pass2-repair.ts` (NEW — ~80 lines)\n\n### Dependencies (all planned upstream)\n- `thcs-text-validator.ts` (task `9vafnp`) → `validateRestructuredText`, `ValidationReport`\n- `thcs-prompt-builder.ts` (task `wei3uc`) → `buildRepairPrompt`, `parseAIRepairResponse`, `computeFragmentHash`, `createAuditEntry`\n- `thcs-retry-manager.ts` (task `0yg6fx`) → `executeRetryChain`, `REPAIR_CHAIN`, `RetrySession`\n\n### Consumed by\n- Task `8085zl` (Integration) → calls `executePass2Repair()` when `50 ≤ formatConfidence < 80`",
+        "implementationNotes": "## Implementation Notes\n- Created `thcs-pass2-repair.ts` (~150 lines)\n- Glue module connecting 3 upstream modules:\n  - thcs-text-validator → ValidationReport, re-validation\n  - thcs-prompt-builder → buildRepairPrompt, parseAIRepairResponse, audit entries\n  - thcs-retry-manager → executeRetryChain, REPAIR_CHAIN, shared session\n- Key function: executePass2Repair() — async orchestrator\n- FR-13 confidence disagreement: checkConfidenceDisagreement() warns on >25pt gap\n- callAI callback pattern: integration task provides the actual AI call\n- 12 unit tests passing"
+      }
+    }
+  ]
+}

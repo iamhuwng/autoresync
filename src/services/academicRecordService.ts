@@ -67,12 +67,18 @@ export async function getResultsByStudent(
 
         const resultIds = Object.keys(indexSnapshot.val());
 
-        // Fetch all results
+        // Fetch all results — gracefully skip any that throw Permission denied
         const results = await Promise.all(
             resultIds.map(async (resultId) => {
-                const resultRef = ref(database, `test_results/${resultId}`);
-                const snapshot = await get(resultRef);
-                return snapshot.exists() ? (snapshot.val() as EnhancedTestResultRecord) : null;
+                try {
+                    const resultRef = ref(database, `test_results/${resultId}`);
+                    const snapshot = await get(resultRef);
+                    return snapshot.exists() ? (snapshot.val() as EnhancedTestResultRecord) : null;
+                } catch {
+                    // Individual result may be inaccessible (e.g., missing studentId field)
+                    console.warn(`[AcademicRecord] Skipping inaccessible result: ${resultId}`);
+                    return null;
+                }
             })
         );
 
