@@ -119,7 +119,10 @@ export function convertParsedToThcsDraft(parsedTest: ParsedTest): {
                 questionNumber: pq.questionNumber,
                 type: qType,
                 questionText: pq.text || '',
-                options: (pq.options || ['', '', '', '']) as [string, string, string, string],
+                // Options must be exactly 4 — some Vietnamese MCQs have a 5th "E." option.
+                // Slice to 4 + pad with empty strings rather than a raw cast (which
+                // allows 5+ items through and breaks THCSMCQBlock).
+                options: (['', '', '', ''] as string[]).map((_, i) => (pq.options?.[i] ?? '')) as [string, string, string, string],
                 correctAnswer: pq.correctAnswer || '',
             };
 

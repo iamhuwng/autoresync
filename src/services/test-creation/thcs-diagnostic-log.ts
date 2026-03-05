@@ -13,7 +13,7 @@ import type { ReclassificationEvent } from './thcs-type-classifier';
 export interface ParseDebugData {
     timestamp?: string;
     pipeline?: string;
-    provider?: 'groq' | 'gemini' | 'regex-fallback';
+    provider?: 'groq' | 'gemini' | 'regex-fallback' | 'pipeline-v2' | 'external-retry';
     parseDurationMs?: number;
     inputLength?: number;
     cleanedLength?: number;
