@@ -3,19 +3,22 @@
  * Two-column sticky layout on desktop, collapsible slide-up on mobile.
  * Suppresses passage title when it duplicates the section name.
  * Supports rich-text formatting: **bold**, __underline__, {{braces}}, [I]-[X] markers.
+ * Supports cloze blank markers: (N)______ → bold number + wide visual blank.
  */
 import React, { useState, useEffect } from 'react';
 
 /**
  * Renders passage content with rich-text formatting markers.
  * Parses: **bold** → <strong>, __underline__ → <u>, {{text}} → <u>, [I]-[X] → <strong>
+ * Cloze blanks: (1)______ → bold purple number + wide blank line
+ * Groups consecutive non-empty lines into paragraphs (blank lines = paragraph breaks).
  * PRD-0032 §FR2
  */
 function renderPassageRichText(text: string): React.ReactNode[] {
     if (!text) return [];
 
-    // Regex matches all formatting markers in one pass
-    const markerRegex = /(\*\*(.+?)\*\*|__(.+?)__|\{\{(.+?)\}\}|\[(I{1,3}|IV|VI{0,3}|V|IX|X)\])/g;
+    // Regex matches cloze blank markers + all formatting markers in one pass
+    const markerRegex = /(\(\d+\)\s*_{2,}|\*\*(.+?)\*\*|__(.+?)__|{{(.+?)}}|\[(I{1,3}|IV|VI{0,3}|V|IX|X)\])/g;
     let keyIdx = 0;
 
     const processLine = (line: string): React.ReactNode[] => {
@@ -30,7 +33,22 @@ function renderPassageRichText(text: string): React.ReactNode[] {
                 nodes.push(line.slice(lastIndex, match.index));
             }
 
-            if (match[2] !== undefined) {
+            // Cloze blank marker: (1)______ → bold number + wide blank
+            const clozeMatch = match[0].match(/^\((\d+)\)\s*_{2,}$/);
+            if (clozeMatch) {
+                nodes.push(
+                    <span key={`cloze-${keyIdx++}`} style={{ whiteSpace: 'nowrap' }}>
+                        <strong style={{ color: '#6366f1', fontSize: '0.95em' }}>({clozeMatch[1]})</strong>
+                        <span style={{
+                            display: 'inline-block',
+                            width: '6em',
+                            borderBottom: '2px solid #94a3b8',
+                            marginLeft: '0.15em',
+                            verticalAlign: 'text-bottom',
+                        }} />
+                    </span>
+                );
+            } else if (match[2] !== undefined) {
                 // **bold**
                 nodes.push(<strong key={`b-${keyIdx++}`}>{match[2]}</strong>);
             } else if (match[3] !== undefined) {
@@ -55,25 +73,35 @@ function renderPassageRichText(text: string): React.ReactNode[] {
         return nodes;
     };
 
-    // Split by lines, preserving paragraph breaks
+    // Group lines into paragraphs (separated by blank lines)
+    // Consecutive non-empty lines form one paragraph — joined with space
     const lines = text.split('\n');
-    const result: React.ReactNode[] = [];
+    const paragraphs: string[][] = [];
+    let currentParagraph: string[] = [];
 
-    for (let i = 0; i < lines.length; i++) {
-        const lineText = lines[i]!;
-        if (lineText === '') {
-            // Blank line = paragraph break
-            result.push(<br key={`nl-${keyIdx++}`} />);
+    for (const line of lines) {
+        if (line.trim() === '') {
+            if (currentParagraph.length > 0) {
+                paragraphs.push(currentParagraph);
+                currentParagraph = [];
+            }
         } else {
-            result.push(...processLine(lineText));
-        }
-        // Add line break between non-empty lines (not after last line)
-        if (i < lines.length - 1 && lineText !== '') {
-            result.push(<br key={`lb-${keyIdx++}`} />);
+            currentParagraph.push(line.trim());
         }
     }
+    if (currentParagraph.length > 0) {
+        paragraphs.push(currentParagraph);
+    }
 
-    return result;
+    // Render each paragraph as a <p> block
+    return paragraphs.map((para, i) => {
+        const joined = para.join(' ');
+        return (
+            <p key={`p-${i}`} style={{ margin: '0 0 0.75em 0' }}>
+                {processLine(joined)}
+            </p>
+        );
+    });
 }
 
 function useMediaQuery(query: string) {
@@ -158,7 +186,6 @@ const THCSPassagePanel: React.FC<THCSPassagePanelProps> = ({
                         <div style={{
                             flex: 1, overflowY: 'auto', padding: '1rem',
                             fontSize: '0.9375rem', lineHeight: 1.8,
-                            whiteSpace: 'pre-wrap',
                         }}>
                             {renderPassageRichText(passage.content)}
                         </div>
@@ -198,7 +225,7 @@ const THCSPassagePanel: React.FC<THCSPassagePanelProps> = ({
                         style={{ maxWidth: '100%', borderRadius: '0.5rem', marginBottom: '0.75rem' }}
                     />
                 )}
-                <div style={{ fontSize: '0.9375rem', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
+                <div style={{ fontSize: '0.9375rem', lineHeight: 1.8 }}>
                     {renderPassageRichText(passage.content)}
                 </div>
             </div>
@@ -226,7 +253,7 @@ const THCSPassagePanel: React.FC<THCSPassagePanelProps> = ({
                     style={{ maxWidth: '100%', borderRadius: '0.5rem', marginBottom: '0.75rem' }}
                 />
             )}
-            <div style={{ fontSize: '0.9375rem', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
+            <div style={{ fontSize: '0.9375rem', lineHeight: 1.8 }}>
                 {renderPassageRichText(passage.content)}
             </div>
             {onScrollToQuestions && (
