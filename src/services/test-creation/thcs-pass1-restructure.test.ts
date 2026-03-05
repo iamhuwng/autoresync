@@ -21,7 +21,7 @@ describe('buildPass1Prompt', () => {
         const result = buildPass1Prompt('input');
         expect(result).toContain('RESTRUCTURING TASKS');
         expect(result).toContain('[CONFIDENCE: N]');
-        expect(result).toContain('[AI-INFERRED]');
+        expect(result).toContain('PRODUCE stats');
     });
 });
 

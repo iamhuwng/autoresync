@@ -20,6 +20,7 @@ import { executeCrossfixLoop } from './thcs-pass2-repair';
 import type { AICallFn } from './thcs-pass2-repair';
 import { executeCompromiseStep } from './thcs-compromise-step';
 import type { CompromiseResult } from './thcs-compromise-step';
+import { executeAnswerInference } from './thcs-answer-inference';
 import { createRetrySession } from './thcs-retry-manager';
 import type { RetryStep } from './thcs-retry-manager';
 import type { RepairAuditEntry } from './thcs-prompt-builder';
@@ -83,6 +84,7 @@ export interface PipelineDebug {
     compromisedSections: CompromiseResult['compromisedSections'];
     skippedSections: CompromiseResult['skippedSections'];
     hasInferredAnswers: boolean;
+    inferredAnswerCount: number;
     pipeline: string;
     provider: string;
     parseDurationMs: number;
@@ -760,8 +762,47 @@ export async function parseThcsText(
             return { success: false, error: 'Pipeline extracted 0 questions. Please check the text format.' };
         }
 
+        // --- Stage 5.5: Answer Inference (if no answer key found) ----
+        let inferredAnswerCount = 0;
         if (answeredCount === 0) {
-            warnings.push({ type: 'missing-answer', message: 'No answer key found. You can add answers manually in the editor.' });
+            onProgress?.({ stage: 'ai-polish', percent: 88, message: 'No answer key found — inferring answers with AI...' });
+            console.log('[parseThcsText] Stage 5.5: No answer key found — running AI answer inference');
+
+            // Use Gemini Flash for English comprehension (better than Groq for solving questions)
+            const inferCallAI = async (systemMessage: string, prompt: string): Promise<string | null> => {
+                const geminiResult = await callGeminiDirectPlainText(prompt, systemMessage, 'gemini-2.5-flash');
+                if (geminiResult) return geminiResult;
+                // Gemini failed — fall back to Groq
+                console.warn('[AnswerInference] Gemini failed — falling back to Groq');
+                return callGroqDirectPlainText(prompt, systemMessage);
+            };
+
+            const inferResult = await executeAnswerInference(parsedTest.sections, inferCallAI);
+            inferredAnswerCount = inferResult.totalInferred;
+
+            // Merge inferred answers into answer key and questions
+            for (const inferred of inferResult.answers) {
+                if (!parsedTest.answerKey[inferred.questionNumber]) {
+                    parsedTest.answerKey[inferred.questionNumber] = inferred.answer;
+                }
+                // Also set correctAnswer on the question object
+                for (const section of parsedTest.sections) {
+                    for (const q of section.questions) {
+                        if (q.questionNumber === inferred.questionNumber && !q.correctAnswer) {
+                            q.correctAnswer = inferred.answer;
+                        }
+                    }
+                }
+            }
+
+            if (inferredAnswerCount > 0) {
+                warnings.push({
+                    type: 'missing-answer',
+                    message: `No answer key found in the original text. AI inferred ${inferredAnswerCount}/${inferResult.totalAttempted} answers — please verify these in the editor.`,
+                });
+            } else {
+                warnings.push({ type: 'missing-answer', message: 'No answer key found and AI could not infer answers. You can add answers manually in the editor.' });
+            }
         } else if (answeredCount < totalQuestions) {
             warnings.push({ type: 'missing-answer', message: `${totalQuestions - answeredCount} question(s) are missing answer keys. Review in editor.` });
         }
@@ -790,7 +831,8 @@ export async function parseThcsText(
             auditLog: allAuditEntries,
             compromisedSections: compromiseResult?.compromisedSections || [],
             skippedSections: compromiseResult?.skippedSections || [],
-            hasInferredAnswers: aiResult?.hasInferredAnswers ?? false,
+            hasInferredAnswers: inferredAnswerCount > 0 || (aiResult?.hasInferredAnswers ?? false),
+            inferredAnswerCount,
             pipeline: 'v2-brain-janitor-grunt',
             provider: usedProvider,
             parseDurationMs: Date.now() - parseStart,

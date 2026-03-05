@@ -53,7 +53,6 @@ RESTRUCTURING TASKS (apply ALL that are needed):
 4. INSERT line breaks: Ensure blank lines between sections, between questions, between options
 5. SPLIT ambiguous sections: If one section header covers two DIFFERENT exercise types (detectable from content patterns like MCQ mixed with fill-in), split into two separate sections with appropriate headers
 6. PRODUCE stats: At the very end, append: [STATS: X questions, Y answers, Z sections]
-7. INFER missing answers: If NO answer key section exists at all, attempt to infer from context and mark each with [AI-INFERRED] (e.g., "1. B [AI-INFERRED]")
 
 CRITICAL RULES:
 - Output PLAIN TEXT only (not JSON, not markdown code blocks)
