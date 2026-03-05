@@ -25,7 +25,10 @@ export interface RepairFragment {
 export type CompromiseRoute =
     | 'matching' | 'true-false' | 'translation' | 'matching-headings'
     | 'gap-fill-open' | 'word-ordering' | 'picture-description-mcq'
-    | 'picture-description-open';
+    | 'picture-description-open'
+    // Alternate routes (FR-11 Task 5.2)
+    | 'matching-alt' | 'true-false-alt' | 'gap-fill-alt'
+    | 'translation-alt' | 'word-ordering-alt';
 
 export interface CompromiseTemplate {
     sourceType: CompromiseRoute;
@@ -100,6 +103,7 @@ export const REPAIR_FRAGMENTS: Record<IssueCode, RepairFragment> = {
     MISSING_BRACKETS: { issueCode: 'MISSING_BRACKETS', priority: 5, instruction: 'Add missing verb/word brackets in verb-form or word-form questions.', example: 'BEFORE: Question 1. He ______ go to school.\nAFTER: Question 1. He ______ (go) to school.', constraint: 'Only add brackets if the answer key suggests a verb/word transformation. Otherwise leave as-is.' },
     MISSING_ARROW: { issueCode: 'MISSING_ARROW', priority: 5, instruction: 'Add => separator in sentence rewrite questions between original and given start.', example: 'BEFORE: Question 1. He is tall.\nHe is not...\nAFTER: Question 1. He is tall.\n=> He is not...', constraint: 'The => goes on a new line before the given start words.' },
     WORD_BANK_NOT_TAGGED: { issueCode: 'WORD_BANK_NOT_TAGGED', priority: 5, instruction: 'Tag detected word lists with [WORD BANK: word1 / word2 / ...] format.', example: 'BEFORE: pollution, resources, protect, harmful\nAFTER: [WORD BANK: pollution / resources / protect / harmful]', constraint: 'Only tag actual word banks (lists near cloze passages). Do NOT tag option lists.' },
+    MISSING_MARKERS: { issueCode: 'MISSING_MARKERS', priority: 5, instruction: 'Add missing formatting markers (bold, underline, braces) for pronunciation-type or word-form-type questions.', example: 'BEFORE: He go to school every day.\nAFTER: He ______ (go) to school every day.', constraint: 'Only add markers where the answer key or context clearly indicates a transformation exercise.' },
 };
 
 // ── Compromise Templates (FR-10) ──────────────────────────────
@@ -160,6 +164,42 @@ export const COMPROMISE_TEMPLATES: Record<CompromiseRoute, CompromiseTemplate> =
         example: 'SKIP: Picture description (open-ended) cannot be auto-graded.',
         constraint: 'Always skip. Provide teacher warning.',
         preserveFields: [],
+    },
+    // ── Alternate Routes (FR-11 Task 5.2) ──
+    'matching-alt': {
+        sourceType: 'matching-alt', targetType: 'verb-form',
+        instruction: 'Convert this matching exercise into fill-in-the-blank questions. Each matched pair becomes one question where the student fills in the matching item.',
+        example: 'Original: 1. library - A. a place to borrow books\nConverted: 1. A ______ is a place to borrow books. (library)',
+        constraint: 'Preserve ALL original content items. Do not invent new vocabulary.',
+        preserveFields: ['questionNumber', 'correctAnswer'],
+    },
+    'true-false-alt': {
+        sourceType: 'true-false-alt', targetType: 'closest-meaning',
+        instruction: 'Convert each True/False statement into an MCQ question asking which paraphrase is closest in meaning to the original. Create 4 options (A-D) where one matches the original meaning.',
+        example: 'Original: 1. The sun rises in the west. (F)\nConverted: 1. Which sentence has the closest meaning?\nA. The sun rises in the east. B. The sun sets in the west. C. The sun rises in the west. D. The moon rises in the west.',
+        constraint: 'The correct answer MUST be the option that reflects the TRUE version of the statement.',
+        preserveFields: ['questionNumber'],
+    },
+    'gap-fill-alt': {
+        sourceType: 'gap-fill-alt', targetType: 'mcq-grammar',
+        instruction: 'Convert this open-ended gap-fill exercise into MCQ format. For each blank, generate 4 options (A-D) where one is the correct answer.',
+        example: 'Original: She ______ (go) to school every day.\nConverted: She ______ to school every day.\nA. go  B. goes  C. going  D. gone',
+        constraint: 'The correct option must be the original expected answer. Distractors must be grammatically plausible.',
+        preserveFields: ['questionNumber', 'correctAnswer', 'questionText'],
+    },
+    'translation-alt': {
+        sourceType: 'translation-alt', targetType: 'sentence-rewrite',
+        instruction: 'Convert this translation exercise into sentence-rewrite format. Use the target language sentence as the question and ask students to rewrite using given words.',
+        example: 'Original: Translate: She goes to school every day.\nConverted: Rewrite the sentence: She goes to school every day. (using: attend)',
+        constraint: 'If the original has no clear target sentence to rewrite from, this conversion is NOT possible — return FAIL.',
+        preserveFields: ['questionNumber'],
+    },
+    'word-ordering-alt': {
+        sourceType: 'word-ordering-alt', targetType: 'sentence-arrangement',
+        instruction: 'Re-tag this word-ordering exercise as sentence-arrangement. The content format is often identical — just change the type tag.',
+        example: 'No content change needed — this is a re-classification.',
+        constraint: 'Preserve all original content exactly. Only the type tag changes.',
+        preserveFields: ['questionNumber', 'options', 'correctAnswer', 'questionText'],
     },
 };
 

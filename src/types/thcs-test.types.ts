@@ -30,7 +30,8 @@ export type Phase2QuestionType =
     | 'word-form'              // B4: Supply correct word form
     | 'reading-cloze-wordbank' // C2: Passage cloze with word bank dropdown
     | 'sentence-rewrite'       // E1: Rewrite with given start
-    | 'sentence-rewrite-keyword'; // E2: Rewrite using keyword
+    | 'sentence-rewrite-keyword' // E2: Rewrite using keyword
+    | 'raw-text-fallback';     // FR-12: compromise failure fallback
 
 /** All question types (Phase 1 + Phase 2) */
 export type THCSQuestionType = MCQIntent | Phase2QuestionType;
@@ -121,6 +122,10 @@ export interface THCSSection {
     // Phase 3: Question shuffling (Mã Đề — §4.5)
     shuffle?: boolean;                     // true = shuffle question order within this section per student (default false)
     shuffleOptions?: boolean;              // true = also shuffle MCQ options A↔B↔C↔D (only meaningful when shuffle === true, default false)
+
+    // FR-12: Raw text fallback fields (set when compromise conversion fails)
+    rawText?: string;                      // Original raw section text preserved as-is
+    isRawTextFallback?: boolean;           // true when this section failed compromise
 }
 
 /**
@@ -362,6 +367,7 @@ export const ALL_INSTRUCTION_TEMPLATES: Record<THCSQuestionType, string> = {
     'reading-cloze-wordbank': 'Read the passage and fill in each blank with a word from the word bank.',
     'sentence-rewrite': 'Rewrite each sentence so that it has the same meaning, beginning with the given words.',
     'sentence-rewrite-keyword': 'Rewrite each sentence using the given word. Do not change the word given.',
+    'raw-text-fallback': 'This section requires manual review. Read the text and answer below.',
 };
 
 /**
@@ -499,4 +505,5 @@ export const INTENT_SKILL_MAP: Record<string, { name: string; category: string }
     'reading-cloze-wordbank': { name: 'Reading Cloze (Word Bank)', category: 'Reading' },
     'sentence-rewrite': { name: 'Sentence Rewriting', category: 'Writing' },
     'sentence-rewrite-keyword': { name: 'Sentence Rewriting (Keyword)', category: 'Writing' },
+    'raw-text-fallback': { name: 'Manual Review', category: 'Other' },
 };

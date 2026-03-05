@@ -82,6 +82,8 @@ export function THCSParseReviewPanel({ parsedTest, onBack, onProceed }: THCSPars
     const isCompromised = (si: number) => debug?.compromisedSections?.some(c => c.sectionIndex === si);
     const getCompromiseInfo = (si: number) => debug?.compromisedSections?.find(c => c.sectionIndex === si);
     const isSkipped = (si: number) => debug?.skippedSections?.some(s => s.sectionIndex === si);
+    const isRawFallback = (si: number) =>
+        editedTest.sections[si]?.detectedType === 'raw-text-fallback';
 
     const handleTypeChange = (sectionIndex: number, newType: THCSQuestionType) => {
         const updated = { ...editedTest };
@@ -186,6 +188,10 @@ export function THCSParseReviewPanel({ parsedTest, onBack, onProceed }: THCSPars
                                 {isSkipped(si) && (
                                     <Badge size="xs" color="red" variant="light">⏭ Skipped</Badge>
                                 )}
+                                {/* Pipeline V2: Raw-text-fallback badge */}
+                                {isRawFallback(si) && (
+                                    <Badge size="xs" color="orange" variant="light">📝 Raw Text</Badge>
+                                )}
                             </Group>
                             <Badge size="sm" color={CONFIDENCE_COLOR(section.typeConfidence)}>
                                 {section.detectedType} ({section.typeConfidence}%)
@@ -215,6 +221,21 @@ export function THCSParseReviewPanel({ parsedTest, onBack, onProceed }: THCSPars
                                     </Badge>
                                 ))}
                             </Group>
+                        )}
+
+                        {/* Raw-text-fallback warning banner */}
+                        {isRawFallback(si) && (
+                            <div style={{
+                                marginTop: '0.5rem',
+                                padding: '0.5rem 0.75rem',
+                                background: 'rgba(251,191,36,0.1)',
+                                borderRadius: '0.375rem',
+                                border: '1px solid rgba(251,191,36,0.25)',
+                            }}>
+                                <Text size="xs" c="#92400e" fw={500}>
+                                    ⚠️ This section could not be auto-converted. Students will see the raw text and type their answers.
+                                </Text>
+                            </div>
                         )}
                     </div>
                 ))}

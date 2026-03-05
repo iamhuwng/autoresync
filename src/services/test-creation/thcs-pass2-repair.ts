@@ -1,13 +1,14 @@
 /**
- * THCS Pass 2 — Adaptive Repair (FR-5/7/9/13)
+ * THCS Pass 2 — Crossfix Loop (FR-5/7/9/13)
  *
- * Glue module connecting code validator → prompt builder → retry manager.
- * Runs when: 50 ≤ formatConfidence < 80 AND issues exist.
+ * 3-round iterative repair loop that cross-references AI output
+ * against the code validator. Each round escalates temperature
+ * and may switch provider.
  *
  * Flow:
- *   ValidationReport → filter repairable issues → buildRepairPrompt
- *   → AI call via retry chain → parseAIRepairResponse → re-validate
- *   → better/worse decision → log audit → check confidence gap
+ *   validate → build repair prompt → AI fix → re-validate
+ *   → better? keep: discard → next round
+ *   → repeat until confidence ≥ 70 + zero issues, or 3 rounds
  */
 
 import type { ValidationReport } from './thcs-text-validator';
@@ -24,6 +25,7 @@ export interface RepairAttemptResult {
     report: ValidationReport;
 }
 
+/** @deprecated Use CrossfixResult instead. Kept for backward compatibility. */
 export interface Pass2Result {
     repairedText: string;
     wasRepaired: boolean;
@@ -33,7 +35,25 @@ export interface Pass2Result {
     reasoningLog: ReasoningEntry[];
 }
 
+export interface CrossfixResult {
+    bestText: string;
+    wasRepaired: boolean;
+    finalReport: ValidationReport;
+    auditLog: RepairAuditEntry[];
+    reasoningLog: ReasoningEntry[];
+    roundsExecuted: number;
+    confidenceWarning: string | null;
+}
+
 export type AICallFn = (system: string, prompt: string, step: RetryStep) => Promise<string | null>;
+
+// ── Crossfix Steps (escalating model/temperature) ─────────────
+
+const CROSSFIX_STEPS: RetryStep[] = [
+    { provider: 'groq', model: 'llama-3.3-70b-versatile', temperature: 0.1 },
+    { provider: 'gemini', model: 'gemini-2.5-flash', temperature: 0.2 },
+    { provider: 'gemini', model: 'gemini-2.5-flash', temperature: 0.3 },
+];
 
 // ── Confidence Warning (FR-13) ────────────────────────────────
 
@@ -52,28 +72,115 @@ export function checkConfidenceDisagreement(
     return null;
 }
 
-// ── Main Orchestrator ─────────────────────────────────────────
+// ── Crossfix Loop (FR-5) ──────────────────────────────────────
 
 /**
- * Execute Pass 2 adaptive repair.
+ * Execute the crossfix loop — iterative AI repair with escalating models.
+ * Runs up to 3 rounds, keeping the best result (fewest issues).
+ */
+export async function executeCrossfixLoop(
+    initialText: string,
+    originalText: string,
+    aiConfidence: number,
+    callAI: AICallFn,
+): Promise<CrossfixResult> {
+    const MAX_ROUNDS = 3;
+    let bestText = initialText;
+    let bestIssueCount = Infinity;
+    let bestReport: ValidationReport | null = null;
+    const auditLog: RepairAuditEntry[] = [];
+    const allReasoning: ReasoningEntry[] = [];
+    let roundsExecuted = 0;
+
+    for (let round = 0; round < MAX_ROUNDS; round++) {
+        roundsExecuted = round + 1;
+
+        // 1. Validate current bestText
+        const report = validateRestructuredText(bestText, originalText, aiConfidence);
+        if (bestReport === null) {
+            bestReport = report;
+            bestIssueCount = report.issues.length;
+        }
+
+        // 2. Exit if good enough
+        if (report.formatConfidence >= 70 && report.issues.length === 0) {
+            bestReport = report;
+            break;
+        }
+
+        // 3. Build targeted repair prompt
+        const issueCodes = report.issues.map(i => i.code);
+        const repairPrompt = buildRepairPrompt(issueCodes, originalText, bestText);
+
+        // 4. AI fixes (escalating config per round)
+        const step = CROSSFIX_STEPS[round]!;
+        const rawResponse = await callAI(
+            'You are an expert at fixing Vietnamese THCS English test formatting.',
+            repairPrompt,
+            step,
+        );
+        if (!rawResponse) break; // AI failed, use bestText
+
+        // 5. Parse response
+        const parsed = parseAIRepairResponse(rawResponse);
+        allReasoning.push(...parsed.reasoningLog);
+
+        // 6. Re-validate fixed text
+        const newReport = validateRestructuredText(parsed.fixedText, originalText, aiConfidence);
+
+        // 7. Better or worse?
+        if (newReport.issues.length < bestIssueCount) {
+            bestText = parsed.fixedText;
+            bestIssueCount = newReport.issues.length;
+            bestReport = newReport;
+        }
+        // If worse: keep previous best, continue to next round
+
+        // 8. Log audit
+        auditLog.push(createAuditEntry(
+            `crossfix-round-${round}`,
+            step.temperature,
+            issueCodes,
+            newReport.formatConfidence,
+            parsed.reasoningLog,
+        ));
+    }
+
+    // Ensure bestReport is never null (covers edge case of empty input)
+    if (!bestReport) {
+        bestReport = validateRestructuredText(bestText, originalText, aiConfidence);
+    }
+
+    const confidenceWarning = checkConfidenceDisagreement(aiConfidence, bestReport.formatConfidence);
+
+    return {
+        bestText,
+        wasRepaired: bestText !== initialText,
+        finalReport: bestReport,
+        auditLog,
+        reasoningLog: allReasoning,
+        roundsExecuted,
+        confidenceWarning,
+    };
+}
+
+// ── Legacy Pass 2 (bridge — used until orchestrator is fully migrated) ──
+
+/**
+ * @deprecated Use executeCrossfixLoop instead. Kept for backward compatibility.
  */
 export async function executePass2Repair(
     validationReport: ValidationReport,
     aiConfidence: number,
     retrySession: RetrySession,
     callAI: AICallFn,
-    // When the Compromise Step has already modified bestText, pass it here so
-    // Pass 2 repairs the post-compromise version, not the pre-compromise snapshot
-    // stored in validationReport.processedText.
     currentText?: string,
 ): Promise<Pass2Result> {
     const auditLog: RepairAuditEntry[] = [];
     const allReasoning: ReasoningEntry[] = [];
 
-    // 1. Filter repairable issues (exclude unsupported type issues — those go to Compromise)
     const repairableIssues = validationReport.issues;
 
-    // Early return if nothing to repair
     if (repairableIssues.length === 0) {
         return {
             repairedText: currentText ?? validationReport.processedText,
@@ -85,7 +192,6 @@ export async function executePass2Repair(
         };
     }
 
-    // 2. Build repair prompt — use currentText if provided (post-compromise best text).
     const issueCodes = repairableIssues.map(i => i.code);
     const repairPrompt = buildRepairPrompt(
         issueCodes,
@@ -93,13 +199,9 @@ export async function executePass2Repair(
         currentText ?? validationReport.processedText,
     );
 
-
-    // 3. Execute retry chain with repair callback
-    // The retry manager handles comparison (fewer issues = better) internally.
     const chainResult = await executeRetryChain<RepairAttemptResult>(
         retrySession,
         REPAIR_CHAIN,
-        // callFn: execute one repair attempt → returns AICallOutcome or null
         async (step: RetryStep): Promise<AICallOutcome<RepairAttemptResult> | null> => {
             const rawResponse = await callAI(
                 'You are an expert at fixing Vietnamese THCS English test formatting.',
@@ -108,18 +210,15 @@ export async function executePass2Repair(
             );
             if (!rawResponse) return null;
 
-            // Parse AI response
             const parsed = parseAIRepairResponse(rawResponse);
             allReasoning.push(...parsed.reasoningLog);
 
-            // Re-validate fixed text
             const newReport = validateRestructuredText(
                 parsed.fixedText,
                 validationReport.originalInput,
                 aiConfidence,
             );
 
-            // Log audit entry
             auditLog.push(createAuditEntry(
                 `${step.provider}/${step.model}`,
                 step.temperature,
@@ -138,7 +237,6 @@ export async function executePass2Repair(
         },
     );
 
-    // 4. Determine best result
     let finalText = validationReport.processedText;
     let finalReport = validationReport;
     let wasRepaired = false;
@@ -149,7 +247,6 @@ export async function executePass2Repair(
         wasRepaired = finalReport.issues.length < validationReport.issues.length;
     }
 
-    // 5. Check confidence disagreement (FR-13)
     const confidenceWarning = checkConfidenceDisagreement(aiConfidence, finalReport.formatConfidence);
 
     return {

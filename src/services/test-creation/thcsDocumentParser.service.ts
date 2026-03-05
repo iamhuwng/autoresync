@@ -16,8 +16,8 @@ export { convertParsedToThcsDraft } from './thcs-draft-converter';
 import { executePass1 } from './thcs-pass1-restructure';
 import { validateRestructuredText, validateOriginalText, detectSectionBoundaries } from './thcs-text-validator';
 import type { ValidationReport } from './thcs-text-validator';
-import { executePass2Repair } from './thcs-pass2-repair';
-import type { Pass2Result } from './thcs-pass2-repair';
+import { executeCrossfixLoop } from './thcs-pass2-repair';
+import type { AICallFn } from './thcs-pass2-repair';
 import { executeCompromiseStep } from './thcs-compromise-step';
 import type { CompromiseResult } from './thcs-compromise-step';
 import { createRetrySession } from './thcs-retry-manager';
@@ -431,6 +431,14 @@ export async function parseThcsText(
             return callGeminiDirectPlainText(prompt, systemMessage);
         };
 
+        // Build the AI callback for crossfix loop (Groq → Gemini, typed as AICallFn)
+        const repairCallAI: AICallFn = async (system, prompt, step) => {
+            if (step.provider === 'gemini') {
+                return callGeminiDirectPlainText(prompt, system, step.model);
+            }
+            return callGroqDirectPlainText(prompt, system, step.model, step.temperature);
+        };
+
         // Run AI restructuring and code validation in parallel
         const [aiResult, codeReport] = await Promise.all([
             executePass1(cleaned, createRetrySession(), callInternalAI).catch((err) => {
@@ -491,31 +499,19 @@ export async function parseThcsText(
 
         // 4a: Optional crossfix loop (if decision tree chose 'crossfix')
         if (decision === 'crossfix') {
-            onProgress?.({ stage: 'parsing', percent: 35, message: 'Cross-fixing formatting issues...' });
-            // TODO: Task 4.0 — implement executeCrossfixLoop and call it here
-            // const crossfixResult = await executeCrossfixLoop(
-            //     bestText, cleaned, aiResult?.confidence ?? 0, crossfixCallAI,
-            // );
-            // bestText = crossfixResult.bestText;
-            // allAuditEntries.push(...crossfixResult.auditLog);
-            // confidenceWarning = crossfixResult.confidenceWarning;
+            onProgress?.({ stage: 'ai-polish', percent: 40, message: 'Crossfix loop — repairing issues...' });
 
-            // Interim: use the old repair as a bridge until crossfix loop is implemented
-            const repairCallAI = async (system: string, prompt: string, step: RetryStep): Promise<string | null> => {
-                if (step.provider === 'gemini') {
-                    return callGeminiDirectPlainText(prompt, system, step.model);
-                }
-                return callGroqDirectPlainText(prompt, system, step.model, step.temperature);
-            };
-            if (validationReport.issues.length > 0) {
-                const pass2: Pass2Result = await executePass2Repair(
-                    validationReport, aiResult?.confidence ?? 0, createRetrySession(), repairCallAI,
-                    bestText,
-                );
-                bestText = pass2.repairedText;
-                allAuditEntries.push(...pass2.auditLog);
-                confidenceWarning = pass2.confidenceWarning;
-            }
+            const crossfixResult = await executeCrossfixLoop(
+                bestText,
+                cleaned,
+                aiResult?.confidence ?? 0,
+                repairCallAI,
+            );
+
+            bestText = crossfixResult.bestText;
+            allAuditEntries.push(...crossfixResult.auditLog);
+            confidenceWarning = crossfixResult.confidenceWarning;
+            console.log(`[parseThcsText] Crossfix done: rounds=${crossfixResult.roundsExecuted}, wasRepaired=${crossfixResult.wasRepaired}, confidence=${crossfixResult.finalReport.formatConfidence}`);
         }
 
         // 4b: Compromise unsupported types (BOTH paths — compromise handles types that crossfix doesn't)

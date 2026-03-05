@@ -146,6 +146,20 @@ export function gradeClozeQuestion(
 }
 
 // ═══════════════════════════════════════════════════════════════
+// FR-12: checkRawTextAnswer
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * FR-12: Check raw-text-fallback answer via string comparison.
+ * Trimmed, case-insensitive, whitespace-normalized.
+ */
+export function checkRawTextAnswer(studentAnswer: string, correctAnswer: string): boolean {
+    if (!correctAnswer || correctAnswer === '?') return false; // teacher grades manually
+    const normalize = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
+    return normalize(studentAnswer) === normalize(correctAnswer);
+}
+
+// ═══════════════════════════════════════════════════════════════
 // Task 5.4 + 5.5: markThcsTest (extended for all question types)
 // ═══════════════════════════════════════════════════════════════
 
@@ -270,6 +284,20 @@ export function markThcsTest(
                     pointsMax: questionMaxPoints,
                     writingResult,
                 };
+            } else if (question.type === 'raw-text-fallback') {
+                // ─── Raw text fallback grading ─────────────────────
+                const studentAnswer = typeof rawAnswer === 'string' ? rawAnswer : '';
+                const isCorrect = checkRawTextAnswer(studentAnswer, (question.correctAnswer as string) || '');
+                const pointsEarned = isCorrect ? questionMaxPoints : 0;
+
+                qResult = {
+                    questionNumber: question.questionNumber,
+                    isCorrect,
+                    studentAnswer,
+                    correctAnswer: (question.correctAnswer as string) || '?',
+                    pointsEarned,
+                    pointsMax: questionMaxPoints,
+                };
             } else {
                 // Unknown type — skip with 0 points
                 qResult = {
@@ -376,6 +404,7 @@ function mapQuestionType(qType: THCSQuestionType): string {
     if (qType === 'verb-form' || qType === 'word-form') return 'fill-in';
     if (qType === 'sentence-rewrite' || qType === 'sentence-rewrite-keyword') return 'writing';
     if (qType === 'reading-cloze-wordbank') return 'cloze';
+    if (qType === 'raw-text-fallback') return 'raw-text';
     return 'multiple-choice';
 }
 

@@ -3,7 +3,7 @@
  * PRD-0027 Task 2.5
  */
 import { describe, it, expect } from 'vitest';
-import { markThcsTest, thcsResultToTestMarkingResult } from './thcsAutoMarking.service';
+import { markThcsTest, thcsResultToTestMarkingResult, checkRawTextAnswer } from './thcsAutoMarking.service';
 import type { THCSSection, THCSGradingResult } from '../types/thcs-test.types';
 
 /**
@@ -25,7 +25,7 @@ function makeQuestion(questionNumber: number, correctAnswer: 'A' | 'B' | 'C' | '
     return {
         id: `q-${questionNumber}`,
         questionNumber,
-        type: 'mcq-grammar' as const,
+        type: intent as any,       // breakdown is keyed by question.type
         intent: intent as any,
         questionText: `Question ${questionNumber}`,
         options: ['Option A', 'Option B', 'Option C', 'Option D'] as [string, string, string, string],
@@ -269,5 +269,32 @@ describe('thcsResultToTestMarkingResult', () => {
         expect(thcsData.intentBreakdown['pronunciation']).toEqual({ correct: 2, total: 2 });
         // mcq-grammar: Q2 wrong, Q3 correct = 1/2
         expect(thcsData.intentBreakdown['mcq-grammar']).toEqual({ correct: 1, total: 2 });
+    });
+});
+
+describe('checkRawTextAnswer', () => {
+    it('returns true for exact match (case-insensitive)', () => {
+        expect(checkRawTextAnswer('The cat', 'the cat')).toBe(true);
+        expect(checkRawTextAnswer('THE CAT', 'the cat')).toBe(true);
+    });
+
+    it('returns true with extra whitespace normalized', () => {
+        expect(checkRawTextAnswer('  the   cat  ', 'the cat')).toBe(true);
+    });
+
+    it('returns false for wrong answer', () => {
+        expect(checkRawTextAnswer('a dog', 'the cat')).toBe(false);
+    });
+
+    it('returns false when correctAnswer is empty', () => {
+        expect(checkRawTextAnswer('anything', '')).toBe(false);
+    });
+
+    it('returns false when correctAnswer is "?" (teacher grades)', () => {
+        expect(checkRawTextAnswer('anything', '?')).toBe(false);
+    });
+
+    it('returns false for empty student answer', () => {
+        expect(checkRawTextAnswer('', 'the cat')).toBe(false);
     });
 });

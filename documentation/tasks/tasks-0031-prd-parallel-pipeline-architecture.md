@@ -503,8 +503,8 @@
     - **⚠️ ORDERING**: Task 6.2 changes `createRetrySession(5)` to `createRetrySession()`. If you do Task 3 before Task 6, the old `createRetrySession(5)` still appears. That’s OK — you’ll delete the old call in Task 3.5 and the new `Promise.all` uses `createRetrySession()` directly. Just be aware both changes target the same area.
     - **VERIFY**: No unused imports. No TypeScript import errors.
 
-- [ ] 4.0 Crossfix Loop — Rewrite `thcs-pass2-repair.ts` (FR-5)
-  - [ ] 4.1 **Rewrite `executePass2Repair()` to implement the crossfix loop.**
+- [x] 4.0 Crossfix Loop — Rewrite `thcs-pass2-repair.ts` (FR-5)
+  - [x] 4.1 **Rewrite `executePass2Repair()` to implement the crossfix loop.**
     - Open `thcs-pass2-repair.ts`.
     - Replace the current `executePass2Repair()` implementation with the crossfix loop from PRD §FR-5.
     - New signature:
@@ -531,7 +531,7 @@
     - **KEY CHANGE**: The new function does NOT use `RetrySession` or `executeRetryChain`. Instead, it has its own 3-round loop where each round calls `callAI` directly.
     - **VERIFY**: The function has a `for` loop with `round < 3`, uses `validateRestructuredText()` inside each round, and keeps track of `bestText` / `bestIssueCount`.
 
-  - [ ] 4.2 **Implement the 3-round crossfix loop body.**
+  - [x] 4.2 **Implement the 3-round crossfix loop body.**
     - Inside `executeCrossfixLoop()`, implement this exact loop:
       ```typescript
       const MAX_ROUNDS = 3;
@@ -602,7 +602,7 @@
     - **NOTE on `callAI` arguments**: The first argument (system message) is a hardcoded string. The second argument (prompt) comes from `buildRepairPrompt()`. The third argument (step) comes from `CROSSFIX_STEPS[round]` — this controls which AI model and temperature is used for each round. The crossfix loop does NOT use `executeRetryChain()` — it manages its own 3-round sequence directly.
     - **VERIFY**: Loop runs max 3 times. Each round uses escalating model/temperature. bestText is only updated if the new version has FEWER issues.
 
-  - [ ] 4.3 **Update imports and preserve shared exports in `thcs-pass2-repair.ts`.**
+  - [x] 4.3 **Update imports and preserve shared exports in `thcs-pass2-repair.ts`.**
     - Remove the import of `executeRetryChain`, `REPAIR_CHAIN` from `thcs-retry-manager`.
     - Keep the import of `RetryStep` type (used for CROSSFIX_STEPS).
     - Keep imports of `validateRestructuredText` from `thcs-text-validator`.
@@ -612,7 +612,7 @@
     - **IMPORTANT**: Keep `checkConfidenceDisagreement()` function (lines 40-53). The crossfix loop's return value includes `confidenceWarning` — call `checkConfidenceDisagreement(aiConfidence, bestReport.formatConfidence)` to compute it before returning.
     - **VERIFY**: No unused imports. No import of `RetrySession`. `AICallFn` is still exported. `checkConfidenceDisagreement` is still exported.
 
-  - [ ] 4.4 **Create `repairCallAI` callback and wire `executeCrossfixLoop()` in orchestrator.**
+  - [x] 4.4 **Create `repairCallAI` callback and wire `executeCrossfixLoop()` in orchestrator.**
     - In `thcsDocumentParser.service.ts`, inside `parseThcsText()`, **BEFORE** the decision tree block, create the `repairCallAI` callback. This tells the crossfix loop how to call AI:
       ```typescript
       // Build the AI callback for crossfix loop
@@ -645,7 +645,7 @@
     - Update the import to use `executeCrossfixLoop` instead of `executePass2Repair` (already done in Task 3.7).
     - **VERIFY**: The `repairCallAI` callback exists BEFORE the decision tree. The crossfix loop is called ONLY when `decision === 'crossfix'`. `repairCallAI` receives `(system, prompt, step)` matching `AICallFn` signature.
 
-  - [ ] 4.5 **Write tests for crossfix loop in `thcs-pass2-repair.test.ts`.**
+  - [x] 4.5 **Write tests for crossfix loop in `thcs-pass2-repair.test.ts`.**
     - Rewrite the test file. New test cases:
       - Input with 3 issues → mock AI fixing 1 per round → after 3 rounds, 0 issues (success)
       - Input with issues → AI returns worse text → bestText stays the same
@@ -654,14 +654,14 @@
       - Three rounds all produce same issue count → exits with first bestText
     - **VERIFY**: All tests pass.
 
-- [ ] 5.0 Compromise Overhaul + Raw Text Fallback (FR-6 + FR-12)
-  - [ ] 5.1 **Move compromise to AFTER crossfix in `parseThcsText()`.**
+- [x] 5.0 Compromise Overhaul + Raw Text Fallback (FR-6 + FR-12)
+  - [x] 5.1 **Move compromise to AFTER crossfix in `parseThcsText()`.**
     - In `thcsDocumentParser.service.ts`, find where `executeCompromiseStep()` is currently called.
     - Move it to AFTER the crossfix loop result (or after the engine decision if no crossfix needed).
     - The flow must be: decision tree → (crossfix?) → compromise → engine.
     - **VERIFY**: `executeCompromiseStep()` is called AFTER `executeCrossfixLoop()` completes, never before.
 
-  - [ ] 5.2 **Add alternate conversion strategies to `thcs-compromise-step.ts`.**
+  - [x] 5.2 **Add alternate conversion strategies to `thcs-compromise-step.ts`.**
     - In `executeCompromiseStep()`, after a primary strategy fails (chainResult.bestResult is null), add a second attempt using the alternate strategy.
     - Add the alternate strategy map:
       ```typescript
@@ -723,7 +723,7 @@
       ```
     - **VERIFY**: `COMPROMISE_TEMPLATES` now has entries for all values in the `CompromiseRoute` union (TypeScript will error if any are missing since it's a `Record<CompromiseRoute, CompromiseTemplate>`). Each unsupported type has exactly 2 conversion attempts before falling through to raw-text-fallback.
 
-  - [ ] 5.3 **Add raw-text-fallback cascade to `executeCompromiseStep()`.**
+  - [x] 5.3 **Add raw-text-fallback cascade to `executeCompromiseStep()`.**
     - After BOTH primary and alternate strategies fail for a section, instead of pushing to `skippedSections`, implement the raw-text-fallback:
       ```typescript
       // Both strategies failed → Raw Text Fallback (FR-12)
@@ -797,7 +797,7 @@
       Where `answerKey` is the parsed answer key from the engine. If the answer key is not available at this point, set `correctAnswer: ''` and let it be filled post-engine.
     - **VERIFY**: No section is ever silently dropped. It either converts, skips (listening/speaking/essay), or falls back to raw-text.
 
-  - [ ] 5.4 **Add `raw-text-fallback` to type system.**
+  - [x] 5.4 **Add `raw-text-fallback` to type system.**
     - Open `types/thcs-test.types.ts`.
     - Add `'raw-text-fallback'` to the `Phase2QuestionType` union (line 28-33):
       ```typescript
@@ -825,7 +825,7 @@
       ```
     - **VERIFY**: TypeScript compiles with no errors. `THCSQuestionType` now includes `'raw-text-fallback'`.
 
-  - [ ] 5.5 **Write tests for alternate strategies and raw-text-fallback.**
+  - [x] 5.5 **Write tests for alternate strategies and raw-text-fallback.**
     - In `thcs-compromise-step.test.ts`, add:
       - Test: matching → primary fails → alternate (verb-form) succeeds
       - Test: true-false → both strategies fail → raw-text-fallback created
@@ -900,8 +900,8 @@
       - Verify remaining tests still pass.
     - **VERIFY**: All tests pass. No mention of "circuit" in test file.
 
-- [ ] 7.0 Student Renderer + Auto-Marking for Raw Text Fallback (FR-12)
-  - [ ] 7.1 **Create `THCSRawTextFallback.tsx` component.**
+- [x] 7.0 Student Renderer + Auto-Marking for Raw Text Fallback (FR-12)
+  - [x] 7.1 **Create `THCSRawTextFallback.tsx` component.**
     - Create file: `src/components/thcs-student/THCSRawTextFallback.tsx`
     - Props interface:
       ```typescript
@@ -921,7 +921,7 @@
     - Follow the `student-view-design` skill for colors, typography, spacing.
     - **VERIFY**: Component renders without errors. No Mantine imports.
 
-  - [ ] 7.2 **Route `raw-text-fallback` sections in `THCSTestLayout.tsx` (section-level routing).**
+  - [x] 7.2 **Route `raw-text-fallback` sections in `THCSTestLayout.tsx` (section-level routing).**
     - **⚠️ DO NOT modify `THCSQuestionRenderer.tsx`** — that component renders individual questions, but raw-text-fallback is a SECTION-level concept. The entire section is replaced by the `THCSRawTextFallback` component.
     - Open `src/components/thcs-student/THCSTestLayout.tsx`.
     - Add this import at the top:
@@ -956,7 +956,7 @@
     - Apply this pattern to BOTH the two-column and single-column render paths.
     - **VERIFY**: Import exists. Both `.map()` blocks are wrapped in the `isRawTextFallback` conditional. No changes to `THCSQuestionRenderer.tsx`.
 
-  - [ ] 7.3 **Add `checkRawTextAnswer()` to `thcsAutoMarking.service.ts` and wire into grading.**
+  - [x] 7.3 **Add `checkRawTextAnswer()` to `thcsAutoMarking.service.ts` and wire into grading.**
     - Open `src/services/thcsAutoMarking.service.ts`.
     - Add this function (place it after the `gradeClozeQuestion` function, before `markThcsTest`):
       ```typescript
@@ -991,7 +991,7 @@
     - **NOTE**: The final `} else {` catch-all (unknown type → 0 points) MUST remain as the very last branch.
     - **VERIFY**: `checkRawTextAnswer` is exported. The grading chain has 6 branches: MCQ → fill-in → cloze → writing → raw-text-fallback → unknown.
 
-  - [ ] 7.4 **Add raw-text-fallback banner to `THCSParseReviewPanel.tsx`.**
+  - [x] 7.4 **Add raw-text-fallback banner to `THCSParseReviewPanel.tsx`.**
     - Open `src/components/thcs-editor/THCSParseReviewPanel.tsx`.
     - This component already has helper functions for compromise detection:
       - `isCompromised(sectionIndex)` — returns `true` if section was compromised
@@ -1007,7 +1007,7 @@
       - Use the same styling pattern as the existing compromise orange highlight
     - **VERIFY**: The orange banner appears for raw-text-fallback sections. Existing compromise banners still work.
 
-  - [ ] 7.5 **Add raw-text-fallback display to `THCSSectionBlock.tsx` (editor view).**
+  - [x] 7.5 **Add raw-text-fallback display to `THCSSectionBlock.tsx` (editor view).**
     - Open `src/components/thcs-editor/THCSSectionBlock.tsx`.
     - Find the section's question type check (look for `defaultQuestionType` in the props interface).
     - Add a condition: if the section's `defaultQuestionType === 'raw-text-fallback'` OR `section.isRawTextFallback === true`:
@@ -1017,7 +1017,7 @@
       4. When the teacher saves edits, call the existing `onUpdateSection(updatedSection)` callback (check the component's props for the exact callback name — likely `onSectionChange` or `onUpdate`)
     - **VERIFY**: Raw-text-fallback sections display correctly in the editor. The teacher can view and edit the raw text.
 
-  - [ ] 7.6 **Write tests for `THCSRawTextFallback.tsx`.**
+  - [x] 7.6 **Write tests for `THCSRawTextFallback.tsx`.**
     - Create `src/components/thcs-student/THCSRawTextFallback.test.tsx`.
     - Test cases:
       - Renders raw text content inside a pre-formatted container

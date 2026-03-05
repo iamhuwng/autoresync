@@ -22,6 +22,7 @@ export interface CompromisedSection {
     originalType: string;
     convertedType: string;
     convertedText: string;
+    extractedQuestions?: { number: number; text: string }[];  // FR-12: raw-text-fallback best-effort extraction
     reasoning: {
         originalType: string;
         convertedType: string;
@@ -54,6 +55,16 @@ const SKIP_REASONS: Record<string, string> = {
     'essay': 'Extended essay writing needs manual grading setup — section skipped.',
     'composition': 'Composition tasks need manual grading — section skipped.',
     'picture-description-open': 'Open-ended picture description cannot be auto-graded. Section skipped.',
+};
+
+// ── Alternate Routes (FR-11 Task 5.2) ─────────────────────────
+
+const ALTERNATE_ROUTES: Partial<Record<CompromiseRoute, CompromiseRoute>> = {
+    'matching': 'matching-alt',           // → verb-form (fill-in fallback)
+    'true-false': 'true-false-alt',       // → closest-meaning
+    'gap-fill-open': 'gap-fill-alt',      // → mcq-grammar
+    'translation': 'translation-alt',     // → sentence-rewrite
+    'word-ordering': 'word-ordering-alt',  // → sentence-arrangement (just re-tag)
 };
 
 // ── Route Mapping ─────────────────────────────────────────────
@@ -177,13 +188,85 @@ export async function executeCompromiseStep(
                 convertedText: chainResult.bestResult.text,
                 reasoning: chainResult.bestResult.reasoning,
             });
-        } else {
-            skippedSections.push({
-                sectionIndex: entry.sectionIndex,
-                type: entry.type,
-                reason: `AI compromise failed after all retries for "${entry.type}".`,
-            });
+            continue;
         }
+
+        // ── Alternate Strategy (FR-11 Task 5.2) ──
+        const altRoute = ALTERNATE_ROUTES[route];
+        if (altRoute) {
+            const altTemplate = COMPROMISE_TEMPLATES[altRoute];
+            const altPrompt = buildCompromisePrompt(altRoute, targetText, originalInput);
+            if (altPrompt) {
+                const altChainResult = await executeRetryChain<{ text: string; reasoning: CompromisedSection['reasoning'] }>(
+                    retrySession,
+                    COMPROMISE_CHAIN,
+                    async (step: RetryStep): Promise<AICallOutcome<{ text: string; reasoning: CompromisedSection['reasoning'] }> | null> => {
+                        const rawResponse = await callAI(
+                            `You are an expert at converting Vietnamese THCS English test question types.`,
+                            altPrompt,
+                            step,
+                        );
+                        if (!rawResponse) return null;
+
+                        const parsed = parseCompromiseResponse(rawResponse);
+                        return {
+                            result: {
+                                text: parsed.convertedText,
+                                reasoning: parsed.reasoning,
+                            },
+                            issueCount: parsed.convertedText.trim() ? 0 : 1,
+                        };
+                    },
+                );
+
+                if (altChainResult.bestResult) {
+                    compromisedSections.push({
+                        sectionIndex: entry.sectionIndex,
+                        originalType: entry.type,
+                        convertedType: altTemplate?.targetType || 'unknown',
+                        convertedText: altChainResult.bestResult.text,
+                        reasoning: altChainResult.bestResult.reasoning,
+                    });
+                    continue;
+                }
+            }
+        }
+
+        // ── Raw Text Fallback (FR-12 Task 5.3) ──
+        // Both primary and alternate strategies failed → preserve raw text
+        const QUESTION_RE = /^(?:Question|Câu|Q)\s*(\d+)\s*[.:]/im;
+        const rawLines = targetText.split('\n');
+        const extractedQuestions: { number: number; text: string }[] = [];
+        for (let i = 0; i < rawLines.length; i++) {
+            const m = rawLines[i]!.match(QUESTION_RE);
+            if (m) {
+                extractedQuestions.push({ number: parseInt(m[1]!), text: rawLines[i]! });
+            }
+        }
+        // If zero questions found, create 1 question per non-empty line that has a number
+        if (extractedQuestions.length === 0) {
+            for (let i = 0; i < rawLines.length; i++) {
+                if (/^\s*\d+/.test(rawLines[i]!) && rawLines[i]!.trim().length > 5) {
+                    extractedQuestions.push({ number: i + 1, text: rawLines[i]! });
+                }
+            }
+        }
+
+        compromisedSections.push({
+            sectionIndex: entry.sectionIndex,
+            originalType: entry.type,
+            convertedType: 'raw-text-fallback',
+            convertedText: targetText,
+            extractedQuestions,
+            reasoning: {
+                originalType: entry.type,
+                convertedType: 'raw-text-fallback',
+                preserved: 'All original text preserved as-is',
+                lost: 'Structured parsing not possible',
+                confidence: '0',
+                teacherNotes: 'This section could not be auto-converted. Students will see the raw text and type their answers.',
+            },
+        });
     }
 
     return { compromisedSections, skippedSections, auditLog };

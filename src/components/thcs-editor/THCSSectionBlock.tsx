@@ -73,6 +73,10 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showBulkPaste, setShowBulkPaste] = useState(false);
     const [showPassage, setShowPassage] = useState(false);
+    const [editingRawText, setEditingRawText] = useState(false);
+
+    const isRawFallback = section.isRawTextFallback === true
+        || section.questions.some(q => q.type === 'raw-text-fallback');
 
     const hasReadingIntents = section.questions.some(q => READING_INTENTS.includes(q.type));
 
@@ -366,6 +370,65 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
                         Shuffle MCQ options (A↔B↔C↔D)
                     </label>
                 </div>
+
+                {/* FR-12: Raw-text-fallback display */}
+                {isRawFallback && (
+                    <div style={{
+                        background: 'rgba(251,191,36,0.06)',
+                        borderRadius: '0.5rem',
+                        border: '1px solid rgba(251,191,36,0.25)',
+                        padding: '0.75rem',
+                    }}>
+                        <div style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            marginBottom: '0.5rem',
+                        }}>
+                            <div style={{
+                                display: 'flex', alignItems: 'center', gap: '0.5rem',
+                                fontSize: '0.8125rem', color: '#92400e', fontWeight: 600,
+                            }}>
+                                <span>⚠️</span>
+                                <span>Manual review required — this section uses raw text fallback</span>
+                            </div>
+                            <button
+                                onClick={() => setEditingRawText(!editingRawText)}
+                                style={{
+                                    padding: '0.25rem 0.5rem', border: '1px solid rgba(251,191,36,0.3)',
+                                    borderRadius: '0.375rem', background: editingRawText ? 'rgba(251,191,36,0.15)' : 'transparent',
+                                    color: '#92400e', fontWeight: 600, fontSize: '0.75rem',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                {editingRawText ? '💾 Done' : '✏️ Edit'}
+                            </button>
+                        </div>
+                        {editingRawText ? (
+                            <Textarea
+                                value={section.rawText || ''}
+                                onChange={(e) => onUpdate({ ...section, rawText: e.target.value })}
+                                minRows={6}
+                                autosize
+                                size="xs"
+                                placeholder="Raw text from the original document..."
+                            />
+                        ) : (
+                            <div style={{
+                                padding: '0.75rem',
+                                background: 'rgba(255,255,255,0.7)',
+                                borderRadius: '0.375rem',
+                                border: '1px solid rgba(0,0,0,0.06)',
+                                whiteSpace: 'pre-wrap',
+                                fontSize: '0.875rem',
+                                lineHeight: 1.6,
+                                color: '#374151',
+                                maxHeight: '300px',
+                                overflowY: 'auto',
+                            }}>
+                                {section.rawText || '(No raw text stored)'}
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* Questions — DnD Context (Task 9.3) */}
                 <DndContext

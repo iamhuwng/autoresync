@@ -153,7 +153,7 @@ describe('executeCompromiseStep', () => {
 
     // ── Failure Handling ──────────────────────────────────
 
-    it('skips section when AI returns null for all retries', async () => {
+    it('falls back to raw-text-fallback when AI returns null for all retries', async () => {
         const session = createRetrySession();
         const callAI: CompromiseAICallFn = vi.fn().mockResolvedValue(null);
 
@@ -162,9 +162,11 @@ describe('executeCompromiseStep', () => {
             'Match column A with B', 'original', session, callAI,
         );
 
-        expect(result.compromisedSections).toHaveLength(0);
-        expect(result.skippedSections).toHaveLength(1);
-        expect(result.skippedSections[0]!.reason).toContain('failed');
+        // Both primary and alternate fail → raw-text-fallback (NOT skipped)
+        expect(result.compromisedSections).toHaveLength(1);
+        expect(result.compromisedSections[0]!.convertedType).toBe('raw-text-fallback');
+        expect(result.compromisedSections[0]!.reasoning.teacherNotes).toContain('could not be auto-converted');
+        expect(result.skippedSections).toHaveLength(0);
     });
 
     // ── Empty Input ───────────────────────────────────────
@@ -211,5 +213,82 @@ describe('executeCompromiseStep', () => {
 
         expect(result.compromisedSections).toHaveLength(1);
         expect(result.compromisedSections[0]!.convertedType).toBe('mcq-sign-notice');
+    });
+
+    // ── Alternate Strategy (FR-11 Task 5.2) ───────────────
+
+    it('matching → primary fails → alternate (verb-form) succeeds', async () => {
+        const session = createRetrySession();
+        // First call sequence (primary) → null. Second call sequence (alternate) → success.
+        let callCount = 0;
+        const callAI: CompromiseAICallFn = vi.fn().mockImplementation(async () => {
+            callCount++;
+            // Primary chain uses COMPROMISE_CHAIN (3 steps) → all return null
+            // Alternate chain uses COMPROMISE_CHAIN (3 steps) → first returns result
+            if (callCount <= 3) return null; // primary fails (3 retries)
+            return MOCK_COMPROMISE_RESPONSE;  // alternate succeeds
+        });
+
+        const result = await executeCompromiseStep(
+            [makeEntry('matching', true)],
+            'Match: 1. library - A. a place to borrow books',
+            'original', session, callAI,
+        );
+
+        expect(result.compromisedSections).toHaveLength(1);
+        // Alternate route for matching → verb-form
+        expect(result.compromisedSections[0]!.convertedType).toBe('verb-form');
+        expect(result.skippedSections).toHaveLength(0);
+    });
+
+    it('true-false → both strategies fail → raw-text-fallback created', async () => {
+        const session = createRetrySession();
+        const callAI: CompromiseAICallFn = vi.fn().mockResolvedValue(null);
+
+        const result = await executeCompromiseStep(
+            [makeEntry('true-false', true)],
+            'Question 1. The earth is round.\nTrue / False',
+            'original', session, callAI,
+        );
+
+        // Both primary and alternate failed → raw-text-fallback
+        expect(result.compromisedSections).toHaveLength(1);
+        expect(result.compromisedSections[0]!.convertedType).toBe('raw-text-fallback');
+        expect(result.compromisedSections[0]!.extractedQuestions).toBeDefined();
+        expect(result.compromisedSections[0]!.extractedQuestions!.length).toBeGreaterThanOrEqual(1);
+        expect(result.skippedSections).toHaveLength(0);
+    });
+
+    it('listening → skipped (no fallback, just warning)', async () => {
+        const session = createRetrySession();
+        const callAI: CompromiseAICallFn = vi.fn();
+
+        const result = await executeCompromiseStep(
+            [makeEntry('listening', false)],
+            'Listen to the audio clip.',
+            'original', session, callAI,
+        );
+
+        expect(result.compromisedSections).toHaveLength(0);
+        expect(result.skippedSections).toHaveLength(1);
+        expect(result.skippedSections[0]!.reason).toContain('audio');
+    });
+
+    it('raw-text-fallback preserves original section text', async () => {
+        const session = createRetrySession();
+        const callAI: CompromiseAICallFn = vi.fn().mockResolvedValue(null);
+        const sectionText = 'Question 1. What is your name?\nQuestion 2. How old are you?';
+
+        const result = await executeCompromiseStep(
+            [makeEntry('gap-fill-open', true)],
+            sectionText, 'original', session, callAI,
+        );
+
+        expect(result.compromisedSections).toHaveLength(1);
+        const section = result.compromisedSections[0]!;
+        expect(section.convertedType).toBe('raw-text-fallback');
+        expect(section.convertedText).toBe(sectionText);
+        expect(section.extractedQuestions).toBeDefined();
+        expect(section.extractedQuestions!.length).toBe(2);
     });
 });

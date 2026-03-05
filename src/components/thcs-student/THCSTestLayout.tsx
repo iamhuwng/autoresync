@@ -56,6 +56,7 @@ import { database } from '../../services/firebase';
 import { useAuth } from '../../hooks/useAuth';
 
 import THCSQuestionRenderer from './THCSQuestionRenderer';
+import THCSRawTextFallback from './THCSRawTextFallback';
 import THCSSectionNav from './THCSSectionNav';
 import type { SectionStatus } from './THCSSectionNav';
 import THCSPassagePanel from './THCSPassagePanel';
@@ -944,21 +945,35 @@ const THCSTestLayout: React.FC<THCSTestLayoutProps> = ({ testData, sessionCode }
                                         paddingRight: isMobile ? 0 : '0.25rem',
                                     }}>
                                         <div id="thcs-questions-start" />
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                            {currentSection.questions.map((q) => (
-                                                <div key={q.id} id={`thcs-q-${q.id}`}>
-                                                    <THCSQuestionRenderer
-                                                        question={q}
-                                                        selectedAnswer={answers[q.questionNumber.toString()] || null}
-                                                        onAnswer={(answer) => handleAnswer(q.questionNumber, answer)}
-                                                        isFlagged={flaggedQuestions.has(q.id)}
-                                                        onToggleFlag={() => handleToggleFlag(q.id)}
-                                                        isReviewMode={isSubmitted}
-                                                        isCorrect={questionResults[q.questionNumber.toString()]}
-                                                    />
-                                                </div>
-                                            ))}
-                                        </div>
+                                        {currentSection.isRawTextFallback ? (
+                                            <THCSRawTextFallback
+                                                section={currentSection}
+                                                answers={Object.fromEntries(
+                                                    currentSection.questions.map(q => [
+                                                        q.questionNumber.toString(),
+                                                        (answers[q.questionNumber.toString()] as string) || ''
+                                                    ])
+                                                )}
+                                                onAnswerChange={(qId, val) => handleAnswer(parseInt(qId), val)}
+                                                isReviewMode={isSubmitted}
+                                            />
+                                        ) : (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                                {currentSection.questions.map((q) => (
+                                                    <div key={q.id} id={`thcs-q-${q.id}`}>
+                                                        <THCSQuestionRenderer
+                                                            question={q}
+                                                            selectedAnswer={answers[q.questionNumber.toString()] || null}
+                                                            onAnswer={(answer) => handleAnswer(q.questionNumber, answer)}
+                                                            isFlagged={flaggedQuestions.has(q.id)}
+                                                            onToggleFlag={() => handleToggleFlag(q.id)}
+                                                            isReviewMode={isSubmitted}
+                                                            isCorrect={questionResults[q.questionNumber.toString()]}
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             ) : (
@@ -978,21 +993,35 @@ const THCSTestLayout: React.FC<THCSTestLayoutProps> = ({ testData, sessionCode }
 
                                     {/* Questions */}
                                     <div id="thcs-questions-start" />
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        {currentSection.questions.map((q) => (
-                                            <div key={q.id} id={`thcs-q-${q.id}`}>
-                                                <THCSQuestionRenderer
-                                                    question={q}
-                                                    selectedAnswer={answers[q.questionNumber.toString()] || null}
-                                                    onAnswer={(answer) => handleAnswer(q.questionNumber, answer)}
-                                                    isFlagged={flaggedQuestions.has(q.id)}
-                                                    onToggleFlag={() => handleToggleFlag(q.id)}
-                                                    isReviewMode={isSubmitted}
-                                                    isCorrect={questionResults[q.questionNumber.toString()]}
-                                                />
-                                            </div>
-                                        ))}
-                                    </div>
+                                    {currentSection.isRawTextFallback ? (
+                                        <THCSRawTextFallback
+                                            section={currentSection}
+                                            answers={Object.fromEntries(
+                                                currentSection.questions.map(q => [
+                                                    q.questionNumber.toString(),
+                                                    (answers[q.questionNumber.toString()] as string) || ''
+                                                ])
+                                            )}
+                                            onAnswerChange={(qId, val) => handleAnswer(parseInt(qId), val)}
+                                            isReviewMode={isSubmitted}
+                                        />
+                                    ) : (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                            {currentSection.questions.map((q) => (
+                                                <div key={q.id} id={`thcs-q-${q.id}`}>
+                                                    <THCSQuestionRenderer
+                                                        question={q}
+                                                        selectedAnswer={answers[q.questionNumber.toString()] || null}
+                                                        onAnswer={(answer) => handleAnswer(q.questionNumber, answer)}
+                                                        isFlagged={flaggedQuestions.has(q.id)}
+                                                        onToggleFlag={() => handleToggleFlag(q.id)}
+                                                        isReviewMode={isSubmitted}
+                                                        isCorrect={questionResults[q.questionNumber.toString()]}
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </>
                             )}
                         </>
