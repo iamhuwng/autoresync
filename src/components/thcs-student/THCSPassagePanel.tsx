@@ -2,8 +2,79 @@
  * THCSPassagePanel — Reading passage display (PRD-0027 Task 5.5)
  * Two-column sticky layout on desktop, collapsible slide-up on mobile.
  * Suppresses passage title when it duplicates the section name.
+ * Supports rich-text formatting: **bold**, __underline__, {{braces}}, [I]-[X] markers.
  */
 import React, { useState, useEffect } from 'react';
+
+/**
+ * Renders passage content with rich-text formatting markers.
+ * Parses: **bold** → <strong>, __underline__ → <u>, {{text}} → <u>, [I]-[X] → <strong>
+ * PRD-0032 §FR2
+ */
+function renderPassageRichText(text: string): React.ReactNode[] {
+    if (!text) return [];
+
+    // Regex matches all formatting markers in one pass
+    const markerRegex = /(\*\*(.+?)\*\*|__(.+?)__|\{\{(.+?)\}\}|\[(I{1,3}|IV|VI{0,3}|V|IX|X)\])/g;
+    let keyIdx = 0;
+
+    const processLine = (line: string): React.ReactNode[] => {
+        const nodes: React.ReactNode[] = [];
+        let lastIndex = 0;
+        let match: RegExpExecArray | null;
+
+        markerRegex.lastIndex = 0;
+        while ((match = markerRegex.exec(line)) !== null) {
+            // Add plain text before this match
+            if (match.index > lastIndex) {
+                nodes.push(line.slice(lastIndex, match.index));
+            }
+
+            if (match[2] !== undefined) {
+                // **bold**
+                nodes.push(<strong key={`b-${keyIdx++}`}>{match[2]}</strong>);
+            } else if (match[3] !== undefined) {
+                // __underline__
+                nodes.push(<u key={`u-${keyIdx++}`}>{match[3]}</u>);
+            } else if (match[4] !== undefined) {
+                // {{braces}} → underline
+                nodes.push(<u key={`br-${keyIdx++}`}>{match[4]}</u>);
+            } else if (match[5] !== undefined) {
+                // [I], [II], etc. → bold
+                nodes.push(<strong key={`rm-${keyIdx++}`}>[{match[5]}]</strong>);
+            }
+
+            lastIndex = match.index + match[0].length;
+        }
+
+        // Add trailing plain text
+        if (lastIndex < line.length) {
+            nodes.push(line.slice(lastIndex));
+        }
+
+        return nodes;
+    };
+
+    // Split by lines, preserving paragraph breaks
+    const lines = text.split('\n');
+    const result: React.ReactNode[] = [];
+
+    for (let i = 0; i < lines.length; i++) {
+        const lineText = lines[i]!;
+        if (lineText === '') {
+            // Blank line = paragraph break
+            result.push(<br key={`nl-${keyIdx++}`} />);
+        } else {
+            result.push(...processLine(lineText));
+        }
+        // Add line break between non-empty lines (not after last line)
+        if (i < lines.length - 1 && lineText !== '') {
+            result.push(<br key={`lb-${keyIdx++}`} />);
+        }
+    }
+
+    return result;
+}
 
 function useMediaQuery(query: string) {
     const [matches, setMatches] = useState(false);
@@ -89,7 +160,7 @@ const THCSPassagePanel: React.FC<THCSPassagePanelProps> = ({
                             fontSize: '0.9375rem', lineHeight: 1.8,
                             whiteSpace: 'pre-wrap',
                         }}>
-                            {passage.content}
+                            {renderPassageRichText(passage.content)}
                         </div>
                     </div>
                 )}
@@ -128,7 +199,7 @@ const THCSPassagePanel: React.FC<THCSPassagePanelProps> = ({
                     />
                 )}
                 <div style={{ fontSize: '0.9375rem', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
-                    {passage.content}
+                    {renderPassageRichText(passage.content)}
                 </div>
             </div>
         );
@@ -156,7 +227,7 @@ const THCSPassagePanel: React.FC<THCSPassagePanelProps> = ({
                 />
             )}
             <div style={{ fontSize: '0.9375rem', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
-                {passage.content}
+                {renderPassageRichText(passage.content)}
             </div>
             {onScrollToQuestions && (
                 <div style={{ textAlign: 'center', marginTop: '1rem' }}>

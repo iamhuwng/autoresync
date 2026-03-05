@@ -7,6 +7,7 @@ import type { THCSQuestion, BlankResult, WritingGradingResult } from '../../type
 import THCSFillInRenderer from './THCSFillInRenderer';
 import THCSWritingRenderer from './THCSWritingRenderer';
 import THCSClozeRenderer from './THCSClozeRenderer';
+import { plog } from '../thcs-editor/previewLogCollector';
 
 interface THCSQuestionRendererProps {
     question: THCSQuestion;
@@ -62,11 +63,24 @@ const THCSQuestionRenderer: React.FC<THCSQuestionRendererProps> = ({
     const isPronunciation = question.intent === 'pronunciation' || question.intent === 'word-stress';
     const isErrorId = question.intent === 'error-identification';
     const isSynonymAntonym = question.intent === 'synonym-mcq' || question.intent === 'antonym-mcq'
-        || question.intent === 'closest-meaning';
+        || question.intent === 'closest-meaning' || question.intent === 'word-reference';
     const isFillIn = question.type === 'verb-form' || question.type === 'word-form';
     const isWriting = question.type === 'sentence-rewrite' || question.type === 'sentence-rewrite-keyword';
     const isCloze = question.type === 'reading-cloze-wordbank';
+    const isSentenceArrangement = question.intent === 'sentence-arrangement' || question.type === 'sentence-arrangement';
     const hasUnderlines = isPronunciation && question.optionUnderlines;
+
+    // ─── Render-path diagnostic ───────────────────────────────
+    const renderPath = isFillIn ? 'FILL-IN' :
+        isWriting ? 'WRITING' :
+            isCloze ? 'CLOZE' :
+                isErrorId ? 'ERROR-ID (underlined parts)' :
+                    isSynonymAntonym ? (question.intent === 'word-reference' ? 'WORD-REFERENCE (underlined word)' : 'SYNONYM/ANTONYM (underlined parts)') :
+                        isSentenceArrangement ? 'SENTENCE-ARRANGEMENT (sub-items)' :
+                            hasUnderlines ? 'MCQ + pronunciation underlines' :
+                                'STANDARD MCQ';
+
+    plog(`[Renderer] Q${question.questionNumber}: type=${question.type}, intent=${question.intent || 'none'}, render=${renderPath}, opts=${question.options?.length || 0}, text=${question.questionText ? question.questionText.slice(0, 50) + (question.questionText.length > 50 ? '...' : '') : '(empty)'}, underlinedParts=${question.underlinedParts ? 'yes' : 'no'}, optUnderlines=${question.optionUnderlines ? 'yes' : 'no'}`);
 
     return (
         <div style={{
@@ -111,6 +125,20 @@ const THCSQuestionRenderer: React.FC<THCSQuestionRendererProps> = ({
             ) : isSynonymAntonym && question.underlinedParts ? (
                 <div style={{ fontSize: '1rem', lineHeight: 1.6, marginBottom: '0.5rem', color: '#1e293b' }}>
                     {renderUnderlines(question.underlinedParts)}
+                </div>
+            ) : isSentenceArrangement && question.questionText && (question.questionText.match(/\b[a-e]\.\s/g) || []).length >= 2 ? (
+                <div style={{ fontSize: '1rem', lineHeight: 1.6, marginBottom: '0.5rem', color: '#1e293b' }}>
+                    {question.questionText.split(/(?=\b[a-e]\.\s)/).filter(Boolean).map((item, idx) => {
+                        const letterMatch = item.match(/^([a-e])\.\s(.*)/s);
+                        if (letterMatch) {
+                            return (
+                                <div key={idx} style={{ marginBottom: '0.35rem', paddingLeft: '0.25rem' }}>
+                                    <strong>{letterMatch[1]}.</strong> {letterMatch[2]?.trim()}
+                                </div>
+                            );
+                        }
+                        return <div key={idx} style={{ marginBottom: '0.35rem' }}>{item.trim()}</div>;
+                    })}
                 </div>
             ) : (
                 <div style={{ fontSize: '1rem', lineHeight: 1.6, marginBottom: '0.5rem', color: '#1e293b' }}>

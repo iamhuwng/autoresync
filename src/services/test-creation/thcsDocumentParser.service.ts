@@ -107,6 +107,17 @@ const PATTERNS = {
     // BUG FIX: Single-letter C, D, L, M were over-matching option lines (e.g. "C. economically").
     // Now only I, V, X are valid single-letter Roman numerals; C/D/L/M require 2+ chars.
     sectionHeader: /^(?:(?:SECTION|Part|Phần|Ph[aầ]n)\s*(?:[IVXLCDM]+|\d+)[.:\s]*(.+)|(?:[IVXLCDM]{2,}|[IVX])[.:\s]+(.{4,}))/im,
+    // Standalone [TYPE: xxx] line from AI restructured output (acts as section boundary)
+    typeTagLine: /^\[TYPE:\s*([a-z][a-z0-9-]*)\s*\]$/i,
+    // [TYPE: xxx] at end of an instruction line, e.g. "Choose the best option... [TYPE: mcq-grammar]"
+    typeTagInline: /\[TYPE:\s*([a-z][a-z0-9-]*)\s*\]\s*$/i,
+    // AI format marker: "=== 2. SECTION HEADERS ===", "=== 5. QUESTIONS FORMAT ===", "=== 7. ANSWER KEY ==="
+    aiSectionMarker: /^===\s*\d+\.\s*SECTION\s*HEADERS?\s*===$/i,
+    aiAnswerKeyMarker: /^===\s*\d+\.\s*ANSWER\s*KEY\s*===$/i,
+    aiQuestionsMarker: /^===\s*\d+\.\s*QUESTIONS\s*FORMAT\s*===$/i,
+    aiMetadataMarker: /^===\s*\d+\.\s*METADATA\s*===$/i,
+    // Passage delimiter: "PASSAGE:" on its own line or "PASSAGE: Some text here"
+    passageMarker: /^PASSAGE:\s*(.*)$/i,
     // Question: "Question 1.", "Câu 1.", "Câu1:", with REQUIRED prefix OR bare number with substantial text
     // Bare "1. B" will NOT match — must have "Question" prefix OR text length >= 3 after number
     // BUG FIX: Changed (.+) to (.*) so "Question 1." with no trailing text (cloze questions) still matches.
@@ -138,33 +149,116 @@ function detectSections(lines: string[]): ParsedSection[] {
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i]!.trim();
 
-        // Skip answer key section  don't treat it as a regular section
-        if (PATTERNS.answerKeyHeader.test(line) || /^(?:VI\.|V\.|IV\.)?\s*(?:ANSWER\s*KEY|ĐÁP\s*ÁN)/i.test(line)) {
+        // Skip empty lines
+        if (!line) continue;
+
+        // Skip AI metadata markers (=== 1. METADATA ===) and questions format markers
+        if (PATTERNS.aiMetadataMarker.test(line) || PATTERNS.aiQuestionsMarker.test(line)) continue;
+
+        // ── Answer key boundary detection ──
+        // Recognize traditional headers, [TYPE: answer-key], AND === N. ANSWER KEY === markers
+        const isAnswerKeyBoundary = PATTERNS.answerKeyHeader.test(line) ||
+            /^(?:VI\.|V\.|IV\.)?\s*(?:ANSWER\s*KEY|ĐÁP\s*ÁN)/i.test(line) ||
+            /\[TYPE:\s*answer-?key\s*\]/i.test(line) ||
+            PATTERNS.aiAnswerKeyMarker.test(line);
+        if (isAnswerKeyBoundary) {
             // Close current section before answer key starts
             if (currentSection && currentSection.startLine !== undefined) {
                 currentSection.endLine = i - 1;
                 sections.push(currentSection as ParsedSection);
                 currentSection = null;
             }
-            break; // Stop section detection  everything after this is answer key
+            break; // Stop section detection — everything after this is answer key
         }
 
+        // ── Section boundary detection (3 strategies) ──
+        // Strategy 1: Traditional section header ("I. MULTIPLE CHOICE", "Part A:", etc.)
         const sectionMatch = line.match(PATTERNS.sectionHeader);
 
-        if (sectionMatch) {
+        // Strategy 2: Standalone [TYPE: xxx] on its own line
+        const typeTagMatch = !sectionMatch ? line.match(PATTERNS.typeTagLine) : null;
+        const isMetadataTag = typeTagMatch && typeTagMatch[1]!.toLowerCase() === 'metadata';
+
+        // Strategy 3: AI format marker "=== 2. SECTION HEADERS ==="
+        // When found, look ahead for the next non-empty line which is the instruction + [TYPE: xxx]
+        let aiMarkerMatch = false;
+        let aiLookaheadLine: string | null = null;
+        let aiLookaheadIdx = -1;
+        if (PATTERNS.aiSectionMarker.test(line)) {
+            // Find next non-empty, non-marker line
+            for (let j = i + 1; j < lines.length; j++) {
+                const nextLine = lines[j]?.trim() || '';
+                if (!nextLine) continue;
+                // Skip if it's another marker line
+                if (/^===/.test(nextLine)) break;
+                aiLookaheadLine = nextLine;
+                aiLookaheadIdx = j;
+                break;
+            }
+            if (aiLookaheadLine) {
+                aiMarkerMatch = true;
+            }
+        }
+
+        // Strategy 4: Inline [TYPE: xxx] at end of an instruction line (no other match)
+        const inlineTypeMatch = (!sectionMatch && !typeTagMatch && !aiMarkerMatch)
+            ? line.match(PATTERNS.typeTagInline)
+            : null;
+
+        if (sectionMatch || (typeTagMatch && !isMetadataTag) || aiMarkerMatch || inlineTypeMatch) {
             if (currentSection && currentSection.startLine !== undefined) {
                 currentSection.endLine = i - 1;
                 sections.push(currentSection as ParsedSection);
             }
-            const sectionName = (sectionMatch[1] || sectionMatch[3] || '').trim() || `Section ${sections.length + 1}`;
+
+            let sectionName: string;
+            let detectedType: string = 'mcq-grammar';
+            let typeConfidence = 60;
+            let effectiveStartLine = i;
+            let instructionText = '';
+
+            if (aiMarkerMatch && aiLookaheadLine) {
+                // AI marker: extract type from the look-ahead instruction line
+                const inlineTag = aiLookaheadLine.match(PATTERNS.typeTagInline);
+                if (inlineTag) {
+                    const typeName = inlineTag[1]!;
+                    sectionName = typeName;
+                    detectedType = typeName;
+                    typeConfidence = 99;
+                    // Strip the [TYPE: xxx] from the instruction text
+                    instructionText = aiLookaheadLine.replace(PATTERNS.typeTagInline, '').trim();
+                } else {
+                    sectionName = aiLookaheadLine.slice(0, 40);
+                    instructionText = aiLookaheadLine;
+                }
+                // Skip ahead past the look-ahead line
+                effectiveStartLine = aiLookaheadIdx;
+                i = aiLookaheadIdx; // Loop will increment to next line
+            } else if (inlineTypeMatch) {
+                // Inline [TYPE: xxx] at end of line
+                const typeName = inlineTypeMatch[1]!;
+                sectionName = typeName;
+                detectedType = typeName;
+                typeConfidence = 99;
+                instructionText = line.replace(PATTERNS.typeTagInline, '').trim();
+            } else if (typeTagMatch) {
+                // Standalone [TYPE: xxx] — use the type name as both section name and detected type
+                const typeName = typeTagMatch[1]!;
+                sectionName = typeName;
+                detectedType = typeName;
+                typeConfidence = 99; // High confidence from explicit tag
+            } else {
+                sectionName = (sectionMatch![1] || sectionMatch![3] || '').trim() || `Section ${sections.length + 1}`;
+            }
+
             currentSection = {
                 name: sectionName,
-                instructionText: '',
-                startLine: i,
+                instructionText,
+                startLine: effectiveStartLine,
                 endLine: lines.length - 1,
                 questions: [],
-                detectedType: 'mcq-grammar',
-                typeConfidence: 60,
+                detectedType: detectedType as any,
+                typeConfidence,
             };
         }
     }
@@ -175,7 +269,7 @@ function detectSections(lines: string[]): ParsedSection[] {
         sections.push(currentSection as ParsedSection);
     }
 
-    // Edge case EC13: No sections found ? create "General"
+    // Edge case EC13: No sections found → create "General"
     if (sections.length === 0) {
         sections.push({
             name: 'General',
@@ -196,12 +290,55 @@ function parseQuestions(lines: string[], sections: ParsedSection[]): void {
         let currentQ: Partial<ParsedQuestion> | null = null;
         let instructionLines: string[] = [];
         let foundFirstQuestion = false;
+        // ── Passage extraction (PRD-0032 §FR1) ──
+        let passageLines: string[] = [];
+        let inPassage = false;
+        let passageStarted = false;
 
         for (let i = section.startLine + 1; i <= section.endLine; i++) {
-            const line = lines[i]?.trim() || '';
-            if (!line) continue;
+            const rawLine = lines[i] || '';
+            const line = rawLine.trim();
 
-            if (PATTERNS.answerKeyHeader.test(line) || /^(?:VI\.|V\.|IV\.)?\s*(?:ANSWER\s*KEY|ĐÁP\s*ÁN)/i.test(line)) break;
+            // ── Blank line handling ──
+            // Inside a passage, blank lines create paragraph breaks — preserve them
+            if (!line) {
+                if (inPassage) { passageLines.push(''); }
+                continue;
+            }
+
+            if (PATTERNS.answerKeyHeader.test(line) ||
+                /^(?:VI\.|V\.|IV\.)?\s*(?:ANSWER\s*KEY|ĐÁP\s*ÁN)/i.test(line) ||
+                /\[TYPE:\s*answer-?key\s*\]/i.test(line) ||
+                PATTERNS.aiAnswerKeyMarker.test(line)) break;
+
+            // Skip AI format markers — they're structural, not content
+            if (PATTERNS.aiSectionMarker.test(line) || PATTERNS.aiQuestionsMarker.test(line) || PATTERNS.aiMetadataMarker.test(line)) continue;
+
+            // ── PASSAGE: detection (before first question) ──
+            if (!foundFirstQuestion) {
+                const passageMatch = line.match(PATTERNS.passageMarker);
+                if (passageMatch) {
+                    inPassage = true;
+                    passageStarted = true;
+                    // If there's inline text after "PASSAGE:", include it
+                    const inlineText = (passageMatch[1] || '').trim();
+                    if (inlineText) passageLines.push(inlineText);
+                    continue;
+                }
+            }
+
+            // ── Collecting passage lines ──
+            if (inPassage) {
+                const questionMatch = line.match(PATTERNS.question);
+                const optionMatch = line.match(PATTERNS.optionLine);
+                if (questionMatch || optionMatch) {
+                    // End of passage — fall through to question processing
+                    inPassage = false;
+                } else {
+                    passageLines.push(line);
+                    continue;
+                }
+            }
 
             const questionMatch = line.match(PATTERNS.question);
             const optionMatch = line.match(PATTERNS.optionLine);
@@ -244,6 +381,14 @@ function parseQuestions(lines: string[], sections: ParsedSection[]): void {
         }
         if (!section.instructionText && instructionLines.length > 0)
             section.instructionText = instructionLines.join(' ').trim();
+
+        // ── Assign extracted passage text ──
+        if (passageStarted && passageLines.length > 0) {
+            // Trim leading/trailing blank lines but preserve internal paragraph breaks
+            while (passageLines.length > 0 && passageLines[0] === '') passageLines.shift();
+            while (passageLines.length > 0 && passageLines[passageLines.length - 1] === '') passageLines.pop();
+            section.passageText = passageLines.join('\n');
+        }
     }
 }
 
@@ -295,13 +440,23 @@ function extractAnswerKey(lines: string[]): Record<number, string> {
     for (let i = 0; i < lines.length; i++) {
         const trimmed = lines[i]?.trim() || '';
 
-        // Detect answer key section start  multiple strategies
+        // Detect answer key section start — multiple strategies
         if (PATTERNS.answerKeyHeader.test(trimmed)) {
             inAnswerSection = true;
             continue;
         }
         // Also detect if a section header contains "ANSWER KEY" or "ĐÁP ÁN"
         if (/^(?:VI\.|V\.|IV\.)?\s*(?:ANSWER\s*KEY|ĐÁP\s*ÁN)/i.test(trimmed) || (/ANSWER\s*KEY|ĐÁP\s*ÁN/i.test(trimmed) && PATTERNS.sectionHeader.test(trimmed))) {
+            inAnswerSection = true;
+            continue;
+        }
+        // Also detect AI-restructured [TYPE: answer-key] tag (standalone or inline)
+        if (/\[TYPE:\s*answer-?key\s*\]/i.test(trimmed)) {
+            inAnswerSection = true;
+            continue;
+        }
+        // Also detect === N. ANSWER KEY === AI format marker
+        if (PATTERNS.aiAnswerKeyMarker.test(trimmed)) {
             inAnswerSection = true;
             continue;
         }

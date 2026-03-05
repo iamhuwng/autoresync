@@ -13,6 +13,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import type { THCSSection, THCSTestMetadata, THCSTest, QuestionResult } from '../../types/thcs-test.types';
 import { markThcsTest, thcsResultToTestMarkingResult } from '../../services/thcsAutoMarking.service';
 import { Button } from '../modern';
+import { plog } from './previewLogCollector';
 
 // ─── Question type renderers (imported from student components) ───
 import THCSQuestionRenderer from '../thcs-student/THCSQuestionRenderer';
@@ -31,13 +32,24 @@ const READING_INTENTS = ['reading-cloze-mcq', 'reading-comprehension', 'reading-
  * Does NOT reuse the publish serialization function.
  */
 function convertDraftToPreviewTest(sections: THCSSection[], metadata: THCSTestMetadata): THCSTest {
+    const totalQs = sections.flatMap(s => s.questions).length;
+    const totalPts = sections.reduce((sum, s) => sum + s.totalPoints, 0);
+
+    plog('[Preview] Converting draft → preview test');
+    plog(`[Preview]   Sections: ${sections.length}, Questions: ${totalQs}, Points: ${totalPts}`);
+    sections.forEach((s, i) => {
+        const types = [...new Set(s.questions.map(q => q.type))];
+        const hasAnswers = s.questions.filter(q => q.correctAnswer || q.modelAnswers?.length || q.blankAnswers?.length).length;
+        plog(`[Preview]   [${i}] "${s.name}" — ${s.questions.length} Qs, type(s): [${types.join(', ')}], layout: ${s.layout || 'single-column'}, passage: ${!!s.passage}, answers: ${hasAnswers}/${s.questions.length}, rawFallback: ${s.questions[0]?.type === 'raw-text-fallback' || (s as any).isRawTextFallback || false}`);
+    });
+
     return {
         id: 'preview-' + Date.now(),
         testType: 'THCS-THPT',
         metadata,
         sections,
-        questionCount: sections.flatMap(s => s.questions).length,
-        totalPoints: sections.reduce((sum, s) => sum + s.totalPoints, 0),
+        questionCount: totalQs,
+        totalPoints: totalPts,
         createdBy: 'preview',
         ownerId: 'preview',
         isPublic: false,
@@ -53,7 +65,9 @@ function convertDraftToPreviewTest(sections: THCSSection[], metadata: THCSTestMe
 function isSectionReading(section: THCSSection): boolean {
     if (!section.questions.length) return false;
     const firstType = section.questions[0]?.type || '';
-    return READING_INTENTS.some(intent => firstType.includes(intent));
+    const isReading = READING_INTENTS.some(intent => firstType.includes(intent));
+    plog(`[Preview] isSectionReading("${section.name}"): firstType=${firstType}, isReading=${isReading}`);
+    return isReading;
 }
 
 export const THCSPreviewOverlay: React.FC<THCSPreviewOverlayProps> = ({
@@ -96,6 +110,9 @@ export const THCSPreviewOverlay: React.FC<THCSPreviewOverlayProps> = ({
     const handleSubmitPreview = useCallback(() => {
         if (timerRef.current) clearInterval(timerRef.current);
 
+        plog('[Preview] Submit — grading with answers:', answers);
+        plog(`[Preview] Submit — ${testData.sections.length} sections, ${testData.sections.flatMap(s => s.questions).length} questions`);
+
         try {
             const gradingResult = markThcsTest(
                 testData.id,
@@ -103,6 +120,13 @@ export const THCSPreviewOverlay: React.FC<THCSPreviewOverlayProps> = ({
                 testData.sections,
                 answers
             );
+
+            plog('[Preview] Grading result:', {
+                scaledScore: gradingResult.scaledScore,
+                totalPoints: gradingResult.totalPoints,
+                maxPoints: gradingResult.maxPoints,
+                questionCount: Object.keys(gradingResult.questionResults).length,
+            });
 
             const results: Record<string, boolean> = {};
             for (const [qNum, qr] of Object.entries(gradingResult.questionResults)) {
@@ -116,6 +140,13 @@ export const THCSPreviewOverlay: React.FC<THCSPreviewOverlayProps> = ({
                 testData.sections
             );
 
+            plog('[Preview] Final score:', {
+                scaled: gradingResult.scaledScore.toFixed(1),
+                raw: `${gradingResult.totalPoints}/${gradingResult.maxPoints}`,
+                percentage: markingResult.percentage.toFixed(1) + '%',
+                pendingWriting: thcsData.pendingWritingCount,
+            });
+
             setScoreDisplay({
                 scaledScore: gradingResult.scaledScore,
                 rawScore: gradingResult.totalPoints,
@@ -124,7 +155,7 @@ export const THCSPreviewOverlay: React.FC<THCSPreviewOverlayProps> = ({
                 pendingWritingCount: thcsData.pendingWritingCount,
             });
         } catch (err) {
-            console.error('Preview grading failed:', err);
+            plog('[Preview] Grading failed:', err);
         }
 
         setIsSubmitted(true);
@@ -155,6 +186,7 @@ export const THCSPreviewOverlay: React.FC<THCSPreviewOverlayProps> = ({
     // ─── Answer Handler (local state only) ──────────────────────
     const handleAnswer = useCallback((questionNumber: number, answer: string | string[] | null) => {
         if (!interactive) return; // Phase 2A: inputs disabled
+        plog(`[Preview] Answer Q${questionNumber}:`, answer);
         setAnswers(prev => {
             const next = { ...prev };
             if (answer === null) {
@@ -368,66 +400,73 @@ export const THCSPreviewOverlay: React.FC<THCSPreviewOverlayProps> = ({
 
                 {/* Question area */}
                 <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem' }}>
-                    {currentSection && (
-                        <>
-                            {/* Section header */}
-                            <div style={{
-                                marginBottom: '1rem',
-                                padding: '0.75rem 1rem',
-                                background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(139, 92, 246, 0.08))',
-                                borderRadius: '10px',
-                                border: '1px solid rgba(99, 102, 241, 0.15)',
-                            }}>
-                                <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#1e293b' }}>
-                                    {currentSection.name}
-                                </h2>
-                                {currentSection.instructionText && (
-                                    <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem', color: '#64748b', fontStyle: 'italic' }}>
-                                        {currentSection.instructionText}
-                                    </p>
-                                )}
-                            </div>
-
-                            {/* Two-column layout for reading */}
-                            <div style={{
-                                display: isTwoColumn ? 'grid' : 'block',
-                                gridTemplateColumns: isTwoColumn ? '1fr 1fr' : undefined,
-                                gap: '1.5rem',
-                            }}>
-                                {/* Passage panel (reading sections) */}
-                                {isTwoColumn && currentSection.passage && (
-                                    <THCSPassagePanel
-                                        passage={currentSection.passage}
-                                        layout={currentSection.layout || 'two-column'}
-                                        isVisible={true}
-                                    />
-                                )}
-
-                                {/* Questions */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                    {currentSection.questions.map((question) => {
-                                        const qNum = question.questionNumber.toString();
-                                        const studentAnswer = answers[qNum] || null;
-                                        const isCorrect = isSubmitted ? questionResults[qNum] : undefined;
-
-                                        return (
-                                            <div key={question.id} id={`thcs-q-${question.id}`}>
-                                                <THCSQuestionRenderer
-                                                    question={question}
-                                                    selectedAnswer={studentAnswer}
-                                                    onAnswer={(ans) => handleAnswer(question.questionNumber, ans)}
-                                                    isReviewMode={isSubmitted}
-                                                    isCorrect={isCorrect}
-                                                    isFlagged={flaggedQuestions.has(question.id)}
-                                                    onToggleFlag={() => handleToggleFlag(question.id)}
-                                                />
-                                            </div>
-                                        );
-                                    })}
+                    {currentSection && (() => {
+                        const qSummary = currentSection.questions.map(q => `Q${q.questionNumber}:${q.type}/${q.intent || '-'}`).join(', ');
+                        const passageContent = currentSection.passage?.content || '';
+                        const passageHasFormatting = /\*\*|__|{{|\[I\]/.test(passageContent);
+                        plog(`[Preview] Rendering section ${currentSectionIndex}: "${currentSection.name}", ${currentSection.questions.length} Qs, isTwoColumn=${isTwoColumn}, passage=${!!currentSection.passage}, passageLen=${passageContent.length}, passageFormatting=${passageHasFormatting}, instruction="${currentSection.instructionText?.slice(0, 80) || '(none)'}"`);
+                        plog(`[Preview]   Question breakdown: ${qSummary}`);
+                        return true;
+                    })() && (
+                            <>
+                                {/* Section header */}
+                                <div style={{
+                                    marginBottom: '1rem',
+                                    padding: '0.75rem 1rem',
+                                    background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(139, 92, 246, 0.08))',
+                                    borderRadius: '10px',
+                                    border: '1px solid rgba(99, 102, 241, 0.15)',
+                                }}>
+                                    <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#1e293b' }}>
+                                        {currentSection.name}
+                                    </h2>
+                                    {currentSection.instructionText && (
+                                        <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem', color: '#64748b', fontStyle: 'italic' }}>
+                                            {currentSection.instructionText}
+                                        </p>
+                                    )}
                                 </div>
-                            </div>
-                        </>
-                    )}
+
+                                {/* Two-column layout for reading */}
+                                <div style={{
+                                    display: isTwoColumn ? 'grid' : 'block',
+                                    gridTemplateColumns: isTwoColumn ? '1fr 1fr' : undefined,
+                                    gap: '1.5rem',
+                                }}>
+                                    {/* Passage panel (reading sections) */}
+                                    {isTwoColumn && currentSection.passage && (
+                                        <THCSPassagePanel
+                                            passage={currentSection.passage}
+                                            layout={currentSection.layout || 'two-column'}
+                                            isVisible={true}
+                                        />
+                                    )}
+
+                                    {/* Questions */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                        {currentSection.questions.map((question) => {
+                                            const qNum = question.questionNumber.toString();
+                                            const studentAnswer = answers[qNum] || null;
+                                            const isCorrect = isSubmitted ? questionResults[qNum] : undefined;
+
+                                            return (
+                                                <div key={question.id} id={`thcs-q-${question.id}`}>
+                                                    <THCSQuestionRenderer
+                                                        question={question}
+                                                        selectedAnswer={studentAnswer}
+                                                        onAnswer={(ans) => handleAnswer(question.questionNumber, ans)}
+                                                        isReviewMode={isSubmitted}
+                                                        isCorrect={isCorrect}
+                                                        isFlagged={flaggedQuestions.has(question.id)}
+                                                        onToggleFlag={() => handleToggleFlag(question.id)}
+                                                    />
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </>
+                        )}
                 </div>
             </div>
         </div>
