@@ -71,6 +71,49 @@ export interface AcademicSummary {
         };
         lastUpdated: number;
     };
+
+    // Progressive Feedback (Academic Record page)
+    progressiveFeedback?: ProgressiveFeedbackRecord;
+}
+
+export interface ProgressiveFeedbackSnapshot {
+    windowStart: number;
+    windowEnd: number;
+    testCount: number;
+    averageScore: number;
+    strongestSkills: string[];
+    weakestSkills: string[];
+    recurringGaps: string[];
+}
+
+export interface ProgressiveFeedbackNarrative {
+    summary: string;
+    progression: string;
+    regression: string;
+    repetition: string;
+    advice: string;
+}
+
+export interface ProgressiveFeedbackRecord {
+    generatedAt: number;
+    sourceWindowDays: number;
+    maxResultsAnalyzed: number;
+    basedOnResultIds: string[];
+    lastAutoRefreshAt: number;
+    lastManualRefreshAt: number | null;
+    nextEligibleManualRefreshAt: number | null;
+    nextScheduledRefreshAt: number;
+    currentSnapshot: ProgressiveFeedbackSnapshot;
+    previousSnapshot: ProgressiveFeedbackSnapshot | null;
+    strengths: string[];
+    weaknesses: string[];
+    criticalGaps: string[];
+    positiveProgressions: string[];
+    regressions: string[];
+    repetitivePatterns: string[];
+    narrative: ProgressiveFeedbackNarrative;
+    deterministicFeedback: string;
+    aiModel?: string;
 }
 
 /**

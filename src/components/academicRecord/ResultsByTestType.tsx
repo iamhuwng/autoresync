@@ -1,5 +1,4 @@
 import React, { useState, useMemo } from 'react';
-import { Stack, Text, Collapse, Group, Badge, ActionIcon, ThemeIcon } from '@mantine/core';
 import { IconChevronDown, IconChevronRight, IconClipboardList, IconFileText, IconInbox } from '@tabler/icons-react';
 import { ResultCard } from './ResultCard';
 import type { EnhancedTestResultRecord } from '../../types/results.types';
@@ -161,20 +160,20 @@ export const ResultsByTestType: React.FC<ResultsByTestTypeProps> = ({
     // Empty state
     if (results.length === 0) {
         return (
-            <Stack align="center" gap="md" py="xl">
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', padding: '2rem 0' }}>
                 <IconInbox size={64} style={{ color: '#94a3b8', opacity: 0.5 }} />
-                <Text size="lg" fw={500} c="dimmed">
+                <p style={{ margin: 0, fontSize: '1.125rem', fontWeight: 600, color: '#64748b' }}>
                     No test results found
-                </Text>
-                <Text size="sm" c="dimmed" ta="center" maw={400}>
+                </p>
+                <p style={{ margin: 0, fontSize: '0.875rem', color: '#64748b', textAlign: 'center', maxWidth: 400 }}>
                     Your test results will appear here grouped by test type.
-                </Text>
-            </Stack>
+                </p>
+            </div>
         );
     }
 
     return (
-        <Stack gap="lg">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {testTypeGroups.map((group) => {
                 const isExpanded = isTestTypeExpanded(group.testType);
                 const config = testTypeConfig[group.testType] || fallbackConfig;
@@ -204,60 +203,56 @@ export const ResultsByTestType: React.FC<ResultsByTestTypeProps> = ({
                                 e.currentTarget.style.transform = 'translateY(0)';
                             }}
                         >
-                            <Group justify="space-between" wrap="nowrap">
-                                <Group gap="sm" style={{ flex: 1 }}>
-                                    <ActionIcon
-                                        variant="subtle"
-                                        size="sm"
-                                        style={{ pointerEvents: 'none' }}
-                                    >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
+                                    <span style={{ pointerEvents: 'none', color: '#64748b', display: 'inline-flex', alignItems: 'center' }}>
                                         {isExpanded ? (
                                             <IconChevronDown size={18} />
                                         ) : (
                                             <IconChevronRight size={18} />
                                         )}
-                                    </ActionIcon>
+                                    </span>
 
-                                    <ThemeIcon size="lg" variant="light" color={config.color}>
+                                    <span style={{ width: 32, height: 32, borderRadius: 8, background: iconBg(config.color), color: iconFg(config.color), display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                                         <TestTypeIcon size={20} />
-                                    </ThemeIcon>
+                                    </span>
 
                                     <div style={{ flex: 1 }}>
-                                        <Text fw={600} size="md" style={{ color: '#1e293b' }}>
+                                        <div style={{ color: '#1e293b', fontWeight: 600, fontSize: '1rem' }}>
                                             {config.label}
-                                        </Text>
-                                        <Group gap="xs" mt={4}>
-                                            <Badge size="xs" variant="light" color={config.color}>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '0.375rem', marginTop: 4, flexWrap: 'wrap' }}>
+                                            <span style={badgeByColor(config.color)}>
                                                 {group.totalTests} {group.testType}{group.totalTests !== 1 ? (group.testType === 'quiz' ? 'zes' : 's') : ''}
-                                            </Badge>
-                                            <Badge size="xs" variant="light" color="blue">
+                                            </span>
+                                            <span style={badgeBlue}>
                                                 Avg: {Math.round(group.averageScore)}%
-                                            </Badge>
-                                            <Badge size="xs" variant="light" color="green">
+                                            </span>
+                                            <span style={badgeGreen}>
                                                 Best: {Math.round(group.bestScore)}%
-                                            </Badge>
-                                            <Badge size="xs" variant="light" color={getPassRateColor(group.passRate)}>
+                                            </span>
+                                            <span style={badgeByColor(getPassRateColor(group.passRate))}>
                                                 Pass Rate: {Math.round(group.passRate)}%
-                                            </Badge>
-                                        </Group>
+                                            </span>
+                                        </div>
                                     </div>
-                                </Group>
+                                </div>
 
                                 {/* Average Score Display */}
                                 <div style={{ textAlign: 'right' }}>
-                                    <Text size="xl" fw={700} style={{ color: '#1e293b', lineHeight: 1 }}>
+                                    <div style={{ color: '#1e293b', lineHeight: 1, fontSize: '1.25rem', fontWeight: 700 }}>
                                         {Math.round(group.averageScore)}%
-                                    </Text>
-                                    <Text size="xs" c="dimmed">
+                                    </div>
+                                    <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
                                         average
-                                    </Text>
+                                    </div>
                                 </div>
-                            </Group>
+                            </div>
                         </div>
 
                         {/* Collapsible Results List */}
-                        <Collapse in={isExpanded}>
-                            <Stack gap="md" mt="xs" style={{ paddingLeft: '1rem' }}>
+                        {isExpanded && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.5rem', paddingLeft: '1rem' }}>
                                 {group.results.map((result) => (
                                     <ResultCard
                                         key={result.resultId}
@@ -266,16 +261,50 @@ export const ResultsByTestType: React.FC<ResultsByTestTypeProps> = ({
                                         variant={variant}
                                     />
                                 ))}
-                            </Stack>
-                        </Collapse>
+                            </div>
+                        )}
                     </div>
                 );
             })}
 
             {/* Summary */}
-            <Text size="xs" c="dimmed" ta="center" mt="md">
+            <p style={{ margin: '0.5rem 0 0', fontSize: '0.75rem', color: '#64748b', textAlign: 'center' }}>
                 {testTypeGroups.length} type{testTypeGroups.length !== 1 ? 's' : ''} • {results.length} total result{results.length !== 1 ? 's' : ''}
-            </Text>
-        </Stack>
+            </p>
+        </div>
     );
 };
+
+const badgeBase: React.CSSProperties = {
+    borderRadius: 999,
+    padding: '2px 8px',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+};
+
+const badgeBlue: React.CSSProperties = { ...badgeBase, background: '#eff6ff', color: '#1d4ed8' };
+const badgeGreen: React.CSSProperties = { ...badgeBase, background: '#ecfdf5', color: '#047857' };
+
+function badgeByColor(color: string): React.CSSProperties {
+    const map: Record<string, React.CSSProperties> = {
+        cyan: { ...badgeBase, background: '#ecfeff', color: '#0e7490' },
+        indigo: { ...badgeBase, background: '#eef2ff', color: '#4338ca' },
+        blue: { ...badgeBase, background: '#eff6ff', color: '#1d4ed8' },
+        violet: { ...badgeBase, background: '#f5f3ff', color: '#6d28d9' },
+        teal: { ...badgeBase, background: '#f0fdfa', color: '#0f766e' },
+        orange: { ...badgeBase, background: '#fff7ed', color: '#c2410c' },
+        green: { ...badgeBase, background: '#ecfdf5', color: '#047857' },
+        yellow: { ...badgeBase, background: '#fef9c3', color: '#a16207' },
+        red: { ...badgeBase, background: '#fee2e2', color: '#b91c1c' },
+        gray: { ...badgeBase, background: '#f8fafc', color: '#64748b' },
+    };
+    return map[color] || map.gray;
+}
+
+function iconBg(color: string): string {
+    return (badgeByColor(color).background as string) || '#f8fafc';
+}
+
+function iconFg(color: string): string {
+    return (badgeByColor(color).color as string) || '#64748b';
+}

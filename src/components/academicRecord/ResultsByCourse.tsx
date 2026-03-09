@@ -1,5 +1,4 @@
 import React, { useState, useMemo } from 'react';
-import { Stack, Text, Collapse, Group, Badge, Progress, ActionIcon } from '@mantine/core';
 import { IconChevronDown, IconChevronRight, IconBook, IconInbox } from '@tabler/icons-react';
 import { ResultCard } from './ResultCard';
 import type { EnhancedTestResultRecord } from '../../types/results.types';
@@ -110,20 +109,20 @@ export const ResultsByCourse: React.FC<ResultsByCourseProps> = ({
     // Empty state
     if (results.length === 0) {
         return (
-            <Stack align="center" gap="md" py="xl">
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', padding: '2rem 0' }}>
                 <IconInbox size={64} style={{ color: '#94a3b8', opacity: 0.5 }} />
-                <Text size="lg" fw={500} c="dimmed">
+                <p style={{ margin: 0, fontSize: '1.125rem', fontWeight: 600, color: '#64748b' }}>
                     No test results found
-                </Text>
-                <Text size="sm" c="dimmed" ta="center" maw={400}>
+                </p>
+                <p style={{ margin: 0, fontSize: '0.875rem', color: '#64748b', textAlign: 'center', maxWidth: 400 }}>
                     Your test results will appear here grouped by course.
-                </Text>
-            </Stack>
+                </p>
+            </div>
         );
     }
 
     return (
-        <Stack gap="lg">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {courseGroups.map((group) => {
                 const isExpanded = isCourseExpanded(group.courseId);
                 const key = group.courseId || 'uncategorized';
@@ -152,60 +151,58 @@ export const ResultsByCourse: React.FC<ResultsByCourseProps> = ({
                                 e.currentTarget.style.transform = 'translateY(0)';
                             }}
                         >
-                            <Group justify="space-between" wrap="nowrap">
-                                <Group gap="sm" style={{ flex: 1 }}>
-                                    <ActionIcon
-                                        variant="subtle"
-                                        size="sm"
-                                        style={{ pointerEvents: 'none' }}
-                                    >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
+                                    <span style={{ pointerEvents: 'none', color: '#64748b', display: 'inline-flex', alignItems: 'center' }}>
                                         {isExpanded ? (
                                             <IconChevronDown size={18} />
                                         ) : (
                                             <IconChevronRight size={18} />
                                         )}
-                                    </ActionIcon>
+                                    </span>
 
                                     <IconBook size={20} style={{ color: '#64748b' }} />
 
                                     <div style={{ flex: 1 }}>
-                                        <Text fw={600} size="md" style={{ color: '#1e293b' }}>
+                                        <div style={{ color: '#1e293b', fontWeight: 600, fontSize: '1rem' }}>
                                             {group.courseName}
-                                        </Text>
-                                        <Group gap="xs" mt={4}>
-                                            <Badge size="xs" variant="light" color="blue">
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '0.375rem', marginTop: 4, flexWrap: 'wrap' }}>
+                                            <span style={badgeBlue}>
                                                 {group.totalTests} test{group.totalTests !== 1 ? 's' : ''}
-                                            </Badge>
-                                            <Badge size="xs" variant="light" color="green">
+                                            </span>
+                                            <span style={badgeGreen}>
                                                 Avg: {Math.round(group.averageScore)}%
-                                            </Badge>
-                                        </Group>
+                                            </span>
+                                        </div>
                                     </div>
-                                </Group>
+                                </div>
 
                                 {/* Progress percentage badge (if available) */}
                                 {showProgress && group.progressPercentage !== undefined && (
-                                    <Badge size="lg" variant="filled" color="grape">
+                                    <span style={badgePurple}>
                                         {Math.round(group.progressPercentage)}% Complete
-                                    </Badge>
+                                    </span>
                                 )}
-                            </Group>
+                            </div>
 
                             {/* Progress bar (if enabled) */}
                             {showProgress && group.progressPercentage !== undefined && (
-                                <Progress
-                                    value={group.progressPercentage}
-                                    size="sm"
-                                    mt="md"
-                                    color="grape"
-                                    style={{ borderRadius: '4px' }}
-                                />
+                                <div style={{ marginTop: '0.75rem', height: 8, borderRadius: 4, background: '#ede9fe', overflow: 'hidden' }}>
+                                    <div
+                                        style={{
+                                            width: `${Math.min(group.progressPercentage, 100)}%`,
+                                            height: '100%',
+                                            background: '#7c3aed',
+                                        }}
+                                    />
+                                </div>
                             )}
                         </div>
 
                         {/* Collapsible Results List */}
-                        <Collapse in={isExpanded}>
-                            <Stack gap="md" mt="xs" style={{ paddingLeft: '1rem' }}>
+                        {isExpanded && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.5rem', paddingLeft: '1rem' }}>
                                 {group.results.map((result) => (
                                     <ResultCard
                                         key={result.resultId}
@@ -214,16 +211,27 @@ export const ResultsByCourse: React.FC<ResultsByCourseProps> = ({
                                         variant={variant}
                                     />
                                 ))}
-                            </Stack>
-                        </Collapse>
+                            </div>
+                        )}
                     </div>
                 );
             })}
 
             {/* Summary */}
-            <Text size="xs" c="dimmed" ta="center" mt="md">
+            <p style={{ margin: '0.5rem 0 0', fontSize: '0.75rem', color: '#64748b', textAlign: 'center' }}>
                 {courseGroups.length} course{courseGroups.length !== 1 ? 's' : ''} • {results.length} total result{results.length !== 1 ? 's' : ''}
-            </Text>
-        </Stack>
+            </p>
+        </div>
     );
 };
+
+const badgeBase: React.CSSProperties = {
+    borderRadius: 999,
+    padding: '2px 8px',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+};
+
+const badgeBlue: React.CSSProperties = { ...badgeBase, background: '#eff6ff', color: '#1d4ed8' };
+const badgeGreen: React.CSSProperties = { ...badgeBase, background: '#ecfdf5', color: '#047857' };
+const badgePurple: React.CSSProperties = { ...badgeBase, background: '#7c3aed', color: '#ffffff', padding: '4px 10px' };

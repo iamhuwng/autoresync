@@ -1,5 +1,4 @@
 import React, { useState, useMemo } from 'react';
-import { Stack, Text, Collapse, Group, Badge, ActionIcon, RingProgress, Center } from '@mantine/core';
 import { IconChevronDown, IconChevronRight, IconBook, IconHeadphones, IconPencil, IconMicrophone, IconInbox } from '@tabler/icons-react';
 import { ResultCard } from './ResultCard';
 import type { EnhancedTestResultRecord } from '../../types/results.types';
@@ -147,20 +146,20 @@ export const ResultsBySkill: React.FC<ResultsBySkillProps> = ({
     // Empty state
     if (results.length === 0) {
         return (
-            <Stack align="center" gap="md" py="xl">
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', padding: '2rem 0' }}>
                 <IconInbox size={64} style={{ color: '#94a3b8', opacity: 0.5 }} />
-                <Text size="lg" fw={500} c="dimmed">
+                <p style={{ margin: 0, fontSize: '1.125rem', fontWeight: 600, color: '#64748b' }}>
                     No test results found
-                </Text>
-                <Text size="sm" c="dimmed" ta="center" maw={400}>
+                </p>
+                <p style={{ margin: 0, fontSize: '0.875rem', color: '#64748b', textAlign: 'center', maxWidth: 400 }}>
                     Your test results will appear here grouped by skill.
-                </Text>
-            </Stack>
+                </p>
+            </div>
         );
     }
 
     return (
-        <Stack gap="lg">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {skillGroups.map((group) => {
                 const isExpanded = isSkillExpanded(group.skill);
                 const config = skillConfig[group.skill] || fallbackConfig;
@@ -190,68 +189,53 @@ export const ResultsBySkill: React.FC<ResultsBySkillProps> = ({
                                 e.currentTarget.style.transform = 'translateY(0)';
                             }}
                         >
-                            <Group justify="space-between" wrap="nowrap">
-                                <Group gap="sm" style={{ flex: 1 }}>
-                                    <ActionIcon
-                                        variant="subtle"
-                                        size="sm"
-                                        style={{ pointerEvents: 'none' }}
-                                    >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
+                                    <span style={{ pointerEvents: 'none', color: '#64748b', display: 'inline-flex', alignItems: 'center' }}>
                                         {isExpanded ? (
                                             <IconChevronDown size={18} />
                                         ) : (
                                             <IconChevronRight size={18} />
                                         )}
-                                    </ActionIcon>
+                                    </span>
 
-                                    <SkillIcon size={24} style={{ color: `var(--mantine-color-${config.color}-6)` }} />
+                                    <SkillIcon size={24} style={{ color: skillIconColor(config.color) }} />
 
                                     <div style={{ flex: 1 }}>
-                                        <Text fw={600} size="md" style={{ color: '#1e293b' }}>
+                                        <div style={{ color: '#1e293b', fontWeight: 600, fontSize: '1rem' }}>
                                             {config.label}
-                                        </Text>
-                                        <Group gap="xs" mt={4}>
-                                            <Badge size="xs" variant="light" color={config.color}>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '0.375rem', marginTop: 4, flexWrap: 'wrap' }}>
+                                            <span style={badgeByColor(config.color)}>
                                                 {group.totalTests} test{group.totalTests !== 1 ? 's' : ''}
-                                            </Badge>
-                                            <Badge size="xs" variant="outline" color="gray">
+                                            </span>
+                                            <span style={badgeOutline}>
                                                 Best: {Math.round(group.bestScore)}%
-                                            </Badge>
-                                            <Badge size="xs" variant="outline" color="gray">
+                                            </span>
+                                            <span style={badgeOutline}>
                                                 Worst: {Math.round(group.worstScore)}%
-                                            </Badge>
-                                        </Group>
+                                            </span>
+                                        </div>
                                     </div>
-                                </Group>
+                                </div>
 
                                 {/* Ring Progress for Average Score */}
-                                <Center>
-                                    <RingProgress
-                                        size={80}
-                                        thickness={8}
-                                        sections={[
-                                            { value: group.averageScore, color: getScoreColor(group.averageScore) }
-                                        ]}
-                                        label={
-                                            <Center>
-                                                <div style={{ textAlign: 'center' }}>
-                                                    <Text size="lg" fw={700} style={{ color: getScoreColor(group.averageScore), lineHeight: 1 }}>
-                                                        {Math.round(group.averageScore)}%
-                                                    </Text>
-                                                    <Text size="xs" c="dimmed" style={{ lineHeight: 1.2 }}>
-                                                        avg
-                                                    </Text>
-                                                </div>
-                                            </Center>
-                                        }
-                                    />
-                                </Center>
-                            </Group>
+                                <div style={{ width: 80, height: 80, borderRadius: '50%', background: `conic-gradient(${getScoreColor(group.averageScore)} ${Math.max(0, Math.min(group.averageScore, 100)) * 3.6}deg, #e2e8f0 0deg)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <div style={{ width: 62, height: 62, borderRadius: '50%', background: '#ffffff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                                        <div style={{ fontSize: '1rem', fontWeight: 700, color: getScoreColor(group.averageScore), lineHeight: 1 }}>
+                                            {Math.round(group.averageScore)}%
+                                        </div>
+                                        <div style={{ fontSize: '0.6875rem', color: '#6b7280', lineHeight: 1.2 }}>
+                                            avg
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         {/* Collapsible Results List */}
-                        <Collapse in={isExpanded}>
-                            <Stack gap="md" mt="xs" style={{ paddingLeft: '1rem' }}>
+                        {isExpanded && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.5rem', paddingLeft: '1rem' }}>
                                 {group.results.map((result) => (
                                     <ResultCard
                                         key={result.resultId}
@@ -260,16 +244,52 @@ export const ResultsBySkill: React.FC<ResultsBySkillProps> = ({
                                         variant={variant}
                                     />
                                 ))}
-                            </Stack>
-                        </Collapse>
+                            </div>
+                        )}
                     </div>
                 );
             })}
 
             {/* Summary */}
-            <Text size="xs" c="dimmed" ta="center" mt="md">
+            <p style={{ margin: '0.5rem 0 0', fontSize: '0.75rem', color: '#64748b', textAlign: 'center' }}>
                 {skillGroups.length} skill{skillGroups.length !== 1 ? 's' : ''} • {results.length} total result{results.length !== 1 ? 's' : ''}
-            </Text>
-        </Stack>
+            </p>
+        </div>
     );
 };
+
+const badgeBase: React.CSSProperties = {
+    borderRadius: 999,
+    padding: '2px 8px',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+};
+
+const badgeOutline: React.CSSProperties = {
+    ...badgeBase,
+    border: '1px solid #d1d5db',
+    background: '#ffffff',
+    color: '#6b7280',
+};
+
+function skillIconColor(color: string): string {
+    const map: Record<string, string> = {
+        blue: '#2563eb',
+        grape: '#7c3aed',
+        teal: '#0f766e',
+        orange: '#ea580c',
+        gray: '#64748b',
+    };
+    return map[color] || '#64748b';
+}
+
+function badgeByColor(color: string): React.CSSProperties {
+    const map: Record<string, React.CSSProperties> = {
+        blue: { ...badgeBase, background: '#eff6ff', color: '#1d4ed8' },
+        grape: { ...badgeBase, background: '#f3e8ff', color: '#7e22ce' },
+        teal: { ...badgeBase, background: '#f0fdfa', color: '#0f766e' },
+        orange: { ...badgeBase, background: '#fff7ed', color: '#c2410c' },
+        gray: { ...badgeBase, background: '#f8fafc', color: '#64748b' },
+    };
+    return map[color] || map.gray;
+}

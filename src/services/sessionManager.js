@@ -43,6 +43,19 @@ export const SessionMode = {
   TEST: 'test',
 };
 
+const isQuizModeEnabled = () => {
+  if (import.meta.env.DEV) {
+    return true;
+  }
+
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  const hostname = window.location.hostname;
+  return hostname === 'localhost' || hostname === '127.0.0.1';
+};
+
 /**
  * Create a new session with a unique session code
  * HYBRID ARCHITECTURE: Creates new class-based structure with compatibility layer
@@ -66,6 +79,10 @@ export async function createSession({ quizId, testId, mode = SessionMode.QUIZ, s
 
     if (!Object.values(SessionMode).includes(mode)) {
       throw new Error(`Invalid session mode: ${mode}`);
+    }
+
+    if (mode === SessionMode.QUIZ && !isQuizModeEnabled()) {
+      throw new Error('Quiz mode is only available in localhost/development environments');
     }
 
     // Generate unique session code

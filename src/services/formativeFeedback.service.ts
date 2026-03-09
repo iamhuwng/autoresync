@@ -97,7 +97,8 @@ function getQuestionNumbersByIntent(
     const wrong: number[] = [];
 
     for (const section of sections) {
-        for (const q of section.questions) {
+        const questions = Array.isArray((section as any).questions) ? (section as any).questions : [];
+        for (const q of questions) {
             // Match on either intent or type field
             const qIntent = q.intent || q.type;
             if (qIntent === intent) {
@@ -196,6 +197,36 @@ function formatQuestionList(nums: number[]): string {
 function formatSkillLine(entry: SkillAnalysis): string {
     const qList = formatQuestionList(entry.questionNumbers);
     return `${entry.skillName} (${qList}) — ${entry.correct}/${entry.total} correct`;
+}
+
+function formatAnswerValue(value: unknown): string {
+    if (Array.isArray(value)) {
+        return value.map(v => String(v ?? '')).join(', ');
+    }
+    if (value === undefined || value === null || value === '') {
+        return 'No answer provided';
+    }
+    return String(value);
+}
+
+function buildFallbackQuestionExplanations(
+    questionResults: Record<number, QuestionResult>
+): Record<string, string> {
+    const explanations: Record<string, string> = {};
+
+    for (const [rawQuestionNumber, questionResult] of Object.entries(questionResults || {})) {
+        if (questionResult.isCorrect) continue;
+
+        const questionNumber = Number(rawQuestionNumber);
+        const studentAnswer = formatAnswerValue(questionResult.studentAnswer);
+        const correctAnswer = questionResult.correctAnswer !== undefined
+            ? formatAnswerValue(questionResult.correctAnswer)
+            : 'This item requires a more complete model response.';
+
+        explanations[`Q${questionNumber}`] = `For Q${questionNumber}, your answer was ${studentAnswer}. The expected answer is ${correctAnswer}. Recheck the core rule behind this item and practice the same pattern again to lock in the correction.`;
+    }
+
+    return explanations;
 }
 
 /**
@@ -667,6 +698,43 @@ export function generateDeterministicFeedback(
     // Step 1: Merge all section intent breakdowns
     const mergedBreakdown = mergeIntentBreakdowns(gradingResult.sectionResults);
 
+    const hasFullQuestionData = sections.some(section => Array.isArray((section as any).questions) && (section as any).questions.length > 0);
+
+    if (!hasFullQuestionData) {
+        const totalCorrect = Object.values(gradingResult.questionResults || {})
+            .filter(qr => qr.isCorrect).length;
+        const totalQuestions = Object.keys(gradingResult.questionResults || {}).length;
+        const analysis = bucketByPerformance(
+            Object.entries(mergedBreakdown).map(([intent, counts]) => {
+                const percentage = counts.total > 0 ? Math.round((counts.correct / counts.total) * 100) : 0;
+                const skillInfo = INTENT_SKILL_MAP[intent] || { name: intent, category: 'Other' };
+                return {
+                    intent: intent as THCSQuestionType,
+                    skillName: skillInfo.name,
+                    correct: counts.correct,
+                    total: counts.total,
+                    percentage,
+                    questionNumbers: [],
+                    wrongQuestionNumbers: [],
+                };
+            }).sort((a, b) => b.percentage - a.percentage)
+        );
+
+        return {
+            analysis,
+            deterministicFeedback: buildDeterministicText(
+                analysis,
+                totalCorrect,
+                totalQuestions,
+                gradingResult.scaledScore
+            ),
+            generatedAt: Date.now(),
+            totalCorrect,
+            totalQuestions,
+            scaledScore: gradingResult.scaledScore,
+        };
+    }
+
     // Step 2: Build skill analysis entries with question numbers
     const allEntries = buildSkillAnalysisList(
         mergedBreakdown,
@@ -736,6 +804,17 @@ export async function generateFormativeFeedback(
             console.log(`🤖 [FormativeFeedback] AI enrichment applied (${aiResult.model})`);
         } else {
             console.log('📊 [FormativeFeedback] Using deterministic-only feedback');
+        }
+
+        const fallbackExplanations = buildFallbackQuestionExplanations(gradingResult.questionResults || {});
+        if (!feedback.questionExplanations || Object.keys(feedback.questionExplanations).length === 0) {
+            feedback.questionExplanations = fallbackExplanations;
+        } else {
+            for (const [key, value] of Object.entries(fallbackExplanations)) {
+                if (!feedback.questionExplanations[key]) {
+                    feedback.questionExplanations[key] = value;
+                }
+            }
         }
 
         // Step 3: Save feedback to RTDB

@@ -145,6 +145,39 @@ const PATTERNS = {
 // -- Layer 1: Regex Structural Parser --
 // (used by parseThcsTextRegex fallback — kept after upload pipeline removal)
 
+function inferSectionTypeFromHeader(headerText: string): THCSQuestionType | null {
+    const normalized = headerText.trim().toLowerCase();
+
+    if (!normalized) return null;
+    if (/underlined\s+part.*needs\s+correcting|needs\s+correcting|error.*identification|tìm.*lỗi|sửa.*lỗi/i.test(normalized)) {
+        return 'error-identification';
+    }
+    if (/best\s+rewrites?\s+the\s+sentence\s+given|closest\s+meaning|gần.*nghĩa/i.test(normalized)) {
+        return 'closest-meaning';
+    }
+    if (/change\s+adjective\s+clauses?\s+to\s+phrases?|join\s+these\s+pairs\s+of\s+sentences|relative\s+pronouns?\s+or\s+adverbs?|rewrite|viết.*lại/i.test(normalized)) {
+        return 'sentence-rewrite';
+    }
+    if (/choose\s+the\s+best\s+answer|grammar|ngữ\s+pháp/i.test(normalized)) {
+        return 'mcq-grammar';
+    }
+
+    return null;
+}
+
+function shouldAcceptBareQuestionNumber(section: ParsedSection, text: string): boolean {
+    const normalized = text.trim();
+
+    if (!normalized || normalized.length < 3) return false;
+    if (/^[A-H]$/i.test(normalized)) return false;
+    if (/^\d{4}\b/.test(normalized)) return false;
+    if (section.detectedType === 'sentence-rewrite' || section.detectedType === 'sentence-rewrite-keyword') {
+        return false;
+    }
+
+    return true;
+}
+
 function detectSections(lines: string[]): ParsedSection[] {
     const sections: ParsedSection[] = [];
     let currentSection: Partial<ParsedSection> | null = null;
@@ -251,7 +284,13 @@ function detectSections(lines: string[]): ParsedSection[] {
                 detectedType = typeName;
                 typeConfidence = 99; // High confidence from explicit tag
             } else {
-                sectionName = (sectionMatch![1] || sectionMatch![3] || '').trim() || `Section ${sections.length + 1}`;
+                sectionName = (sectionMatch![1] || sectionMatch![2] || '').trim() || `Section ${sections.length + 1}`;
+                const inferredType = inferSectionTypeFromHeader(sectionName);
+                if (inferredType) {
+                    detectedType = inferredType;
+                    typeConfidence = 86;
+                    instructionText = sectionName;
+                }
             }
 
             currentSection = {
@@ -357,9 +396,11 @@ function parseQuestions(lines: string[], sections: ParsedSection[]): void {
                 const qNum = questionMatch[1] || questionMatch[3];
                 const qText = questionMatch[2] || questionMatch[4] || '';
                 if (qNum) {
+                    const isBareNumberQuestion = !questionMatch[1] && !!questionMatch[3];
                     const cleanText = qText.trim();
                     // Skip false positive: bare "1. B" where B is an option letter not question text
                     if (cleanText.length <= 2 && /^[A-H]$/i.test(cleanText)) continue;
+                    if (isBareNumberQuestion && !shouldAcceptBareQuestionNumber(section, cleanText)) continue;
                     if (currentQ && (currentQ.text || (currentQ.options && currentQ.options.length > 0))) {
                         section.questions.push(currentQ as ParsedQuestion);
                     }
@@ -465,6 +506,7 @@ function extractAnswerKey(lines: string[]): Record<number, string> {
         }
 
         if (!inAnswerSection) continue;
+        if (!trimmed || /^[-=_~*]{3,}$/.test(trimmed)) continue;
 
         // Strategy 1: Compact "1.D 2.A 3.C" or "1-D, 2-A" or "1:B"
         const compactPattern = /(\d+)[.):\-]\s*([A-H])/gi;
@@ -481,6 +523,7 @@ function extractAnswerKey(lines: string[]): Record<number, string> {
             const qNum = parseInt(spacedMatch[1]!, 10);
             const answer = spacedMatch[2]!.toUpperCase();
             answers[qNum] = answer;
+            continue;
         }
 
         // Strategy 3: Inline pairs "1  B  21  C" (table-extracted, 4+ columns)
@@ -494,6 +537,17 @@ function extractAnswerKey(lines: string[]): Record<number, string> {
                     const answer = pairMatch[2]!.toUpperCase();
                     if (!answers[qNum]) answers[qNum] = answer;
                 }
+            }
+            continue;
+        }
+
+        // Strategy 4: Free-text answers for rewrite/open-response sections
+        const freeTextMatch = trimmed.match(/^\s*(\d+)[.):\-]\s*(.+?)\s*$/);
+        if (freeTextMatch) {
+            const qNum = parseInt(freeTextMatch[1]!, 10);
+            const answer = freeTextMatch[2]!.trim();
+            if (answer && !/^[A-H]$/i.test(answer)) {
+                answers[qNum] = answer;
             }
         }
     }

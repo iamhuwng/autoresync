@@ -53,6 +53,9 @@ const THCSWizardLayout: React.FC<THCSWizardLayoutProps> = ({
                     pageTitle="THCS-THPT Test Editor"
                     userId={user?.uid}
                     userRole={profile?.role}
+                    userDisplayName={profile?.displayName || user?.displayName || user?.email}
+                    userEmail={profile?.email || user?.email}
+                    userAvatarUrl={profile?.avatarUrl || profile?.photoURL || user?.photoURL}
                     onLogout={logout}
                 />
 

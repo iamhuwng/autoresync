@@ -4,13 +4,14 @@
  * Renders a section sidebar navigator + main content area for editing
  * sections and questions. Reuses THCSSectionBlock, THCSDndSectionsContainer.
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Alert } from '@mantine/core';
 import THCSSectionBlock from './THCSSectionBlock';
 import { THCSDndSectionsContainer } from './THCSDndSectionsContainer';
 import type { THCSSection, THCSTestMetadata } from '../../types/thcs-test.types';
 import { generateDiagnosticLog } from '../../services/test-creation/thcs-diagnostic-log';
 import type { ParseDebugData } from '../../services/test-creation/thcs-diagnostic-log';
+import { plog, getPreviewLogs, clearPreviewLogs, getPreviewLogCount } from './previewLogCollector';
 
 export interface THCSQuestionsStepProps {
     sections: THCSSection[];
@@ -43,6 +44,18 @@ const THCSQuestionsStep: React.FC<THCSQuestionsStepProps> = ({
     const answeredCount = sections.reduce((sum, s) =>
         sum + s.questions.filter(q => q.correctAnswer || q.modelAnswers?.length || q.blankAnswers?.length).length
         , 0);
+
+    // ─── Diagnostic: log Step 2 data on mount/change ────────────
+    useEffect(() => {
+        plog(`[Step2-Questions] Entered with ${sections.length} sections, ${totalQuestions} questions, ${answeredCount} answered`);
+        plog(`[Step2-Questions] Metadata:`, { title: metadata.title, grade: metadata.gradeLevel, examType: metadata.examType, duration: metadata.duration });
+        sections.forEach((s, i) => {
+            const types = [...new Set(s.questions.map(q => q.type))];
+            const qWithAnswer = s.questions.filter(q => q.correctAnswer).length;
+            const qWithOptions = s.questions.filter(q => q.options && q.options.length > 0).length;
+            plog(`[Step2-Questions]   [${i}] "${s.name}" (${s.id.slice(0, 8)}) — ${s.questions.length} Qs, types: [${types.join(', ')}], withAnswers: ${qWithAnswer}, withOptions: ${qWithOptions}, points: ${s.totalPoints}`);
+        });
+    }, [sections, totalQuestions, answeredCount, metadata]);
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -233,8 +246,55 @@ const THCSQuestionsStep: React.FC<THCSQuestionsStepProps> = ({
                                         textAlign: 'center',
                                     }}
                                 >
-                                    {logCopied ? '✅ Copied!' : '📋 Copy Full Log'}
+                                    {logCopied ? '✅ Copied!' : '📋 Copy Parse Log'}
                                 </button>
+
+                                {/* ── Copy Preview Logs button ── */}
+                                <button
+                                    onClick={() => {
+                                        const logs = getPreviewLogs();
+                                        if (!logs) { alert('No preview logs yet. Open Preview or navigate sections first.'); return; }
+                                        navigator.clipboard.writeText(logs).then(() => {
+                                            setLogCopied(true);
+                                            setTimeout(() => setLogCopied(false), 2000);
+                                        });
+                                    }}
+                                    style={{
+                                        padding: '0.375rem 0.5rem',
+                                        border: '1px solid rgba(245,158,11,0.3)',
+                                        borderRadius: '0.375rem',
+                                        background: 'rgba(245,158,11,0.06)',
+                                        color: '#d97706',
+                                        fontWeight: 600,
+                                        fontSize: '0.6875rem',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.15s',
+                                        width: '100%',
+                                        textAlign: 'center',
+                                    }}
+                                >
+                                    📎 Copy Preview Logs ({getPreviewLogCount()})
+                                </button>
+
+                                {/* ── Clear Preview Logs ── */}
+                                <button
+                                    onClick={() => { clearPreviewLogs(); setLogCopied(false); }}
+                                    style={{
+                                        padding: '0.25rem 0.5rem',
+                                        border: '1px solid rgba(0,0,0,0.08)',
+                                        borderRadius: '0.375rem',
+                                        background: 'transparent',
+                                        color: '#94a3b8',
+                                        fontWeight: 500,
+                                        fontSize: '0.625rem',
+                                        cursor: 'pointer',
+                                        width: '100%',
+                                        textAlign: 'center',
+                                    }}
+                                >
+                                    🗑️ Clear Logs
+                                </button>
+
                                 <pre style={{
                                     margin: 0,
                                     padding: '0.5rem',

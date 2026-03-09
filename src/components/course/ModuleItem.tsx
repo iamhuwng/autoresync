@@ -12,6 +12,28 @@ export interface ExtendedMaterial extends CourseMaterial {
     isUnavailable?: boolean;
 }
 
+const materialCardStyles = {
+    root: {
+        padding: '8px 10px',
+        borderRadius: '10px',
+    },
+};
+
+const moduleCardStyles = {
+    root: {
+        padding: '10px 12px',
+        borderRadius: '12px',
+    },
+};
+
+const iconActionStyles = {
+    root: {
+        width: 28,
+        minWidth: 28,
+        height: 28,
+    },
+};
+
 interface ModuleItemProps {
     module: Module;
     materials?: ExtendedMaterial[];
@@ -53,38 +75,39 @@ const SortableMaterialItem = ({
 
     return (
         <div ref={setNodeRef} style={style}>
-            <Card withBorder padding="xs" radius="sm" bg="gray.0">
-                <Group justify="space-between">
-                    <Group gap="xs">
+            <Card withBorder padding="xs" radius="sm" bg="gray.0" styles={materialCardStyles}>
+                <Group justify="space-between" align="center" wrap="nowrap" gap="xs">
+                    <Group gap={6} wrap="nowrap" style={{ minWidth: 0, flex: 1 }}>
                         <div {...attributes} {...listeners} style={{ cursor: 'grab', display: 'flex' }} data-testid="material-drag-handle">
-                            <IconGripVertical size={16} color="gray" />
+                            <IconGripVertical size={14} color="gray" />
                         </div>
-                        <IconBook size={14} color="gray" />
+                        <IconBook size={13} color="gray" />
                         <Text
-                            size="sm"
+                            size="xs"
                             fw={500}
                             component={Link}
                             to={`/material/${material.materialId}`}
                             state={{ courseId: material.courseId, moduleId: material.moduleId }}
-                            style={{ cursor: 'pointer', textDecoration: 'none', color: 'inherit' }}
+                            style={{ cursor: 'pointer', textDecoration: 'none', color: 'inherit', minWidth: 0, lineHeight: 1.3 }}
+                            lineClamp={1}
                         >
                             {material.title}
                         </Text>
                         {material.isCopy && <Badge size="xs" color="blue" variant="dot">Copy</Badge>}
-                        {material.isUnavailable && <Badge size="xs" color="red" leftSection={<IconAlertTriangle size={10} />}>Unavailable</Badge>}
+                        {material.isUnavailable && <Badge size="xs" color="red" leftSection={<IconAlertTriangle size={9} />}>Unavailable</Badge>}
                         {material.isCopy && material.syncedAt && (
-                            <Text size="xs" c="dimmed">
+                            <Text size="10px" c="dimmed">
                                 Synced: {new Date(material.syncedAt).toLocaleDateString()}
                             </Text>
                         )}
                     </Group>
 
-                    <Group gap="xs">
+                    <Group gap={4} wrap="nowrap">
                         {material.isCopy && onSync && (
                             <Button
                                 size="compact-xs"
                                 variant="subtle"
-                                leftSection={<IconRefresh size={12} />}
+                                leftSection={<IconRefresh size={11} />}
                                 onClick={() => onSync(material.id)}
                             >
                                 Sync
@@ -97,8 +120,9 @@ const SortableMaterialItem = ({
                                 size="sm"
                                 onClick={() => onRemove(material.id)}
                                 aria-label="Remove material"
+                                styles={iconActionStyles}
                             >
-                                <IconTrash size={14} />
+                                <IconTrash size={13} />
                             </ActionIcon>
                         )}
                     </Group>
@@ -177,11 +201,12 @@ export const ModuleItem = ({
             padding="sm"
             ref={setNodeRef}
             style={style}
+            styles={moduleCardStyles}
         >
-            <Group justify="space-between" wrap="nowrap">
-                <Group gap="xs" wrap="nowrap" style={{ flex: 1 }}>
+            <Group justify="space-between" wrap="nowrap" align="flex-start" gap="sm">
+                <Group gap={6} wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
                     <div {...attributes} {...listeners} style={{ cursor: 'grab', display: 'flex', alignItems: 'center' }} data-testid="drag-handle">
-                        <IconGripVertical size={18} color="gray" />
+                        <IconGripVertical size={16} color="gray" />
                     </div>
 
                     <ActionIcon
@@ -191,8 +216,9 @@ export const ModuleItem = ({
                         onClick={() => setIsOpen(!isOpen)}
                         style={{ transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }}
                         aria-label="Toggle materials"
+                        styles={iconActionStyles}
                     >
-                        <IconChevronRight size={16} />
+                        <IconChevronRight size={14} />
                     </ActionIcon>
 
                     {isEditingName ? (
@@ -212,71 +238,76 @@ export const ModuleItem = ({
                             style={{ flex: 1 }}
                         />
                     ) : (
-                        <Text
-                            fw={500}
-                            style={{ flex: 1, cursor: 'pointer' }}
-                            onClick={() => setIsEditingName(true)}
-                        >
-                            {module.name}
-                        </Text>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            <Text
+                                fw={600}
+                                size="sm"
+                                style={{ cursor: 'pointer', lineHeight: 1.3 }}
+                                onClick={() => setIsEditingName(true)}
+                                lineClamp={1}
+                            >
+                                {module.name}
+                            </Text>
+                            <Group gap={6} mt={4} wrap="wrap">
+                                <Group gap={4} c="dimmed" wrap="nowrap">
+                                    <IconBook size={12} />
+                                    <Text size="11px">{module.materialsCount || 0} materials</Text>
+                                </Group>
+
+                                {isCompleted && (
+                                    <Badge color="green" variant="light" size="xs" leftSection={<IconCheck size={10} />}>
+                                        Done
+                                    </Badge>
+                                )}
+
+                                <Badge size="xs" color={module.accessType === 'sequential' ? 'orange' : 'gray'} variant="light">
+                                    {module.accessType === 'sequential' ? 'Sequential' : 'Open'}
+                                </Badge>
+                            </Group>
+                        </div>
                     )}
-
-                    <Group gap={4} c="dimmed">
-                        <IconBook size={14} />
-                        <Text size="xs">{module.materialsCount || 0} materials</Text>
-                    </Group>
-
-                    {isCompleted && (
-                        <Badge color="green" variant="light" size="sm" leftSection={<IconCheck size={12} />}>
-                            Completed
-                        </Badge>
-                    )}
-
-                    <Badge size="xs" color={module.accessType === 'sequential' ? 'orange' : 'gray'}>
-                        {module.accessType}
-                    </Badge>
                 </Group>
 
-                <Group gap="xs">
+                <Group gap={4} wrap="wrap" justify="flex-end" style={{ flexShrink: 0 }}>
                     {onStartSession && materials.length > 0 && (
                         <Tooltip label="Start a session for this module">
                             <Button
                                 variant="light"
                                 color="violet"
-                                size="compact-sm"
-                                leftSection={<IconPlayerPlay size={16} />}
+                                size="compact-xs"
+                                leftSection={<IconPlayerPlay size={14} />}
                                 onClick={onStartSession}
                             >
-                                Start Session
+                                Start
                             </Button>
                         </Tooltip>
                     )}
                     {onAddMaterial && (
                         <Tooltip label="Add material to this module">
-                            <ActionIcon variant="light" color="blue" onClick={onAddMaterial} aria-label="Add material">
-                                <IconPlus size={16} />
+                            <ActionIcon variant="light" color="blue" onClick={onAddMaterial} aria-label="Add material" styles={iconActionStyles}>
+                                <IconPlus size={14} />
                             </ActionIcon>
                         </Tooltip>
                     )}
                     {module.accessType === 'sequential' && !isCompleted && onMarkComplete && (
                         <Tooltip label="Mark as completed for this class">
-                            <ActionIcon variant="light" color="green" onClick={onMarkComplete} aria-label="Mark complete">
-                                <IconCheck size={16} />
+                            <ActionIcon variant="light" color="green" onClick={onMarkComplete} aria-label="Mark complete" styles={iconActionStyles}>
+                                <IconCheck size={14} />
                             </ActionIcon>
                         </Tooltip>
                     )}
                     {onOpenSettings && (
                         <Tooltip label="Configure Practice Settings for Module">
-                            <ActionIcon variant="light" color="cyan" onClick={onOpenSettings} aria-label="Practice Settings">
-                                <IconSettings size={16} />
+                            <ActionIcon variant="light" color="cyan" onClick={onOpenSettings} aria-label="Practice Settings" styles={iconActionStyles}>
+                                <IconSettings size={14} />
                             </ActionIcon>
                         </Tooltip>
                     )}
-                    <ActionIcon variant="subtle" color="blue" onClick={onEdit} aria-label="Edit module">
-                        <IconEdit size={16} />
+                    <ActionIcon variant="subtle" color="blue" onClick={onEdit} aria-label="Edit module" styles={iconActionStyles}>
+                        <IconEdit size={14} />
                     </ActionIcon>
-                    <ActionIcon variant="subtle" color="red" onClick={onDelete} aria-label="Delete module">
-                        <IconTrash size={16} />
+                    <ActionIcon variant="subtle" color="red" onClick={onDelete} aria-label="Delete module" styles={iconActionStyles}>
+                        <IconTrash size={14} />
                     </ActionIcon>
                 </Group>
             </Group>
@@ -289,7 +320,7 @@ export const ModuleItem = ({
                     onDragEnd={handleDragEnd}
                 >
                     <SortableContext items={materials.map(m => m.id)} strategy={verticalListSortingStrategy}>
-                        <Stack gap="xs" mt="md" pl={30}>
+                        <Stack gap={6} mt={8} pl={26}>
                             {materials.length === 0 && (
                                 <Text c="dimmed" size="sm" fs="italic">No materials in this module</Text>
                             )}

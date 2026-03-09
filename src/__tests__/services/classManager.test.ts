@@ -4,6 +4,177 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+
+const mockDbStore: Record<string, unknown> = {};
+
+const deepClone = <T>(value: T): T => {
+  if (value === undefined) return value;
+  return JSON.parse(JSON.stringify(value)) as T;
+};
+
+const normalizePath = (path: string): string => path.replace(/^\/+|\/+$/g, '');
+
+const splitPath = (path: string): string[] => normalizePath(path).split('/').filter(Boolean);
+
+const clearMockDb = (): void => {
+  Object.keys(mockDbStore).forEach((key) => {
+    delete (mockDbStore as Record<string, unknown>)[key];
+  });
+};
+
+const getValueAtPath = (path: string): unknown => {
+  const parts = splitPath(path);
+  if (parts.length === 0) {
+    return deepClone(mockDbStore);
+  }
+
+  let cursor: unknown = mockDbStore;
+  for (const part of parts) {
+    if (!cursor || typeof cursor !== 'object' || !(part in (cursor as Record<string, unknown>))) {
+      return undefined;
+    }
+    cursor = (cursor as Record<string, unknown>)[part];
+  }
+
+  return deepClone(cursor);
+};
+
+const setValueAtPath = (path: string, value: unknown): void => {
+  const parts = splitPath(path);
+
+  if (parts.length === 0) {
+    clearMockDb();
+    if (value && typeof value === 'object') {
+      Object.assign(mockDbStore, deepClone(value as Record<string, unknown>));
+    }
+    return;
+  }
+
+  let cursor: Record<string, unknown> = mockDbStore;
+  for (let i = 0; i < parts.length - 1; i += 1) {
+    const part = parts[i];
+    if (!cursor[part] || typeof cursor[part] !== 'object') {
+      cursor[part] = {};
+    }
+    cursor = cursor[part] as Record<string, unknown>;
+  }
+
+  cursor[parts[parts.length - 1]] = deepClone(value);
+};
+
+const removeValueAtPath = (path: string): void => {
+  const parts = splitPath(path);
+  if (parts.length === 0) {
+    clearMockDb();
+    return;
+  }
+
+  let cursor: Record<string, unknown> = mockDbStore;
+  for (let i = 0; i < parts.length - 1; i += 1) {
+    const part = parts[i];
+    if (!cursor[part] || typeof cursor[part] !== 'object') {
+      return;
+    }
+    cursor = cursor[part] as Record<string, unknown>;
+  }
+
+  delete cursor[parts[parts.length - 1]];
+};
+
+const createSnapshot = (value: unknown) => ({
+  exists: () => value !== undefined && value !== null,
+  val: () => deepClone(value),
+});
+
+const applyQueryFilters = (data: unknown, constraints: Array<{ type: string; [key: string]: unknown }>): unknown => {
+  if (!data || typeof data !== 'object') {
+    return null;
+  }
+
+  let entries = Object.entries(data as Record<string, unknown>);
+  const orderByConstraint = constraints.find((c) => c.type === 'orderByChild');
+  const equalToConstraint = constraints.find((c) => c.type === 'equalTo');
+
+  if (orderByConstraint && equalToConstraint) {
+    const child = orderByConstraint.child as string;
+    const expected = equalToConstraint.value;
+    entries = entries.filter(([, value]) => {
+      if (!value || typeof value !== 'object') return false;
+      return (value as Record<string, unknown>)[child] === expected;
+    });
+  }
+
+  if (entries.length === 0) {
+    return null;
+  }
+
+  return Object.fromEntries(entries);
+};
+
+vi.mock('../../services/firebase', () => ({
+  database: {},
+  auth: { currentUser: { uid: 'teacher-test-uid-123' } },
+}));
+
+vi.mock('firebase/database', () => {
+  const ref = vi.fn((_db: unknown, path = '') => ({ path: normalizePath(path) }));
+  let pushCounter = 0;
+  const push = vi.fn((_target: { path: string }) => {
+    pushCounter += 1;
+    return { key: `mock-push-${pushCounter}` };
+  });
+  const query = vi.fn((target: { path: string }, ...constraints: Array<{ type: string; [key: string]: unknown }>) => ({
+    path: target.path,
+    constraints,
+  }));
+  const orderByChild = vi.fn((child: string) => ({ type: 'orderByChild', child }));
+  const equalTo = vi.fn((value: unknown) => ({ type: 'equalTo', value }));
+
+  const set = vi.fn(async (target: { path: string }, value: unknown) => {
+    setValueAtPath(target.path, value);
+  });
+
+  const get = vi.fn(async (target: { path: string; constraints?: Array<{ type: string; [key: string]: unknown }> }) => {
+    if (Array.isArray(target.constraints)) {
+      const data = getValueAtPath(target.path);
+      return createSnapshot(applyQueryFilters(data, target.constraints));
+    }
+    return createSnapshot(getValueAtPath(target.path));
+  });
+
+  const remove = vi.fn(async (target: { path: string }) => {
+    removeValueAtPath(target.path);
+  });
+
+  const update = vi.fn(async (target: { path: string }, updates: Record<string, unknown>) => {
+    for (const [key, value] of Object.entries(updates)) {
+      const fullPath = [target.path, normalizePath(key)].filter(Boolean).join('/');
+      if (value === null) {
+        removeValueAtPath(fullPath);
+      } else {
+        setValueAtPath(fullPath, value);
+      }
+    }
+  });
+
+  const onValue = vi.fn();
+  const off = vi.fn();
+
+  return {
+    ref,
+    push,
+    set,
+    get,
+    update,
+    query,
+    orderByChild,
+    equalTo,
+    remove,
+    onValue,
+    off,
+  };
+});
+
 import {
   createClass,
   getClass,
@@ -12,10 +183,11 @@ import {
   getStudentClasses,
   addStudent,
   assignTestToClass,
+  removeStudentFromClass,
   updateClassStatus,
 } from '../../services/classManager';
 import { database } from '../../services/firebase';
-import { ref, set, get, remove } from 'firebase/database';
+import { ref, set, get } from 'firebase/database';
 
 // Test data
 const TEST_TEACHER_UID = 'teacher-test-uid-123';
@@ -25,27 +197,7 @@ const TEST_STUDENT_UID_2 = 'student-test-uid-012';
 
 // Cleanup helper
 const cleanupTestData = async () => {
-  try {
-    // Clean up test classes
-    const classesRef = ref(database, 'classes');
-    const snapshot = await get(classesRef);
-    
-    if (snapshot.exists()) {
-      const classes = snapshot.val();
-      for (const [classCode, classData] of Object.entries(classes)) {
-        if (
-          classData.createdBy === TEST_TEACHER_UID ||
-          classData.createdBy === TEST_TEACHER_UID_2 ||
-          classData.name?.includes('Test Class')
-        ) {
-          await remove(ref(database, `classes/${classCode}`));
-          await remove(ref(database, `game_sessions/${classCode}`));
-        }
-      }
-    }
-  } catch (error) {
-    console.error('Cleanup error:', error);
-  }
+  clearMockDb();
 };
 
 describe('Class Manager - Class Creation', () => {
@@ -127,6 +279,68 @@ describe('Class Manager - Class Creation', () => {
     expect(classData?.settings.requireEmail).toBe(true);
     expect(classData?.settings.allowSelfStudy).toBe(true);
     expect(classData?.settings.maxStudents).toBe(50);
+  });
+});
+
+describe('Class Manager - Remove Student', () => {
+  let testClassId: string;
+
+  beforeEach(async () => {
+    await cleanupTestData();
+
+    const result = await createClass(
+      { name: 'Test Class - Remove Student' },
+      TEST_TEACHER_UID
+    );
+    testClassId = result.classId!;
+
+    await enrollStudent(
+      testClassId,
+      TEST_STUDENT_UID,
+      'Test Student',
+      'student@test.com'
+    );
+
+    await set(ref(database, 'course_enrollments/enrollment-remove'), {
+      id: 'enrollment-remove',
+      studentId: TEST_STUDENT_UID,
+      courseId: 'course-1',
+      sourceClassId: testClassId,
+      status: 'active',
+    });
+
+    await set(ref(database, 'course_enrollments/enrollment-keep'), {
+      id: 'enrollment-keep',
+      studentId: TEST_STUDENT_UID,
+      courseId: 'course-2',
+      sourceClassId: 'other-class',
+      status: 'active',
+    });
+  });
+
+  afterEach(async () => {
+    await cleanupTestData();
+  });
+
+  it('should remove student from class, legacy session, and matching class-based enrollments', async () => {
+    const result = await removeStudentFromClass(testClassId, TEST_STUDENT_UID);
+    expect(result.success).toBe(true);
+
+    const classData = await getClass(testClassId);
+    expect(classData?.students[TEST_STUDENT_UID]).toBeUndefined();
+
+    const legacyPlayerSnapshot = await get(ref(database, `game_sessions/${testClassId}/players/${TEST_STUDENT_UID}`));
+    expect(legacyPlayerSnapshot.exists()).toBe(false);
+
+    const enrollments = (await get(ref(database, 'course_enrollments'))).val() as Record<string, unknown>;
+    expect(enrollments?.['enrollment-remove']).toBeUndefined();
+    expect(enrollments?.['enrollment-keep']).toBeDefined();
+  });
+
+  it('should return an error when student does not exist in class', async () => {
+    const result = await removeStudentFromClass(testClassId, 'missing-student-id');
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Student not found');
   });
 });
 

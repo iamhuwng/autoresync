@@ -11,7 +11,7 @@ import { useAuth } from '../hooks/useAuth';
 import { TeacherHeader } from '../components/navigation';
 import { Tabs, Table, Badge, Modal, Loader, Group, Text, Tooltip, ActionIcon } from '@mantine/core';
 import { Card, CardBody, Button } from '../components/modern';
-import { classManager } from '../services/classManager';
+import { classManager, removeStudentFromClass } from '../services/classManager';
 import { LinkCourseModal } from '../components/course/LinkCourseModal';
 import { ExtendCourseModal } from '../components/course/ExtendCourseModal';
 import { CourseCreateModal } from '../components/course/CourseCreateModal';
@@ -57,6 +57,7 @@ const TeacherClassDetailPage: React.FC = () => {
   const [modulesMap, setModulesMap] = useState<Record<string, CourseModule[]>>({});
   const [loadingModules, setLoadingModules] = useState<Record<string, boolean>>({});
   const [accessDenied, setAccessDenied] = useState(false);
+  const [removingStudentId, setRemovingStudentId] = useState<string | null>(null);
 
   // Edit course details modal (for class instance copies)
   const [courseToEditDetails, setCourseToEditDetails] = useState<Course | null>(null);
@@ -65,6 +66,43 @@ const TeacherClassDetailPage: React.FC = () => {
   const handleEditCourseDetails = (course: Course) => {
     setCourseToEditDetails(course);
     setIsEditDetailsModalOpen(true);
+  };
+
+  const handleRemoveStudent = async (studentId: string, studentName: string) => {
+    if (!classId) return;
+
+    const confirmed = window.confirm(
+      `Remove ${studentName || 'this student'} from this class? This will also remove class-linked course access.`
+    );
+    if (!confirmed) return;
+
+    setRemovingStudentId(studentId);
+    try {
+      const result = await removeStudentFromClass(classId, studentId);
+      if (!result.success) {
+        notifications.show({
+          title: 'Remove Failed',
+          message: result.error || 'Could not remove student from class',
+          color: 'red',
+        });
+        return;
+      }
+
+      notifications.show({
+        title: 'Student Removed',
+        message: `${studentName || 'Student'} was removed from the class.`,
+        color: 'green',
+      });
+    } catch (error) {
+      console.error('Error removing student:', error);
+      notifications.show({
+        title: 'Error',
+        message: 'An unexpected error occurred while removing the student.',
+        color: 'red',
+      });
+    } finally {
+      setRemovingStudentId(null);
+    }
   };
 
   // Load class data
@@ -261,6 +299,9 @@ const TeacherClassDetailPage: React.FC = () => {
         pageTitle={classData.name}
         userId={user?.uid || ''}
         userRole={profile?.role || 'teacher'}
+        userDisplayName={profile?.displayName || user?.displayName || user?.email}
+        userEmail={profile?.email || user?.email}
+        userAvatarUrl={profile?.avatarUrl || profile?.photoURL || user?.photoURL}
         onLogout={handleLogout}
         hideBackButton={false}
         hideNavigation={false}
@@ -381,7 +422,17 @@ const TeacherClassDetailPage: React.FC = () => {
                               <Table.Td style={{ fontSize: '0.875rem', color: '#64748b' }}>{new Date(student.joinedAt).toLocaleDateString()}</Table.Td>
                               <Table.Td style={{ fontSize: '0.875rem', color: '#64748b' }}>{new Date(student.lastActiveAt).toLocaleString()}</Table.Td>
                               <Table.Td style={{ textAlign: 'right' }}>
-                                <Button variant="glass" size="xs">View Progress</Button>
+                                <div style={{ display: 'inline-flex', gap: '0.5rem', alignItems: 'center' }}>
+                                  <Button variant="glass" size="xs">View Progress</Button>
+                                  <Button
+                                    variant="danger"
+                                    size="xs"
+                                    onClick={() => handleRemoveStudent(student.id, student.name)}
+                                    disabled={removingStudentId === student.id}
+                                  >
+                                    {removingStudentId === student.id ? 'Removing...' : 'Remove'}
+                                  </Button>
+                                </div>
                               </Table.Td>
                             </Table.Tr>
                           ))}

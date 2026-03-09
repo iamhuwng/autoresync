@@ -222,16 +222,29 @@ export async function getStudentMaterialHistory(
     materialId: string
 ): Promise<LibraryMaterial['studentHistory']> {
     try {
-        // Query test results for this student and material
-        const resultsRef = ref(database, 'test_results');
-        const snapshot = await get(resultsRef);
+        const studentResultsRef = ref(database, `test_results_by_student/${studentId}`);
+        const studentResultsSnapshot = await get(studentResultsRef);
 
-        if (!snapshot.exists()) {
+        if (!studentResultsSnapshot.exists()) {
             return undefined;
         }
 
-        const resultsData = snapshot.val();
-        const allResults = Object.values(resultsData) as any[];
+        const resultIndex = studentResultsSnapshot.val() as Record<string, any>;
+        const resultIds = Object.keys(resultIndex);
+
+        const resolvedResults = await Promise.all(
+            resultIds.map(async (resultId) => {
+                try {
+                    const resultRef = ref(database, `test_results/${resultId}`);
+                    const resultSnapshot = await get(resultRef);
+                    return resultSnapshot.exists() ? resultSnapshot.val() : null;
+                } catch {
+                    return null;
+                }
+            })
+        );
+
+        const allResults = resolvedResults.filter(Boolean) as any[];
 
         // Filter results for this student and material
         const materialResults = allResults.filter(result =>

@@ -11,7 +11,7 @@
  */
 
 import { database } from './firebase';
-import { ref, set, get, update, onValue, off, query, orderByChild, equalTo } from 'firebase/database';
+import { ref, set, get, update, onValue, off, query, orderByChild, equalTo, remove } from 'firebase/database';
 import type {
   ClassSession,
   ClassStudent,
@@ -50,6 +50,68 @@ function generateClassCode(): string {
  */
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
+const CLASS_STATS_WRITE_ROLES = new Set(['teacher', 'super_admin']);
+
+async function getCurrentActorUid(): Promise<string | undefined> {
+  try {
+    const firebaseModule = await import('./firebase');
+
+    if (!('auth' in firebaseModule)) {
+      return undefined;
+    }
+
+    return (firebaseModule as { auth?: { currentUser?: { uid?: string } } }).auth?.currentUser?.uid;
+  } catch {
+    return undefined;
+  }
+}
+
+async function canCurrentActorWriteClassStats(classOwnerId?: string): Promise<boolean> {
+  const actorUid = await getCurrentActorUid();
+
+  // In unauthenticated contexts we cannot satisfy class-level write rules safely.
+  if (!actorUid) {
+    return false;
+  }
+
+  if (classOwnerId && actorUid === classOwnerId) {
+    return true;
+  }
+
+  try {
+    const roleSnapshot = await get(ref(database, `users/${actorUid}/role`));
+    const actorRole = roleSnapshot.val();
+    return typeof actorRole === 'string' && CLASS_STATS_WRITE_ROLES.has(actorRole);
+  } catch (error) {
+    console.warn('[ClassManager] Unable to resolve actor role for stats write check:', error);
+    return false;
+  }
+}
+
+async function updateEnrollmentStatsIfAuthorized(
+  classId: string,
+  classData: ClassSession,
+  now: number
+): Promise<void> {
+  const canWriteStats = await canCurrentActorWriteClassStats(classData.createdBy);
+
+  if (!canWriteStats) {
+    return;
+  }
+
+  try {
+    const classRef = ref(database, `${CLASSES_REF}/${classId}`);
+    await update(classRef, {
+      'stats/totalStudents': (classData.stats?.totalStudents || 0) + 1,
+      'stats/activeStudents': (classData.stats?.activeStudents || 0) + 1,
+      updatedAt: now,
+    });
+  } catch (error) {
+    // Stats are derived/auxiliary; enrollment should still succeed if this fails.
+    console.warn(`[ClassManager] Failed to update enrollment stats for class ${classId}:`, error);
+  }
 }
 
 // ============================================================================
@@ -143,6 +205,84 @@ export async function createClass(request: CreateClassRequest, ownerId?: string)
     return { success: true, classId: classCode, classCode };
   } catch (error) {
     console.error('Error creating class:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
+/**
+ * Remove a student from a class
+ */
+export async function removeStudentFromClass(
+  classId: string,
+  studentId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const classRef = ref(database, `${CLASSES_REF}/${classId}`);
+    const classSnapshot = await get(classRef);
+
+    if (!classSnapshot.exists()) {
+      return { success: false, error: 'Class not found' };
+    }
+
+    const classData = classSnapshot.val() as ClassSession;
+    const student = classData.students?.[studentId];
+
+    if (!student) {
+      return { success: false, error: 'Student not found in class' };
+    }
+
+    const now = Date.now();
+
+    // Remove from class roster
+    await remove(ref(database, `${CLASSES_REF}/${classId}/students/${studentId}`));
+
+    // Remove from legacy game session players for backward compatibility
+    await remove(ref(database, `${GAME_SESSIONS_REF}/${classId}/players/${studentId}`));
+
+    // Clean up class-based course enrollments for this student
+    try {
+      const enrollmentQuery = query(
+        ref(database, 'course_enrollments'),
+        orderByChild('studentId'),
+        equalTo(studentId)
+      );
+      const enrollmentSnapshot = await get(enrollmentQuery);
+
+      if (enrollmentSnapshot.exists()) {
+        const enrollments = enrollmentSnapshot.val() as Record<string, { sourceClassId?: string }>;
+        const updates: Record<string, null> = {};
+
+        for (const [enrollmentId, enrollment] of Object.entries(enrollments)) {
+          if (enrollment.sourceClassId === classId) {
+            updates[`course_enrollments/${enrollmentId}`] = null;
+          }
+        }
+
+        if (Object.keys(updates).length > 0) {
+          await update(ref(database), updates);
+        }
+      }
+    } catch (cleanupError) {
+      // Enrollment cleanup is best-effort; roster removal should still succeed.
+      console.warn(`[ClassManager] Failed to clean up class-based enrollments for ${studentId}:`, cleanupError);
+    }
+
+    // Update class stats if current actor has write permission
+    const canWriteStats = await canCurrentActorWriteClassStats(classData.createdBy);
+    if (canWriteStats) {
+      const totalStudents = classData.stats?.totalStudents ?? Object.keys(classData.students || {}).length;
+      const activeStudents = classData.stats?.activeStudents ?? Object.values(classData.students || {}).filter((s) => s.isOnline).length;
+
+      await update(classRef, {
+        'stats/totalStudents': Math.max(totalStudents - 1, 0),
+        'stats/activeStudents': Math.max(activeStudents - (student.isOnline ? 1 : 0), 0),
+        updatedAt: now,
+      });
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error removing student from class:', error);
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
   }
 }
@@ -429,17 +569,17 @@ export async function addStudent(
     const studentRef = ref(database, `${CLASSES_REF}/${classId}/students/${studentId}`);
     await set(studentRef, student);
 
-    // Update class stats
-    const classRef = ref(database, `${CLASSES_REF}/${classId}`);
-    const classSnapshot = await get(classRef);
+    // Update class stats (best effort; do not fail enrollment)
+    try {
+      const classRef = ref(database, `${CLASSES_REF}/${classId}`);
+      const classSnapshot = await get(classRef);
 
-    if (classSnapshot.exists()) {
-      const classData = classSnapshot.val() as ClassSession;
-      await update(classRef, {
-        'stats/totalStudents': (classData.stats?.totalStudents || 0) + 1,
-        'stats/activeStudents': (classData.stats?.activeStudents || 0) + 1,
-        updatedAt: now,
-      });
+      if (classSnapshot.exists()) {
+        const classData = classSnapshot.val() as ClassSession;
+        await updateEnrollmentStatsIfAuthorized(classId, classData, now);
+      }
+    } catch (error) {
+      console.warn(`[ClassManager] Failed to read class for stats update (${classId}):`, error);
     }
 
     // Also add to legacy session for backward compatibility
@@ -523,12 +663,7 @@ export async function enrollStudent(
     await set(studentRef, student);
 
     // Update class stats
-    const classRef = ref(database, `${CLASSES_REF}/${classCode}`);
-    await update(classRef, {
-      'stats/totalStudents': (classData.stats?.totalStudents || 0) + 1,
-      'stats/activeStudents': (classData.stats?.activeStudents || 0) + 1,
-      updatedAt: now,
-    });
+    await updateEnrollmentStatsIfAuthorized(classCode, classData, now);
 
     // Also add to legacy session for backward compatibility
     const legacyRef = ref(database, `${GAME_SESSIONS_REF}/${classCode}/players/${studentUid}`);
@@ -929,6 +1064,7 @@ export const classManager = {
   // Student operations
   addStudent,
   enrollStudent,
+  removeStudentFromClass,
   getStudentClasses,
   updateStudentOnlineStatus,
   startStudentTest,

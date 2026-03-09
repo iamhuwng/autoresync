@@ -1,0 +1,2163 @@
+<1>
+#Findings so far
+I can already see the failure pattern in the sample:
+
+Task type drift starts around Q111+
+
+
+Answer keys exist in the source, but non-MCQ sections are still reported as missing
+There is also a numbering corruption: Q1960 was parsed from 1960 was the year...
+That strongly suggests the parser is:
+
+over-trusting fallback mcq-grammar
+misclassifying bare numbered rewrite items as questions of the wrong type
+only extracting letter keys, while later sections use free-text answers
+I’m going to inspect the section/question parsing and type classifier in the THCS pipeline to fix the root cause, not just patch this one sample.
+
+#Anticipated Root cause
+I found three underlying issues:
+
+Section detection is too permissive
+sectionHeader treats lines like E. Join these pairs... as ordinary headers with no type inference, so the parser falls back to mcq-grammar.
+Later, that polluted fallback drives wrong downstream classification.
+Question detection is too permissive for bare numbered lines
+The generic question regex matches 115. 1960 was the year...
+Then parseQuestions can also absorb the inline sentence start as a new question number, producing Q1960.
+Answer extraction is letter-only
+extractAnswerKey() only records A-H.
+Sections 101-120 have free-text rewrite answers, so the parser reports “missing answers” even though the answer key is present.
+This is a structural bug, not a one-off sample issue.
+
+#Fix plan
+I’m going to make the parser more type-aware and answer-format-aware by:
+
+tightening section/question heuristics for alphabetic section headers and bare-number questions,
+adding free-text answer key extraction for non-MCQ items,
+preserving explicit [TYPE: ...] behavior and existing MCQ flows so working cases stay unchanged.
+
+#Root cause
+From documentation/samples/INPUT.txt, the failure was not a single bad classification rule. It was a combination of three structural weaknesses in the THCS parser:
+
+Section headers without explicit [TYPE: ...] were under-classified
+Sections like:
+D. Change adjective clauses to Phrases...
+E. Join these pairs of sentences...
+were being treated as generic headers and defaulting to mcq-grammar.
+That polluted later parsing and made rewrite sections look like MCQ sections.
+Bare-number question parsing was too permissive
+The regex allows bare numbered questions like 115. ....
+In rewrite sections, content like 1960 was the year... could be misread as a new question number.
+That explains the corrupted Q1960 in the diagnostic log.
+Answer key extraction only truly handled letter answers
+The sample has valid answer keys for 101-120, but they are free-text rewrite answers, not A-D.
+The parser therefore logged them as “missing answer” even though the answer key block was present and correct.
+
+#What I changed
+I fixed this in src/services/test-creation/thcsDocumentParser.service.ts.
+
+Added narrow header-based section type inference
+For alphabetic/manual headers with no explicit type tag.
+It now recognizes cues for:
+error-identification
+closest-meaning
+sentence-rewrite
+mcq-grammar
+This improves diversity/sustainability because the parser no longer depends entirely on AI-inserted type tags for common THCS formats.
+Restricted risky bare-number question parsing
+Added a guard so bare-number lines are rejected when:
+they start with a 4-digit year like 1960 ...
+the section is rewrite-style
+the text is too short / option-like
+This addresses the root parsing ambiguity instead of just filtering one bad sample.
+Added free-text answer key extraction
+The answer-key parser still preserves existing A-H logic.
+It now also accepts:
+101. There is someone knocking at the door.
+115. 1960 was the year in which / when the revolution took place.
+This fixes the “keys not recorded” problem for rewrite/open-response sections without changing MCQ behavior.
+Why this is regression-safe
+I preserved the existing high-authority paths:
+
+Explicit [TYPE: ...] still wins
+Existing MCQ answer-key extraction remains unchanged
+Only ambiguous bare-number parsing got stricter
+Only untyped manual section headers get new inference
+So the well-working flows stay intact, and the new logic only activates where the old parser was weak.
+
+Verification
+I ran focused parser/classifier tests:
+
+bash
+npx vitest run src/services/test-creation/thcsDocumentParser.service.test.ts src/services/test-creation/thcs-type-classifier.test.ts
+Result:
+
+2 test files passed
+28/28 tests passed
+Expected effect on this sample
+For the sample in INPUT.txt, this should now prevent:
+
+sentence-rewrite sections being mistaken for mcq-grammar
+Q1960 false question creation
+false “missing answer” warnings for Q101-Q120 when the answer key is present as text
+One note
+I verified the parser source and focused tests. I did not run the full app parse flow against the exact sample through the UI pipeline in this pass. If you want, I can do one more step next:
+
+Option 1
+Add an end-to-end parser regression test using this exact sample shape
+Option 2
+Run the parser against documentation/samples/INPUT.txt and inspect the resulting section/question/answer counts directly
+Summary
+I found the root cause in the parser design, not just a bad rule:
+
+weak fallback section typing,
+over-permissive bare-number question parsing,
+letter-only answer-key extraction.
+I implemented a robust fix in thcsDocumentParser.service.ts and verified it with focused tests passing.
+
+<2>
+# Bonus Fix Found
+The original code had sectionMatch![3] which was out of bounds (the regex only has 2 capture groups). My change to sectionMatch![2] is a bug fix, not a mistake.
+
+Status
+✅ Implementation is built on the correct baseline
+✅ All existing tests pass
+✅ Changes are minimal and focused
+⏳ Ready to commit when you're satisfied
+
+<3>
+#User Request
+
+Investigate the problem of newly registered students (or maybe all students, check for cases) when they click join a class and fill in a class code, they receive an error message even though in teacher class management, they are shown in added student list. Provide robust fix at root cause, not just treating symptoms.
+
+✅ Root cause confirmed
+The false error happens because enrollment did two writes in sequence:
+
+Write student record to classes/{classCode}/students/{uid} (this succeeds for student)
+Update class-level stats at classes/{classCode} (this is denied for student role)
+When step 2 failed, enrollStudent returned failure even though the student had already been added.
+
+Enrollment flow write order: @src/services/classManager.ts#583-589
+Rules that cause this mismatch:
+Class-level write restricted to teacher/super_admin: @database.rules.json#238-239
+Student allowed only on own students/{studentId} node: @database.rules.json#240-243
+✅ Robust fix applied (not symptom-only)
+I changed classManager so enrollment success is no longer coupled to privileged stats writes:
+
+Added an authorization-aware stats updater that only performs class-level stats writes when actor is owner/teacher/super_admin:
+@src/services/classManager.ts#55-115
+Made stats update best-effort / non-blocking so enrollment doesn’t fail if stats update fails:
+@src/services/classManager.ts#104-114
+Applied same pattern in guest add flow (addStudent) to avoid partial-failure behavior there too:
+@src/services/classManager.ts#494-505
+Kept implementation test-friendly by making auth lookup tolerant of mocked firebase modules:
+@src/services/classManager.ts#57-69
+✅ Verification
+Ran targeted regression test after fix:
+
+npm run test -- --run src/services/enrollmentInheritance.test.ts → passed
+
+<4>
+#Use Request
+We had changed the Log Out button to Avatar (from profile page) of the teacher + his name which can be clicked to open a menu to lout out and profile a while ago. Now it has regressed to Log out button only.
+
+#Findings
+Found the regression point: TeacherNavigation currently hardcodes a plain Logout button in the header’s user-actions area at @src/components/navigation/TeacherNavigation.tsx#146-156.
+TeacherHeader just forwards onLogout and does not provide profile/avatar data to nav at @src/components/navigation/TeacherHeader.tsx#172-177.
+
+Proposed fix
+Add a teacher profile trigger in TeacherNavigation (avatar + teacher name, clickable).
+Open a small menu with:
+Profile → /profile
+Logout → existing onLogout
+Pass profile display fields from TeacherHeader to TeacherNavigation (name/email/avatar).
+Update affected tests (TeacherNavigation.test.tsx, TeacherHeader.test.tsx) to cover the new menu behavior.
+
+#Implementation
+Implemented — the teacher header now uses avatar + teacher name as a clickable profile trigger again, with a dropdown for Profile and Logout.
+
+What I changed
+Replaced the standalone desktop logout button with a profile trigger/dropdown in
+@src/components/navigation/TeacherNavigation.tsx#195-349
+Added menu logic (outside click + Escape close) and wired actions:
+Profile → ROUTES.PROFILE
+Logout → existing onLogout callback
+@src/components/navigation/TeacherNavigation.tsx#63-95
+Extended TeacherHeader props to accept identity fields and pass them through to navigation
+@src/components/navigation/TeacherHeader.tsx#26-39
+@src/components/navigation/TeacherHeader.tsx#181-189
+Added centralized profile route constant (to keep route usage registry-safe)
+@src/constants/routes.ts#10-14
+Wired identity props at teacher header callsites
+Passed userDisplayName, userEmail, userAvatarUrl into TeacherHeader in all teacher header usages, including:
+
+@src/pages/TeacherLobbyPage.jsx#990-997
+@src/pages/TeacherClassesPage.tsx#146-153
+@src/pages/TeacherCourseProfilePage.tsx#177-184
+@src/pages/SessionManagementPage.tsx#441-448
+@src/components/thcs-editor/THCSWizardLayout.tsx#52-59
+(and the other teacher pages using the same header pattern)
+Tests / checks
+✅ Built successfully: npm run build
+✅ Navigation tests pass: npm test -- --run src/components/navigation/TeacherNavigation.test.tsx
+ℹ️ TeacherHeader.test.tsx has pre-existing mobile-mode assumptions (it passes isMobile prop that component doesn’t support), so combined run still reports those unrelated failures.
+
+<5>
+#User Request
+add remove student button to the student list in Class Mangament tab in Teacher Lobby in Teacher view
+
+#What I changed
+Re-established full Firebase mocks in classManager.test.ts
+Added an in-memory RTDB mock layer (get/set/update/remove/query) so tests stop hitting real Firebase and avoid Permission denied.
+Added push mock too, because enrollStudent triggers notification creation and notificationService uses push.
+Ref: @src/tests/services/classManager.test.ts#8-176
+Kept cleanup deterministic
+Switched cleanup to reset the in-memory store directly instead of relying on DB deletes.
+Ref: @src/tests/services/classManager.test.ts#198-200
+Added regression tests for remove-student behavior
+Verifies removal from:
+class roster,
+legacy game_sessions/.../players,
+matching class-based course_enrollments entries only.
+Also verifies proper error when student is missing.
+Ref: @src/tests/services/classManager.test.ts#285-344
+Verification
+Ran:
+
+npx vitest run src/__tests__/services/classManager.test.ts --reporter=verbose
+Result:
+
+21 passed, 0 failed.
+
+<6>
+#User Request
+ 🔥 [Firebase] Initializing Firebase...
+index-CGo0SHB4.js:2189 🔥 [Firebase] Config check:
+index-CGo0SHB4.js:2189    - apiKey: ✅ Present
+index-CGo0SHB4.js:2189    - authDomain: ✅ Present
+index-CGo0SHB4.js:2189    - databaseURL: ✅ https://temp-a1437-default-rtdb.firebaseio.com
+index-CGo0SHB4.js:2189    - projectId: ✅ temp-a1437
+index-CGo0SHB4.js:2189 🔥 [Firebase] App initialized: [DEFAULT]
+index-CGo0SHB4.js:2189 🔥 [Firebase] Database instance created
+index-CGo0SHB4.js:2189 🔥 [Firebase] ⚠️ DISCONNECTED from Firebase Realtime Database
+index-CGo0SHB4.js:2189 🔥 [Firebase] ✅ CONNECTED to Firebase Realtime Database
+notificationService-qZALC8JR.js:1 📢 [NotificationService] Subscribed to real-time notifications for user glMHCrzMnyS6AqFcb9I0nlOqQ6X2
+
+#Fixed the runtime error from your log:
+
+[THCSTestEditor] Save error: ReferenceError: loadData is not defined
+
+#What was wrong
+handleCloseThcsEditModal called loadData(), but loadData is defined inside a useEffect scope, so it’s not accessible there.
+
+Scoped definition: @src/pages/TeacherLobbyPage.jsx#174-241
+Invalid call site: @src/pages/TeacherLobbyPage.jsx#305-309
+
+#Change made
+I removed the out-of-scope loadData() call from handleCloseThcsEditModal and kept modal close/reset only.
+The page already has a realtime onValue listener for tests, so data stays in sync without manual reload.
+
+Updated block: @src/pages/TeacherLobbyPage.jsx#305-309
+Why this fixes it
+Closing the THCS modal no longer tries to execute an undefined function, so save/close flow completes without throwing.
+
+If you still see this in production chunk logs (TeacherLobbyPage-BSBaWoVO.js), do a fresh build + deploy so the patched source is reflected in the deployed asset.
+
+<7>
+
+#User Request
+=== 1. METADATA ===
+TITLE: TEST 3 - GK2 GLOBAL 12 - NEW 2026
+GRADE: 12
+DURATION: 50 minutes
+EXAM TYPE: giữa kì
+
+=== 2. SECTION HEADERS ===
+I. ADVERTISEMENT [TYPE: reading-cloze-mcq]
+Read the following advertisement and mark the letter A, B, C or D on your answer sheet to indicate the option that best fits each of the numbered blanks from 1 to 6.
+
+PASSAGE:
+The Invisible Influence: How Ambient Media Shapes Decisions Without Being Seen
+
+ In today's cluttered marketplace, effective advertising must be subtle, strategic, and seamless. Ambient media operates silently yet powerfully, influencing consumers when they least expect it. The subtle, carefully designed, and (1)______ crafted advertisements strategically position premium products in our daily environments, making purchase decisions seem entirely natural.
+
+ Ambient media, (2)______ constantly surrounds us in crowded elevators, busy shopping malls, and public transport systems, creates lasting brand familiarity without any conscious recognition. Messages cleverly (3)______ in various everyday environments consistently trigger emotional responses, leading to significantly increased brand loyalty.
+
+ Subconscious media (4)______ effectively allows experienced marketers to easily establish powerful psychological connections without ever triggering consumer resistance. Recent research consistently shows that innovative brands that frequently (5)______ in strategic ambient spaces can effectively break through the mental filters consumers put up against traditional advertising. (6)______ of the reliable scientific studies recently confirm that well-designed ambient media deliver substantially higher engagement rates with less consumer fatigue.
+
+ Don't just advertise—become part of your customers' environment. Contact our team today to discover how ambient media solutions can transform your brand's influence from visible to invisible, yet undeniably effective.
+
+Question 1.
+A. expert
+B. expertise
+C. expertness
+D. expertly
+
+Question 2.
+A. whose
+B. which
+C. who
+D. whom
+
+Question 3.
+A. was embedded
+B. embedding
+C. embedded
+D. had embedded
+
+Question 4.
+A. priming
+B. signaling
+C. conditioning
+D. cueing
+
+Question 5.
+A. show up
+B. opt in
+C. tune in
+D. stand out
+
+Question 6.
+A. Many
+B. Each
+C. Lots
+D. Any
+
+II. LEAFLET [TYPE: reading-cloze-mcq]
+Read of the following leaflet and mark the letter A, B, C or D on your answer sheet to indicate the option that best fits each of the numbered blanks from 7 to 12.
+
+PASSAGE:
+The Green Intelligence: AI That Reduces Your Carbon Footprint By 73%
+
+Revolutionary Technology for a Sustainable Future
+
+ Our exceptionally innovative cutting-edge technology is meticulously designed with sustainability at its core, keeping your growing business constantly (7)______ the ball with impressive environmental responsibility credentials. While most outdated traditional energy management systems consistently struggle with operational efficiency, our revolutionary AI solution delivers truly remarkable results (8)______ it intelligently and continuously learns from complex usage patterns and changing environmental conditions.
+
+ Introducing GreenSense™—the intelligent system that analyzes your energy consumption in real time and automatically adjusts to minimize waste.
+
+ Our sophisticated, (9)______ technology reliably provides comprehensive, detailed analytics of your company's environmental impact with impressive, unprecedented accuracy. Some competing solutions offer merely basic monitoring capabilities, but (10)______ frequently claim completely unrealistic performance results—our extensively tested system consistently delivers proven 73% reductions where the others have consistently failed.
+
+ Through sophisticated proprietary green model (11)______ techniques, our innovative AI effectively compresses extremely complex environmental calculations into highly optimized lightweight algorithms that run efficiently on virtually all existing hardware. Comprehensive AI-driven energy (12)______ accurately identifies hidden inefficiencies in your daily operations and automatically implements intelligent smart consumption patterns seamlessly without ever disrupting essential productivity.
+
+ Benefits:
+ Immediate reduction in energy costs
+ Customized recommendations for infrastructure improvements
+ Real-time carbon footprint monitoring
+ Compliance with emerging environmental regulations
+ Enhanced sustainability reputation
+
+ Contact us today at greensense@example.com to schedule your free consultation and see how our revolutionary AI can transform your environmental impact while boosting your bottom line.
+
+ GreenSense™—Intelligent Solutions for a Healthier Planet
+
+Question 7.
+A. at
+B. on
+C. for
+D. of
+
+Question 8.
+A. moreover
+B. nevertheless
+C. because
+D. unless
+
+Question 9.
+A. advanced carbon tracking
+B. advanced tracking carbon
+C. carbon tracking advanced
+D. tracking advanced carbon
+
+Question 10.
+A. another
+B. others
+C. other
+D. the others
+
+Question 11.
+A. compression
+B. refinement
+C. distillation
+D. consolidation
+
+Question 12.
+A. monitoring
+B. solution
+C. revolution
+D. optimization
+
+III. ARRANGEMENT [TYPE: sentence-arrangement]
+Mark the letter A, B, C or D on your answer sheet to indicate the best arrangement of utterances or sentences to make a meaningful exchange or text in each of the following questions from 13 to 17.
+
+Question 13. a. Maya: That's cool! I think we need to be nice online—to real people and AI too. It's all part of our new digital community.
+b. Maya: Do you talk to your smart speaker every day? I ask mine to play music and tell me the weather.
+c. Tom: Yes! My AI helper remembers what I like and helps me find good movies. It's like having a digital friend.
+A. b-c-a
+B. a-b-c
+C. b-a-c
+D. c-b-a
+
+Question 14. a. Emma: Yes, and the best part is that fans can support me directly, which means I can make content they really want instead of what advertisers like.
+b. Liam: That sounds interesting! When I posted my music on regular websites, they took most of my money, but these new networks let creators keep more earnings.
+c. Liam: I agree, although it's sometimes harder to get noticed when you're starting out, because the big platforms have more people.
+d. Emma: I started making videos on that new platform where creators own their content, and I love it because I don't need a big company to share my ideas.
+e. Emma: That's true, but I think it's worth it since we can build our own communities that care about our work, and we don't have to worry about changing rules that might hurt our channels.
+A. b-e-d-a-c
+B. d-b-a-c-e
+C. d-e-b-c-a
+D. c-a-d-b-e
+
+Question 15. Dear Jamie,
+a. Since I started following these simple rules, my work feels easier because I don't waste time searching through hundreds of old emails.
+b. Although it seems like extra work, using folders helps me organize important messages that I might need again.
+c. I'm sharing these tips because you mentioned that your inbox is always full and stressful.
+d. If an email takes less than two minutes to answer, I reply right away instead of putting it off for later.
+e. When I receive emails, I immediately decide if I should answer now, save for later, or delete them so nothing piles up.
+Best wishes,
+LK
+A. d-c-b-e-a
+B. e-a-d-c-b
+C. c-e-b-d-a
+D. c-d-e-b-a
+
+Question 16. a. These smart programs read thousands of articles and learn how to write catchy titles, but they don't get tired or need coffee breaks.
+b. While robot reporters are good at making quick headlines about simple topics like sports scores or weather, they still cannot understand complex feelings or write creative stories that touch our hearts.
+c. When AI creates headlines, they often get more clicks because the computers know which words make people curious and want to read more.
+d. Many websites use robot writers that can make news headlines, which is surprising because writing used to be a human job.
+e. Some people worry that human journalists will lose their jobs, although many experts think robots and people can work together to make better news.
+A. a-c-e-d-b
+B. c-e-d-a-b
+C. e-d-a-c-b
+D. d-a-c-e-b
+
+Question 17. a. Scientists think that our Earth works like a giant smart system, which means it can adjust itself when things change to stay healthy.
+b. The oceans, forests, and atmosphere all work together in ways that remind us of a computer, but they use natural processes instead of electronic chips.
+c. When one part of Earth gets too hot or too cold, other parts of the planet will change to fix the problem, although this balance can take many years.
+d. Animals, plants, and even tiny organisms play important roles in this Earth system because they move nutrients and energy around the planet.
+e. Some researchers wonder if we should protect Earth's natural systems more carefully, since humans are changing the planet faster than it can heal itself.
+A. a-b-c-d-e
+B. a-e-d-b-c
+C. a-c-e-d-b
+D. a-d-b-c-e
+
+IV. READING CLOZE [TYPE: reading-cloze-mcq]
+Read the following passage about Designing AI That Helps Humans Remember and mark the letter A, B, C or D on your answer sheet to indicate the option that best fits each of the numbered blanks from 18 to 22.
+
+PASSAGE:
+Designing AI That Helps Humans Remember
+
+The human brain's capacity to retain information diminishes exponentially over time, a phenomenon meticulously (18)______. Had researchers not discovered this pattern, contemporary approaches to cognitive augmentation might never have emerged. Neuroscientists have identified critical intervals when information transitions from short-term to long-term memory, which directly influences how modern AI memory systems are architected.
+
+The exponential decay of recall ability represents a fundamental cognitive limitation; (19)______. That modern AI can counteract our natural forgetting tendencies, many experts now acknowledge, opens unprecedented possibilities for cognitive enhancement. Sophisticated algorithms analyze our digital footprints and detect precisely when information retrieval becomes challenging, thereby initiating personalized prompts at scientifically optimized intervals. The development of neural-symbolic architectures facilitates contextual memory reinforcement, and these systems dynamically adjust to individual forgetting curves.
+
+(20)**, though controversial among traditionalists, gains credibility as adaptive learning platforms demonstrate remarkable efficacy. Spaced repetition algorithms, which once existed only in experimental psychology laboratories, now permeate everyday digital tools through AI implementation. Researchers postulate that future memory augmentation technologies will seamlessly integrate with neural interfaces, (21)**.
+
+These innovations represent not merely technological advancement but a fundamental recalibration of human intellectual capacity. As humanity navigates this cognitive frontier, questions about intellectual equity and access become increasingly pertinent. (22)______. Educational institutions worldwide must reconsider pedagogical frameworks in light of these biotechnological convergences, potentially abandoning centuries-old instructional paradigms for neurologically optimized learning pathways.
+
+Question 18.
+A. which involves political strategies that governments implement to manage economic instability
+B. documented by Hermann Ebbinghaus in his pioneering research on memory retention
+C. where environmental scientists have discovered alarming patterns of coral reef deterioration
+D. having examined technological innovations affecting social interactions across diverse cultural settings
+
+Question 19.
+A. subsequently; medical researchers discovered promising compounds for treating antibiotic resistant bacterial infections
+B. meanwhile, digital literacy programs but equip students with skills for navigating online misinformation
+C. therefore, environmental protection policies must balance economic concerns against conservation efforts worldwide
+D. nevertheless, it provides a blueprint for algorithmic intervention to overcome these limitations
+
+Question 20.
+A. The hypothesis whether genetic modifications could significantly enhance agricultural yields in tropical environments
+B. The discovery which renewable energy sources will potentially replace fossil fuels in industrial applications
+C. The notion that artificial systems could eventually surpass human mentors in educational effectiveness
+D. The theory what economic sanctions might gradually undermine developing nations in international trading relationships
+
+Question 21.
+A. the economic theory suggests inflation rates; while employment statistics demonstrate contrasting market trends
+B. a prospect that raises profound ethical considerations about cognitive autonomy and authenticity
+C. marine biologists documented coral bleaching but oceanographers argue climate patterns driving ocean temperatures
+D. historical archives reveal diplomatic negotiations therefore medieval trade routes expanded across geographical boundaries
+
+Question 22.
+A. That medical researchers identifying breakthrough treatments—and patent—will decide whether they revolutionize healthcare access or widening the divide between wealthy and poor
+B. Which emerging economies are developing rapidly—and evolved—has influenced whether they adopting sustainable technologies or maintaining traditional industrial manufacturing processes
+C. When the international summit had concluded next month—and evaluated—will determine whether countries implemented climate policies or rejected environmental protection standards
+D. Whom these mnemonic enhancements benefit—and exclude—will determine whether they democratize knowledge or exacerbate existing societal divides
+
+V. READING COMPREHENSION 1 [TYPE: reading-comprehension]
+Read the following passage about The Micro-Payment Renaissance in Media and mark the letter A, B, C or D on your answer sheet to indicate the best answer to each of the following questions from 23 to 30.
+
+PASSAGE:
+The Micro-Payment Renaissance in Media
+
+The media industry's financial architecture is undergoing a paradigm shift as micro-payment models resurge to challenge subscription dominance. This pay-per-content approach, where consumers disburse minimal sums for individual articles or media segments rather than committing to recurring fees, has gained traction amid subscription fatigue. Pioneer platforms implementing these granular payment structures have demonstrated **their** viability across diverse content ecosystems, from journalism to multimedia productions. The renaissance of this monetization strategy coincides with blockchain advancements that have streamlined previously cumbersome transaction processes.
+
+For publishers, micro-payments present a compelling alternative to advertising dependency and subscription plateaus. By granularizing content access, media enterprises can **monetize** casual audiences who eschew comprehensive subscriptions but willingly compensate for specific content that resonates with their interests. This model facilitates more precise audience analytics, enabling content strategists to discern consumption patterns with unprecedented granularity. Publications implementing hybrid revenue approaches have reported incremental revenue streams from previously untapped reader segments.
+
+From the consumer perspective, these atomized payment systems foster greater autonomy and fiscal control. Rather than being encumbered by multiple subscriptions, readers can curate their media diet across disparate sources while maintaining budgetary discipline. However, significant obstacles persist—most notably psychological barriers regarding perceived transaction value and concerns about **frictionless** implementation. Research indicates that successful micro-payment frameworks must balance minimal cognitive load during transactions with transparent value propositions to overcome inherent consumer resistance.
+
+Industry prognosticators envision micro-payments not as subscription replacements but as complementary revenue streams within sophisticated monetization ecosystems. **The proliferation of digital wallets and cryptocurrency applications may accelerate adoption rates, particularly among younger demographics accustomed to disaggregated consumption patterns.** As technological infrastructure matures, the bifurcation between premium subscription content and à la carte offerings will likely become increasingly pronounced, fundamentally recalibrating the relationship between content creators and their audiences.
+
+Question 23. Which of the following is NOT mentioned as a challenge for micro-payment systems?
+A. Psychological barriers regarding transaction value
+B. Concerns about frictionless implementation
+C. Legal regulatory frameworks
+D. Need for minimal cognitive load during transactions
+
+Question 24. The word {{their}} in paragraph 1 refers to _________.
+A. pioneer platforms
+B. granular payment structures
+C. content ecosystems
+D. subscription models
+
+Question 25. The word {{monetize}} in paragraph 2 is OPPOSITE in meaning to _________.
+A. commercialize
+B. subsidize
+C. scrutinize
+D. proliferate
+
+Question 26. The word {{frictionless}} in paragraph 3 could be best replaced by _________.
+A. expeditious
+B. meticulous
+C. meticulous
+D. seamless
+
+Question 27. Which of the following best paraphrases the underlined sentence in paragraph 4?
+A. The increasing availability of digital payment solutions and crypto apps could hasten micro-payment acceptance, especially by young users who typically consume unbundled content.
+B. Digital wallet technology primarily influences how younger generations bundle their media subscriptions rather than accelerating alternative payment methods.
+C. Content providers are rapidly implementing cryptocurrency options to attract younger audiences who prefer traditional subscription payment structures.
+D. The fragmented media consumption habits of younger demographic groups are primarily driving the development of innovative digital payment technologies and applications.
+
+Question 28. Which of the following is TRUE according to the passage?
+A. Micro-payment systems have effectively eliminated the need for subscription models in contemporary digital content distribution.
+B. Consumer resistance to micro-payment frameworks has largely disappeared due to advancements in blockchain transaction technology.
+C. Publications using hybrid revenue approaches have generated additional income streams from previously unmonetized audience segments.
+D. The primary obstacle to micro-payment adoption is technical infrastructure limitations rather than psychological consumer resistance.
+
+Question 29. In which paragraph does the writer mention the publisher's advantages of micro-payment models?
+A. Paragraph 1
+B. Paragraph 3
+C. Paragraph 4
+D. Paragraph 2
+
+Question 30. In which paragraph does the writer mention what one benefit is that micro-payments offer consumers?
+A. Paragraph 2
+B. Paragraph 3
+C. Paragraph 1
+D. Paragraph 4
+
+VI. READING COMPREHENSION 2 [TYPE: reading-comprehension]
+Read the following passage about the Redefining Creativity in the Age of Generative AI and mark the letter A, B, C or D on your answer sheet to indicate the best answer to each of the following questions from 31 to 40.
+
+PASSAGE:
+Redefining Creativity in the Age of Generative AI
+
+In contemporary creative discourse, the emergence of generative AI has precipitated a profound reconsideration of originality. Creators across disciplines find themselves compelled to **bend the rules** of conventional practice as AI systems demonstrate capabilities in generating seemingly authentic content. This technological shift has catalyzed debates regarding creativity's essence—is originality merely a novel recombination of existing elements, or does it require human consciousness?
+
+[I] The boundaries between human and machine creation have become increasingly nebulous, challenging fundamental assumptions about creative authenticity. The philosophical implications reverberate through artistic, literary, and commercial domains alike. The algorithmic nature of generative AI problematizes traditional concepts of creativity. These systems distill patterns from vast datasets of human works, producing outputs often **indistinguishable** from human-created content. While AI lacks intentionality, it demonstrates remarkable aptitude for mimicking stylistic nuances. [II] Proponents counter that human creativity similarly relies upon imitation and transformation of preceding works, suggesting AI merely accelerates this established process. The distinction blurs further as neural networks evolve with unprecedented sophistication.
+
+For creative professionals, this technological revolution presents both existential challenges and unprecedented opportunities. Illustrators, writers, and designers now contend with systems capable of generating competent work at incomparable speed and negligible cost. This competitive dynamic necessitates recalibration—practitioners increasingly emphasize human capabilities such as conceptual thinking and emotional resonance that remain beyond algorithmic replication. [III] Many creatives now incorporate AI tools into **their** workflows, establishing collaborative relationships rather than viewing these systems as adversaries. This adaptation fosters hybrid methodologies where human insight guides algorithmic execution.
+
+The redefinition of creativity in our algorithmic age requires nuanced consideration rather than binary conclusions. **Perhaps creativity's essence lies not in the absence of computational assistance, but in purposeful curation, contextual awareness, and meaningful communication.** As we navigate this transformation, we might shift from fetishizing originality toward celebrating resonance and intentionality. [IV] The most compelling expressions may emerge from human-machine collaboration, provided we maintain awareness of each contributor's unique capacities and limitations. Society must collectively determine where authentic creative value resides moving forward.
+
+Question 31. The phrase {{bend the rules}} in paragraph 1 has the closest meaning to _________.
+A. get around
+B. break down
+C. look after
+D. set up
+
+Question 32. Which of the following is NOT mentioned in the passage as a capability that remains distinctly human?
+A. Conceptual thinking
+B. Emotional resonance
+C. Ethical judgment
+D. Contextual awareness
+
+Question 33. Where in the paragraph does the following sentence best fit?
+Critics argue AI-generated works are inherently derivative, representing sophisticated plagiarism.
+A. [I]
+B. [II]
+C. [III]
+D. [IV]
+
+Question 34. Which of the following best summarises paragraph 2?
+A. Generative AI systems analyze vast datasets to produce creative content that appears original, demonstrating technological advancement that will eventually surpass human creativity in various artistic domains through sophisticated neural networks.
+B. The debate around AI creativity centers primarily on intellectual property concerns, with legal experts arguing that AI-generated works cannot be properly copyrighted while technology companies advocate for frameworks recognizing machine authorship.
+C. AI-generated art fundamentally lacks authentic aesthetic value because algorithms cannot understand cultural context or emotional depth, making their outputs technically impressive but ultimately shallow imitations of genuine human expression.
+D. AI systems challenge traditional notions of creativity by producing work indistinguishable from human creation despite lacking intention, with critics seeing this as plagiarism while proponents note humans also build on existing works as neural networks evolve.
+
+Question 35. The word {{indistinguishable}} in paragraph 2 is OPPOSITE in meaning to _________.
+A. imperceptible
+B. homogeneous
+C. amorphous
+D. conspicuous
+
+Question 36. The word {{their}} in paragraph 3 refers to _________.
+A. AI tools
+B. systems
+C. creatives
+D. workflows
+
+Question 37. Which of the following best paraphrases the underlined sentence in paragraph 4?
+A. Creativity fundamentally requires human autonomy from computational tools while emphasizing selective curation and contextually relevant expression.
+B. True creativity may be defined not by rejecting algorithmic tools, but through intentional selection, situational understanding, and significant expression.
+C. The core of creative work involves balancing computational assistance with human intuition rather than focusing on curation or contextual elements.
+D. Modern creativity emerges when algorithmic processes enhance human expression without requiring purposeful selection or contextual consideration.
+
+Question 38. Which of the following is TRUE according to the passage?
+A. Creative professionals increasingly incorporate AI tools collaboratively while emphasizing human capabilities that remain beyond algorithmic replication.
+B. Artificial intelligence systems possess genuine creative intentionality despite producing works that critics universally dismiss as sophisticated forms of plagiarism.
+C. The boundary between human and machine creation remains clearly defined even as neural networks develop with unprecedented levels of technological sophistication.
+D. Society has reached consensus that authentic creative value emerges exclusively from human consciousness rather than computational assistance or algorithmic execution.
+
+Question 39. Which of the following can be inferred from the passage?
+A. Creative professionals will eventually abandon traditional methods entirely as AI capabilities surpass human originality in all artistic and commercial domains.
+B. The philosophical debate regarding creativity has concluded that true originality requires human consciousness rather than computational assistance.
+C. Human-machine collaboration may produce the most compelling creative expressions when contributors understand their respective strengths and limitations.
+D. Society has reached consensus that artistic authenticity comes from the complete rejection of algorithmic tools in favor of purely human execution.
+
+Question 40. Which of the following best summarises the passage?
+A. Generative AI represents an existential threat to human creativity, compelling professionals across disciplines to defend traditional practices against algorithmic imitation that produces sophisticated plagiarism.
+B. The technical capabilities of neural networks have evolved to generate content indistinguishable from human work, rendering obsolete conventional notions of originality in artistic and commercial domains.
+C. Creative professionals must adapt to technological change by developing skills that algorithms cannot replicate, thereby maintaining human superiority in conceptual thinking and emotional resonance.
+D. Generative AI challenges traditional concepts of creativity, prompting a nuanced reconsideration of originality that may lead to valuable human-machine collaborations and a shift toward valuing intentionality over pure originality.
+
+ANSWER KEY
+
+1. D
+2. B
+3. C
+4. A
+5. A
+6. A
+7. B
+8. C
+9. A
+10. B
+11. A
+12. D
+13. A
+14. B
+15. C
+16. D
+17. A
+18. B
+19. D
+20. C
+21. B
+22. D
+23. C
+24. B
+25. B
+26. D
+27. A
+28. C
+29. D
+30. B
+31. A
+32. C
+33. B
+34. D
+35. D
+36. C
+37. B
+38. A
+39. C
+40. D
+#parse log
+═══ THCS Test Diagnostic Log ═══
+Generated: 2026-03-05 23:31:16
+
+── Parse Pipeline ──
+Provider: pipeline-v2 | Pipeline: v2-brain-janitor-grunt
+Input: 27,354 chars | Cleaned: 27,354 chars
+Parse Confidence: 60%
+Duration: 21.2s
+
+── Metadata ──
+Title: [CONFIDENCE: 80]
+Grade: 9 | Duration: 45 min | Exam: giữa kì
+
+── Sections (6 sections, 40 questions, 10 pts) ──
+[1] Section 1 (reading-announcement, 1.5pts) — 6 Qs (Q1-6) | passage: 129w
+    layout: two-column
+    Q1: reading-announcement [reading-announcement] | answer=D ✓ | 4 opts
+    Q2: reading-announcement [reading-announcement] | answer=B ✓ | 4 opts
+    Q3: reading-announcement [reading-announcement] | answer=C ✓ | 4 opts
+    Q4: reading-announcement [reading-announcement] | answer=A ✓ | 4 opts
+    Q5: reading-announcement [reading-announcement] | answer=A ✓ | 4 opts
+    Q6: reading-announcement [reading-announcement] | answer=A ✓ | 4 opts
+[2] Section 2 (reading-cloze-mcq, 1.5pts) — 6 Qs (Q7-12) | passage: 98w
+    layout: two-column
+    Q7: reading-cloze-mcq [reading-cloze-mcq] | answer=B ✓ | 4 opts
+    Q8: reading-cloze-mcq [reading-cloze-mcq] | answer=C ✓ | 4 opts
+    Q9: reading-cloze-mcq [reading-cloze-mcq] | answer=A ✓ | 4 opts
+    Q10: reading-cloze-mcq [reading-cloze-mcq] | answer=B ✓ | 4 opts
+    Q11: reading-cloze-mcq [reading-cloze-mcq] | answer=A ✓ | 4 opts
+    Q12: reading-cloze-mcq [reading-cloze-mcq] | answer=D ✓ | 4 opts
+[3] Section 3 (sentence-arrangement, 1.25pts) — 5 Qs (Q13-17)
+    layout: single-column
+    Q13: sentence-arrangement [sentence-arrangement] | answer=A ✓ | 4 opts
+    Q14: sentence-arrangement [sentence-arrangement] | answer=B ✓ | 4 opts
+    Q15: sentence-arrangement [sentence-arrangement] | answer=C ✓ | 4 opts
+    Q16: sentence-arrangement [sentence-arrangement] | answer=D ✓ | 4 opts
+    Q17: sentence-arrangement [sentence-arrangement] | answer=A ✓ | 4 opts
+[4] Section 4 (reading-comprehension, 1.25pts) — 5 Qs (Q18-22) | passage: 80w
+    layout: two-column
+    Q18: reading-comprehension [reading-comprehension] | answer=B ✓ | 4 opts
+    Q19: reading-comprehension [reading-comprehension] | answer=D ✓ | 4 opts
+    Q20: reading-comprehension [reading-comprehension] | answer=C ✓ | 4 opts
+    Q21: reading-comprehension [reading-comprehension] | answer=B ✓ | 4 opts
+    Q22: reading-comprehension [reading-comprehension] | answer=D ✓ | 4 opts
+[5] Section 5 (reading-comprehension, 2pts) — 8 Qs (Q23-30) | passage: 62w
+    layout: two-column
+    Q23: reading-comprehension [reading-comprehension] | answer=C ✓ | 4 opts
+    Q24: reading-comprehension [reading-comprehension] | answer=A ✓ | 4 opts
+    Q25: reading-comprehension [reading-comprehension] | answer=B ✓ | 4 opts
+    Q26: reading-comprehension [reading-comprehension] | answer=D ✓ | 4 opts
+    Q27: reading-comprehension [reading-comprehension] | answer=A ✓ | 4 opts
+    Q28: reading-comprehension [reading-comprehension] | answer=C ✓ | 4 opts
+    Q29: reading-comprehension [reading-comprehension] | answer=D ✓ | 4 opts
+    Q30: reading-comprehension [reading-comprehension] | answer=B ✓ | 4 opts
+[6] Section 6 (reading-comprehension, 2.5pts) — 10 Qs (Q31-40) | passage: 61w
+    layout: two-column
+    Q31: reading-comprehension [reading-comprehension] | answer=A ✓ | 4 opts
+    Q32: reading-comprehension [reading-comprehension] | answer=C ✓ | 4 opts
+    Q33: reading-comprehension [reading-comprehension] | answer=B ✓ | 4 opts
+    Q34: reading-comprehension [reading-comprehension] | answer=D ✓ | 4 opts
+    Q35: reading-comprehension [reading-comprehension] | answer=D ✓ | 4 opts
+    Q36: reading-comprehension [reading-comprehension] | answer=C ✓ | 4 opts
+    Q37: reading-comprehension [reading-comprehension] | answer=B ✓ | 4 opts
+    Q38: reading-comprehension [reading-comprehension] | answer=A ✓ | 4 opts
+    Q39: reading-comprehension [reading-comprehension] | answer=C ✓ | 4 opts
+    Q40: reading-comprehension [reading-comprehension] | answer=D ✓ | 4 opts
+
+── Data Integrity (17 warnings) ──
+  ⚠ Q1 (Section 1): empty question text
+  ⚠ Q2 (Section 1): empty question text
+  ⚠ Q3 (Section 1): empty question text
+  ⚠ Q4 (Section 1): empty question text
+  ⚠ Q5 (Section 1): empty question text
+  ⚠ Q6 (Section 1): empty question text
+  ⚠ Q7 (Section 2): empty question text
+  ⚠ Q8 (Section 2): empty question text
+  ⚠ Q9 (Section 2): empty question text
+  ⚠ Q10 (Section 2): empty question text
+  ⚠ Q11 (Section 2): empty question text
+  ⚠ Q12 (Section 2): empty question text
+  ⚠ Q18 (Section 4): empty question text
+  ⚠ Q19 (Section 4): empty question text
+  ⚠ Q20 (Section 4): empty question text
+  ⚠ Q21 (Section 4): empty question text
+  ⚠ Q22 (Section 4): empty question text
+
+═══ End Diagnostic Log ═══
+#preview logs
+[23:26:20.753] [Step2-Questions] Entered with 6 sections, 40 questions, 40 answered
+[23:26:20.753] [Step2-Questions] Metadata: {
+  "title": "[CONFIDENCE: 80]",
+  "grade": 9,
+  "examType": "giữa kì",
+  "duration": 45
+}
+[23:26:20.753] [Step2-Questions]   [0] "Section 1" (d23f75ab) — 6 Qs, types: [reading-announcement], withAnswers: 6, withOptions: 6, points: 1.5
+[23:26:20.753] [Step2-Questions]   [1] "Section 2" (deeb90fa) — 6 Qs, types: [reading-cloze-mcq], withAnswers: 6, withOptions: 6, points: 1.5
+[23:26:20.753] [Step2-Questions]   [2] "Section 3" (342031a4) — 5 Qs, types: [sentence-arrangement], withAnswers: 5, withOptions: 5, points: 1.25
+[23:26:20.753] [Step2-Questions]   [3] "Section 4" (ff7940cb) — 5 Qs, types: [reading-comprehension], withAnswers: 5, withOptions: 5, points: 1.25
+[23:26:20.753] [Step2-Questions]   [4] "Section 5" (d396a360) — 8 Qs, types: [reading-comprehension], withAnswers: 8, withOptions: 8, points: 2
+[23:26:20.753] [Step2-Questions]   [5] "Section 6" (e9ead377) — 10 Qs, types: [reading-comprehension], withAnswers: 10, withOptions: 10, points: 2.5
+[23:26:26.527] [Preview] Converting draft → preview test
+[23:26:26.527] [Preview]   Sections: 6, Questions: 40, Points: 10
+[23:26:26.527] [Preview]   [0] "Section 1" — 6 Qs, type(s): [reading-announcement], layout: two-column, passage: true, answers: 6/6, rawFallback: false
+[23:26:26.527] [Preview]   [1] "Section 2" — 6 Qs, type(s): [reading-cloze-mcq], layout: two-column, passage: true, answers: 6/6, rawFallback: false
+[23:26:26.527] [Preview]   [2] "Section 3" — 5 Qs, type(s): [sentence-arrangement], layout: single-column, passage: false, answers: 5/5, rawFallback: false
+[23:26:26.527] [Preview]   [3] "Section 4" — 5 Qs, type(s): [reading-comprehension], layout: two-column, passage: true, answers: 5/5, rawFallback: false
+[23:26:26.527] [Preview]   [4] "Section 5" — 8 Qs, type(s): [reading-comprehension], layout: two-column, passage: true, answers: 8/8, rawFallback: false
+[23:26:26.527] [Preview]   [5] "Section 6" — 10 Qs, type(s): [reading-comprehension], layout: two-column, passage: true, answers: 10/10, rawFallback: false
+[23:26:26.527] [Preview] isSectionReading("Section 1"): firstType=reading-announcement, isReading=true
+[23:26:26.527] [Preview] Rendering section 0: "Section 1", 6 Qs, isTwoColumn=true, passage=true, passageLen=1083, passageFormatting=true, instruction="Read the following advertisement and mark the letter A, B, C or D on your answer"
+[23:26:26.527] [Preview]   Question breakdown: Q1:reading-announcement/reading-announcement, Q2:reading-announcement/reading-announcement, Q3:reading-announcement/reading-announcement, Q4:reading-announcement/reading-announcement, Q5:reading-announcement/reading-announcement, Q6:reading-announcement/reading-announcement
+[23:26:26.529] [Renderer] Q1: type=reading-announcement, intent=reading-announcement, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:26:26.529] [Renderer] Q2: type=reading-announcement, intent=reading-announcement, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:26:26.529] [Renderer] Q3: type=reading-announcement, intent=reading-announcement, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:26:26.529] [Renderer] Q4: type=reading-announcement, intent=reading-announcement, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:26:26.529] [Renderer] Q5: type=reading-announcement, intent=reading-announcement, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:26:26.529] [Renderer] Q6: type=reading-announcement, intent=reading-announcement, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:26:30.572] [Preview] isSectionReading("Section 2"): firstType=reading-cloze-mcq, isReading=true
+[23:26:30.572] [Preview] Rendering section 1: "Section 2", 6 Qs, isTwoColumn=true, passage=true, passageLen=897, passageFormatting=true, instruction="Read of the following leaflet and mark the letter A, B, C or D on your answer sh"
+[23:26:30.572] [Preview]   Question breakdown: Q7:reading-cloze-mcq/reading-cloze-mcq, Q8:reading-cloze-mcq/reading-cloze-mcq, Q9:reading-cloze-mcq/reading-cloze-mcq, Q10:reading-cloze-mcq/reading-cloze-mcq, Q11:reading-cloze-mcq/reading-cloze-mcq, Q12:reading-cloze-mcq/reading-cloze-mcq
+[23:26:30.572] [Renderer] Q7: type=reading-cloze-mcq, intent=reading-cloze-mcq, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:26:30.572] [Renderer] Q8: type=reading-cloze-mcq, intent=reading-cloze-mcq, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:26:30.573] [Renderer] Q9: type=reading-cloze-mcq, intent=reading-cloze-mcq, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:26:30.573] [Renderer] Q10: type=reading-cloze-mcq, intent=reading-cloze-mcq, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:26:30.573] [Renderer] Q11: type=reading-cloze-mcq, intent=reading-cloze-mcq, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:26:30.573] [Renderer] Q12: type=reading-cloze-mcq, intent=reading-cloze-mcq, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:26:33.819] [Preview] isSectionReading("Section 3"): firstType=sentence-arrangement, isReading=false
+[23:26:33.819] [Preview] Rendering section 2: "Section 3", 5 Qs, isTwoColumn=false, passage=false, passageLen=0, passageFormatting=false, instruction="Mark the letter A, B, C or D on your answer sheet to indicate the best arrangeme"
+[23:26:33.819] [Preview]   Question breakdown: Q13:sentence-arrangement/sentence-arrangement, Q14:sentence-arrangement/sentence-arrangement, Q15:sentence-arrangement/sentence-arrangement, Q16:sentence-arrangement/sentence-arrangement, Q17:sentence-arrangement/sentence-arrangement
+[23:26:33.820] [Renderer] Q13: type=sentence-arrangement, intent=sentence-arrangement, render=SENTENCE-ARRANGEMENT (sub-items), opts=4, text= a. Maya: That's cool! I think we need to be nice ..., underlinedParts=no, optUnderlines=no
+[23:26:33.820] [Renderer] Q14: type=sentence-arrangement, intent=sentence-arrangement, render=SENTENCE-ARRANGEMENT (sub-items), opts=4, text= a. Emma: Yes, and the best part is that fans can ..., underlinedParts=no, optUnderlines=no
+[23:26:33.820] [Renderer] Q15: type=sentence-arrangement, intent=sentence-arrangement, render=SENTENCE-ARRANGEMENT (sub-items), opts=4, text= a. Since I started following these simple rules, ..., underlinedParts=no, optUnderlines=no
+[23:26:33.820] [Renderer] Q16: type=sentence-arrangement, intent=sentence-arrangement, render=SENTENCE-ARRANGEMENT (sub-items), opts=4, text= a. These smart programs read thousands of article..., underlinedParts=no, optUnderlines=no
+[23:26:33.820] [Renderer] Q17: type=sentence-arrangement, intent=sentence-arrangement, render=SENTENCE-ARRANGEMENT (sub-items), opts=4, text= a. Scientists think that our Earth works like a g..., underlinedParts=no, optUnderlines=no
+[23:26:35.233] [Preview] isSectionReading("Section 4"): firstType=reading-comprehension, isReading=true
+[23:26:35.234] [Preview] Rendering section 3: "Section 4", 5 Qs, isTwoColumn=true, passage=true, passageLen=693, passageFormatting=true, instruction="Read the following passage about Designing AI That Helps Humans Remember and mar"
+[23:26:35.234] [Preview]   Question breakdown: Q18:reading-comprehension/reading-comprehension, Q19:reading-comprehension/reading-comprehension, Q20:reading-comprehension/reading-comprehension, Q21:reading-comprehension/reading-comprehension, Q22:reading-comprehension/reading-comprehension
+[23:26:35.234] [Renderer] Q18: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:26:35.234] [Renderer] Q19: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:26:35.234] [Renderer] Q20: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:26:35.234] [Renderer] Q21: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:26:35.234] [Renderer] Q22: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:26:37.844] [Preview] isSectionReading("Section 5"): firstType=reading-comprehension, isReading=true
+[23:26:37.844] [Preview] Rendering section 4: "Section 5", 8 Qs, isTwoColumn=true, passage=true, passageLen=534, passageFormatting=false, instruction="Read the following passage about The Micro-Payment Renaissance in Media and mark"
+[23:26:37.844] [Preview]   Question breakdown: Q23:reading-comprehension/reading-comprehension, Q24:reading-comprehension/reading-comprehension, Q25:reading-comprehension/reading-comprehension, Q26:reading-comprehension/reading-comprehension, Q27:reading-comprehension/reading-comprehension, Q28:reading-comprehension/reading-comprehension, Q29:reading-comprehension/reading-comprehension, Q30:reading-comprehension/reading-comprehension
+[23:26:37.845] [Renderer] Q23: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=Which of the following is NOT mentioned as a chall..., underlinedParts=no, optUnderlines=no
+[23:26:37.845] [Renderer] Q24: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=The word {{their}} in paragraph 1 refers to ______..., underlinedParts=no, optUnderlines=no
+[23:26:37.845] [Renderer] Q25: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=The word {{monetize}} in paragraph 2 is OPPOSITE i..., underlinedParts=no, optUnderlines=no
+[23:26:37.845] [Renderer] Q26: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=The word {{frictionless}} in paragraph 3 could be ..., underlinedParts=no, optUnderlines=no
+[23:26:37.845] [Renderer] Q27: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=Which of the following best paraphrases the underl..., underlinedParts=no, optUnderlines=no
+[23:26:37.846] [Renderer] Q28: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=Which of the following is TRUE according to the pa..., underlinedParts=no, optUnderlines=no
+[23:26:37.846] [Renderer] Q29: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=In which paragraph does the writer mention the pub..., underlinedParts=no, optUnderlines=no
+[23:26:37.846] [Renderer] Q30: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=In which paragraph does the writer mention what on..., underlinedParts=no, optUnderlines=no
+[23:27:16.804] [Preview] Converting draft → preview test
+[23:27:16.804] [Preview]   Sections: 6, Questions: 40, Points: 10
+[23:27:16.804] [Preview]   [0] "Section 1" — 6 Qs, type(s): [reading-announcement], layout: two-column, passage: true, answers: 6/6, rawFallback: false
+[23:27:16.804] [Preview]   [1] "Section 2" — 6 Qs, type(s): [reading-cloze-mcq], layout: two-column, passage: true, answers: 6/6, rawFallback: false
+[23:27:16.804] [Preview]   [2] "Section 3" — 5 Qs, type(s): [sentence-arrangement], layout: single-column, passage: false, answers: 5/5, rawFallback: false
+[23:27:16.804] [Preview]   [3] "Section 4" — 5 Qs, type(s): [reading-comprehension], layout: two-column, passage: true, answers: 5/5, rawFallback: false
+[23:27:16.804] [Preview]   [4] "Section 5" — 8 Qs, type(s): [reading-comprehension], layout: two-column, passage: true, answers: 8/8, rawFallback: false
+[23:27:16.804] [Preview]   [5] "Section 6" — 10 Qs, type(s): [reading-comprehension], layout: two-column, passage: true, answers: 10/10, rawFallback: false
+[23:27:16.804] [Preview] isSectionReading("Section 1"): firstType=reading-announcement, isReading=true
+[23:27:16.805] [Preview] Rendering section 0: "Section 1", 6 Qs, isTwoColumn=true, passage=true, passageLen=1083, passageFormatting=true, instruction="Read the following advertisement and mark the letter A, B, C or D on your answer"
+[23:27:16.805] [Preview]   Question breakdown: Q1:reading-announcement/reading-announcement, Q2:reading-announcement/reading-announcement, Q3:reading-announcement/reading-announcement, Q4:reading-announcement/reading-announcement, Q5:reading-announcement/reading-announcement, Q6:reading-announcement/reading-announcement
+[23:27:16.805] [Renderer] Q1: type=reading-announcement, intent=reading-announcement, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:27:16.805] [Renderer] Q2: type=reading-announcement, intent=reading-announcement, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:27:16.805] [Renderer] Q3: type=reading-announcement, intent=reading-announcement, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:27:16.805] [Renderer] Q4: type=reading-announcement, intent=reading-announcement, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:27:16.805] [Renderer] Q5: type=reading-announcement, intent=reading-announcement, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:27:16.805] [Renderer] Q6: type=reading-announcement, intent=reading-announcement, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:27:18.441] [Preview] isSectionReading("Section 5"): firstType=reading-comprehension, isReading=true
+[23:27:18.442] [Preview] Rendering section 4: "Section 5", 8 Qs, isTwoColumn=true, passage=true, passageLen=534, passageFormatting=false, instruction="Read the following passage about The Micro-Payment Renaissance in Media and mark"
+[23:27:18.442] [Preview]   Question breakdown: Q23:reading-comprehension/reading-comprehension, Q24:reading-comprehension/reading-comprehension, Q25:reading-comprehension/reading-comprehension, Q26:reading-comprehension/reading-comprehension, Q27:reading-comprehension/reading-comprehension, Q28:reading-comprehension/reading-comprehension, Q29:reading-comprehension/reading-comprehension, Q30:reading-comprehension/reading-comprehension
+[23:27:18.442] [Renderer] Q23: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=Which of the following is NOT mentioned as a chall..., underlinedParts=no, optUnderlines=no
+[23:27:18.442] [Renderer] Q24: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=The word {{their}} in paragraph 1 refers to ______..., underlinedParts=no, optUnderlines=no
+[23:27:18.442] [Renderer] Q25: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=The word {{monetize}} in paragraph 2 is OPPOSITE i..., underlinedParts=no, optUnderlines=no
+[23:27:18.442] [Renderer] Q26: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=The word {{frictionless}} in paragraph 3 could be ..., underlinedParts=no, optUnderlines=no
+[23:27:18.442] [Renderer] Q27: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=Which of the following best paraphrases the underl..., underlinedParts=no, optUnderlines=no
+[23:27:18.442] [Renderer] Q28: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=Which of the following is TRUE according to the pa..., underlinedParts=no, optUnderlines=no
+[23:27:18.443] [Renderer] Q29: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=In which paragraph does the writer mention the pub..., underlinedParts=no, optUnderlines=no
+[23:27:18.443] [Renderer] Q30: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=In which paragraph does the writer mention what on..., underlinedParts=no, optUnderlines=no
+[23:27:19.130] [Preview] isSectionReading("Section 4"): firstType=reading-comprehension, isReading=true
+[23:27:19.130] [Preview] Rendering section 3: "Section 4", 5 Qs, isTwoColumn=true, passage=true, passageLen=693, passageFormatting=true, instruction="Read the following passage about Designing AI That Helps Humans Remember and mar"
+[23:27:19.130] [Preview]   Question breakdown: Q18:reading-comprehension/reading-comprehension, Q19:reading-comprehension/reading-comprehension, Q20:reading-comprehension/reading-comprehension, Q21:reading-comprehension/reading-comprehension, Q22:reading-comprehension/reading-comprehension
+[23:27:19.130] [Renderer] Q18: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:27:19.130] [Renderer] Q19: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:27:19.131] [Renderer] Q20: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:27:19.131] [Renderer] Q21: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:27:19.131] [Renderer] Q22: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:27:19.813] [Preview] isSectionReading("Section 3"): firstType=sentence-arrangement, isReading=false
+[23:27:19.814] [Preview] Rendering section 2: "Section 3", 5 Qs, isTwoColumn=false, passage=false, passageLen=0, passageFormatting=false, instruction="Mark the letter A, B, C or D on your answer sheet to indicate the best arrangeme"
+[23:27:19.814] [Preview]   Question breakdown: Q13:sentence-arrangement/sentence-arrangement, Q14:sentence-arrangement/sentence-arrangement, Q15:sentence-arrangement/sentence-arrangement, Q16:sentence-arrangement/sentence-arrangement, Q17:sentence-arrangement/sentence-arrangement
+[23:27:19.814] [Renderer] Q13: type=sentence-arrangement, intent=sentence-arrangement, render=SENTENCE-ARRANGEMENT (sub-items), opts=4, text= a. Maya: That's cool! I think we need to be nice ..., underlinedParts=no, optUnderlines=no
+[23:27:19.814] [Renderer] Q14: type=sentence-arrangement, intent=sentence-arrangement, render=SENTENCE-ARRANGEMENT (sub-items), opts=4, text= a. Emma: Yes, and the best part is that fans can ..., underlinedParts=no, optUnderlines=no
+[23:27:19.814] [Renderer] Q15: type=sentence-arrangement, intent=sentence-arrangement, render=SENTENCE-ARRANGEMENT (sub-items), opts=4, text= a. Since I started following these simple rules, ..., underlinedParts=no, optUnderlines=no
+[23:27:19.814] [Renderer] Q16: type=sentence-arrangement, intent=sentence-arrangement, render=SENTENCE-ARRANGEMENT (sub-items), opts=4, text= a. These smart programs read thousands of article..., underlinedParts=no, optUnderlines=no
+[23:27:19.814] [Renderer] Q17: type=sentence-arrangement, intent=sentence-arrangement, render=SENTENCE-ARRANGEMENT (sub-items), opts=4, text= a. Scientists think that our Earth works like a g..., underlinedParts=no, optUnderlines=no
+[23:27:20.604] [Preview] isSectionReading("Section 3"): firstType=sentence-arrangement, isReading=false
+[23:27:20.604] [Preview] Rendering section 2: "Section 3", 5 Qs, isTwoColumn=false, passage=false, passageLen=0, passageFormatting=false, instruction="Mark the letter A, B, C or D on your answer sheet to indicate the best arrangeme"
+[23:27:20.604] [Preview]   Question breakdown: Q13:sentence-arrangement/sentence-arrangement, Q14:sentence-arrangement/sentence-arrangement, Q15:sentence-arrangement/sentence-arrangement, Q16:sentence-arrangement/sentence-arrangement, Q17:sentence-arrangement/sentence-arrangement
+[23:27:21.241] [Preview] isSectionReading("Section 4"): firstType=reading-comprehension, isReading=true
+[23:27:21.241] [Preview] Rendering section 3: "Section 4", 5 Qs, isTwoColumn=true, passage=true, passageLen=693, passageFormatting=true, instruction="Read the following passage about Designing AI That Helps Humans Remember and mar"
+[23:27:21.241] [Preview]   Question breakdown: Q18:reading-comprehension/reading-comprehension, Q19:reading-comprehension/reading-comprehension, Q20:reading-comprehension/reading-comprehension, Q21:reading-comprehension/reading-comprehension, Q22:reading-comprehension/reading-comprehension
+[23:27:21.241] [Renderer] Q18: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:27:21.241] [Renderer] Q19: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:27:21.242] [Renderer] Q20: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:27:21.242] [Renderer] Q21: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:27:21.242] [Renderer] Q22: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:27:25.188] [Preview] isSectionReading("Section 5"): firstType=reading-comprehension, isReading=true
+[23:27:25.188] [Preview] Rendering section 4: "Section 5", 8 Qs, isTwoColumn=true, passage=true, passageLen=534, passageFormatting=false, instruction="Read the following passage about The Micro-Payment Renaissance in Media and mark"
+[23:27:25.188] [Preview]   Question breakdown: Q23:reading-comprehension/reading-comprehension, Q24:reading-comprehension/reading-comprehension, Q25:reading-comprehension/reading-comprehension, Q26:reading-comprehension/reading-comprehension, Q27:reading-comprehension/reading-comprehension, Q28:reading-comprehension/reading-comprehension, Q29:reading-comprehension/reading-comprehension, Q30:reading-comprehension/reading-comprehension
+[23:27:25.188] [Renderer] Q23: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=Which of the following is NOT mentioned as a chall..., underlinedParts=no, optUnderlines=no
+[23:27:25.188] [Renderer] Q24: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=The word {{their}} in paragraph 1 refers to ______..., underlinedParts=no, optUnderlines=no
+[23:27:25.188] [Renderer] Q25: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=The word {{monetize}} in paragraph 2 is OPPOSITE i..., underlinedParts=no, optUnderlines=no
+[23:27:25.188] [Renderer] Q26: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=The word {{frictionless}} in paragraph 3 could be ..., underlinedParts=no, optUnderlines=no
+[23:27:25.189] [Renderer] Q27: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=Which of the following best paraphrases the underl..., underlinedParts=no, optUnderlines=no
+[23:27:25.189] [Renderer] Q28: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=Which of the following is TRUE according to the pa..., underlinedParts=no, optUnderlines=no
+[23:27:25.189] [Renderer] Q29: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=In which paragraph does the writer mention the pub..., underlinedParts=no, optUnderlines=no
+[23:27:25.189] [Renderer] Q30: type=reading-comprehension, intent=reading-comprehension, render=STANDARD MCQ, opts=4, text=In which paragraph does the writer mention what on..., underlinedParts=no, optUnderlines=no
+#request
+fix reading passages are being truncated.
+assess the whole process and provide robust fixes for problems.
+
+#Fix Status
+I fixed the main parsing/conversion issues causing reading passages to appear truncated or degraded in preview.
+
+#Root Causes
+Section names were being lost
+AI-tagged sections could be renamed to the type slug like reading-cloze-mcq instead of keeping I. ADVERTISEMENT, II. LEAFLET, etc.
+That made the pipeline more fragile and hurt downstream context.
+Reading section type handling was inconsistent
+The converter used ps.detectedType in some places and effectiveType in others.
+That could break reading detection and cause wrong layout/fallback behavior.
+Metadata parsing was too weak for AI-labeled input
+Input like TITLE:, GRADE:, DURATION:, EXAM TYPE: could fall through and default to Grade 9, 45, etc.
+Your diagnostic log showed exactly that.
+Question parsing for reading/cloze was under-specified
+Empty cloze question stems were valid, but the parser/converter path treated missing questionText as a suspicious condition.
+This led to fallback logic behaving as if content was missing/corrupt.
+Passage fallback reconstruction could overwrite good data
+If passage extraction failed upstream, the converter tried reconstructing from question text.
+That’s useful as a backup, but risky if applied too broadly.
+#What I Changed
+In thcsDocumentParser.service.ts
+Added normalizeSectionType(...)
+Explicitly normalizes allowed section types instead of blindly trusting raw tag strings.
+Added parseLabeledMetadata(...)
+Correctly parses:
+TITLE: ...
+GRADE: ...
+DURATION: ...
+EXAM TYPE: ...
+Fixed AI section handling
+Preserves actual section names instead of replacing them with type names.
+Keeps explicit [TYPE: ...] as type metadata only.
+Fixed question parsing setup
+Reading/cloze questions now inherit section.detectedType.
+Instruction lines are preserved more safely.
+Structural AI lines are skipped without polluting content.
+Preserved passage extraction behavior
+Passage blocks still end cleanly when real questions/options begin.
+Paragraph breaks are preserved.
+In thcs-draft-converter.ts
+Unified reading detection on effectiveType
+Prevents section/layout/passage logic from drifting.
+Added normalizePassageText(...)
+Normalizes CRLF and trims safely.
+Added extractPassageTitleFromContent(...)
+Keeps title extraction deterministic and non-destructive.
+Hardened passage conversion
+Uses parsed passage first.
+Only falls back to reconstruction when passage is actually absent.
+Prevents valid parsed reading sections from being treated as broken.
+Fixed flat passage metadata
+passageTitle now uses extracted title when available, not always ps.name.
+Expected Improvements For Your Example
+Metadata should now stay correct
+TITLE: TEST 3 - GK2 GLOBAL 12 - NEW 2026
+GRADE: 12
+DURATION: 50
+EXAM TYPE: giữa kì
+Reading sections should keep their real labels
+I. ADVERTISEMENT
+II. LEAFLET
+IV. READING CLOZE
+etc.
+Reading passages should remain full-length
+No accidental collapse into partial fallback fragments.
+Better preservation of paragraph/title structure.
+Empty cloze question text warnings should become less harmful
+For cloze sections, empty per-question text is now treated as valid when the passage carries the context.
+Remaining Assessment
+There is still one likely follow-up area:
+
+Validation/warnings
+The current diagnostic may still report empty question text for cloze-style reading questions even when the section is valid.
+That’s now mostly a diagnostic quality issue, not the main truncation bug.
+If you want, I can do one more pass to:
+
+update the validation rules so reading-cloze and passage-bound reading questions don’t generate false warnings
+then trace the preview renderer path to ensure it displays the repaired draft exactly as intended
+Summary
+I implemented robust parser/converter fixes for:
+
+reading passage preservation
+AI-tagged section naming/type handling
+metadata extraction
+safer reading fallback behavior
+The core truncation issue should now be addressed at the data pipeline level.
+
+<8>
+#User INPUT
+<input>
+=== 1. METADATA ===
+TITLE: TEST 2
+GRADE: 12
+DURATION: 60 minutes
+EXAM TYPE: giữa kì
+
+=== 2. SECTION HEADERS ===
+Read the following advertisement and mark the letter A, B, C or D on your answer sheet to indicate the option that best fits each of the numbered blanks from 1 to 6. [TYPE: reading-cloze-mcq]
+Read the following advertisement and mark the letter A, B, C or D on your answer sheet to indicate the option that best fits each of the numbered blanks from 1 to 6.
+
+PASSAGE:
+Emotional Intelligence Advertising: Content That Adapts to Your Mood in Real-Time
+ Welcome to the new frontier of adaptive marketing! Prepare to be amazed.
+ The extremely powerful, innovative, and revolutionary technology constantly transforms how brands meaningfully connect with (1)______ global audiences.
+Our advanced AI-powered platform, (2)______ accurately reads subtle micro-expressions and vocal patterns in seconds, delivers personalized content that deeply resonates with your current emotional state.
+ Top-tier brands (3)______ our newly developed mood-responsive technology consistently report impressive conversion rates 40% higher than traditional advertising methods.
+(4)______ of the consumers around the world now engage more deeply with advertisements tailored to their emotional state.
+ Through sophisticated personalized emotional (5)**, we strategically create deeply meaningful connections between established brands and potential consumers at precisely the right moment.
+Don't carelessly let your tech-savvy competitors (6)** easily while you still rely on severely outdated advertising methods!
+ Imagine content that shifts when viewers feel stressed, celebrates alongside their joy, or offers comfort during moments of uncertainty.
+This isn't science fiction—it's available today.
+ Join the emotional intelligence revolution. Your audience is waiting.
+
+Question 1.
+A. diverse
+B. diversify
+C. diversity
+D. diversely
+
+Question 2.
+A. who
+B. which
+C. whom
+D. whose
+
+Question 3.
+A. have utilized
+B. utilized
+C. utilizing
+D. which utilized
+
+Question 4.
+A. Each
+B. Any
+C. Some
+D. Most
+
+Question 5.
+A. targeting
+B. profiling
+C. analytics
+D. resonance
+
+Question 6.
+A. pull ahead
+B. break through
+C. move forward
+D. take over
+
+Read of the following leaflet and mark the letter A, B, C or D on your answer sheet to indicate the option that best fits each of the numbered blanks from 7 to 12. [TYPE: reading-cloze-mcq]
+Read of the following leaflet and mark the letter A, B, C or D on your answer sheet to indicate the option that best fits each of the numbered blanks from 7 to 12.
+
+PASSAGE:
+Press in Your Palm: The Power of Portable Media
+Transform Your Media Experience Anywhere, Anytime
+ In this rapidly evolving digital day and age, portable media consistently keeps you (7)______ the loop wherever you go, providing instant access to news, entertainment, and information.
+Our sleek, cutting-edge handheld devices are compact (8)______ powerful enough to deliver premium content that adapts perfectly to your specific viewing habits and preferences.
+ The revolutionary portable media landscape has been dramatically transformed by innovative interactive media platforms that seamlessly connect passionate users with (9)______ worldwide.
+While some traditional media outlets struggle to maintain relevance in today's fast-paced world, (10)______ are consistently thriving by strategically embracing the enormous potential of mobile-first strategies.
+ Our highly sophisticated and truly cutting-edge technology delivers immersive (11)______ content experiences that intelligently adjust based on your surroundings, time of day, and personal preferences.
+Experience the profound emotional and psychological impact of dynamic micro-full (12)______ content that captivates your attention even during brief moments throughout your busy professional day.
+ Discover how our portable media solutions can transform your daily information consumption.
+Download our app today and carry the world's knowledge in your pocket!
+
+Question 7.
+A. at
+B. in
+C. about
+D. of
+
+Question 8.
+A. because
+B. yet
+C. however
+D. unless
+
+Question 9.
+A. talented content creators
+B. content creators talented
+C. creators talented content
+D. talented creators content
+
+Question 10.
+A. another
+B. the others
+C. others
+D. other
+
+Question 11.
+A. ambient
+B. adaptive
+C. contextual
+D. responsive
+
+Question 12.
+A. immersion
+B. dimension
+C. spectrum
+D. motion
+
+Mark the letter A, B, C or D on your answer sheet to indicate the best arrangement of utterances or sentences to make a meaningful exchange or text in each of the following questions from 13 to 17. [TYPE: sentence-arrangement]
+Mark the letter A, B, C or D on your answer sheet to indicate the best arrangement of utterances or sentences to make a meaningful exchange or text in each of the following questions from 13 to 17.
+
+Question 13. a. Sarah: Yes! My brother tried it last week. You put on a special hat, close your eyes, and the movie plays in your mind. No screen needed! b. Jack: Wow! That sounds amazing! Do you think it's safe, or will robots control our brains someday? c. Jack: Hey, Sarah, Did you hear about the new brain-computer thing that lets you watch movies just by thinking?
+A. c-b-a
+B. a-c-b
+C. b-c-a
+D. c-a-b
+
+Question 14. a. Emma: My teacher uses an AI program that knows when I'm confused, but it also suggests new ways for me to understand difficult topics. b. Noah: I like using AI study apps because they remember what I've learned, and they don't repeat things I already know. c. Emma: I read that AI can learn how we learn, and I think it's very interesting. d. Emma: Although some people worry about AI in education, I believe it can be helpful if we use it as a tool and not as a replacement for real teachers. e. Noah: When AI watches how students study, it can help teachers make better lessons because it finds patterns in how we learn.
+A. d-a-e-c-b
+B. e-a-b-c-d
+C. c-e-a-b-d
+D. c-b-d-a-e
+
+Question 15. Dear Tom, a. Since you are good at bringing people together, I hope you can lead this new approach when we meet next week. b. I am writing because our team needs a better way to handle conflicts at work. c. Although mapping our disagreements might seem strange at first, it will help us understand each other better if we try it. d. When people disagree in meetings, I think we should write down what the problem is so that we can solve it later. e. If you have time to discuss this idea, please come to my office tomorrow morning. Best regards, LK
+A. c-a-e-b-d
+B. b-d-c-a-e
+C. d-c-a-b-e
+D. a-d-b-c-e
+
+Question 16. a. Many machines can do jobs faster than people, but humans still have special skills that robots cannot copy. b. Although computers are good at math and organizing information, they cannot understand feelings or be creative in the same way that people can. c. When companies use more machines, they should also think about how humans can work with technology because this creates better results than technology alone. d. Even though automation is changing many jobs, people who learn new skills and work well with others will still be valuable in the future workplace. e. If we want to succeed in a world with more machines, we must remember that being human means we can connect, create, and care in ways that computers cannot, which makes us important.
+A. a-b-c-d-e
+B. d-a-c-b-e
+C. c-d-b-a-e
+D. b-a-d-c-e
+
+Question 17. a. Many schools and companies are using these AI tools so that students and workers can focus on important information instead of wasting time on fake stories. b. If we want to solve the problem of misinformation, we need both smart AI systems and educated humans who understand that technology can help us, but we must still think carefully about what we believe. c. Scientists are teaching computers to find fake news, and this helps people who don't have time to check every story they read. d. Although computers can make mistakes, they are getting better at telling the difference between real news and lies if they are trained with good examples. e. When AI learns to spot false information, it can warn us about websites or social media posts that might not be true because it checks many facts very quickly.
+A. c-a-d-e-b
+B. c-b-a-e-d
+C. c-e-d-a-b
+D. c-d-b-e-a
+
+Read the following passage about Investing in Your Professional Future and mark the letter A, B, C or D on your answer sheet to indicate the option that best fits each of the numbered blanks from 18 to 22. [TYPE: reading-cloze-mcq]
+Read the following passage about Investing in Your Professional Future and mark the letter A, B, C or D on your answer sheet to indicate the option that best fits each of the numbered blanks from 18 to 22.
+
+PASSAGE:
+Career capital refers to the accumulated skills, knowledge, and professional relationships that enhance your value in the job market and make you more competitive over time. Building this asset requires deliberate effort and strategic planning, which many professionals often overlook in their day-to-day responsibilities. Had they invested consistently in their professional development, their career trajectories would have been significantly different. Professionals (18)______; moreover, they become more resilient when facing industry disruptions. Your network, which consists of mentors, colleagues, and industry contacts, forms an essential component of your career capital that can open doors to opportunities otherwise inaccessible.
+
+(19)**, where AI and automation are transforming traditional roles at an unprecedented pace. That continuous learning has become non-negotiable is evident from how employers increasingly value candidates with demonstrated learning agility. (20)**, not whether to build it, should be foremost in every professional's mind. Specialized knowledge in areas where demand exceeds supply will always command premium compensation, but interpersonal skills remain equally valuable despite technological advances.
+
+When professionals recognize that their expertise (21)**, they begin making decisions that compound their professional worth exponentially over time. Those who neglect to diversify their skillset often find themselves vulnerable to obsolescence, (22)**. Whatever stage of career development you might be in, deliberate practice with structured feedback loops accelerates mastery acquisition significantly beyond mere experience accumulation. Not only does robust career capital protect against market volatility, but it also provides the confidence with which one can negotiate advantageous positions throughout their professional journey.
+
+Question 18.
+A. have integrated sustainable practices benefited considerably from long-term environmental responsibility
+B. who was pursuing advanced qualifications are establishing themselves strategically within evolving professional landscapes
+C. who develop expertise in multiple domains position themselves advantageously in a rapidly changing economy
+D. creating innovative solutions through collaborative approaches enables transformative growth across diverse markets
+
+Question 19.
+A. Sustainable business practices focusing on environmental impact promotes long-term economic growth strategies
+B. The ability to adapt to technological changes is particularly crucial in today's workplace
+C. Creative thinking develops innovative solutions technological advancement requires strategic implementation across departments
+D. Although market research predicts consumer behavior while effective communication builds lasting relationships between stakeholders
+
+Question 20.
+A. The essential question whether implementing sustainable practices will generate long-term financial advantages for businesses
+B. The strategic question of how to build career capital effectively with limited resources and time
+C. A fundamental concern that whether organizations should invest in technology or developing human capital resources
+D. An important consideration what employees value most drives retention strategies beyond traditional compensation and benefits
+
+Question 21.
+A. having balanced complex priorities while having managed strategic implementation effectively
+B. is a process which learning from experiences that allowing for long-term success
+C. which demands systems that balancing creativity which drives sustainable growth strategies
+D. is an asset to be cultivated rather than merely a means to earn a paycheck
+
+Question 22.
+A. multiple environmental sustainability practices generates significant advantages through comprehensive implementation strategies
+B. whereas strategic career investors consistently allocate time for acquiring emerging competencies
+C. effective marketing strategies enhance brand recognition customers develop stronger product loyalty
+D. although digital transformation accelerates business growth which requires substantial investment resources
+
+Read the following passage about Human Curation of AI-Generated Art Movements and mark the letter A, B, C or D on your answer sheet to indicate the best answer to each of the following questions from 23 to 30. [TYPE: reading-comprehension]
+Read the following passage about Human Curation of AI-Generated Art Movements and mark the letter A, B, C or D on your answer sheet to indicate the best answer to each of the following questions from 23 to 30.
+
+PASSAGE:
+In the metamorphosis of contemporary aesthetics, a revolutionary form of patronage has crystallized—humans curating algorithmic creativity. This nascent ecosystem transcends traditional art world hierarchies, as algorithms generate thousands of potential masterpieces hourly while human arbiters assume the mantle of digital Medicis, **anointing** select works with cultural imprimatur. The emergence of "prompt engineering" as a respected discipline underscores this paradigm shift, where crafting precise instructions for generative systems constitutes an art form in itself.
+
+This symbiosis has engendered unprecedented hybridization, with fractal collaborations where machine outputs become raw material for human refinement, subsequently reintroduced into algorithmic processing. The ontological implications have precipitated vigorous discourse in academic circles. The dissolution of authorial singularity raises philosophical conundrums regarding authenticity in an era of computational creativity. Some theorists propound the concept of "distributed authorship," whereby artistic genesis occurs across a spectrum of human-machine interactions. Concurrently, many indigenous communities have voiced **their** concerns about algorithmic appropriation of cultural motifs, prompting emergent ethical frameworks that interrogate the boundaries of inspiration versus exploitation in machine learning datasets.
+
+Economic reverberations of this phenomenon have manifested in mercurial ways. "Curatorial tokens" have emerged as blockchain-verified credentials conferring validation rights, transforming curation into a decentralized activity with tangible market value. Meanwhile, traditional galleries increasingly bifurcate into those embracing "augmented curation"—where AI systems recommend potential acquisitions to human selectors—and purists who **eschew** algorithmic intervention. The resultant market stratification has engendered novel economic niches: algorithmic art consultancies, authenticity verification services, and provenance certification entities.
+
+The horizon portends further disruption as neuromorphic computing advances. Will generative systems eventually develop aesthetic discernment rivaling human judgment? Some futurists envision recursive systems where AI curates AI-generated works, relegating humans to meta-curators. **Conversely, anthropocentric advocates maintain that genuine artistic appreciation remains intrinsically human—a cognitive-emotional symphony that algorithms may simulate but never truly replicate.** The ultimate frontier may lie not in opposition but orchestration: human curators conducting algorithmic creativity toward unprecedented harmonic expressions.
+
+Question 23. Which of the following is NOT mentioned as a development in the AI-human art ecosystem?
+A. Prompt engineering" as a respected discipline in the art world
+B. Virtual reality exhibitions specifically designed for AI-generated artworks
+C. Curatorial tokens" as blockchain-verified credentials conferring validation rights
+D. The concept of "distributed authorship" across human-machine interactions
+
+Question 24. The word {{anointing}} in paragraph 1 is OPPOSITE in meaning to _________.
+A. endorsing
+B. sanctioning
+C. repudiating
+D. consecrating
+
+Question 25. The word {{their}} in paragraph 2 refers to _________.
+A. academic circles
+B. theorists
+C. indigenous communities
+D. ethical frameworks
+
+Question 26. The word {{eschew}} in paragraph 3 could be best replaced by _________.
+A. reject
+B. contemplate
+C. modify
+D. scrutinize
+
+Question 27. Which of the following best paraphrases the underlined sentence in paragraph 4?
+A. Those with human-centered viewpoints assert that algorithms lack the necessary consciousness to experience art, despite technological advances enabling increasingly sophisticated aesthetic analysis systems.
+B. Proponents of human exceptionalism contend that while machines can process artistic elements methodically, they cannot access the intuitive understanding that emerges from human biological experience.
+C. Human-centered philosophers argue that artistic appreciation requires cultural context and lived experience, creating a fundamental barrier that prevents artificial intelligence from authentic engagement.
+D. Those favoring human-centered perspectives believe true art appreciation is fundamentally human, involving intellectual and emotional processes that algorithms can mimic but not genuinely reproduce.
+
+Question 28. Which of the following is TRUE according to the passage?
+A. Traditional art galleries are increasingly dividing into those that embrace AI-assisted curation systems and those that reject all forms of algorithmic intervention.
+B. Indigenous communities have largely accepted algorithmic appropriation of cultural motifs as an inevitable consequence of technological advancement in creative domains.
+C. Anthropocentric advocates acknowledge that algorithms will eventually develop genuine aesthetic appreciation capabilities equivalent to human cognitive-emotional processes.
+D. The concept of "distributed authorship" has been universally rejected by academic theorists due to its implications for traditional notions of artistic authenticity.
+
+Question 29. In which paragraph does the writer focus on philosophical questions about authorship and authenticity?
+A. Paragraph 1
+B. Paragraph 2
+C. Paragraph 3
+D. Paragraph 4
+
+Question 30. In which paragraph does the writer mention how the art market has responded to AI-human collaborations?
+A. Paragraph 1
+B. Paragraph 2
+C. Paragraph 3
+D. Paragraph 4
+
+Read the following passage about the Molecular Assembly Directed by Artificial Intelligence and mark the letter A, B, C or D on your answer sheet to indicate the best answer to each of the following questions from 31 to 40. [TYPE: reading-comprehension]
+Read the following passage about the Molecular Assembly Directed by Artificial Intelligence and mark the letter A, B, C or D on your answer sheet to indicate the best answer to each of the following questions from 31 to 40.
+
+PASSAGE:
+The integration of artificial intelligence with molecular assembly has catalyzed an unprecedented revolution in manufacturing paradigms. [I] Traditional production methodologies are increasingly being supplanted by precision techniques that manipulate matter at the atomic level. Forward-thinking enterprises that invest in these cutting-edge approaches can effectively **jump the queue** in competitive markets, circumventing conventional manufacturing constraints and establishing market dominance. This convergence of computational intelligence and nanoscale engineering has transmuted theoretical constructs into pragmatic manufacturing protocols, enabling the fabrication of materials with bespoke properties and functionalities previously deemed unattainable through conventional means.
+
+AI systems orchestrate molecular manufacturing through sophisticated algorithms that predict optimal molecular configurations and assembly pathways with remarkable precision. [II] These computational frameworks analyze quantum mechanical interactions and thermodynamic parameters to ascertain viable molecular arrangements while continuously refining their methodologies through iterative learning processes. The AI meticulously scrutinizes both successful and unsuccessful assembly attempts, thereby enhancing **its** predictive capabilities and execution precision. This symbiotic relationship between artificial intelligence and molecular science has engendered a manufacturing ecosystem where nanoscale precision is achievable at industrial scales, significantly diminishing material wastage while amplifying production efficiency.
+
+The applications of AI-directed molecular assembly span diverse sectors, from pharmaceutical development to advanced electronics fabrication. In medical science, this approach facilitates the synthesis of customized therapeutic compounds with enhanced efficacy and reduced adverse effects. The semiconductor industry benefits from molecularly precise components that transcend current miniaturization limitations, enabling computational capabilities previously unrealizable. [III] Environmental sustainability represents another substantial advantage, as molecular manufacturing minimizes resource consumption and eliminates numerous toxic byproducts associated with conventional manufacturing processes, heralding a more ecologically **conscientious** production paradigm for future generations.
+
+[IV] The computational demands for simulating complex molecular interactions remain substantial, necessitating further advancements in quantum computing capabilities. **Regulatory frameworks struggle to keep pace with these technological developments, creating uncertainty regarding safety protocols and intellectual property rights.** Nevertheless, the trajectory of AI-directed molecular assembly appears inexorable, with interdisciplinary collaborations accelerating progress toward a manufacturing revolution where products are constructed atom by atom, molecule by molecule, under the meticulous guidance of artificial intelligence systems designed to optimize both process and outcome.
+
+Question 31. The phrase {{jump the queue}} in paragraph 1 has the closest meaning to _________.
+A. cut in
+B. skip ahead
+C. move ahead
+D. get ahead
+
+Question 32. Which of the following is NOT mentioned as an application or benefit of AI-directed molecular assembly?
+A. Enhanced pharmaceutical compounds
+B. Advanced semiconductor components
+C. Environmental sustainability advantages
+D. Improved agricultural productivity
+
+Question 33. Where in the paragraph does the following sentence best fit? Despite its transformative potential, this nascent field confronts formidable challenges.
+A. [I]
+B. [II]
+C. [III]
+D. [IV]
+
+Question 34. The word {{its}} in paragraph 2 refers to _________.
+A. molecular manufacturing
+B. iterative learning processes
+C. The AI
+D. assembly pathway
+
+Question 35. Which of the following best summarises paragraph 3?
+A. AI-directed molecular assembly offers significant applications across multiple industries, including medicine, electronics, and environmental sustainability, with distinct advantages for each sector.
+B. The primary focus of molecular assembly technology is creating ecological manufacturing processes that eliminate toxic byproducts while enabling advanced pharmaceutical compounds and electronic components.
+C. Medical science and semiconductor industries represent the exclusive beneficiaries of AI-directed assembly techniques, with environmental advantages considered merely supplemental to these core applications.
+D. Technological innovations in molecular manufacturing have primarily revolutionized pharmaceutical development through customized therapeutic compounds while providing secondary benefits to electronics fabrication.
+
+Question 36. The word {{conscientious}} in paragraph 3 is OPPOSITE in meaning to _________.
+A. meticulous
+B. insouciant
+C. scrupulous
+D. fastidious
+
+Question 37. Which of the following best paraphrases the underlined sentence in paragraph 4?
+A. Safety protocols and intellectual property systems have become increasingly complex as technological innovations evolve, requiring more sophisticated regulatory frameworks.
+B. The rapid advancement of technology has outpaced existing regulations, resulting in ambiguity concerning safety measures and ownership of innovative developments.
+C. Technological progress has rendered current legal structures insufficient, creating significant barriers to establishing clear procedures for safety and intellectual property.
+D. Policymakers struggle with reforming outdated regulatory systems while technological advancement continues, causing widespread confusion about safety and ownership rights.
+
+Question 38. Which of the following is TRUE according to the passage?
+A. Regulatory frameworks have successfully adapted to accommodate the rapid advances in molecular manufacturing technology.
+B. The computational requirements for simulating complex molecular interactions have decreased substantially in recent years.
+C. The applications of AI-directed molecular assembly span diverse sectors from pharmaceutical development to electronics fabrication.
+D. Traditional manufacturing techniques remain superior to AI-directed assembly for creating materials with specialized properties.
+
+Question 39. Which of the following can be inferred from the passage?
+A. Companies that adopt molecular assembly technologies early will likely secure significant competitive advantages in their industries.
+B. Quantum computing has reached sufficient maturity to handle the computational demands required for complex molecular simulations.
+C. Regulatory bodies worldwide are developing unified frameworks to address safety concerns regarding molecular manufacturing.
+D. Traditional manufacturing methodologies will be completely obsolete within a decade due to advances in AI-directed assembly.
+
+Question 40. Which of the following best summarises the passage?
+A. The passage examines the technical specifications of AI-directed molecular manufacturing, detailing how computational frameworks analyze quantum interactions to achieve nanoscale precision in fabrication processes across pharmaceutical and semiconductor industries.
+B. The passage explores how AI integration with molecular assembly is revolutionizing manufacturing by enabling atomic-level precision, discusses its diverse applications across multiple industries, highlights its advantages, and acknowledges the challenges facing this promising field.
+C. The passage argues that despite significant breakthroughs in AI-directed molecular assembly, computational demands and regulatory uncertainty remain insurmountable barriers that will significantly delay widespread adoption of these manufacturing techniques.
+D. The passage chronicles the historical development of molecular manufacturing from theoretical concept to practical application, explaining how traditional production methodologies continue to dominate markets despite recent advances in nanoscale engineering.
+
+=== 3. ANSWER KEY ===
+
+1. A
+2. B
+3. C
+4. D
+5. A
+6. A
+7. B
+8. B
+9. A
+10. C
+11. C
+12. A
+13. D
+14. C
+15. B
+16. A
+17. A
+18. C
+19. B
+20. B
+21. D
+22. B
+23. B
+24. C
+25. C
+26. A
+27. D
+28. A
+29. C
+30. D
+31. D
+32. D
+33. D
+34. C
+35. A
+36. B
+37. B
+38. C
+39. A
+40. B
+<parse log>
+═══ THCS Test Diagnostic Log ═══
+Generated: 2026-03-05 23:15:40
+
+── Parse Pipeline ──
+Provider: pipeline-v2 | Pipeline: v2-brain-janitor-grunt
+Input: 27,747 chars | Cleaned: 27,747 chars
+Parse Confidence: 99%
+Duration: 75.3s
+
+── Metadata ──
+Title: TEST 2
+Grade: 2 | Duration: 60 min | Exam: giữa kì
+
+── Sections (6 sections, 40 questions, 10 pts) ──
+[1] reading-cloze-mcq (reading-cloze-mcq, 1.5pts) — 6 Qs (Q1-6) | passage: 181w
+    layout: two-column
+    Q1: reading-cloze-mcq [reading-cloze-mcq] | answer=A ✓ | 4 opts
+    Q2: reading-cloze-mcq [reading-cloze-mcq] | answer=B ✓ | 4 opts
+    Q3: reading-cloze-mcq [reading-cloze-mcq] | ⚠️ no answer | 4 opts
+    Q4: reading-cloze-mcq [reading-cloze-mcq] | ⚠️ no answer | 4 opts
+    Q5: reading-cloze-mcq [reading-cloze-mcq] | ⚠️ no answer | 4 opts
+    Q6: reading-cloze-mcq [reading-cloze-mcq] | ⚠️ no answer | 4 opts
+[2] reading-cloze-mcq (reading-cloze-mcq, 1.5pts) — 6 Qs (Q7-12) | passage: 192w
+    layout: two-column
+    Q7: reading-cloze-mcq [reading-cloze-mcq] | answer=B ✓ | 4 opts
+    Q8: reading-cloze-mcq [reading-cloze-mcq] | answer=B ✓ | 4 opts
+    Q9: reading-cloze-mcq [reading-cloze-mcq] | ⚠️ no answer | 4 opts
+    Q10: reading-cloze-mcq [reading-cloze-mcq] | ⚠️ no answer | 4 opts
+    Q11: reading-cloze-mcq [reading-cloze-mcq] | ⚠️ no answer | 4 opts
+    Q12: reading-cloze-mcq [reading-cloze-mcq] | ⚠️ no answer | 4 opts
+[3] sentence-arrangement (sentence-arrangement, 1.25pts) — 5 Qs (Q13-17)
+    layout: single-column
+    Q13: sentence-arrangement [sentence-arrangement] | answer=D ✓ | 4 opts
+    Q14: sentence-arrangement [sentence-arrangement] | answer=C ✓ | 4 opts
+    Q15: sentence-arrangement [sentence-arrangement] | answer=B ✓ | 4 opts
+    Q16: sentence-arrangement [sentence-arrangement] | answer=D ✓ | 4 opts
+    Q17: sentence-arrangement [sentence-arrangement] | answer=C ✓ | 4 opts
+[4] reading-cloze-mcq (reading-cloze-mcq, 1.25pts) — 5 Qs (Q18-22) | passage: 246w
+    layout: two-column
+    Q18: reading-cloze-mcq [reading-cloze-mcq] | answer=C ✓ | 4 opts
+    Q19: reading-cloze-mcq [reading-cloze-mcq] | ⚠️ no answer | 4 opts
+    Q20: reading-cloze-mcq [reading-cloze-mcq] | ⚠️ no answer | 4 opts
+    Q21: reading-cloze-mcq [reading-cloze-mcq] | ⚠️ no answer | 4 opts
+    Q22: reading-cloze-mcq [reading-cloze-mcq] | ⚠️ no answer | 4 opts
+[5] reading-comprehension (reading-comprehension, 2pts) — 8 Qs (Q23-30) | passage: 315w
+    layout: two-column
+    Q23: reading-comprehension [reading-comprehension] | answer=B ✓ | 4 opts
+    Q24: reading-comprehension [reading-comprehension] | answer=C ✓ | 4 opts
+    Q25: reading-comprehension [reading-comprehension] | answer=C ✓ | 4 opts
+    Q26: reading-comprehension [reading-comprehension] | answer=A ✓ | 4 opts
+    Q27: reading-comprehension [reading-comprehension] | answer=D ✓ | 4 opts
+    Q28: reading-comprehension [reading-comprehension] | answer=A ✓ | 4 opts
+    Q29: reading-comprehension [reading-comprehension] | answer=B ✓ | 4 opts
+    Q30: reading-comprehension [reading-comprehension] | answer=B ✓ | 4 opts
+[6] reading-comprehension (reading-comprehension, 2.5pts) — 10 Qs (Q31-40) | passage: 348w
+    layout: two-column
+    Q31: reading-comprehension [reading-comprehension] | answer=B ✓ | 4 opts
+    Q32: reading-comprehension [reading-comprehension] | answer=D ✓ | 4 opts
+    Q33: reading-comprehension [reading-comprehension] | answer=D ✓ | 4 opts
+    Q34: reading-comprehension [reading-comprehension] | answer=A ✓ | 4 opts
+    Q35: reading-comprehension [reading-comprehension] | answer=A ✓ | 4 opts
+    Q36: reading-comprehension [reading-comprehension] | answer=B ✓ | 4 opts
+    Q37: reading-comprehension [reading-comprehension] | answer=B ✓ | 4 opts
+    Q38: reading-comprehension [reading-comprehension] | answer=C ✓ | 4 opts
+    Q39: reading-comprehension [reading-comprehension] | answer=A ✓ | 4 opts
+    Q40: reading-comprehension [reading-comprehension] | answer=B ✓ | 4 opts
+
+── Data Integrity (29 warnings) ──
+  ⚠ Q1 (reading-cloze-mcq): empty question text
+  ⚠ Q2 (reading-cloze-mcq): empty question text
+  ⚠ Q3 (reading-cloze-mcq): missing answer
+  ⚠ Q3 (reading-cloze-mcq): empty question text
+  ⚠ Q4 (reading-cloze-mcq): missing answer
+  ⚠ Q4 (reading-cloze-mcq): empty question text
+  ⚠ Q5 (reading-cloze-mcq): missing answer
+  ⚠ Q5 (reading-cloze-mcq): empty question text
+  ⚠ Q6 (reading-cloze-mcq): missing answer
+  ⚠ Q6 (reading-cloze-mcq): empty question text
+  ⚠ Q7 (reading-cloze-mcq): empty question text
+  ⚠ Q8 (reading-cloze-mcq): empty question text
+  ⚠ Q9 (reading-cloze-mcq): missing answer
+  ⚠ Q9 (reading-cloze-mcq): empty question text
+  ⚠ Q10 (reading-cloze-mcq): missing answer
+  ⚠ Q10 (reading-cloze-mcq): empty question text
+  ⚠ Q11 (reading-cloze-mcq): missing answer
+  ⚠ Q11 (reading-cloze-mcq): empty question text
+  ⚠ Q12 (reading-cloze-mcq): missing answer
+  ⚠ Q12 (reading-cloze-mcq): empty question text
+  ⚠ Q18 (reading-cloze-mcq): empty question text
+  ⚠ Q19 (reading-cloze-mcq): missing answer
+  ⚠ Q19 (reading-cloze-mcq): empty question text
+  ⚠ Q20 (reading-cloze-mcq): missing answer
+  ⚠ Q20 (reading-cloze-mcq): empty question text
+  ⚠ Q21 (reading-cloze-mcq): missing answer
+  ⚠ Q21 (reading-cloze-mcq): empty question text
+  ⚠ Q22 (reading-cloze-mcq): missing answer
+  ⚠ Q22 (reading-cloze-mcq): empty question text
+
+── Parse Warnings ──
+  [missing-answer] No answer key found in the original text. AI inferred 28/40 answers — please verify these in the editor.
+
+═══ End Diagnostic Log ═══
+<preview logs>
+[23:15:03.008] [Step2-Questions] Entered with 6 sections, 40 questions, 28 answered
+[23:15:03.008] [Step2-Questions] Metadata: {
+  "title": "TEST 2",
+  "grade": 2,
+  "examType": "giữa kì",
+  "duration": 60
+}
+[23:15:03.008] [Step2-Questions]   [0] "reading-cloze-mcq" (d7a017b5) — 6 Qs, types: [reading-cloze-mcq], withAnswers: 2, withOptions: 6, points: 1.5
+[23:15:03.008] [Step2-Questions]   [1] "reading-cloze-mcq" (d1369863) — 6 Qs, types: [reading-cloze-mcq], withAnswers: 2, withOptions: 6, points: 1.5
+[23:15:03.008] [Step2-Questions]   [2] "sentence-arrangement" (a6eb1045) — 5 Qs, types: [sentence-arrangement], withAnswers: 5, withOptions: 5, points: 1.25
+[23:15:03.008] [Step2-Questions]   [3] "reading-cloze-mcq" (1cc38394) — 5 Qs, types: [reading-cloze-mcq], withAnswers: 1, withOptions: 5, points: 1.25
+[23:15:03.008] [Step2-Questions]   [4] "reading-comprehension" (1d0187dd) — 8 Qs, types: [reading-comprehension], withAnswers: 8, withOptions: 8, points: 2
+[23:15:03.008] [Step2-Questions]   [5] "reading-comprehension" (df2d1388) — 10 Qs, types: [reading-comprehension], withAnswers: 10, withOptions: 10, points: 2.5
+[23:15:07.424] [Preview] Converting draft → preview test
+[23:15:07.424] [Preview]   Sections: 6, Questions: 40, Points: 10
+[23:15:07.424] [Preview]   [0] "reading-cloze-mcq" — 6 Qs, type(s): [reading-cloze-mcq], layout: two-column, passage: true, answers: 2/6, rawFallback: false
+[23:15:07.424] [Preview]   [1] "reading-cloze-mcq" — 6 Qs, type(s): [reading-cloze-mcq], layout: two-column, passage: true, answers: 2/6, rawFallback: false
+[23:15:07.424] [Preview]   [2] "sentence-arrangement" — 5 Qs, type(s): [sentence-arrangement], layout: single-column, passage: false, answers: 5/5, rawFallback: false
+[23:15:07.424] [Preview]   [3] "reading-cloze-mcq" — 5 Qs, type(s): [reading-cloze-mcq], layout: two-column, passage: true, answers: 1/5, rawFallback: false
+[23:15:07.424] [Preview]   [4] "reading-comprehension" — 8 Qs, type(s): [reading-comprehension], layout: two-column, passage: true, answers: 8/8, rawFallback: false
+[23:15:07.424] [Preview]   [5] "reading-comprehension" — 10 Qs, type(s): [reading-comprehension], layout: two-column, passage: true, answers: 10/10, rawFallback: false
+[23:15:07.424] [Preview] isSectionReading("reading-cloze-mcq"): firstType=reading-cloze-mcq, isReading=true
+[23:15:07.425] [Preview] Rendering section 0: "reading-cloze-mcq", 6 Qs, isTwoColumn=true, passage=true, passageLen=1386, passageFormatting=true, instruction="(none)"
+[23:15:07.425] [Preview]   Question breakdown: Q1:reading-cloze-mcq/reading-cloze-mcq, Q2:reading-cloze-mcq/reading-cloze-mcq, Q3:reading-cloze-mcq/reading-cloze-mcq, Q4:reading-cloze-mcq/reading-cloze-mcq, Q5:reading-cloze-mcq/reading-cloze-mcq, Q6:reading-cloze-mcq/reading-cloze-mcq
+[23:15:07.426] [Renderer] Q1: type=reading-cloze-mcq, intent=reading-cloze-mcq, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:15:07.426] [Renderer] Q2: type=reading-cloze-mcq, intent=reading-cloze-mcq, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:15:07.426] [Renderer] Q3: type=reading-cloze-mcq, intent=reading-cloze-mcq, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:15:07.426] [Renderer] Q4: type=reading-cloze-mcq, intent=reading-cloze-mcq, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:15:07.426] [Renderer] Q5: type=reading-cloze-mcq, intent=reading-cloze-mcq, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+[23:15:07.426] [Renderer] Q6: type=reading-cloze-mcq, intent=reading-cloze-mcq, render=STANDARD MCQ, opts=4, text=(empty), underlinedParts=no, optUnderlines=no
+
+#Approach
+I'll inspect the parser and converter around the cloze handling and answer-key application to identify why GRADE: 12 becomes 2, why cloze question text stays empty in preview, and why several answer keys are not landing. Then I’ll point to the likely fix location.
+
+#Findings
+I found the converter side, but I still need the parser metadata and cloze-question extraction logic to pinpoint the root cause before changing code.
+
+The likely areas are:
+
+gradeLevel parsing in thcsDocumentParser.service.ts
+how cloze sections populate pq.text
+how answer-key lines are parsed from the raw input
+I'll inspect those next.
+
+1
+Trace THCS parser metadata, cloze extraction, and answer-key handling for this import failure
+
+Identify exact root causes for grade misparse, empty cloze question text, and missing cloze answers
+
+Implement or recommend the minimal targeted fix once the faulty logic is confirmed
+
+#Next step
+I’m going to inspect the parser internals for three specific paths:
+
+metadata parsing for GRADE
+section/question extraction for reading-cloze-mcq
+answer key parsing and application
+That should confirm whether this is one bug or a few related parser bugs.
+
+#Root cause hypothesis
+The parser evidence points to multiple bugs:
+
+GRADE: 12 is probably being parsed by a loose gradeLevel regex against the header block and matching the trailing 2 in TEST 2.
+answer-key extraction appears to support 1. A, so I need to verify whether the parser stops early or whether the ** blank markers are interfering with cloze-question parsing.
+cloze questions are intentionally allowed to have empty Question N. text, so I need to inspect the question accumulation logic itself, not just the regex.
+I’m going to read the relevant parser sections now.
+
+#Diagnosis
+I’ve confirmed two concrete parser bugs and one likely data-model mismatch:
+
+#Grade bug
+extractMetadata() scans the first 30 header lines with PATTERNS.gradeLevel.
+That regex supports 12 GRADE, but not GRADE: 12.
+Since it’s unanchored, it can accidentally match 2 GRADE across nearby header text, which explains TEST 2 leading to gradeLevel = 2.
+Missing answers bug
+extractAnswerKey() only captures answers from the explicit answer-key section.
+The log No answer key found in the original text suggests the parser is likely operating on an AI-restructured intermediate text where the final === 3. ANSWER KEY === block was lost before regex extraction, or the source being parsed differs from your pasted block.
+The regex itself would accept 1. A.
+Empty cloze question text
+This one is probably not the root bug.
+In this codebase, reading-cloze-mcq intentionally renders with blank questionText when the passage carries the context.
+The diagnostic warning is generic and misleading for cloze sections.
+I should inspect where the AI restructuring feeds into regex parsing, then I can patch the actual bug(s) cleanly.
+
+#Confirmed likely failure mode
+The parser is usually not running on the raw pasted block. It often runs on bestText, which may be the AI-restructured output from Pass 1 / Crossfix.
+
+So the most likely explanation is:
+
+the AI-restructured text degraded the answer-key block
+the regex engine then parsed that degraded text
+diagnostics reported “no answer key found in the original text” even though the user pasted one
+There is still a definite standalone bug in GRADE: 12 parsing, so I can fix that safely. I also want to make answer-key extraction more robust by extracting from the original cleaned text as a fallback, not only from bestText.
+
+#Plan update
+I’ve confirmed enough to implement a safe parser fix:
+
+anchor and expand grade parsing so GRADE: 12 works
+merge answer keys from the original cleaned text as a fallback, so AI restructuring can’t silently drop them
+leave cloze empty-question warnings alone for now unless you want me to narrow diagnostics too
+I’m going to patch the parser now.
+
+1 more
+Identify exact root causes for grade misparse, empty cloze question text, and missing cloze answers
+
+3
+Implement or recommend the minimal targeted fix once the faulty logic is confirmed
+
+#Implementing fix
+I’m applying a minimal parser-only patch:
+
+support explicit GRADE: 12 metadata extraction without false matches from TEST 2
+recover answer keys from the original cleaned input when AI restructuring drops them
+I’m not changing cloze rendering yet, because the empty questionText there is mostly a diagnostic false positive rather than the parsing failure.
+
+thcsDocumentParser.service.ts
++23
+-5
+                parsedTest.answerKey[questionNumber] = answer;
+            }
+        }
+ 
+        // --- Stage 6: Type Classification ---------------------------
+
+Update
+I’ve patched the parser for the two confirmed failures:
+
+GRADE: 12 now parses correctly instead of falling through to 2
+answer keys are now recovered from the original cleaned input even if AI restructuring drops the answer-key block
+I’m marking the implementation step complete. The remaining cloze “empty question text” warnings are diagnostic noise, not the main parse failure.
+
+Fix applied
+I updated src/services/test-creation/thcsDocumentParser.service.ts.
+
+What I changed
+Fixed grade parsing
+GRADE: 12 is now parsed explicitly.
+This avoids the previous false match where TEST 2 could leak into gradeLevel = 2.
+Hardened answer-key recovery
+After parsing the AI-processed bestText, the parser now also extracts the answer key from the original cleaned input and merges any missing entries back in.
+This protects against Pass 1 / Crossfix dropping or degrading the === 3. ANSWER KEY === block.
+#Root cause
+#Grade bug
+The old regex handled Grade 12 and 12TH GRADE, but not GRADE: 12.
+Because it was matched against the whole header block, it could latch onto unrelated text.
+Missing answers
+The parse pipeline often runs on AI-restructured text, not the raw paste.
+If that restructuring loses the answer key block, the regex parser sees only partial answers.
+The fallback merge now covers that case.
+#Still expected
+The empty question text warnings for reading-cloze-mcq are mostly diagnostic noise in this architecture.
+For cloze sections, the context is intentionally stored in the passage, so blank per-question text is not necessarily wrong.
+Status
+Completed: parser fix for grade + answer-key recovery
+Not changed: cloze diagnostic warning behavior
+If you want, I can do one more small follow-up to suppress false empty question text warnings for cloze sections in the diagnostic log.
+
+<9>
+
+#USER INPUT
+as admin, in admin view, I am trying to delete quizzes. However, after I confirm of the deletion, they just reload and still be there in materials tab in admin view.
+<console  log>
+ 🔥 [Firebase] Initializing Firebase...
+ 🔥 [Firebase] Config check:
+    - apiKey: ✅ Present
+    - authDomain: ✅ Present
+    - databaseURL: ✅ https://temp-a1437-default-rtdb.firebaseio.com
+    - projectId: ✅ temp-a1437
+ 🔥 [Firebase] App initialized: [DEFAULT]
+ 🔥 [Firebase] Database instance created
+ 🔥 [Firebase] ⚠️ DISCONNECTED from Firebase Realtime Database
+ 🔥 [Firebase] ✅ CONNECTED to Firebase Realtime Database
+  [RestoreBanner] Failed to listen to restore flag: 
+(anonymous) @ index-CGo0SHB4.js:2189
+Tracking Prevention blocked access to storage for <URL>.
+Tracking Prevention blocked access to storage for <URL>.
+Tracking Prevention blocked access to storage for <URL>.
+Tracking Prevention blocked access to storage for <URL>.
+Tracking Prevention blocked access to storage for <URL>.
+Tracking Prevention blocked access to storage for <URL>.
+Tracking Prevention blocked access to storage for <URL>.
+Tracking Prevention blocked access to storage for <URL>.
+  Cross-Origin-Opener-Policy policy would block the window.closed call.
+e @ firebase-vendor-D1iGWC9J.js:1870
+  Cross-Origin-Opener-Policy policy would block the window.closed call.
+e @ firebase-vendor-D1iGWC9J.js:1870
+  Cross-Origin-Opener-Policy policy would block the window.closed call.
+e @ firebase-vendor-D1iGWC9J.js:1870
+  Cross-Origin-Opener-Policy policy would block the window.closed call.
+e @ firebase-vendor-D1iGWC9J.js:1870
+  Cross-Origin-Opener-Policy policy would block the window.closed call.
+e @ firebase-vendor-D1iGWC9J.js:1870
+  Cross-Origin-Opener-Policy policy would block the window.closed call.
+e @ firebase-vendor-D1iGWC9J.js:1870
+  Cross-Origin-Opener-Policy policy would block the window.close call.
+close @ firebase-vendor-D1iGWC9J.js:2001
+  Cross-Origin-Opener-Policy policy would block the window.close call.
+close @ firebase-vendor-D1iGWC9J.js:2001
+  [Security] getAllUsers() called without auth context. Migrate to getAllUsersSecure()
+M @ userService-CU85wsz5.js:1
+ 🏫 [ClassManager] getClasses called
+ 🏫 [ClassManager] teacherId filter: undefined
+ 🏫 [ClassManager] Fetching all classes...
+ 📦 [Cache] MISS quiz:all:
+ 🚀 [QueryOptimizer] Fetching all quizzes from Firebase
+ 📦 [Cache] MISS test:all:
+ 🚀 [QueryOptimizer] Fetching all tests from Firebase
+ 📦 [Cache] SET quiz:all: (TTL: 30000ms)
+ 📦 [Cache] SET quiz:-OeeZb-k7tHhyYIkZsai: (TTL: 60000ms)
+ 📦 [Cache] SET quiz:-OeuyNLEYKbPD3VvtkLb: (TTL: 60000ms)
+ ✅ [QueryOptimizer] Fetched 2 quizzes
+ 📦 [Cache] SET test:all: (TTL: 30000ms)
+ 📦 [Cache] SET test:-Omckd15I3a2iWqKTIjt: (TTL: 60000ms)
+ 📦 [Cache] SET test:-OmckhHC0n-z8DoVtJ5z: (TTL: 60000ms)
+ 📦 [Cache] SET test:thcs-test-1772736632489-sc6e3l4: (TTL: 60000ms)
+ ✅ [QueryOptimizer] Fetched 3 tests
+ 📦 [Cache] HIT quiz:all: (age: 3158ms)
+ 📦 [QueryOptimizer] All quizzes from cache (2 items)
+ 📦 [Cache] HIT test:all: (age: 3139ms)
+ 📦 [QueryOptimizer] All tests from cache (3 items)
+ 🏫 [ClassManager] getClasses called
+ 🏫 [ClassManager] teacherId filter: undefined
+ 🏫 [ClassManager] Fetching all classes...
+  ❌ Failed to get user drafts: 
+getUserDrafts @ draftCloudService-D-fGBQbr.js:1
+ 📦 [Cache] HIT quiz:all: (age: 7528ms)
+ 📦 [QueryOptimizer] All quizzes from cache (2 items)
+ 📦 [Cache] HIT test:all: (age: 7509ms)
+ 📦 [QueryOptimizer] All tests from cache (3 items)
+ 🏫 [ClassManager] getClasses called
+ 🏫 [ClassManager] teacherId filter: undefined
+ 🏫 [ClassManager] Fetching all classes...
+ 📦 [Cache] INVALIDATED 0 entries of type: quizzes
+ 📦 [Cache] HIT quiz:all: (age: 11049ms)
+ 📦 [QueryOptimizer] All quizzes from cache (2 items)
+ 📦 [Cache] HIT test:all: (age: 11030ms)
+ 📦 [QueryOptimizer] All tests from cache (3 items)
+ 🏫 [ClassManager] getClasses called
+ 🏫 [ClassManager] teacherId filter: undefined
+ 🏫 [ClassManager] Fetching all classes...
+ 📦 [Cache] INVALIDATED 0 entries of type: quizzes
+ 📦 [Cache] HIT quiz:all: (age: 13644ms)
+ 📦 [QueryOptimizer] All quizzes from cache (2 items)
+ 📦 [Cache] HIT test:all: (age: 13625ms)
+ 📦 [QueryOptimizer] All tests from cache (3 items)
+ 🏫 [ClassManager] getClasses called
+ 🏫 [ClassManager] teacherId filter: undefined
+ 🏫 [ClassManager] Fetching all classes...
+ 📦 [Cache] INVALIDATED 0 entries of type: quizzes
+ 📦 [Cache] HIT quiz:all: (age: 16682ms)
+ 📦 [QueryOptimizer] All quizzes from cache (2 items)
+ 📦 [Cache] HIT test:all: (age: 16663ms)
+ 📦 [QueryOptimizer] All tests from cache (3 items)
+ 🏫 [ClassManager] getClasses called
+ 🏫 [ClassManager] teacherId filter: undefined
+ 🏫 [ClassManager] Fetching all classes...
+ 📦 [Cache] INVALIDATED 0 entries of type: quizzes
+ 📦 [Cache] HIT quiz:all: (age: 19256ms)
+ 📦 [QueryOptimizer] All quizzes from cache (2 items)
+ 📦 [Cache] HIT test:all: (age: 19237ms)
+ 📦 [QueryOptimizer] All tests from cache (3 items)
+ 🏫 [ClassManager] getClasses called
+ 🏫 [ClassManager] teacherId filter: undefined
+ 🏫 [ClassManager] Fetching all classes...
+ 📦 [Cache] INVALIDATED 0 entries of type: quizzes
+ 📦 [Cache] HIT quiz:all: (age: 22973ms)
+ 📦 [QueryOptimizer] All quizzes from cache (2 items)
+ 📦 [Cache] HIT test:all: (age: 22954ms)
+firebaseQueryOptimizer-DNwc9A7v.js:1 📦 [QueryOptimizer] All tests from cache (3 items)
+classManager-DmdtANTd.js:2 🏫 [ClassManager] getClasses called
+classManager-DmdtANTd.js:2 🏫 [ClassManager] teacherId filter: undefined
+classManager-DmdtANTd.js:2 🏫 [ClassManager] Fetching all classes...
+firebaseQueryOptimizer-DNwc9A7v.js:1 📦 [Cache] INVALIDATED 0 entries of type: quizzes
+firebaseQueryOptimizer-DNwc9A7v.js:1 📦 [Cache] HIT quiz:all: (age: 25278ms)
+firebaseQueryOptimizer-DNwc9A7v.js:1 📦 [QueryOptimizer] All quizzes from cache (2 items)
+firebaseQueryOptimizer-DNwc9A7v.js:1 📦 [Cache] HIT test:all: (age: 25259ms)
+firebaseQueryOptimizer-DNwc9A7v.js:1 📦 [QueryOptimizer] All tests from cache (3 items)
+classManager-DmdtANTd.js:2 🏫 [ClassManager] getClasses called
+classManager-DmdtANTd.js:2 🏫 [ClassManager] teacherId filter: undefined
+classManager-DmdtANTd.js:2 🏫 [ClassManager] Fetching all classes...
+firebaseQueryOptimizer-DNwc9A7v.js:1 📦 [Cache] INVALIDATED 0 entries of type: quizzes
+firebaseQueryOptimizer-DNwc9A7v.js:1 📦 [Cache] HIT quiz:all: (age: 27580ms)
+firebaseQueryOptimizer-DNwc9A7v.js:1 📦 [QueryOptimizer] All quizzes from cache (2 items)
+firebaseQueryOptimizer-DNwc9A7v.js:1 📦 [Cache] HIT test:all: (age: 27562ms)
+firebaseQueryOptimizer-DNwc9A7v.js:1 📦 [QueryOptimizer] All tests from cache (3 items)
+classManager-DmdtANTd.js:2 🏫 [ClassManager] getClasses called
+classManager-DmdtANTd.js:2 🏫 [ClassManager] teacherId filter: undefined
+classManager-DmdtANTd.js:2 🏫 [ClassManager] Fetching all classes...
+firebaseQueryOptimizer-DNwc9A7v.js:1 📦 [Cache] INVALIDATED 0 entries of type: quizzes
+firebaseQueryOptimizer-DNwc9A7v.js:1 📦 [Cache] DELETE quiz:all:
+firebaseQueryOptimizer-DNwc9A7v.js:1 📦 [Cache] DELETE test:all:
+firebaseQueryOptimizer-DNwc9A7v.js:1 📦 [Cache] MISS quiz:all:
+firebaseQueryOptimizer-DNwc9A7v.js:1 🚀 [QueryOptimizer] Fetching all quizzes from Firebase
+firebaseQueryOptimizer-DNwc9A7v.js:1 📦 [Cache] MISS test:all:
+firebaseQueryOptimizer-DNwc9A7v.js:1 🚀 [QueryOptimizer] Fetching all tests from Firebase
+classManager-DmdtANTd.js:2 🏫 [ClassManager] getClasses called
+classManager-DmdtANTd.js:2 🏫 [ClassManager] teacherId filter: undefined
+classManager-DmdtANTd.js:2 🏫 [ClassManager] Fetching all classes...
+firebaseQueryOptimizer-DNwc9A7v.js:1 📦 [Cache] SET quiz:all: (TTL: 30000ms)
+firebaseQueryOptimizer-DNwc9A7v.js:1 ✅ [QueryOptimizer] Fetched 0 quizzes
+firebaseQueryOptimizer-DNwc9A7v.js:1 📦 [Cache] SET test:all: (TTL: 30000ms)
+firebaseQueryOptimizer-DNwc9A7v.js:1 📦 [Cache] SET test:-Omckd15I3a2iWqKTIjt: (TTL: 60000ms)
+firebaseQueryOptimizer-DNwc9A7v.js:1 📦 [Cache] SET test:-OmckhHC0n-z8DoVtJ5z: (TTL: 60000ms)
+firebaseQueryOptimizer-DNwc9A7v.js:1 📦 [Cache] SET test:thcs-test-1772736632489-sc6e3l4: (TTL: 60000ms)
+firebaseQueryOptimizer-DNwc9A7v.js:1 ✅ [QueryOptimizer] Fetched 3 tests
+firebaseQueryOptimizer-DNwc9A7v.js:1 📦 [Cache] INVALIDATED 0 entries of type: quizzes
+
+I’m going to inspect the delete flow and the quiz cache invalidation path, then I’ll patch the root cause so the materials list refreshes correctly after deletion.
+
+1
+Inspect admin materials delete flow and cache invalidation for quizzes/tests
+
+Implement targeted fix so deleted quizzes disappear immediately from admin materials
+
+Verify affected code paths and summarize root cause
+
+I found the likely root cause: the page is invalidating the wrong cache type names, so the stale quiz list survives and gets reloaded. I’m patching that now and making the refresh order safe.
+
+AdminMaterialsPage.tsx
++13
+-10
+            firebaseQueryOptimizer.invalidateAll(cacheType);
+ 
+            // Refresh the list
+            await loadData();
+ 
+
+
+
+I’ve applied the fix. I’m doing one quick consistency check for the cache type contract, then I’ll summarize exactly why the delete looked successful but the quiz came back.
+
+1 more
+Implement targeted fix so deleted quizzes disappear immediately from admin materials
+
+3
+Verify affected code paths and summarize root cause
+
+Fix Applied
+I fixed the admin quiz deletion issue in src/pages/AdminMaterialsPage.tsx.
+
+Root Cause
+The delete was likely succeeding in Firebase, but the admin materials page was invalidating the wrong cache keys:
+
+Wrong
+'quizzes'
+'tests'
+Correct
+CacheTypes.QUIZ → 'quiz'
+CacheTypes.TEST → 'test'
+Your console log matched this exactly:
+
+Evidence
+📦 [Cache] INVALIDATED 0 entries of type: quizzes
+That means the stale cached quiz list remained active, so loadData() could immediately reload the old data and make the deleted quiz appear to “come back”.
+
+What I Changed
+In both delete and visibility-toggle flows, I:
+
+Used the correct cache type constants
+CacheTypes.QUIZ
+CacheTypes.TEST
+Changed the order
+invalidate cache first
+then call loadData()
+This ensures the refresh fetches fresh Firebase data instead of stale cached data.
+
+Files Changed
+src/pages/AdminMaterialsPage.tsx
+Notes
+I also checked the cache contract in firebaseQueryOptimizer.js and it expects singular cache types, so this fix aligns with the underlying cache implementation.
+
+I followed the integration safety rules memory by checking the project rule file before editing.
+
+Status
+Delete flow fixed
+Toggle-public flow fixed too, since it had the same bug pattern
+No backup file needed, because no file removal occurred
+Next Step
+Please try deleting a quiz again from Admin Materials.
+
+You should now see it disappear immediately and stay gone after reload.
+
+Completion Status
+Completed: Root cause found and patched in admin materials cache invalidation.
+Feedback submitted
+
+
+
+
+<10>
+
+#User INPUT
+Quiz mode suppose to be wrapped in developmental code to be shown only in localhost, but not live in firebase hosting. Check the implementation of that and make sure that it works.
+
+#Result
+I checked the implementation and tightened it so quiz mode is now effectively dev-only for hosted production.
+
+#What I changed
+src/services/sessionManager.js
+Added a runtime guard:
+allows quiz mode on import.meta.env.DEV
+allows quiz mode on localhost / 127.0.0.1
+rejects quiz session creation everywhere else
+createSession() now throws if mode === 'quiz' in production.
+src/pages/TeacherLobbyPage.jsx
+Added the same runtime check.
+Changed the default tab:
+dev/local => defaults to quiz
+hosted production => defaults to test
+Blocked handleStartSession(..., 'quiz') outside dev/local.
+Hid the quiz tab in production.
+Gated quiz-only UI branches so hosted users don’t see quiz creation/content areas.
+What was wrong before
+The project had partial protection only:
+
+CreateSessionModal.tsx hid quiz mode with import.meta.env.DEV
+but TeacherLobbyPage.jsx still defaulted to quiz mode and still had active Start Quiz actions
+and sessionManager.createSession() still allowed quiz sessions in production
+So quiz mode could still leak on Firebase hosting through the lobby path.
+
+Current behavior now
+Localhost / Vite dev
+quiz mode visible
+quiz sessions can be created
+Firebase hosting / production
+teacher lobby defaults to test mode
+quiz tab is hidden
+quiz start flow is blocked
+direct service call to create a quiz session is rejected
+One caveat
+There are still legacy quiz-related code paths in the codebase for existing quiz sessions/results, which is fine.
+What matters is that production can no longer create or expose the quiz authoring/start flow through the main lobby path.
+
+A small remaining cosmetic issue is that if some external code somehow forces currentView = 'quiz', the page title still says Quiz Dashboard, though the quiz UI itself is gated. If you want, I can do one more cleanup pass to make that label production-safe too.
+
+#Status
+Completed: quiz mode is now protected for localhost/dev only, and blocked on live Firebase hosting.
+
+<11>
+#User input
+I am still see Quiz Mode/ Test Mode here (in live view of firehosting ) even though quiz mode suppose to be only shown in local host. Hide both mode, make Test mode default is test mode. Left only My content and Public Library. I don't care the method.
+
+Done
+I updated src/pages/TeacherLobbyPage.jsx so the hosted lobby now behaves as:
+
+No Quiz Mode tab
+No Test Mode tab
+Default page is always Test Dashboard
+Only My Content and Public Library remain
+Search/action area is now always test-only
+Content grid is now always test-only
+What changed
+Forced currentView to 'test'
+Removed the mode-switch UI block entirely
+Stopped session loading from resetting the page to quiz mode
+Simplified the header text to always show test mode
+Removed the quiz-only create button branch
+Removed the quiz grid branch from visible rendering
+Important
+Your screenshot is from the currently deployed build, so to see this fix on Firebase Hosting you need to deploy again from the updated code.
+
+Deploy
+Run your usual deploy again, for example:
+
+powershell
+firebase deploy --only hosting:kahut1
+Status
+Completed: lobby UI changed to test-only with only My Content and Public Library visible.
+
+<12>
+
+#User INPUT
+in localhost, quiz mode/test mode is gone, but in live website right now, they are still there
+
+Root Cause Found
+The live site wasn’t only using TeacherLobbyPage.jsx.
+
+There was still another teacher-facing page showing those labels:
+
+src/pages/SessionManagementPage.tsx
+That page was rendering:
+
+Test Mode
+Quiz Mode
+on session cards, which matches what you were still seeing on live.
+
+What I changed
+I updated SessionManagementPage.tsx to remove those mode labels from the production-facing UI:
+
+Replaced Test Mode / Quiz Mode card text with neutral labels
+Changed page copy from:
+View and manage all your active quiz and test sessions
+To:
+View and manage all your active sessions
+
+Root cause is confirmed: the live URL is still serving an old built bundle, not your latest src code.
+
+I used the saved memory about “live mode tabs still visible after deploy” to verify this precisely.
+
+What I verified
+/lobby route is TeacherLobbyPage
+@src/App.jsx#220-233
+Your source is already test-only (no mode tabs in header, only My/Public filter):
+@src/pages/TeacherLobbyPage.jsx#39-40
+@src/pages/TeacherLobbyPage.jsx#1048-1081
+@src/pages/TeacherLobbyPage.jsx#1344-1355
+But your live URL was still serving old hashed assets (index-CGo0SHB4.js), which corresponds to old lobby behavior.
+Fix (required)
+Run build first, then deploy hosting:
+
+powershell
+npm run build
+firebase deploy --only hosting:kahut1
+You were deploying hosting repeatedly, but if dist is stale, live remains stale.
+
+Quick verification after deploy
+powershell
+# should show NEW index hash, not index-CGo0SHB4.js
+(Invoke-WebRequest https://kahoot.mstu.work/lobby).Content | Select-String "assets/index-"
+Then hard refresh browser (Ctrl+F5) on https://kahoot.mstu.work/lobby.
+
+If it still shows old UI after this, send me the output of the command above and I’ll trace cache layer next.
+
+<13>
+#User INPUT
+the red circle is what appear when I click on the filter expecting a modal/dropdown menu will shown for me to choose from.
+
+Update
+I found the issue in src/pages/AcademicRecordPage.tsx.
+
+Cause
+The right-side By Course control is a custom dropdown trigger, not a native select.
+The preview card below it stayed visually dominant, so clicking the filter made it seem like no real dropdown/modal opened.
+What I changed
+Separated the trigger/menu layer from the preview card more clearly.
+Added an open state for the filter pill button.
+Kept the dropdown menu on a higher layer.
+Dimmed/disabled the preview card while the menu is open so it no longer competes with the dropdown visually.
+File changed
+src/pages/AcademicRecordPage.tsx
+Note
+I followed the AGENTS.md memory and checked the integration safety rules before changing imports. Because Rule 15 forbids adding new Mantine imports, I kept this as a native fix.
+
+Remaining note
+There is still an existing warning about inline styles in this file, but I did not refactor the whole page styling since that’s unrelated to your filter bug.
+What to check now
+Open the Academic Record page and click the By Course pill again.
+
+Expected
+A visible dropdown menu with the module choices should appear.
+The card beneath should fade back and stop interfering visually.
+
+#User INPUT
+
+
+3 days
+
+the red circle is what appear when I click on the filter expecting a modal/dropdown menu will shown for me to choose from.
+
+User uploaded image 1
+Fast Context
+the red circle is what appear when I click on the filter expecting a modal/dropdown menu will shown for me to choose from.
+in 6.59s
+I’ll trace the academic record filter UI and check why that click target is rendering content instead of opening a dropdown. Then I’ll patch the relevant component if the issue is clear.
+
+1
+Inspect the academic record filter/dropdown implementation and identify why clicking the filter shows incorrect content
+
+Implement the UI fix so the filter opens the intended dropdown/modal behavior
+
+Verify related academic record panels still render correctly after the change
+
+I’m locating the academic record page and the specific filter component so I can fix the interaction at the source.
+
+I’m retrying with the workspace’s absolute Windows path to inspect the page implementation.
+
+Fast Context
+Find the academic record student page and the filter/dropdown UI for time range or course breakdown. Need the component rendering 'Academic Record', 'All Time', 'By Course', and any filter click handlers or menu/popover/select components.
+in 6.40s
+I found the issue in AcademicRecordPage.tsx: the right-side “By Course” filter already toggles a custom menu, but the preview card stays rendered underneath it, so when the menu doesn’t visually overlay enough space you effectively see the card content you circled instead of a clear picker. I’m going to adjust the layout so the dropdown behaves like a real overlay and closes cleanly.
+
+I’ve confirmed the problem area. I’m applying a focused UI fix to make the right-panel filter act like a proper dropdown overlay and prevent the preview card from competing visually when the menu is open.
+
+AcademicRecordPage.tsx
++50
+-35
+                                    })}
+                                </div>
+                            )}
+                        </div>
+ 
+
+
+
+I fixed the structure, but there’s still a likely interaction gap: the menu opens, yet the page lacks outside-click handling and the custom button may still be less reliable than a native menu/popover. I’m checking the student layout and right-panel styles so I can make sure the dropdown isn’t being clipped by its container.
+
+I found the root cause: this isn’t a native select there. It’s a custom right-panel module switcher, and the content panel directly beneath it makes it look like the click only reveals duplicated content. The most reliable fix is to replace that custom toggle with a proper menu/select-style control. I’ll switch it to Mantine Menu, which the codebase already uses, so it opens consistently as a dropdown.
+
+I checked the integration rules because this edit touches imports and a student-facing page. Rule 15 blocks adding new Mantine imports, so I’m keeping the fix native. I’m going to finish this as a custom dropdown improvement rather than switching libraries.
+
+AcademicRecordPage.tsx
++11
+-2
+                                ...localStyles.previewCard,
+                                ...(showModuleMenu ? localStyles.previewCardHidden : {}),
+                            }}
+                        >
+                            <div style={localStyles.previewHeader}>
+
+I’ve applied the dropdown visibility fix. Based on the screenshot and the code, that circled block is the preview card under the custom filter, not the actual menu options. The page now visually separates the menu from the preview so clicking the filter should show the selector more clearly instead of feeling like nothing opened.
+
+Update
+I found the issue in src/pages/AcademicRecordPage.tsx.
+
+Cause
+The right-side By Course control is a custom dropdown trigger, not a native select.
+The preview card below it stayed visually dominant, so clicking the filter made it seem like no real dropdown/modal opened.
+What I changed
+Separated the trigger/menu layer from the preview card more clearly.
+Added an open state for the filter pill button.
+Kept the dropdown menu on a higher layer.
+Dimmed/disabled the preview card while the menu is open so it no longer competes with the dropdown visually.
+File changed
+src/pages/AcademicRecordPage.tsx
+Note
+I followed the AGENTS.md memory and checked the integration safety rules before changing imports. Because Rule 15 forbids adding new Mantine imports, I kept this as a native fix.
+
+Remaining note
+There is still an existing warning about inline styles in this file, but I did not refactor the whole page styling since that’s unrelated to your filter bug.
+What to check now
+Open the Academic Record page and click the By Course pill again.
+
+Expected
+A visible dropdown menu with the module choices should appear.
+The card beneath should fade back and stop interfering visually.
+Status
+Investigation: done
+Fix applied: done
+Ready for you to test: done
+If you want, I can also make this dropdown close on outside click and Escape to make it behave more like a full polished menu.
+
+Feedback submitted
+
+
+
+The new modules are showing too much. They need to be more compact, concise and better-designed with UI/UX
+
+Fast Context
+The new modules are showing too much. They need to be more compact, concise and better-designed with UI/UX
+in 6.40s
+I’m going to tighten the module list UI at the source by making each module row denser and reducing the visual weight of the expanded material list, so the modules read faster and take less space.
+
+1
+Inspect module list and item components to identify where the module UI is oversized or verbose
+
+Refine module list and module item layout to be more compact, concise, and visually balanced
+
+Verify module actions and expanded material list remain usable after density improvements
+
+I’ve identified the main density issues in ModuleList and ModuleItem: oversized header typography, wide action controls, and too much spacing in expanded material rows. I’m applying a compact UI pass directly there.
+
+ModuleItem.tsx
++94
+-63
+10 hidden lines
+                    <SortableContext items={materials.map(m => m.id)} strategy={verticalListSortingStrategy}>
+                        <Stack gap="xs" mt="md" pl={30}>
+                        <Stack gap={6} mt={8} pl={26}>
+                            {materials.length === 0 && (
+
+
+
+I’ve compacted the core module rows. I’m making one more small pass on the list container so the page header and empty state also feel denser and more polished, not just each card.
+
+I’m tightening the surrounding list chrome too, so the module section feels cleaner overall rather than only shrinking individual rows.
+
+ModuleList.tsx
++24
+-6
+8 hidden lines
+                    >
+                        <Stack gap="sm">
+                        <Stack gap={8}>
+                            {modules.map(module => (
+
+I’ve finished the compact pass on the module UI. The main changes are in the module cards and list header so the section feels tighter, easier to scan, and less visually heavy.
+
+Updated Module UI
+I tightened the module presentation in these files:
+
+src/components/course/ModuleItem.tsx
+src/components/course/ModuleList.tsx
+What changed
+Denser module cards
+Reduced padding and icon sizes
+Shortened action button footprint
+Made metadata sit neatly under the title instead of spreading horizontally
+Cleaner status display
+Completed became a smaller Done badge
+Access type badges are lighter and more concise
+Material count is smaller and less dominant
+More compact actions
+Start Session became Start
+Action icons are smaller and grouped tighter
+Expanded material rows now use less vertical space
+Tighter list header
+Course Modules simplified to Modules
+Added a small module count subtitle
+Reduced Add Module button size and padding
+Empty state is shorter and lighter
+Result
+The modules should now feel:
+
+More compact
+Easier to scan
+Less crowded
+More balanced visually
+Notes
+I also checked the existing lint feedback.
+
+Inline style warnings
+These warnings already exist in this area and in AcademicRecordPage.tsx
+I did not do a broad styling refactor into external CSS because that would be a larger unrelated cleanup

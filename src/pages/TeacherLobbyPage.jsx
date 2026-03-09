@@ -22,6 +22,8 @@ import { THCSHomeworkAssignDialog } from '../components/thcs-editor/THCSHomework
 // THCS Edit Test Modal (inline editing, same pattern as IELTS TestEditor)
 import THCSTestEditorModal from '../components/thcs-editor/THCSTestEditorModal';
 
+const isQuizModeEnabled = import.meta.env.DEV || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
 const TeacherLobbyPage = () => {
   const { navigateTo } = useNavigation('teacher');
   const { sessionCode } = useParams(); // Get session code from URL
@@ -34,7 +36,7 @@ const TeacherLobbyPage = () => {
   const [quizzes, setQuizzes] = useState([]);
   const [tests, setTests] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [currentView, setCurrentView] = useState('quiz'); // 'quiz', 'test', or 'material'
+  const [currentView, setCurrentView] = useState('test');
   const [contentFilter, setContentFilter] = useState('my'); // 'my' or 'public'
   const [contentLoading, setContentLoading] = useState(true); // Loading state for quizzes/tests
   const [sessionData, setSessionData] = useState(null); // Session data if in session mode
@@ -141,7 +143,7 @@ const TeacherLobbyPage = () => {
         if (session) {
           setSessionData(session);
           setSessionError(null);
-          setCurrentView(session.mode); // Set view based on session mode
+          setCurrentView('test');
         } else {
           // Only redirect if a sessionCode was explicitly provided but not found
           // Don't redirect if just accessing lobby without a session
@@ -180,48 +182,7 @@ const TeacherLobbyPage = () => {
       setContentLoading(true);
 
       try {
-        if (currentView === 'quiz') {
-          // Load Quizzes
-          console.log('🎮 [TeacherLobby] Loading quizzes...');
-
-          // Initial fetch with cache
-          const quizList = await queryOptimizer.getAllQuizzes();
-          if (isSubscribed) {
-            setQuizzes(quizList);
-            setContentLoading(false);
-          }
-
-          // Real-time subscription
-          const quizzesRef = ref(database, 'quizzes');
-          unsubscribe = onValue(quizzesRef, (snapshot) => {
-            if (!isSubscribed) return;
-
-            // Skip first call (onValue fires immediately with current data)
-            if (skipFirstCall) {
-              skipFirstCall = false;
-              console.log('🎮 [REALTIME] Skipping first quiz listener call (already have data)');
-              return;
-            }
-
-            const data = snapshot.val();
-            const list = data ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : [];
-            console.log('🎮 [REALTIME] Quizzes updated:', list.length);
-            setQuizzes(list);
-            setContentLoading(false);
-
-            // Only invalidate cache on actual updates
-            queryOptimizer.invalidate('quiz', 'all');
-          }, (error) => {
-            // Check if error is due to logout (permission denied is expected after logout)
-            if (error.code === 'PERMISSION_DENIED' && !user) {
-              console.log('🔒 [REALTIME] Quiz listener stopped (user logged out)');
-              return; // Silent fail - user is logging out
-            }
-            console.error('Error loading quizzes:', error);
-            if (isSubscribed) setContentLoading(false);
-          });
-
-        } else if (currentView === 'test') {
+        if (currentView === 'test') {
           // Load Tests
           console.log('📝 [TeacherLobby] Loading tests...');
 
@@ -344,15 +305,13 @@ const TeacherLobbyPage = () => {
   const handleCloseThcsEditModal = () => {
     setShowThcsEditModal(false);
     setSelectedThcsTest(null);
-    // Reload tests to reflect any saved changes
-    loadData();
+    // Tests are kept in sync by the existing realtime listener while in test view.
   };
 
   const handleCloseEditTestModal = () => {
     setShowEditTestModal(false);
     setSelectedTest(null); // Clear selected test to ensure fresh data on next open
   };
-
 
   const createMockQuiz = () => {
     const mockQuiz = {
@@ -382,6 +341,11 @@ const TeacherLobbyPage = () => {
 
   const handleStartSession = async (contentId, mode) => {
     console.log(`🚀 handleStartSession triggered: contentId=${contentId}, mode=${mode}`);
+    if (mode === 'quiz' && !isQuizModeEnabled) {
+      console.warn('⚠️ Quiz mode is disabled outside localhost/development environments');
+      alert('Quiz mode is only available on localhost/development.');
+      return;
+    }
     // If already in a session, just update it (no class selection needed)
     if (sessionCode) {
       console.log(`ℹ️ Existing session detected (${sessionCode}). Updating content only.`);
@@ -395,7 +359,7 @@ const TeacherLobbyPage = () => {
         console.log(`✅ Session ${sessionCode} updated: mode=${mode}, contentId=${contentId}`);
 
         if (mode === 'test') {
-          navigateTo('TEACHER_TEST_MONITOR', { sessionCode }, { reason: 'teacher_start_test' });
+          navigateTo('TEACHER_TEST_MONITOR', { sessionCode: sessionCode }, { reason: 'teacher_start_test' });
         } else {
           navigateTo('TEACHER_WAITING', { gameSessionId: sessionCode }, { reason: 'teacher_start_quiz' });
         }
@@ -651,6 +615,7 @@ const TeacherLobbyPage = () => {
       </Card>
     );
   };
+
   // PRD-0027: THCS-THPT test card renderer
   const renderThcsTestCard = (test, index) => {
     const meta = test.metadata || {};
@@ -1026,6 +991,9 @@ const TeacherLobbyPage = () => {
           pageTitle="Materials"
           userId={user?.uid}
           userRole={profile?.role}
+          userDisplayName={profile?.displayName || user?.displayName || user?.email}
+          userEmail={profile?.email || user?.email}
+          userAvatarUrl={profile?.avatarUrl || profile?.photoURL || user?.photoURL}
           onLogout={handleLogout}
         />
 
@@ -1080,75 +1048,42 @@ const TeacherLobbyPage = () => {
                   marginBottom: '0.5rem',
                   color: '#1e293b'
                 }}>
-                  {currentView === 'quiz' ? 'Quiz Dashboard' : currentView === 'test' ? 'Test Dashboard' : 'Material Library'}
+                  Test Dashboard
                 </h1>
                 <p style={{ fontSize: '1rem', color: '#64748b', marginBottom: '1.5rem' }}>
-                  {currentView === 'quiz'
-                    ? 'Manage your quizzes and start new game sessions'
-                    : currentView === 'test'
-                      ? 'Manage your tests and start formal assessment sessions'
-                      : 'Browse and manage your material library'}
+                  Manage your tests and start formal assessment sessions
                 </p>
 
-                {/* Mode Tabs - Switch freely between quiz/test */}
+                {/* Content Filter Tabs */}
                 <div style={{
                   display: 'inline-flex',
-                  gap: '0.25rem'
+                  gap: '0.25rem',
+                  marginTop: '1rem'
                 }}>
                   <Button
-                    variant={currentView === 'quiz' ? 'primary' : 'glass'}
-                    size="md"
-                    onClick={() => setCurrentView('quiz')}
+                    variant={contentFilter === 'my' ? 'primary' : 'glass'}
+                    size="sm"
+                    onClick={() => setContentFilter('my')}
                     style={{
-                      minWidth: '120px'
+                      minWidth: '100px'
                     }}
                   >
-                    🎮 Quiz Mode
+                    📁 My Content
                   </Button>
                   <Button
-                    variant={currentView === 'test' ? 'primary' : 'glass'}
-                    size="md"
-                    onClick={() => setCurrentView('test')}
+                    variant={contentFilter === 'public' ? 'primary' : 'glass'}
+                    size="sm"
+                    onClick={() => setContentFilter('public')}
                     style={{
-                      minWidth: '120px'
+                      minWidth: '100px'
                     }}
                   >
-                    📝 Test Mode
+                    🌐 Public Library
                   </Button>
                 </div>
 
-                {/* Content Filter Tabs - Only show for quiz/test views */}
-                {(currentView === 'quiz' || currentView === 'test') && (
-                  <div style={{
-                    display: 'inline-flex',
-                    gap: '0.25rem',
-                    marginTop: '1rem'
-                  }}>
-                    <Button
-                      variant={contentFilter === 'my' ? 'primary' : 'glass'}
-                      size="sm"
-                      onClick={() => setContentFilter('my')}
-                      style={{
-                        minWidth: '100px'
-                      }}
-                    >
-                      📁 My Content
-                    </Button>
-                    <Button
-                      variant={contentFilter === 'public' ? 'primary' : 'glass'}
-                      size="sm"
-                      onClick={() => setContentFilter('public')}
-                      style={{
-                        minWidth: '100px'
-                      }}
-                    >
-                      🌐 Public Library
-                    </Button>
-                  </div>
-                )}
-
                 {/* Phase 3 Task 4.1: Type Filter for Public Library */}
-                {contentFilter === 'public' && currentView === 'test' && (
+                {contentFilter === 'public' && (
                   <div style={{
                     display: 'flex',
                     flexWrap: 'wrap',
@@ -1401,7 +1336,7 @@ const TeacherLobbyPage = () => {
                   }}>
                     <div style={{ flex: '1 1 300px' }}>
                       <Input
-                        placeholder={currentView === 'test' ? '🔍 Search by title or keyword...' : '🔍 Search quizzes...'}
+                        placeholder="🔍 Search by title or keyword..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         variant="default"
@@ -1409,79 +1344,24 @@ const TeacherLobbyPage = () => {
                       />
                     </div>
 
-                    {currentView === 'quiz' ? (
-                      <Button
-                        variant="primary"
-                        onClick={() => {
-                          setSelectedQuiz(null);
-                          setShowEditModal(true);
-                        }}
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{ marginRight: '0.5rem' }}>
-                          <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-                        </svg>
-                        Create New Quiz
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="primary"
-                        onClick={() => setShowTestCreationModal(true)}
-                        style={{
-                          background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
-                        }}
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{ marginRight: '0.5rem' }}>
-                          <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-                        </svg>
-                        Create New Test
-                      </Button>
-                    )}
+                    <Button
+                      variant="primary"
+                      onClick={() => setShowTestCreationModal(true)}
+                      style={{
+                        background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
+                      }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{ marginRight: '0.5rem' }}>
+                        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                      </svg>
+                      Create New Test
+                    </Button>
                   </div>
                 </CardBody>
               </Card>
 
               {/* Content Grid */}
-              {currentView === 'quiz' ? (
-                // Quiz Grid
-                filteredQuizzes.length === 0 ? (
-                  <Card
-                    variant="default"
-                    style={{
-                      textAlign: 'center',
-                      padding: '4rem 2rem',
-                      animation: 'scaleIn 0.5s ease-out 0.2s backwards'
-                    }}
-                  >
-                    <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="1.5" style={{ margin: '0 auto 1.5rem' }}>
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                      <polyline points="14 2 14 8 20 8" />
-                      <line x1="16" y1="13" x2="8" y2="13" />
-                      <line x1="16" y1="17" x2="8" y2="17" />
-                      <polyline points="10 9 9 9 8 9" />
-                    </svg>
-                    <h2 style={{
-                      fontSize: '1.75rem',
-                      fontWeight: '700',
-                      marginBottom: '0.5rem',
-                      color: '#1e293b'
-                    }}>
-                      No quizzes found
-                    </h2>
-                    <p style={{ fontSize: '1rem', color: '#64748b' }}>
-                      Create a quiz to get started
-                    </p>
-                  </Card>
-                ) : (
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-                    gap: '1.5rem'
-                  }}>
-                    {filteredQuizzes.map((quiz, index) => renderQuizCard(quiz, index))}
-                  </div>
-                )
-              ) : (
-                // Test Grid
+              {
                 filteredTests.length === 0 ? (
                   <Card
                     variant="default"
@@ -1517,7 +1397,7 @@ const TeacherLobbyPage = () => {
                     {filteredTests.map((test, index) => renderTestCard(test, index))}
                   </div>
                 )
-              )}
+              }
             </div>
           )}
         </AppShell.Main>

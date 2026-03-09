@@ -1,5 +1,4 @@
 import React, { useMemo } from 'react';
-import { Stack, Grid, Card, Text, Group, Button, SimpleGrid } from '@mantine/core';
 import {
     IconTrophy,
     IconChartLine,
@@ -202,230 +201,237 @@ export const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({
     // Empty state
     if (results.length === 0) {
         return (
-            <Stack align="center" gap="md" py="xl">
-                <Text size="lg" fw={500} c="dimmed">
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', padding: '2rem 0' }}>
+                <p style={{ margin: 0, fontSize: '1.125rem', fontWeight: 600, color: '#64748b' }}>
                     No data available for statistics
-                </Text>
-                <Text size="sm" c="dimmed" ta="center" maw={400}>
+                </p>
+                <p style={{ margin: 0, fontSize: '0.875rem', color: '#64748b', textAlign: 'center', maxWidth: 400 }}>
                     Complete some tests to see your performance analytics here.
-                </Text>
-            </Stack>
+                </p>
+            </div>
         );
     }
 
     return (
-        <Stack gap="xl">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             {/* Export Buttons */}
-            <Group justify="flex-end">
-                <Button
-                    variant="light"
-                    leftSection={<IconFileTypeCsv size={18} />}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                <button
+                    type="button"
                     onClick={onExportCSV}
                     disabled={!onExportCSV}
+                    style={exportButtonStyle}
                 >
+                    <IconFileTypeCsv size={18} />
                     Export CSV
-                </Button>
-                <Button
-                    variant="light"
-                    leftSection={<IconFileTypePdf size={18} />}
+                </button>
+                <button
+                    type="button"
                     onClick={onExportPDF}
                     disabled={!onExportPDF}
+                    style={exportButtonStyle}
                 >
+                    <IconFileTypePdf size={18} />
                     Export PDF
-                </Button>
-            </Group>
+                </button>
+            </div>
 
             {/* Overview Cards */}
-            <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="md">
-                <Card padding="lg" radius="md" withBorder>
-                    <Group justify="apart">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+                <div style={overviewCardStyle}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
-                            <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+                            <div style={overviewLabelStyle}>
                                 Total Tests
-                            </Text>
-                            <Text size="xl" fw={700} mt="xs">
+                            </div>
+                            <div style={overviewValueStyle}>
                                 {stats.totalTests}
-                            </Text>
+                            </div>
                         </div>
                         <IconFileText size={32} style={{ color: '#94a3b8' }} />
-                    </Group>
-                </Card>
+                    </div>
+                </div>
 
-                <Card padding="lg" radius="md" withBorder>
-                    <Group justify="apart">
+                <div style={overviewCardStyle}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
-                            <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+                            <div style={overviewLabelStyle}>
                                 Average Score
-                            </Text>
-                            <Text size="xl" fw={700} mt="xs">
+                            </div>
+                            <div style={overviewValueStyle}>
                                 {Math.round(stats.averageScore)}%
-                            </Text>
+                            </div>
                         </div>
                         <IconChartLine size={32} style={{ color: '#3b82f6' }} />
-                    </Group>
-                </Card>
+                    </div>
+                </div>
 
-                <Card padding="lg" radius="md" withBorder>
-                    <Group justify="apart">
+                <div style={overviewCardStyle}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
-                            <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+                            <div style={overviewLabelStyle}>
                                 Best Score
-                            </Text>
-                            <Text size="xl" fw={700} mt="xs" style={{ color: '#10b981' }}>
+                            </div>
+                            <div style={{ ...overviewValueStyle, color: '#10b981' }}>
                                 {Math.round(stats.bestScore)}%
-                            </Text>
+                            </div>
                         </div>
                         <IconTrophy size={32} style={{ color: '#f59e0b' }} />
-                    </Group>
-                </Card>
+                    </div>
+                </div>
 
-                <Card padding="lg" radius="md" withBorder>
-                    <Group justify="apart">
+                <div style={overviewCardStyle}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
-                            <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+                            <div style={overviewLabelStyle}>
                                 Study Streak
-                            </Text>
-                            <Text size="xl" fw={700} mt="xs" style={{ color: '#ef4444' }}>
+                            </div>
+                            <div style={{ ...overviewValueStyle, color: '#ef4444' }}>
                                 {stats.studyStreak} {stats.studyStreak === 1 ? 'day' : 'days'}
-                            </Text>
+                            </div>
                         </div>
                         <IconFlame size={32} style={{ color: '#ef4444' }} />
-                    </Group>
-                </Card>
-            </SimpleGrid>
+                    </div>
+                </div>
+            </div>
 
             {/* Charts Grid */}
-            <Grid gutter="md">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 12 }}>
                 {/* Score Progression Chart */}
-                <Grid.Col span={{ base: 12, md: 6 }}>
-                    <Card padding="lg" radius="md" withBorder>
-                        <Text size="lg" fw={600} mb="md" id="chart-progression-title">
+                <div style={chartCardStyle}>
+                    <div style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '0.75rem' }} id="chart-progression-title">
                             Score Progression
-                        </Text>
-                        <Text size="sm" c="dimmed" mb="sm" id="chart-progression-desc">
+                    </div>
+                    <p style={{ fontSize: '0.875rem', color: '#6b7280', margin: '0 0 0.5rem' }} id="chart-progression-desc">
                             Line chart showing score trends across {scoreProgressionData.length} tests.
                             Average: {Math.round(stats.averageScore)}%, Best: {Math.round(stats.bestScore)}%
-                        </Text>
-                        <div
-                            role="img"
-                            aria-labelledby="chart-progression-title"
-                            aria-describedby="chart-progression-desc"
-                        >
-                            <ResponsiveContainer width="100%" height={300}>
-                                <LineChart data={scoreProgressionData}>
-                                    <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis dataKey="date" />
-                                    <YAxis domain={[0, 100]} />
-                                    <Tooltip />
-                                    <Legend />
-                                    <Line
-                                        type="monotone"
-                                        dataKey="score"
-                                        stroke="#3b82f6"
-                                        strokeWidth={2}
-                                        dot={{ fill: '#3b82f6', r: 4 }}
-                                        activeDot={{ r: 6 }}
-                                    />
-                                </LineChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </Card>
-                </Grid.Col>
+                    </p>
+                    <div role="img" aria-labelledby="chart-progression-title" aria-describedby="chart-progression-desc">
+                        <ResponsiveContainer width="100%" height={300}>
+                            <LineChart data={scoreProgressionData}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="date" />
+                                <YAxis domain={[0, 100]} />
+                                <Tooltip />
+                                <Legend />
+                                <Line type="monotone" dataKey="score" stroke="#3b82f6" strokeWidth={2} dot={{ fill: '#3b82f6', r: 4 }} activeDot={{ r: 6 }} />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
 
                 {/* Skill Breakdown Radar Chart */}
-                <Grid.Col span={{ base: 12, md: 6 }}>
-                    <Card padding="lg" radius="md" withBorder>
-                        <Text size="lg" fw={600} mb="md" id="chart-skill-title">
+                <div style={chartCardStyle}>
+                    <div style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '0.75rem' }} id="chart-skill-title">
                             Skill Breakdown
-                        </Text>
-                        <Text size="sm" c="dimmed" mb="sm" id="chart-skill-desc">
+                    </div>
+                    <p style={{ fontSize: '0.875rem', color: '#6b7280', margin: '0 0 0.5rem' }} id="chart-skill-desc">
                             Radar chart comparing average scores across 4 skills: Reading ({skillBreakdownData[0]?.score ?? 0}%),
                             Listening ({skillBreakdownData[1]?.score ?? 0}%), Writing ({skillBreakdownData[2]?.score ?? 0}%),
                             Speaking ({skillBreakdownData[3]?.score ?? 0}%)
-                        </Text>
-                        <div
-                            role="img"
-                            aria-labelledby="chart-skill-title"
-                            aria-describedby="chart-skill-desc"
-                        >
-                            <ResponsiveContainer width="100%" height={300}>
-                                <RadarChart data={skillBreakdownData}>
-                                    <PolarGrid />
-                                    <PolarAngleAxis dataKey="skill" />
-                                    <PolarRadiusAxis domain={[0, 100]} />
-                                    <Radar
-                                        name="Average Score"
-                                        dataKey="score"
-                                        stroke="#8b5cf6"
-                                        fill="#8b5cf6"
-                                        fillOpacity={0.6}
-                                    />
-                                    <Tooltip />
-                                    <Legend />
-                                </RadarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </Card>
-                </Grid.Col>
+                    </p>
+                    <div role="img" aria-labelledby="chart-skill-title" aria-describedby="chart-skill-desc">
+                        <ResponsiveContainer width="100%" height={300}>
+                            <RadarChart data={skillBreakdownData}>
+                                <PolarGrid />
+                                <PolarAngleAxis dataKey="skill" />
+                                <PolarRadiusAxis domain={[0, 100]} />
+                                <Radar name="Average Score" dataKey="score" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.6} />
+                                <Tooltip />
+                                <Legend />
+                            </RadarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
 
                 {/* Score Distribution Histogram */}
-                <Grid.Col span={{ base: 12, md: 6 }}>
-                    <Card padding="lg" radius="md" withBorder>
-                        <Text size="lg" fw={600} mb="md" id="chart-distribution-title">
+                <div style={chartCardStyle}>
+                    <div style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '0.75rem' }} id="chart-distribution-title">
                             Score Distribution
-                        </Text>
-                        <Text size="sm" c="dimmed" mb="sm" id="chart-distribution-desc">
+                    </div>
+                    <p style={{ fontSize: '0.875rem', color: '#6b7280', margin: '0 0 0.5rem' }} id="chart-distribution-desc">
                             Bar chart showing test count distribution: 0-20% ({scoreDistributionData[0]?.count ?? 0} tests),
                             21-40% ({scoreDistributionData[1]?.count ?? 0}), 41-60% ({scoreDistributionData[2]?.count ?? 0}),
                             61-80% ({scoreDistributionData[3]?.count ?? 0}), 81-100% ({scoreDistributionData[4]?.count ?? 0})
-                        </Text>
-                        <div
-                            role="img"
-                            aria-labelledby="chart-distribution-title"
-                            aria-describedby="chart-distribution-desc"
-                        >
-                            <ResponsiveContainer width="100%" height={300}>
-                                <BarChart data={scoreDistributionData}>
-                                    <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis dataKey="range" />
-                                    <YAxis />
-                                    <Tooltip />
-                                    <Legend />
-                                    <Bar dataKey="count" fill="#10b981" />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </Card>
-                </Grid.Col>
+                    </p>
+                    <div role="img" aria-labelledby="chart-distribution-title" aria-describedby="chart-distribution-desc">
+                        <ResponsiveContainer width="100%" height={300}>
+                            <BarChart data={scoreDistributionData}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="range" />
+                                <YAxis />
+                                <Tooltip />
+                                <Legend />
+                                <Bar dataKey="count" fill="#10b981" />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
 
                 {/* Test Frequency Chart */}
-                <Grid.Col span={{ base: 12, md: 6 }}>
-                    <Card padding="lg" radius="md" withBorder>
-                        <Text size="lg" fw={600} mb="md" id="chart-frequency-title">
+                <div style={chartCardStyle}>
+                    <div style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '0.75rem' }} id="chart-frequency-title">
                             Test Frequency
-                        </Text>
-                        <Text size="sm" c="dimmed" mb="sm" id="chart-frequency-desc">
+                    </div>
+                    <p style={{ fontSize: '0.875rem', color: '#6b7280', margin: '0 0 0.5rem' }} id="chart-frequency-desc">
                             Bar chart showing test activity over time across {testFrequencyData.length} months
-                        </Text>
-                        <div
-                            role="img"
-                            aria-labelledby="chart-frequency-title"
-                            aria-describedby="chart-frequency-desc"
-                        >
-                            <ResponsiveContainer width="100%" height={300}>
-                                <BarChart data={testFrequencyData}>
-                                    <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis dataKey="month" />
-                                    <YAxis />
-                                    <Tooltip />
-                                    <Legend />
-                                    <Bar dataKey="count" fill="#f59e0b" />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </Card>
-                </Grid.Col>
-            </Grid>
-        </Stack>
+                    </p>
+                    <div role="img" aria-labelledby="chart-frequency-title" aria-describedby="chart-frequency-desc">
+                        <ResponsiveContainer width="100%" height={300}>
+                            <BarChart data={testFrequencyData}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="month" />
+                                <YAxis />
+                                <Tooltip />
+                                <Legend />
+                                <Bar dataKey="count" fill="#f59e0b" />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            </div>
+        </div>
     );
+};
+
+const exportButtonStyle: React.CSSProperties = {
+    border: '1px solid #cbd5e1',
+    borderRadius: 10,
+    padding: '0.5rem 0.75rem',
+    background: '#f8fafc',
+    color: '#334155',
+    fontSize: '0.8125rem',
+    fontWeight: 600,
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    cursor: 'pointer',
+};
+
+const overviewCardStyle: React.CSSProperties = {
+    background: '#ffffff',
+    border: '1px solid #e5e7eb',
+    borderRadius: 12,
+    padding: 16,
+};
+
+const overviewLabelStyle: React.CSSProperties = {
+    fontSize: '0.75rem',
+    color: '#6b7280',
+    textTransform: 'uppercase',
+    fontWeight: 700,
+};
+
+const overviewValueStyle: React.CSSProperties = {
+    marginTop: 6,
+    fontSize: '1.5rem',
+    fontWeight: 700,
+    color: '#0f172a',
+};
+
+const chartCardStyle: React.CSSProperties = {
+    background: '#ffffff',
+    border: '1px solid #e5e7eb',
+    borderRadius: 12,
+    padding: 16,
 };

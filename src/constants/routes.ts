@@ -10,6 +10,7 @@
 export const ROUTES = {
   // Authentication
   LOGIN: '/',
+  PROFILE: '/profile',
 
   // Teacher Routes
   TEACHER_LOBBY: '/teacher-lobby/:sessionCode',

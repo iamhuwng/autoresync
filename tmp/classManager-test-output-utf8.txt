@@ -1,0 +1,74 @@
+﻿
+[1m[46m RUN [49m[22m [36mv3.2.4 [39m[90mC:/Users/Sanctuary/Desktop/Homework App/kahoot[39m
+
+[90mstdout[2m | src/__tests__/services/classManager.test.ts
+[22m[39m≡ƒöÑ [Firebase] Initializing Firebase...
+≡ƒöÑ [Firebase] Config check:
+   - apiKey: Γ£à Present
+   - authDomain: Γ£à Present
+   - databaseURL: Γ£à https://temp-a1437-default-rtdb.firebaseio.com
+   - projectId: Γ£à temp-a1437
+≡ƒöÑ [Firebase] App initialized: [DEFAULT]
+≡ƒöÑ [Firebase] Database instance created
+≡ƒöÑ [Firebase] ΓÜá∩╕Å DISCONNECTED from Firebase Realtime Database
+
+[90mstdout[2m | src/__tests__/services/classManager.test.ts[2m > [22m[2mClass Manager - Class Creation[2m > [22m[2mshould create a class with teacher UID as ownerId
+[22m[39m≡ƒöÑ [Firebase] Γ£à CONNECTED to Firebase Realtime Database
+
+ [31m├ù[39m src/__tests__/services/classManager.test.ts[2m > [22mClass Manager - Class Creation[2m > [22mshould create a class with teacher UID as ownerId[33m 1243[2mms[22m[39m
+[31m   ΓåÆ expected false to be true // Object.is equality[39m
+ [31m├ù[39m src/__tests__/services/classManager.test.ts[2m > [22mClass Manager - Class Creation[2m > [22mshould generate unique class codes[33m 796[2mms[22m[39m
+[31m   ΓåÆ expected false to be true // Object.is equality[39m
+ [31m├ù[39m src/__tests__/services/classManager.test.ts[2m > [22mClass Manager - Class Creation[2m > [22mshould initialize class with default settings[33m 792[2mms[22m[39m
+[31m   ΓåÆ expected undefined to be defined[39m
+ [31m├ù[39m src/__tests__/services/classManager.test.ts[2m > [22mClass Manager - Class Creation[2m > [22mshould create class with custom settings[33m 792[2mms[22m[39m
+[31m   ΓåÆ expected undefined to be false // Object.is equality[39m
+[90mstdout[2m | src/__tests__/services/classManager.test.ts[2m > [22m[2mClass Manager - Teacher Access Control[2m > [22m[2mshould only return classes created by specific teacher
+[22m[39m≡ƒÅ½ [ClassManager] getClasses called
+≡ƒÅ½ [ClassManager] teacherId filter: teacher-test-uid-123
+≡ƒÅ½ [ClassManager] Querying by teacherId...
+
+[90mstdout[2m | src/__tests__/services/classManager.test.ts[2m > [22m[2mClass Manager - Teacher Access Control[2m > [22m[2mshould only return classes created by specific teacher
+[22m[39m≡ƒÅ½ [ClassManager] getClasses called
+≡ƒÅ½ [ClassManager] teacherId filter: teacher-test-uid-456
+≡ƒÅ½ [ClassManager] Querying by teacherId...
+
+ [31m├ù[39m src/__tests__/services/classManager.test.ts[2m > [22mClass Manager - Teacher Access Control[2m > [22mshould only return classes created by specific teacher[33m 1189[2mms[22m[39m
+[31m   ΓåÆ expected 0 to be greater than or equal to 1[39m
+ [31m├ù[39m src/__tests__/services/classManager.test.ts[2m > [22mClass Manager - Teacher Access Control[2m > [22mshould verify teacher can only manage their own classes[33m 1194[2mms[22m[39m
+[31m   ΓåÆ expected undefined to be 'teacher-test-uid-123' // Object.is equality[39m
+ [31m├ù[39m src/__tests__/services/classManager.test.ts[2m > [22mClass Manager - Student Enrollment[2m > [22mshould enroll authenticated student in class[33m 794[2mms[22m[39m
+[31m   ΓåÆ expected false to be true // Object.is equality[39m
+ [31m├ù[39m src/__tests__/services/classManager.test.ts[2m > [22mClass Manager - Student Enrollment[2m > [22mshould prevent duplicate enrollment[33m 1019[2mms[22m[39m
+[31m   ΓåÆ expected 'Class not found' to contain 'Already enrolled'[39m
+ [32mΓ£ô[39m src/__tests__/services/classManager.test.ts[2m > [22mClass Manager - Student Enrollment[2m > [22mshould fail enrollment for non-existent class[33m 789[2mms[22m[39m
+ [31m├ù[39m src/__tests__/services/classManager.test.ts[2m > [22mClass Manager - Student Enrollment[2m > [22mshould fail enrollment for archived class[33m 1022[2mms[22m[39m
+[31m   ΓåÆ expected 'Class not found' to contain 'not active'[39m
+ [31m├ù[39m src/__tests__/services/classManager.test.ts[2m > [22mClass Manager - Student Enrollment[2m > [22mshould enforce max students limit[33m 1639[2mms[22m[39m
+[31m   ΓåÆ expected 'Class not found' to contain 'full'[39m
+ [31m├ù[39m src/__tests__/services/classManager.test.ts[2m > [22mClass Manager - Student Enrollment[2m > [22mshould update class stats after enrollment[33m 1188[2mms[22m[39m
+[31m   ΓåÆ expected undefined to be 1 // Object.is equality[39m
+ [31m├ù[39m src/__tests__/services/classManager.test.ts[2m > [22mClass Manager - Student Access Control[2m > [22mshould return only classes student is enrolled in[33m 1187[2mms[22m[39m
+[31m   ΓåÆ expected 0 to be greater than or equal to 1[39m
+ [32mΓ£ô[39m src/__tests__/services/classManager.test.ts[2m > [22mClass Manager - Student Access Control[2m > [22mshould return empty array for student with no enrollments[33m 1184[2mms[22m[39m
+ [31m├ù[39m src/__tests__/services/classManager.test.ts[2m > [22mClass Manager - Student Access Control[2m > [22mshould verify student can only access enrolled classes[33m 1384[2mms[22m[39m
+[31m   ΓåÆ expected undefined to be defined[39m
+ [31m├ù[39m src/__tests__/services/classManager.test.ts[2m > [22mClass Manager - Guest Students[2m > [22mshould add guest student without UID[33m 799[2mms[22m[39m
+[31m   ΓåÆ expected false to be true // Object.is equality[39m
+ [31m├ù[39m src/__tests__/services/classManager.test.ts[2m > [22mClass Manager - Guest Students[2m > [22mshould distinguish between authenticated and guest students[33m 987[2mms[22m[39m
+[31m   ΓåÆ expected undefined to be 'student-test-uid-789' // Object.is equality[39m
+ [31m├ù[39m src/__tests__/services/classManager.test.ts[2m > [22mClass Manager - Assignment Integration[2m > [22mshould assign test to class and update stats[33m 651[2mms[22m[39m
+[31m   ΓåÆ expected false to be true // Object.is equality[39m
+[90mstdout[2m | src/__tests__/services/classManager.test.ts[2m > [22m[2mClass Manager - Assignment Integration[2m > [22m[2mshould track assignment in class summary
+[22m[39m≡ƒÅ½ [ClassManager] getClasses called
+≡ƒÅ½ [ClassManager] teacherId filter: teacher-test-uid-123
+≡ƒÅ½ [ClassManager] Querying by teacherId...
+
+ [31m├ù[39m src/__tests__/services/classManager.test.ts[2m > [22mClass Manager - Assignment Integration[2m > [22mshould track assignment in class summary[33m 847[2mms[22m[39m
+[31m   ΓåÆ expected undefined to be defined[39m
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m17 failed[39m[22m[2m | [22m[1m[32m2 passed[39m[22m[90m (19)[39m
+[2m   Start at [22m 22:56:13
+[2m   Duration [22m 24.03s[2m (transform 139ms, setup 607ms, collect 431ms, tests 19.50s, environment 2.28s, prepare 677ms)[22m
+

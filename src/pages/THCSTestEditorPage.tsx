@@ -41,6 +41,108 @@ import type { THCSTestMetadata, THCSSection, THCSTest, THCSDraft } from '../type
 // UTILITY
 // ═══════════════════════════════════════════════════════════════
 
+const STEP2_ALWAYS_VISUAL_TYPES_REQUIRING_IMAGE = new Set([
+    'mcq-sign-notice',
+]);
+
+const STEP2_VISUAL_ANNOUNCEMENT_CUE_REGEX = /\b(sign|notice|poster|billboard|picture|photo|image|biển\s*báo|áp\s*phích|hình\s*ảnh|bức\s*tranh)\b/i;
+const STEP2_CLOZE_CUE_REGEX = /\b(fill|fit(?:s)?|blank|gap|numbered\s*blank|điền(?:\s+vào)?\s+chỗ\s*trống|điền\s*từ)\b/i;
+
+type SectionQuestion = THCSSection['questions'][number];
+
+function hasQuestionType(question: SectionQuestion, type: string): boolean {
+    return question.type === type || question.intent === type;
+}
+
+function getSectionTextContext(section: THCSSection, question: SectionQuestion): string {
+    const sectionWithFlatPassage = section as THCSSection & { passageContent?: string };
+    return [
+        section.name,
+        section.instructionText,
+        sectionWithFlatPassage.passageContent,
+        section.passage?.content,
+        question.questionText,
+    ]
+        .filter(Boolean)
+        .join(' ');
+}
+
+function isLikelyClozeReadingAnnouncement(section: THCSSection, question: SectionQuestion): boolean {
+    const context = getSectionTextContext(section, question);
+
+    if (STEP2_CLOZE_CUE_REGEX.test(context)) {
+        return true;
+    }
+
+    if (/_{2,}|\(\s*\d+\s*\)\s*_{2,}/.test(context)) {
+        return true;
+    }
+
+    const nonEmptyOptions = (question.options || []).filter((opt) => opt?.trim().length > 0);
+    const mostlyShortOptions =
+        nonEmptyOptions.length === 4 &&
+        nonEmptyOptions.filter((opt) => opt.trim().split(/\s+/).length <= 3).length >= 3;
+
+    const sectionWithFlatPassage = section as THCSSection & { passageContent?: string };
+    const hasPassageText = Boolean((section.passage?.content || sectionWithFlatPassage.passageContent || '').trim());
+
+    return hasPassageText && mostlyShortOptions;
+}
+
+function shouldRequireImageForReadingAnnouncement(section: THCSSection, question: SectionQuestion): boolean {
+    if (!hasQuestionType(question, 'reading-announcement')) {
+        return false;
+    }
+
+    const context = getSectionTextContext(section, question);
+    const hasVisualCue = STEP2_VISUAL_ANNOUNCEMENT_CUE_REGEX.test(context);
+
+    if (!hasVisualCue) {
+        return false;
+    }
+
+    return !isLikelyClozeReadingAnnouncement(section, question);
+}
+
+type MissingImageQuestion = {
+    sectionName: string;
+    questionNumber: number;
+};
+
+function getMissingVisualQuestionImages(sections: THCSSection[]): MissingImageQuestion[] {
+    const missing: MissingImageQuestion[] = [];
+
+    sections.forEach((section) => {
+        section.questions.forEach((question) => {
+            const requiresImage =
+                STEP2_ALWAYS_VISUAL_TYPES_REQUIRING_IMAGE.has(question.type) ||
+                (question.intent ? STEP2_ALWAYS_VISUAL_TYPES_REQUIRING_IMAGE.has(question.intent) : false) ||
+                shouldRequireImageForReadingAnnouncement(section, question);
+
+            if (requiresImage && !question.imageUrl?.trim()) {
+                missing.push({
+                    sectionName: section.name,
+                    questionNumber: question.questionNumber,
+                });
+            }
+        });
+    });
+
+    return missing;
+}
+
+function formatMissingImageSummary(missing: MissingImageQuestion[], limit = 6): string {
+    if (missing.length === 0) return '';
+
+    const preview = missing
+        .slice(0, limit)
+        .map((item) => `Q${item.questionNumber} (${item.sectionName})`)
+        .join(', ');
+    const moreText = missing.length > limit ? ` (+${missing.length - limit} more)` : '';
+
+    return `${preview}${moreText}`;
+}
+
 function recalculateQuestionNumbers(sections: THCSSection[]): THCSSection[] {
     let globalNumber = 1;
     return sections.map(section => ({
@@ -512,10 +614,31 @@ export default function THCSTestEditorPage() {
                 ? 'Unsaved changes'
                 : '';
 
+    const missingVisualImageQuestions = getMissingVisualQuestionImages(sections);
+    const isStep2ImageGuardActive = currentStep === 1 && missingVisualImageQuestions.length > 0;
+    const missingVisualImageSummary = formatMissingImageSummary(missingVisualImageQuestions);
+
     // ─── Step Navigation ────────────────────────────────────────
     const isEditMode = !!urlDraftId;
 
+    const guardStep2MissingVisualImages = () => {
+        if (missingVisualImageQuestions.length === 0) return true;
+
+        const summary = formatMissingImageSummary(missingVisualImageQuestions);
+
+        notifications.show({
+            color: 'yellow',
+            title: 'Image required for visual reading questions',
+            message: `Please upload image(s) for visual prompt questions (e.g. sign/notice/poster/photo) before leaving Step 2. Missing: ${summary}.`,
+        });
+
+        console.warn(`[THCS Step2 Guard] Blocked navigation due to missing images: ${summary}`);
+
+        return false;
+    };
+
     const handleNext = () => {
+        if (currentStep === 1 && !guardStep2MissingVisualImages()) return;
         if (currentStep < 3) setCurrentStep(currentStep + 1);
     };
 
@@ -525,6 +648,7 @@ export default function THCSTestEditorPage() {
 
     const handleStepChange = (step: number) => {
         if (isEditMode || step <= currentStep) {
+            if (currentStep === 1 && step > 1 && !guardStep2MissingVisualImages()) return;
             setCurrentStep(step);
         }
     };
@@ -616,19 +740,47 @@ export default function THCSTestEditorPage() {
                 )}
             </div>
 
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                {/* Save Draft on Step 1 per mockup */}
-                {currentStep === 1 && (
-                    <Button variant="glass" onClick={handleSaveDraft}>Save Draft</Button>
-                )}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    {/* Save Draft on Step 1 per mockup */}
+                    {currentStep === 1 && (
+                        <Button variant="glass" onClick={handleSaveDraft}>Save Draft</Button>
+                    )}
 
-                {/* Preview button on Steps 1 and 2 (Amendment G4) */}
-                {(currentStep === 1 || currentStep === 2) && (
-                    <Button variant="glass" onClick={() => setShowPreview(true)}>👁️ Preview</Button>
-                )}
+                    {/* Preview button on Steps 1 and 2 (Amendment G4) */}
+                    {(currentStep === 1 || currentStep === 2) && (
+                        <Button variant="glass" onClick={() => setShowPreview(true)}>👁️ Preview</Button>
+                    )}
 
-                {currentStep < 3 && (
-                    <Button variant="primary" onClick={handleNext}>{stepNextLabels[currentStep]}</Button>
+                    {currentStep < 3 && (
+                        <Button
+                            variant="primary"
+                            onClick={handleNext}
+                            disabled={isStep2ImageGuardActive}
+                            title={isStep2ImageGuardActive
+                                ? 'Upload images for visual reading questions before continuing.'
+                                : undefined}
+                        >
+                            {stepNextLabels[currentStep]}
+                        </Button>
+                    )}
+                </div>
+
+                {isStep2ImageGuardActive && (
+                    <div style={{
+                        maxWidth: '420px',
+                        fontSize: '0.75rem',
+                        lineHeight: 1.45,
+                        color: '#92400e',
+                        background: '#fffbeb',
+                        border: '1px solid #fcd34d',
+                        borderRadius: '0.5rem',
+                        padding: '0.5rem 0.625rem',
+                    }}>
+                        <strong>Step 2 is blocked until required visual-prompt images are uploaded.</strong>
+                        <div>Missing: {missingVisualImageSummary}.</div>
+                        <div>Use the <strong>Add Image</strong> button inside each question card.</div>
+                    </div>
                 )}
             </div>
         </>

@@ -30,6 +30,12 @@ export interface TeacherHeaderProps {
     userId?: string;
     /** User role for conditional navigation */
     userRole?: 'teacher' | 'super_admin';
+    /** Teacher display name shown in profile trigger */
+    userDisplayName?: string;
+    /** Teacher email shown in profile menu */
+    userEmail?: string;
+    /** Teacher avatar URL shown in profile trigger */
+    userAvatarUrl?: string;
     /** Callback when logout is clicked */
     onLogout: () => void;
     /** Hide back button even if not on root (optional override) */
@@ -54,6 +60,9 @@ export const TeacherHeader: React.FC<TeacherHeaderProps> = ({
     pageTitle,
     userId,
     userRole = 'teacher',
+    userDisplayName,
+    userEmail,
+    userAvatarUrl,
     onLogout,
     hideBackButton = false,
     hideNavigation = false,
@@ -172,6 +181,9 @@ export const TeacherHeader: React.FC<TeacherHeaderProps> = ({
                         <TeacherNavigation
                             userId={userId}
                             userRole={userRole}
+                            userDisplayName={userDisplayName}
+                            userEmail={userEmail}
+                            userAvatarUrl={userAvatarUrl}
                             onNavigate={handleNavigate}
                             onLogout={onLogout}
                         />

@@ -1,6 +1,5 @@
 import React from 'react';
 import { Card, CardBody } from '../modern';
-import { Badge, Group, Text, Stack } from '@mantine/core';
 import {
     IconCheck,
     IconBook,
@@ -91,174 +90,150 @@ export const ResultCard: React.FC<ResultCardProps> = ({
             }}
         >
             <CardBody>
-                <Stack gap="sm">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                     {/* Header: Title and Score */}
-                    <Group justify="space-between" align="flex-start">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem' }}>
                         <div style={{ flex: 1 }}>
-                            <Text
-                                fw={600}
-                                size="md"
-                                style={{
-                                    color: '#1e293b',
-                                    lineHeight: 1.3,
-                                    marginBottom: '0.25rem'
-                                }}
-                            >
+                            <div style={{ color: '#1e293b', lineHeight: 1.3, marginBottom: '0.25rem', fontWeight: 600, fontSize: '1rem' }}>
                                 {result.testTitle}
-                            </Text>
+                            </div>
 
                             {/* Badges: Skill, Test Type, and Marking Status */}
-                            <Group gap="xs" mt={4}>
-                                <Badge
-                                    color={getSkillColor(result.testSkill)}
-                                    variant="light"
-                                    size="xs"
-                                    style={{ textTransform: 'capitalize' }}
-                                >
+                            <div style={{ display: 'flex', gap: '0.375rem', marginTop: 4, flexWrap: 'wrap' }}>
+                                <span style={{ ...badgeBase, ...badgeLightByName(getSkillColor(result.testSkill)), textTransform: 'capitalize' }}>
                                     {result.testSkill}
-                                </Badge>
-                                <Badge color="gray" variant="outline" size="xs">
+                                </span>
+                                <span style={{ ...badgeBase, border: '1px solid #d1d5db', background: '#ffffff', color: '#6b7280' }}>
                                     {result.testType}
-                                </Badge>
+                                </span>
                                 {/* PRD-0015: Phase 7 & 8 - Pending Review Badge */}
                                 {result.markingStatus === 'pending-review' && (
-                                    <Badge
-                                        color="orange"
-                                        variant="filled"
-                                        size="xs"
-                                        style={{
+                                    <span style={{
+                                            ...badgeBase,
                                             background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                                            fontWeight: 600
+                                            color: '#ffffff',
+                                            fontWeight: 600,
+                                            border: 'none',
                                         }}
                                     >
                                         ⏳ Pending Review
-                                    </Badge>
+                                    </span>
                                 )}
-                            </Group>
+                            </div>
                         </div>
 
                         {/* Score Display - PRD-0015: Phase 7 & 8 */}
                         <div style={{ textAlign: 'right' }}>
                             {result.markingStatus === 'pending-review' ? (
                                 <>
-                                    <Text
-                                        size="md"
-                                        fw={600}
-                                        style={{
-                                            color: '#f59e0b',
-                                            lineHeight: 1
-                                        }}
-                                    >
+                                    <div style={{ color: '#f59e0b', lineHeight: 1, fontSize: '1rem', fontWeight: 600 }}>
                                         Pending
-                                    </Text>
-                                    <Text size="xs" c="dimmed">
+                                    </div>
+                                    <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
                                         Awaiting review
-                                    </Text>
+                                    </div>
                                 </>
                             ) : (
                                 <>
-                                    <Text
-                                        size="xl"
-                                        fw={700}
-                                        style={{
-                                            color: getScoreColor(result.percentage),
-                                            lineHeight: 1
-                                        }}
-                                    >
+                                    <div style={{ color: getScoreColor(result.percentage), lineHeight: 1, fontSize: '1.25rem', fontWeight: 700 }}>
                                         {/* THCS: show scaledScore/10, IELTS: show percentage */}
                                         {(result as any).thcsData?.scaledScore !== undefined
                                             ? `${(result as any).thcsData.scaledScore.toFixed(1)}/10`
                                             : `${Math.round(result.percentage)}%`
                                         }
-                                    </Text>
-                                    <Text size="xs" c="dimmed">
+                                    </div>
+                                    <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
                                         {result.correct}/{result.totalQuestions}
-                                    </Text>
+                                    </div>
                                 </>
                             )}
                         </div>
-                    </Group>
+                    </div>
 
                     {/* Course and Module Context - PRD-0015: Phase 10 - Orphaned Results Handling */}
                     {(result.courseName || result.moduleName || result.courseId === null) && (
-                        <Group gap="xs" wrap="wrap">
+                        <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap', alignItems: 'center' }}>
                             {/* Handle orphaned results (null courseId) */}
                             {result.courseId === null ? (
-                                <Group gap={4}>
+                                <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
                                     <IconBook size={14} style={{ color: '#94a3b8' }} />
-                                    <Text
-                                        size="xs"
-                                        c="dimmed"
-                                        fs="italic"
-                                        style={{
-                                            color: '#94a3b8',
-                                            fontStyle: 'italic'
-                                        }}
-                                    >
+                                    <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>
                                         Unassigned Course
-                                    </Text>
-                                    <Badge
-                                        color="gray"
-                                        variant="dot"
-                                        size="xs"
-                                        style={{ marginLeft: '4px' }}
-                                    >
+                                    </span>
+                                    <span style={{ ...badgeBase, background: '#f8fafc', color: '#64748b', marginLeft: 4 }}>
                                         No academic link
-                                    </Badge>
-                                </Group>
+                                    </span>
+                                </div>
                             ) : (
                                 <>
                                     {result.courseName && (
-                                        <Group gap={4}>
+                                        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                                             <IconBook size={14} style={{ color: '#64748b' }} />
-                                            <Text size="xs" c="dimmed">
+                                            <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
                                                 {result.courseName}
-                                            </Text>
-                                        </Group>
+                                            </span>
+                                        </div>
                                     )}
                                     {result.moduleName && (
                                         <>
                                             {result.courseName && (
-                                                <Text size="xs" c="dimmed">•</Text>
+                                                <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>•</span>
                                             )}
-                                            <Text size="xs" c="dimmed">
+                                            <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
                                                 {result.moduleName}
-                                            </Text>
+                                            </span>
                                         </>
                                     )}
                                 </>
                             )}
-                        </Group>
+                        </div>
                     )}
 
                     {/* Footer: Date and Feedback Indicator */}
-                    <Group justify="space-between" align="center" mt="xs">
-                        <Group gap={4}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.25rem' }}>
+                        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                             <IconCalendar size={14} style={{ color: '#64748b' }} />
-                            <Text size="xs" c="dimmed">
+                            <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
                                 {formatDate(result.submittedAt)}
-                            </Text>
-                        </Group>
+                            </span>
+                        </div>
 
-                        <Group gap="xs">
+                        <div style={{ display: 'flex', gap: '0.375rem', alignItems: 'center' }}>
                             {hasFeedback && (
-                                <Badge
-                                    color="green"
-                                    variant="light"
-                                    size="xs"
-                                    leftSection={<IconCheck size={12} />}
-                                >
+                                <span style={{ ...badgeBase, ...badgeLightByName('green'), display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                    <IconCheck size={12} />
                                     Has Feedback
-                                </Badge>
+                                </span>
                             )}
 
                             {onClick && (
                                 <IconChevronRight size={16} style={{ color: '#94a3b8' }} />
                             )}
-                        </Group>
-                    </Group>
-                </Stack>
+                        </div>
+                    </div>
+                </div>
             </CardBody>
         </Card>
     );
 };
+
+const badgeBase: React.CSSProperties = {
+    borderRadius: 999,
+    padding: '2px 8px',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    border: '1px solid transparent',
+};
+
+function badgeLightByName(name: string): React.CSSProperties {
+    const map: Record<string, React.CSSProperties> = {
+        blue: { background: '#eff6ff', color: '#1d4ed8' },
+        grape: { background: '#f3e8ff', color: '#7e22ce' },
+        teal: { background: '#f0fdfa', color: '#0f766e' },
+        orange: { background: '#fff7ed', color: '#c2410c' },
+        violet: { background: '#f5f3ff', color: '#6d28d9' },
+        gray: { background: '#f8fafc', color: '#64748b' },
+        green: { background: '#ecfdf5', color: '#047857' },
+    };
+    return map[name] || map.gray;
+}

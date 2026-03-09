@@ -159,6 +159,9 @@ const TeacherCoursesPage: React.FC = () => {
                     pageTitle="Courses"
                     userId={user?.uid}
                     userRole={profile?.role}
+                    userDisplayName={profile?.displayName || user?.displayName || user?.email}
+                    userEmail={profile?.email || user?.email}
+                    userAvatarUrl={profile?.avatarUrl || profile?.photoURL || user?.photoURL}
                     onLogout={handleLogout}
                 />
 

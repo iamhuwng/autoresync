@@ -178,6 +178,9 @@ const TeacherCourseProfilePage = () => {
                 pageTitle={course.name}
                 userId={user?.uid || ''}
                 userRole={profile?.role || 'teacher'}
+                userDisplayName={profile?.displayName || user?.displayName || user?.email}
+                userEmail={profile?.email || user?.email}
+                userAvatarUrl={profile?.avatarUrl || profile?.photoURL || user?.photoURL}
                 onLogout={handleLogout}
                 hideBackButton={false}
                 hideNavigation={false}

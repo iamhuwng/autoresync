@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Modal, Center, Loader, ScrollArea, Text, Group, ActionIcon, Box } from '@mantine/core';
 import { IconArrowLeft } from '@tabler/icons-react';
 import { getTestResult, TestResultRecord } from '../../services/testResults.service';
+import { ref, onValue } from 'firebase/database';
+import { database } from '../../services/firebase';
 import { calculateBandScore, generatePerformanceFeedback } from '../../services/autoMarking.service';
 import { ResultContextBadge } from './ResultContextBadge';
 import { FormativeFeedbackPanel } from '../thcs-student/FormativeFeedbackPanel';
 import { QuestionPillsGrid } from './QuestionPillsGrid';
 import type { QuestionResultItem } from './QuestionPillsGrid';
 import type { FormativeFeedback } from '../../types/thcs-test.types';
+import { generateFormativeFeedback } from '../../services/formativeFeedback.service';
 
 interface ResultDetailModalProps {
     opened: boolean;
@@ -28,6 +30,7 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
     const [expandedQuestions, setExpandedQuestions] = useState<Set<number>>(new Set());
     const [questionViewMode, setQuestionViewMode] = useState<'overview' | 'detailed'>('overview');
     const [sectionResultsOpen, setSectionResultsOpen] = useState(false);
+    const [formativeFeedbackLoading, setFormativeFeedbackLoading] = useState(false);
 
     const loadResult = useCallback(async () => {
         try {
@@ -43,10 +46,12 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
             if (data) {
                 setResult(data);
             } else {
+                setResult(null);
                 setError('Test result not found.');
             }
         } catch (err) {
             console.error('[ResultDetailModal] Error loading result:', err);
+            setResult(null);
             setError('Failed to load test results.');
         } finally {
             setLoading(false);
@@ -54,11 +59,47 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
     }, [resultId]);
 
     useEffect(() => {
-        if (opened || inline) {
-            setExpandedQuestions(new Set());
-            loadResult();
+        if (!opened && !inline) {
+            return;
         }
-    }, [opened, inline, loadResult]);
+
+        setExpandedQuestions(new Set());
+
+        if (!resultId) {
+            setResult(null);
+            setError('No result ID provided');
+            setLoading(false);
+            return;
+        }
+
+        let hasReceivedSnapshot = false;
+        setLoading(true);
+        setError(null);
+
+        const resultRef = ref(database, `test_results/${resultId}`);
+        const unsubscribe = onValue(
+            resultRef,
+            (snapshot) => {
+                hasReceivedSnapshot = true;
+                if (snapshot.exists()) {
+                    setResult(snapshot.val() as TestResultRecord);
+                    setError(null);
+                } else {
+                    setResult(null);
+                    setError('Test result not found.');
+                }
+                setLoading(false);
+            },
+            (err) => {
+                console.error('[ResultDetailModal] Realtime subscription failed:', err);
+                if (!hasReceivedSnapshot) {
+                    loadResult();
+                }
+            }
+        );
+
+        return () => unsubscribe();
+    }, [opened, inline, resultId, loadResult]);
 
     const toggleQuestion = (questionNumber: number) => {
         setExpandedQuestions(prev => {
@@ -79,25 +120,78 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
         return String(answer ?? '');
     };
 
+    const handleGenerateFormativeFeedback = async () => {
+        if (!result) return;
+
+        const thcsData = (result as any).thcsData;
+        if (!thcsData?.sectionResults || !Array.isArray(thcsData.sectionResults)) {
+            return;
+        }
+
+        try {
+            setFormativeFeedbackLoading(true);
+            const safeSections = Array.isArray((result as any).sections)
+                ? (result as any).sections
+                : thcsData.sectionResults.map((section: any) => ({
+                    sectionName: section.sectionName,
+                    questions: [],
+                }));
+
+            await generateFormativeFeedback(
+                {
+                    scaledScore: thcsData.scaledScore,
+                    totalPoints: result.totalScore,
+                    maxPoints: result.maxScore,
+                    sectionResults: thcsData.sectionResults,
+                    questionResults: Object.fromEntries(
+                        (result.questionResults || []).map(qr => [qr.questionNumber, {
+                            questionNumber: qr.questionNumber,
+                            isCorrect: qr.isCorrect,
+                            studentAnswer: qr.studentAnswer,
+                            correctAnswer: qr.correctAnswer,
+                            pointsEarned: qr.score,
+                            pointsMax: qr.maxScore,
+                        }])
+                    ),
+                    gradingStatus: 'fully-graded',
+                    gradedAt: result.submittedAt,
+                } as any,
+                safeSections as any,
+                {
+                    title: result.testTitle || 'THCS Test',
+                    gradeLevel: (result as any).gradeLevel || 9,
+                },
+                resultId,
+            );
+
+            await loadResult();
+        } catch (err) {
+            console.error('[ResultDetailModal] Failed to generate formative feedback:', err);
+        } finally {
+            setFormativeFeedbackLoading(false);
+        }
+    };
+
     const renderContent = () => {
         if (loading) {
             return (
-                <Center style={{ minHeight: 400, flexDirection: 'column', gap: '1.25rem' }}>
-                    <Loader size="xl" color="violet" variant="bars" />
-                    <Text c="dimmed" fw={600} size="lg">Loading your performance metrics...</Text>
-                </Center>
+                <div style={{ minHeight: 400, display: 'flex', flexDirection: 'column', gap: '1.25rem', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ width: 36, height: 36, border: '3px solid #e2e8f0', borderTopColor: '#8b5cf6', borderRadius: '50%', animation: 'resultSpin 0.8s linear infinite' }} />
+                    <style>{`@keyframes resultSpin { to { transform: rotate(360deg); } }`}</style>
+                    <p style={{ margin: 0, color: '#6b7280', fontWeight: 600, fontSize: '1.125rem' }}>Loading your performance metrics...</p>
+                </div>
             );
         }
 
         if (error || !result) {
             return (
-                <Center style={{ minHeight: 400, flexDirection: 'column', gap: '1.5rem', padding: '2rem' }}>
+                <div style={{ minHeight: 400, display: 'flex', flexDirection: 'column', gap: '1.5rem', padding: '2rem', alignItems: 'center', justifyContent: 'center' }}>
                     <div style={{ fontSize: '4rem', filter: 'drop-shadow(0 0 20px rgba(0,0,0,0.1))' }}>⚠️</div>
                     <div style={{ textAlign: 'center' }}>
-                        <Text fw={700} size="xl" c="#1e293b" mb="xs">{error || 'Results Unavailable'}</Text>
-                        <Text c="dimmed" size="sm">We couldn't retrieve your test data at this moment.</Text>
+                        <div style={{ fontWeight: 700, fontSize: '1.25rem', color: '#1e293b', marginBottom: '0.25rem' }}>{error || 'Results Unavailable'}</div>
+                        <div style={{ color: '#6b7280', fontSize: '0.875rem' }}>We couldn't retrieve your test data at this moment.</div>
                     </div>
-                </Center>
+                </div>
             );
         }
 
@@ -124,14 +218,30 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
         const showDetailedFeedback = feedbackTiming !== 'never';
 
         return (
-            <ScrollArea h={inline ? "100%" : "calc(92vh - 85px)"} offsetScrollbars variant="hover">
-                <Box p={inline ? "xs" : "xl"}>
+            <div style={{ height: inline ? '100%' : 'calc(92vh - 85px)', overflowY: 'auto' }}>
+                <div style={{ padding: inline ? '0.5rem' : '1.25rem' }}>
                     {/* Header Bar */}
-                    <Group justify="space-between" mb="xl">
-                        <Group gap="xs">
-                            <ActionIcon onClick={onClose} variant="subtle" color="gray">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                aria-label="Back"
+                                title="Back"
+                                style={{
+                                    width: 32,
+                                    height: 32,
+                                    borderRadius: 8,
+                                    border: '1px solid #e5e7eb',
+                                    background: '#ffffff',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer',
+                                }}
+                            >
                                 <IconArrowLeft size={18} />
-                            </ActionIcon>
+                            </button>
                             <div style={{
                                 fontSize: '1.5rem',
                                 fontWeight: 700,
@@ -140,9 +250,9 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
                             }}>
                                 {result.testTitle || 'Test Result'}
                             </div>
-                        </Group>
+                        </div>
                         <ResultContextBadge contextType={result.context?.type || 'self_study'} />
-                    </Group>
+                    </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', padding: inline ? '0' : '0 1rem 1rem' }}>
                         {/* Summary Badges */}
@@ -294,6 +404,46 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
 
 
 
+
+                        {isTHCS && !(result as any).formativeFeedback && (
+                            <div style={{
+                                background: '#ffffff',
+                                border: '1px solid #e5e7eb',
+                                borderRadius: '16px',
+                                padding: '1rem 1.25rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: '1rem',
+                            }}>
+                                <div>
+                                    <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#111827', marginBottom: '0.25rem' }}>
+                                        Formative Assessment Feedback
+                                    </div>
+                                    <div style={{ fontSize: '0.8125rem', lineHeight: 1.6, color: '#6b7280' }}>
+                                        Generate performance feedback and explanations for incorrect answers for this individual result.
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={handleGenerateFormativeFeedback}
+                                    disabled={formativeFeedbackLoading}
+                                    style={{
+                                        border: 'none',
+                                        borderRadius: '999px',
+                                        padding: '0.75rem 1rem',
+                                        background: formativeFeedbackLoading ? '#c4b5fd' : '#8b5cf6',
+                                        color: '#ffffff',
+                                        fontSize: '0.8125rem',
+                                        fontWeight: 700,
+                                        cursor: formativeFeedbackLoading ? 'not-allowed' : 'pointer',
+                                        whiteSpace: 'nowrap',
+                                    }}
+                                >
+                                    {formativeFeedbackLoading ? 'Generating...' : 'Add Feedback'}
+                                </button>
+                            </div>
+                        )}
 
                         {/* AI Formative Feedback Panel (THCS only, when available) */}
                         {isTHCS && (result as any).formativeFeedback && (
@@ -544,8 +694,8 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
                             </div>
                         )}
                     </div>
-                </Box>
-            </ScrollArea>
+                </div>
+            </div>
         );
     };
 
@@ -557,31 +707,39 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
         );
     }
 
+    if (!opened) return null;
+
     return (
-        <Modal
-            opened={opened}
-            onClose={onClose}
-            withCloseButton={false}
-            size="lg"
-            centered
-            radius="24px"
-            padding={0}
-            overlayProps={{
-                backgroundOpacity: 0.4,
-                blur: 10,
+        <div
+            role="dialog"
+            aria-modal="true"
+            onClick={onClose}
+            style={{
+                position: 'fixed',
+                inset: 0,
+                zIndex: 1000,
+                background: 'rgba(15, 23, 42, 0.4)',
+                backdropFilter: 'blur(10px)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '16px',
             }}
-            styles={{
-                content: {
+        >
+            <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                    width: 'min(960px, 100%)',
                     background: '#ffffff',
                     boxShadow: '0 30px 60px -12px rgba(0,0,0,0.25)',
                     maxHeight: '92vh',
                     overflow: 'hidden',
-                },
-                body: { padding: 0 }
-            }}
-        >
-            {renderContent()}
-        </Modal>
+                    borderRadius: 24,
+                }}
+            >
+                {renderContent()}
+            </div>
+        </div>
     );
 };
 

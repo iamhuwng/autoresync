@@ -26,6 +26,8 @@ describe('TeacherNavigation', () => {
                 <MemoryRouter initialEntries={[route]}>
                     <TeacherNavigation
                         userId="test-user-123"
+                        userDisplayName="Ms Linh"
+                        userEmail="ms.linh@example.com"
                         onNavigate={mockOnNavigate}
                         onLogout={mockOnLogout}
                         {...props}
@@ -35,7 +37,7 @@ describe('TeacherNavigation', () => {
         );
     };
 
-    it('renders all navigation buttons', () => {
+    it('renders all navigation buttons and profile trigger', () => {
         renderComponent();
 
         expect(screen.getByText('Materials')).toBeInTheDocument();
@@ -43,7 +45,7 @@ describe('TeacherNavigation', () => {
         expect(screen.getByText('Classes')).toBeInTheDocument();
         expect(screen.getByText('Courses')).toBeInTheDocument();
         expect(screen.getByText('Sessions')).toBeInTheDocument();
-        expect(screen.getByText('Logout')).toBeInTheDocument();
+        expect(screen.getByText('Ms Linh')).toBeInTheDocument();
     });
 
     it('renders notification bell when userId is provided', () => {
@@ -110,13 +112,28 @@ describe('TeacherNavigation', () => {
         expect(mockOnNavigate).toHaveBeenCalledWith(ROUTES.SESSIONS, 'nav_to_sessions');
     });
 
-    it('calls onLogout when Logout button is clicked', () => {
+    it('calls onLogout when Logout menu item is clicked', () => {
         renderComponent();
 
-        const logoutButton = screen.getByText('Logout');
+        const profileMenuTrigger = screen.getByRole('button', { name: /open profile menu/i });
+        fireEvent.click(profileMenuTrigger);
+
+        const logoutButton = screen.getByRole('menuitem', { name: 'Logout' });
         fireEvent.click(logoutButton);
 
         expect(mockOnLogout).toHaveBeenCalled();
+    });
+
+    it('navigates to profile when Profile menu item is clicked', () => {
+        renderComponent();
+
+        const profileMenuTrigger = screen.getByRole('button', { name: /open profile menu/i });
+        fireEvent.click(profileMenuTrigger);
+
+        const profileMenuItem = screen.getByRole('menuitem', { name: 'Profile' });
+        fireEvent.click(profileMenuItem);
+
+        expect(mockOnNavigate).toHaveBeenCalledWith(ROUTES.PROFILE, 'nav_to_profile');
     });
 
     it('highlights Materials button when on lobby route', () => {

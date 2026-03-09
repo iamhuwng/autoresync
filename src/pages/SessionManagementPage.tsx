@@ -264,6 +264,12 @@ const SessionManagementPage: React.FC = () => {
     }
   };
 
+  const getSessionLabel = (session: SessionData) => {
+    if (session.testId) return 'Assessment Session';
+    if (session.quizId) return 'Live Session';
+    return 'Session';
+  };
+
   const getModeIcon = (mode: string) => {
     return mode === SessionMode.TEST ? '📝' : '🎮';
   };
@@ -323,7 +329,7 @@ const SessionManagementPage: React.FC = () => {
                 </h3>
               </div>
               <p style={{ fontSize: '0.75rem', color: '#64748b', margin: 0, textTransform: 'uppercase', fontWeight: '600' }}>
-                {session.mode === SessionMode.TEST ? 'Test Mode' : 'Quiz Mode'}
+                {getSessionLabel(session)}
               </p>
             </div>
 
@@ -436,6 +442,9 @@ const SessionManagementPage: React.FC = () => {
         pageTitle="Session Management"
         userId={user?.uid || ''}
         userRole={isAdmin ? 'super_admin' : 'teacher'}
+        userDisplayName={user?.displayName || user?.email}
+        userEmail={user?.email}
+        userAvatarUrl={user?.photoURL}
         onLogout={handleLogout}
         hideBackButton={false}
         hideNavigation={false}
@@ -464,7 +473,7 @@ const SessionManagementPage: React.FC = () => {
               Active Sessions
             </h1>
             <p style={{ fontSize: '1rem', color: '#64748b' }}>
-              View and manage all your active quiz and test sessions
+              View and manage all your active sessions
             </p>
           </div>
 

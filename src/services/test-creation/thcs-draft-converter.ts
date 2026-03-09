@@ -11,6 +11,34 @@ import type { ParsedTest } from './thcsDocumentParser.service';
 
 // â”€â”€ Task 10.8: ParsedTest â†’ THCSDraft Converter â”€â”€
 
+const SECTION_DISPLAY_NAME_BY_TYPE: Record<THCSQuestionType, string> = {
+    'pronunciation': 'Pronunciation',
+    'word-stress': 'Word Stress',
+    'mcq-grammar': 'MCQ Grammar',
+    'mcq-vocabulary': 'MCQ Vocabulary',
+    'mcq-sign-notice': 'Sign / Notice',
+    'dialogue-response': 'Dialogue Response',
+    'reading-cloze-mcq': 'Reading Cloze MCQ',
+    'reading-comprehension': 'Reading Comprehension',
+    'reading-announcement': 'Reading Announcement',
+    'sentence-arrangement': 'Sentence Arrangement',
+    'closest-meaning': 'Closest Meaning',
+    'error-identification': 'Error Identification',
+    'synonym-mcq': 'Synonym MCQ',
+    'antonym-mcq': 'Antonym MCQ',
+    'word-reference': 'Word Reference',
+    'verb-form': 'Verb Form',
+    'word-form': 'Word Form',
+    'reading-cloze-wordbank': 'Reading Cloze Word Bank',
+    'sentence-rewrite': 'Sentence Rewrite',
+    'sentence-rewrite-keyword': 'Sentence Rewrite (Keyword)',
+    'raw-text-fallback': 'Raw Text Fallback',
+};
+
+function getSectionDisplayName(type: THCSQuestionType, fallbackName: string): string {
+    return SECTION_DISPLAY_NAME_BY_TYPE[type] || fallbackName;
+}
+
 export function convertParsedToThcsDraft(parsedTest: ParsedTest): {
     metadata: {
         title: string;
@@ -54,6 +82,39 @@ export function convertParsedToThcsDraft(parsedTest: ParsedTest): {
     }>;
 } {
     const READING_TYPES: THCSQuestionType[] = ['reading-comprehension', 'reading-announcement', 'reading-cloze-mcq', 'reading-cloze-wordbank'];
+
+    const normalizePassageText = (text: string): string => text.replace(/\r\n/g, '\n').trim();
+
+    const extractPassageTitleFromContent = (rawContent: string, fallbackTitle: string): { title: string; content: string } => {
+        let content = rawContent;
+        let passageTitle = fallbackTitle;
+
+        const lines = content.split('\n');
+        const firstNonEmpty = lines.findIndex(l => l.trim().length > 0);
+        if (firstNonEmpty >= 0) {
+            const candidateLine = lines[firstNonEmpty]!.trim();
+            const secondNonEmpty = lines.findIndex((l, i) => i > firstNonEmpty && l.trim().length > 0);
+            const secondLine = secondNonEmpty >= 0 ? lines[secondNonEmpty]!.trim() : '';
+
+            const isAllCaps = candidateLine.length > 3
+                && candidateLine === candidateLine.toUpperCase()
+                && /[A-Z]/.test(candidateLine);
+            const isShortBeforeLong = candidateLine.length <= 80
+                && secondLine.length > candidateLine.length * 2
+                && !candidateLine.endsWith('.');
+
+            if (isAllCaps || isShortBeforeLong) {
+                passageTitle = candidateLine;
+                lines.splice(firstNonEmpty, 1);
+                content = lines.join('\n').replace(/^\n+/, '');
+            }
+        }
+
+        return {
+            title: passageTitle,
+            content,
+        };
+    };
 
     // MCQ Intent types â€” these should have `intent` set to the same value as `type`
     const MCQ_INTENTS: THCSQuestionType[] = [
@@ -410,8 +471,8 @@ export function convertParsedToThcsDraft(parsedTest: ParsedTest): {
             }
         }
 
-        const isReading = READING_TYPES.includes(ps.detectedType);
-        const isCloze = ps.detectedType === 'reading-cloze-mcq' || ps.detectedType === 'reading-cloze-wordbank';
+        const isReading = READING_TYPES.includes(effectiveType);
+        const isCloze = effectiveType === 'reading-cloze-mcq' || effectiveType === 'reading-cloze-wordbank';
 
         // Points per question: 10 / totalQuestions (e.g., 40 questions = 0.25 each)
         // Section points = questions.length Ã— pointsPerQuestion
@@ -427,7 +488,7 @@ export function convertParsedToThcsDraft(parsedTest: ParsedTest): {
         runningPointsTotal += sectionPoints;
 
         // Build passage data for reading sections
-        let passageContent = ps.passageText || '';
+        let passageContent = normalizePassageText(ps.passageText || '');
 
         // Fallback: reconstruct passage from question texts if AI didn't provide a separate passage
         // This handles reading-comprehension, reading-cloze-mcq, reading-cloze-wordbank, etc.
@@ -500,7 +561,7 @@ export function convertParsedToThcsDraft(parsedTest: ParsedTest): {
         // â”€â”€ Passage paragraph formatting (fallback â€” AI prompt handles primary formatting) â”€â”€
         // If AI returned passage without paragraph breaks, apply basic sentence-based splitting
         if (passageContent) {
-            passageContent = passageContent.replace(/\r\n/g, '\n');
+            passageContent = normalizePassageText(passageContent);
 
             // Only apply fallback formatting if no paragraph breaks exist
             if (!passageContent.includes('\n\n')) {
@@ -528,33 +589,11 @@ export function convertParsedToThcsDraft(parsedTest: ParsedTest): {
         }
 
         // â”€â”€ Auto-detect passage title from content â”€â”€
-        // If the first non-empty line looks like a title (ALL CAPS, or short
-        // standalone line before a long paragraph), extract it as the title
-        // so the renderer can display it as a styled heading.
         let passageTitle: string | undefined;
         if (passageContent) {
-            const lines = passageContent.split('\n');
-            const firstNonEmpty = lines.findIndex(l => l.trim().length > 0);
-            if (firstNonEmpty >= 0) {
-                const candidateLine = lines[firstNonEmpty]!.trim();
-                // Find the next non-empty line after the candidate
-                const secondNonEmpty = lines.findIndex((l, i) => i > firstNonEmpty && l.trim().length > 0);
-                const secondLine = secondNonEmpty >= 0 ? lines[secondNonEmpty]!.trim() : '';
-
-                const isAllCaps = candidateLine.length > 3
-                    && candidateLine === candidateLine.toUpperCase()
-                    && /[A-Z]/.test(candidateLine);
-                const isShortBeforeLong = candidateLine.length <= 80
-                    && secondLine.length > candidateLine.length * 2
-                    && !candidateLine.endsWith('.');
-
-                if (isAllCaps || isShortBeforeLong) {
-                    passageTitle = candidateLine;
-                    // Remove the title line from content
-                    lines.splice(firstNonEmpty, 1);
-                    passageContent = lines.join('\n').replace(/^\n+/, '');
-                }
-            }
+            const extracted = extractPassageTitleFromContent(passageContent, ps.name);
+            passageTitle = extracted.title;
+            passageContent = extracted.content;
         }
 
         const passageObj = isReading && passageContent ? {
@@ -568,7 +607,7 @@ export function convertParsedToThcsDraft(parsedTest: ParsedTest): {
 
         return {
             id: crypto.randomUUID(),
-            name: ps.name,
+            name: getSectionDisplayName(effectiveType, ps.name),
             order: si,
             instructionText: ps.instructionText,
             isCustomInstruction: false,
@@ -581,7 +620,7 @@ export function convertParsedToThcsDraft(parsedTest: ParsedTest): {
             questions,
             // Flat passage format for editor compatibility
             ...(isReading ? {
-                passageTitle: ps.name,
+                passageTitle: passageTitle || ps.name,
                 passageContent: passageContent,
             } : {}),
             // Nested passage format for student view compatibility

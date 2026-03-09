@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Button } from '../modern';
 import { NotificationBell } from '../notifications/NotificationBell';
@@ -11,6 +11,12 @@ export interface TeacherNavigationProps {
     onNavigate: (route: string, reason: string) => void;
     /** Callback when logout is clicked */
     onLogout: () => void;
+    /** Teacher display name for profile trigger */
+    userDisplayName?: string;
+    /** Teacher email (shown in menu) */
+    userEmail?: string;
+    /** Teacher avatar URL */
+    userAvatarUrl?: string;
     /** User role for conditional navigation (super_admin vs teacher) */
     userRole?: 'teacher' | 'super_admin';
 }
@@ -31,10 +37,19 @@ export const TeacherNavigation: React.FC<TeacherNavigationProps> = ({
     userId,
     onNavigate,
     onLogout,
+    userDisplayName,
+    userEmail,
+    userAvatarUrl,
     userRole = 'teacher',
 }) => {
     const location = useLocation();
     const currentPath = location.pathname;
+    const [menuOpen, setMenuOpen] = useState(false);
+    const menuRef = useRef<HTMLDivElement | null>(null);
+
+    const displayName = userDisplayName?.trim() || 'Teacher';
+    const displayEmail = userEmail?.trim() || '';
+    const avatarInitial = displayName.charAt(0).toUpperCase() || 'T';
 
     // Determine active page based on current route
     const isActive = (route: string): boolean => {
@@ -44,6 +59,40 @@ export const TeacherNavigation: React.FC<TeacherNavigationProps> = ({
     // Materials is the lobby/root page
     const isMaterialsActive = currentPath === ROUTES.LOBBY ||
         currentPath.startsWith('/teacher-lobby');
+
+    const handleClickOutside = useCallback((event: MouseEvent) => {
+        if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+            setMenuOpen(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!menuOpen) return;
+
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setMenuOpen(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener('keydown', handleEscape);
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('keydown', handleEscape);
+        };
+    }, [menuOpen, handleClickOutside]);
+
+    const handleProfileClick = () => {
+        setMenuOpen(false);
+        onNavigate(ROUTES.PROFILE, 'nav_to_profile');
+    };
+
+    const handleLogoutClick = () => {
+        setMenuOpen(false);
+        onLogout();
+    };
 
     return (
         <div
@@ -143,7 +192,7 @@ export const TeacherNavigation: React.FC<TeacherNavigationProps> = ({
                 }}
             />
 
-            {/* User Actions: Notifications, Logout */}
+            {/* User Actions: Notifications, Profile Menu */}
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                 {userId && (
                     <div style={{ marginRight: '0.25rem' }}>
@@ -151,9 +200,149 @@ export const TeacherNavigation: React.FC<TeacherNavigationProps> = ({
                     </div>
                 )}
 
-                <Button variant="glass" onClick={onLogout}>
-                    Logout
-                </Button>
+                <div ref={menuRef} style={{ position: 'relative' }}>
+                    <button
+                        type="button"
+                        onClick={() => setMenuOpen(open => !open)}
+                        aria-haspopup="menu"
+                        aria-expanded={menuOpen ? 'true' : 'false'}
+                        aria-label="Open profile menu"
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            border: '1px solid rgba(203, 213, 225, 0.8)',
+                            background: '#ffffff',
+                            borderRadius: '999px',
+                            padding: '0.3rem 0.75rem 0.3rem 0.3rem',
+                            cursor: 'pointer',
+                        }}
+                    >
+                        <div
+                            style={{
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '50%',
+                                background: 'linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%)',
+                                color: '#0f172a',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '0.875rem',
+                                fontWeight: 700,
+                                overflow: 'hidden',
+                            }}
+                        >
+                            {userAvatarUrl ? (
+                                <img
+                                    src={userAvatarUrl}
+                                    alt={displayName}
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                />
+                            ) : (
+                                avatarInitial
+                            )}
+                        </div>
+
+                        <span
+                            style={{
+                                maxWidth: '140px',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                color: '#1e293b',
+                                fontWeight: 600,
+                                fontSize: '0.875rem',
+                            }}
+                        >
+                            {displayName}
+                        </span>
+                    </button>
+
+                    {menuOpen && (
+                        <div
+                            role="menu"
+                            aria-label="Teacher profile menu"
+                            style={{
+                                position: 'absolute',
+                                right: 0,
+                                top: 'calc(100% + 0.5rem)',
+                                minWidth: '220px',
+                                borderRadius: '0.75rem',
+                                border: '1px solid #e2e8f0',
+                                background: '#ffffff',
+                                boxShadow: '0 12px 24px rgba(15, 23, 42, 0.12)',
+                                padding: '0.5rem',
+                                zIndex: 50,
+                            }}
+                        >
+                            <div style={{ padding: '0.5rem 0.625rem 0.625rem' }}>
+                                <p
+                                    style={{
+                                        margin: 0,
+                                        fontSize: '0.875rem',
+                                        color: '#0f172a',
+                                        fontWeight: 700,
+                                    }}
+                                >
+                                    {displayName}
+                                </p>
+                                {displayEmail && (
+                                    <p
+                                        style={{
+                                            margin: '0.125rem 0 0',
+                                            fontSize: '0.75rem',
+                                            color: '#64748b',
+                                            wordBreak: 'break-all',
+                                        }}
+                                    >
+                                        {displayEmail}
+                                    </p>
+                                )}
+                            </div>
+
+                            <button
+                                type="button"
+                                role="menuitem"
+                                onClick={handleProfileClick}
+                                style={{
+                                    width: '100%',
+                                    border: 'none',
+                                    background: 'transparent',
+                                    padding: '0.625rem',
+                                    textAlign: 'left',
+                                    borderRadius: '0.5rem',
+                                    cursor: 'pointer',
+                                    color: '#1e293b',
+                                    fontSize: '0.875rem',
+                                    fontWeight: 500,
+                                }}
+                            >
+                                Profile
+                            </button>
+
+                            <button
+                                type="button"
+                                role="menuitem"
+                                onClick={handleLogoutClick}
+                                style={{
+                                    width: '100%',
+                                    border: 'none',
+                                    background: 'transparent',
+                                    padding: '0.625rem',
+                                    textAlign: 'left',
+                                    borderRadius: '0.5rem',
+                                    cursor: 'pointer',
+                                    color: '#b91c1c',
+                                    fontSize: '0.875rem',
+                                    fontWeight: 600,
+                                }}
+                            >
+                                Logout
+                            </button>
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );

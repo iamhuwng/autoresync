@@ -8,6 +8,32 @@
 import type { THCSSection, THCSTestMetadata } from '../../types/thcs-test.types';
 import type { ReclassificationEvent } from './thcs-type-classifier';
 
+const EMPTY_TEXT_ALLOWED_TYPES = new Set([
+    'pronunciation',
+    'word-stress',
+    'mcq-sign-notice',
+    'reading-cloze-mcq',
+    'reading-cloze-wordbank',
+]);
+
+function allowsEmptyQuestionText(
+    section: THCSSection,
+    questionType: string | undefined,
+    optionCount: number,
+): boolean {
+    if (questionType && EMPTY_TEXT_ALLOWED_TYPES.has(questionType)) return true;
+
+    // Some cloze sets are classified as reading-comprehension, but blanks live in passage text.
+    // If question has options and the passage has blank markers, empty per-question text is expected.
+    if (optionCount > 0 && section.passage?.content) {
+        if (/(?:\(\d+\)\s*_{2,}|_{2,}|\.{3,})/.test(section.passage.content)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 // ── Type for __PARSE_DEBUG data ──
 
 export interface ParseDebugData {
@@ -114,7 +140,9 @@ export function generateDiagnosticLog({ parseDebug, sections, metadata }: Diagno
                 warnings.push(`⚠ Q${q.questionNumber} (${sec.name}): missing answer`);
             }
             if (!q.questionText && !q.sentenceTemplate && !q.originalSentence) {
-                warnings.push(`⚠ Q${q.questionNumber} (${sec.name}): empty question text`);
+                if (!allowsEmptyQuestionText(sec, q.type, optCount)) {
+                    warnings.push(`⚠ Q${q.questionNumber} (${sec.name}): empty question text`);
+                }
             }
         }
 

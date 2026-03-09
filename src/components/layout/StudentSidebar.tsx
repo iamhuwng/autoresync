@@ -170,8 +170,17 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
             return;
         }
 
-        // 2. If already on the active page, do nothing
-        if (item.id === activePage) return;
+        // 2. Allow Records to reset its view even when already active
+        if (item.id === activePage) {
+            if (item.id === 'records') {
+                navigate(item.route, {
+                    state: {
+                        resetRecordsView: true,
+                    },
+                });
+            }
+            return;
+        }
 
         // 3. Standard navigation
         navigate(item.route);
@@ -262,6 +271,7 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
                         </button>
                     );
                 })}
+
             </nav>
 
             {/* Bottom section */}

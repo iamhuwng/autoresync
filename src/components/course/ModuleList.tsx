@@ -32,6 +32,19 @@ import { PracticeSettingsModal } from '../PracticeSettingsModal';
 import queryOptimizer, { CacheTypes } from '../../services/firebaseQueryOptimizer';
 import { getMaterialsByCourse, syncMaterialWithOriginal, unmountMaterialFromModule, reorderMaterials } from '../../services/materialLinkManager';
 
+const addButtonStyles = {
+    root: {
+        height: 34,
+        paddingLeft: 12,
+        paddingRight: 12,
+        borderRadius: 10,
+    },
+    label: {
+        fontSize: '0.875rem',
+        fontWeight: 600,
+    },
+};
+
 interface ModuleListProps {
     courseId: string;
     classId?: string; // Optional class context
@@ -217,19 +230,24 @@ export const ModuleList = ({ courseId, classId, onStartSession }: ModuleListProp
     if (loading) return <Loader mx="auto" display="block" my="xl" />;
 
     return (
-        <Stack gap="md">
-            <Group justify="space-between">
-                <Text fw={700} size="xl">Course Modules</Text>
+        <Stack gap="sm">
+            <Group justify="space-between" align="center">
+                <div>
+                    <Text fw={700} size="lg">Modules</Text>
+                    <Text size="sm" c="dimmed">{modules.length} {modules.length === 1 ? 'module' : 'modules'}</Text>
+                </div>
                 <Button
-                    leftSection={<IconPlus size={16} />}
+                    leftSection={<IconPlus size={15} />}
                     onClick={() => { setEditingModule(undefined); setIsEditorOpen(true); }}
+                    size="sm"
+                    styles={addButtonStyles}
                 >
                     Add Module
                 </Button>
             </Group>
 
             {modules.length === 0 ? (
-                <Text c="dimmed" ta="center" py="xl">No modules yet. Add your first module to get started.</Text>
+                <Text c="dimmed" ta="center" py="lg" size="sm">No modules yet. Add your first one to get started.</Text>
             ) : (
                 <DndContext
                     sensors={sensors}
@@ -240,7 +258,7 @@ export const ModuleList = ({ courseId, classId, onStartSession }: ModuleListProp
                         items={modules.map(m => m.id)}
                         strategy={verticalListSortingStrategy}
                     >
-                        <Stack gap="sm">
+                        <Stack gap={8}>
                             {modules.map(module => (
                                 <ModuleItem
                                     key={module.id}

@@ -310,6 +310,8 @@ const AdminMaterialsPage: React.FC = () => {
         try {
             const material = deleteModal.material;
 
+            const cacheType = material.type === 'test' ? CacheTypes.TEST : CacheTypes.QUIZ;
+
             if (material.type === 'test') {
                 // Delete test using testStorage service
                 const result = await deleteTestFromFirebase(material.id);
@@ -328,11 +330,11 @@ const AdminMaterialsPage: React.FC = () => {
                 color: 'green'
             });
 
+            // Invalidate cache
+            firebaseQueryOptimizer.invalidateAll(cacheType);
+
             // Refresh the list
             await loadData();
-
-            // Invalidate cache
-            firebaseQueryOptimizer.invalidateAll(material.type === 'test' ? 'tests' : 'quizzes');
 
         } catch (error: any) {
             console.error('[AdminMaterials] Error deleting material:', error);
@@ -351,6 +353,7 @@ const AdminMaterialsPage: React.FC = () => {
         setTogglingPublic(material.id);
         try {
             const newIsPublic = !material.isPublic;
+            const cacheType = material.type === 'test' ? CacheTypes.TEST : CacheTypes.QUIZ;
 
             if (material.type === 'test') {
                 // Update test using testStorage service
@@ -373,11 +376,11 @@ const AdminMaterialsPage: React.FC = () => {
                 color: newIsPublic ? 'green' : 'blue'
             });
 
+            // Invalidate cache
+            firebaseQueryOptimizer.invalidateAll(cacheType);
+
             // Refresh the list
             await loadData();
-
-            // Invalidate cache
-            firebaseQueryOptimizer.invalidateAll(material.type === 'test' ? 'tests' : 'quizzes');
 
         } catch (error: any) {
             console.error('[AdminMaterials] Error toggling public:', error);

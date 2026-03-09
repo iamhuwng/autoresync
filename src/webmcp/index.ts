@@ -12,6 +12,7 @@ import { authTools } from './tools/auth.tools';
 import { navigationTools } from './tools/navigation.tools';
 import { stateTools } from './tools/state.tools';
 import { writingTestTools } from './tools/writing-test.tools';
+import { classManagementTools } from './tools/class-management.tools';
 
 /**
  * Initialize WebMCP infrastructure.
@@ -45,6 +46,7 @@ export function initWebMCP(): void {
     registry.registerAll(navigationTools);
     registry.registerAll(stateTools);
     registry.registerAll(writingTestTools);
+    registry.registerAll(classManagementTools);
 
     // Set up console error capture
     setupErrorCapture();

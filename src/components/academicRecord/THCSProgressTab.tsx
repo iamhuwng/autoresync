@@ -6,7 +6,6 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Loader } from '@mantine/core';
 import { ref, get } from 'firebase/database';
 // @ts-ignore
 import { database } from '../../services/firebase';
@@ -30,6 +29,7 @@ interface ThcsProgressData {
 
 interface THCSProgressTabProps {
     userId: string;
+    onResultClick?: (resultId: string) => void;
 }
 
 const SKILL_COLORS: Record<string, string> = {
@@ -40,7 +40,7 @@ const SKILL_COLORS: Record<string, string> = {
     writing: '#ef4444',
 };
 
-export const THCSProgressTab: React.FC<THCSProgressTabProps> = ({ userId }) => {
+export const THCSProgressTab: React.FC<THCSProgressTabProps> = ({ userId, onResultClick }) => {
     const [data, setData] = useState<ThcsProgressData | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -65,7 +65,18 @@ export const THCSProgressTab: React.FC<THCSProgressTabProps> = ({ userId }) => {
     if (loading) {
         return (
             <div style={{ textAlign: 'center', padding: 48 }}>
-                <Loader />
+                <div
+                    style={{
+                        width: 28,
+                        height: 28,
+                        border: '3px solid #e2e8f0',
+                        borderTopColor: '#8b5cf6',
+                        borderRadius: '50%',
+                        margin: '0 auto',
+                        animation: 'thcsSpin 0.8s linear infinite',
+                    }}
+                />
+                <style>{`@keyframes thcsSpin { to { transform: rotate(360deg); } }`}</style>
             </div>
         );
     }
@@ -186,7 +197,18 @@ export const THCSProgressTab: React.FC<THCSProgressTabProps> = ({ userId }) => {
                         </thead>
                         <tbody>
                             {sortedHistory.map((entry, i) => (
-                                <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                <tr
+                                    key={i}
+                                    style={{
+                                        borderBottom: '1px solid #f1f5f9',
+                                        cursor: entry.testId ? 'pointer' : 'default',
+                                    }}
+                                    onClick={() => {
+                                        if (entry.testId && onResultClick) {
+                                            onResultClick(entry.testId);
+                                        }
+                                    }}
+                                >
                                     <td style={{ padding: '8px 12px', color: '#6b7280' }}>
                                         {new Date(entry.date).toLocaleDateString()}
                                     </td>

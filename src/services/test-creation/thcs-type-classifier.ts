@@ -29,6 +29,9 @@ export const INSTRUCTION_TYPE_MAP: Array<{ pattern: RegExp; type: THCSQuestionTy
     // word-stress MUST outrank pronunciation — instruction "stress pattern" is the differentiator
     { pattern: /stress|trọng âm|nhấn|position.*primary.*stress/i, type: 'word-stress', confidence: 97 },
     { pattern: /pronunciation|phát âm|underlined.*part.*(?:pronounced|differs)/i, type: 'pronunciation', confidence: 95 },
+    // sign/notice MUST outrank generic grammar — many prompts include
+    // "correct answer to each of the following questions"
+    { pattern: /(?:read|look at).*(?:sign|notice)|(?:sign|notice).*(?:question|answer)|biển.*báo/i, type: 'mcq-sign-notice', confidence: 91 },
     { pattern: /error.*(?:correction|identification)|(?:tìm|sửa).*lỗi|underlined.*part.*(?:needs|that).*correction/i, type: 'error-identification', confidence: 92 },
     { pattern: /opposite.*meaning|trái.*nghĩa|OPPOSITE.*meaning/i, type: 'antonym-mcq', confidence: 92 },
     // ── closest-meaning MUST outrank synonym — "closest in meaning to the original sentence" is the differentiator
@@ -54,8 +57,10 @@ export const INSTRUCTION_TYPE_MAP: Array<{ pattern: RegExp; type: THCSQuestionTy
     { pattern: /rewrite|viết.*lại/i, type: 'sentence-rewrite', confidence: 80 },
     // reading-comprehension: "Read the passage and choose" or "passage + answer/question"
     { pattern: /read\b.*(?:the|following)?\s*(?:passage|text).*(?:answer|choose|question)|reading.*(?:passage|comprehension)|đọc.*hiểu|passage.*(?:mark|answer|question)/i, type: 'reading-comprehension', confidence: 80 },
-    { pattern: /announcement|thông báo|advertisement|notice|sign/i, type: 'reading-announcement', confidence: 80 },
     { pattern: /word.*(?:in|from).*(?:box|bank)|(?:box|bank).*(?:to|and).*fill/i, type: 'reading-cloze-wordbank', confidence: 83 },
+    // reading-cloze-mcq MUST outrank reading-announcement when instructions mention numbered blanks / gap-fill
+    { pattern: /(?:read|following).*(?:passage|text|advertisement|announcement).*(?:fill|fit|blank|gap)|(?:numbered|each\s+of\s+the\s+numbered).*(?:blank|gap)|best\s+fit(?:s)?.*numbered\s+blank|điền.*(?:chỗ\s*trống|đoạn\s*văn)/i, type: 'reading-cloze-mcq', confidence: 86 },
+    { pattern: /announcement|advertisement|thông báo/i, type: 'reading-announcement', confidence: 80 },
     // ── Lower confidence (70-79) ──
     { pattern: /cloze|fill.*blank|điền.*trống|numbered.*blank/i, type: 'reading-cloze-mcq', confidence: 75 },
     { pattern: /reference|tham.*chiếu|pronoun|word.*refers.*to/i, type: 'word-reference', confidence: 75 },
@@ -301,7 +306,35 @@ export function reclassifyByContent(sections: ParsedSection[]): Reclassification
             continue;
         }
 
-        // ── Pattern 6: reading-cloze-mcq + word-bank instruction → reading-cloze-wordbank ──
+        // ── Pattern 6: reading-announcement + cloze markers → reading-cloze-mcq ──
+        // Many Vietnamese exam variants use "advertisement/announcement" passages with
+        // numbered blanks and A/B/C/D options. These are cloze MCQ, not visual announcement.
+        if (section.detectedType === 'reading-announcement') {
+            const contextText = [section.name, section.instructionText, section.passageText || '']
+                .filter(Boolean)
+                .join(' ');
+
+            const hasClozeSignal =
+                /(?:numbered|each\s+of\s+the\s+numbered).*(?:blank|gap)|best\s+fit(?:s)?.*numbered\s+blank|fill.*(?:blank|gap)|điền.*(?:trống|đoạn\s*văn|chỗ\s*trống)/i
+                    .test(contextText) ||
+                questions.some(q => /_{2,}|\(\s*\d+\s*\)\s*_{2,}/.test(q.text || ''));
+
+            const hasVisualPromptSignal =
+                /(?:look\s+at|based\s+on|according\s+to).*(?:sign|notice|poster|billboard|picture|photo|image)|biển.*báo|hình.*ảnh|áp\s*phích/i
+                    .test(contextText);
+
+            if (hasClozeSignal && !hasVisualPromptSignal) {
+                const from = section.detectedType;
+                console.log(`[reclassifyByContent] Pattern 6: "${section.name}" reading-announcement → reading-cloze-mcq (announcement cloze markers)`);
+                section.detectedType = 'reading-cloze-mcq';
+                section.typeConfidence = 86;
+                for (const q of questions) q.type = 'reading-cloze-mcq';
+                events.push({ sectionName: section.name, from, to: 'reading-cloze-mcq', reason: 'announcement cloze markers', questionNumbers: qNums });
+                continue;
+            }
+        }
+
+        // ── Pattern 7: reading-cloze-mcq + word-bank instruction → reading-cloze-wordbank ──
         // AI sometimes classifies word-bank fill-in sections as reading-cloze-mcq and
         // hallucinates A/B/C/D options. Word-bank markers in instruction/passage are the tell.
         if (section.detectedType === 'reading-cloze-mcq') {

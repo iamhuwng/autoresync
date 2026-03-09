@@ -1028,7 +1028,7 @@
     - **VERIFY**: All tests pass.
 
 - [ ] 8.0 Integration Testing + Regression Verification
-  - [ ] 8.1 **Update orchestrator test file.**
+  - [x] 8.1 **Update orchestrator test file.**
     - In `thcsDocumentParser.service.test.ts`:
       - Add test: well-structured Step 0 output → parallel assessment → direct to engine (fast path)
       - Add test: input missing Step 0 markers → gate check returns error
@@ -1036,7 +1036,7 @@
       - Add test: both AI and Code low confidence → crossfix loop executes
     - **VERIFY**: All tests pass.
 
-  - [ ] 8.1b **Verify FR-9 (AI-Inferred Flagging) and FR-10 (Reasoning Log) survive the rewrite.**
+  - [x] 8.1b **Verify FR-9 (AI-Inferred Flagging) and FR-10 (Reasoning Log) survive the rewrite.**
     - These features are "already implemented" per PRD §FR-9 and §FR-10. Confirm they still work:
     - **FR-9**: Open `thcs-engine-enhancements.ts`. Verify `consumeAITags()` still handles `[AI-INFERRED]`.
     - **FR-9**: Open `THCSParseReviewPanel.tsx`. Verify AI-inferred answers are still highlighted in yellow.

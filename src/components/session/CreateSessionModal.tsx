@@ -21,6 +21,9 @@ interface CreateSessionModalProps {
   moduleId?: string | null;
 }
 
+// Quiz mode is dev-only — hidden in production builds
+const isDev = import.meta.env.DEV;
+
 export const CreateSessionModal: React.FC<CreateSessionModalProps> = ({
   opened,
   onClose,
@@ -29,7 +32,7 @@ export const CreateSessionModal: React.FC<CreateSessionModalProps> = ({
   courseName,
   moduleId,
 }) => {
-  const [mode, setMode] = useState<'quiz' | 'test'>('quiz');
+  const [mode, setMode] = useState<'quiz' | 'test'>(isDev ? 'quiz' : 'test');
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
   const [classes, setClasses] = useState<{ value: string; label: string }[]>([]);
@@ -183,103 +186,114 @@ export const CreateSessionModal: React.FC<CreateSessionModalProps> = ({
             </div>
           )}
 
-          {/* Mode Selection */}
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label
-              style={{
-                display: 'block',
-                fontSize: '0.875rem',
-                fontWeight: 600,
-                color: '#1e293b',
-                marginBottom: '0.75rem',
-              }}
-            >
-              Session Mode
-            </label>
-            <div style={{ display: 'flex', gap: '0.75rem' }}>
-              {/* Quiz Mode Button */}
-              <button
-                type="button"
-                onClick={() => handleModeChange('quiz')}
+          {/* Mode Selection — Quiz Mode is dev-only */}
+          {isDev && (
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label
                 style={{
-                  flex: 1,
-                  padding: '1rem',
-                  borderRadius: '0.75rem',
-                  border: mode === 'quiz' ? '2px solid #8b5cf6' : '2px solid #e2e8f0',
-                  background: mode === 'quiz'
-                    ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(192, 132, 252, 0.1) 100%)'
-                    : 'white',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                }}
-                onMouseEnter={(e) => {
-                  if (mode !== 'quiz') {
-                    e.currentTarget.style.borderColor = '#cbd5e1';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (mode !== 'quiz') {
-                    e.currentTarget.style.borderColor = '#e2e8f0';
-                  }
+                  display: 'block',
+                  fontSize: '0.875rem',
+                  fontWeight: 600,
+                  color: '#1e293b',
+                  marginBottom: '0.75rem',
                 }}
               >
-                <span style={{ fontSize: '2rem' }}>🎮</span>
-                <div>
-                  <div style={{ fontWeight: 600, color: '#1e293b', fontSize: '0.9375rem' }}>
-                    Quiz Mode
+                Session Mode
+                <span style={{
+                  marginLeft: '0.5rem',
+                  fontSize: '0.7rem',
+                  padding: '2px 6px',
+                  borderRadius: '4px',
+                  background: '#fef3c7',
+                  color: '#92400e',
+                  fontWeight: 500,
+                }}>DEV ONLY</span>
+              </label>
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                {/* Quiz Mode Button */}
+                <button
+                  type="button"
+                  onClick={() => handleModeChange('quiz')}
+                  style={{
+                    flex: 1,
+                    padding: '1rem',
+                    borderRadius: '0.75rem',
+                    border: mode === 'quiz' ? '2px solid #8b5cf6' : '2px solid #e2e8f0',
+                    background: mode === 'quiz'
+                      ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(192, 132, 252, 0.1) 100%)'
+                      : 'white',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (mode !== 'quiz') {
+                      e.currentTarget.style.borderColor = '#cbd5e1';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (mode !== 'quiz') {
+                      e.currentTarget.style.borderColor = '#e2e8f0';
+                    }
+                  }}
+                >
+                  <span style={{ fontSize: '2rem' }}>🎮</span>
+                  <div>
+                    <div style={{ fontWeight: 600, color: '#1e293b', fontSize: '0.9375rem' }}>
+                      Quiz Mode
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>
+                      Teacher-paced, interactive
+                    </div>
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>
-                    Teacher-paced, interactive
-                  </div>
-                </div>
-              </button>
+                </button>
 
-              {/* Test Mode Button */}
-              <button
-                type="button"
-                onClick={() => handleModeChange('test')}
-                style={{
-                  flex: 1,
-                  padding: '1rem',
-                  borderRadius: '0.75rem',
-                  border: mode === 'test' ? '2px solid #8b5cf6' : '2px solid #e2e8f0',
-                  background: mode === 'test'
-                    ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(192, 132, 252, 0.1) 100%)'
-                    : 'white',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                }}
-                onMouseEnter={(e) => {
-                  if (mode !== 'test') {
-                    e.currentTarget.style.borderColor = '#cbd5e1';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (mode !== 'test') {
-                    e.currentTarget.style.borderColor = '#e2e8f0';
-                  }
-                }}
-              >
-                <span style={{ fontSize: '2rem' }}>📝</span>
-                <div>
-                  <div style={{ fontWeight: 600, color: '#1e293b', fontSize: '0.9375rem' }}>
-                    Test Mode
+                {/* Test Mode Button */}
+                <button
+                  type="button"
+                  onClick={() => handleModeChange('test')}
+                  style={{
+                    flex: 1,
+                    padding: '1rem',
+                    borderRadius: '0.75rem',
+                    border: mode === 'test' ? '2px solid #8b5cf6' : '2px solid #e2e8f0',
+                    background: mode === 'test'
+                      ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(192, 132, 252, 0.1) 100%)'
+                      : 'white',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (mode !== 'test') {
+                      e.currentTarget.style.borderColor = '#cbd5e1';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (mode !== 'test') {
+                      e.currentTarget.style.borderColor = '#e2e8f0';
+                    }
+                  }}
+                >
+                  <span style={{ fontSize: '2rem' }}>📝</span>
+                  <div>
+                    <div style={{ fontWeight: 600, color: '#1e293b', fontSize: '0.9375rem' }}>
+                      Test Mode
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>
+                      Self-paced, IELTS-style
+                    </div>
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>
-                    Self-paced, IELTS-style
-                  </div>
-                </div>
-              </button>
+                </button>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Access Control */}
           <div style={{ marginBottom: '1.5rem' }}>
