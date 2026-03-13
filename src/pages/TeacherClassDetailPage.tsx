@@ -9,7 +9,7 @@ import { useParams } from 'react-router-dom';
 import { useNavigation } from '../hooks/useNavigation';
 import { useAuth } from '../hooks/useAuth';
 import { TeacherHeader } from '../components/navigation';
-import { Tabs, Table, Badge, Modal, Loader, Group, Text, Tooltip, ActionIcon } from '@mantine/core';
+import { Tabs, Table, Badge, Modal, Loader, Group, Tooltip, ActionIcon } from '@mantine/core';
 import { Card, CardBody, Button } from '../components/modern';
 import { classManager, removeStudentFromClass } from '../services/classManager';
 import { LinkCourseModal } from '../components/course/LinkCourseModal';
@@ -17,22 +17,19 @@ import { ExtendCourseModal } from '../components/course/ExtendCourseModal';
 import { CourseCreateModal } from '../components/course/CourseCreateModal';
 import { notifications } from '@mantine/notifications';
 import { getLinkedCourses, unlinkCourseFromClass, syncCourseWithOriginal } from '../services/enrollmentManager';
-import { getCourse, getModulesByCourse } from '../services/courseManager';
+import { getCourse } from '../services/courseManager';
 import type { ClassSession } from '../types/class.types';
-import type { ClassCourseLink, Course, Module as CourseModule } from '../types/course.types';
+import type { ClassCourseLink, Course } from '../types/course.types';
+import { ModuleList } from '../components/course/ModuleList';
 import {
   IconChevronDown,
   IconChevronUp,
-  IconCheck,
-  IconLock,
-  IconPlayerPlay,
   IconPencil,
   IconSettings,
   IconUsers,
   IconBook,
   IconClipboardList,
   IconHistory,
-  IconArrowLeft,
   IconExternalLink,
   IconRefresh,
   IconClock,
@@ -54,8 +51,7 @@ const TeacherClassDetailPage: React.FC = () => {
   const [extendModalOpen, setExtendModalOpen] = useState(false);
   const [selectedLinkForExtend, setSelectedLinkForExtend] = useState<string | null>(null);
   const [expandedCourseId, setExpandedCourseId] = useState<string | null>(null);
-  const [modulesMap, setModulesMap] = useState<Record<string, CourseModule[]>>({});
-  const [loadingModules, setLoadingModules] = useState<Record<string, boolean>>({});
+
   const [accessDenied, setAccessDenied] = useState(false);
   const [removingStudentId, setRemovingStudentId] = useState<string | null>(null);
 
@@ -198,46 +194,8 @@ const TeacherClassDetailPage: React.FC = () => {
     }
   };
 
-  const loadModulesForCourse = async (courseId: string) => {
-    if (modulesMap[courseId]) return; // Already loaded
-
-    setLoadingModules(prev => ({ ...prev, [courseId]: true }));
-    try {
-      const modules = await getModulesByCourse(courseId);
-      setModulesMap(prev => ({ ...prev, [courseId]: modules as unknown as CourseModule[] }));
-    } catch (error) {
-      console.error(`Error loading modules for course ${courseId}:`, error);
-    } finally {
-      setLoadingModules(prev => ({ ...prev, [courseId]: false }));
-    }
-  };
-
   const handleToggleExpand = (courseId: string) => {
-    if (expandedCourseId === courseId) {
-      setExpandedCourseId(null);
-    } else {
-      setExpandedCourseId(courseId);
-      loadModulesForCourse(courseId);
-    }
-  };
-
-  const handleMarkModuleComplete = async (moduleId: string, status: 'available' | 'completed') => {
-    if (!classId) return;
-    try {
-      const success = await classManager.updateModuleProgress(classId, moduleId, status);
-      if (success) {
-        notifications.show({
-          title: 'Success',
-          message: `Module marked as ${status}`,
-          color: 'green'
-        });
-        // Subscription will update classData automatically
-      } else {
-        notifications.show({ title: 'Error', message: 'Failed to update module progress', color: 'red' });
-      }
-    } catch (error) {
-      console.error('Error updating module progress:', error);
-    }
+    setExpandedCourseId(expandedCourseId === courseId ? null : courseId);
   };
 
   const handleBack = () => {
@@ -542,64 +500,7 @@ const TeacherClassDetailPage: React.FC = () => {
                           {expandedCourseId === course.id && (
                             <div style={{ padding: '0 1.5rem 1.5rem', background: 'rgba(255, 255, 255, 0.3)' }}>
                               <div style={{ borderTop: '1px solid rgba(226, 232, 240, 0.6)', paddingTop: '1.25rem' }}>
-                                <h5 style={{ fontSize: '0.8rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '1rem' }}>Module Availability & Class Progress</h5>
-
-                                {loadingModules[course.id] ? (
-                                  <div style={{ display: 'flex', justifyContent: 'center', padding: '1rem' }}><Loader size="sm" color="violet" /></div>
-                                ) : Object.keys(modulesMap[course.id] || {}).length === 0 ? (
-                                  <Text size="sm" c="dimmed">No modules found.</Text>
-                                ) : (
-                                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '0.75rem' }}>
-                                    {modulesMap[course.id].map((module) => {
-                                      const progress = classData?.moduleProgress?.[module.id];
-                                      const status = progress?.status || (module.accessType === 'sequential' ? 'locked' : 'available');
-
-                                      const statusColors = {
-                                        locked: { bg: '#f1f5f9', icon: '#94a3b8', text: '#64748b' },
-                                        available: { bg: 'rgba(59, 130, 246, 0.1)', icon: '#3b82f6', text: '#2563eb' },
-                                        completed: { bg: 'rgba(16, 185, 129, 0.1)', icon: '#10b981', text: '#059669' }
-                                      };
-                                      const colors = statusColors[status as keyof typeof statusColors] || statusColors.available;
-
-                                      return (
-                                        <div key={module.id} style={{
-                                          display: 'flex',
-                                          alignItems: 'center',
-                                          justifyContent: 'space-between',
-                                          padding: '0.75rem 1rem',
-                                          background: '#fff',
-                                          borderRadius: '0.75rem',
-                                          border: '1px solid #e2e8f0'
-                                        }}>
-                                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                            {status === 'completed' && <IconCheck size={16} color={colors.icon} />}
-                                            {status === 'available' && <IconPlayerPlay size={16} color={colors.icon} />}
-                                            {status === 'locked' && <IconLock size={16} color={colors.icon} />}
-                                            <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#334155' }}>{module.name}</span>
-                                          </div>
-
-                                          <div>
-                                            {module.accessType === 'sequential' ? (
-                                              <div style={{ display: 'flex', gap: '0.4rem' }}>
-                                                {status === 'locked' && (
-                                                  <Button variant="glass" size="xs" onClick={() => handleMarkModuleComplete(module.id, 'available')}>Unlock</Button>
-                                                )}
-                                                {status === 'available' && (
-                                                  <Button variant="success" size="xs" onClick={() => handleMarkModuleComplete(module.id, 'completed')}>Mark Done</Button>
-                                                )}
-                                                {status === 'completed' && (
-                                                  <Badge color="green" variant="light" size="sm">COMPLETED</Badge>
-                                                )}
-                                              </div>
-                                            ) : (
-                                              <Badge color="blue" variant="light" size="sm">OPEN ACCESS</Badge>
-                                            )}
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                )}
+                                <ModuleList courseId={course.id} classId={classId} />
                               </div>
                             </div>
                           )}

@@ -1,7 +1,7 @@
 ---
 title: Course Class Management
 createdAt: '2026-02-27T17:02:32.879Z'
-updatedAt: '2026-02-27T17:02:57.208Z'
+updatedAt: '2026-03-13T19:08:08.151Z'
 description: >-
   Course and class CRUD, enrollment flow, student-teacher assignments, access
   control, 8 services mapped.
@@ -104,3 +104,21 @@ Student → CourseCatalogPage → "Request to Join"
 - @doc/prd/prd-student-teacher-assignment — Assignment system PRD
 - @doc/architecture/auth-rbac-architecture — Auth/RBAC (cross-ref)
 - @doc/architecture/homework-solo-practice-architecture — Homework uses courses
+
+
+
+## Course Sync System (Added 2026-03-14)
+
+When a course is linked to a class, a **deep copy** is created (point-in-time snapshot). The sync system detects and surfaces new additions to the original course template.
+
+**Key components:**
+- `courseSyncService.ts` — detection, apply, dismiss logic
+- `ModuleSyncBanner.tsx` — per-module inline sync notification
+- `NewModuleSyncBanner.tsx` — banner for entirely new modules
+- `ModuleList.tsx` — canonical component for rendering modules+materials (used by BOTH `TeacherCourseProfilePage` and `TeacherClassDetailPage`)
+
+**Data model additions:**
+- `Module.originalModuleId` — lineage tracking for copied modules
+- `Module.lastSyncedAt` — timestamp-based sync filtering
+
+See @doc/patterns/pattern-course-class-sync-thcs-title-resolution for full implementation details, lessons learned, and standards.
