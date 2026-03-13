@@ -302,6 +302,12 @@ export function HomeworkCreateModal({
                 : {
                     type: 'students',
                     studentIds: selectedStudents,
+                    // Denormalize student names at creation time so the UI
+                    // never needs to re-fetch them (PRD denormalization pattern)
+                    studentNames: selectedStudents.map(id => {
+                        const student = students.find(s => s.id === id);
+                        return student?.name || id;
+                    }),
                 };
 
             await createHomework({

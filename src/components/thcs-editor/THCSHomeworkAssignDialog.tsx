@@ -215,7 +215,14 @@ export function THCSHomeworkAssignDialog({
             if (targetType === 'class') {
                 target = { type: 'class', classId: classId.trim(), ...(className.trim() ? { className: className.trim() } : {}) };
             } else {
-                target = { type: 'students', studentIds: selectedStudentIds };
+                // Denormalize student names at creation time so the UI
+                // never needs to re-fetch them (PRD denormalization pattern)
+                const studentNames = selectedStudentIds.map(id => {
+                    const option = studentOptions.find(o => o.value === id);
+                    // Label format is "Name — ClassName", extract just the name
+                    return option ? option.label.split(' — ')[0] || id : id;
+                });
+                target = { type: 'students', studentIds: selectedStudentIds, studentNames };
             }
 
             await createHomework({

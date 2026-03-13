@@ -1,7 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import type { HomeworkAssignment } from '../types/homework.types';
-import { getClass } from '../services/classManager';
-import { getProfile } from '../services/profileService';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -26,11 +24,6 @@ function normalizeSearchValue(value: string): string {
 // ─── Constants ───────────────────────────────────────────────────────────────
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const URGENCY_WINDOW = 2 * DAY_IN_MS;
-
-// ─── Name resolution cache ──────────────────────────────────────────────────
-// Module-level cache so we don't re-fetch names across re-renders/remounts
-const classNameCache = new Map<string, string>();
-const studentNameCache = new Map<string, string>();
 
 // ─── Urgency Tier Sorting (PRD FR-11) ────────────────────────────────────────
 
@@ -117,24 +110,12 @@ function urgencySort(a: TargetCardData, b: TargetCardData, now: number): number 
   }
 }
 
-// ─── Helper: Check if a string looks like a raw Firebase ID ──────────────────
-function looksLikeRawId(name: string): boolean {
-  // Firebase Auth UIDs are typically 28 alphanumeric chars
-  // RTDB push keys are typically 20 chars starting with -
-  // Class codes are 6 uppercase alphanumeric chars (these are valid names)
-  if (!name || name.length < 8) return false;
-  // If it's mostly alphanumeric with no spaces, it's probably a raw ID
-  return /^[A-Za-z0-9_-]{8,}$/.test(name) && !name.includes(' ');
-}
-
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
 export function useTargetGrid(homework: HomeworkAssignment[], searchQuery: string) {
-  // State for resolved names — maps ID → display name
-  const [resolvedNames, setResolvedNames] = useState<Map<string, string>>(new Map());
+  const targetCards = useMemo(() => {
+    const now = Date.now();
 
-  // ── Step 1: Build raw cards (synchronous, fast) ──
-  const rawCards = useMemo(() => {
     const classMap = new Map<string, { name: string; items: HomeworkAssignment[] }>();
     const studentMap = new Map<string, { name: string; items: HomeworkAssignment[] }>();
 
@@ -223,110 +204,6 @@ export function useTargetGrid(homework: HomeworkAssignment[], searchQuery: strin
       });
     }
 
-    return cards;
-  }, [homework]);
-
-  // ── Step 2: Resolve missing names asynchronously ──
-  useEffect(() => {
-    const idsToResolve: Array<{ id: string; type: 'class' | 'student' }> = [];
-
-    for (const card of rawCards) {
-      // Check if the name looks like a raw ID (not a human-readable name)
-      if (looksLikeRawId(card.targetName)) {
-        // Check module-level cache first
-        const cache = card.targetType === 'class' ? classNameCache : studentNameCache;
-        if (cache.has(card.targetId)) {
-          continue; // Already cached, will be applied in the memo below
-        }
-        idsToResolve.push({ id: card.targetId, type: card.targetType });
-      }
-    }
-
-    if (idsToResolve.length === 0) {
-      // Still apply any cached names
-      const cachedUpdates = new Map<string, string>();
-      for (const card of rawCards) {
-        const cache = card.targetType === 'class' ? classNameCache : studentNameCache;
-        const cached = cache.get(card.targetId);
-        if (cached && looksLikeRawId(card.targetName)) {
-          cachedUpdates.set(card.targetId, cached);
-        }
-      }
-      if (cachedUpdates.size > 0) {
-        setResolvedNames(prev => {
-          const next = new Map(prev);
-          for (const [k, v] of cachedUpdates) next.set(k, v);
-          return next;
-        });
-      }
-      return;
-    }
-
-    let cancelled = false;
-
-    async function resolveNames() {
-      const newNames = new Map<string, string>();
-
-      await Promise.allSettled(
-        idsToResolve.map(async ({ id, type }) => {
-          try {
-            if (type === 'class') {
-              const classData = await getClass(id);
-              if (classData?.name) {
-                classNameCache.set(id, classData.name);
-                newNames.set(id, classData.name);
-              }
-            } else {
-              const profile = await getProfile(id);
-              if (profile) {
-                // Try firstName + familyName first
-                const fullName = [profile.firstName, profile.familyName]
-                  .filter(Boolean)
-                  .join(' ')
-                  .trim();
-                // Cascade: fullName → displayName → email prefix
-                const resolvedName = fullName
-                  || profile.displayName?.trim()
-                  || (profile.email ? (profile.email.split('@')[0] ?? profile.email) : null);
-                if (resolvedName) {
-                  studentNameCache.set(id, resolvedName);
-                  newNames.set(id, resolvedName);
-                }
-              }
-            }
-          } catch (err) {
-            console.warn(`[useTargetGrid] Failed to resolve name for ${type} ${id}:`, err);
-          }
-        })
-      );
-
-      if (!cancelled && newNames.size > 0) {
-        setResolvedNames(prev => {
-          const next = new Map(prev);
-          for (const [k, v] of newNames) next.set(k, v);
-          return next;
-        });
-      }
-    }
-
-    resolveNames();
-
-    return () => { cancelled = true; };
-  }, [rawCards]);
-
-  // ── Step 3: Apply resolved names, filter, and sort ──
-  const targetCards = useMemo(() => {
-    const now = Date.now();
-
-    // Apply resolved names to cards
-    const cards = rawCards.map(card => {
-      const resolvedName = resolvedNames.get(card.targetId);
-      if (resolvedName && looksLikeRawId(card.targetName)) {
-        return { ...card, targetName: resolvedName };
-      }
-      return card;
-    });
-
     // Search filtering
     let filtered = cards;
     if (searchQuery.trim()) {
@@ -346,7 +223,7 @@ export function useTargetGrid(homework: HomeworkAssignment[], searchQuery: strin
     filtered.sort((a, b) => urgencySort(a, b, now));
 
     return filtered;
-  }, [rawCards, resolvedNames, searchQuery]);
+  }, [homework, searchQuery]);
 
   return { targetCards };
 }
