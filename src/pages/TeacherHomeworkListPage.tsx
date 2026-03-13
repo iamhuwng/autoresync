@@ -7,33 +7,44 @@
  */
 
 import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { IconCheckbox, IconClock, IconAlertTriangle, IconLock, IconEdit } from '@tabler/icons-react';
 import { useAuth } from '../hooks/useAuth';
 import { useBulkSelection } from '../hooks/useBulkSelection';
 import { useHomeworkTags } from '../hooks/useHomeworkTags';
 import { useNavigation } from '../hooks/useNavigation';
 import { useHomeworkList } from '../hooks/useHomeworkList';
+import { useTargetGrid } from '../hooks/useTargetGrid';
 import {
     BulkDeleteConfirmModal,
     BulkExtendModal,
-    HomeworkAlertBanner,
     HomeworkBulkActionBar,
     HomeworkCard,
     HomeworkCreateModal,
     HomeworkEditModal,
-    HomeworkSummaryStats,
-    HomeworkTagChips,
-    ClassAnalyticsHeader,
-    AtRiskStudentList,
+    TargetGrid,
+    CompactStatsBar,
+    HomeworkListModal,
+    StudentGrid,
 } from '../components/homework';
+import {
+    TargetPinIcon,
+    CalendarIcon,
+    BarChartIcon,
+    EmptyHomeworkIcon,
+    ActiveIcon,
+    ClockIcon,
+    WarningIcon,
+    EditIcon,
+    CheckCircleIcon,
+    ClearIcon,
+} from '../components/homework/HomeworkIcons';
 import { archiveHomework, deleteHomework, duplicateHomework, extendDeadline, permanentlyDeleteHomework, restoreHomework } from '../services/homeworkManager';
 import { bulkCloseHomework, bulkExtendDeadlines, closeAllPastDueHomework, selectHomeworkForBulkOperation } from '../services/homeworkBulkOperations';
 import type { HomeworkAssignment, HomeworkStatus } from '../types/homework.types';
 
-import { Card, CardBody, Button, Input, NativeSelect, VanillaLoader, VanillaTabs, toast } from '../components/modern';
+import { Card, CardBody, Button, Input, VanillaLoader, VanillaTabs, toast } from '../components/modern';
 import { TeacherHeader } from '../components/navigation';
 
-type ViewMode = 'by_class' | 'chronological' | 'by_status';
+type ViewMode = 'targets' | 'chronological' | 'by_status';
 type CreateModalFilter = 'all' | 'thcs-test';
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
@@ -74,11 +85,11 @@ function getHomeworkAlertBadge(homework: HomeworkAssignment): { text: string; ba
 
 function getStatusIcon(status: string) {
     switch (status) {
-        case 'active': return <IconCheckbox size={16} />;
-        case 'scheduled': return <IconClock size={16} />;
-        case 'past_due': return <IconAlertTriangle size={16} />;
-        case 'draft': return <IconEdit size={16} />;
-        case 'closed': return <IconLock size={16} />;
+        case 'active': return <ActiveIcon size={16} />;
+        case 'scheduled': return <ClockIcon size={16} />;
+        case 'past_due': return <WarningIcon size={16} />;
+        case 'draft': return <EditIcon size={16} />;
+        case 'closed': return <CheckCircleIcon size={16} />;
         default: return null;
     }
 }
@@ -99,12 +110,14 @@ export function TeacherHomeworkListPage() {
     const { navigateTo } = useNavigation('teacher');
     const { selected, selectedCount, toggle, selectAll, deselectAll, isSelected } = useBulkSelection<string>();
     const { tags: homeworkTags } = useHomeworkTags();
-    const [viewMode, setViewMode] = useState<ViewMode>('chronological');
-    const [statusFilter, setStatusFilter] = useState<HomeworkStatus | null>(null);
+    const [viewMode, setViewMode] = useState<ViewMode>('targets');
+    const [drillDownClass, setDrillDownClass] = useState<{ classId: string; className: string; homework: HomeworkAssignment[] } | null>(null);
+    const [modalStudent, setModalStudent] = useState<{ studentId: string; studentName: string; classId?: string; className?: string } | null>(null);
+    const [statusFilter] = useState<HomeworkStatus | null>(null);
     const [searchInput, setSearchInput] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
-    const [showClosed, setShowClosed] = useState(false);
-    const [showArchived, setShowArchived] = useState(false);
+    const [showClosed] = useState(false);
+    const [showArchived] = useState(false);
     const [bulkModeEnabled, setBulkModeEnabled] = useState(false);
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [createModalFilter, setCreateModalFilter] = useState<CreateModalFilter>('all');
@@ -119,14 +132,14 @@ export function TeacherHomeworkListPage() {
         loading,
         error,
         refetch,
-        filterByStatus,
+        filterByStatus: _filterByStatus,
         statusCounts,
         loadMore,
         hasMore,
-        sort,
-        setSort,
-        tagFilter,
-        setTagFilter,
+        sort: _sort,
+        setSort: _setSort,
+        tagFilter: _tagFilter,
+        setTagFilter: _setTagFilter,
     } = useHomeworkList({
         teacherId: user?.uid,
         autoRefresh: true,
@@ -135,6 +148,8 @@ export function TeacherHomeworkListPage() {
         pageSize: 25,
         searchQuery,
     });
+
+    const { targetCards } = useTargetGrid(homework, searchQuery);
 
     useEffect(() => {
         const timeout = setTimeout(() => {
@@ -294,15 +309,7 @@ export function TeacherHomeworkListPage() {
         }
     }, [homework, refetch, showToast, user?.uid]);
 
-    const handleBulkModeToggle = useCallback(() => {
-        setBulkModeEnabled((currentValue) => {
-            if (currentValue) {
-                deselectAll();
-            }
-
-            return !currentValue;
-        });
-    }, [deselectAll]);
+    // handleBulkModeToggle removed — bulk mode is now inside AdvancedSearchPanel in the modal
 
     const handleBulkSelectAllMatching = useCallback(async () => {
         if (!user?.uid || !statusFilter) {
@@ -468,24 +475,7 @@ export function TeacherHomeworkListPage() {
         return visibleHomework;
     }, [statusFilter, visibleHomework]);
 
-    // Group homework by class for "by_class" view
-    const homeworkByClass = useMemo(() => {
-        return searchFilteredHomework.reduce((acc, hw) => {
-            if (hw.target.type === 'class') {
-                const className = hw.target.className || 'Unknown Class';
-                if (!acc[className]) {
-                    acc[className] = [];
-                }
-                acc[className].push(hw);
-            } else {
-                if (!acc.Other) {
-                    acc.Other = [];
-                }
-                acc.Other.push(hw);
-            }
-            return acc;
-        }, {} as Record<string, HomeworkAssignment[]>);
-    }, [searchFilteredHomework]);
+    // homeworkByClass removed — replaced by TargetGrid + StudentGrid drill-down
 
     // Group homework by status for "by_status" view
     const homeworkByStatus = useMemo(() => {
@@ -539,83 +529,24 @@ export function TeacherHomeworkListPage() {
         }).length;
     }, [homework]);
 
-    const pastDueCount = statusCounts.past_due ?? 0;
+    // pastDueCount now computed inside CompactStatsBar
     const bulkSelectionVisible = bulkModeEnabled || selectedCount > 0;
     const viewTabs = useMemo(
         () => [
-            { key: 'chronological', label: 'Timeline', icon: '📅' },
-            { key: 'by_class', label: 'By Class', icon: '📚' },
-            { key: 'by_status', label: 'By Status', icon: '📋' },
+            { key: 'targets', label: 'Targets', icon: <TargetPinIcon size={14} /> },
+            { key: 'chronological', label: 'Timeline', icon: <CalendarIcon size={14} /> },
+            { key: 'by_status', label: 'By Status', icon: <BarChartIcon size={14} /> },
         ],
         []
     );
 
-    const sortOptions = useMemo(
-        () => [
-            { value: 'dueDate_desc', label: 'Due date (newest)' },
-            { value: 'dueDate_asc', label: 'Due date (oldest)' },
-            { value: 'createdAt_desc', label: 'Created date' },
-            { value: 'updatedAt_desc', label: 'Last updated (newest first)' },
-            { value: 'completionRate_desc', label: 'Completion rate (highest)' },
-            { value: 'title_asc', label: 'Title A-Z' },
-        ],
-        []
-    );
+    // sortOptions removed — sort controls now inside AdvancedSearchPanel in the modal
 
-    const alertItems = useMemo(() => {
-        const goingLiveSoon = homework.filter((currentHomework) => {
-            const availableFrom = currentHomework.scheduling.availableFrom;
-            return currentHomework.status === 'scheduled'
-                && typeof availableFrom === 'number'
-                && availableFrom > Date.now()
-                && availableFrom - Date.now() <= DAY_IN_MS;
-        });
+    // alertItems removed — urgency communicated via card sorting and glowing borders (FR-54)
 
-        const pastDueHomework = homework.filter((currentHomework) => currentHomework.status === 'past_due');
-        const items = [];
+    // handleStatusSelect removed — status filter buttons are now inside AdvancedSearchPanel in the modal
 
-        if (goingLiveSoon.length > 0) {
-            items.push({
-                id: 'going-live',
-                tone: 'info' as const,
-                title: 'Going live soon',
-                message: `${goingLiveSoon.length} homework assignment${goingLiveSoon.length === 1 ? '' : 's'} will become active within 24 hours.`,
-            });
-        }
-
-        if (pastDueHomework.length > 0) {
-            items.push({
-                id: 'past-due',
-                tone: 'warning' as const,
-                title: 'Past deadline',
-                message: `${pastDueHomework.length} homework assignment${pastDueHomework.length === 1 ? '' : 's'} are currently overdue.`,
-                actionLabel: 'Close All Past Due',
-                onAction: handleClosePastDue,
-            });
-        }
-
-        return items;
-    }, [handleClosePastDue, homework]);
-
-    const handleStatusSelect = useCallback((nextStatus: HomeworkStatus | null) => {
-        if (nextStatus === 'closed') {
-            setShowClosed(true);
-        }
-
-        setStatusFilter(nextStatus);
-        filterByStatus(nextStatus);
-    }, [filterByStatus]);
-
-    const handleClosedToggle = useCallback(() => {
-        setShowClosed((currentValue) => {
-            const nextValue = !currentValue;
-            if (!nextValue && statusFilter === 'closed') {
-                setStatusFilter(null);
-                filterByStatus(null);
-            }
-            return nextValue;
-        });
-    }, [filterByStatus, statusFilter]);
+    // handleClosedToggle removed — now inside AdvancedSearchPanel in the modal
 
     const handleSelectionToggle = useCallback((homeworkId: string) => {
         if (!bulkModeEnabled) {
@@ -737,77 +668,24 @@ export function TeacherHomeworkListPage() {
                             color: '#1e293b',
                         }}
                     >
-                        📋 Homework Management
+                        <EmptyHomeworkIcon size={32} style={{ display: 'inline', verticalAlign: 'middle' }} /> Homework Management
                     </h1>
                     <p style={{ fontSize: '1rem', color: '#64748b', maxWidth: '760px' }}>
                         Create, organize, and monitor homework assignments with faster drill-down into student submission detail.
                     </p>
                 </div>
-                <HomeworkSummaryStats
-                    cards={[
-                        {
-                            label: 'Loaded Homework',
-                            value: String(homework.length),
-                            accent: '#0f172a',
-                            helper: `${visibleHomework.length} visible`,
-                        },
-                        {
-                            label: 'Active + Scheduled',
-                            value: String((statusCounts.active ?? 0) + (statusCounts.scheduled ?? 0)),
-                            accent: '#2563eb',
-                            helper: 'Open assignments',
-                        },
-                        {
-                            label: 'Past Due',
-                            value: String(statusCounts.past_due ?? 0),
-                            accent: '#b45309',
-                            helper: 'Needs closure or extension',
-                        },
-                        {
-                            label: 'Avg Completion',
-                            value: `${averageCompletionRate}%`,
-                            accent: '#059669',
-                            helper: 'Across loaded homework',
-                        },
-                        {
-                            label: 'Needs Attention',
-                            value: String(needsAttentionCount),
-                            accent: needsAttentionCount > 0 ? '#dc2626' : '#16a34a',
-                            helper: 'Due soon or overdue',
-                        },
-                    ]}
-                    actions={
-                        <>
-                            <Button
-                                variant="secondary"
-                                onClick={handleClosePastDue}
-                                disabled={pastDueCount === 0 || !user?.uid}
-                            >
-                                Close All Past Due
-                            </Button>
-                            <Button
-                                variant="primary"
-                                onClick={handleCreateHomework}
-                                style={{
-                                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                                }}
-                            >
-                                Create Homework
-                            </Button>
-                            <Button
-                                variant="primary"
-                                onClick={handleCreateThcsHomework}
-                                style={{
-                                    background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 100%)',
-                                }}
-                            >
-                                Create THCS Homework
-                            </Button>
-                        </>
-                    }
+                <CompactStatsBar
+                    totalCount={homework.length}
+                    visibleCount={visibleHomework.length}
+                    activeScheduledCount={(statusCounts.active ?? 0) + (statusCounts.scheduled ?? 0)}
+                    pastDueCount={statusCounts.past_due ?? 0}
+                    avgCompletionRate={averageCompletionRate}
+                    needsAttentionCount={needsAttentionCount}
+                    onClosePastDue={handleClosePastDue}
+                    onCreateHomework={handleCreateHomework}
+                    onCreateThcsHomework={handleCreateThcsHomework}
+                    userId={user?.uid}
                 />
-
-                <HomeworkAlertBanner alerts={alertItems} />
 
                 <Card
                     variant="glass"
@@ -822,112 +700,46 @@ export function TeacherHomeworkListPage() {
                                 style={{
                                     display: 'flex',
                                     gap: '0.75rem',
-                                    justifyContent: 'space-between',
-                                    flexWrap: 'wrap',
                                     alignItems: 'center',
                                 }}
                             >
-                                <div style={{ flex: '1 1 320px', minWidth: '260px' }}>
+                                <div style={{ flex: '1 1 320px', minWidth: '260px', position: 'relative' }}>
                                     <Input
-                                        placeholder="Search by title, target, description, or tags..."
+                                        placeholder="Search classes, students, or homework..."
                                         value={searchInput}
                                         onChange={(event: ChangeEvent<HTMLInputElement>) => setSearchInput(event.target.value)}
                                         variant="default"
                                         fullWidth
                                     />
-                                </div>
-                                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                                    <NativeSelect
-                                        options={sortOptions}
-                                        value={sort}
-                                        onChange={(value) => setSort(value as typeof sort)}
-                                        minWidth={220}
-                                    />
-                                    <Button
-                                        variant={bulkSelectionVisible ? 'primary' : 'glass'}
-                                        onClick={handleBulkModeToggle}
-                                        size="sm"
-                                    >
-                                        {bulkSelectionVisible ? 'Cancel Bulk Select' : 'Bulk Select'}
-                                    </Button>
-                                    <Button
-                                        variant={showClosed ? 'primary' : 'glass'}
-                                        onClick={handleClosedToggle}
-                                        size="sm"
-                                    >
-                                        {showClosed ? 'Hide Closed' : `Show Closed (${statusCounts.closed ?? 0})`}
-                                    </Button>
-                                    <Button
-                                        variant={showArchived ? 'primary' : 'glass'}
-                                        onClick={() => setShowArchived((current) => !current)}
-                                        size="sm"
-                                    >
-                                        {showArchived ? 'Hide Archived' : 'Show Archived'}
-                                    </Button>
+                                    {searchInput && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setSearchInput('')}
+                                            style={{
+                                                position: 'absolute',
+                                                right: '0.5rem',
+                                                top: '50%',
+                                                transform: 'translateY(-50%)',
+                                                background: 'none',
+                                                border: 'none',
+                                                cursor: 'pointer',
+                                                color: '#94a3b8',
+                                                display: 'inline-flex',
+                                            }}
+                                        >
+                                            <ClearIcon size={16} />
+                                        </button>
+                                    )}
                                 </div>
                             </div>
 
                             <VanillaTabs
                                 tabs={viewTabs}
                                 activeTab={viewMode}
-                                onTabChange={(nextViewMode) => setViewMode(nextViewMode as ViewMode)}
-                            />
-
-                            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                                <Button
-                                    variant={statusFilter === null ? 'primary' : 'glass'}
-                                    onClick={() => handleStatusSelect(null)}
-                                    size="sm"
-                                >
-                                    All ({homework.length})
-                                </Button>
-                                <Button
-                                    variant={statusFilter === 'active' ? 'primary' : 'glass'}
-                                    onClick={() => handleStatusSelect('active')}
-                                    size="sm"
-                                    style={statusFilter === 'active' ? { background: '#10b981' } : {}}
-                                >
-                                    ✅ Active ({statusCounts.active ?? 0})
-                                </Button>
-                                <Button
-                                    variant={statusFilter === 'scheduled' ? 'primary' : 'glass'}
-                                    onClick={() => handleStatusSelect('scheduled')}
-                                    size="sm"
-                                    style={statusFilter === 'scheduled' ? { background: '#6366f1' } : {}}
-                                >
-                                    ⏰ Scheduled ({statusCounts.scheduled ?? 0})
-                                </Button>
-                                <Button
-                                    variant={statusFilter === 'past_due' ? 'primary' : 'glass'}
-                                    onClick={() => handleStatusSelect('past_due')}
-                                    size="sm"
-                                    style={statusFilter === 'past_due' ? { background: '#f59e0b' } : {}}
-                                >
-                                    ⚠️ Past Due ({statusCounts.past_due ?? 0})
-                                </Button>
-                                <Button
-                                    variant={statusFilter === 'draft' ? 'primary' : 'glass'}
-                                    onClick={() => handleStatusSelect('draft')}
-                                    size="sm"
-                                    style={statusFilter === 'draft' ? { background: '#64748b' } : {}}
-                                >
-                                    📝 Draft ({statusCounts.draft ?? 0})
-                                </Button>
-                                <Button
-                                    variant={statusFilter === 'closed' ? 'primary' : 'glass'}
-                                    onClick={() => handleStatusSelect('closed')}
-                                    size="sm"
-                                    style={statusFilter === 'closed' ? { background: '#1e293b' } : {}}
-                                >
-                                    🔒 Closed ({statusCounts.closed ?? 0})
-                                </Button>
-                            </div>
-
-                            <HomeworkTagChips
-                                selectable
-                                selectedTag={tagFilter}
-                                allTags={homeworkTags}
-                                onTagSelect={setTagFilter}
+                                onTabChange={(nextViewMode) => {
+                                    setViewMode(nextViewMode as ViewMode);
+                                    setDrillDownClass(null);
+                                }}
                             />
                         </div>
                     </CardBody>
@@ -987,9 +799,9 @@ export function TeacherHomeworkListPage() {
                         }}
                     >
                         <CardBody>
-                            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📋</div>
+                            <div style={{ marginBottom: '1rem' }}><EmptyHomeworkIcon size={80} /></div>
                             <h2 style={{ fontSize: '1.75rem', fontWeight: '700', marginBottom: '0.5rem', color: '#1e293b' }}>
-                                No homework found
+                                No homework yet
                             </h2>
                             <p style={{ fontSize: '1rem', color: '#64748b', marginBottom: '1.5rem' }}>
                                 {searchQuery || statusFilter || showClosed || showArchived
@@ -1041,58 +853,41 @@ export function TeacherHomeworkListPage() {
                             </Card>
                         ) : null}
 
-                        {viewMode === 'chronological' && renderHomeworkCards(searchFilteredHomework)}
-
-                        {viewMode === 'by_class' && (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                                {Object.entries(homeworkByClass).map(([className, homeworkList], groupIndex) => (
-                                    <Card
-                                        key={className}
-                                        variant="default"
-                                        style={{
-                                            animation: `slideUp 0.5s ease-out ${groupIndex * 0.08}s backwards`
-                                        }}
-                                    >
-                                        <CardBody>
-                                            <h2 style={{
-                                                fontSize: '1.25rem',
-                                                fontWeight: '700',
-                                                color: '#1e293b',
-                                                marginBottom: '1rem',
-                                                paddingBottom: '0.75rem',
-                                                borderBottom: '2px solid #e2e8f0',
-                                            }}>
-                                                📚 {className} ({homeworkList.length})
-                                            </h2>
-                                            {/* PRD-0034 Task 12.3: Class analytics header */}
-                                            <ClassAnalyticsHeader
-                                                classId={homeworkList[0]?.target.type === 'class' ? (homeworkList[0].target as { classId: string }).classId : className}
-                                                className={className}
-                                                homework={homeworkList}
-                                            />
-                                            {renderHomeworkCards(homeworkList, groupIndex * 4)}
-                                            {/* PRD-0034 Task 12.3: At-risk homework list */}
-                                            <AtRiskStudentList
-                                                students={homeworkList
-                                                    .filter((hw) => {
-                                                        const rate = hw.stats.totalAssigned > 0
-                                                            ? (hw.stats.submitted / hw.stats.totalAssigned) * 100
-                                                            : 100;
-                                                        return rate < 50;
-                                                    })
-                                                    .map((hw) => ({
-                                                        name: hw.title || hw.materialTitle,
-                                                        completionRate: hw.stats.totalAssigned > 0
-                                                            ? Math.round((hw.stats.submitted / hw.stats.totalAssigned) * 100)
-                                                            : 0,
-                                                        avgScore: hw.stats.averageScore ?? 0,
-                                                    }))}
-                                            />
-                                        </CardBody>
-                                    </Card>
-                                ))}
-                            </div>
+                        {viewMode === 'targets' && (
+                            drillDownClass ? (
+                                <StudentGrid
+                                    classId={drillDownClass.classId}
+                                    className={drillDownClass.className}
+                                    classHomework={drillDownClass.homework}
+                                    onBack={() => setDrillDownClass(null)}
+                                    onStudentClick={(studentId, studentName, classId, className) =>
+                                        setModalStudent({ studentId, studentName, classId, className })
+                                    }
+                                    searchQuery={searchQuery}
+                                />
+                            ) : (
+                                <TargetGrid
+                                    targetCards={targetCards}
+                                    onTargetClick={(target) => {
+                                        if (target.targetType === 'class') {
+                                            setDrillDownClass({
+                                                classId: target.targetId,
+                                                className: target.targetName,
+                                                homework: target.homework,
+                                            });
+                                        } else {
+                                            setModalStudent({
+                                                studentId: target.targetId,
+                                                studentName: target.targetName,
+                                            });
+                                        }
+                                    }}
+                                    onCreateHomework={handleCreateHomework}
+                                />
+                            )
                         )}
+
+                        {viewMode === 'chronological' && renderHomeworkCards(searchFilteredHomework)}
 
                         {viewMode === 'by_status' && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
@@ -1197,6 +992,26 @@ export function TeacherHomeworkListPage() {
                     onCloseAllPastDue={() => void handleClosePastDue()}
                 />
             ) : null}
+
+            {/* Student Homework List Modal */}
+            <HomeworkListModal
+                isOpen={!!modalStudent}
+                onClose={() => setModalStudent(null)}
+                studentId={modalStudent?.studentId ?? ''}
+                studentName={modalStudent?.studentName ?? ''}
+                classId={modalStudent?.classId}
+                className={modalStudent?.className}
+                allHomework={homework}
+                onNavigateToDetail={handleOpenDetail}
+                onEdit={handleEdit}
+                onDuplicate={handleDuplicate}
+                onDelete={handleDelete}
+                onExtendDeadline={handleExtendDeadline}
+                onRestore={handleRestore}
+                onPermanentDelete={handlePermanentDelete}
+                availableTags={homeworkTags}
+                onRefetch={refetch}
+            />
 
             {/* Animations */}
             <style>{`

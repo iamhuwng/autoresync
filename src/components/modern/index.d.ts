@@ -98,7 +98,7 @@ export const NativeSelect: React.FC<NativeSelectProps>;
 export interface VanillaTabDefinition {
   key: string;
   label: string;
-  icon?: string;
+  icon?: string | React.ReactNode;
 }
 
 export interface VanillaTabsProps {
