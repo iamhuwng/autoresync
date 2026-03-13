@@ -11,6 +11,7 @@ import { ModuleSyncBanner } from './ModuleSyncBanner';
 
 export interface ExtendedMaterial extends CourseMaterial {
     title: string;
+    testType?: string;
     isUnavailable?: boolean;
 }
 

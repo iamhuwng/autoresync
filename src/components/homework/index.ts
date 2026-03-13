@@ -29,3 +29,4 @@ export { KebabActionMenu } from './KebabActionMenu';
 export { CompactHomeworkCard } from './CompactHomeworkCard';
 export { AdvancedSearchPanel } from './AdvancedSearchPanel';
 export { HomeworkListModal } from './HomeworkListModal';
+export { CompactStatsBar } from './CompactStatsBar';

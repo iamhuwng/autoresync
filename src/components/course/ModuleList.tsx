@@ -108,9 +108,18 @@ export const ModuleList = ({ courseId, classId, onStartSession }: ModuleListProp
                         }
                     }
 
+                    // Resolve title: THCS tests store title in metadata.title,
+                    // regular tests store it at top-level title
+                    const resolvedTitle = test
+                        ? (test.testType === 'THCS-THPT'
+                            ? (test.metadata?.title || test.title || 'Untitled THCS Test')
+                            : (test.title || 'Untitled'))
+                        : 'Unknown Material';
+
                     return {
                         ...m,
-                        title: test?.title || 'Unknown Material',
+                        title: resolvedTitle,
+                        testType: test?.testType,
                         isUnavailable
                     };
                 }));
