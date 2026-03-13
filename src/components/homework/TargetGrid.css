@@ -1,0 +1,78 @@
+/* TargetGrid.css — Responsive grid layout (PRD-0035 Task 3.3) */
+
+/* ─── Grid Layout ─────────────────────────────────────────────────────────── */
+
+.target-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 768px) {
+  .target-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .target-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* ─── Staggered Entry Animation ───────────────────────────────────────────── */
+
+.target-grid > * {
+  animation: targetSlideUp 0.45s ease-out backwards;
+  animation-delay: calc(var(--index, 0) * 0.04s);
+}
+
+@keyframes targetSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ─── Empty State ─────────────────────────────────────────────────────────── */
+
+.target-grid__empty {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 3rem 1.5rem;
+  min-height: 260px;
+}
+
+.target-grid__empty-icon {
+  color: rgba(148, 163, 184, 0.45);
+  margin-bottom: 1rem;
+}
+
+.target-grid__empty-heading {
+  font-size: 1.1rem;
+  font-weight: 650;
+  color: var(--text-primary, #1e293b);
+  margin: 0 0 0.4rem;
+}
+
+.target-grid__empty-desc {
+  font-size: 0.85rem;
+  color: var(--text-secondary, #64748b);
+  max-width: 320px;
+  line-height: 1.5;
+  margin: 0 0 1.2rem;
+}
+
+/* ─── Dark Mode ───────────────────────────────────────────────────────────── */
+
+[data-theme="dark"] .target-grid__empty-heading {
+  color: #f1f5f9;
+}

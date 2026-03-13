@@ -21,3 +21,5 @@ export { default as StudentNoteEditor } from './StudentNoteEditor';
 export { default as ClassAnalyticsHeader } from './ClassAnalyticsHeader';
 export { default as AtRiskStudentList } from './AtRiskStudentList';
 export * from './HomeworkIcons';
+export { TargetCard } from './TargetCard';
+export { TargetGrid } from './TargetGrid';

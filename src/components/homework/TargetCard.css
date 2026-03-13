@@ -1,0 +1,203 @@
+/* TargetCard.css — Glass-morphism target card (PRD-0035 Task 3.1) */
+
+/* ─── Base Card ───────────────────────────────────────────────────────────── */
+
+.target-card {
+  position: relative;
+  cursor: pointer;
+  padding: 1.1rem 1.2rem;
+  border-radius: 14px;
+  transition:
+    transform 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.22s ease,
+    border-color 0.22s ease;
+}
+
+.target-card:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    0 8px 32px rgba(99, 102, 241, 0.12),
+    0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.target-card:active {
+  transform: translateY(-1px);
+}
+
+/* ─── Overdue State ───────────────────────────────────────────────────────── */
+
+.target-card--overdue {
+  border: 1.5px solid rgba(239, 68, 68, 0.4);
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.5);
+  }
+}
+
+/* ─── Completed State ─────────────────────────────────────────────────────── */
+
+.target-card--completed {
+  opacity: 0.7;
+}
+
+.target-card--completed:hover {
+  opacity: 0.85;
+}
+
+/* ─── Header Row ──────────────────────────────────────────────────────────── */
+
+.target-card__header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.65rem;
+}
+
+.target-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(99, 102, 241, 0.1);
+  color: #6366f1;
+}
+
+.target-card--overdue .target-card__icon {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.target-card--completed .target-card__icon {
+  background: rgba(34, 197, 94, 0.1);
+  color: #22c55e;
+}
+
+.target-card__name {
+  flex: 1;
+  font-weight: 650;
+  font-size: 0.95rem;
+  line-height: 1.3;
+  color: var(--text-primary, #1e293b);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.target-card__overdue-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 20px;
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+  font-size: 0.75rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+/* ─── Meta Line ───────────────────────────────────────────────────────────── */
+
+.target-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary, #64748b);
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.target-card__meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.target-card__meta-separator {
+  color: rgba(148, 163, 184, 0.5);
+  font-size: 0.6rem;
+}
+
+/* ─── Progress Bar ────────────────────────────────────────────────────────── */
+
+.target-card__progress {
+  margin-bottom: 0.6rem;
+}
+
+.target-card__progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.3rem;
+  font-size: 0.72rem;
+  color: var(--text-secondary, #64748b);
+}
+
+.target-card__progress-percent {
+  font-weight: 600;
+  color: var(--text-primary, #1e293b);
+}
+
+.target-card__progress-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(148, 163, 184, 0.2);
+  overflow: hidden;
+}
+
+.target-card__progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #22c55e, #16a34a);
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  min-width: 0;
+}
+
+/* Low completion = warn color */
+.target-card__progress-fill--low {
+  background: linear-gradient(90deg, #f59e0b, #d97706);
+}
+
+.target-card__progress-fill--danger {
+  background: linear-gradient(90deg, #ef4444, #dc2626);
+}
+
+/* ─── Footer ──────────────────────────────────────────────────────────────── */
+
+.target-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: var(--text-secondary, #64748b);
+}
+
+.target-card__footer-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+/* ─── Dark Mode ───────────────────────────────────────────────────────────── */
+
+[data-theme="dark"] .target-card__name {
+  color: #f1f5f9;
+}
+
+[data-theme="dark"] .target-card__progress-percent {
+  color: #e2e8f0;
+}
+
+[data-theme="dark"] .target-card__progress-bar {
+  background: rgba(148, 163, 184, 0.15);
+}
