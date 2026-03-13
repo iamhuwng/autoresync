@@ -1,6 +1,6 @@
 /**
  * Tests for TeacherHomeworkListPage.tsx
- * 
+ *
  * Tests cover:
  * - Page rendering and initial state
  * - View mode switching (chronological, by class, by status)
@@ -11,561 +11,689 @@
  * - Error handling
  */
 
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { BrowserRouter } from 'react-router-dom';
-import { TeacherHomeworkListPage } from './TeacherHomeworkListPage';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HomeworkAssignment } from '../types/homework.types';
+import type { UseHomeworkListReturn } from '../hooks/useHomeworkList';
+import { TeacherHomeworkListPage } from './TeacherHomeworkListPage';
 
-// Mock dependencies
-vi.mock('../contexts/AuthContext', () => ({
+const {
+    mockBulkCloseHomework,
+    mockBulkExtendDeadlines,
+    mockDeselectAll,
+    mockFilterByStatus,
+    mockIsSelected,
+    mockLoadMore,
+    mockLogout,
+    mockNavigateTo,
+    mockRefetch,
+    mockSelectAll,
+    mockSelectHomeworkForBulkOperation,
+    mockSetSort,
+    mockSetTagFilter,
+    mockToggle,
+    useBulkSelectionMock,
+    useHomeworkListMock,
+    useHomeworkTagsMock,
+} = vi.hoisted(() => ({
+    mockBulkCloseHomework: vi.fn(async () => ({ success: 1, failed: 0, total: 1, results: [] })),
+    mockBulkExtendDeadlines: vi.fn(async () => ({ success: 1, failed: 0, total: 1, results: [] })),
+    mockDeselectAll: vi.fn(),
+    mockFilterByStatus: vi.fn(),
+    mockIsSelected: vi.fn(() => false),
+    mockLoadMore: vi.fn(async () => undefined),
+    mockLogout: vi.fn(async () => undefined),
+    mockNavigateTo: vi.fn(),
+    mockRefetch: vi.fn(async () => undefined),
+    mockSelectAll: vi.fn(),
+    mockSelectHomeworkForBulkOperation: vi.fn(async () => []),
+    mockSetSort: vi.fn(),
+    mockSetTagFilter: vi.fn(),
+    mockToggle: vi.fn(),
+    useBulkSelectionMock: vi.fn(),
+    useHomeworkListMock: vi.fn(),
+    useHomeworkTagsMock: vi.fn(),
+}));
+
+vi.mock('../hooks/useAuth', () => ({
     useAuth: () => ({
-        user: { uid: 'teacher-123' },
+        user: {
+            uid: 'teacher-123',
+            displayName: 'Teacher Example',
+            email: 'teacher@example.com',
+        },
+        profile: {
+            role: 'teacher',
+            displayName: 'Teacher Example',
+            email: 'teacher@example.com',
+        },
+        logout: mockLogout,
+    }),
+}));
+
+vi.mock('../hooks/useNavigation', () => ({
+    useNavigation: () => ({
+        navigateTo: mockNavigateTo,
     }),
 }));
 
 vi.mock('../hooks/useHomeworkList', () => ({
-    useHomeworkList: vi.fn(() => ({
-        homework: mockHomeworkList,
-        loading: false,
-        error: null,
-        refetch: vi.fn(),
-        filteredHomework: mockHomeworkList,
-        statusCounts: {
-            draft: 2,
-            scheduled: 3,
-            active: 5,
-            past_due: 1,
-            closed: 4,
-        },
-    })),
+    useHomeworkList: (options: unknown) => useHomeworkListMock(options),
+}));
+
+vi.mock('../hooks/useBulkSelection', () => ({
+    useBulkSelection: () => useBulkSelectionMock(),
+}));
+
+vi.mock('../hooks/useHomeworkTags', () => ({
+    useHomeworkTags: () => useHomeworkTagsMock(),
 }));
 
 vi.mock('../services/homeworkManager', () => ({
+    archiveHomework: vi.fn(),
     deleteHomework: vi.fn(),
     duplicateHomework: vi.fn(),
+    extendDeadline: vi.fn(),
+    permanentlyDeleteHomework: vi.fn(),
+    restoreHomework: vi.fn(),
 }));
 
+vi.mock('../services/homeworkBulkOperations', () => ({
+    bulkCloseHomework: mockBulkCloseHomework,
+    bulkExtendDeadlines: mockBulkExtendDeadlines,
+    closeAllPastDueHomework: vi.fn(async () => ({ success: 1, failed: 0 })),
+    selectHomeworkForBulkOperation: mockSelectHomeworkForBulkOperation,
+}));
+
+vi.mock('../components/navigation', () => ({
+    TeacherHeader: ({ pageTitle }: { pageTitle: string }) => <div>{pageTitle}</div>,
+}));
+
+vi.mock('../components/homework', () => ({
+    HomeworkAlertBanner: ({
+        alerts,
+    }: {
+        alerts: Array<{ id: string; title: string; message: string; actionLabel?: string; onAction?: () => void }>;
+    }) => (
+        <div>
+            {alerts.map((alert) => (
+                <div key={alert.id}>
+                    <div>{alert.title}</div>
+                    <div>{alert.message}</div>
+                    {alert.actionLabel && alert.onAction ? (
+                        <button onClick={alert.onAction}>{alert.actionLabel}</button>
+                    ) : null}
+                </div>
+            ))}
+        </div>
+    ),
+    HomeworkCard: ({ homework }: { homework: HomeworkAssignment }) => (
+        <div data-testid={`homework-card-${homework.id}`}>{homework.title || homework.materialTitle}</div>
+    ),
+    HomeworkCreateModal: ({ isOpen }: { isOpen: boolean }) => (isOpen ? <div>Create homework modal</div> : null),
+    HomeworkEditModal: ({
+        homework,
+        isOpen,
+    }: {
+        homework: HomeworkAssignment | null;
+        isOpen: boolean;
+    }) => (isOpen ? <div>Edit homework modal {homework?.id}</div> : null),
+    BulkExtendModal: ({ isOpen }: { isOpen: boolean }) => (isOpen ? <div>Bulk extend modal</div> : null),
+    BulkDeleteConfirmModal: ({ isOpen }: { isOpen: boolean }) => (isOpen ? <div>Bulk delete modal</div> : null),
+    HomeworkBulkActionBar: ({
+        selectedCount,
+        onExtend,
+        onClose,
+        onDelete,
+        onDuplicate,
+        onDeselectAll,
+        onCloseAllPastDue,
+    }: {
+        selectedCount: number;
+        onExtend: () => void;
+        onClose: () => void;
+        onDelete: () => void;
+        onDuplicate: () => void;
+        onDeselectAll: () => void;
+        onCloseAllPastDue: () => void;
+    }) => (
+        <div>
+            <span>{selectedCount} selected</span>
+            <button onClick={onExtend}>Extend</button>
+            <button onClick={onClose}>Close</button>
+            <button onClick={onDelete}>Delete</button>
+            <button onClick={onDuplicate}>Duplicate</button>
+            <button onClick={onDeselectAll}>Deselect All</button>
+            <button onClick={onCloseAllPastDue}>Close All Past Due</button>
+        </div>
+    ),
+    HomeworkSummaryStats: ({
+        actions,
+        cards,
+    }: {
+        actions?: React.ReactNode;
+        cards?: Array<{ label: string; value: string; helper?: string }>;
+    }) => (
+        <div>
+            {cards?.map((card) => (
+                <div key={card.label}>
+                    <span>{card.label}</span>
+                    <span>{card.value}</span>
+                    {card.helper ? <span>{card.helper}</span> : null}
+                </div>
+            ))}
+            <div>{actions}</div>
+        </div>
+    ),
+    HomeworkTagChips: ({
+        allTags,
+        onTagSelect,
+        selectable,
+    }: {
+        allTags?: Array<{ id: string; label: string }>;
+        onTagSelect?: (tag: string | null) => void;
+        selectable?: boolean;
+    }) => (
+        <div data-testid="homework-tag-chips">
+            {selectable ? <button onClick={() => onTagSelect?.(null)}>All</button> : null}
+            {allTags?.map((tag) => (
+                <button key={tag.id} onClick={() => onTagSelect?.(tag.id)}>
+                    {tag.label}
+                </button>
+            ))}
+        </div>
+    ),
+}));
+
+const NOW = new Date('2026-03-13T08:00:00.000Z').getTime();
+
 // Mock homework data
-const mockHomeworkList: HomeworkAssignment[] = [
-    {
-        id: 'hw-1',
+function createHomework(overrides: Partial<HomeworkAssignment>): HomeworkAssignment {
+    return {
+        id: overrides.id ?? 'homework-default',
         createdBy: 'teacher-123',
-        createdAt: Date.now() - 7 * 24 * 60 * 60 * 1000,
-        updatedAt: Date.now(),
-        materialId: 'mat-1',
-        materialTitle: 'English Grammar Test',
+        createdAt: NOW - 7 * 24 * 60 * 60 * 1000,
+        updatedAt: NOW,
+        materialId: 'material-default',
+        materialTitle: 'Untitled Homework',
+        materialType: 'quiz',
+        materialSkill: 'reading',
         target: {
             type: 'class',
-            classId: 'class-1',
-            className: 'Class A',
+            classId: 'class-default',
+            className: 'Class Default',
         },
-        config: {
-            timerMinutes: 60,
-            maxAttempts: 3,
-            feedbackTiming: 'after_completion',
-            lateSubmissionAllowed: false,
-        },
-        availableFrom: Date.now() - 2 * 24 * 60 * 60 * 1000,
-        dueDate: Date.now() + 5 * 24 * 60 * 60 * 1000,
-        status: 'active',
-    },
-    {
-        id: 'hw-2',
-        createdBy: 'teacher-123',
-        createdAt: Date.now() - 14 * 24 * 60 * 60 * 1000,
-        updatedAt: Date.now(),
-        materialId: 'mat-2',
-        materialTitle: 'Math Quiz',
-        target: {
-            type: 'students',
-            studentIds: ['student-1', 'student-2'],
+        scheduling: {
+            availableFrom: NOW - 24 * 60 * 60 * 1000,
+            dueDate: NOW + 24 * 60 * 60 * 1000,
         },
         config: {
             timerMinutes: 30,
             maxAttempts: 2,
-            feedbackTiming: 'after_deadline',
-            lateSubmissionAllowed: true,
-        },
-        availableFrom: Date.now() - 10 * 24 * 60 * 60 * 1000,
-        dueDate: Date.now() - 3 * 24 * 60 * 60 * 1000,
-        status: 'past_due',
-    },
-    {
-        id: 'hw-3',
-        createdBy: 'teacher-123',
-        createdAt: Date.now() - 1 * 24 * 60 * 60 * 1000,
-        updatedAt: Date.now(),
-        materialId: 'mat-3',
-        materialTitle: 'Science Assignment',
-        target: {
-            type: 'class',
-            classId: 'class-2',
-            className: 'Class B',
-        },
-        config: {
-            timerMinutes: null,
-            maxAttempts: null,
             feedbackTiming: 'after_completion',
             lateSubmissionAllowed: false,
         },
-        availableFrom: Date.now() + 2 * 24 * 60 * 60 * 1000,
-        dueDate: Date.now() + 9 * 24 * 60 * 60 * 1000,
+        visibility: {
+            showAttempts: true,
+            showDueDate: true,
+            showDuration: true,
+            showQuestionCount: true,
+            showTimer: true,
+        },
+        status: 'active',
+        stats: {
+            totalAssigned: 20,
+            started: 10,
+            submitted: 8,
+            lateSubmissions: 0,
+            completionRate: 40,
+            averageScore: 82,
+        },
+        ...overrides,
+    };
+}
+
+const allHomework: HomeworkAssignment[] = [
+    createHomework({
+        id: 'hw-active',
+        title: 'English Grammar Test',
+        materialTitle: 'English Grammar Test',
+        target: {
+            type: 'class',
+            classId: 'class-a',
+            className: 'Class A',
+        },
+        scheduling: {
+            availableFrom: NOW - 2 * 24 * 60 * 60 * 1000,
+            dueDate: NOW + 8 * 60 * 60 * 1000,
+        },
+        status: 'active',
+        stats: {
+            totalAssigned: 24,
+            started: 18,
+            submitted: 15,
+            lateSubmissions: 0,
+            completionRate: 63,
+            averageScore: 84,
+        },
+        tags: ['grammar'],
+    }),
+    createHomework({
+        id: 'hw-past-due',
+        title: 'Math Quiz',
+        materialTitle: 'Math Quiz',
+        target: {
+            type: 'students',
+            studentIds: ['student-1', 'student-2'],
+            studentNames: ['Alex', 'Jamie'],
+        },
+        scheduling: {
+            availableFrom: NOW - 4 * 24 * 60 * 60 * 1000,
+            dueDate: NOW - 2 * 24 * 60 * 60 * 1000,
+        },
+        status: 'past_due',
+        stats: {
+            totalAssigned: 2,
+            started: 2,
+            submitted: 1,
+            lateSubmissions: 1,
+            completionRate: 50,
+            averageScore: 70,
+        },
+        tags: ['math'],
+    }),
+    createHomework({
+        id: 'hw-scheduled',
+        title: 'Science Assignment',
+        materialTitle: 'Science Assignment',
+        target: {
+            type: 'class',
+            classId: 'class-b',
+            className: 'Class B',
+        },
+        scheduling: {
+            availableFrom: NOW + 6 * 60 * 60 * 1000,
+            dueDate: NOW + 3 * 24 * 60 * 60 * 1000,
+        },
         status: 'scheduled',
-    },
+        stats: {
+            totalAssigned: 18,
+            started: 0,
+            submitted: 0,
+            lateSubmissions: 0,
+            completionRate: 0,
+            averageScore: 0,
+        },
+        tags: ['science'],
+    }),
+    createHomework({
+        id: 'hw-closed',
+        title: 'History Review',
+        materialTitle: 'History Review',
+        target: {
+            type: 'class',
+            classId: 'class-c',
+            className: 'Class C',
+        },
+        scheduling: {
+            availableFrom: NOW - 10 * 24 * 60 * 60 * 1000,
+            dueDate: NOW - 5 * 24 * 60 * 60 * 1000,
+        },
+        status: 'closed',
+        stats: {
+            totalAssigned: 16,
+            started: 16,
+            submitted: 16,
+            lateSubmissions: 0,
+            completionRate: 100,
+            averageScore: 88,
+        },
+        closedAt: NOW - 3 * 24 * 60 * 60 * 1000,
+    }),
+    createHomework({
+        id: 'hw-archived',
+        title: 'Archived Writing Practice',
+        materialTitle: 'Archived Writing Practice',
+        materialType: 'thcs-test',
+        materialSkill: 'writing',
+        target: {
+            type: 'group',
+            groupId: 'group-1',
+            groupName: 'Archived Group',
+            studentIds: ['student-3'],
+        },
+        scheduling: {
+            availableFrom: NOW - 15 * 24 * 60 * 60 * 1000,
+            dueDate: NOW - 12 * 24 * 60 * 60 * 1000,
+        },
+        status: 'active',
+        archived: true,
+        archivedAt: NOW - 2 * 24 * 60 * 60 * 1000,
+        trashExpiresAt: NOW + 28 * 24 * 60 * 60 * 1000,
+        stats: {
+            totalAssigned: 1,
+            started: 1,
+            submitted: 1,
+            lateSubmissions: 0,
+            completionRate: 100,
+            averageScore: 92,
+        },
+        tags: ['archived'],
+    }),
 ];
 
+function normalizeSearchValue(value: string): string {
+    return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+function matchesSearch(homework: HomeworkAssignment, query: string): boolean {
+    const normalizedQuery = normalizeSearchValue(query);
+    const targetDisplay =
+        homework.target.type === 'class'
+            ? homework.target.className ?? homework.target.classId
+            : homework.target.type === 'course'
+                ? homework.target.courseName ?? homework.target.courseId
+                : homework.target.type === 'group'
+                    ? homework.target.groupName
+                    : homework.target.studentNames?.join(', ') ?? homework.target.studentIds.join(', ');
+
+    return [
+        homework.title ?? '',
+        homework.materialTitle ?? '',
+        homework.description ?? '',
+        targetDisplay ?? '',
+        ...(homework.tags ?? []),
+    ].some((value) => normalizeSearchValue(value).includes(normalizedQuery));
+}
+
+function buildStatusCounts(items: HomeworkAssignment[]): Record<string, number> {
+    return items.reduce<Record<string, number>>((counts, homework) => {
+        counts[homework.status] = (counts[homework.status] ?? 0) + 1;
+        return counts;
+    }, {});
+}
+
+function buildHookResult(
+    options: {
+        excludeArchived?: boolean;
+        excludeClosed?: boolean;
+        searchQuery?: string;
+    } = {},
+    overrides: Partial<UseHomeworkListReturn> = {}
+): UseHomeworkListReturn {
+    let filteredHomework = [...allHomework];
+
+    if (options.excludeArchived) {
+        filteredHomework = filteredHomework.filter((homework) => homework.archived !== true);
+    }
+
+    if (options.excludeClosed) {
+        filteredHomework = filteredHomework.filter((homework) => homework.status !== 'closed');
+    }
+
+    if (options.searchQuery?.trim()) {
+        filteredHomework = filteredHomework.filter((homework) => matchesSearch(homework, options.searchQuery ?? ''));
+    }
+
+    return {
+        homework: allHomework,
+        loading: false,
+        error: null,
+        refetch: mockRefetch,
+        filterByStatus: mockFilterByStatus,
+        filteredHomework,
+        loadMore: mockLoadMore,
+        hasMore: false,
+        sort: 'dueDate_desc',
+        setSort: mockSetSort,
+        tagFilter: null,
+        setTagFilter: mockSetTagFilter,
+        totalLoaded: filteredHomework.length,
+        statusCounts: buildStatusCounts(allHomework),
+        ...overrides,
+    };
+}
+
 // Wrapper component for routing
-const renderWithRouter = (component: React.ReactElement) => {
-    return render(
-        <BrowserRouter>
-            {component}
-        </BrowserRouter>
-    );
-};
+const renderPage = () => render(<TeacherHomeworkListPage />);
 
 describe('TeacherHomeworkListPage', () => {
     beforeEach(() => {
-        vi.clearAllMocks();
+        vi.useFakeTimers();
+
+        mockFilterByStatus.mockReset();
+        mockBulkCloseHomework.mockReset();
+        mockBulkExtendDeadlines.mockReset();
+        mockDeselectAll.mockReset();
+        mockIsSelected.mockReset();
+        mockLoadMore.mockReset();
+        mockLogout.mockReset();
+        mockNavigateTo.mockReset();
+        mockRefetch.mockReset();
+        mockSelectAll.mockReset();
+        mockSelectHomeworkForBulkOperation.mockReset();
+        mockSetSort.mockReset();
+        mockSetTagFilter.mockReset();
+        mockToggle.mockReset();
+        useHomeworkListMock.mockReset();
+        useBulkSelectionMock.mockReset();
+        useHomeworkTagsMock.mockReset();
+
+        useHomeworkListMock.mockImplementation((options) =>
+            buildHookResult(options as {
+                excludeArchived?: boolean;
+                excludeClosed?: boolean;
+                searchQuery?: string;
+            })
+        );
+        useBulkSelectionMock.mockReturnValue({
+            selected: new Set<string>(),
+            selectedCount: 0,
+            toggle: mockToggle,
+            selectAll: mockSelectAll,
+            deselectAll: mockDeselectAll,
+            isSelected: mockIsSelected,
+        });
+        useHomeworkTagsMock.mockReturnValue({
+            tags: [
+                { id: 'practice', label: 'Luyện tập', color: '#3b82f6' },
+                { id: 'revision', label: 'Ôn tập', color: '#10b981' },
+            ],
+            loading: false,
+        });
     });
 
     afterEach(() => {
-        vi.restoreAllMocks();
+        vi.useRealTimers();
     });
 
     describe('Initial Rendering', () => {
-        it('should render page title', () => {
-            renderWithRouter(<TeacherHomeworkListPage />);
+        it('renders the rewritten summary, alerts, tabs, and visible homework list', () => {
+            renderPage();
 
             expect(screen.getByText('📋 Homework Management')).toBeInTheDocument();
-        });
-
-        it('should render create homework button', () => {
-            renderWithRouter(<TeacherHomeworkListPage />);
-
-            const createButtons = screen.getAllByText(/Create Homework/i);
-            expect(createButtons.length).toBeGreaterThan(0);
-        });
-
-        it('should render view mode toggle buttons', () => {
-            renderWithRouter(<TeacherHomeworkListPage />);
-
-            expect(screen.getByText('📅 Chronological')).toBeInTheDocument();
+            expect(screen.getByText('Loaded Homework')).toBeInTheDocument();
+            expect(screen.getByText('5')).toBeInTheDocument();
+            expect(screen.getByText('Going live soon')).toBeInTheDocument();
+            expect(screen.getByText('Past deadline')).toBeInTheDocument();
+            expect(screen.getByText('📅 Timeline')).toBeInTheDocument();
             expect(screen.getByText('📚 By Class')).toBeInTheDocument();
-            expect(screen.getByText('📊 By Status')).toBeInTheDocument();
-        });
-
-        it('should render search input', () => {
-            renderWithRouter(<TeacherHomeworkListPage />);
-
-            const searchInput = screen.getByPlaceholderText(/Search homework/i);
-            expect(searchInput).toBeInTheDocument();
-        });
-
-        it('should render status filter buttons', () => {
-            renderWithRouter(<TeacherHomeworkListPage />);
-
-            expect(screen.getByText(/All \(/i)).toBeInTheDocument();
-            expect(screen.getByText(/Active \(/i)).toBeInTheDocument();
-            expect(screen.getByText(/Scheduled \(/i)).toBeInTheDocument();
-            expect(screen.getByText(/Past Due \(/i)).toBeInTheDocument();
-            expect(screen.getByText(/Draft \(/i)).toBeInTheDocument();
-            expect(screen.getByText(/Closed \(/i)).toBeInTheDocument();
-        });
-    });
-
-    describe('Status Counts', () => {
-        it('should display correct status counts', () => {
-            renderWithRouter(<TeacherHomeworkListPage />);
-
-            expect(screen.getByText(/Active \(5\)/i)).toBeInTheDocument();
-            expect(screen.getByText(/Scheduled \(3\)/i)).toBeInTheDocument();
-            expect(screen.getByText(/Past Due \(1\)/i)).toBeInTheDocument();
-            expect(screen.getByText(/Draft \(2\)/i)).toBeInTheDocument();
-            expect(screen.getByText(/Closed \(4\)/i)).toBeInTheDocument();
-        });
-    });
-
-    describe('View Mode Switching', () => {
-        it('should start with chronological view by default', () => {
-            renderWithRouter(<TeacherHomeworkListPage />);
-
-            const chronologicalBtn = screen.getByText('📅 Chronological');
-            expect(chronologicalBtn.closest('button')).toHaveClass('active');
-        });
-
-        it('should switch to by class view', async () => {
-            renderWithRouter(<TeacherHomeworkListPage />);
-
-            const byClassBtn = screen.getByText('📚 By Class');
-            fireEvent.click(byClassBtn);
-
-            await waitFor(() => {
-                expect(byClassBtn.closest('button')).toHaveClass('active');
-            });
-        });
-
-        it('should switch to by status view', async () => {
-            renderWithRouter(<TeacherHomeworkListPage />);
-
-            const byStatusBtn = screen.getByText('📊 By Status');
-            fireEvent.click(byStatusBtn);
-
-            await waitFor(() => {
-                expect(byStatusBtn.closest('button')).toHaveClass('active');
-            });
-        });
-
-        it('should display homework grouped by class in by class view', async () => {
-            renderWithRouter(<TeacherHomeworkListPage />);
-
-            const byClassBtn = screen.getByText('📚 By Class');
-            fireEvent.click(byClassBtn);
-
-            await waitFor(() => {
-                expect(screen.getByText(/📚 Class A/i)).toBeInTheDocument();
-                expect(screen.getByText(/📚 Class B/i)).toBeInTheDocument();
-            });
-        });
-
-        it('should display homework grouped by status in by status view', async () => {
-            renderWithRouter(<TeacherHomeworkListPage />);
-
-            const byStatusBtn = screen.getByText('📊 By Status');
-            fireEvent.click(byStatusBtn);
-
-            await waitFor(() => {
-                expect(screen.getByText(/✅ Active/i)).toBeInTheDocument();
-                expect(screen.getByText(/⏰ Scheduled/i)).toBeInTheDocument();
-                expect(screen.getByText(/⚠️ Past Due/i)).toBeInTheDocument();
-            });
+            expect(screen.getByText('📋 By Status')).toBeInTheDocument();
+            expect(screen.getByPlaceholderText('Search by title, target, description, or tags...')).toBeInTheDocument();
+            expect(screen.getByTestId('homework-card-hw-active')).toBeInTheDocument();
+            expect(screen.getByTestId('homework-card-hw-past-due')).toBeInTheDocument();
+            expect(screen.getByTestId('homework-card-hw-scheduled')).toBeInTheDocument();
+            expect(screen.queryByTestId('homework-card-hw-closed')).not.toBeInTheDocument();
+            expect(screen.queryByTestId('homework-card-hw-archived')).not.toBeInTheDocument();
         });
     });
 
     describe('Search Functionality', () => {
-        it('should filter homework by search term', async () => {
-            renderWithRouter(<TeacherHomeworkListPage />);
+        it('debounces the search input and passes the query into useHomeworkList', async () => {
+            vi.useFakeTimers();
 
-            const searchInput = screen.getByPlaceholderText(/Search homework/i);
-            fireEvent.change(searchInput, { target: { value: 'English' } });
+            renderPage();
 
-            await waitFor(() => {
-                expect(screen.getByText('English Grammar Test')).toBeInTheDocument();
-                expect(screen.queryByText('Math Quiz')).not.toBeInTheDocument();
+            fireEvent.change(screen.getByPlaceholderText('Search by title, target, description, or tags...'), {
+                target: { value: 'english' },
             });
-        });
 
-        it('should be case-insensitive', async () => {
-            renderWithRouter(<TeacherHomeworkListPage />);
-
-            const searchInput = screen.getByPlaceholderText(/Search homework/i);
-            fireEvent.change(searchInput, { target: { value: 'ENGLISH' } });
-
-            await waitFor(() => {
-                expect(screen.getByText('English Grammar Test')).toBeInTheDocument();
+            await act(async () => {
+                vi.advanceTimersByTime(300);
+                await Promise.resolve();
             });
-        });
 
-        it('should show empty state when no results found', async () => {
-            renderWithRouter(<TeacherHomeworkListPage />);
+            expect(useHomeworkListMock).toHaveBeenLastCalledWith(
+                expect.objectContaining({
+                    searchQuery: 'english',
+                })
+            );
 
-            const searchInput = screen.getByPlaceholderText(/Search homework/i);
-            fireEvent.change(searchInput, { target: { value: 'NonExistentHomework' } });
-
-            await waitFor(() => {
-                expect(screen.getByText(/No homework found/i)).toBeInTheDocument();
-                expect(screen.getByText(/Try adjusting your search/i)).toBeInTheDocument();
-            });
+            expect(screen.getByTestId('homework-card-hw-active')).toBeInTheDocument();
+            expect(screen.queryByTestId('homework-card-hw-past-due')).not.toBeInTheDocument();
+            expect(screen.queryByTestId('homework-card-hw-scheduled')).not.toBeInTheDocument();
         });
     });
 
-    describe('Status Filtering', () => {
-        it('should filter by active status', async () => {
-            renderWithRouter(<TeacherHomeworkListPage />);
+    describe('Visibility Toggles', () => {
+        it('reveals closed homework when the closed toggle is enabled', () => {
+            renderPage();
 
-            const activeBtn = screen.getByText(/✅ Active/i);
-            fireEvent.click(activeBtn);
+            fireEvent.click(screen.getByText('Show Closed (1)'));
 
-            await waitFor(() => {
-                expect(activeBtn.closest('button')).toHaveClass('active');
-            });
+            expect(useHomeworkListMock).toHaveBeenLastCalledWith(
+                expect.objectContaining({
+                    excludeClosed: false,
+                })
+            );
+
+            expect(screen.getByTestId('homework-card-hw-closed')).toBeInTheDocument();
         });
 
-        it('should filter by scheduled status', async () => {
-            renderWithRouter(<TeacherHomeworkListPage />);
+        it('reveals archived homework when the archived toggle is enabled', () => {
+            renderPage();
 
-            const scheduledBtn = screen.getByText(/⏰ Scheduled/i);
-            fireEvent.click(scheduledBtn);
+            fireEvent.click(screen.getByText('Show Archived'));
 
-            await waitFor(() => {
-                expect(scheduledBtn.closest('button')).toHaveClass('active');
-            });
-        });
+            expect(useHomeworkListMock).toHaveBeenLastCalledWith(
+                expect.objectContaining({
+                    excludeArchived: false,
+                })
+            );
 
-        it('should filter by past due status', async () => {
-            renderWithRouter(<TeacherHomeworkListPage />);
-
-            const pastDueBtn = screen.getByText(/⚠️ Past Due/i);
-            fireEvent.click(pastDueBtn);
-
-            await waitFor(() => {
-                expect(pastDueBtn.closest('button')).toHaveClass('active');
-            });
-        });
-
-        it('should show all homework when clicking All filter', async () => {
-            renderWithRouter(<TeacherHomeworkListPage />);
-
-            // First filter by active
-            const activeBtn = screen.getByText(/✅ Active/i);
-            fireEvent.click(activeBtn);
-
-            // Then click All
-            const allBtn = screen.getByText(/All \(/i);
-            fireEvent.click(allBtn);
-
-            await waitFor(() => {
-                expect(allBtn.closest('button')).toHaveClass('active');
-            });
+            expect(screen.getByTestId('homework-card-hw-archived')).toBeInTheDocument();
         });
     });
 
-    describe('Homework Cards', () => {
-        it('should display homework cards', () => {
-            renderWithRouter(<TeacherHomeworkListPage />);
+    describe('Filters and Sorting', () => {
+        it('forwards status filter clicks to the hook controller', () => {
+            renderPage();
 
-            expect(screen.getByText('English Grammar Test')).toBeInTheDocument();
-            expect(screen.getByText('Math Quiz')).toBeInTheDocument();
-            expect(screen.getByText('Science Assignment')).toBeInTheDocument();
+            fireEvent.click(screen.getByText('✅ Active (2)'));
+
+            expect(mockFilterByStatus).toHaveBeenCalledWith('active');
         });
 
-        it('should show homework status badges', () => {
-            renderWithRouter(<TeacherHomeworkListPage />);
+        it('forwards sort changes through the new native select control', () => {
+            renderPage();
 
-            // Status badges should be visible
-            const badges = screen.getAllByRole('status', { hidden: true });
-            expect(badges.length).toBeGreaterThan(0);
+            fireEvent.change(screen.getByRole('combobox'), {
+                target: { value: 'dueDate_asc' },
+            });
+
+            expect(mockSetSort).toHaveBeenCalledWith('dueDate_asc');
         });
     });
 
-    describe('CRUD Operations', () => {
-        it('should open create modal when clicking create button', async () => {
-            renderWithRouter(<TeacherHomeworkListPage />);
+    describe('View Mode Switching', () => {
+        it('groups homework by class in the class view', () => {
+            renderPage();
 
-            const createBtn = screen.getAllByText(/Create Homework/i)[0];
-            fireEvent.click(createBtn);
+            fireEvent.click(screen.getByText('📚 By Class'));
 
-            await waitFor(() => {
-                // Modal should be open (implementation specific)
-                expect(true).toBe(true);
-            });
+            expect(screen.getByText('📚 Class A (1)')).toBeInTheDocument();
+            expect(screen.getByText('📚 Class B (1)')).toBeInTheDocument();
+            expect(screen.getByText('📚 Other (1)')).toBeInTheDocument();
         });
 
-        it('should call delete handler with confirmation', async () => {
-            const { deleteHomework } = await import('../services/homeworkManager');
-            global.confirm = vi.fn(() => true);
+        it('groups homework by status in the status view', () => {
+            renderPage();
 
-            renderWithRouter(<TeacherHomeworkListPage />);
+            fireEvent.click(screen.getByText('📋 By Status'));
 
-            // Find and click delete button (implementation specific)
-            // This would require the card to have a delete button visible
-            expect(deleteHomework).toBeDefined();
-        });
-
-        it('should not delete if user cancels confirmation', async () => {
-            const { deleteHomework } = await import('../services/homeworkManager');
-            global.confirm = vi.fn(() => false);
-
-            renderWithRouter(<TeacherHomeworkListPage />);
-
-            // User cancels, so delete should not be called
-            expect(deleteHomework).toBeDefined();
-        });
-
-        it('should call duplicate handler', async () => {
-            const { duplicateHomework } = await import('../services/homeworkManager');
-
-            renderWithRouter(<TeacherHomeworkListPage />);
-
-            expect(duplicateHomework).toBeDefined();
+            expect(screen.getByText('Active (1)')).toBeInTheDocument();
+            expect(screen.getByText('Scheduled (1)')).toBeInTheDocument();
+            expect(screen.getByText('Past Due (1)')).toBeInTheDocument();
         });
     });
 
     describe('Loading State', () => {
-        it('should show loading spinner when loading', () => {
-            const { useHomeworkList } = require('../hooks/useHomeworkList');
-            useHomeworkList.mockReturnValue({
-                homework: [],
-                loading: true,
-                error: null,
-                refetch: vi.fn(),
-                filteredHomework: [],
-                statusCounts: {
-                    draft: 0,
-                    scheduled: 0,
-                    active: 0,
-                    past_due: 0,
-                    closed: 0,
-                },
-            });
+        it('shows the vanilla loader state when the hook is loading', () => {
+            useHomeworkListMock.mockImplementation(() =>
+                buildHookResult({}, {
+                    homework: [],
+                    filteredHomework: [],
+                    loading: true,
+                    statusCounts: {},
+                    totalLoaded: 0,
+                })
+            );
 
-            renderWithRouter(<TeacherHomeworkListPage />);
+            renderPage();
 
-            expect(screen.getByText(/Loading homework/i)).toBeInTheDocument();
+            expect(screen.getByText('Loading homework...')).toBeInTheDocument();
         });
     });
 
     describe('Error State', () => {
-        it('should show error message when error occurs', () => {
-            const { useHomeworkList } = require('../hooks/useHomeworkList');
-            useHomeworkList.mockReturnValue({
-                homework: [],
-                loading: false,
-                error: 'Failed to load homework',
-                refetch: vi.fn(),
-                filteredHomework: [],
-                statusCounts: {
-                    draft: 0,
-                    scheduled: 0,
-                    active: 0,
-                    past_due: 0,
-                    closed: 0,
-                },
-            });
+        it('shows the retry state and calls refetch when the user retries', () => {
+            useHomeworkListMock.mockImplementation(() =>
+                buildHookResult({}, {
+                    homework: [],
+                    filteredHomework: [],
+                    error: 'Failed to load homework',
+                    refetch: mockRefetch,
+                    statusCounts: {},
+                    totalLoaded: 0,
+                })
+            );
 
-            renderWithRouter(<TeacherHomeworkListPage />);
+            renderPage();
 
-            expect(screen.getByText(/Failed to load homework/i)).toBeInTheDocument();
-        });
+            expect(screen.getByText('Failed to load homework')).toBeInTheDocument();
 
-        it('should show retry button on error', () => {
-            const { useHomeworkList } = require('../hooks/useHomeworkList');
-            const mockRefetch = vi.fn();
-
-            useHomeworkList.mockReturnValue({
-                homework: [],
-                loading: false,
-                error: 'Network error',
-                refetch: mockRefetch,
-                filteredHomework: [],
-                statusCounts: {
-                    draft: 0,
-                    scheduled: 0,
-                    active: 0,
-                    past_due: 0,
-                    closed: 0,
-                },
-            });
-
-            renderWithRouter(<TeacherHomeworkListPage />);
-
-            const retryBtn = screen.getByText(/Retry/i);
-            expect(retryBtn).toBeInTheDocument();
-
-            fireEvent.click(retryBtn);
+            fireEvent.click(screen.getByText('Retry'));
             expect(mockRefetch).toHaveBeenCalled();
         });
     });
 
-    describe('Empty State', () => {
-        it('should show empty state when no homework exists', () => {
-            const { useHomeworkList } = require('../hooks/useHomeworkList');
-            useHomeworkList.mockReturnValue({
-                homework: [],
-                loading: false,
-                error: null,
-                refetch: vi.fn(),
-                filteredHomework: [],
-                statusCounts: {
-                    draft: 0,
-                    scheduled: 0,
-                    active: 0,
-                    past_due: 0,
-                    closed: 0,
-                },
-            });
+    describe('Pagination', () => {
+        it('renders the load more control when the hook reports more results', () => {
+            useHomeworkListMock.mockImplementation((options) =>
+                buildHookResult(
+                    options as {
+                        excludeArchived?: boolean;
+                        excludeClosed?: boolean;
+                        searchQuery?: string;
+                    },
+                    {
+                        filteredHomework: buildHookResult(
+                            options as {
+                                excludeArchived?: boolean;
+                                excludeClosed?: boolean;
+                                searchQuery?: string;
+                            }
+                        ).filteredHomework.slice(0, 2),
+                        hasMore: true,
+                        totalLoaded: 2,
+                    }
+                )
+            );
 
-            renderWithRouter(<TeacherHomeworkListPage />);
+            renderPage();
 
-            expect(screen.getByText(/No homework found/i)).toBeInTheDocument();
-            expect(screen.getByText(/Create your first homework assignment/i)).toBeInTheDocument();
-        });
-
-        it('should show create button in empty state', () => {
-            const { useHomeworkList } = require('../hooks/useHomeworkList');
-            useHomeworkList.mockReturnValue({
-                homework: [],
-                loading: false,
-                error: null,
-                refetch: vi.fn(),
-                filteredHomework: [],
-                statusCounts: {
-                    draft: 0,
-                    scheduled: 0,
-                    active: 0,
-                    past_due: 0,
-                    closed: 0,
-                },
-            });
-
-            renderWithRouter(<TeacherHomeworkListPage />);
-
-            const createButtons = screen.getAllByText(/Create Homework/i);
-            expect(createButtons.length).toBeGreaterThan(0);
-        });
-    });
-
-    describe('Responsive Behavior', () => {
-        it('should render on mobile viewport', () => {
-            global.innerWidth = 375;
-            global.dispatchEvent(new Event('resize'));
-
-            renderWithRouter(<TeacherHomeworkListPage />);
-
-            expect(screen.getByText('📋 Homework Management')).toBeInTheDocument();
-        });
-
-        it('should render on tablet viewport', () => {
-            global.innerWidth = 768;
-            global.dispatchEvent(new Event('resize'));
-
-            renderWithRouter(<TeacherHomeworkListPage />);
-
-            expect(screen.getByText('📋 Homework Management')).toBeInTheDocument();
-        });
-
-        it('should render on desktop viewport', () => {
-            global.innerWidth = 1920;
-            global.dispatchEvent(new Event('resize'));
-
-            renderWithRouter(<TeacherHomeworkListPage />);
-
-            expect(screen.getByText('📋 Homework Management')).toBeInTheDocument();
-        });
-    });
-
-    describe('Accessibility', () => {
-        it('should have proper heading hierarchy', () => {
-            renderWithRouter(<TeacherHomeworkListPage />);
-
-            const heading = screen.getByText('📋 Homework Management');
-            expect(heading.tagName).toBe('H1');
-        });
-
-        it('should have accessible buttons', () => {
-            renderWithRouter(<TeacherHomeworkListPage />);
-
-            const buttons = screen.getAllByRole('button');
-            buttons.forEach(button => {
-                expect(button).toBeInTheDocument();
-            });
-        });
-
-        it('should have accessible search input', () => {
-            renderWithRouter(<TeacherHomeworkListPage />);
-
-            const searchInput = screen.getByPlaceholderText(/Search homework/i);
-            expect(searchInput).toHaveAttribute('type', 'text');
+            fireEvent.click(screen.getByText('Load More'));
+            expect(mockLoadMore).toHaveBeenCalled();
         });
     });
 });

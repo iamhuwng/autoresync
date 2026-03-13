@@ -11,7 +11,9 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { updateHomework } from '../../services/homeworkManager';
+import { HomeworkTagChips } from './HomeworkTagChips';
+import { useHomeworkTags } from '../../hooks/useHomeworkTags';
+import { updateHomework, clearSubsumedOverrides } from '../../services/homeworkManager';
 import type {
     HomeworkAssignment,
     HomeworkConfig,
@@ -49,6 +51,7 @@ export function HomeworkEditModal({
     onClose,
     onSuccess,
 }: HomeworkEditModalProps) {
+    const { tags: availableTags } = useHomeworkTags();
     // ---------- Form state ----------
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
@@ -59,6 +62,7 @@ export function HomeworkEditModal({
     const [feedbackTiming, setFeedbackTiming] = useState<HomeworkConfig['feedbackTiming']>('after_completion');
     const [lateSubmissionAllowed, setLateSubmissionAllowed] = useState(false);
     const [status, setStatus] = useState<HomeworkStatus>('active');
+    const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -75,6 +79,7 @@ export function HomeworkEditModal({
         setFeedbackTiming(hw.config.feedbackTiming);
         setLateSubmissionAllowed(hw.config.lateSubmissionAllowed);
         setStatus(hw.status);
+        setSelectedTags(hw.tags ?? []);
         setError(null);
         setSuccessMsg(null);
     }, []);
@@ -121,9 +126,22 @@ export function HomeworkEditModal({
                     lateSubmissionAllowed,
                 },
                 status,
+                tags: selectedTags,
             };
 
             await updateHomework(homework.id, updates);
+
+            // PRD-0034 Task 11.6 / Edge Case E5 (AC-7.7):
+            // If due date was changed, clear student-level overrides that are now subsumed.
+            const originalDueDate = homework.scheduling.dueDate;
+            if (dueDateTs && dueDateTs !== originalDueDate) {
+                try {
+                    await clearSubsumedOverrides(homework.id, dueDateTs);
+                } catch (overrideErr) {
+                    console.warn('[HomeworkEditModal] clearSubsumedOverrides failed (non-blocking):', overrideErr);
+                }
+            }
+
             setSuccessMsg('Homework updated successfully!');
             // Brief delay so user sees the success message
             setTimeout(() => {
@@ -142,6 +160,14 @@ export function HomeworkEditModal({
         if (e.target === e.currentTarget && !saving) {
             onClose();
         }
+    };
+
+    const toggleTagSelection = (tagId: string) => {
+        setSelectedTags((currentTags) => (
+            currentTags.includes(tagId)
+                ? currentTags.filter((currentTag) => currentTag !== tagId)
+                : [...currentTags, tagId]
+        ));
     };
 
     // ---------- Render ----------
@@ -288,6 +314,41 @@ export function HomeworkEditModal({
                         />
                         <span>⏰ Allow late submissions</span>
                     </label>
+
+                    <h3 className="hw-edit-section-title">🏷️ Tags</h3>
+                    <div className="hw-edit-field">
+                        <label>Tags (optional)</label>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
+                            {availableTags.map((tag) => {
+                                const isSelected = selectedTags.includes(tag.id);
+                                return (
+                                    <button
+                                        key={tag.id}
+                                        type="button"
+                                        aria-label={`Toggle tag ${tag.label}`}
+                                        onClick={() => toggleTagSelection(tag.id)}
+                                        style={{
+                                            borderRadius: '999px',
+                                            padding: '0.45rem 0.85rem',
+                                            border: `1px solid ${isSelected ? (tag.color ?? '#6366f1') : `${tag.color ?? '#cbd5e1'}44`}`,
+                                            background: isSelected ? (tag.color ?? '#6366f1') : `${tag.color ?? '#6366f1'}14`,
+                                            color: isSelected ? '#ffffff' : (tag.color ?? '#475569'),
+                                            fontSize: '0.8rem',
+                                            fontWeight: 700,
+                                            cursor: 'pointer',
+                                        }}
+                                    >
+                                        {tag.label}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        {selectedTags.length > 0 ? (
+                            <div style={{ marginTop: '0.75rem' }}>
+                                <HomeworkTagChips tags={selectedTags} allTags={availableTags} />
+                            </div>
+                        ) : null}
+                    </div>
 
                     {/* Status */}
                     <h3 className="hw-edit-section-title">📊 Status</h3>

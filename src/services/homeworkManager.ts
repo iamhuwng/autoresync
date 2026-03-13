@@ -8,17 +8,22 @@ import {
     deleteDoc,
     query,
     where,
+    deleteField,
+    writeBatch,
 } from 'firebase/firestore';
 // @ts-ignore - JS service file
 import { firestore as db } from './firebase';
 import { isRestoreInProgress } from './restoreGuard';
+import { getClass, getStudentClasses } from './classManager';
 import type {
     HomeworkAssignment,
     HomeworkConfig,
     HomeworkTarget,
     HomeworkStatus,
     HomeworkVisibility,
-    HomeworkStats
+    HomeworkStats,
+    HomeworkStudentOverride,
+    StudentOverride
 } from '../types/homework.types';
 
 const HOMEWORK_COLLECTION = 'homework_assignments';
@@ -38,6 +43,7 @@ interface CreateHomeworkInput {
     dueDate: Date;
     instructions?: string;
     title?: string;
+    tags?: string[];
 
     // Phase 3: THCS-specific configuration
     thcsConfig?: {
@@ -73,6 +79,30 @@ const DEFAULT_STATS: HomeworkStats = {
     lateSubmissions: 0,
 };
 
+const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
+function normalizeHomeworkAssignment(homework: HomeworkAssignment): HomeworkAssignment {
+    return {
+        ...homework,
+        tags: homework.tags ?? [],
+        archived: homework.archived ?? false,
+        studentOverrides: homework.studentOverrides ?? {},
+    };
+}
+
+async function resolveAssignedCount(target: HomeworkTarget): Promise<number> {
+    if (target.type === 'class') {
+        const classData = await getClass(target.classId);
+        return Object.keys(classData?.students ?? {}).length;
+    }
+
+    if (target.type === 'students' || target.type === 'group') {
+        return target.studentIds.length;
+    }
+
+    return 0;
+}
+
 /**
  * Create a new homework assignment
  */
@@ -90,15 +120,7 @@ export async function createHomework(data: CreateHomeworkInput): Promise<string>
         const dueDate = data.dueDate.getTime();
 
         // Calculate initial assigned count based on target
-        let totalAssigned = 0;
-        if (data.target.type === 'class') {
-            // Would need to fetch class enrollment - set to 0 for now
-            totalAssigned = 0;
-        } else if (data.target.type === 'students') {
-            totalAssigned = data.target.studentIds.length;
-        } else if (data.target.type === 'group') {
-            totalAssigned = data.target.studentIds.length;
-        }
+        const totalAssigned = await resolveAssignedCount(data.target);
 
         const homework: HomeworkAssignment = {
             id: homeworkRef.id,
@@ -117,6 +139,9 @@ export async function createHomework(data: CreateHomeworkInput): Promise<string>
             config: data.config,
             visibility: DEFAULT_VISIBILITY,
             status: determineStatus(availableFrom, dueDate),
+            tags: data.tags ?? [],
+            archived: false,
+            studentOverrides: {},
             title: data.title,
             description: data.instructions || '',
             stats: {
@@ -124,7 +149,12 @@ export async function createHomework(data: CreateHomeworkInput): Promise<string>
                 totalAssigned,
             },
             // Phase 3: THCS-specific configuration (only included when materialType is 'thcs-test')
-            ...(data.materialType === 'thcs-test' && data.thcsConfig ? { thcsConfig: data.thcsConfig } : {}),
+            // Firestore rejects undefined field values, so strip them before writing
+            ...(data.materialType === 'thcs-test' && data.thcsConfig
+                ? { thcsConfig: Object.fromEntries(
+                    Object.entries(data.thcsConfig).filter(([, v]) => v !== undefined)
+                  ) }
+                : {}),
         };
 
         await setDoc(homeworkRef, homework);
@@ -144,6 +174,14 @@ export async function updateHomework(
 ): Promise<void> {
     try {
         const homeworkRef = doc(db, HOMEWORK_COLLECTION, id);
+        const sanitizedUpdates = Object.fromEntries(
+            Object.entries(updates).filter(([, value]) => value !== undefined)
+        );
+        const payload: Record<string, unknown> = {
+            ...sanitizedUpdates,
+            updatedAt: Date.now(),
+        };
+        let existing: HomeworkAssignment | null = null;
 
         // If scheduling is being updated, recalculate status
         if (updates.scheduling) {
@@ -152,17 +190,24 @@ export async function updateHomework(
                 throw new Error('Homework not found');
             }
 
-            const existing = existingDoc.data() as HomeworkAssignment;
+            existing = normalizeHomeworkAssignment(existingDoc.data() as HomeworkAssignment);
             const availableFrom = updates.scheduling.availableFrom ?? existing.scheduling.availableFrom;
             const dueDate = updates.scheduling.dueDate ?? existing.scheduling.dueDate;
 
-            updates.status = determineStatus(availableFrom, dueDate);
+            payload.status = determineStatus(availableFrom, dueDate);
         }
 
-        await updateDoc(homeworkRef, {
-            ...updates,
-            updatedAt: Date.now(),
-        });
+        const nextStatus = payload.status as HomeworkStatus | undefined;
+        if (nextStatus) {
+            payload.closedAt = nextStatus === 'closed' ? Date.now() : deleteField();
+        }
+
+        if (updates.archived === false) {
+            payload.archivedAt = deleteField();
+            payload.trashExpiresAt = deleteField();
+        }
+
+        await updateDoc(homeworkRef, payload);
     } catch (error) {
         console.error('Error updating homework:', error);
         throw new Error('Failed to update homework assignment');
@@ -174,8 +219,7 @@ export async function updateHomework(
  */
 export async function deleteHomework(id: string): Promise<void> {
     try {
-        const homeworkRef = doc(db, HOMEWORK_COLLECTION, id);
-        await deleteDoc(homeworkRef);
+        await archiveHomework(id);
     } catch (error) {
         console.error('Error deleting homework:', error);
         throw new Error('Failed to delete homework assignment');
@@ -193,7 +237,7 @@ export async function getHomeworkByTeacher(teacherId: string): Promise<HomeworkA
         );
 
         const snapshot = await getDocs(q);
-        const homework = snapshot.docs.map(doc => doc.data() as HomeworkAssignment);
+        const homework = snapshot.docs.map(doc => normalizeHomeworkAssignment(doc.data() as HomeworkAssignment));
 
         // Sort by createdAt descending in application code to avoid requiring composite index
         return homework.sort((a, b) => b.createdAt - a.createdAt);
@@ -214,7 +258,7 @@ export async function getHomeworkByClass(classId: string): Promise<HomeworkAssig
         );
 
         const snapshot = await getDocs(q);
-        const homework = snapshot.docs.map(doc => doc.data() as HomeworkAssignment);
+        const homework = snapshot.docs.map(doc => normalizeHomeworkAssignment(doc.data() as HomeworkAssignment));
 
         // Sort by dueDate descending in application code to avoid requiring composite index
         return homework.sort((a, b) => b.scheduling.dueDate - a.scheduling.dueDate);
@@ -229,32 +273,34 @@ export async function getHomeworkByClass(classId: string): Promise<HomeworkAssig
  */
 export async function getHomeworkForStudent(studentId: string): Promise<HomeworkAssignment[]> {
     try {
-        // Query for class-based assignments
-        const classQuery = query(
-            collection(db, HOMEWORK_COLLECTION),
-            where('target.type', '==', 'class')
-        );
-
-        // Query for individual student assignments
+        const studentClasses = await getStudentClasses(studentId);
         const studentQuery = query(
             collection(db, HOMEWORK_COLLECTION),
             where('target.studentIds', 'array-contains', studentId)
         );
+        const classQueries = studentClasses.map(cls =>
+            query(
+                collection(db, HOMEWORK_COLLECTION),
+                where('target.classId', '==', cls.id)
+            )
+        );
 
-        const [classSnapshot, studentSnapshot] = await Promise.all([
-            getDocs(classQuery),
-            getDocs(studentQuery)
+        const [studentSnapshot, ...classSnapshots] = await Promise.all([
+            getDocs(studentQuery),
+            ...classQueries.map(currentQuery => getDocs(currentQuery))
         ]);
 
         const allHomework = [
-            ...classSnapshot.docs.map(doc => doc.data() as HomeworkAssignment),
-            ...studentSnapshot.docs.map(doc => doc.data() as HomeworkAssignment)
+            ...studentSnapshot.docs.map(doc => normalizeHomeworkAssignment(doc.data() as HomeworkAssignment)),
+            ...classSnapshots.flatMap(snapshot =>
+                snapshot.docs.map(doc => normalizeHomeworkAssignment(doc.data() as HomeworkAssignment))
+            )
         ];
 
         // Remove duplicates and sort by due date
         const uniqueHomework = Array.from(
             new Map(allHomework.map(hw => [hw.id, hw])).values()
-        );
+        ).filter(homework => !homework.archived && !isStudentExemptedFromHomework(homework, studentId));
 
         return uniqueHomework.sort((a, b) =>
             b.scheduling.dueDate - a.scheduling.dueDate
@@ -277,10 +323,145 @@ export async function getHomeworkById(id: string): Promise<HomeworkAssignment | 
             return null;
         }
 
-        return snapshot.data() as HomeworkAssignment;
+        return normalizeHomeworkAssignment(snapshot.data() as HomeworkAssignment);
     } catch (error) {
         console.error('Error fetching homework:', error);
         throw new Error('Failed to fetch homework assignment');
+    }
+}
+
+export function getStudentOverride(
+    homework: HomeworkAssignment,
+    studentId: string
+): HomeworkStudentOverride {
+    return normalizeHomeworkAssignment(homework).studentOverrides?.[studentId] ?? {};
+}
+
+export function getEffectiveHomeworkDueDate(
+    homework: HomeworkAssignment,
+    studentId: string
+): number {
+    return getStudentOverride(homework, studentId).dueDate ?? homework.scheduling.dueDate;
+}
+
+export function isStudentExemptedFromHomework(
+    homework: HomeworkAssignment,
+    studentId: string
+): boolean {
+    return getStudentOverride(homework, studentId).exempted ?? false;
+}
+
+export async function archiveHomework(id: string): Promise<void> {
+    if (await isRestoreInProgress()) {
+        throw new Error('Restore in progress');
+    }
+
+    const now = Date.now();
+    const homeworkRef = doc(db, HOMEWORK_COLLECTION, id);
+
+    await updateDoc(homeworkRef, {
+        archived: true,
+        archivedAt: now,
+        trashExpiresAt: now + TRASH_RETENTION_MS,
+        updatedAt: now,
+    });
+}
+
+export async function restoreHomework(id: string): Promise<void> {
+    if (await isRestoreInProgress()) {
+        throw new Error('Restore in progress');
+    }
+
+    const homeworkRef = doc(db, HOMEWORK_COLLECTION, id);
+    const homeworkSnapshot = await getDoc(homeworkRef);
+
+    if (!homeworkSnapshot.exists()) {
+        throw new Error('Homework not found');
+    }
+
+    const homework = normalizeHomeworkAssignment(homeworkSnapshot.data() as HomeworkAssignment);
+
+    if (typeof homework.trashExpiresAt === 'number' && homework.trashExpiresAt < Date.now()) {
+        throw new Error('This homework has been permanently deleted.');
+    }
+
+    await updateDoc(homeworkRef, {
+        archived: false,
+        archivedAt: deleteField(),
+        trashExpiresAt: deleteField(),
+        status: 'draft',
+        updatedAt: Date.now(),
+    });
+}
+
+export async function permanentlyDeleteHomework(id: string): Promise<void> {
+    if (await isRestoreInProgress()) {
+        throw new Error('Restore in progress');
+    }
+
+    const homeworkRef = doc(db, HOMEWORK_COLLECTION, id);
+    await deleteDoc(homeworkRef);
+}
+
+export async function updateStudentOverride(
+    homeworkId: string,
+    studentId: string,
+    override: Partial<StudentOverride>
+): Promise<void> {
+    const updates: Record<string, unknown> = {};
+    const keys: Array<keyof StudentOverride> = [
+        'dueDate',
+        'exempted',
+        'exemptReason',
+        'notes',
+        'reminderCount',
+        'lastRemindedAt',
+    ];
+
+    keys.forEach((key) => {
+        const value = override[key];
+        if (value !== undefined) {
+            updates[`studentOverrides.${studentId}.${key}`] = value;
+        }
+    });
+
+    if (Object.keys(updates).length === 0) {
+        return;
+    }
+
+    const homeworkRef = doc(db, HOMEWORK_COLLECTION, homeworkId);
+    await updateDoc(homeworkRef, updates);
+}
+
+/**
+ * PRD-0034 Task 11.6 / Edge Case E5 (AC-7.7):
+ * When the teacher extends the GLOBAL deadline, any per-student deadline overrides
+ * that are now at or before the new global deadline are redundant → clear them.
+ */
+export async function clearSubsumedOverrides(
+    homeworkId: string,
+    newGlobalDeadline: number,
+): Promise<void> {
+    const homeworkRef = doc(db, HOMEWORK_COLLECTION, homeworkId);
+    const snapshot = await getDoc(homeworkRef);
+
+    if (!snapshot.exists()) {
+        return;
+    }
+
+    const data = snapshot.data() as HomeworkAssignment;
+    const overrides = data.studentOverrides ?? {};
+    const updates: Record<string, unknown> = {};
+
+    for (const [studentId, override] of Object.entries(overrides)) {
+        if (override.dueDate !== undefined && override.dueDate <= newGlobalDeadline) {
+            updates[`studentOverrides.${studentId}.dueDate`] = deleteField();
+        }
+    }
+
+    if (Object.keys(updates).length > 0) {
+        await updateDoc(homeworkRef, updates);
+        console.log(`[clearSubsumedOverrides] Cleared ${Object.keys(updates).length} override(s) for homework ${homeworkId}`);
     }
 }
 
@@ -317,6 +498,7 @@ export async function duplicateHomework(
             dueDate: modifications?.dueDate || new Date(original.scheduling.dueDate),
             instructions: original.description,
             title: modifications?.title || `${original.title || original.materialTitle} (Copy)`,
+            tags: original.tags ?? [],
             // Phase 3: Preserve THCS config when duplicating
             ...(original.thcsConfig ? { thcsConfig: original.thcsConfig } : {}),
         };
@@ -403,5 +585,60 @@ export async function extendDeadline(id: string, newDueDate: Date): Promise<void
     } catch (error) {
         console.error('Error extending deadline:', error);
         throw new Error('Failed to extend deadline');
+    }
+}
+
+// ─── Metadata Propagation ───────────────────────────────────────────────────
+
+/**
+ * Propagates test metadata changes (e.g., title rename) to all active
+ * homework assignments that reference the given materialId.
+ *
+ * This is fire-and-forget — call it after a successful test save.
+ * Failures are logged but never surface to the user.
+ *
+ * @param materialId - The test ID that was edited
+ * @param updates    - Partial metadata fields to propagate
+ */
+export async function propagateTestMetadataToHomework(
+    materialId: string,
+    updates: { materialTitle?: string },
+): Promise<void> {
+    // Nothing to propagate
+    if (!updates.materialTitle) return;
+
+    try {
+        const q = query(
+            collection(db, HOMEWORK_COLLECTION),
+            where('materialId', '==', materialId),
+        );
+        const snapshot = await getDocs(q);
+
+        if (snapshot.empty) {
+            console.log(`[propagateTestMetadata] No homework found for materialId=${materialId}`);
+            return;
+        }
+
+        const batch = writeBatch(db);
+        let updateCount = 0;
+
+        snapshot.docs.forEach((docSnap) => {
+            const data = docSnap.data();
+            // Only update if the title actually changed
+            if (updates.materialTitle && data.materialTitle !== updates.materialTitle) {
+                batch.update(docSnap.ref, { materialTitle: updates.materialTitle });
+                updateCount++;
+            }
+        });
+
+        if (updateCount > 0) {
+            await batch.commit();
+            console.log(`✅ [propagateTestMetadata] Updated ${updateCount} homework assignment(s) for materialId=${materialId}`);
+        } else {
+            console.log(`[propagateTestMetadata] All homework already has current title for materialId=${materialId}`);
+        }
+    } catch (error) {
+        // Fire-and-forget: never block the editor save
+        console.warn('[propagateTestMetadata] Failed to propagate test metadata to homework:', error);
     }
 }

@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import { useState, Suspense } from 'react';
-import { Center, Loader } from '@mantine/core';
 import { lazyWithRetry } from './utils/lazyWithRetry.ts';
+import { ToastContainer, VanillaLoader } from './components/modern';
 
 // Lazy load all page components for code splitting
 // Using lazyWithRetry to auto-recover from stale chunk errors after deployments
@@ -63,6 +63,9 @@ const StudentLibraryPage = lazyWithRetry(() => import('./pages/StudentLibraryPag
 // PRD-0025: Unified Solo Practice Mode
 const StudentPracticePage = lazyWithRetry(() => import('./pages/StudentPracticePage.tsx'));
 const TeacherHomeworkListPage = lazyWithRetry(() => import('./pages/TeacherHomeworkListPage.tsx'));
+const TeacherHomeworkDetailPage = lazyWithRetry(() => import('./pages/TeacherHomeworkDetailPage.tsx'));
+// PRD-0034: Student Homework Profile
+const StudentHomeworkProfile = lazyWithRetry(() => import('./pages/StudentHomeworkProfile.tsx'));
 const StudentHomeworkListPage = lazyWithRetry(() => import('./pages/StudentHomeworkListPage.tsx'));
 const StudentHomeworkDetailPage = lazyWithRetry(() => import('./pages/StudentHomeworkDetailPage.tsx'));
 // PRD-0019: Test Duration End Flow
@@ -90,9 +93,16 @@ import RestoreBanner from './components/RestoreBanner.tsx';
 
 // Loading fallback component
 const LoadingFallback = () => (
-  <Center style={{ height: '100vh' }}>
-    <Loader size="xl" />
-  </Center>
+  <div
+    style={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+    }}
+  >
+    <VanillaLoader size="xl" />
+  </div>
 );
 
 // Placeholder components for routing
@@ -208,10 +218,27 @@ function App() {
             </PrivateRoute>
           } />
 
+          {/* PRD-0034: Student Homework Profile — MUST be before :homeworkId to avoid capture */}
+          <Route path="/teacher/homework/student/:studentId" element={
+            <PrivateRoute allowedRoles={['teacher']}>
+              <ErrorBoundary>
+                <StudentHomeworkProfile />
+              </ErrorBoundary>
+            </PrivateRoute>
+          } />
           {/* Teacher Homework Management - TEACHERS ONLY (PRD-0016) */}
+          <Route path="/teacher/homework/:homeworkId" element={
+            <PrivateRoute allowedRoles={['teacher']}>
+              <ErrorBoundary>
+                <TeacherHomeworkDetailPage />
+              </ErrorBoundary>
+            </PrivateRoute>
+          } />
           <Route path="/teacher/homework" element={
             <PrivateRoute allowedRoles={['teacher']}>
-              <TeacherHomeworkListPage />
+              <ErrorBoundary>
+                <TeacherHomeworkListPage />
+              </ErrorBoundary>
             </PrivateRoute>
           } />
 
@@ -317,6 +344,7 @@ function App() {
 
         <ConfirmDialog />
       </Suspense>
+      <ToastContainer />
     </BrowserRouter >
   );
 }

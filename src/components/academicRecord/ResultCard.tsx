@@ -123,7 +123,7 @@ export const ResultCard: React.FC<ResultCardProps> = ({
                         </div>
 
                         {/* Score Display - PRD-0015: Phase 7 & 8 */}
-                        <div style={{ textAlign: 'right' }}>
+                        <div style={{ textAlign: 'right', minWidth: 0, flexShrink: 0, maxWidth: '30%' }}>
                             {result.markingStatus === 'pending-review' ? (
                                 <>
                                     <div style={{ color: '#f59e0b', lineHeight: 1, fontSize: '1rem', fontWeight: 600 }}>
@@ -135,7 +135,7 @@ export const ResultCard: React.FC<ResultCardProps> = ({
                                 </>
                             ) : (
                                 <>
-                                    <div style={{ color: getScoreColor(result.percentage), lineHeight: 1, fontSize: '1.25rem', fontWeight: 700 }}>
+                                    <div style={{ color: getScoreColor(result.percentage), lineHeight: 1, fontSize: '1.25rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                         {/* THCS: show scaledScore/10, IELTS: show percentage */}
                                         {(result as any).thcsData?.scaledScore !== undefined
                                             ? `${(result as any).thcsData.scaledScore.toFixed(1)}/10`
@@ -235,5 +235,5 @@ function badgeLightByName(name: string): React.CSSProperties {
         gray: { background: '#f8fafc', color: '#64748b' },
         green: { background: '#ecfdf5', color: '#047857' },
     };
-    return map[name] || map.gray;
+    return map[name] || map.gray!;
 }

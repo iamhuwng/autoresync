@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { IconArrowLeft } from '@tabler/icons-react';
 import { getTestResult, TestResultRecord } from '../../services/testResults.service';
 import { ref, onValue } from 'firebase/database';
 import { database } from '../../services/firebase';
-import { calculateBandScore, generatePerformanceFeedback } from '../../services/autoMarking.service';
+import { calculateBandScore } from '../../services/autoMarking.service';
 import { ResultContextBadge } from './ResultContextBadge';
 import { FormativeFeedbackPanel } from '../thcs-student/FormativeFeedbackPanel';
 import { QuestionPillsGrid } from './QuestionPillsGrid';
@@ -27,10 +27,10 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [result, setResult] = useState<TestResultRecord | null>(null);
-    const [expandedQuestions, setExpandedQuestions] = useState<Set<number>>(new Set());
-    const [questionViewMode, setQuestionViewMode] = useState<'overview' | 'detailed'>('overview');
     const [sectionResultsOpen, setSectionResultsOpen] = useState(false);
     const [formativeFeedbackLoading, setFormativeFeedbackLoading] = useState(false);
+    const [feedbackError, setFeedbackError] = useState(false);
+    const feedbackAttemptedRef = useRef(false);
 
     const loadResult = useCallback(async () => {
         try {
@@ -63,7 +63,6 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
             return;
         }
 
-        setExpandedQuestions(new Set());
 
         if (!resultId) {
             setResult(null);
@@ -101,17 +100,6 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
         return () => unsubscribe();
     }, [opened, inline, resultId, loadResult]);
 
-    const toggleQuestion = (questionNumber: number) => {
-        setExpandedQuestions(prev => {
-            const next = new Set(prev);
-            if (next.has(questionNumber)) {
-                next.delete(questionNumber);
-            } else {
-                next.add(questionNumber);
-            }
-            return next;
-        });
-    };
 
     const formatAnswer = (answer: string | string[] | Record<string, string>): string => {
         if (!answer) return '';
@@ -120,7 +108,7 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
         return String(answer ?? '');
     };
 
-    const handleGenerateFormativeFeedback = async () => {
+    const handleGenerateFormativeFeedback = useCallback(async () => {
         if (!result) return;
 
         const thcsData = (result as any).thcsData;
@@ -130,6 +118,7 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
 
         try {
             setFormativeFeedbackLoading(true);
+            setFeedbackError(false);
             const safeSections = Array.isArray((result as any).sections)
                 ? (result as any).sections
                 : thcsData.sectionResults.map((section: any) => ({
@@ -163,14 +152,40 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
                 },
                 resultId,
             );
-
-            await loadResult();
+            // No need to call loadResult() — the RTDB onValue listener
+            // will automatically pick up the newly-written formativeFeedback
         } catch (err) {
             console.error('[ResultDetailModal] Failed to generate formative feedback:', err);
+            setFeedbackError(true);
         } finally {
             setFormativeFeedbackLoading(false);
         }
-    };
+    }, [result, resultId]);
+
+    // ── Auto-trigger feedback generation when modal opens with no feedback ──
+    useEffect(() => {
+        if (!result || loading) return;
+
+        const isTHCS = !!(result as any).thcsData;
+        const hasFeedback = !!(result as any).formativeFeedback;
+        const hasThcsData = !!(result as any).thcsData?.sectionResults;
+
+        // Only auto-trigger for THCS results that lack feedback and have grading data
+        if (isTHCS && !hasFeedback && hasThcsData && !formativeFeedbackLoading && !feedbackError) {
+            // Deduplication: only attempt once per modal open
+            if (!feedbackAttemptedRef.current) {
+                feedbackAttemptedRef.current = true;
+                console.log('🤖 [ResultDetailModal] Auto-triggering feedback generation');
+                handleGenerateFormativeFeedback();
+            }
+        }
+    }, [result, loading, formativeFeedbackLoading, feedbackError, handleGenerateFormativeFeedback]);
+
+    // Reset the attempt ref when modal closes or resultId changes
+    useEffect(() => {
+        feedbackAttemptedRef.current = false;
+        setFeedbackError(false);
+    }, [resultId, opened]);
 
     const renderContent = () => {
         if (loading) {
@@ -211,7 +226,6 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
         const scoreStandard = isTHCS ? 'Thang điểm 10' : 'IELTS Standard';
         const scoreColor = isTHCS ? '#8b5cf6' : '#10b981';
 
-        const feedback = generatePerformanceFeedback(result.percentage);
 
         // feedbackTiming handling
         const feedbackTiming = result.context?.configApplied?.feedbackTiming || 'after_completion';
@@ -279,11 +293,12 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
                             display: 'grid',
                             gridTemplateColumns: 'repeat(4, 1fr)',
                             gap: '0.625rem',
+                            overflow: 'hidden',
                         }}>
                             <div style={cardStyleCompact}>
                                 <div style={cardLabel}>{isTHCS ? 'Số điểm đạt' : 'Points Achieved'}</div>
-                                <div style={{ fontSize: '1.375rem', fontWeight: 800, color: '#8b5cf6', margin: '0.125rem 0' }}>
-                                    {result.totalScore} / {result.maxScore}
+                                <div style={{ fontSize: '1.375rem', fontWeight: 800, color: '#8b5cf6', margin: '0.125rem 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {formatScore(result.totalScore)} / {formatScore(result.maxScore)}
                                 </div>
                                 <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8' }}>
                                     {result.percentage.toFixed(1)}%
@@ -292,7 +307,7 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
 
                             <div style={cardStyleCompact}>
                                 <div style={cardLabel}>{scoreLabel}</div>
-                                <div style={{ fontSize: '1.75rem', fontWeight: 800, color: scoreColor, margin: '0.125rem 0', lineHeight: 1 }}>
+                                <div style={{ fontSize: '1.75rem', fontWeight: 800, color: scoreColor, margin: '0.125rem 0', lineHeight: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                     {displayScore.toFixed(1)}
                                 </div>
                                 <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>{scoreStandard}</div>
@@ -321,7 +336,7 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
                             {/* Time Spent (PRD US-11) */}
                             <div style={cardStyleCompact}>
                                 <div style={cardLabel}>{isTHCS ? 'Thời gian' : 'Time Spent'}</div>
-                                <div style={{ fontSize: '1.375rem', fontWeight: 800, color: '#3b82f6', margin: '0.125rem 0' }}>
+                                <div style={{ fontSize: '1.375rem', fontWeight: 800, color: '#3b82f6', margin: '0.125rem 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                     {(result as any).timeSpent
                                         ? `${Math.floor((result as any).timeSpent / 60)}:${String((result as any).timeSpent % 60).padStart(2, '0')}`
                                         : (result as any).timeTaken
@@ -405,43 +420,94 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
 
 
 
+                        {/* Auto-generating feedback: loading shimmer or error/retry */}
                         {isTHCS && !(result as any).formativeFeedback && (
                             <div style={{
-                                background: '#ffffff',
-                                border: '1px solid #e5e7eb',
+                                background: feedbackError
+                                    ? 'linear-gradient(135deg, rgba(239,68,68,0.04), rgba(239,68,68,0.08))'
+                                    : 'linear-gradient(135deg, rgba(139,92,246,0.04), rgba(99,102,241,0.08))',
+                                border: feedbackError
+                                    ? '1px solid rgba(239,68,68,0.15)'
+                                    : '1px solid rgba(139,92,246,0.12)',
                                 borderRadius: '16px',
-                                padding: '1rem 1.25rem',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                gap: '1rem',
+                                padding: '1.25rem',
+                                overflow: 'hidden',
+                                position: 'relative' as const,
                             }}>
-                                <div>
-                                    <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#111827', marginBottom: '0.25rem' }}>
-                                        Formative Assessment Feedback
+                                {formativeFeedbackLoading ? (
+                                    /* Loading state: shimmer skeleton */
+                                    <>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+                                            <div style={{
+                                                width: 32, height: 32, borderRadius: '50%',
+                                                border: '3px solid rgba(139,92,246,0.15)',
+                                                borderTopColor: '#8b5cf6',
+                                                animation: 'resultSpin 0.8s linear infinite',
+                                                flexShrink: 0,
+                                            }} />
+                                            <div>
+                                                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#6d28d9' }}>
+                                                    🤖 Generating personalized feedback...
+                                                </div>
+                                                <div style={{ fontSize: '0.75rem', color: '#8b5cf6', marginTop: '0.15rem' }}>
+                                                    AI is analyzing your performance
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {/* Shimmer bars */}
+                                        {[85, 70, 55, 40].map((width, i) => (
+                                            <div key={i} style={{
+                                                height: 10, borderRadius: 5, marginBottom: 8,
+                                                width: `${width}%`,
+                                                background: 'linear-gradient(90deg, rgba(139,92,246,0.08) 25%, rgba(139,92,246,0.18) 50%, rgba(139,92,246,0.08) 75%)',
+                                                backgroundSize: '200% 100%',
+                                                animation: 'feedbackShimmer 1.5s ease-in-out infinite',
+                                            }} />
+                                        ))}
+                                        <style>{`
+                                            @keyframes feedbackShimmer {
+                                                0% { background-position: 200% 0; }
+                                                100% { background-position: -200% 0; }
+                                            }
+                                        `}</style>
+                                    </>
+                                ) : feedbackError ? (
+                                    /* Error state: subtle retry */
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+                                        <div>
+                                            <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#991b1b', marginBottom: '0.2rem' }}>
+                                                ⚠️ Feedback unavailable
+                                            </div>
+                                            <div style={{ fontSize: '0.75rem', color: '#b91c1c' }}>
+                                                AI service is temporarily busy. You can try again.
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                feedbackAttemptedRef.current = false;
+                                                setFeedbackError(false);
+                                                handleGenerateFormativeFeedback();
+                                            }}
+                                            style={{
+                                                border: '1px solid rgba(239,68,68,0.3)',
+                                                borderRadius: '999px',
+                                                padding: '0.5rem 1rem',
+                                                background: 'rgba(239,68,68,0.08)',
+                                                color: '#dc2626',
+                                                fontSize: '0.8rem',
+                                                fontWeight: 700,
+                                                cursor: 'pointer',
+                                                whiteSpace: 'nowrap',
+                                                transition: 'all 0.15s ease',
+                                            }}
+                                            onMouseEnter={e => { (e.target as HTMLButtonElement).style.background = 'rgba(239,68,68,0.15)'; }}
+                                            onMouseLeave={e => { (e.target as HTMLButtonElement).style.background = 'rgba(239,68,68,0.08)'; }}
+                                        >
+                                            🔄 Retry
+                                        </button>
                                     </div>
-                                    <div style={{ fontSize: '0.8125rem', lineHeight: 1.6, color: '#6b7280' }}>
-                                        Generate performance feedback and explanations for incorrect answers for this individual result.
-                                    </div>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={handleGenerateFormativeFeedback}
-                                    disabled={formativeFeedbackLoading}
-                                    style={{
-                                        border: 'none',
-                                        borderRadius: '999px',
-                                        padding: '0.75rem 1rem',
-                                        background: formativeFeedbackLoading ? '#c4b5fd' : '#8b5cf6',
-                                        color: '#ffffff',
-                                        fontSize: '0.8125rem',
-                                        fontWeight: 700,
-                                        cursor: formativeFeedbackLoading ? 'not-allowed' : 'pointer',
-                                        whiteSpace: 'nowrap',
-                                    }}
-                                >
-                                    {formativeFeedbackLoading ? 'Generating...' : 'Add Feedback'}
-                                </button>
+                                ) : null}
                             </div>
                         )}
 
@@ -470,46 +536,10 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
                                         <div style={{ width: 32, height: 32, borderRadius: '8px', background: isTHCS ? '#7c3aed' : '#8b5cf6', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem' }}>🔍</div>
                                         {isTHCS ? 'Chi tiết từng câu' : 'Question Breakdown'}
                                     </div>
-                                    <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', borderRadius: '8px', padding: '3px' }}>
-                                        <button
-                                            onClick={() => setQuestionViewMode('overview')}
-                                            style={{
-                                                padding: '5px 12px',
-                                                borderRadius: '6px',
-                                                border: 'none',
-                                                fontSize: '0.75rem',
-                                                fontWeight: 600,
-                                                cursor: 'pointer',
-                                                transition: 'all 0.15s ease',
-                                                background: questionViewMode === 'overview' ? '#fff' : 'transparent',
-                                                color: questionViewMode === 'overview' ? '#4f46e5' : '#6b7280',
-                                                boxShadow: questionViewMode === 'overview' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                                            }}
-                                        >
-                                            Tổng quan
-                                        </button>
-                                        <button
-                                            onClick={() => setQuestionViewMode('detailed')}
-                                            style={{
-                                                padding: '5px 12px',
-                                                borderRadius: '6px',
-                                                border: 'none',
-                                                fontSize: '0.75rem',
-                                                fontWeight: 600,
-                                                cursor: 'pointer',
-                                                transition: 'all 0.15s ease',
-                                                background: questionViewMode === 'detailed' ? '#fff' : 'transparent',
-                                                color: questionViewMode === 'detailed' ? '#4f46e5' : '#6b7280',
-                                                boxShadow: questionViewMode === 'detailed' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                                            }}
-                                        >
-                                            Chi tiết
-                                        </button>
-                                    </div>
                                 </div>
 
-                                {/* Overview Mode: Pills Grid */}
-                                {questionViewMode === 'overview' && result.questionResults && (
+                                {/* Pills Grid — always shown */}
+                                {result.questionResults && (
                                     <QuestionPillsGrid
                                         questions={result.questionResults.map(qr => ({
                                             questionNumber: qr.questionNumber,
@@ -522,174 +552,11 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
                                             feedback: qr.feedback || '',
                                         } as QuestionResultItem))}
                                         formatAnswer={formatAnswer}
+                                        aiExplanations={(() => {
+                                            const ff = (result as any).formativeFeedback;
+                                            return ff?.questionExplanations || undefined;
+                                        })()}
                                     />
-                                )}
-
-                                {/* Detailed Mode: Expandable Cards */}
-                                {questionViewMode === 'detailed' && (
-
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
-                                        {result.questionResults?.map((qr) => {
-                                            const isExpanded = expandedQuestions.has(qr.questionNumber);
-                                            const sc = qr.isCorrect
-                                                ? { bg: '#f0fdf4', border: '#bcf2d4', text: '#15803d', icon: '✓' }
-                                                : qr.score > 0
-                                                    ? { bg: '#fffbeb', border: '#fde68a', text: '#b45309', icon: '⚡' }
-                                                    : { bg: '#fef2f2', border: '#fecaca', text: '#dc2626', icon: '✗' };
-
-                                            return (
-                                                <div
-                                                    key={qr.questionNumber}
-                                                    style={{
-                                                        borderRadius: '1rem',
-                                                        border: '1px solid',
-                                                        borderColor: isExpanded ? sc.border : '#f1f5f9',
-                                                        background: isExpanded ? sc.bg : '#fff',
-                                                        overflow: 'hidden',
-                                                        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                                                        boxShadow: isExpanded ? '0 10px 25px -5px rgba(0,0,0,0.05)' : '0 2px 4px rgba(0,0,0,0.01)',
-                                                    }}
-                                                >
-                                                    <div
-                                                        onClick={() => toggleQuestion(qr.questionNumber)}
-                                                        style={{
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: '1.25rem',
-                                                            padding: '1.125rem 1.5rem',
-                                                            cursor: 'pointer',
-                                                            userSelect: 'none',
-                                                        }}
-                                                    >
-                                                        <div style={{
-                                                            width: '2.75rem',
-                                                            height: '2.75rem',
-                                                            borderRadius: '50%',
-                                                            background: isExpanded ? '#fff' : sc.bg,
-                                                            border: `2px solid ${sc.border}`,
-                                                            color: sc.text,
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            justifyContent: 'center',
-                                                            fontWeight: 800,
-                                                            fontSize: '1.125rem',
-                                                            flexShrink: 0,
-                                                            boxShadow: isExpanded ? '0 4px 8px rgba(0,0,0,0.05)' : 'none',
-                                                        }}>
-                                                            {qr.questionNumber}
-                                                        </div>
-                                                        <div style={{ flex: 1 }}>
-                                                            <div style={{ fontSize: '1rem', fontWeight: 700, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                                <span style={{ color: sc.text }}>{sc.icon}</span>
-                                                                Question {qr.questionNumber}
-                                                            </div>
-                                                            <div style={{ fontSize: '0.8125rem', color: '#64748b', fontWeight: 600, marginTop: '0.125rem' }}>
-                                                                Result: <span style={{ color: sc.text }}>{qr.score} / {qr.maxScore} points</span>
-                                                            </div>
-                                                        </div>
-                                                        <div style={{
-                                                            width: 32,
-                                                            height: 32,
-                                                            borderRadius: '50%',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            justifyContent: 'center',
-                                                            background: isExpanded ? 'rgba(0,0,0,0.05)' : 'rgba(0,0,0,0.02)',
-                                                            color: '#94a3b8',
-                                                            transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                                                            transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)',
-                                                        }}>▼</div>
-                                                    </div>
-
-                                                    {isExpanded && (
-                                                        <div style={{ padding: '0 1.5rem 1.5rem', borderTop: '1px solid rgba(0,0,0,0.03)' }}>
-                                                            <div style={{ display: 'grid', gridTemplateColumns: qr.isCorrect ? '1fr' : '1fr 1fr', gap: '1rem', marginTop: '1.25rem' }}>
-                                                                <div>
-                                                                    <div style={{ fontSize: '0.65rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 800, marginBottom: '0.5rem', letterSpacing: '0.05em' }}>Your Response</div>
-                                                                    <div style={{
-                                                                        padding: '1rem',
-                                                                        background: '#fff',
-                                                                        border: `1.5px solid ${sc.border}`,
-                                                                        borderRadius: '0.75rem',
-                                                                        fontSize: '0.9rem',
-                                                                        fontWeight: 600,
-                                                                        color: '#1e293b',
-                                                                        fontFamily: 'Inter, system-ui, sans-serif',
-                                                                        lineHeight: 1.5
-                                                                    }}>
-                                                                        {qr.studentAnswer ? formatAnswer(qr.studentAnswer) : <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>No answer recorded</span>}
-                                                                    </div>
-                                                                </div>
-
-                                                                {!qr.isCorrect && (
-                                                                    <div>
-                                                                        <div style={{ fontSize: '0.65rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 800, marginBottom: '0.5rem', letterSpacing: '0.05em' }}>Correct Key</div>
-                                                                        <div style={{
-                                                                            padding: '1rem',
-                                                                            background: '#f0fdf4',
-                                                                            border: '1.5px solid #bcf2d4',
-                                                                            borderRadius: '0.75rem',
-                                                                            fontSize: '0.9rem',
-                                                                            fontWeight: 700,
-                                                                            color: '#15803d',
-                                                                            fontFamily: 'Inter, system-ui, sans-serif',
-                                                                            lineHeight: 1.5
-                                                                        }}>
-                                                                            {formatAnswer(qr.correctAnswer)}
-                                                                        </div>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-
-                                                            {qr.feedback && (
-                                                                <div style={{
-                                                                    marginTop: '1rem',
-                                                                    padding: '1rem 1.25rem',
-                                                                    background: 'rgba(0,0,0,0.02)',
-                                                                    borderRadius: '0.75rem',
-                                                                    fontSize: '0.875rem',
-                                                                    color: '#475569',
-                                                                    lineHeight: 1.6,
-                                                                    borderLeft: `4px solid ${sc.border}`
-                                                                }}>
-                                                                    <div style={{ fontWeight: 800, fontSize: '0.75rem', textTransform: 'uppercase', marginBottom: '0.25rem', opacity: 0.6 }}>Explanation</div>
-                                                                    {qr.feedback}
-                                                                </div>
-                                                            )}
-
-                                                            {/* AI explanation for incorrect questions (from formative feedback) */}
-                                                            {(() => {
-                                                                if (qr.isCorrect || !isTHCS) return null;
-                                                                const ff = (result as any).formativeFeedback;
-                                                                if (!ff?.questionExplanations) return null;
-                                                                // AI may use "Q17" or "17" as keys — try both
-                                                                const explanation = ff.questionExplanations[`Q${qr.questionNumber}`]
-                                                                    || ff.questionExplanations[String(qr.questionNumber)];
-                                                                if (!explanation) return null;
-                                                                return (
-                                                                    <div style={{
-                                                                        marginTop: '0.75rem',
-                                                                        padding: '1rem 1.25rem',
-                                                                        background: 'linear-gradient(135deg, #eff6ff 0%, #f5f3ff 100%)',
-                                                                        borderRadius: '0.75rem',
-                                                                        fontSize: '0.875rem',
-                                                                        color: '#1e40af',
-                                                                        lineHeight: 1.6,
-                                                                        borderLeft: '4px solid #818cf8',
-                                                                    }}>
-                                                                        <div style={{ fontWeight: 800, fontSize: '0.75rem', textTransform: 'uppercase', marginBottom: '0.25rem', color: '#6366f1', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                                                                            <span style={{ fontSize: '0.8rem' }}>🤖</span> AI Explanation
-                                                                        </div>
-                                                                        {explanation}
-                                                                    </div>
-                                                                );
-                                                            })()}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
                                 )}
                             </div>
                         )}
@@ -743,13 +610,10 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
     );
 };
 
-const cardStyle: React.CSSProperties = {
-    textAlign: 'center',
-    padding: '1rem 0.5rem',
-    borderRadius: '0.75rem',
-    background: 'rgba(255, 255, 255, 0.8)',
-    border: '1px solid #e2e8f0',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+/** Format a numeric score: show as integer if whole, otherwise 1 decimal */
+const formatScore = (n: number): string => {
+    if (n == null || isNaN(n)) return '0';
+    return Number.isInteger(n) ? String(n) : n.toFixed(1);
 };
 
 const cardStyleCompact: React.CSSProperties = {
@@ -759,6 +623,8 @@ const cardStyleCompact: React.CSSProperties = {
     background: 'rgba(255, 255, 255, 0.8)',
     border: '1px solid #e2e8f0',
     boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+    minWidth: 0,
+    overflow: 'hidden',
 };
 
 const cardLabel: React.CSSProperties = {

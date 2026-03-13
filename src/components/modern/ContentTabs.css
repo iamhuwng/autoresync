@@ -1,0 +1,7 @@
+/* ContentTabs styles */
+
+.content-tabs {
+  display: inline-flex;
+  gap: 0.25rem;
+  margin-top: 1rem;
+}

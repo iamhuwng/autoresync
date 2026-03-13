@@ -34,6 +34,8 @@ interface QuestionPillsGridProps {
     questions: QuestionResultItem[];
     /** Format answer for display */
     formatAnswer: (answer: any) => string;
+    /** AI-generated explanations keyed by "Q{number}" or "{number}" */
+    aiExplanations?: Record<string, string>;
 }
 
 // Student-view-design colors (flat)
@@ -62,11 +64,70 @@ const getPillColor = (q: QuestionResultItem) => {
 const isWritingQuestion = (q: QuestionResultItem) =>
     q.questionType === 'writing' || q.questionType === 'sentence-rewrite' || q.questionType === 'sentence-rewrite-keyword';
 
-export const QuestionPillsGrid: React.FC<QuestionPillsGridProps> = ({ questions, formatAnswer }) => {
+/** Extract a short display label from a student answer for the pill */
+const getShortAnswerLabel = (answer: any, formatAnswer: (a: any) => string): string => {
+    if (!answer && answer !== 0) return '—';
+    const formatted = formatAnswer(answer);
+    if (!formatted || formatted === '(No answer submitted)') return '—';
+    // Single letter answers (A, B, C, D) — most common for MCQ
+    const trimmed = formatted.trim();
+    if (trimmed.length <= 2) return trimmed.toUpperCase();
+    // If it starts with a letter option like "A." or "a)" extract just the letter
+    const letterMatch = trimmed.match(/^([A-Da-d])[.)\s]/);
+    if (letterMatch) return letterMatch[1]!.toUpperCase();
+    // For longer answers (writing, sentence-rewrite), show a pen icon
+    if (trimmed.length > 3) return '✎';
+    return trimmed.charAt(0).toUpperCase();
+};
+
+export const QuestionPillsGrid: React.FC<QuestionPillsGridProps> = ({ questions, formatAnswer, aiExplanations }) => {
     const [expandedQ, setExpandedQ] = useState<number | null>(null);
 
     return (
         <div>
+            {/* Tooltip CSS */}
+            <style>{`
+                .qpill-wrap {
+                    position: relative;
+                }
+                .qpill-wrap[data-tooltip]::after {
+                    content: attr(data-tooltip);
+                    position: absolute;
+                    bottom: calc(100% + 6px);
+                    left: 50%;
+                    transform: translateX(-50%);
+                    background: #1e293b;
+                    color: #fff;
+                    font-size: 0.7rem;
+                    font-weight: 600;
+                    padding: 4px 10px;
+                    border-radius: 6px;
+                    white-space: nowrap;
+                    pointer-events: none;
+                    opacity: 0;
+                    transition: opacity 0.15s ease;
+                    z-index: 10;
+                    font-family: Inter, system-ui, sans-serif;
+                }
+                .qpill-wrap[data-tooltip]::before {
+                    content: '';
+                    position: absolute;
+                    bottom: calc(100% + 1px);
+                    left: 50%;
+                    transform: translateX(-50%);
+                    border: 5px solid transparent;
+                    border-top-color: #1e293b;
+                    pointer-events: none;
+                    opacity: 0;
+                    transition: opacity 0.15s ease;
+                    z-index: 10;
+                }
+                .qpill-wrap[data-tooltip]:hover::after,
+                .qpill-wrap[data-tooltip]:hover::before {
+                    opacity: 1;
+                }
+            `}</style>
+
             {/* Pills Grid */}
             <div style={{
                 display: 'grid',
@@ -77,31 +138,48 @@ export const QuestionPillsGrid: React.FC<QuestionPillsGridProps> = ({ questions,
                 {questions.map(q => {
                     const colors = getPillColor(q);
                     const isActive = expandedQ === q.questionNumber;
+                    const choiceLabel = getShortAnswerLabel(q.studentAnswer, formatAnswer);
+                    const correctLabel = q.correctAnswer ? formatAnswer(q.correctAnswer).trim() : '';
+                    const showTooltip = !q.isCorrect && correctLabel;
+
                     return (
-                        <button
+                        <div
                             key={q.questionNumber}
-                            onClick={() => setExpandedQ(isActive ? null : q.questionNumber)}
-                            style={{
-                                width: '44px',
-                                height: '44px',
-                                borderRadius: '10px',
-                                border: isActive ? `2px solid ${COLORS.accent}` : `1px solid ${colors.border}`,
-                                background: colors.bg,
-                                color: colors.text,
-                                fontWeight: 700,
-                                fontSize: '0.85rem',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                transition: 'transform 0.1s ease, box-shadow 0.1s ease',
-                                transform: isActive ? 'scale(1.1)' : 'scale(1)',
-                                boxShadow: isActive ? `0 0 0 3px ${COLORS.accent}33` : '0 1px 2px rgba(0,0,0,0.05)',
-                            }}
-                            aria-label={`Question ${q.questionNumber} - ${q.isCorrect ? 'correct' : q.score > 0 ? 'partial' : 'incorrect'}`}
+                            className="qpill-wrap"
+                            data-tooltip={showTooltip ? `Đáp án đúng: ${correctLabel}` : undefined}
                         >
-                            {q.questionNumber}
-                        </button>
+                            <button
+                                onClick={() => setExpandedQ(isActive ? null : q.questionNumber)}
+                                style={{
+                                    width: '44px',
+                                    height: '44px',
+                                    borderRadius: '10px',
+                                    border: isActive ? `2px solid ${COLORS.accent}` : `1px solid ${colors.border}`,
+                                    background: colors.bg,
+                                    color: colors.text,
+                                    fontWeight: 700,
+                                    fontSize: '0.85rem',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    flexDirection: 'column',
+                                    gap: '1px',
+                                    padding: '2px',
+                                    transition: 'transform 0.1s ease, box-shadow 0.1s ease',
+                                    transform: isActive ? 'scale(1.1)' : 'scale(1)',
+                                    boxShadow: isActive ? `0 0 0 3px ${COLORS.accent}33` : '0 1px 2px rgba(0,0,0,0.05)',
+                                }}
+                                aria-label={`Question ${q.questionNumber} - ${q.isCorrect ? 'correct' : q.score > 0 ? 'partial' : 'incorrect'}${q.studentAnswer ? ` - chose ${formatAnswer(q.studentAnswer)}` : ''}`}
+                            >
+                                <span style={{ fontSize: '0.55rem', fontWeight: 600, lineHeight: 1, opacity: 0.65 }}>
+                                    {q.questionNumber}
+                                </span>
+                                <span style={{ fontSize: '0.85rem', fontWeight: 800, lineHeight: 1 }}>
+                                    {choiceLabel}
+                                </span>
+                            </button>
+                        </div>
                     );
                 })}
             </div>
@@ -214,11 +292,36 @@ export const QuestionPillsGrid: React.FC<QuestionPillsGridProps> = ({ questions,
                             <div style={{
                                 padding: '0.5rem 0.75rem', background: '#f9fafb',
                                 borderRadius: '8px', fontSize: '0.8rem', color: COLORS.textMuted,
-                                fontStyle: 'italic', marginBottom: q.teacherFeedback || q.gradedByName ? '0.75rem' : 0,
+                                fontStyle: 'italic', marginBottom: '0.75rem',
                             }}>
                                 {q.feedback}
                             </div>
                         )}
+
+                        {/* AI Explanation for incorrect questions */}
+                        {!q.isCorrect && (() => {
+                            if (!aiExplanations) return null;
+                            const explanation = aiExplanations[`Q${q.questionNumber}`]
+                                || aiExplanations[String(q.questionNumber)];
+                            if (!explanation) return null;
+                            return (
+                                <div style={{
+                                    padding: '0.75rem 1rem',
+                                    background: 'linear-gradient(135deg, #eff6ff 0%, #f5f3ff 100%)',
+                                    borderRadius: '8px',
+                                    fontSize: '0.8rem',
+                                    color: '#1e40af',
+                                    lineHeight: 1.6,
+                                    borderLeft: '4px solid #818cf8',
+                                    marginBottom: q.teacherFeedback || q.gradedByName ? '0.75rem' : 0,
+                                }}>
+                                    <div style={{ fontWeight: 800, fontSize: '0.65rem', textTransform: 'uppercase', marginBottom: '0.25rem', color: '#6366f1', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                                        <span style={{ fontSize: '0.8rem' }}>🤖</span> AI Explanation
+                                    </div>
+                                    {explanation}
+                                </div>
+                            );
+                        })()}
 
                         {/* Teacher Feedback (writing) */}
                         {q.teacherFeedback && (

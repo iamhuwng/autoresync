@@ -1,10 +1,10 @@
-
+export type NotificationType = 'info' | 'success' | 'warning' | 'error' | 'feedback' | 'homework_reminder';
 
 export interface Notification {
     id: string;
     /** @deprecated Stored in path after migration. Present in legacy data only. */
     userId?: string;
-    type: 'info' | 'success' | 'warning' | 'error' | 'feedback';
+    type: NotificationType;
     title: string;
     message: string;
     read: boolean;
@@ -15,7 +15,7 @@ export interface Notification {
 
 export interface NotificationCreate {
     userId: string;
-    type: 'info' | 'success' | 'warning' | 'error' | 'feedback';
+    type: NotificationType;
     title: string;
     message: string;
     link?: string;

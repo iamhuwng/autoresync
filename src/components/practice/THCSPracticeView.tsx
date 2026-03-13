@@ -40,6 +40,7 @@ import { sendThcsFullyGradedNotification } from '../../services/notificationServ
 import { getThcsTestFromFirebase } from '../../services/thcsTestStorage';
 import { shuffleTest } from '../../utils/thcsShuffle';
 import { Button } from '../modern';
+import { getSubmissionById } from '../../services/homeworkSubmissionService';
 
 import type { THCSTest } from '../../types/thcs-test.types';
 import type { PracticeContext } from './IELTSPracticeView';
@@ -68,6 +69,14 @@ export const THCSPracticeView: React.FC<THCSPracticeViewProps> = ({
     const [loadingTest, setLoadingTest] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
 
+    // ── Calculate elapsed time for homework resume ──────────────────────────────
+    // IMPORTANT: All useState/useEffect hooks MUST be above early returns (React Rules of Hooks)
+    const [initialElapsedSeconds, setInitialElapsedSeconds] = useState(0);
+    const [elapsedLoaded, setElapsedLoaded] = useState(
+        // Only need to load elapsed time for homework with a submissionId
+        !(practiceContext.type === 'homework' && practiceContext.submissionId)
+    );
+
     useEffect(() => {
         if (!materialId) return;
         const load = async () => {
@@ -88,6 +97,36 @@ export const THCSPracticeView: React.FC<THCSPracticeViewProps> = ({
         };
         load();
     }, [materialId]);
+
+    useEffect(() => {
+        // If not homework or no submissionId, nothing to load
+        if (practiceContext.type !== 'homework' || !practiceContext.submissionId) {
+            setElapsedLoaded(true);
+            return;
+        }
+
+        const loadSubmission = async () => {
+            try {
+                const submission = await getSubmissionById(practiceContext.submissionId!);
+                if (submission?.startedAt && submission.status === 'in_progress') {
+                    const elapsedMs = Date.now() - submission.startedAt;
+                    const elapsedSec = Math.floor(elapsedMs / 1000);
+                    console.log(
+                        `[THCSPractice] Resuming homework: startedAt=${new Date(submission.startedAt).toISOString()}, ` +
+                        `elapsed=${elapsedSec}s (${Math.floor(elapsedSec / 60)}m ${elapsedSec % 60}s)`
+                    );
+                    setInitialElapsedSeconds(Math.max(0, elapsedSec));
+                }
+            } catch (err) {
+                console.warn('[THCSPractice] Failed to load submission for timer resume:', err);
+                // Fail open: start with fresh timer rather than blocking the student
+            } finally {
+                setElapsedLoaded(true);
+            }
+        };
+
+        loadSubmission();
+    }, [practiceContext.type, practiceContext.submissionId]);
 
     // ── Early return: loading / error ──────────────────────────────────────────
     if (loadingTest) {
@@ -114,8 +153,27 @@ export const THCSPracticeView: React.FC<THCSPracticeViewProps> = ({
         );
     }
 
+    // Show loading until elapsed time is resolved
+    if (!elapsedLoaded) {
+        return (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: 'linear-gradient(135deg, #faf5ff 0%, #f0f9ff 50%, #f0fdfa 100%)' }}>
+                <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⏳</div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 600, color: '#1e293b' }}>Resuming test...</div>
+                </div>
+            </div>
+        );
+    }
+
     // Render the actual test experience
-    return <THCSPracticeInner testData={testData} materialId={materialId} practiceContext={practiceContext} />;
+    return (
+        <THCSPracticeInner
+            testData={testData}
+            materialId={materialId}
+            practiceContext={practiceContext}
+            initialElapsedSeconds={initialElapsedSeconds}
+        />
+    );
 };
 
 // ── Inner component (only rendered after testData is loaded) ────────────────
@@ -124,7 +182,8 @@ const THCSPracticeInner: React.FC<{
     testData: THCSTest;
     materialId: string;
     practiceContext: PracticeContext;
-}> = ({ testData, materialId, practiceContext }) => {
+    initialElapsedSeconds?: number;
+}> = ({ testData, materialId, practiceContext, initialElapsedSeconds = 0 }) => {
     const { user, profile } = useAuth();
     const navigate = useNavigate();
     const isHomework = practiceContext.type === 'homework';
@@ -169,13 +228,66 @@ const THCSPracticeInner: React.FC<{
     } | null>(null);
 
     // ── Timer (local, not session-synced) ──────────────────────────────────────
-    const [timeRemaining, setTimeRemaining] = useState(testData.metadata.duration * 60);
-    const [timeElapsed, setTimeElapsed] = useState(0);
+    // BUG FIX: When resuming homework, calculate remaining time from submission's startedAt
+    // instead of always starting fresh from full duration.
+    const totalDurationSeconds = testData.metadata.duration * 60;
+    const clampedInitialElapsed = Math.min(initialElapsedSeconds, totalDurationSeconds);
+    const [timeRemaining, setTimeRemaining] = useState(
+        Math.max(0, totalDurationSeconds - clampedInitialElapsed)
+    );
+    const [timeElapsed, setTimeElapsed] = useState(clampedInitialElapsed);
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const handleSubmitRef = useRef<() => void>(() => { });
 
-    const currentSection = shuffledTestData.sections[currentSectionIndex];
+    const rawCurrentSection = shuffledTestData.sections[currentSectionIndex];
+
+    // ── Passage Resolution ──────────────────────────────────────────────────
+    // Backward-compat: the converter outputs both flat fields (passageContent, passageTitle)
+    // and a nested `passage` object. Older edits only updated the flat fields.
+    // This resolver ensures the student view always gets the best available passage data.
+    const currentSection = useMemo(() => {
+        if (!rawCurrentSection) return rawCurrentSection;
+
+        const sec = rawCurrentSection as any; // access untyped flat fields
+        const flatContent: string | undefined = sec.passageContent;
+        const flatTitle: string | undefined = sec.passageTitle;
+        const nestedPassage = sec.passage as typeof rawCurrentSection.passage;
+
+        // Case 1: nested passage exists and no flat content → use as-is
+        if (nestedPassage?.content && !flatContent) return rawCurrentSection;
+
+        // Case 2: flat content exists but no nested passage → construct from flat
+        if (flatContent && !nestedPassage?.content) {
+            return {
+                ...rawCurrentSection,
+                passage: {
+                    id: nestedPassage?.id || crypto.randomUUID(),
+                    content: flatContent,
+                    title: flatTitle || nestedPassage?.title || rawCurrentSection.name,
+                    imageUrl: nestedPassage?.imageUrl,
+                    wordCount: nestedPassage?.wordCount || flatContent.split(/\s+/).length,
+                },
+            };
+        }
+
+        // Case 3: both exist — prefer whichever is longer (longer = more likely the real passage)
+        if (flatContent && nestedPassage?.content && flatContent.length > nestedPassage.content.length) {
+            return {
+                ...rawCurrentSection,
+                passage: {
+                    ...nestedPassage,
+                    content: flatContent,
+                    title: flatTitle || nestedPassage.title,
+                    wordCount: flatContent.split(/\s+/).length,
+                },
+            };
+        }
+
+        // Case 4: nested passage is fine as-is
+        return rawCurrentSection;
+    }, [rawCurrentSection]);
+
     const allQuestions = shuffledTestData.sections.flatMap(s => s.questions);
     const totalQuestions = allQuestions.length;
 

@@ -116,12 +116,14 @@ export function useThcsValidation({
                     }
                 }
 
-                // Phase 1 warning: pronunciation/stress without underlines
+                // Phase 1 warning: pronunciation without underlines
+                // NOTE: word-stress questions do NOT need underlines — they show
+                // full words and the student identifies different stress patterns.
                 if (
-                    (q.intent === 'pronunciation' || q.intent === 'word-stress') &&
+                    q.intent === 'pronunciation' &&
                     (!q.optionUnderlines || q.optionUnderlines.every(u => !u))
                 ) {
-                    warnings.push(`Question ${q.questionNumber}: Pronunciation/stress question without underlines.`);
+                    warnings.push(`Question ${q.questionNumber}: Pronunciation question without underlines.`);
                 }
             });
 

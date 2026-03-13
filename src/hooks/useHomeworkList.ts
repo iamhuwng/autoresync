@@ -1,11 +1,20 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     getHomeworkByTeacher,
     getHomeworkByClass,
     getHomeworkForStudent,
-    updateHomeworkStatus
+    permanentlyDeleteHomework,
 } from '../services/homeworkManager';
 import type { HomeworkAssignment, HomeworkStatus } from '../types/homework.types';
+
+export type HomeworkListSort =
+    | 'dueDate_desc'
+    | 'dueDate_asc'
+    | 'createdAt_desc'
+    | 'updatedAt_desc'
+    | 'completionRate_desc'
+    | 'completionRate_asc'
+    | 'title_asc';
 
 interface UseHomeworkListOptions {
     teacherId?: string;
@@ -13,29 +22,153 @@ interface UseHomeworkListOptions {
     studentId?: string;
     statusFilter?: HomeworkStatus[];
     autoRefresh?: boolean;
+    excludeArchived?: boolean;
+    excludeClosed?: boolean;
+    sortBy?: HomeworkListSort;
+    tagFilter?: string | null;
+    pageSize?: number;
+    includeArchived?: boolean;
+    archivedOnly?: boolean;
+    tag?: string;
+    searchQuery?: string;
 }
 
-interface UseHomeworkListReturn {
+export interface UseHomeworkListReturn {
     homework: HomeworkAssignment[];
     loading: boolean;
     error: string | null;
     refetch: () => Promise<void>;
     filterByStatus: (status: HomeworkStatus | null) => void;
     filteredHomework: HomeworkAssignment[];
-    statusCounts: Record<HomeworkStatus, number>;
+    loadMore: () => Promise<void>;
+    hasMore: boolean;
+    sort: HomeworkListSort;
+    setSort: (sort: HomeworkListSort) => void;
+    tagFilter: string | null;
+    setTagFilter: (tag: string | null) => void;
+    totalLoaded: number;
+    statusCounts: Record<string, number>;
 }
 
-/**
- * Hook to fetch and manage homework assignments
- */
+function normalizeSearchValue(value: string): string {
+    return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+function getCompletionRate(homework: HomeworkAssignment): number {
+    if (typeof homework.stats?.completionRate === 'number') {
+        return homework.stats.completionRate;
+    }
+
+    return (homework.stats?.submitted ?? 0) / Math.max(homework.stats?.totalAssigned ?? 1, 1);
+}
+
+function sortHomework(items: HomeworkAssignment[], sort: HomeworkListSort): HomeworkAssignment[] {
+    const nextItems = [...items];
+
+    nextItems.sort((left, right) => {
+        switch (sort) {
+            case 'dueDate_asc':
+                return left.scheduling.dueDate - right.scheduling.dueDate;
+            case 'createdAt_desc':
+                return right.createdAt - left.createdAt;
+            case 'updatedAt_desc':
+                return (right.updatedAt ?? 0) - (left.updatedAt ?? 0);
+            case 'completionRate_desc':
+                return getCompletionRate(right) - getCompletionRate(left);
+            case 'completionRate_asc':
+                return getCompletionRate(left) - getCompletionRate(right);
+            case 'title_asc':
+                return (left.title || left.materialTitle).localeCompare(
+                    right.title || right.materialTitle,
+                    'vi',
+                    { sensitivity: 'base' }
+                );
+            case 'dueDate_desc':
+            default:
+                return right.scheduling.dueDate - left.scheduling.dueDate;
+        }
+    });
+
+    return nextItems;
+}
+
+function buildStatusCounts(items: HomeworkAssignment[]): Record<string, number> {
+    const counts = items.reduce((acc, homework) => {
+        acc[homework.status] = (acc[homework.status] || 0) + 1;
+        return acc;
+    }, {} as Record<string, number>);
+
+    return {
+        draft: counts.draft || 0,
+        scheduled: counts.scheduled || 0,
+        active: counts.active || 0,
+        past_due: counts.past_due || 0,
+        closed: counts.closed || 0,
+    };
+}
+
 export function useHomeworkList(options: UseHomeworkListOptions): UseHomeworkListReturn {
-    const { teacherId, classId, studentId, statusFilter, autoRefresh = false } = options;
+    const {
+        teacherId,
+        classId,
+        studentId,
+        statusFilter,
+        autoRefresh = false,
+        excludeArchived,
+        excludeClosed = true,
+        sortBy = 'dueDate_desc',
+        tagFilter: initialTagFilter,
+        pageSize = 25,
+        includeArchived = false,
+        archivedOnly = false,
+        tag,
+        searchQuery
+    } = options;
 
     const [homework, setHomework] = useState<HomeworkAssignment[]>([]);
-    const [filteredHomework, setFilteredHomework] = useState<HomeworkAssignment[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [currentStatusFilter, setCurrentStatusFilter] = useState<HomeworkStatus | null>(null);
+    const [sort, setSortState] = useState<HomeworkListSort>(sortBy);
+    const [activeTagFilter, setActiveTagFilter] = useState<string | null>(initialTagFilter ?? tag ?? null);
+    const [displayCount, setDisplayCount] = useState(pageSize);
+
+    const shouldExcludeArchived = archivedOnly
+        ? false
+        : excludeArchived ?? !includeArchived;
+
+    // PRD-0034: Auto-purge is intentionally a side-effect (AC-5.6). Only the creator triggers it.
+    const purgeExpiredArchived = useCallback((items: HomeworkAssignment[]) => {
+        const now = Date.now();
+
+        return items.filter((currentHomework) => {
+            const shouldAutoPurge = Boolean(
+                teacherId &&
+                currentHomework.createdBy === teacherId &&
+                currentHomework.archived === true &&
+                currentHomework.trashExpiresAt &&
+                currentHomework.trashExpiresAt < now
+            );
+
+            if (!shouldAutoPurge) {
+                return true;
+            }
+
+            void permanentlyDeleteHomework(currentHomework.id).catch((purgeError) => {
+                console.warn('[AutoPurge] Failed to purge', currentHomework.id, purgeError);
+            });
+
+            return false;
+        });
+    }, [teacherId]);
+
+    useEffect(() => {
+        setSortState(sortBy);
+    }, [sortBy]);
+
+    useEffect(() => {
+        setActiveTagFilter(initialTagFilter ?? tag ?? null);
+    }, [initialTagFilter, tag]);
 
     const fetchHomework = useCallback(async () => {
         try {
@@ -50,78 +183,138 @@ export function useHomeworkList(options: UseHomeworkListOptions): UseHomeworkLis
                 data = await getHomeworkByClass(classId);
             } else if (studentId) {
                 data = await getHomeworkForStudent(studentId);
+            } else {
+                setHomework([]);
+                setLoading(false);
+                return;
             }
 
-            // Update statuses for all homework
-            await Promise.all(
-                data.map(hw => updateHomeworkStatus(hw.id).catch(err => {
-                    console.warn(`Failed to update status for homework ${hw.id}:`, err);
-                }))
-            );
-
-            // Refetch to get updated statuses
-            if (teacherId) {
-                data = await getHomeworkByTeacher(teacherId);
-            } else if (classId) {
-                data = await getHomeworkByClass(classId);
-            } else if (studentId) {
-                data = await getHomeworkForStudent(studentId);
-            }
-
-            // Apply status filter if provided
-            if (statusFilter && statusFilter.length > 0) {
-                data = data.filter(hw => statusFilter.includes(hw.status));
-            }
-
-            setHomework(data);
-            setFilteredHomework(data);
+            setHomework(purgeExpiredArchived(data));
         } catch (err) {
             console.error('Error fetching homework:', err);
             setError(err instanceof Error ? err.message : 'Failed to fetch homework');
         } finally {
             setLoading(false);
         }
-    }, [teacherId, classId, studentId, statusFilter]);
+    }, [teacherId, classId, studentId, purgeExpiredArchived]);
 
     useEffect(() => {
         fetchHomework();
     }, [fetchHomework]);
 
-    // Auto-refresh every 5 minutes if enabled
     useEffect(() => {
         if (!autoRefresh) return;
 
         const interval = setInterval(() => {
-            fetchHomework();
-        }, 5 * 60 * 1000); // 5 minutes
+            void fetchHomework();
+        }, 5 * 60 * 1000);
 
         return () => clearInterval(interval);
     }, [autoRefresh, fetchHomework]);
 
     const filterByStatus = useCallback((status: HomeworkStatus | null) => {
         setCurrentStatusFilter(status);
+    }, []);
 
-        if (status === null) {
-            setFilteredHomework(homework);
-        } else {
-            setFilteredHomework(homework.filter(hw => hw.status === status));
+    const filteredHomeworkPool = useMemo(() => {
+        let nextItems = [...homework];
+
+        if (archivedOnly) {
+            nextItems = nextItems.filter((currentHomework) => currentHomework.archived === true);
+        } else if (shouldExcludeArchived) {
+            nextItems = nextItems.filter((currentHomework) => currentHomework.archived !== true);
         }
-    }, [homework]);
 
-    // Calculate status counts
-    const statusCounts = homework.reduce((acc, hw) => {
-        acc[hw.status] = (acc[hw.status] || 0) + 1;
-        return acc;
-    }, {} as Record<HomeworkStatus, number>);
+        if (excludeClosed) {
+            nextItems = nextItems.filter((currentHomework) => currentHomework.status !== 'closed');
+        }
 
-    // Ensure all statuses have a count (even if 0)
-    const allStatusCounts: Record<HomeworkStatus, number> = {
-        draft: statusCounts.draft || 0,
-        scheduled: statusCounts.scheduled || 0,
-        active: statusCounts.active || 0,
-        past_due: statusCounts.past_due || 0,
-        closed: statusCounts.closed || 0,
-    };
+        if (statusFilter && statusFilter.length > 0) {
+            nextItems = nextItems.filter((currentHomework) => statusFilter.includes(currentHomework.status));
+        }
+
+        if (currentStatusFilter) {
+            nextItems = nextItems.filter((currentHomework) => currentHomework.status === currentStatusFilter);
+        }
+
+        if (activeTagFilter) {
+            nextItems = nextItems.filter((currentHomework) =>
+                (currentHomework.tags ?? []).includes(activeTagFilter)
+            );
+        }
+
+        if (searchQuery?.trim()) {
+            const normalizedQuery = normalizeSearchValue(searchQuery.trim());
+
+            nextItems = nextItems.filter((currentHomework) => {
+                const targetDisplayName =
+                    currentHomework.target.type === 'class'
+                        ? currentHomework.target.className ?? 'Unknown Class'
+                        : currentHomework.target.type === 'course'
+                            ? currentHomework.target.courseName ?? ''
+                            : currentHomework.target.type === 'group'
+                                ? currentHomework.target.groupName ?? ''
+                                : currentHomework.target.studentNames?.join(', ') ?? currentHomework.target.studentIds.join(', ');
+
+                const searchableValues = [
+                    currentHomework.title ?? '',
+                    currentHomework.materialTitle ?? '',
+                    currentHomework.description ?? '',
+                    targetDisplayName,
+                    ...(currentHomework.tags ?? []),
+                ];
+
+                return searchableValues.some((value) =>
+                    normalizeSearchValue(value).includes(normalizedQuery)
+                );
+            });
+        }
+
+        return sortHomework(nextItems, sort);
+    }, [
+        homework,
+        archivedOnly,
+        shouldExcludeArchived,
+        excludeClosed,
+        statusFilter,
+        currentStatusFilter,
+        activeTagFilter,
+        searchQuery,
+        sort,
+    ]);
+
+    useEffect(() => {
+        setDisplayCount(pageSize);
+    }, [
+        pageSize,
+        currentStatusFilter,
+        activeTagFilter,
+        searchQuery,
+        archivedOnly,
+        shouldExcludeArchived,
+        excludeClosed,
+        sort,
+        statusFilter,
+    ]);
+
+    const filteredHomework = useMemo(
+        () => filteredHomeworkPool.slice(0, displayCount),
+        [filteredHomeworkPool, displayCount]
+    );
+
+    const statusCounts = useMemo(() => buildStatusCounts(homework), [homework]);
+
+    const loadMore = useCallback(async () => {
+        setDisplayCount((currentCount) => currentCount + pageSize);
+    }, [pageSize]);
+
+    const setSort = useCallback((nextSort: HomeworkListSort) => {
+        setSortState(nextSort);
+    }, []);
+
+    const setTagFilter = useCallback((nextTag: string | null) => {
+        setActiveTagFilter(nextTag);
+    }, []);
 
     return {
         homework,
@@ -130,6 +323,13 @@ export function useHomeworkList(options: UseHomeworkListOptions): UseHomeworkLis
         refetch: fetchHomework,
         filterByStatus,
         filteredHomework,
-        statusCounts: allStatusCounts,
+        loadMore,
+        hasMore: displayCount < filteredHomeworkPool.length,
+        sort,
+        setSort,
+        tagFilter: activeTagFilter,
+        setTagFilter,
+        totalLoaded: filteredHomework.length,
+        statusCounts,
     };
 }

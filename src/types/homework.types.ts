@@ -134,6 +134,18 @@ export interface HomeworkScheduling {
     dueDate: number;
 }
 
+export interface HomeworkStudentOverride {
+    dueDate?: number;
+    exempted?: boolean;
+    exemptReason?: string;
+    notes?: string;
+    reminderCount?: number;
+    lastRemindedAt?: number;
+}
+
+export type StudentOverride = HomeworkStudentOverride;
+export type HomeworkStudentOverrides = Record<string, StudentOverride>;
+
 /**
  * Visibility settings for what students can see before starting
  */
@@ -204,6 +216,13 @@ export interface HomeworkAssignment {
     // ========== Status ==========
     /** Current status */
     status: HomeworkStatus;
+
+    tags?: string[];
+    archived?: boolean;
+    archivedAt?: number;
+    trashExpiresAt?: number;
+    closedAt?: number;
+    studentOverrides?: HomeworkStudentOverrides;
 
     // ========== Metadata ==========
     /** Custom title (optional, defaults to material title) */
@@ -284,6 +303,9 @@ export interface HomeworkSubmission {
 
     /** Student name (denormalized for display) */
     studentName?: string;
+
+    /** Teacher who assigned this homework (denormalized for Firestore security rules) */
+    teacherId?: string;
 
     // ========== Attempt Tracking ==========
     /** Which attempt this is (1-based) */
@@ -431,6 +453,7 @@ export interface CreateHomeworkRequest {
     /** Optional metadata */
     title?: string;
     description?: string;
+    tags?: string[];
 }
 
 /**
@@ -444,6 +467,9 @@ export interface UpdateHomeworkRequest {
     title?: string;
     description?: string;
     status?: HomeworkStatus;
+    tags?: string[];
+    archived?: boolean;
+    studentOverrides?: HomeworkStudentOverrides;
 }
 
 /**
@@ -496,6 +522,7 @@ export interface StudentHomeworkView {
     isOverdue: boolean;
     canSubmit: boolean;
     canViewFeedback: boolean;
+    lastRemindedAt?: number;
 }
 
 // ============================================================================
@@ -532,4 +559,14 @@ export interface StudentHomeworkFilters {
 
     /** Filter by material skill */
     skill?: 'reading' | 'listening' | 'writing' | 'speaking';
+}
+
+export interface HomeworkTagConfig {
+    tags: Array<{
+        id: string;
+        label: string;
+        color?: string;
+    }>;
+    updatedAt: number;
+    updatedBy: string;
 }

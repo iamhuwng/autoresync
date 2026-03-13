@@ -26,7 +26,7 @@ import { notifications } from '@mantine/notifications';
 import { ref, set, update } from 'firebase/database';
 
 // @ts-ignore - JS module without type declarations
-import firebaseQueryOptimizer from '../services/firebaseQueryOptimizer';
+import firebaseQueryOptimizer, { CacheTypes } from '../services/firebaseQueryOptimizer';
 // @ts-ignore - JS module without type declarations  
 import { createSession } from '../services/sessionManager';
 import { getClasses } from '../services/classManager';
@@ -49,12 +49,14 @@ interface Material {
     title: string;
     description?: string;
     type: 'quiz' | 'test';
+    testType?: string;
     questionCount?: number;
     isPublic?: boolean;
     createdBy?: string;
     ownerId?: string;
     createdAt?: any;
     updatedAt?: any;
+    metadata?: { title?: string; gradeLevel?: string; [key: string]: any };
 }
 
 interface ClassOption {
@@ -142,9 +144,10 @@ const AdminMaterialsPage: React.FC = () => {
     const loadData = useCallback(async () => {
         setLoading(true);
         try {
+            // Always skip cache to ensure fresh data on load/refresh
             const [quizzesData, testsData, classesData] = await Promise.all([
-                firebaseQueryOptimizer.getAllQuizzes().catch(() => []),
-                firebaseQueryOptimizer.getAllTests().catch(() => []),
+                firebaseQueryOptimizer.getAllQuizzes(true).catch(() => []),
+                firebaseQueryOptimizer.getAllTests(true).catch(() => []),
                 getClasses().catch(() => [])
             ]);
 
@@ -157,6 +160,8 @@ const AdminMaterialsPage: React.FC = () => {
             setTests(testsData.map((t: any) => ({
                 ...t,
                 type: 'test' as const,
+                // Resolve THCS title from metadata.title
+                title: (t.testType === 'THCS-THPT' ? (t.metadata?.title || t.title) : t.title) || 'Untitled',
                 questionCount: t.questions?.length || 0
             })));
 
@@ -408,10 +413,10 @@ const AdminMaterialsPage: React.FC = () => {
 
     // Filter materials (search + visibility)
     const filteredQuizzes = applyVisibilityFilter(
-        quizzes.filter(q => q.title?.toLowerCase().includes(searchTerm.toLowerCase()))
+        quizzes.filter(q => (q.title || '').toLowerCase().includes(searchTerm.toLowerCase()))
     );
     const filteredTests = applyVisibilityFilter(
-        tests.filter(t => t.title?.toLowerCase().includes(searchTerm.toLowerCase()))
+        tests.filter(t => (t.title || '').toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
     const allMaterials = [...filteredQuizzes, ...filteredTests].sort((a, b) => {

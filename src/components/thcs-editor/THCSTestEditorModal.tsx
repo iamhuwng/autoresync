@@ -21,6 +21,8 @@ import type { THCSTest, THCSSection, THCSTestMetadata } from '../../types/thcs-t
 import { DURATION_PRESETS, GRADE_LEVELS, EXAM_TYPE_OPTIONS } from '../../types/thcs-test.types';
 import { updateThcsTestInFirebase } from '../../services/thcsTestStorage';
 import { useAuth } from '../../hooks/useAuth';
+import { toast } from '../modern/ToastNotification';
+import { propagateTestMetadataToHomework } from '../../services/homeworkManager';
 
 // ─── Props ──────────────────────────────────────────────────────
 interface THCSTestEditorModalProps {
@@ -171,22 +173,42 @@ const THCSTestEditorModal: React.FC<THCSTestEditorModalProps> = ({ test, show, h
 
         setIsSaving(true);
         try {
-            const result = await updateThcsTestInFirebase(test.id, {
+            const updatePayload = {
                 metadata: editedMetadata,
                 sections: editedSections.map((s, i) => ({ ...s, order: i })),
                 questionCount: totalQuestions,
                 totalPoints,
                 isPublic: editedIsPublic,
+            };
+
+            // 🔍 DIAGNOSTIC: Log exactly what the editor is sending
+            console.log(`📤 [THCSTestEditor] Saving test ${test.id}:`, {
+                title: editedMetadata.title,
+                sectionCount: editedSections.length,
+                questionCount: totalQuestions,
+                totalPoints,
+                isPublic: editedIsPublic,
+                sectionNames: editedSections.map(s => s.name),
+                questionsPerSection: editedSections.map(s => s.questions.length),
             });
 
+            const result = await updateThcsTestInFirebase(test.id, updatePayload);
+
             if (result.success) {
+                toast.success('Test saved successfully ✅');
+
+                // Fire-and-forget: propagate title change to homework assignments
+                if (editedMetadata.title !== test.metadata?.title) {
+                    propagateTestMetadataToHomework(test.id, { materialTitle: editedMetadata.title });
+                }
+
                 handleClose();
             } else {
-                alert(`Failed to save: ${result.error}`);
+                toast.error(`Failed to save: ${result.error}`);
             }
         } catch (err) {
             console.error('[THCSTestEditor] Save error:', err);
-            alert('Failed to save test changes. Please try again.');
+            toast.error('Failed to save test changes. Please try again.');
         } finally {
             setIsSaving(false);
         }

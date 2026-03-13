@@ -1,0 +1,210 @@
+/* PRD-0034 Task 17: Mobile Polish CSS
+ * Shared mobile responsive overrides for homework management features.
+ */
+
+/* ───────────────────────────────────────────────────────────────
+   17.1: Submission table → mobile card layout
+   ─────────────────────────────────────────────────────────────── */
+.hw-submission-wrapper .hw-desktop-table {
+    display: block;
+}
+
+.hw-submission-wrapper .hw-mobile-cards {
+    display: none;
+}
+
+/* Backdrop is only visible on mobile via the media query below */
+.action-menu-backdrop {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .hw-submission-wrapper .hw-desktop-table {
+        display: none;
+    }
+
+    .hw-submission-wrapper .hw-mobile-cards {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        padding: 0.5rem;
+    }
+
+    .hw-mobile-student-card {
+        position: relative;
+        background: #fff;
+        border-radius: 0.75rem;
+        border: 1px solid rgba(148, 163, 184, 0.16);
+        padding: 0.75rem 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .hw-mobile-student-card--exempted {
+        background: rgba(148, 163, 184, 0.04);
+        border-color: rgba(148, 163, 184, 0.2);
+    }
+
+    .hw-mobile-card-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 0.5rem;
+    }
+
+    .hw-mobile-card-name {
+        font-weight: 700;
+        color: #0f172a;
+        font-size: 0.95rem;
+    }
+
+    .hw-mobile-card-name--link {
+        color: #2563eb;
+        cursor: pointer;
+        text-decoration: underline;
+        border: none;
+        background: transparent;
+        padding: 0;
+        text-align: left;
+        font-weight: 700;
+        font-size: 0.95rem;
+    }
+
+    .hw-mobile-card-meta {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .hw-mobile-card-status {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.28rem 0.6rem;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 700;
+    }
+
+    .hw-mobile-card-score {
+        font-weight: 700;
+        color: #0f172a;
+        font-size: 0.9rem;
+    }
+
+    .hw-mobile-card-late {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.2rem 0.5rem;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 700;
+    }
+
+    .hw-mobile-card-late--on-time {
+        background: rgba(16, 185, 129, 0.12);
+        color: #047857;
+    }
+
+    .hw-mobile-card-late--late {
+        background: rgba(239, 68, 68, 0.12);
+        color: #b91c1c;
+    }
+
+    .hw-mobile-card-actions {
+        display: flex;
+        gap: 0.4rem;
+        flex-wrap: wrap;
+        margin-top: 0.25rem;
+    }
+}
+
+/* ───────────────────────────────────────────────────────────────
+   17.2: Mobile bottom sheet for action menu dropdown
+   ─────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .action-menu-dropdown {
+        position: fixed !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        top: auto !important;
+        width: 100vw !important;
+        max-height: 60vh;
+        border-radius: 1rem 1rem 0 0 !important;
+        box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.15) !important;
+        z-index: 10001;
+        animation: slideUpSheet 0.25s ease-out;
+    }
+
+    .action-menu-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.35);
+        z-index: 10000;
+        animation: fadeIn 0.2s ease-out;
+    }
+
+    @keyframes slideUpSheet {
+        from {
+            transform: translateY(100%);
+        }
+        to {
+            transform: translateY(0);
+        }
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+        }
+        to {
+            opacity: 1;
+        }
+    }
+}
+
+/* ───────────────────────────────────────────────────────────────
+   17.3: Full-screen modals on mobile (shared class)
+   ─────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .modal-fullscreen-mobile {
+        width: 100vw !important;
+        height: 100vh !important;
+        max-width: none !important;
+        max-height: none !important;
+        border-radius: 0 !important;
+        margin: 0 !important;
+    }
+}
+
+/* 17.4: Already handled in HomeworkBulkActionBar.css (vertical stack + safe-area padding) */
+
+/* ───────────────────────────────────────────────────────────────
+   17.5: List page mobile cards — compact + expandable
+   ─────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .hw-list-card-collapsible {
+        max-height: 5.5rem;
+        overflow: hidden;
+        transition: max-height 0.35s ease;
+    }
+
+    .hw-list-card-collapsible.expanded {
+        max-height: 600px;
+    }
+
+    .hw-list-card-essential {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        min-height: 3.5rem;
+    }
+
+    .hw-list-card-extra {
+        padding-top: 0.5rem;
+        border-top: 1px solid rgba(148, 163, 184, 0.12);
+        margin-top: 0.5rem;
+    }
+}

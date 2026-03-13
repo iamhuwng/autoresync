@@ -15,6 +15,8 @@ import AnswerKeyPanel from './AnswerKeyPanel';
 import MassAnswerImportPanel from './MassAnswerImportPanel';
 
 import r2StorageService from '../services/r2Storage';
+import { toast } from './modern/ToastNotification';
+import { propagateTestMetadataToHomework } from '../services/homeworkManager';
 
 import { QuestionList } from './test/editor/QuestionList';
 import { database } from '../services/firebase';
@@ -609,10 +611,17 @@ const TestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
         const storageKey = getStorageKey();
         localStorage.removeItem(storageKey);
 
+        toast.success('Test saved successfully ✅');
+
+        // Fire-and-forget: propagate title change to homework assignments
+        if (titleModified && test.id) {
+          propagateTestMetadataToHomework(test.id, { materialTitle: editedTitle });
+        }
+
         handleClose();
       } catch (error) {
         console.error('Error saving test:', error);
-        alert('Failed to save test changes. Please try again.');
+        toast.error('Failed to save test changes. Please try again.');
       } finally {
         setIsSaving(false);
       }

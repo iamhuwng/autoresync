@@ -1,13 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { HomeworkConfigPanel } from './HomeworkConfigPanel';
+import { HomeworkTagChips } from './HomeworkTagChips';
 import { StudentGroupSelector } from './StudentGroupSelector';
+import { useHomeworkTags } from '../../hooks/useHomeworkTags';
 import { createHomework } from '../../services/homeworkManager';
-import { createTemplate } from '../../services/homeworkTemplateService';
+import { createTemplate, getTemplatesByTeacher } from '../../services/homeworkTemplateService';
 import type { HomeworkConfig, HomeworkTarget } from '../../types/homework.types';
 // @ts-ignore - JS service
 import queryOptimizer from '../../services/firebaseQueryOptimizer';
 import { THCSHomeworkAssignDialog } from '../thcs-editor/THCSHomeworkAssignDialog';
+import TemplateSaveModal from './TemplateSaveModal';
+import ToastNotification from '../modern/ToastNotification';
 import './HomeworkCreateModal.css';
 
 interface HomeworkCreateModalProps {
@@ -15,6 +19,7 @@ interface HomeworkCreateModalProps {
     onClose: () => void;
     onSuccess: () => void;
     preselectedMaterialId?: string;
+    preselectedMaterialFilter?: 'all' | 'quiz' | 'test' | 'thcs-test';
     preselectedTarget?: HomeworkTarget;
 }
 
@@ -55,9 +60,11 @@ export function HomeworkCreateModal({
     onClose,
     onSuccess,
     preselectedMaterialId,
+    preselectedMaterialFilter,
     preselectedTarget,
 }: HomeworkCreateModalProps) {
     const { user } = useAuth();
+    const { tags: availableTags } = useHomeworkTags();
 
     // Step management
     const [currentStep, setCurrentStep] = useState<Step>('material');
@@ -94,11 +101,21 @@ export function HomeworkCreateModal({
     const [availableFrom, setAvailableFrom] = useState<string>('');
     const [dueDate, setDueDate] = useState<string>('');
     const [instructions, setInstructions] = useState('');
+    const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
     // UI state
     const [loading, setLoading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [showTemplateSaveModal, setShowTemplateSaveModal] = useState(false);
+    const [templateSubmitting, setTemplateSubmitting] = useState(false);
+    const [templateSaveError, setTemplateSaveError] = useState<string | null>(null);
+    const [existingTemplateNames, setExistingTemplateNames] = useState<string[]>([]);
+    const [templateToast, setTemplateToast] = useState<{
+        title: string;
+        message: string;
+        tone: 'success' | 'error';
+    } | null>(null);
 
     // Load materials
     useEffect(() => {
@@ -132,6 +149,45 @@ export function HomeworkCreateModal({
             }
         }
     }, [preselectedTarget]);
+
+    useEffect(() => {
+        if (!isOpen) {
+            return;
+        }
+
+        setMaterialFilter(preselectedMaterialFilter || 'all');
+    }, [isOpen, preselectedMaterialFilter]);
+
+    useEffect(() => {
+        if (!showTemplateSaveModal || !user?.uid) {
+            if (!showTemplateSaveModal) {
+                setExistingTemplateNames([]);
+            }
+            return;
+        }
+
+        let isCancelled = false;
+
+        const loadTemplateNames = async () => {
+            try {
+                const existingTemplates = await getTemplatesByTeacher(user.uid);
+                if (!isCancelled) {
+                    setExistingTemplateNames(existingTemplates.map((template) => template.name));
+                }
+            } catch (err) {
+                if (!isCancelled) {
+                    console.error('Error loading template names:', err);
+                    setExistingTemplateNames([]);
+                }
+            }
+        };
+
+        loadTemplateNames();
+
+        return () => {
+            isCancelled = true;
+        };
+    }, [showTemplateSaveModal, user?.uid]);
 
     const loadMaterials = async () => {
         setLoading(true);
@@ -257,6 +313,7 @@ export function HomeworkCreateModal({
                 availableFrom: availableFrom ? new Date(availableFrom) : new Date(),
                 dueDate: new Date(dueDate),
                 instructions,
+                tags: selectedTags,
             });
 
             onSuccess();
@@ -269,22 +326,72 @@ export function HomeworkCreateModal({
         }
     };
 
-    const handleSaveAsTemplate = async () => {
-        const templateName = prompt('Enter a name for this template:');
-        if (!templateName) return;
+    const handleSaveAsTemplate = () => {
+        setTemplateSaveError(null);
+        setShowTemplateSaveModal(true);
+    };
+
+    const toggleTagSelection = (tagId: string) => {
+        setSelectedTags((currentTags) => (
+            currentTags.includes(tagId)
+                ? currentTags.filter((currentTag) => currentTag !== tagId)
+                : [...currentTags, tagId]
+        ));
+    };
+
+    const handleTemplateSaveSubmit = async ({
+        name,
+        description,
+    }: {
+        name: string;
+        description: string;
+    }) => {
+        if (!user?.uid) {
+            setTemplateSaveError('You must be signed in to save a template.');
+            return;
+        }
+
+        setTemplateSubmitting(true);
+        setTemplateSaveError(null);
 
         try {
-            await createTemplate(user!.uid, templateName, config);
-            alert('Template saved successfully!');
+            const existingTemplates = await getTemplatesByTeacher(user.uid);
+            const normalizedName = name.trim().toLocaleLowerCase();
+            const duplicate = existingTemplates.some(
+                (template) => template.name.trim().toLocaleLowerCase() === normalizedName
+            );
+
+            if (duplicate) {
+                setTemplateSaveError('A template with this name already exists.');
+                return;
+            }
+
+            await createTemplate(user.uid, name.trim(), config, description.trim() || undefined);
+            setShowTemplateSaveModal(false);
+            setExistingTemplateNames((currentNames) => [...currentNames, name.trim()]);
+            setTemplateToast({
+                title: 'Template saved',
+                message: `Template "${name.trim()}" saved successfully.`,
+                tone: 'success',
+            });
         } catch (err) {
             console.error('Error saving template:', err);
-            alert('Failed to save template');
+            setTemplateSaveError(err instanceof Error ? err.message : 'Failed to save template');
+            setTemplateToast({
+                title: 'Save failed',
+                message: 'Failed to save template.',
+                tone: 'error',
+            });
+        } finally {
+            setTemplateSubmitting(false);
         }
     };
 
     const handleClose = () => {
         setCurrentStep('material');
         setSelectedMaterial(null);
+        setMaterialFilter('all');
+        setMaterialSearch('');
         setSelectedClass(null);
         setSelectedStudents([]);
         setConfig({
@@ -296,6 +403,14 @@ export function HomeworkCreateModal({
         setAvailableFrom('');
         setDueDate('');
         setInstructions('');
+        setSelectedTags([]);
+        setShowThcsDialog(false);
+        setThcsDialogTest(null);
+        setShowTemplateSaveModal(false);
+        setTemplateSubmitting(false);
+        setTemplateSaveError(null);
+        setExistingTemplateNames([]);
+        setTemplateToast(null);
         setError(null);
         onClose();
     };
@@ -638,6 +753,35 @@ export function HomeworkCreateModal({
                                     />
                                 </div>
 
+                                <div className="field-group">
+                                    <label className="field-label">🏷️ Tags (optional)</label>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                        {availableTags.map((tag) => {
+                                            const isSelected = selectedTags.includes(tag.id);
+                                            return (
+                                                <button
+                                                    key={tag.id}
+                                                    type="button"
+                                                    aria-label={`Toggle tag ${tag.label}`}
+                                                    onClick={() => toggleTagSelection(tag.id)}
+                                                    style={{
+                                                        borderRadius: '999px',
+                                                        padding: '0.45rem 0.85rem',
+                                                        border: `1px solid ${isSelected ? (tag.color ?? '#6366f1') : `${tag.color ?? '#cbd5e1'}44`}`,
+                                                        background: isSelected ? (tag.color ?? '#6366f1') : `${tag.color ?? '#6366f1'}14`,
+                                                        color: isSelected ? '#ffffff' : (tag.color ?? '#475569'),
+                                                        fontSize: '0.8rem',
+                                                        fontWeight: 700,
+                                                        cursor: 'pointer',
+                                                    }}
+                                                >
+                                                    {tag.label}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
                                 {/* Save as Template (all materials) */}
                                 {selectedMaterial?.skill !== 'writing' && (
                                     <button
@@ -711,6 +855,15 @@ export function HomeworkCreateModal({
                                         {config.feedbackTiming === 'never' && 'Score only'}
                                     </span>
                                 </div>
+
+                                {selectedTags.length > 0 ? (
+                                    <div className="review-item full-width">
+                                        <span className="review-label">Tags:</span>
+                                        <div style={{ marginTop: '0.35rem' }}>
+                                            <HomeworkTagChips tags={selectedTags} allTags={availableTags} />
+                                        </div>
+                                    </div>
+                                ) : null}
 
                                 {instructions && (
                                     <div className="review-item full-width">
@@ -802,6 +955,29 @@ export function HomeworkCreateModal({
                     }}
                 />
             )}
+
+            <TemplateSaveModal
+                isOpen={showTemplateSaveModal}
+                submitting={templateSubmitting}
+                error={templateSaveError}
+                existingTemplateNames={existingTemplateNames}
+                onClose={() => {
+                    if (!templateSubmitting) {
+                        setShowTemplateSaveModal(false);
+                        setTemplateSaveError(null);
+                    }
+                }}
+                onSubmit={handleTemplateSaveSubmit}
+            />
+
+            {templateToast ? (
+                <ToastNotification
+                    title={templateToast.title}
+                    message={templateToast.message}
+                    tone={templateToast.tone}
+                    onClose={() => setTemplateToast(null)}
+                />
+            ) : null}
         </div>
     );
 }

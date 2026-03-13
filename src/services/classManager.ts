@@ -682,6 +682,24 @@ export async function enrollStudent(
       console.warn('Failed to auto-enroll student in class courses:', e);
     }
 
+    // Auto-create student-teacher assignment so the student appears in teacher's student list
+    try {
+      const { createAssignment } = await import('./assignmentManager');
+      const teacherId = classData.createdBy;
+      if (teacherId && teacherId !== 'unknown') {
+        const assignResult = await createAssignment(studentUid, teacherId, teacherId);
+        if (assignResult.success) {
+          console.log(`📋 [ClassManager] Auto-created student-teacher assignment for ${studentUid} → ${teacherId}`);
+        } else if (assignResult.error?.includes('already exists')) {
+          console.log(`📋 [ClassManager] Student-teacher assignment already exists for ${studentUid} → ${teacherId}`);
+        } else {
+          console.warn(`⚠️ [ClassManager] Failed to auto-create assignment: ${assignResult.error}`);
+        }
+      }
+    } catch (assignError) {
+      console.warn('⚠️ [ClassManager] Failed to auto-create student-teacher assignment (non-blocking):', assignError);
+    }
+
     // PRD-0002: Dashboard feed notification
     try {
       const { createNotification } = await import('./notificationService');

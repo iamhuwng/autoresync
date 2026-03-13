@@ -122,6 +122,7 @@ export interface DraftListItem {
     status: DraftStatus;
     questionCount: number;
     createdAt: Date;
+    updatedAt?: Date;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

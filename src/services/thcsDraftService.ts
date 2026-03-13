@@ -16,7 +16,6 @@ import {
     deleteDoc,
     query,
     where,
-    orderBy,
     Timestamp,
     getFirestore,
 } from 'firebase/firestore';
@@ -160,10 +159,11 @@ export async function getUserThcsDrafts(
 ): Promise<ServiceResponse<THCSDraft[]>> {
     try {
         const draftsRef = collection(db, THCS_DRAFTS_COLLECTION);
+        // Query without orderBy to avoid "query requires an index" error
+        // Sort client-side instead (same fix pattern as IELTS drafts)
         const q = query(
             draftsRef,
-            where('userId', '==', userId),
-            orderBy('updatedAt', 'desc')
+            where('userId', '==', userId)
         );
 
         const querySnapshot = await getDocs(q);
@@ -176,6 +176,13 @@ export async function getUserThcsDrafts(
                 id: docSnap.id,
             });
             drafts.push(draft);
+        });
+
+        // Sort client-side: newest updatedAt first
+        drafts.sort((a, b) => {
+            const aTime = a.updatedAt instanceof Date ? a.updatedAt.getTime() : 0;
+            const bTime = b.updatedAt instanceof Date ? b.updatedAt.getTime() : 0;
+            return bTime - aTime;
         });
 
         console.log(`✅ Loaded ${drafts.length} THCS drafts for user:`, userId);

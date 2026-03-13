@@ -100,6 +100,14 @@ export const getThcsTestFromFirebase = async (
 
         const data = snapshot.val();
 
+        // 🔍 DIAGNOSTIC: Log what the reader sees
+        console.log(`📖 [thcsTestStorage] READ test ${testId}:`, {
+            title: data.metadata?.title,
+            sectionCount: data.sections?.length,
+            questionCount: data.questionCount,
+            updatedAt: data.updatedAt ? new Date(data.updatedAt).toISOString() : 'N/A',
+        });
+
         // Verify this is a THCS-THPT test
         if (data.testType !== 'THCS-THPT') {
             return {
@@ -137,9 +145,36 @@ export const updateThcsTestInFirebase = async (
             updatedAt: Date.now(),
         };
 
+        // 🔍 DIAGNOSTIC: Log exactly what we're writing
+        const sectionCount = updates.sections?.length ?? '(not updated)';
+        const questionCount = updates.sections?.reduce((sum, s) => sum + s.questions.length, 0) ?? '(not updated)';
+        const titleValue = updates.metadata?.title ?? '(not updated)';
+        console.log(`📝 [thcsTestStorage] Writing update to tests/${testId}:`, {
+            keys: Object.keys(updatedData),
+            sectionCount,
+            questionCount,
+            title: titleValue,
+            isPublic: updates.isPublic,
+        });
+
         await update(testRef, updatedData);
 
         console.log('✅ THCS-THPT test updated in Firebase:', testId);
+
+        // 🔍 DIAGNOSTIC: Read back to verify the write persisted
+        try {
+            const verifySnapshot = await get(ref(database, `tests/${testId}/questionCount`));
+            const verifyTitle = await get(ref(database, `tests/${testId}/metadata/title`));
+            console.log(`🔍 [thcsTestStorage] POST-SAVE VERIFY for ${testId}:`, {
+                questionCount_inFirebase: verifySnapshot.val(),
+                title_inFirebase: verifyTitle.val(),
+                questionCount_weSent: updates.questionCount,
+                title_weSent: updates.metadata?.title,
+                match: verifySnapshot.val() === updates.questionCount && verifyTitle.val() === updates.metadata?.title,
+            });
+        } catch (verifyErr) {
+            console.warn('🔍 [thcsTestStorage] Verification read failed (non-blocking):', verifyErr);
+        }
 
         return {
             success: true,

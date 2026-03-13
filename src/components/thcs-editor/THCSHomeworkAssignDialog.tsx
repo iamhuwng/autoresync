@@ -15,9 +15,8 @@
  * and TeacherHomeworkListPage.tsx (Task 2.2).
  */
 
-import { useState, useCallback, useEffect } from 'react';
-import { Modal, Textarea, Select, MultiSelect, NumberInput, Checkbox, Group, Stack, Text, Badge, Divider, Radio } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
+import { useState, useCallback, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { createHomework } from '../../services/homeworkManager';
 import { sendThcsHomeworkAssignedNotification } from '../../services/notificationService';
@@ -25,6 +24,7 @@ import { ref, get } from 'firebase/database';
 import { database } from '../../services/firebase';
 import { getClasses, getClass } from '../../services/classManager';
 import { DateTimeCalendar } from '../common/DateTimeCalendar';
+import { Button, Input, Textarea } from '../modern';
 import type { HomeworkTarget } from '../../types/homework.types';
 
 // ============================================================================
@@ -85,6 +85,8 @@ export function THCSHomeworkAssignDialog({
     const [instructions, setInstructions] = useState('');
     const [pinToVersion, setPinToVersion] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const [studentSearch, setStudentSearch] = useState('');
+    const [feedback, setFeedback] = useState<{ tone: 'success' | 'error' | 'info'; message: string } | null>(null);
 
     // Class & student search data
     const [loadingClasses, setLoadingClasses] = useState(false);
@@ -158,7 +160,18 @@ export function THCSHomeworkAssignDialog({
         setFeedbackTiming('after-submission');
         setInstructions('');
         setPinToVersion(true);
+        setStudentSearch('');
+        setFeedback(null);
     }, []);
+
+    const filteredStudentOptions = useMemo(() => {
+        if (!studentSearch.trim()) {
+            return studentOptions;
+        }
+
+        const query = studentSearch.toLowerCase();
+        return studentOptions.filter((option) => option.label.toLowerCase().includes(query));
+    }, [studentOptions, studentSearch]);
 
     // Validation
     const getValidationErrors = (): string[] => {
@@ -185,10 +198,9 @@ export function THCSHomeworkAssignDialog({
     const handleSubmit = async () => {
         const errors = getValidationErrors();
         if (errors.length > 0) {
-            notifications.show({
-                title: 'Validation Error',
+            setFeedback({
+                tone: 'error',
                 message: errors.join(' '),
-                color: 'red',
             });
             return;
         }
@@ -196,11 +208,12 @@ export function THCSHomeworkAssignDialog({
         if (!user?.uid || !dueDate) return;
 
         setSubmitting(true);
+        setFeedback(null);
         try {
             // Build target
             let target: HomeworkTarget;
             if (targetType === 'class') {
-                target = { type: 'class', classId: classId.trim(), className: className.trim() || undefined };
+                target = { type: 'class', classId: classId.trim(), ...(className.trim() ? { className: className.trim() } : {}) };
             } else {
                 target = { type: 'students', studentIds: selectedStudentIds };
             }
@@ -222,6 +235,16 @@ export function THCSHomeworkAssignDialog({
                 dueDate: dueDate,
                 instructions: instructions || '',
                 title: testTitle,
+                thcsConfig: {
+                    ...(timerModeOverride ? { timerModeOverride } : {}),
+                    lateSubmissionPolicy: latePolicy,
+                    ...(latePolicy === 'penalty' ? { penaltyPercent } : {}),
+                    maxAttempts,
+                    feedbackTiming,
+                    ...(instructions ? { instructions } : {}),
+                    ...(versionKey ? { versionKey } : {}),
+                    pinToVersion,
+                },
             });
 
             // Note: thcsConfig is stored separately via homeworkManager extension (Task 2.4)
@@ -248,21 +271,14 @@ export function THCSHomeworkAssignDialog({
                 console.warn('[THCSHomework] Notification setup failed (non-blocking):', notifErr);
             }
 
-            notifications.show({
-                title: 'Homework Assigned',
-                message: `"${testTitle}" has been assigned as homework.`,
-                color: 'green',
-            });
-
             resetForm();
             onClose();
             onSuccess?.();
         } catch (error) {
-            console.error('Error creating THCS homework:', error);
-            notifications.show({
-                title: 'Error',
+            console.error('[THCSHomework] Error creating homework:', error);
+            setFeedback({
+                tone: 'error',
                 message: 'Failed to assign homework. Please try again.',
-                color: 'red',
             });
         } finally {
             setSubmitting(false);
@@ -278,240 +294,593 @@ export function THCSHomeworkAssignDialog({
         }
     };
 
-    return (
-        <Modal
-            opened={isOpen}
-            onClose={onClose}
-            title={
-                <Group gap="xs">
-                    <Text fw={700} size="lg">📋 Assign THCS Homework</Text>
-                </Group>
+    const feedbackToneStyles = {
+        success: {
+            background: 'rgba(220,252,231,0.9)',
+            border: '1px solid rgba(34,197,94,0.2)',
+            color: '#15803d',
+        },
+        error: {
+            background: 'rgba(254,226,226,0.9)',
+            border: '1px solid rgba(239,68,68,0.2)',
+            color: '#b91c1c',
+        },
+        info: {
+            background: 'rgba(219,234,254,0.9)',
+            border: '1px solid rgba(59,130,246,0.2)',
+            color: '#1d4ed8',
+        },
+    } as const;
+
+    const toggleStudentSelection = (studentId: string) => {
+        setSelectedStudentIds((current) =>
+            current.includes(studentId)
+                ? current.filter((id) => id !== studentId)
+                : [...current, studentId]
+        );
+    };
+
+    const handleRequestClose = () => {
+        if (submitting) {
+            return;
+        }
+
+        resetForm();
+        onClose();
+    };
+
+    useEffect(() => {
+        if (!isOpen) {
+            return;
+        }
+
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape' && !submitting) {
+                handleRequestClose();
             }
-            size="lg"
-            closeOnClickOutside={!submitting}
-            styles={{
-                header: {
-                    borderBottom: '1px solid #e2e8f0',
-                    paddingBottom: '0.75rem',
-                },
-                body: {
-                    padding: '1.5rem',
-                },
+        };
+
+        window.addEventListener('keydown', handleEscape);
+        return () => window.removeEventListener('keydown', handleEscape);
+    }, [isOpen, submitting]);
+
+    if (!isOpen) {
+        return null;
+    }
+
+    return createPortal(
+        <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Assign THCS Homework"
+            onClick={(event) => {
+                if (event.target === event.currentTarget) {
+                    handleRequestClose();
+                }
+            }}
+            style={{
+                position: 'fixed',
+                inset: 0,
+                zIndex: 2200,
+                background: 'rgba(15, 23, 42, 0.55)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '1.5rem',
+                backdropFilter: 'blur(8px)',
             }}
         >
-            <Stack gap="lg">
-                {/* Test info (read-only) */}
-                <div style={{
-                    padding: '0.75rem 1rem',
-                    background: 'rgba(139, 92, 246, 0.08)',
-                    borderRadius: '8px',
-                    border: '1px solid rgba(139, 92, 246, 0.2)',
-                }}>
-                    <Group gap="xs" mb={4}>
-                        <Badge color="violet" variant="light" size="sm">THCS-THPT</Badge>
-                        {testMetadata?.gradeLevel && (
-                            <Badge color="blue" variant="light" size="sm">Grade {testMetadata.gradeLevel}</Badge>
-                        )}
-                        {testMetadata?.duration && (
-                            <Badge color="green" variant="light" size="sm">{testMetadata.duration} min</Badge>
-                        )}
-                    </Group>
-                    <Text fw={600} size="md">{testTitle}</Text>
-                    <Text size="xs" c="dimmed" mt={2}>
-                        Default timer: {timerModeLabel(testMetadata?.timerMode || 'strict')}
-                    </Text>
+            <div
+                style={{
+                    width: 'min(960px, 100%)',
+                    maxHeight: '92vh',
+                    background: 'linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.98))',
+                    borderRadius: '1.5rem',
+                    border: '1px solid rgba(226,232,240,0.9)',
+                    boxShadow: '0 24px 70px rgba(15,23,42,0.28)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden',
+                }}
+            >
+                <div
+                    style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: '1rem',
+                        padding: '1.25rem 1.5rem',
+                        borderBottom: '1px solid rgba(226,232,240,0.9)',
+                    }}
+                >
+                    <div>
+                        <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a' }}>
+                            📋 Assign THCS Homework
+                        </div>
+                        <div style={{ marginTop: '0.2rem', fontSize: '0.9rem', color: '#64748b' }}>
+                            Configure targets, schedule, and submission rules for this THCS-THPT assignment.
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={handleRequestClose}
+                        disabled={submitting}
+                        style={{
+                            border: 'none',
+                            background: 'transparent',
+                            color: '#64748b',
+                            fontSize: '1.5rem',
+                            cursor: submitting ? 'not-allowed' : 'pointer',
+                            lineHeight: 1,
+                        }}
+                    >
+                        ×
+                    </button>
                 </div>
 
-                <Divider label="Target Students" labelPosition="left" />
-
-                {/* Target selection */}
-                <Radio.Group
-                    value={targetType}
-                    onChange={(val) => setTargetType(val as 'class' | 'students')}
-                    label="Assign to"
+                <div
+                    style={{
+                        padding: '1.5rem',
+                        overflowY: 'auto',
+                        display: 'grid',
+                        gap: '1.25rem',
+                    }}
                 >
-                    <Group mt="xs">
-                        <Radio value="class" label="Class" />
-                        <Radio value="students" label="Individual Students" />
-                    </Group>
-                </Radio.Group>
-
-                {targetType === 'class' ? (
-                    <Select
-                        label="Select Class"
-                        placeholder={loadingClasses ? 'Loading classes...' : 'Search for a class...'}
-                        data={classOptions}
-                        value={classId}
-                        onChange={(val) => {
-                            setClassId(val || '');
-                            const selected = classOptions.find(c => c.value === val);
-                            setClassName(selected?.label?.split(' (')[0] || '');
-                        }}
-                        searchable
-                        clearable
-                        nothingFoundMessage={loadingClasses ? 'Loading...' : 'No classes found'}
-                        required
-                        disabled={loadingClasses}
-                    />
-                ) : (
-                    <MultiSelect
-                        label="Select Students"
-                        placeholder={loadingClasses ? 'Loading students...' : 'Search for students...'}
-                        data={studentOptions}
-                        value={selectedStudentIds}
-                        onChange={setSelectedStudentIds}
-                        searchable
-                        clearable
-                        nothingFoundMessage={loadingClasses ? 'Loading...' : 'No students found'}
-                        required
-                        disabled={loadingClasses}
-                        maxDropdownHeight={200}
-                    />
-                )}
-
-                <Divider label="Schedule" labelPosition="left" />
-
-                {/* Schedule — custom visual calendar picker */}
-                <Group grow>
-                    <DateTimeCalendar
-                        label="Available From"
-                        value={availableFrom}
-                        onChange={setAvailableFrom}
-                    />
-                    <DateTimeCalendar
-                        label="Due Date"
-                        value={dueDate}
-                        onChange={setDueDate}
-                        required
-                        minDate={availableFrom || undefined}
-                    />
-                </Group>
-
-                <Divider label="Settings" labelPosition="left" />
-
-                {/* Timer Mode Override */}
-                <Select
-                    label="Timer Mode"
-                    description={`Test default: ${timerModeLabel(testMetadata?.timerMode || 'strict')}`}
-                    data={[
-                        { value: '', label: `Use test default (${testMetadata?.timerMode || 'strict'})` },
-                        { value: 'strict', label: '⏱️ Strict — auto-submit at 0:00' },
-                        { value: 'informational', label: '🕐 Informational — timer shown, student decides' },
-                        { value: 'none', label: '🚫 No timer' },
-                    ]}
-                    value={timerModeOverride}
-                    onChange={(val) => setTimerModeOverride((val || '') as any)}
-                />
-
-                {/* Late Submission Policy */}
-                <Radio.Group
-                    value={latePolicy}
-                    onChange={(val) => setLatePolicy(val as LateSubmissionPolicy)}
-                    label="Late Submission Policy"
-                    description="What happens when a student submits after the deadline"
-                >
-                    <Stack mt="xs" gap="xs">
-                        <Radio value="accept" label='Accept — no penalty, no "Late" badge' />
-                        <Radio value="accept-late" label='Accept — marked as "Late" (badge shown to teacher)' />
-                        <Radio value="reject" label="Reject — block submission after deadline" />
-                        <Radio value="penalty" label="Penalty — accept but deduct from score" />
-                    </Stack>
-                </Radio.Group>
-
-                {latePolicy === 'penalty' && (
-                    <NumberInput
-                        label="Penalty Percentage"
-                        description="Deducted from final score (e.g., 10% → score 8.0 becomes 7.2)"
-                        value={penaltyPercent}
-                        onChange={(val) => setPenaltyPercent(typeof val === 'number' ? val : 10)}
-                        min={1}
-                        max={100}
-                        suffix="%"
-                    />
-                )}
-
-                <Group grow>
-                    <NumberInput
-                        label="Max Attempts"
-                        description="How many times student can submit (1-5)"
-                        value={maxAttempts}
-                        onChange={(val) => setMaxAttempts(typeof val === 'number' ? val : 1)}
-                        min={1}
-                        max={5}
-                    />
-                    <Select
-                        label="Feedback Timing"
-                        data={[
-                            { value: 'after-submission', label: '📊 After submission (immediate)' },
-                            { value: 'after-deadline', label: '📅 After deadline' },
-                            { value: 'manual', label: '👨‍🏫 Manual release by teacher' },
-                        ]}
-                        value={feedbackTiming}
-                        onChange={(val) => setFeedbackTiming((val || 'after-submission') as FeedbackTimingOption)}
-                    />
-                </Group>
-
-                {/* Instructions */}
-                <Textarea
-                    label="Instructions for Students (optional)"
-                    placeholder="Special instructions or notes for this assignment..."
-                    value={instructions}
-                    onChange={(e) => setInstructions(e.currentTarget.value)}
-                    autosize
-                    minRows={2}
-                    maxRows={4}
-                />
-
-                {/* Version Pinning */}
-                <Checkbox
-                    label="Pin to current version"
-                    description={versionKey
-                        ? `Students will see version: ${versionKey}`
-                        : 'Students will always see the latest version'}
-                    checked={pinToVersion}
-                    onChange={(e) => setPinToVersion(e.currentTarget.checked)}
-                />
-
-                <Divider />
-
-                {/* Actions */}
-                <Group justify="flex-end">
-                    <button
-                        onClick={onClose}
-                        disabled={submitting}
+                    {/* Test info (read-only) */}
+                    <div
                         style={{
-                            padding: '0.5rem 1.25rem',
-                            border: '1px solid #d1d5db',
-                            borderRadius: '8px',
-                            background: 'white',
-                            color: '#374151',
-                            fontWeight: 600,
-                            cursor: submitting ? 'not-allowed' : 'pointer',
+                            padding: '0.95rem 1rem',
+                            background: 'rgba(139, 92, 246, 0.08)',
+                            borderRadius: '1rem',
+                            border: '1px solid rgba(139, 92, 246, 0.18)',
                         }}
                     >
-                        Cancel
-                    </button>
-                    <button
-                        onClick={handleSubmit}
-                        disabled={submitting}
+                        <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', marginBottom: '0.55rem' }}>
+                            <span
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    padding: '0.26rem 0.65rem',
+                                    borderRadius: '999px',
+                                    fontSize: '0.74rem',
+                                    fontWeight: 700,
+                                    background: 'rgba(124,58,237,0.12)',
+                                    color: '#7c3aed',
+                                }}
+                            >
+                                THCS-THPT
+                            </span>
+                            {testMetadata?.gradeLevel ? (
+                                <span
+                                    style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        padding: '0.26rem 0.65rem',
+                                        borderRadius: '999px',
+                                        fontSize: '0.74rem',
+                                        fontWeight: 700,
+                                        background: 'rgba(59,130,246,0.12)',
+                                        color: '#2563eb',
+                                    }}
+                                >
+                                    Grade {testMetadata.gradeLevel}
+                                </span>
+                            ) : null}
+                            {testMetadata?.duration ? (
+                                <span
+                                    style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        padding: '0.26rem 0.65rem',
+                                        borderRadius: '999px',
+                                        fontSize: '0.74rem',
+                                        fontWeight: 700,
+                                        background: 'rgba(16,185,129,0.12)',
+                                        color: '#059669',
+                                    }}
+                                >
+                                    {testMetadata.duration} min
+                                </span>
+                            ) : null}
+                        </div>
+                        <div style={{ fontSize: '1.03rem', fontWeight: 700, color: '#0f172a' }}>{testTitle}</div>
+                        <div style={{ marginTop: '0.25rem', fontSize: '0.84rem', color: '#64748b' }}>
+                            Default timer: {timerModeLabel(testMetadata?.timerMode || 'strict')}
+                        </div>
+                    </div>
+
+                    {feedback ? (
+                        <div
+                            style={{
+                                borderRadius: '1rem',
+                                padding: '0.9rem 1rem',
+                                ...feedbackToneStyles[feedback.tone],
+                            }}
+                        >
+                            {feedback.message}
+                        </div>
+                    ) : null}
+
+                    <div
                         style={{
-                            padding: '0.5rem 1.25rem',
-                            border: 'none',
-                            borderRadius: '8px',
-                            background: submitting
-                                ? '#9ca3af'
-                                : 'linear-gradient(135deg, #7c3aed 0%, #6366f1 100%)',
-                            color: 'white',
-                            fontWeight: 700,
-                            cursor: submitting ? 'not-allowed' : 'pointer',
-                            minWidth: '160px',
+                            fontSize: '0.83rem',
+                            fontWeight: 800,
+                            color: '#475569',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em',
                         }}
                     >
-                        {submitting ? '⏳ Assigning...' : '📋 Assign Homework'}
-                    </button>
-                </Group>
-            </Stack>
-        </Modal>
+                        Target Students
+                    </div>
+
+                    {/* Target selection */}
+                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                        <button
+                            type="button"
+                            onClick={() => setTargetType('class')}
+                            style={{
+                                padding: '0.65rem 0.95rem',
+                                borderRadius: '0.9rem',
+                                border: targetType === 'class' ? '1px solid rgba(79,70,229,0.35)' : '1px solid rgba(203,213,225,0.95)',
+                                background: targetType === 'class' ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.85)',
+                                color: targetType === 'class' ? '#4338ca' : '#475569',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                            }}
+                        >
+                            Class
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setTargetType('students')}
+                            style={{
+                                padding: '0.65rem 0.95rem',
+                                borderRadius: '0.9rem',
+                                border: targetType === 'students' ? '1px solid rgba(79,70,229,0.35)' : '1px solid rgba(203,213,225,0.95)',
+                                background: targetType === 'students' ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.85)',
+                                color: targetType === 'students' ? '#4338ca' : '#475569',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                            }}
+                        >
+                            Individual Students
+                        </button>
+                    </div>
+
+                    {targetType === 'class' ? (
+                        <div style={{ display: 'grid', gap: '0.4rem' }}>
+                            <label style={{ fontSize: '0.9rem', fontWeight: 700, color: '#1e293b' }}>
+                                Select Class
+                            </label>
+                            <select
+                                value={classId}
+                                onChange={(event) => {
+                                    const value = event.target.value;
+                                    setClassId(value);
+                                    const selected = classOptions.find((option) => option.value === value);
+                                    setClassName(selected?.label?.split(' (')[0] || '');
+                                }}
+                                disabled={loadingClasses}
+                                style={{
+                                    width: '100%',
+                                    minHeight: '44px',
+                                    borderRadius: '0.9rem',
+                                    border: '1px solid rgba(203,213,225,0.95)',
+                                    padding: '0.75rem 0.9rem',
+                                    background: '#fff',
+                                    color: '#1e293b',
+                                }}
+                            >
+                                <option value="">
+                                    {loadingClasses ? 'Loading classes...' : 'Select a class'}
+                                </option>
+                                {classOptions.map((option) => (
+                                    <option key={option.value} value={option.value}>
+                                        {option.label}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    ) : (
+                        <div style={{ display: 'grid', gap: '0.85rem' }}>
+                            <Input
+                                label="Search Students"
+                                placeholder={loadingClasses ? 'Loading students...' : 'Search by name or class...'}
+                                value={studentSearch}
+                                onChange={(event) => setStudentSearch(event.target.value)}
+                                fullWidth
+                                disabled={loadingClasses}
+                            />
+                            <div
+                                style={{
+                                    borderRadius: '1rem',
+                                    border: '1px solid rgba(203,213,225,0.9)',
+                                    background: 'rgba(255,255,255,0.92)',
+                                    maxHeight: '240px',
+                                    overflowY: 'auto',
+                                    padding: '0.35rem',
+                                }}
+                            >
+                                {filteredStudentOptions.length > 0 ? (
+                                    filteredStudentOptions.map((option) => {
+                                        const checked = selectedStudentIds.includes(option.value);
+                                        return (
+                                            <label
+                                                key={option.value}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '0.75rem',
+                                                    padding: '0.7rem 0.8rem',
+                                                    borderRadius: '0.85rem',
+                                                    cursor: 'pointer',
+                                                    background: checked ? 'rgba(99,102,241,0.08)' : 'transparent',
+                                                }}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={checked}
+                                                    onChange={() => toggleStudentSelection(option.value)}
+                                                />
+                                                <span style={{ color: '#1e293b', fontSize: '0.92rem' }}>{option.label}</span>
+                                            </label>
+                                        );
+                                    })
+                                ) : (
+                                    <div style={{ padding: '1rem', textAlign: 'center', color: '#64748b' }}>
+                                        {loadingClasses ? 'Loading students...' : 'No students found'}
+                                    </div>
+                                )}
+                            </div>
+                            <div style={{ fontSize: '0.84rem', color: '#64748b' }}>
+                                Selected students: {selectedStudentIds.length}
+                            </div>
+                        </div>
+                    )}
+
+                    <div
+                        style={{
+                            fontSize: '0.83rem',
+                            fontWeight: 800,
+                            color: '#475569',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em',
+                        }}
+                    >
+                        Schedule
+                    </div>
+
+                    {/* Schedule — custom visual calendar picker */}
+                    <div
+                        style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+                            gap: '1rem',
+                        }}
+                    >
+                        <DateTimeCalendar
+                            label="Available From"
+                            value={availableFrom}
+                            onChange={setAvailableFrom}
+                        />
+                        <DateTimeCalendar
+                            label="Due Date"
+                            value={dueDate}
+                            onChange={setDueDate}
+                            required
+                            minDate={availableFrom || undefined}
+                        />
+                    </div>
+
+                    <div
+                        style={{
+                            fontSize: '0.83rem',
+                            fontWeight: 800,
+                            color: '#475569',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em',
+                        }}
+                    >
+                        Settings
+                    </div>
+
+                    {/* Timer Mode Override */}
+                    <div style={{ display: 'grid', gap: '0.4rem' }}>
+                        <label style={{ fontSize: '0.9rem', fontWeight: 700, color: '#1e293b' }}>
+                            Timer Mode
+                        </label>
+                        <select
+                            value={timerModeOverride}
+                            onChange={(event) => setTimerModeOverride(event.target.value as 'strict' | 'informational' | 'none' | '')}
+                            style={{
+                                width: '100%',
+                                minHeight: '44px',
+                                borderRadius: '0.9rem',
+                                border: '1px solid rgba(203,213,225,0.95)',
+                                padding: '0.75rem 0.9rem',
+                                background: '#fff',
+                                color: '#1e293b',
+                            }}
+                        >
+                            <option value="">{`Use test default (${testMetadata?.timerMode || 'strict'})`}</option>
+                            <option value="strict">⏱️ Strict — auto-submit at 0:00</option>
+                            <option value="informational">🕐 Informational — timer shown, student decides</option>
+                            <option value="none">🚫 No timer</option>
+                        </select>
+                        <div style={{ fontSize: '0.82rem', color: '#64748b' }}>
+                            Test default: {timerModeLabel(testMetadata?.timerMode || 'strict')}
+                        </div>
+                    </div>
+
+                    {/* Late Submission Policy */}
+                    <div style={{ display: 'grid', gap: '0.65rem' }}>
+                        <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#1e293b' }}>
+                            Late Submission Policy
+                        </div>
+                        <div style={{ fontSize: '0.82rem', color: '#64748b' }}>
+                            What happens when a student submits after the deadline.
+                        </div>
+                        {([
+                            ['accept', 'Accept — no penalty, no "Late" badge'],
+                            ['accept-late', 'Accept — marked as "Late" (badge shown to teacher)'],
+                            ['reject', 'Reject — block submission after deadline'],
+                            ['penalty', 'Penalty — accept but deduct from score'],
+                        ] as Array<[LateSubmissionPolicy, string]>).map(([value, label]) => (
+                            <label
+                                key={value}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.7rem',
+                                    padding: '0.72rem 0.85rem',
+                                    borderRadius: '0.9rem',
+                                    border: latePolicy === value ? '1px solid rgba(79,70,229,0.28)' : '1px solid rgba(226,232,240,0.95)',
+                                    background: latePolicy === value ? 'rgba(99,102,241,0.08)' : 'rgba(255,255,255,0.92)',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                <input
+                                    type="radio"
+                                    name="latePolicy"
+                                    value={value}
+                                    checked={latePolicy === value}
+                                    onChange={() => setLatePolicy(value)}
+                                />
+                                <span style={{ color: '#1e293b', fontSize: '0.92rem' }}>{label}</span>
+                            </label>
+                        ))}
+                    </div>
+
+                    {latePolicy === 'penalty' ? (
+                        <Input
+                            type="number"
+                            label="Penalty Percentage"
+                            helperText="Deducted from final score (for example: 10% turns 8.0 into 7.2)."
+                            value={penaltyPercent}
+                            onChange={(event) => setPenaltyPercent(Number(event.target.value) || 10)}
+                            min={1}
+                            max={100}
+                            fullWidth
+                        />
+                    ) : null}
+
+                    <div
+                        style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                            gap: '1rem',
+                        }}
+                    >
+                        <Input
+                            type="number"
+                            label="Max Attempts"
+                            helperText="How many times a student can submit (1-5)."
+                            value={maxAttempts}
+                            onChange={(event) => setMaxAttempts(Number(event.target.value) || 1)}
+                            min={1}
+                            max={5}
+                            fullWidth
+                        />
+                        <div style={{ display: 'grid', gap: '0.4rem' }}>
+                            <label style={{ fontSize: '0.9rem', fontWeight: 700, color: '#1e293b' }}>
+                                Feedback Timing
+                            </label>
+                            <select
+                                value={feedbackTiming}
+                                onChange={(event) => setFeedbackTiming(event.target.value as FeedbackTimingOption)}
+                                style={{
+                                    width: '100%',
+                                    minHeight: '44px',
+                                    borderRadius: '0.9rem',
+                                    border: '1px solid rgba(203,213,225,0.95)',
+                                    padding: '0.75rem 0.9rem',
+                                    background: '#fff',
+                                    color: '#1e293b',
+                                }}
+                            >
+                                <option value="after-submission">📊 After submission (immediate)</option>
+                                <option value="after-deadline">📅 After deadline</option>
+                                <option value="manual">👨‍🏫 Manual release by teacher</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* Instructions */}
+                    <Textarea
+                        label="Instructions for Students (optional)"
+                        placeholder="Special instructions or notes for this assignment..."
+                        value={instructions}
+                        onChange={(event) => setInstructions(event.currentTarget.value)}
+                        rows={4}
+                        fullWidth
+                    />
+
+                    {/* Version Pinning */}
+                    <label
+                        style={{
+                            display: 'flex',
+                            gap: '0.8rem',
+                            alignItems: 'flex-start',
+                            padding: '0.95rem 1rem',
+                            borderRadius: '1rem',
+                            border: '1px solid rgba(226,232,240,0.95)',
+                            background: 'rgba(255,255,255,0.94)',
+                            cursor: 'pointer',
+                        }}
+                    >
+                        <input
+                            type="checkbox"
+                            checked={pinToVersion}
+                            onChange={(event) => setPinToVersion(event.currentTarget.checked)}
+                            style={{ marginTop: '0.2rem' }}
+                        />
+                        <div>
+                            <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#1e293b' }}>
+                                Pin to current version
+                            </div>
+                            <div style={{ marginTop: '0.2rem', fontSize: '0.84rem', color: '#64748b' }}>
+                                {versionKey
+                                    ? `Students will see version: ${versionKey}`
+                                    : 'Students will always see the latest version'}
+                            </div>
+                        </div>
+                    </label>
+
+                    <div
+                        style={{
+                            display: 'flex',
+                            justifyContent: 'flex-end',
+                            gap: '0.75rem',
+                            flexWrap: 'wrap',
+                            paddingTop: '0.5rem',
+                            borderTop: '1px solid rgba(226,232,240,0.9)',
+                        }}
+                    >
+                        <Button
+                            variant="outline"
+                            onClick={handleRequestClose}
+                            disabled={submitting}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="primary"
+                            onClick={handleSubmit}
+                            disabled={submitting}
+                            style={{
+                                background: submitting
+                                    ? '#9ca3af'
+                                    : 'linear-gradient(135deg, #7c3aed 0%, #6366f1 100%)',
+                                minWidth: '170px',
+                            }}
+                        >
+                            {submitting ? 'Assigning...' : 'Assign Homework'}
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        </div>,
+        document.body
     );
 }
 

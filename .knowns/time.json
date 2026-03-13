@@ -1,11 +1,3 @@
 {
-  "active": [
-    {
-      "taskId": "8085zl",
-      "taskTitle": "Pipeline Integration + Review Panel Updates",
-      "startedAt": "2026-03-05T02:45:33.900Z",
-      "pausedAt": null,
-      "totalPausedMs": 0
-    }
-  ]
+  "active": []
 }

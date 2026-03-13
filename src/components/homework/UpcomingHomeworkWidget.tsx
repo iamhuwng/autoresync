@@ -9,23 +9,16 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-    Paper,
-    Text,
-    Group,
-    Stack,
-    Badge,
-    Button,
-    Loader,
-    ThemeIcon
-} from '@mantine/core';
-import {
     IconClipboard,
     IconClock,
     IconAlertTriangle,
     IconChevronRight,
     IconCheck
 } from '@tabler/icons-react';
+import { buildRoute } from '../../constants/routes';
+import { useNavigation } from '../../hooks/useNavigation';
 import { getStudentHomeworkList } from '../../services/homeworkSubmissionService';
+import { Button, VanillaLoader } from '../modern';
 import type { HomeworkAssignment, HomeworkSubmission } from '../../types/homework.types';
 
 // ============================================================================
@@ -51,38 +44,78 @@ interface UpcomingHomeworkWidgetProps {
 /**
  * Format relative time remaining
  */
-const formatTimeRemaining = (dueDate: number): { text: string; urgent: boolean; color: string } => {
+const formatTimeRemaining = (dueDate: number): {
+    text: string;
+    urgent: boolean;
+    background: string;
+    border: string;
+    color: string;
+    overdue: boolean;
+} => {
     const now = Date.now();
     const diff = dueDate - now;
 
     if (diff <= 0) {
-        return { text: 'Overdue', urgent: true, color: 'red' };
+        return {
+            text: 'Overdue',
+            urgent: true,
+            background: '#fee2e2',
+            border: '#fecaca',
+            color: '#dc2626',
+            overdue: true,
+        };
     }
 
     const hours = Math.floor(diff / (1000 * 60 * 60));
     const days = Math.floor(hours / 24);
 
     if (hours < 24) {
-        return { text: `${hours}h left`, urgent: true, color: 'red' };
+        return {
+            text: `${hours}h left`,
+            urgent: true,
+            background: '#fef3c7',
+            border: '#fde68a',
+            color: '#d97706',
+            overdue: false,
+        };
     }
 
     if (days < 3) {
-        return { text: `${days}d left`, urgent: true, color: 'orange' };
+        return {
+            text: `${days}d left`,
+            urgent: true,
+            background: '#fef3c7',
+            border: '#fde68a',
+            color: '#d97706',
+            overdue: false,
+        };
     }
 
-    return { text: `${days}d left`, urgent: false, color: 'blue' };
+    return {
+        text: `${days}d left`,
+        urgent: false,
+        background: '#dbeafe',
+        border: '#bfdbfe',
+        color: '#2563eb',
+        overdue: false,
+    };
 };
 
 /**
  * Get skill color
  */
-const getSkillColor = (skill: string): string => {
+const getSkillStyles = (skill: string): { background: string; color: string } => {
     switch (skill.toLowerCase()) {
-        case 'reading': return 'blue';
-        case 'listening': return 'violet';
-        case 'writing': return 'orange';
-        case 'speaking': return 'teal';
-        default: return 'gray';
+        case 'reading':
+            return { background: '#dbeafe', color: '#2563eb' };
+        case 'listening':
+            return { background: '#e0e7ff', color: '#4338ca' };
+        case 'writing':
+            return { background: '#fef3c7', color: '#d97706' };
+        case 'speaking':
+            return { background: '#d1fae5', color: '#059669' };
+        default:
+            return { background: '#e5e7eb', color: '#6b7280' };
     }
 };
 
@@ -95,6 +128,7 @@ export const UpcomingHomeworkWidget: React.FC<UpcomingHomeworkWidgetProps> = ({
     maxItems = 3
 }) => {
     const navigate = useNavigate();
+    const { navigateTo } = useNavigation('student');
     const [homeworkItems, setHomeworkItems] = useState<HomeworkItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -104,7 +138,12 @@ export const UpcomingHomeworkWidget: React.FC<UpcomingHomeworkWidgetProps> = ({
      */
     useEffect(() => {
         const loadHomework = async () => {
-            if (!studentId) return;
+            if (!studentId) {
+                setHomeworkItems([]);
+                setError(null);
+                setIsLoading(false);
+                return;
+            }
 
             try {
                 setIsLoading(true);
@@ -156,8 +195,7 @@ export const UpcomingHomeworkWidget: React.FC<UpcomingHomeworkWidgetProps> = ({
      */
     const handleHomeworkClick = (item: HomeworkItem) => {
         if (item.status === 'in_progress' && item.homework.materialId) {
-            // Go directly to test-taking
-            navigate(`/student/practice/${item.homework.materialId}`, {
+            navigate(buildRoute('STUDENT_PRACTICE', { materialId: item.homework.materialId }), {
                 state: {
                     isHomework: true,
                     homeworkId: item.homework.id,
@@ -165,8 +203,7 @@ export const UpcomingHomeworkWidget: React.FC<UpcomingHomeworkWidgetProps> = ({
                 },
             });
         } else {
-            // For not_started, go to homework list where they can start
-            navigate('/student/homework');
+            navigateTo('STUDENT_HOMEWORK', {}, { reason: 'student_open_homework_from_widget' });
         }
     };
 
@@ -174,136 +211,273 @@ export const UpcomingHomeworkWidget: React.FC<UpcomingHomeworkWidgetProps> = ({
      * Handle view all click
      */
     const handleViewAll = () => {
-        navigate('/student/homework');
+        navigateTo('STUDENT_HOMEWORK', {}, { reason: 'student_view_all_homework_from_widget' });
     };
 
     // Loading state
     if (isLoading) {
         return (
-            <Paper p="md" withBorder style={{ background: 'rgba(255, 255, 255, 0.95)' }}>
-                <Group justify="center" py="md">
-                    <Loader size="sm" />
-                    <Text size="sm" c="dimmed">Loading homework...</Text>
-                </Group>
-            </Paper>
+            <div
+                style={{
+                    background: '#f9fafb',
+                    borderRadius: 16,
+                    padding: 16,
+                    border: '1px solid #e5e7eb',
+                }}
+            >
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 12,
+                        minHeight: 96,
+                        color: '#6b7280',
+                        fontSize: '0.938rem',
+                    }}
+                >
+                    <VanillaLoader size="sm" color="#4f46e5" />
+                    <span>Loading homework...</span>
+                </div>
+            </div>
         );
     }
 
     // Error state
     if (error) {
         return (
-            <Paper p="md" withBorder style={{ background: 'rgba(255, 255, 255, 0.95)' }}>
-                <Text size="sm" c="red" ta="center">{error}</Text>
-            </Paper>
+            <div
+                style={{
+                    background: '#f9fafb',
+                    borderRadius: 16,
+                    padding: 16,
+                    border: '1px solid #fecaca',
+                    color: '#dc2626',
+                    fontSize: '0.938rem',
+                    textAlign: 'center',
+                }}
+            >
+                {error}
+            </div>
         );
     }
 
     // Empty state
     if (homeworkItems.length === 0) {
         return (
-            <Paper p="md" withBorder style={{ background: 'rgba(255, 255, 255, 0.95)' }}>
-                <Stack align="center" gap="sm" py="md">
-                    <ThemeIcon size="xl" color="green" variant="light">
+            <div
+                style={{
+                    background: '#f9fafb',
+                    borderRadius: 16,
+                    padding: 16,
+                    border: '1px solid #e5e7eb',
+                }}
+            >
+                <div
+                    style={{
+                        minHeight: 160,
+                        display: 'grid',
+                        justifyItems: 'center',
+                        alignContent: 'center',
+                        gap: 12,
+                        textAlign: 'center',
+                    }}
+                >
+                    <div
+                        style={{
+                            width: 48,
+                            height: 48,
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: '#d1fae5',
+                            color: '#059669',
+                        }}
+                    >
                         <IconCheck size={24} />
-                    </ThemeIcon>
-                    <Text fw={500}>All caught up!</Text>
-                    <Text size="sm" c="dimmed">No pending homework</Text>
-                </Stack>
-            </Paper>
+                    </div>
+                    <div style={{ fontSize: '1rem', fontWeight: 700, color: '#111827' }}>All caught up!</div>
+                    <div style={{ fontSize: '0.938rem', color: '#6b7280' }}>No pending homework</div>
+                </div>
+            </div>
         );
     }
 
     return (
-        <Paper
-            p="md"
-            withBorder
+        <div
             style={{
-                background: 'rgba(255, 255, 255, 0.95)',
-                animation: 'slideUp 0.5s ease-out 0.15s backwards'
+                background: '#f9fafb',
+                borderRadius: 16,
+                padding: 16,
+                border: '1px solid #e5e7eb',
+                fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
             }}
         >
-            {/* Header */}
-            <Group justify="space-between" mb="md">
-                <Group gap="xs">
-                    <ThemeIcon size="md" color="orange" variant="light">
-                        <IconClipboard size={16} />
-                    </ThemeIcon>
-                    <Text fw={600}>Upcoming Homework</Text>
-                </Group>
-                <Badge color="orange" variant="light">
+            <div
+                style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                    alignItems: 'center',
+                    marginBottom: 16,
+                }}
+            >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div
+                        style={{
+                            width: 36,
+                            height: 36,
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: '#fef3c7',
+                            color: '#d97706',
+                            flexShrink: 0,
+                        }}
+                    >
+                        <IconClipboard size={18} />
+                    </div>
+                    <div style={{ fontSize: '1.125rem', fontWeight: 700, color: '#111827' }}>
+                        Upcoming Homework
+                    </div>
+                </div>
+                <span
+                    style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        borderRadius: '999px',
+                        padding: '0.35rem 0.75rem',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        background: '#fef3c7',
+                        color: '#d97706',
+                    }}
+                >
                     {homeworkItems.length} pending
-                </Badge>
-            </Group>
+                </span>
+            </div>
 
-            {/* Homework List */}
-            <Stack gap="sm">
+            <div style={{ display: 'grid', gap: 10 }}>
                 {homeworkItems.map((item) => {
                     const timeInfo = formatTimeRemaining(item.homework.scheduling.dueDate);
+                    const skillStyles = getSkillStyles(item.homework.materialSkill);
 
                     return (
-                        <Paper
+                        <button
                             key={item.homework.id}
-                            p="sm"
-                            withBorder
+                            type="button"
                             style={{
                                 cursor: 'pointer',
-                                transition: 'all 0.2s',
-                                borderLeft: `3px solid var(--mantine-color-${timeInfo.color}-5)`
+                                transition: 'background 0.15s ease-out, border-color 0.15s ease-out',
+                                border: `1px solid ${timeInfo.border}`,
+                                borderLeftWidth: 4,
+                                borderRadius: 14,
+                                background: '#ffffff',
+                                width: '100%',
+                                textAlign: 'left',
+                                padding: 12,
                             }}
                             onClick={() => handleHomeworkClick(item)}
                         >
-                            <Group justify="space-between" wrap="nowrap">
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    gap: 12,
+                                    alignItems: 'center',
+                                }}
+                            >
                                 <div style={{ flex: 1, minWidth: 0 }}>
-                                    <Text fw={500} size="sm" lineClamp={1}>
+                                    <div
+                                        style={{
+                                            fontSize: '0.95rem',
+                                            fontWeight: 700,
+                                            color: '#111827',
+                                            whiteSpace: 'nowrap',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                        }}
+                                    >
                                         {item.homework.title || item.homework.materialTitle}
-                                    </Text>
-                                    <Group gap="xs" mt={4}>
-                                        <Badge
-                                            size="xs"
-                                            color={getSkillColor(item.homework.materialSkill)}
-                                            variant="light"
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+                                        <span
+                                            style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                borderRadius: '999px',
+                                                padding: '0.2rem 0.55rem',
+                                                fontSize: '0.75rem',
+                                                fontWeight: 700,
+                                                textTransform: 'capitalize',
+                                                background: skillStyles.background,
+                                                color: skillStyles.color,
+                                            }}
                                         >
                                             {item.homework.materialSkill}
-                                        </Badge>
+                                        </span>
                                         {item.status === 'in_progress' && (
-                                            <Badge size="xs" color="blue" variant="light">
+                                            <span
+                                                style={{
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    borderRadius: '999px',
+                                                    padding: '0.2rem 0.55rem',
+                                                    fontSize: '0.75rem',
+                                                    fontWeight: 700,
+                                                    background: '#dbeafe',
+                                                    color: '#2563eb',
+                                                }}
+                                            >
                                                 In Progress
-                                            </Badge>
+                                            </span>
                                         )}
-                                    </Group>
+                                    </div>
                                 </div>
-                                <Group gap="xs" wrap="nowrap">
-                                    <Badge
-                                        color={timeInfo.color}
-                                        variant={timeInfo.urgent ? 'filled' : 'light'}
-                                        size="sm"
-                                        leftSection={
-                                            timeInfo.urgent && item.daysRemaining <= 0
-                                                ? <IconAlertTriangle size={10} />
-                                                : <IconClock size={10} />
-                                        }
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                                    <span
+                                        style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: 6,
+                                            borderRadius: '999px',
+                                            padding: '0.35rem 0.7rem',
+                                            fontSize: '0.75rem',
+                                            fontWeight: 700,
+                                            background: timeInfo.background,
+                                            border: `1px solid ${timeInfo.border}`,
+                                            color: timeInfo.color,
+                                        }}
                                     >
+                                        {timeInfo.overdue ? <IconAlertTriangle size={12} /> : <IconClock size={12} />}
                                         {timeInfo.text}
-                                    </Badge>
-                                    <IconChevronRight size={16} color="gray" />
-                                </Group>
-                            </Group>
-                        </Paper>
+                                    </span>
+                                    <IconChevronRight size={16} color="#9ca3af" />
+                                </div>
+                            </div>
+                        </button>
                     );
                 })}
-            </Stack>
+            </div>
 
-            {/* View All Button */}
             <Button
-                variant="subtle"
+                variant="outline"
                 fullWidth
-                mt="md"
+                style={{
+                    marginTop: 16,
+                    background: '#ffffff',
+                    border: '1px solid #d1d5db',
+                    color: '#374151',
+                    borderRadius: '999px',
+                }}
                 onClick={handleViewAll}
                 rightSection={<IconChevronRight size={16} />}
             >
                 View All Homework
             </Button>
-        </Paper>
+        </div>
     );
 };
 

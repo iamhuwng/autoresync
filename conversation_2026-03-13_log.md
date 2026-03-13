@@ -1,0 +1,112 @@
+# Conversation Log - 2026-03-13
+
+- Session start: 2026-03-13 00:52 UTC+07
+- User request: Implement `documentation/tasks/0034-prd-teacher-homework-management-overhaul.md` from the beginning and continue through the whole task list to complete everything.
+- Initial actions:
+  - Read the PRD `documentation/tasks/0034-prd-teacher-homework-management-overhaul.md`
+  - Read project docs: `.knowns/docs/architecture.md`, `.knowns/docs/conventions.md`
+  - Read integration safety rules: `documentation/integration-safety-rules.md`
+  - Read repository rules in `AGENTS.md`
+  - Began mapping current homework pages, hooks, services, and routes before implementation planning
+
+## 1. Discovery and planning
+- Confirmed the PRD is a multi-phase overhaul touching routes, pages, hooks, services, components, analytics, reminders, archive/trash, tags, and mobile behavior.
+- Confirmed critical constraints:
+  - No Mantine imports in new or rewritten homework code
+  - Route additions must be validated against `src/constants/routes.ts` and `src/config/routeSecurity.ts`
+  - New user-facing features require WebMCP registration
+  - Plan must be produced before implementation
+- Started reviewing the current teacher homework implementation to identify impacted files and gaps.
+
+## 2. Current-state audit
+- Reviewed current files:
+  - `src/pages/TeacherHomeworkListPage.tsx`
+  - `src/pages/TeacherHomeworkDetailPage.tsx`
+  - `src/hooks/useHomeworkList.ts`
+  - `src/hooks/useHomeworkDetail.ts`
+  - `src/services/homeworkManager.ts`
+  - `src/services/homeworkSubmissionService.ts`
+  - `src/services/homeworkAutoTransitionService.ts`
+  - `src/services/homeworkBulkOperations.ts`
+  - `src/services/homeworkTemplateService.ts`
+  - `src/services/notificationService.ts`
+  - `src/components/homework/*`
+  - `src/constants/routes.ts`
+  - `src/config/routeSecurity.ts`
+  - `src/App.jsx`
+  - `src/webmcp/registry.ts`
+- Key findings:
+  - `TeacherHomeworkDetailPage` is still a placeholder.
+  - `useHomeworkDetail` is still a placeholder.
+  - `HomeworkAlertBanner`, `HomeworkBreadcrumb`, `HomeworkScoreDistribution`, `HomeworkSubmissionTable`, and `HomeworkSummaryStats` are placeholder files.
+  - `TeacherHomeworkListPage` still uses Mantine (`AppShell`, `Tabs`, `Loader`, `Stack`, `Text`, `Center`, `notifications`).
+  - `HomeworkResultsSummary` still uses Mantine and is a replacement target from the PRD.
+  - `UpcomingHomeworkWidget` still uses Mantine and is also called out by the PRD.
+  - `homeworkManager.ts` still hard-deletes homework and does not yet support archive, trash, tags, closed timestamps, or student override updates.
+  - `homeworkSubmissionService.ts` does not yet account for student override due dates, exemptions, or reminder metadata.
+  - `homeworkAutoTransitionService.ts` still uses a 1-hour attention window and does not auto-archive old closed homework.
+  - `routes.ts`, `routeSecurity.ts`, and `App.jsx` do not yet include the student homework profile route required by the PRD.
+  - `App.jsx` currently registers `/teacher/homework/:homeworkId` but not `/teacher/homework/student/:studentId`; route ordering will need careful adjustment.
+  - WebMCP infrastructure exists, but no homework-specific tool registration exists yet.
+- Planning conclusion:
+  - The work is a substantial, cross-cutting implementation across data model, services, teacher pages, selected student surfaces, routes, and developer tooling.
+  - Implementation should proceed only after explicit plan approval.
+
+## 3. Foundation layer implementation
+- Extended shared homework contracts in `src/types/homework.types.ts`:
+  - Added `tags`, `archived`, `archivedAt`, `trashExpiresAt`, `closedAt`, and `studentOverrides` to `HomeworkAssignment`
+  - Added `HomeworkStudentOverride`, `HomeworkStudentOverrides`, `HomeworkTag`, and `HomeworkTagConfig`
+  - Added reminder/tag/archive fields to create/update and student-view shapes
+- Extended notification typing in `src/types/notification.types.ts` with `homework_reminder`
+- Added teacher student-profile route support to:
+  - `src/constants/routes.ts`
+  - `src/config/routeSecurity.ts`
+- Updated `src/services/homeworkManager.ts` to support the new foundation behavior:
+  - Normalizes new homework fields (`tags`, `archived`, `studentOverrides`)
+  - Resolves `stats.totalAssigned` from real class roster size instead of leaving class assignments at zero
+  - Changes `deleteHomework()` to archive instead of hard-delete
+  - Adds `archiveHomework()`, `restoreHomework()`, `permanentlyDeleteHomework()`, `updateStudentOverride()`, `getStudentOverride()`, `getEffectiveHomeworkDueDate()`, and `isStudentExemptedFromHomework()`
+  - Fixes student homework lookup to filter class homework by the student's actual enrolled classes rather than scanning every class-targeted homework in the database
+  - Preserves tags on duplicate
+- Updated `src/services/homeworkSubmissionService.ts`:
+  - Late-submission logic now uses per-student effective due dates
+  - Exempted students are blocked from starting submissions
+  - Student homework list now exposes `effectiveDueDate`, `lastRemindedAt`, `reminderCount`, and `isExempted`
+  - Latest submission selection is sorted consistently
+- Updated `src/services/homeworkAutoTransitionService.ts`:
+  - Skips archived homework
+  - Expands the attention window from 1 hour to 24 hours
+  - Auto-archives closed homework after 30 days during teacher-side checks
+- Updated `src/services/notificationService.ts`:
+  - Homework notification links now use route-building instead of raw path strings
+  - Added `sendHomeworkReminderNotification()` with the new `homework_reminder` type
+- Updated `src/components/notifications/NotificationPanel.tsx` to render the new `homework_reminder` type with icon/color handling
+- Implemented previously placeholder hooks:
+  - `src/hooks/useHomeworkDetail.ts` now loads homework data and subscribes to `homework_submissions` via debounced `onSnapshot`
+  - `src/hooks/useClassRoster.ts` now loads and subscribes to live class roster changes from RTDB
+  - `src/hooks/useHomeworkList.ts` now supports archive/tag/search-aware filtering for the upcoming list-page rewrite
+- Notes:
+  - The new teacher student-profile route constants/security are in place, but the actual page route registration in `src/App.jsx` and page implementation are still pending
+  - Verification commands/tests have not been run yet in this batch
+
+## 4. Teacher detail page rebuild
+- Replaced the placeholder `src/pages/TeacherHomeworkDetailPage.tsx` with a real teacher-facing detail view wired to:
+  - `useHomeworkDetail()` for homework + real-time submission data
+  - `useClassRoster()` for dynamic "not started" row synthesis on class-targeted homework
+  - `resetStudentHomework()` for per-student reset actions
+  - `ResultDetailModal` for view-result actions
+- Added/implemented detail-page building blocks:
+  - `src/components/homework/HomeworkBreadcrumb.tsx`
+  - `src/components/homework/HomeworkAlertBanner.tsx`
+  - `src/components/homework/HomeworkSummaryStats.tsx`
+  - `src/components/homework/HomeworkSubmissionTable.tsx`
+- Detail page behavior now includes:
+  - Breadcrumb + back navigation using route registry
+  - Homework metadata summary (target, dates, attempts, timer, feedback timing, late-submission policy, tags)
+  - Summary stat cards (assigned, completion, average, on-time/late, needs-attention)
+  - Alert banners for goes-live-soon, deadline-approaching, past-due, and all-submitted states
+  - Student submission table showing current roster/assignment rows, including not-started rows and reminder metadata
+  - Reset confirmation modal and result-detail modal wiring
+- Verification note:
+  - A full repo `tsc --noEmit` run still reports many unrelated pre-existing TypeScript errors outside the homework feature area
+  - Local cleanup on the new detail files is in progress before starting the list-page rewrite

@@ -7,10 +7,13 @@
 
 import { ref, push, set, get, update, query, onValue, onChildAdded, limitToLast, endBefore, startAfter, orderByChild } from 'firebase/database';
 import { database } from './firebase';
+import { buildRoute } from '../constants/routes';
 import type { Notification, NotificationCreate } from '../types/notification.types';
 import { withRestoreGuard } from './restoreGuard';
 
 const NOTIFICATIONS_REF = 'notifications';
+const buildStudentHomeworkLink = (homeworkId: string) =>
+    buildRoute('STUDENT_HOMEWORK_DETAIL', { homeworkId });
 
 export const createNotification = withRestoreGuard(
     'Notification',
@@ -482,7 +485,7 @@ export async function sendHomeworkAssignedNotification(
             type: 'info',
             title: '📝 New Homework Assigned',
             message: `${teacherPrefix} has assigned "${homeworkTitle}". Due: ${dueDateStr}`,
-            link: `/student/homework/${homeworkId}`,
+            link: buildStudentHomeworkLink(homeworkId),
             metadata: {
                 homeworkId,
                 homeworkTitle,
@@ -532,7 +535,7 @@ export async function sendHomeworkDueSoonNotification(
             type: 'warning',
             title: '⏰ Homework Due Soon',
             message: `"${homeworkTitle}" is due in ${timeStr}. Don't forget to submit!`,
-            link: `/student/homework/${homeworkId}`,
+            link: buildStudentHomeworkLink(homeworkId),
             metadata: {
                 homeworkId,
                 homeworkTitle,
@@ -550,6 +553,46 @@ export async function sendHomeworkDueSoonNotification(
         return result;
     } catch (error) {
         console.error('Error sending homework due soon notification:', error);
+        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+}
+
+export async function sendHomeworkReminderNotification(
+    studentId: string,
+    homeworkId: string,
+    homeworkTitle: string,
+    teacherName?: string
+): Promise<{ success: boolean; notificationId?: string; error?: string }> {
+    try {
+        if (!studentId || !homeworkId || !homeworkTitle) {
+            return { success: false, error: 'Missing required parameters' };
+        }
+
+        const teacherPrefix = teacherName || 'Your teacher';
+        const notificationData: NotificationCreate = {
+            userId: studentId,
+            type: 'homework_reminder',
+            title: '⚡ Homework Reminder',
+            message: `${teacherPrefix} sent you a reminder for "${homeworkTitle}".`,
+            link: buildStudentHomeworkLink(homeworkId),
+            metadata: {
+                homeworkId,
+                homeworkTitle,
+                teacherName,
+                remindedAt: Date.now(),
+                reminderType: 'teacher_manual'
+            }
+        };
+
+        const result = await createNotification(notificationData);
+
+        if (result.success) {
+            console.log(`✅ [Notification] Teacher reminder sent to student ${studentId} for homework ${homeworkId}`);
+        }
+
+        return result;
+    } catch (error) {
+        console.error('Error sending homework reminder notification:', error);
         return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
 }
@@ -588,7 +631,7 @@ export async function sendHomeworkSubmittedNotification(
             type: 'success',
             title: '✅ Homework Submitted',
             message,
-            link: `/student/homework/${homeworkId}`,
+            link: buildStudentHomeworkLink(homeworkId),
             metadata: {
                 homeworkId,
                 homeworkTitle,
@@ -644,7 +687,7 @@ export async function sendHomeworkGradedNotification(
             type: 'success',
             title: '📊 Homework Graded',
             message: `${teacherPrefix} graded "${homeworkTitle}". Score: ${score}/${maxScore} (${percentage}%)`,
-            link: `/student/homework/${homeworkId}`,
+            link: buildStudentHomeworkLink(homeworkId),
             metadata: {
                 homeworkId,
                 homeworkTitle,
@@ -823,7 +866,7 @@ export async function sendHomeworkResetNotification(
             type: 'warning',
             title: '🔄 Homework Reset',
             message: `Your homework "${homeworkTitle}" has been reset by your teacher. You can now retake it.`,
-            link: `/student/homework/${homeworkId}`,
+            link: buildStudentHomeworkLink(homeworkId),
             metadata: {
                 homeworkId,
                 homeworkTitle,
@@ -877,7 +920,7 @@ export async function sendThcsHomeworkAssignedNotification(
             type: 'info',
             title: '📝 New THCS Homework Assigned',
             message: `${teacherPrefix} has assigned "${testTitle}". Due: ${dueDateStr}`,
-            link: `/student/homework/${homeworkId}`,
+            link: buildStudentHomeworkLink(homeworkId),
             metadata: { homeworkId, testTitle, dueDate, teacherName, notifType: 'thcs_homework_assigned' }
         });
 
@@ -1024,7 +1067,7 @@ export async function sendThcsHomeworkDueSoonNotification(
             type: 'warning',
             title: '⏰ THCS Homework Due Soon',
             message: `"${testTitle}" is due in ${hoursRemaining} hours.`,
-            link: `/student/homework/${homeworkId}`,
+            link: buildStudentHomeworkLink(homeworkId),
             metadata: { homeworkId, testTitle, hoursRemaining, notifType: 'thcs_homework_due_soon' }
         });
 
@@ -1060,7 +1103,7 @@ export async function sendThcsSubmittedNotification(
             type: 'success',
             title: '📤 THCS Homework Submitted',
             message: `You've submitted "${testTitle}". Results will be available after grading.`,
-            link: `/student/homework/${homeworkId}`,
+            link: buildStudentHomeworkLink(homeworkId),
             metadata: { testTitle, homeworkId, notifType: 'thcs_submitted' }
         });
 
@@ -1105,7 +1148,7 @@ export async function sendThcsLateSubmissionNotification(
             type: 'warning',
             title: '⚠️ Late Submission',
             message: `Your submission for "${testTitle}" was received late.`,
-            link: `/student/homework/${homeworkId}`,
+            link: buildStudentHomeworkLink(homeworkId),
             metadata: { testTitle, homeworkId, notifType: 'thcs_late_submission' }
         });
 
@@ -1115,7 +1158,7 @@ export async function sendThcsLateSubmissionNotification(
             type: 'info',
             title: '⚠️ Late Submission Received',
             message: `${studentName} submitted "${testTitle}" late.`,
-            link: `/teacher/homework/${homeworkId}`,
+            link: buildRoute('TEACHER_HOMEWORK_DETAIL', { homeworkId }),
             metadata: { testTitle, homeworkId, studentId, studentName, notifType: 'thcs_late_submission' }
         });
 

@@ -19,6 +19,7 @@ const NotificationItem = ({ notification, onMarkAsRead, onClose }: { notificatio
             case 'warning': return <IconAlertTriangle size={16} />;
             case 'error': return <IconX size={16} />;
             case 'feedback': return <IconMessageCircle size={16} />;
+            case 'homework_reminder': return <IconMessageCircle size={16} />;
             case 'info': default: return <IconInfoCircle size={16} />;
         }
     };
@@ -29,6 +30,7 @@ const NotificationItem = ({ notification, onMarkAsRead, onClose }: { notificatio
             case 'warning': return '#eab308'; // yellow
             case 'error': return '#ef4444'; // red
             case 'feedback': return '#3b82f6'; // blue
+            case 'homework_reminder': return '#8b5cf6';
             case 'info': default: return '#3b82f6'; // blue
         }
     };

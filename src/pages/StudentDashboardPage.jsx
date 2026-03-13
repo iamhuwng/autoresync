@@ -358,9 +358,9 @@ const StudentDashboardPage = () => {
 
                         {hasScore && (
                             <div style={localStyles.nestedCardGreen}>
-                                <div>
+                                <div style={{ minWidth: 0 }}>
                                     <p style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#065f46', margin: 0 }}>Score</p>
-                                    <p style={{ fontSize: '1.75rem', fontWeight: 700, color: '#059669', margin: '4px 0 0' }}>{notif.metadata.score}/{notif.metadata.maxScore}</p>
+                                    <p style={{ fontSize: '1.75rem', fontWeight: 700, color: '#059669', margin: '4px 0 0', whiteSpace: 'nowrap' }}>{typeof notif.metadata.score === 'number' ? (Number.isInteger(notif.metadata.score) ? notif.metadata.score : notif.metadata.score.toFixed(1)) : notif.metadata.score}/{typeof notif.metadata.maxScore === 'number' ? (Number.isInteger(notif.metadata.maxScore) ? notif.metadata.maxScore : notif.metadata.maxScore.toFixed(1)) : notif.metadata.maxScore}</p>
                                 </div>
                                 <button
                                     style={{ color: '#047857', background: 'white', border: '1px solid #a7f3d0', padding: '6px 12px', borderRadius: 999, fontSize: '0.875rem', fontWeight: 700, cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}

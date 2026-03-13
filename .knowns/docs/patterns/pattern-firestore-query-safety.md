@@ -1,7 +1,7 @@
 ---
 title: 'Pattern: Firestore Query Safety'
 createdAt: '2026-02-28T03:44:07.332Z'
-updatedAt: '2026-02-28T11:52:21.551Z'
+updatedAt: '2026-03-12T14:24:44.615Z'
 description: >-
   Common bug class where Firestore where() queries use field names or values
   that don't match the TypeScript interface — silent failures returning empty
@@ -143,3 +143,9 @@ Firestore composite queries (multiple `where()` or `where()` + `orderBy()` on di
 - [ ] Every multi-field query has a corresponding composite index in `firestore.indexes.json`
 - [ ] No single-field indexes in the file (Firestore auto-creates these)
 - [ ] Indexes deployed before code using them goes live
+
+
+
+## Related
+
+- @doc/patterns/pattern-firestore-orderby-implicit-filter-on-optional-fields — Sister bug class where `orderBy()` silently drops documents with missing fields

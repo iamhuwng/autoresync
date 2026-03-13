@@ -22,6 +22,11 @@
     background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
 }
 
+.homework-card.archived {
+    border-color: #cbd5e1;
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
 .homework-card-header {
     display: flex;
     justify-content: space-between;
@@ -43,6 +48,30 @@
     color: #111827;
     margin: 0;
     line-height: 1.4;
+}
+
+.homework-card.archived .homework-title {
+    color: #64748b;
+    text-decoration: line-through;
+}
+
+.homework-status-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.homework-archived-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.3rem 0.7rem;
+    border-radius: 999px;
+    background: #e2e8f0;
+    color: #334155;
+    font-size: 0.75rem;
+    font-weight: 700;
 }
 
 .homework-actions {
@@ -82,8 +111,16 @@
     background: #fef3c7;
 }
 
+.restore-btn:hover {
+    background: #dcfce7;
+}
+
 .delete-btn:hover {
     background: #fee2e2;
+}
+
+.permanent-delete-btn:hover {
+    background: #fecaca;
 }
 
 .reset-student-btn:hover {
@@ -566,5 +603,52 @@
         width: 2rem;
         height: 2rem;
         font-size: 1rem;
+    }
+
+    /* Task 17.5: Compact cards — hide non-essential details on mobile */
+    .homework-card .homework-info-grid {
+        display: none;
+    }
+
+    .homework-card .homework-instructions {
+        display: none;
+    }
+
+    /* Show essential info inline */
+    .homework-card .homework-card-body {
+        gap: 0.5rem;
+    }
+
+    /* Submission progress stays visible (essential) */
+    .homework-card .submission-progress {
+        padding: 0.65rem 0.75rem;
+    }
+
+    .homework-card .submission-progress .progress-header {
+        margin-bottom: 0.5rem;
+    }
+
+    /* Expanded state: reveal hidden sections */
+    .homework-card.mobile-expanded .homework-info-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    .homework-card.mobile-expanded .homework-instructions {
+        display: block;
+    }
+
+    /* Reset modal full-screen on mobile */
+    .homework-reset-modal {
+        width: 100vw !important;
+        max-width: none !important;
+        max-height: 100vh !important;
+        border-radius: 0 !important;
+        margin: 0;
+    }
+
+    /* Show the expand/collapse toggle on mobile */
+    .hw-mobile-expand-toggle {
+        display: block !important;
     }
 }

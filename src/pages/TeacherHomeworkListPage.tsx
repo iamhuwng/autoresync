@@ -6,86 +6,176 @@
  * Uses TeacherHeader, AppShell, and modern components.
  */
 
-import { useState } from 'react';
-import { AppShell, Tabs, Loader, Stack, Text, Center } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
-import { IconClipboard, IconCalendar, IconCheckbox, IconFolder, IconClock, IconAlertTriangle, IconLock, IconEdit } from '@tabler/icons-react';
+import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { IconCheckbox, IconClock, IconAlertTriangle, IconLock, IconEdit } from '@tabler/icons-react';
 import { useAuth } from '../hooks/useAuth';
+import { useBulkSelection } from '../hooks/useBulkSelection';
+import { useHomeworkTags } from '../hooks/useHomeworkTags';
 import { useNavigation } from '../hooks/useNavigation';
 import { useHomeworkList } from '../hooks/useHomeworkList';
-import { HomeworkCard, HomeworkCreateModal, HomeworkEditModal } from '../components/homework';
-import { deleteHomework, duplicateHomework, extendDeadline } from '../services/homeworkManager';
+import {
+    BulkDeleteConfirmModal,
+    BulkExtendModal,
+    HomeworkAlertBanner,
+    HomeworkBulkActionBar,
+    HomeworkCard,
+    HomeworkCreateModal,
+    HomeworkEditModal,
+    HomeworkSummaryStats,
+    HomeworkTagChips,
+    ClassAnalyticsHeader,
+    AtRiskStudentList,
+} from '../components/homework';
+import { archiveHomework, deleteHomework, duplicateHomework, extendDeadline, permanentlyDeleteHomework, restoreHomework } from '../services/homeworkManager';
+import { bulkCloseHomework, bulkExtendDeadlines, closeAllPastDueHomework, selectHomeworkForBulkOperation } from '../services/homeworkBulkOperations';
 import type { HomeworkAssignment, HomeworkStatus } from '../types/homework.types';
 
-// Modern Components
-import { Card, CardBody, Button, Input } from '../components/modern';
+import { Card, CardBody, Button, Input, NativeSelect, VanillaLoader, VanillaTabs, toast } from '../components/modern';
 import { TeacherHeader } from '../components/navigation';
-import { THCSHomeworkAssignDialog } from '../components/thcs-editor/THCSHomeworkAssignDialog';
 
 type ViewMode = 'by_class' | 'chronological' | 'by_status';
+type CreateModalFilter = 'all' | 'thcs-test';
+
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
+function getHomeworkAlertBadge(homework: HomeworkAssignment): { text: string; background: string; color: string } | null {
+    const now = Date.now();
+    const availableFrom = homework.scheduling.availableFrom;
+
+    if (homework.status === 'scheduled' && typeof availableFrom === 'number' && availableFrom > now && availableFrom - now <= DAY_IN_MS) {
+        const hours = Math.max(1, Math.round((availableFrom - now) / (60 * 60 * 1000)));
+        return {
+            text: `⚡ Goes live in ${hours}h`,
+            background: 'rgba(99,102,241,0.12)',
+            color: '#4338ca',
+        };
+    }
+
+    if (homework.status === 'active' && homework.scheduling.dueDate > now && homework.scheduling.dueDate - now <= DAY_IN_MS) {
+        const hours = Math.max(1, Math.round((homework.scheduling.dueDate - now) / (60 * 60 * 1000)));
+        return {
+            text: `🔥 Deadline in ${hours}h`,
+            background: 'rgba(245,158,11,0.16)',
+            color: '#b45309',
+        };
+    }
+
+    if (homework.status === 'past_due') {
+        const days = Math.max(1, Math.round((now - homework.scheduling.dueDate) / DAY_IN_MS));
+        return {
+            text: `⚠️ Overdue ${days}d`,
+            background: 'rgba(239,68,68,0.12)',
+            color: '#b91c1c',
+        };
+    }
+
+    return null;
+}
+
+function getStatusIcon(status: string) {
+    switch (status) {
+        case 'active': return <IconCheckbox size={16} />;
+        case 'scheduled': return <IconClock size={16} />;
+        case 'past_due': return <IconAlertTriangle size={16} />;
+        case 'draft': return <IconEdit size={16} />;
+        case 'closed': return <IconLock size={16} />;
+        default: return null;
+    }
+}
+
+function getStatusLabel(status: string) {
+    switch (status) {
+        case 'active': return 'Active';
+        case 'scheduled': return 'Scheduled';
+        case 'past_due': return 'Past Due';
+        case 'draft': return 'Draft';
+        case 'closed': return 'Closed';
+        default: return status;
+    }
+}
 
 export function TeacherHomeworkListPage() {
     const { user, profile, logout } = useAuth();
     const { navigateTo } = useNavigation('teacher');
+    const { selected, selectedCount, toggle, selectAll, deselectAll, isSelected } = useBulkSelection<string>();
+    const { tags: homeworkTags } = useHomeworkTags();
     const [viewMode, setViewMode] = useState<ViewMode>('chronological');
     const [statusFilter, setStatusFilter] = useState<HomeworkStatus | null>(null);
+    const [searchInput, setSearchInput] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
+    const [showClosed, setShowClosed] = useState(false);
+    const [showArchived, setShowArchived] = useState(false);
+    const [bulkModeEnabled, setBulkModeEnabled] = useState(false);
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [createModalFilter, setCreateModalFilter] = useState<CreateModalFilter>('all');
     const [editingHomework, setEditingHomework] = useState<HomeworkAssignment | null>(null);
-    // Phase 3 Task 2.2: Entry Point B — THCS homework from list page
-    const [showThcsAssignDialog, setShowThcsAssignDialog] = useState(false);
+    const [showBulkExtendModal, setShowBulkExtendModal] = useState(false);
+    const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+    const [permanentDeleteTarget, setPermanentDeleteTarget] = useState<HomeworkAssignment | null>(null);
 
     const {
         homework,
+        filteredHomework,
         loading,
         error,
         refetch,
-        filteredHomework,
-        statusCounts
+        filterByStatus,
+        statusCounts,
+        loadMore,
+        hasMore,
+        sort,
+        setSort,
+        tagFilter,
+        setTagFilter,
     } = useHomeworkList({
         teacherId: user?.uid,
         autoRefresh: true,
+        excludeArchived: !showArchived,
+        excludeClosed: !showClosed,
+        pageSize: 25,
+        searchQuery,
     });
 
+    useEffect(() => {
+        const timeout = setTimeout(() => {
+            setSearchQuery(searchInput);
+        }, 300);
+
+        return () => clearTimeout(timeout);
+    }, [searchInput]);
+
+    const showToast = useCallback((title: string, message: string, tone: 'success' | 'error' | 'info' | 'warning') => {
+        toast[tone](`${title}: ${message}`);
+    }, []);
+
+    const clearBulkSelection = useCallback(() => {
+        deselectAll();
+        setBulkModeEnabled(false);
+    }, [deselectAll]);
+
     const handleDelete = async (hw: HomeworkAssignment) => {
-        if (!confirm(`Are you sure you want to delete "${hw.materialTitle}"?`)) {
+        if (!confirm(`Archive "${hw.title || hw.materialTitle}"? You can restore it later from archived homework.`)) {
             return;
         }
 
         try {
             await deleteHomework(hw.id);
-            notifications.show({
-                title: 'Deleted',
-                message: `"${hw.materialTitle}" has been deleted`,
-                color: 'red'
-            });
+            showToast('Archived', `"${hw.title || hw.materialTitle}" was moved to archived homework.`, 'warning');
             await refetch();
-        } catch (error) {
-            console.error('Error deleting homework:', error);
-            notifications.show({
-                title: 'Error',
-                message: 'Failed to delete homework',
-                color: 'red'
-            });
+        } catch (deleteError) {
+            console.error('Error deleting homework:', deleteError);
+            showToast('Archive failed', 'Failed to archive homework.', 'error');
         }
     };
 
     const handleDuplicate = async (hw: HomeworkAssignment) => {
         try {
             await duplicateHomework(hw.id, {});
-            notifications.show({
-                title: 'Duplicated',
-                message: `"${hw.materialTitle}" has been duplicated`,
-                color: 'green'
-            });
+            showToast('Duplicated', `"${hw.title || hw.materialTitle}" has been duplicated.`, 'success');
             await refetch();
-        } catch (error) {
-            console.error('Error duplicating homework:', error);
-            notifications.show({
-                title: 'Error',
-                message: 'Failed to duplicate homework',
-                color: 'red'
-            });
+        } catch (duplicateError) {
+            console.error('Error duplicating homework:', duplicateError);
+            showToast('Duplicate failed', 'Failed to duplicate homework.', 'error');
         }
     };
 
@@ -113,17 +203,252 @@ export function TeacherHomeworkListPage() {
 
         try {
             await extendDeadline(hw.id, newDate);
-            alert('Deadline extended successfully!');
+            showToast('Deadline extended', `"${hw.title || hw.materialTitle}" now ends on ${newDate.toLocaleString()}.`, 'success');
             await refetch();
         } catch (err) {
             console.error('Error extending deadline:', err);
-            alert('Failed to extend deadline.');
+            showToast('Extend failed', 'Failed to extend deadline.', 'error');
         }
     };
 
+    const handleRestore = useCallback(async (hw: HomeworkAssignment) => {
+        try {
+            await restoreHomework(hw.id);
+            showToast('Restored', `"${hw.title || hw.materialTitle}" was restored.`, 'success');
+            await refetch();
+        } catch (restoreError) {
+            console.error('Error restoring homework:', restoreError);
+            if (restoreError instanceof Error && restoreError.message.includes('permanently deleted')) {
+                showToast('Restore failed', 'This homework has been permanently deleted.', 'error');
+                return;
+            }
+
+            showToast('Restore failed', 'Failed to restore homework.', 'error');
+        }
+    }, [refetch, showToast]);
+
+    const handlePermanentDelete = useCallback((hw: HomeworkAssignment) => {
+        setPermanentDeleteTarget(hw);
+    }, []);
+
+    const handlePermanentDeleteConfirm = useCallback(async () => {
+        if (!permanentDeleteTarget) {
+            return;
+        }
+
+        try {
+            await permanentlyDeleteHomework(permanentDeleteTarget.id);
+            showToast(
+                'Deleted forever',
+                `"${permanentDeleteTarget.title || permanentDeleteTarget.materialTitle}" was permanently deleted.`,
+                'success'
+            );
+            setPermanentDeleteTarget(null);
+            await refetch();
+        } catch (deleteError) {
+            console.error('Error permanently deleting homework:', deleteError);
+            showToast('Permanent delete failed', 'Failed to permanently delete homework.', 'error');
+        }
+    }, [permanentDeleteTarget, refetch, showToast]);
+
+    const handleOpenDetail = useCallback((hw: HomeworkAssignment) => {
+        navigateTo('TEACHER_HOMEWORK_DETAIL', { homeworkId: hw.id }, { reason: 'teacher_open_homework_detail' });
+    }, [navigateTo]);
+
     const handleCreateHomework = () => {
+        setCreateModalFilter('all');
         setShowCreateModal(true);
     };
+
+    const handleCreateThcsHomework = () => {
+        setCreateModalFilter('thcs-test');
+        setShowCreateModal(true);
+    };
+
+    const handleClosePastDue = useCallback(async () => {
+        if (!user?.uid) {
+            return;
+        }
+
+        const pastDueCount = homework.filter((hw) => hw.status === 'past_due').length;
+        if (pastDueCount === 0) {
+            showToast('Nothing to close', 'There are no past-due homework assignments right now.', 'info');
+            return;
+        }
+
+        if (!confirm(`Close all ${pastDueCount} past-due homework assignments?`)) {
+            return;
+        }
+
+        try {
+            const result = await closeAllPastDueHomework(user.uid);
+            showToast(
+                'Past-due homework closed',
+                `Closed ${result.success} homework assignment${result.success === 1 ? '' : 's'}${result.failed > 0 ? `, ${result.failed} failed.` : '.'}`,
+                result.failed > 0 ? 'warning' : 'success'
+            );
+            await refetch();
+        } catch (closeError) {
+            console.error('Error closing past due homework:', closeError);
+            showToast('Bulk close failed', 'Failed to close past-due homework.', 'error');
+        }
+    }, [homework, refetch, showToast, user?.uid]);
+
+    const handleBulkModeToggle = useCallback(() => {
+        setBulkModeEnabled((currentValue) => {
+            if (currentValue) {
+                deselectAll();
+            }
+
+            return !currentValue;
+        });
+    }, [deselectAll]);
+
+    const handleBulkSelectAllMatching = useCallback(async () => {
+        if (!user?.uid || !statusFilter) {
+            return;
+        }
+
+        try {
+            const matchingHomework = await selectHomeworkForBulkOperation(user.uid, {
+                status: statusFilter,
+            });
+            selectAll(matchingHomework.map((matchingItem) => matchingItem.id));
+            setBulkModeEnabled(true);
+            showToast('Bulk selection ready', `Selected ${matchingHomework.length} ${getStatusLabel(statusFilter).toLowerCase()} homework assignment${matchingHomework.length === 1 ? '' : 's'}.`, 'info');
+        } catch (selectionError) {
+            console.error('Error selecting matching homework:', selectionError);
+            showToast('Bulk selection failed', 'Unable to select homework matching the current filter.', 'error');
+        }
+    }, [selectAll, showToast, statusFilter, user?.uid]);
+
+    const handleBulkExtendConfirm = useCallback(async (params: {
+        mode: 'absolute' | 'relative';
+        absoluteDate?: number;
+        relativeHours?: number;
+    }) => {
+        const selectedIds = Array.from(selected);
+        if (selectedIds.length === 0) {
+            return;
+        }
+
+        try {
+            const result = await bulkExtendDeadlines({
+                homeworkIds: selectedIds,
+                ...(params.mode === 'absolute' && params.absoluteDate
+                    ? { newDueDate: new Date(params.absoluteDate) }
+                    : {}),
+                ...(params.mode === 'relative' && params.relativeHours
+                    ? { extendByHours: params.relativeHours }
+                    : {}),
+            });
+
+            setShowBulkExtendModal(false);
+            clearBulkSelection();
+            await refetch();
+
+            showToast(
+                result.failed > 0 ? 'Bulk extend completed with issues' : 'Deadlines extended',
+                result.failed > 0
+                    ? `Extended ${result.success} of ${result.total} deadlines. ${result.failed} failed.`
+                    : `Extended ${result.success} of ${result.total} deadlines.`,
+                result.failed > 0 ? 'error' : 'success'
+            );
+        } catch (bulkExtendError) {
+            console.error('Error extending homework deadlines:', bulkExtendError);
+            showToast('Bulk extend failed', 'Failed to extend selected homework deadlines.', 'error');
+        }
+    }, [clearBulkSelection, refetch, selected, showToast]);
+
+    const handleBulkClose = useCallback(async () => {
+        const selectedIds = Array.from(selected);
+        if (selectedIds.length === 0) {
+            return;
+        }
+
+        try {
+            const result = await bulkCloseHomework({
+                homeworkIds: selectedIds,
+            });
+
+            clearBulkSelection();
+            await refetch();
+
+            showToast(
+                result.failed > 0 ? 'Bulk close completed with issues' : 'Homework closed',
+                result.failed > 0
+                    ? `Closed ${result.success} of ${result.total} homework assignments. ${result.failed} failed.`
+                    : `Closed ${result.success} of ${result.total} homework assignments.`,
+                result.failed > 0 ? 'error' : 'success'
+            );
+        } catch (bulkCloseError) {
+            console.error('Error closing homework in bulk:', bulkCloseError);
+            showToast('Bulk close failed', 'Failed to close selected homework.', 'error');
+        }
+    }, [clearBulkSelection, refetch, selected, showToast]);
+
+    const handleBulkDuplicate = useCallback(async () => {
+        const selectedIds = Array.from(selected);
+        if (selectedIds.length === 0) {
+            return;
+        }
+
+        let successCount = 0;
+        let failureCount = 0;
+
+        for (const homeworkId of selectedIds) {
+            try {
+                await duplicateHomework(homeworkId, {});
+                successCount++;
+            } catch (duplicateError) {
+                console.error('Error duplicating homework:', duplicateError);
+                failureCount++;
+            }
+        }
+
+        clearBulkSelection();
+        await refetch();
+
+        showToast(
+            failureCount > 0 ? 'Bulk duplicate completed with issues' : 'Homework duplicated',
+            failureCount > 0
+                ? `Duplicated ${successCount} of ${selectedIds.length} homework assignments. ${failureCount} failed.`
+                : `Duplicated ${successCount} of ${selectedIds.length} homework assignments.`,
+            failureCount > 0 ? 'error' : 'success'
+        );
+    }, [clearBulkSelection, refetch, selected, showToast]);
+
+    const handleBulkDeleteConfirm = useCallback(async () => {
+        const selectedIds = Array.from(selected);
+        if (selectedIds.length === 0) {
+            return;
+        }
+
+        let successCount = 0;
+        let failureCount = 0;
+
+        for (const homeworkId of selectedIds) {
+            try {
+                await archiveHomework(homeworkId);
+                successCount++;
+            } catch (archiveError) {
+                console.error('Error archiving homework:', archiveError);
+                failureCount++;
+            }
+        }
+
+        setShowBulkDeleteModal(false);
+        clearBulkSelection();
+        await refetch();
+
+        showToast(
+            failureCount > 0 ? 'Bulk archive completed with issues' : 'Homework archived',
+            failureCount > 0
+                ? `Archived ${successCount} of ${selectedIds.length} homework assignments. ${failureCount} failed.`
+                : `Archived ${successCount} of ${selectedIds.length} homework assignments.`,
+            failureCount > 0 ? 'error' : 'success'
+        );
+    }, [clearBulkSelection, refetch, selected, showToast]);
 
     const handleLogout = async () => {
         try {
@@ -135,60 +460,253 @@ export function TeacherHomeworkListPage() {
         }
     };
 
-    // Filter homework based on search query and status
-    const searchFilteredHomework = filteredHomework.filter((hw) => {
-        const matchesSearch = hw.materialTitle.toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesStatus = statusFilter ? hw.status === statusFilter : true;
-        return matchesSearch && matchesStatus;
-    });
+    const visibleHomework = useMemo(() => {
+        return filteredHomework;
+    }, [filteredHomework]);
+
+    const searchFilteredHomework = useMemo(() => {
+        return visibleHomework;
+    }, [statusFilter, visibleHomework]);
 
     // Group homework by class for "by_class" view
-    const homeworkByClass = searchFilteredHomework.reduce((acc, hw) => {
-        if (hw.target.type === 'class') {
-            const className = hw.target.className || 'Unknown Class';
-            if (!acc[className]) {
-                acc[className] = [];
+    const homeworkByClass = useMemo(() => {
+        return searchFilteredHomework.reduce((acc, hw) => {
+            if (hw.target.type === 'class') {
+                const className = hw.target.className || 'Unknown Class';
+                if (!acc[className]) {
+                    acc[className] = [];
+                }
+                acc[className].push(hw);
+            } else {
+                if (!acc.Other) {
+                    acc.Other = [];
+                }
+                acc.Other.push(hw);
             }
-            acc[className].push(hw);
-        } else {
-            if (!acc['Other']) {
-                acc['Other'] = [];
-            }
-            acc['Other'].push(hw);
-        }
-        return acc;
-    }, {} as Record<string, HomeworkAssignment[]>);
+            return acc;
+        }, {} as Record<string, HomeworkAssignment[]>);
+    }, [searchFilteredHomework]);
 
     // Group homework by status for "by_status" view
-    const homeworkByStatus = searchFilteredHomework.reduce((acc, hw) => {
-        if (!acc[hw.status]) {
-            acc[hw.status] = [];
-        }
-        acc[hw.status].push(hw);
-        return acc;
-    }, {} as Record<HomeworkStatus, HomeworkAssignment[]>);
+    const homeworkByStatus = useMemo(() => {
+        const grouped: Record<HomeworkStatus, HomeworkAssignment[]> = {
+            draft: [],
+            scheduled: [],
+            active: [],
+            past_due: [],
+            closed: [],
+        };
 
-    const getStatusIcon = (status: string) => {
-        switch (status) {
-            case 'active': return <IconCheckbox size={16} />;
-            case 'scheduled': return <IconClock size={16} />;
-            case 'past_due': return <IconAlertTriangle size={16} />;
-            case 'draft': return <IconEdit size={16} />;
-            case 'closed': return <IconLock size={16} />;
-            default: return null;
-        }
-    };
+        searchFilteredHomework.forEach((hw) => {
+            grouped[hw.status].push(hw);
+        });
 
-    const getStatusLabel = (status: string) => {
-        switch (status) {
-            case 'active': return 'Active';
-            case 'scheduled': return 'Scheduled';
-            case 'past_due': return 'Past Due';
-            case 'draft': return 'Draft';
-            case 'closed': return 'Closed';
-            default: return status;
+        return grouped;
+    }, [searchFilteredHomework]);
+
+    const averageCompletionRate = useMemo(() => {
+        if (homework.length === 0) {
+            return 0;
         }
-    };
+
+        const total = homework.reduce((sum, hw) => {
+            if (typeof hw.stats.completionRate === 'number') {
+                return sum + hw.stats.completionRate;
+            }
+
+            if (hw.stats.totalAssigned > 0) {
+                return sum + Math.round((hw.stats.submitted / hw.stats.totalAssigned) * 100);
+            }
+
+            return sum;
+        }, 0);
+
+        return Math.round(total / homework.length);
+    }, [homework]);
+
+    const needsAttentionCount = useMemo(() => {
+        const now = Date.now();
+        return homework.filter((hw) => {
+            const dueSoon = hw.status === 'active' && hw.scheduling.dueDate > now && hw.scheduling.dueDate - now <= DAY_IN_MS;
+            const availableFrom = hw.scheduling.availableFrom;
+            const goesLiveSoon =
+                hw.status === 'scheduled' &&
+                typeof availableFrom === 'number' &&
+                availableFrom > now &&
+                availableFrom - now <= DAY_IN_MS;
+
+            return hw.status === 'past_due' || dueSoon || goesLiveSoon;
+        }).length;
+    }, [homework]);
+
+    const pastDueCount = statusCounts.past_due ?? 0;
+    const bulkSelectionVisible = bulkModeEnabled || selectedCount > 0;
+    const viewTabs = useMemo(
+        () => [
+            { key: 'chronological', label: 'Timeline', icon: '📅' },
+            { key: 'by_class', label: 'By Class', icon: '📚' },
+            { key: 'by_status', label: 'By Status', icon: '📋' },
+        ],
+        []
+    );
+
+    const sortOptions = useMemo(
+        () => [
+            { value: 'dueDate_desc', label: 'Due date (newest)' },
+            { value: 'dueDate_asc', label: 'Due date (oldest)' },
+            { value: 'createdAt_desc', label: 'Created date' },
+            { value: 'updatedAt_desc', label: 'Last updated (newest first)' },
+            { value: 'completionRate_desc', label: 'Completion rate (highest)' },
+            { value: 'title_asc', label: 'Title A-Z' },
+        ],
+        []
+    );
+
+    const alertItems = useMemo(() => {
+        const goingLiveSoon = homework.filter((currentHomework) => {
+            const availableFrom = currentHomework.scheduling.availableFrom;
+            return currentHomework.status === 'scheduled'
+                && typeof availableFrom === 'number'
+                && availableFrom > Date.now()
+                && availableFrom - Date.now() <= DAY_IN_MS;
+        });
+
+        const pastDueHomework = homework.filter((currentHomework) => currentHomework.status === 'past_due');
+        const items = [];
+
+        if (goingLiveSoon.length > 0) {
+            items.push({
+                id: 'going-live',
+                tone: 'info' as const,
+                title: 'Going live soon',
+                message: `${goingLiveSoon.length} homework assignment${goingLiveSoon.length === 1 ? '' : 's'} will become active within 24 hours.`,
+            });
+        }
+
+        if (pastDueHomework.length > 0) {
+            items.push({
+                id: 'past-due',
+                tone: 'warning' as const,
+                title: 'Past deadline',
+                message: `${pastDueHomework.length} homework assignment${pastDueHomework.length === 1 ? '' : 's'} are currently overdue.`,
+                actionLabel: 'Close All Past Due',
+                onAction: handleClosePastDue,
+            });
+        }
+
+        return items;
+    }, [handleClosePastDue, homework]);
+
+    const handleStatusSelect = useCallback((nextStatus: HomeworkStatus | null) => {
+        if (nextStatus === 'closed') {
+            setShowClosed(true);
+        }
+
+        setStatusFilter(nextStatus);
+        filterByStatus(nextStatus);
+    }, [filterByStatus]);
+
+    const handleClosedToggle = useCallback(() => {
+        setShowClosed((currentValue) => {
+            const nextValue = !currentValue;
+            if (!nextValue && statusFilter === 'closed') {
+                setStatusFilter(null);
+                filterByStatus(null);
+            }
+            return nextValue;
+        });
+    }, [filterByStatus, statusFilter]);
+
+    const handleSelectionToggle = useCallback((homeworkId: string) => {
+        if (!bulkModeEnabled) {
+            setBulkModeEnabled(true);
+        }
+
+        toggle(homeworkId);
+    }, [bulkModeEnabled, toggle]);
+
+    const renderHomeworkCards = useCallback((items: HomeworkAssignment[], offset = 0) => (
+        <div
+            style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1rem',
+            }}
+        >
+            {items.map((hw, index) => {
+                const alertBadge = getHomeworkAlertBadge(hw);
+
+                return (
+                    <div
+                        key={hw.id}
+                        style={{
+                            animation: `slideUp 0.45s ease-out ${(offset + index) * 0.04}s backwards`,
+                            position: 'relative',
+                            opacity: hw.archived ? 0.6 : 1,
+                        }}
+                    >
+                        {bulkSelectionVisible ? (
+                            <label
+                                style={{
+                                    position: 'absolute',
+                                    top: '0.75rem',
+                                    left: '0.75rem',
+                                    zIndex: 3,
+                                    width: '2rem',
+                                    height: '2rem',
+                                    borderRadius: '999px',
+                                    background: 'rgba(255,255,255,0.92)',
+                                    border: '1px solid rgba(148,163,184,0.24)',
+                                    display: 'grid',
+                                    placeItems: 'center',
+                                    boxShadow: '0 10px 20px rgba(15,23,42,0.08)',
+                                }}
+                                onClick={(event) => event.stopPropagation()}
+                            >
+                                <input
+                                    type="checkbox"
+                                    checked={isSelected(hw.id)}
+                                    onChange={() => handleSelectionToggle(hw.id)}
+                                    aria-label={`Select ${hw.title || hw.materialTitle}`}
+                                />
+                            </label>
+                        ) : null}
+                        {alertBadge ? (
+                            <span
+                                style={{
+                                    position: 'absolute',
+                                    top: '0.75rem',
+                                    right: '0.75rem',
+                                    zIndex: 2,
+                                    borderRadius: '999px',
+                                    padding: '0.3rem 0.65rem',
+                                    fontSize: '0.78rem',
+                                    fontWeight: 700,
+                                    background: alertBadge.background,
+                                    color: alertBadge.color,
+                                }}
+                            >
+                                {alertBadge.text}
+                            </span>
+                        ) : null}
+                        <HomeworkCard
+                            homework={hw}
+                            onEdit={handleEdit}
+                            onDuplicate={handleDuplicate}
+                            onDelete={handleDelete}
+                            onExtendDeadline={handleExtendDeadline}
+                            onRestore={handleRestore}
+                            onPermanentDelete={handlePermanentDelete}
+                            onClick={handleOpenDetail}
+                            showSubmissionProgress={true}
+                            availableTags={homeworkTags}
+                            onResetComplete={refetch}
+                        />
+                    </div>
+                );
+            })}
+        </div>
+    ), [bulkSelectionVisible, handleDelete, handleDuplicate, handleEdit, handleExtendDeadline, handleOpenDetail, handlePermanentDelete, handleRestore, handleSelectionToggle, homeworkTags, isSelected, refetch]);
 
     return (
         <div
@@ -198,388 +716,487 @@ export function TeacherHomeworkListPage() {
                 backgroundAttachment: 'fixed',
             }}
         >
-            <AppShell padding="md">
-                {/* Unified Teacher Header with Navigation */}
-                <TeacherHeader
-                    pageTitle="Homework"
-                    userId={user?.uid}
-                    userRole={profile?.role}
-                    userDisplayName={profile?.displayName || user?.displayName || user?.email}
-                    userEmail={profile?.email || user?.email}
-                    userAvatarUrl={profile?.avatarUrl || profile?.photoURL || user?.photoURL}
-                    onLogout={handleLogout}
+            {/* Unified Teacher Header with Navigation */}
+            <TeacherHeader
+                pageTitle="Homework"
+                userId={user?.uid}
+                userRole={profile?.role}
+                userDisplayName={profile?.displayName || user?.displayName || user?.email}
+                userEmail={profile?.email || user?.email}
+                userAvatarUrl={profile?.avatarUrl || profile?.photoURL || user?.photoURL}
+                onLogout={handleLogout}
+            />
+
+            <div style={{ maxWidth: '1400px', margin: '0 auto', padding: `2rem 1rem ${selectedCount > 0 ? '8rem' : '3rem'}` }}>
+                <div style={{ marginBottom: '2rem', animation: 'slideDown 0.5s ease-out' }}>
+                    <h1
+                        style={{
+                            fontSize: '2.5rem',
+                            fontWeight: '800',
+                            marginBottom: '0.5rem',
+                            color: '#1e293b',
+                        }}
+                    >
+                        📋 Homework Management
+                    </h1>
+                    <p style={{ fontSize: '1rem', color: '#64748b', maxWidth: '760px' }}>
+                        Create, organize, and monitor homework assignments with faster drill-down into student submission detail.
+                    </p>
+                </div>
+                <HomeworkSummaryStats
+                    cards={[
+                        {
+                            label: 'Loaded Homework',
+                            value: String(homework.length),
+                            accent: '#0f172a',
+                            helper: `${visibleHomework.length} visible`,
+                        },
+                        {
+                            label: 'Active + Scheduled',
+                            value: String((statusCounts.active ?? 0) + (statusCounts.scheduled ?? 0)),
+                            accent: '#2563eb',
+                            helper: 'Open assignments',
+                        },
+                        {
+                            label: 'Past Due',
+                            value: String(statusCounts.past_due ?? 0),
+                            accent: '#b45309',
+                            helper: 'Needs closure or extension',
+                        },
+                        {
+                            label: 'Avg Completion',
+                            value: `${averageCompletionRate}%`,
+                            accent: '#059669',
+                            helper: 'Across loaded homework',
+                        },
+                        {
+                            label: 'Needs Attention',
+                            value: String(needsAttentionCount),
+                            accent: needsAttentionCount > 0 ? '#dc2626' : '#16a34a',
+                            helper: 'Due soon or overdue',
+                        },
+                    ]}
+                    actions={
+                        <>
+                            <Button
+                                variant="secondary"
+                                onClick={handleClosePastDue}
+                                disabled={pastDueCount === 0 || !user?.uid}
+                            >
+                                Close All Past Due
+                            </Button>
+                            <Button
+                                variant="primary"
+                                onClick={handleCreateHomework}
+                                style={{
+                                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                }}
+                            >
+                                Create Homework
+                            </Button>
+                            <Button
+                                variant="primary"
+                                onClick={handleCreateThcsHomework}
+                                style={{
+                                    background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 100%)',
+                                }}
+                            >
+                                Create THCS Homework
+                            </Button>
+                        </>
+                    }
                 />
 
-                <AppShell.Main>
-                    <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '2rem 1rem' }}>
-                        {/* Page Header */}
-                        <div style={{ marginBottom: '2.5rem', animation: 'slideDown 0.5s ease-out' }}>
-                            <h1
+                <HomeworkAlertBanner alerts={alertItems} />
+
+                <Card
+                    variant="glass"
+                    style={{
+                        marginBottom: '2rem',
+                        animation: 'slideUp 0.5s ease-out 0.1s backwards',
+                    }}
+                >
+                    <CardBody>
+                        <div style={{ display: 'grid', gap: '1rem' }}>
+                            <div
                                 style={{
-                                    fontSize: '2.5rem',
-                                    fontWeight: '800',
-                                    marginBottom: '0.5rem',
-                                    color: '#1e293b',
+                                    display: 'flex',
+                                    gap: '0.75rem',
+                                    justifyContent: 'space-between',
+                                    flexWrap: 'wrap',
+                                    alignItems: 'center',
                                 }}
                             >
-                                📋 Homework Management
-                            </h1>
-                            <p style={{ fontSize: '1rem', color: '#64748b' }}>
-                                Create, manage, and track homework assignments for your students
-                            </p>
-                        </div>
+                                <div style={{ flex: '1 1 320px', minWidth: '260px' }}>
+                                    <Input
+                                        placeholder="Search by title, target, description, or tags..."
+                                        value={searchInput}
+                                        onChange={(event: ChangeEvent<HTMLInputElement>) => setSearchInput(event.target.value)}
+                                        variant="default"
+                                        fullWidth
+                                    />
+                                </div>
+                                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                                    <NativeSelect
+                                        options={sortOptions}
+                                        value={sort}
+                                        onChange={(value) => setSort(value as typeof sort)}
+                                        minWidth={220}
+                                    />
+                                    <Button
+                                        variant={bulkSelectionVisible ? 'primary' : 'glass'}
+                                        onClick={handleBulkModeToggle}
+                                        size="sm"
+                                    >
+                                        {bulkSelectionVisible ? 'Cancel Bulk Select' : 'Bulk Select'}
+                                    </Button>
+                                    <Button
+                                        variant={showClosed ? 'primary' : 'glass'}
+                                        onClick={handleClosedToggle}
+                                        size="sm"
+                                    >
+                                        {showClosed ? 'Hide Closed' : `Show Closed (${statusCounts.closed ?? 0})`}
+                                    </Button>
+                                    <Button
+                                        variant={showArchived ? 'primary' : 'glass'}
+                                        onClick={() => setShowArchived((current) => !current)}
+                                        size="sm"
+                                    >
+                                        {showArchived ? 'Hide Archived' : 'Show Archived'}
+                                    </Button>
+                                </div>
+                            </div>
 
-                        {/* Search and Actions Bar */}
-                        <Card
-                            variant="glass"
-                            style={{
-                                marginBottom: '2rem',
-                                animation: 'slideUp 0.5s ease-out 0.1s backwards',
-                            }}
-                        >
-                            <CardBody>
-                                <div
+                            <VanillaTabs
+                                tabs={viewTabs}
+                                activeTab={viewMode}
+                                onTabChange={(nextViewMode) => setViewMode(nextViewMode as ViewMode)}
+                            />
+
+                            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                                <Button
+                                    variant={statusFilter === null ? 'primary' : 'glass'}
+                                    onClick={() => handleStatusSelect(null)}
+                                    size="sm"
+                                >
+                                    All ({homework.length})
+                                </Button>
+                                <Button
+                                    variant={statusFilter === 'active' ? 'primary' : 'glass'}
+                                    onClick={() => handleStatusSelect('active')}
+                                    size="sm"
+                                    style={statusFilter === 'active' ? { background: '#10b981' } : {}}
+                                >
+                                    ✅ Active ({statusCounts.active ?? 0})
+                                </Button>
+                                <Button
+                                    variant={statusFilter === 'scheduled' ? 'primary' : 'glass'}
+                                    onClick={() => handleStatusSelect('scheduled')}
+                                    size="sm"
+                                    style={statusFilter === 'scheduled' ? { background: '#6366f1' } : {}}
+                                >
+                                    ⏰ Scheduled ({statusCounts.scheduled ?? 0})
+                                </Button>
+                                <Button
+                                    variant={statusFilter === 'past_due' ? 'primary' : 'glass'}
+                                    onClick={() => handleStatusSelect('past_due')}
+                                    size="sm"
+                                    style={statusFilter === 'past_due' ? { background: '#f59e0b' } : {}}
+                                >
+                                    ⚠️ Past Due ({statusCounts.past_due ?? 0})
+                                </Button>
+                                <Button
+                                    variant={statusFilter === 'draft' ? 'primary' : 'glass'}
+                                    onClick={() => handleStatusSelect('draft')}
+                                    size="sm"
+                                    style={statusFilter === 'draft' ? { background: '#64748b' } : {}}
+                                >
+                                    📝 Draft ({statusCounts.draft ?? 0})
+                                </Button>
+                                <Button
+                                    variant={statusFilter === 'closed' ? 'primary' : 'glass'}
+                                    onClick={() => handleStatusSelect('closed')}
+                                    size="sm"
+                                    style={statusFilter === 'closed' ? { background: '#1e293b' } : {}}
+                                >
+                                    🔒 Closed ({statusCounts.closed ?? 0})
+                                </Button>
+                            </div>
+
+                            <HomeworkTagChips
+                                selectable
+                                selectedTag={tagFilter}
+                                allTags={homeworkTags}
+                                onTagSelect={setTagFilter}
+                            />
+                        </div>
+                    </CardBody>
+                </Card>
+
+                {loading ? (
+                    <Card
+                        variant="default"
+                        style={{
+                            textAlign: 'center',
+                            padding: '4rem 2rem',
+                            animation: 'scaleIn 0.5s ease-out 0.2s backwards',
+                        }}
+                    >
+                        <CardBody>
+                            <div
+                                style={{
+                                    minHeight: '200px',
+                                    display: 'grid',
+                                    placeContent: 'center',
+                                    gap: '1rem',
+                                    color: '#64748b',
+                                    fontWeight: 700,
+                                }}
+                            >
+                                <VanillaLoader size="xl" />
+                                <div style={{ fontWeight: 600, color: '#64748b' }}>Loading homework...</div>
+                            </div>
+                        </CardBody>
+                    </Card>
+                ) : error ? (
+                    <Card
+                        variant="default"
+                        style={{
+                            textAlign: 'center',
+                            padding: '4rem 2rem',
+                            animation: 'scaleIn 0.5s ease-out 0.2s backwards',
+                        }}
+                    >
+                        <CardBody>
+                            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>❌</div>
+                            <h2 style={{ fontSize: '1.75rem', fontWeight: '700', marginBottom: '0.5rem', color: '#dc2626' }}>
+                                {error}
+                            </h2>
+                            <Button variant="primary" onClick={refetch} style={{ marginTop: '1rem' }}>
+                                Retry
+                            </Button>
+                        </CardBody>
+                    </Card>
+                ) : searchFilteredHomework.length === 0 ? (
+                    <Card
+                        variant="default"
+                        style={{
+                            textAlign: 'center',
+                            padding: '4rem 2rem',
+                            animation: 'scaleIn 0.5s ease-out 0.2s backwards',
+                        }}
+                    >
+                        <CardBody>
+                            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📋</div>
+                            <h2 style={{ fontSize: '1.75rem', fontWeight: '700', marginBottom: '0.5rem', color: '#1e293b' }}>
+                                No homework found
+                            </h2>
+                            <p style={{ fontSize: '1rem', color: '#64748b', marginBottom: '1.5rem' }}>
+                                {searchQuery || statusFilter || showClosed || showArchived
+                                    ? 'Try adjusting your search or filters.'
+                                    : 'Create your first homework assignment to get started.'}
+                            </p>
+                            {!searchQuery && !statusFilter && !showClosed && !showArchived ? (
+                                <Button
+                                    variant="primary"
+                                    onClick={handleCreateHomework}
                                     style={{
-                                        display: 'flex',
-                                        gap: '1rem',
-                                        alignItems: 'flex-end',
-                                        flexWrap: 'wrap',
+                                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                                     }}
                                 >
-                                    <div style={{ flex: '1 1 300px' }}>
-                                        <Input
-                                            placeholder="🔍 Search homework..."
-                                            value={searchQuery}
-                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
-                                            variant="default"
-                                        />
-                                    </div>
-
-                                    {/* View Mode Toggle */}
-                                    <Tabs
-                                        value={viewMode}
-                                        onChange={(value) => setViewMode(value as ViewMode)}
-                                        variant="pills"
-                                        styles={{
-                                            root: {
-                                                background: 'rgba(241, 245, 249, 0.8)',
-                                                padding: '4px',
-                                                borderRadius: '12px',
-                                            },
-                                            tab: {
-                                                fontWeight: 600,
-                                                '&[data-active]': {
-                                                    background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
-                                                },
-                                            }
-                                        }}
-                                    >
-                                        <Tabs.List>
-                                            <Tabs.Tab value="chronological" leftSection={<IconCalendar size={14} />}>
-                                                Timeline
-                                            </Tabs.Tab>
-                                            <Tabs.Tab value="by_class" leftSection={<IconFolder size={14} />}>
-                                                By Class
-                                            </Tabs.Tab>
-                                            <Tabs.Tab value="by_status" leftSection={<IconClipboard size={14} />}>
-                                                By Status
-                                            </Tabs.Tab>
-                                        </Tabs.List>
-                                    </Tabs>
-
-                                    <Button
-                                        variant="primary"
-                                        onClick={handleCreateHomework}
-                                        style={{
-                                            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                                        }}
-                                    >
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{ marginRight: '0.5rem' }}>
-                                            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-                                        </svg>
-                                        Create Homework
-                                    </Button>
-                                    <Button
-                                        variant="primary"
-                                        onClick={() => setShowThcsAssignDialog(true)}
-                                        style={{
-                                            background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 100%)',
-                                        }}
-                                    >
-                                        📝 Create THCS Homework
-                                    </Button>
-                                </div>
-                            </CardBody>
-                        </Card>
-
-                        {/* Status Filters */}
-                        <Card
-                            variant="glass"
-                            style={{
-                                marginBottom: '2rem',
-                                animation: 'slideUp 0.5s ease-out 0.15s backwards',
-                            }}
-                        >
-                            <CardBody>
-                                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                                    <Button
-                                        variant={statusFilter === null ? 'primary' : 'glass'}
-                                        onClick={() => setStatusFilter(null)}
-                                        size="sm"
-                                    >
-                                        All ({homework.length})
-                                    </Button>
-                                    <Button
-                                        variant={statusFilter === 'active' ? 'primary' : 'glass'}
-                                        onClick={() => setStatusFilter('active')}
-                                        size="sm"
-                                        style={statusFilter === 'active' ? { background: '#10b981' } : {}}
-                                    >
-                                        ✅ Active ({statusCounts.active})
-                                    </Button>
-                                    <Button
-                                        variant={statusFilter === 'scheduled' ? 'primary' : 'glass'}
-                                        onClick={() => setStatusFilter('scheduled')}
-                                        size="sm"
-                                        style={statusFilter === 'scheduled' ? { background: '#6366f1' } : {}}
-                                    >
-                                        ⏰ Scheduled ({statusCounts.scheduled})
-                                    </Button>
-                                    <Button
-                                        variant={statusFilter === 'past_due' ? 'primary' : 'glass'}
-                                        onClick={() => setStatusFilter('past_due')}
-                                        size="sm"
-                                        style={statusFilter === 'past_due' ? { background: '#f59e0b' } : {}}
-                                    >
-                                        ⚠️ Past Due ({statusCounts.past_due})
-                                    </Button>
-                                    <Button
-                                        variant={statusFilter === 'draft' ? 'primary' : 'glass'}
-                                        onClick={() => setStatusFilter('draft')}
-                                        size="sm"
-                                        style={statusFilter === 'draft' ? { background: '#64748b' } : {}}
-                                    >
-                                        📝 Draft ({statusCounts.draft})
-                                    </Button>
-                                    <Button
-                                        variant={statusFilter === 'closed' ? 'primary' : 'glass'}
-                                        onClick={() => setStatusFilter('closed')}
-                                        size="sm"
-                                        style={statusFilter === 'closed' ? { background: '#1e293b' } : {}}
-                                    >
-                                        🔒 Closed ({statusCounts.closed})
-                                    </Button>
-                                </div>
-                            </CardBody>
-                        </Card>
-
-                        {/* Content Area */}
-                        {loading ? (
-                            <Card
-                                variant="default"
-                                style={{
-                                    textAlign: 'center',
-                                    padding: '4rem 2rem',
-                                    animation: 'scaleIn 0.5s ease-out 0.2s backwards',
-                                }}
-                            >
-                                <Center>
-                                    <Stack align="center" gap="md">
-                                        <Loader size="xl" color="violet" type="bars" />
-                                        <Text fw={500} c="dimmed">Loading homework...</Text>
-                                    </Stack>
-                                </Center>
-                            </Card>
-                        ) : error ? (
-                            <Card
-                                variant="default"
-                                style={{
-                                    textAlign: 'center',
-                                    padding: '4rem 2rem',
-                                    animation: 'scaleIn 0.5s ease-out 0.2s backwards',
-                                }}
-                            >
-                                <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>❌</div>
-                                <h2 style={{ fontSize: '1.75rem', fontWeight: '700', marginBottom: '0.5rem', color: '#dc2626' }}>
-                                    {error}
-                                </h2>
-                                <Button variant="primary" onClick={refetch} style={{ marginTop: '1rem' }}>
-                                    🔄 Retry
+                                    Create First Homework
                                 </Button>
-                            </Card>
-                        ) : searchFilteredHomework.length === 0 ? (
+                            ) : null}
+                        </CardBody>
+                    </Card>
+                ) : (
+                    <>
+                        {statusFilter && user?.uid ? (
                             <Card
                                 variant="default"
                                 style={{
-                                    textAlign: 'center',
-                                    padding: '4rem 2rem',
-                                    animation: 'scaleIn 0.5s ease-out 0.2s backwards',
+                                    marginBottom: '1rem',
+                                    border: '1px solid rgba(99,102,241,0.14)',
+                                    background: 'rgba(255,255,255,0.95)',
                                 }}
                             >
-                                <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📋</div>
-                                <h2 style={{ fontSize: '1.75rem', fontWeight: '700', marginBottom: '0.5rem', color: '#1e293b' }}>
-                                    No homework found
-                                </h2>
-                                <p style={{ fontSize: '1rem', color: '#64748b', marginBottom: '1.5rem' }}>
-                                    {searchQuery
-                                        ? 'Try adjusting your search or filters'
-                                        : 'Create your first homework assignment to get started'}
-                                </p>
-                                {!searchQuery && (
-                                    <Button
-                                        variant="primary"
-                                        onClick={handleCreateHomework}
-                                        style={{
-                                            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                                        }}
-                                    >
-                                        Create First Homework
-                                    </Button>
-                                )}
-                            </Card>
-                        ) : (
-                            <>
-                                {/* Chronological View */}
-                                {viewMode === 'chronological' && (
+                                <CardBody>
                                     <div
                                         style={{
                                             display: 'flex',
-                                            flexDirection: 'column',
-                                            gap: '1rem',
+                                            gap: '0.75rem',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center',
+                                            flexWrap: 'wrap',
                                         }}
                                     >
-                                        {searchFilteredHomework.map((hw, index) => (
-                                            <div
-                                                key={hw.id}
-                                                style={{ animation: `slideUp 0.5s ease-out ${index * 0.05}s backwards` }}
-                                            >
-                                                <HomeworkCard
-                                                    homework={hw}
-                                                    onEdit={handleEdit}
-                                                    onDuplicate={handleDuplicate}
-                                                    onDelete={handleDelete}
-                                                    onExtendDeadline={handleExtendDeadline}
-                                                    showSubmissionProgress={true}
-                                                    onResetComplete={refetch}
-                                                />
-                                            </div>
-                                        ))}
+                                        <div style={{ color: '#475569', fontWeight: 600 }}>
+                                            Select all {statusCounts[statusFilter] ?? 0} {getStatusLabel(statusFilter).toLowerCase()} homework assignments?
+                                        </div>
+                                        <Button variant="outline" size="sm" onClick={handleBulkSelectAllMatching}>
+                                            Select all matching filter
+                                        </Button>
                                     </div>
-                                )}
+                                </CardBody>
+                            </Card>
+                        ) : null}
 
-                                {/* By Class View */}
-                                {viewMode === 'by_class' && (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                                        {Object.entries(homeworkByClass).map(([className, homeworkList], groupIndex) => (
-                                            <Card
-                                                key={className}
-                                                variant="default"
-                                                style={{
-                                                    animation: `slideUp 0.5s ease-out ${groupIndex * 0.1}s backwards`
-                                                }}
-                                            >
-                                                <CardBody>
-                                                    <h2 style={{
-                                                        fontSize: '1.25rem',
-                                                        fontWeight: '700',
-                                                        color: '#1e293b',
-                                                        marginBottom: '1rem',
-                                                        paddingBottom: '0.75rem',
-                                                        borderBottom: '2px solid #e2e8f0',
-                                                    }}>
-                                                        📚 {className} ({homeworkList.length})
-                                                    </h2>
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                                        {homeworkList.map((hw) => (
-                                                            <HomeworkCard
-                                                                key={hw.id}
-                                                                homework={hw}
-                                                                onEdit={handleEdit}
-                                                                onDuplicate={handleDuplicate}
-                                                                onDelete={handleDelete}
-                                                                onExtendDeadline={handleExtendDeadline}
-                                                                onResetComplete={refetch}
-                                                            />
-                                                        ))}
-                                                    </div>
-                                                </CardBody>
-                                            </Card>
-                                        ))}
-                                    </div>
-                                )}
+                        {viewMode === 'chronological' && renderHomeworkCards(searchFilteredHomework)}
 
-                                {/* By Status View */}
-                                {viewMode === 'by_status' && (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                                        {Object.entries(homeworkByStatus).map(([status, homeworkList], groupIndex) => (
-                                            <Card
-                                                key={status}
-                                                variant="default"
-                                                style={{
-                                                    animation: `slideUp 0.5s ease-out ${groupIndex * 0.1}s backwards`
-                                                }}
-                                            >
-                                                <CardBody>
-                                                    <h2 style={{
-                                                        fontSize: '1.25rem',
-                                                        fontWeight: '700',
-                                                        color: '#1e293b',
-                                                        marginBottom: '1rem',
-                                                        paddingBottom: '0.75rem',
-                                                        borderBottom: '2px solid #e2e8f0',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        gap: '0.5rem',
-                                                    }}>
-                                                        {getStatusIcon(status)} {getStatusLabel(status)} ({homeworkList.length})
-                                                    </h2>
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                                        {homeworkList.map((hw) => (
-                                                            <HomeworkCard
-                                                                key={hw.id}
-                                                                homework={hw}
-                                                                onEdit={handleEdit}
-                                                                onDuplicate={handleDuplicate}
-                                                                onDelete={handleDelete}
-                                                                onExtendDeadline={handleExtendDeadline}
-                                                                onResetComplete={refetch}
-                                                            />
-                                                        ))}
-                                                    </div>
-                                                </CardBody>
-                                            </Card>
-                                        ))}
-                                    </div>
-                                )}
-                            </>
+                        {viewMode === 'by_class' && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                                {Object.entries(homeworkByClass).map(([className, homeworkList], groupIndex) => (
+                                    <Card
+                                        key={className}
+                                        variant="default"
+                                        style={{
+                                            animation: `slideUp 0.5s ease-out ${groupIndex * 0.08}s backwards`
+                                        }}
+                                    >
+                                        <CardBody>
+                                            <h2 style={{
+                                                fontSize: '1.25rem',
+                                                fontWeight: '700',
+                                                color: '#1e293b',
+                                                marginBottom: '1rem',
+                                                paddingBottom: '0.75rem',
+                                                borderBottom: '2px solid #e2e8f0',
+                                            }}>
+                                                📚 {className} ({homeworkList.length})
+                                            </h2>
+                                            {/* PRD-0034 Task 12.3: Class analytics header */}
+                                            <ClassAnalyticsHeader
+                                                classId={homeworkList[0]?.target.type === 'class' ? (homeworkList[0].target as { classId: string }).classId : className}
+                                                className={className}
+                                                homework={homeworkList}
+                                            />
+                                            {renderHomeworkCards(homeworkList, groupIndex * 4)}
+                                            {/* PRD-0034 Task 12.3: At-risk homework list */}
+                                            <AtRiskStudentList
+                                                students={homeworkList
+                                                    .filter((hw) => {
+                                                        const rate = hw.stats.totalAssigned > 0
+                                                            ? (hw.stats.submitted / hw.stats.totalAssigned) * 100
+                                                            : 100;
+                                                        return rate < 50;
+                                                    })
+                                                    .map((hw) => ({
+                                                        name: hw.title || hw.materialTitle,
+                                                        completionRate: hw.stats.totalAssigned > 0
+                                                            ? Math.round((hw.stats.submitted / hw.stats.totalAssigned) * 100)
+                                                            : 0,
+                                                        avgScore: hw.stats.averageScore ?? 0,
+                                                    }))}
+                                            />
+                                        </CardBody>
+                                    </Card>
+                                ))}
+                            </div>
                         )}
-                    </div>
-                </AppShell.Main>
 
-                {/* Homework Create Modal */}
-                <HomeworkCreateModal
-                    isOpen={showCreateModal}
-                    onClose={() => setShowCreateModal(false)}
-                    onSuccess={refetch}
-                />
+                        {viewMode === 'by_status' && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                                {Object.entries(homeworkByStatus)
+                                    .filter(([, homeworkList]) => homeworkList.length > 0)
+                                    .map(([status, homeworkList], groupIndex) => (
+                                        <Card
+                                            key={status}
+                                            variant="default"
+                                            style={{
+                                                animation: `slideUp 0.5s ease-out ${groupIndex * 0.08}s backwards`
+                                            }}
+                                        >
+                                            <CardBody>
+                                                <h2 style={{
+                                                    fontSize: '1.25rem',
+                                                    fontWeight: '700',
+                                                    color: '#1e293b',
+                                                    marginBottom: '1rem',
+                                                    paddingBottom: '0.75rem',
+                                                    borderBottom: '2px solid #e2e8f0',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '0.5rem',
+                                                }}>
+                                                    {getStatusIcon(status)} {getStatusLabel(status)} ({homeworkList.length})
+                                                </h2>
+                                                {renderHomeworkCards(homeworkList, groupIndex * 4)}
+                                            </CardBody>
+                                        </Card>
+                                    ))}
+                            </div>
+                        )}
 
-                {/* Homework Edit Modal */}
-                <HomeworkEditModal
-                    isOpen={!!editingHomework}
-                    homework={editingHomework}
-                    onClose={() => setEditingHomework(null)}
-                    onSuccess={refetch}
-                />
+                        {hasMore ? (
+                            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1.5rem' }}>
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => void loadMore()}
+                                >
+                                    Load More
+                                </Button>
+                            </div>
+                        ) : null}
+                    </>
+                )}
+            </div>
 
-                {/* Phase 3 Task 2.2: THCS Homework Assign Dialog (Entry Point B) */}
-                <THCSHomeworkAssignDialog
-                    isOpen={showThcsAssignDialog}
-                    onClose={() => setShowThcsAssignDialog(false)}
-                    onSuccess={refetch}
-                    testId=""
-                    testTitle="THCS Test"
+            {/* Homework Create Modal */}
+            <HomeworkCreateModal
+                isOpen={showCreateModal}
+                onClose={() => {
+                    setShowCreateModal(false);
+                    setCreateModalFilter('all');
+                }}
+                onSuccess={refetch}
+                preselectedMaterialFilter={createModalFilter}
+            />
+
+            {/* Homework Edit Modal */}
+            <HomeworkEditModal
+                isOpen={!!editingHomework}
+                homework={editingHomework}
+                onClose={() => setEditingHomework(null)}
+                onSuccess={refetch}
+            />
+
+            <BulkExtendModal
+                isOpen={showBulkExtendModal}
+                selectedCount={selectedCount}
+                onClose={() => setShowBulkExtendModal(false)}
+                onConfirm={handleBulkExtendConfirm}
+            />
+
+            <BulkDeleteConfirmModal
+                isOpen={showBulkDeleteModal}
+                selectedCount={selectedCount}
+                onClose={() => setShowBulkDeleteModal(false)}
+                onConfirm={handleBulkDeleteConfirm}
+            />
+
+            <BulkDeleteConfirmModal
+                isOpen={!!permanentDeleteTarget}
+                selectedCount={1}
+                ariaLabel="Confirm permanent homework delete"
+                title={`Permanently delete "${permanentDeleteTarget?.title || permanentDeleteTarget?.materialTitle || 'homework'}"?`}
+                description="This will permanently delete the archived homework assignment immediately."
+                warningText="This action cannot be undone. Once deleted, the homework cannot be restored from trash."
+                confirmLabel="Delete forever"
+                onClose={() => setPermanentDeleteTarget(null)}
+                onConfirm={handlePermanentDeleteConfirm}
+            />
+
+            {selectedCount > 0 ? (
+                <HomeworkBulkActionBar
+                    selectedCount={selectedCount}
+                    onExtend={() => setShowBulkExtendModal(true)}
+                    onClose={() => void handleBulkClose()}
+                    onDelete={() => setShowBulkDeleteModal(true)}
+                    onDuplicate={() => void handleBulkDuplicate()}
+                    onDeselectAll={clearBulkSelection}
+                    onCloseAllPastDue={() => void handleClosePastDue()}
                 />
-            </AppShell>
+            ) : null}
 
             {/* Animations */}
             <style>{`
@@ -594,6 +1211,10 @@ export function TeacherHomeworkListPage() {
                 @keyframes scaleIn {
                     from { opacity: 0; transform: scale(0.95); }
                     to { opacity: 1; transform: scale(1); }
+                }
+                @keyframes spin {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
                 }
             `}</style>
         </div>

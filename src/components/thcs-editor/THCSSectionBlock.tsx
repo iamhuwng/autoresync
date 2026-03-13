@@ -321,15 +321,56 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
                                 <TextInput
                                     label="Passage Title"
                                     placeholder="e.g., Reading Passage 1"
-                                    value={section.passageTitle || ''}
-                                    onChange={(e) => onUpdate({ ...section, passageTitle: e.target.value } as any)}
+                                    value={(() => {
+                                        // Resolve best title: prefer flat if it looks like a real title
+                                        const flat = (section as any).passageTitle;
+                                        const nested = section.passage?.title;
+                                        if (flat && flat !== section.name && flat !== (section as any).defaultQuestionType) return flat;
+                                        return nested || flat || '';
+                                    })()}
+                                    onChange={(e) => {
+                                        const title = e.target.value;
+                                        onUpdate({
+                                            ...section,
+                                            passageTitle: title, // sync flat field
+                                            passage: {
+                                                id: section.passage?.id || crypto.randomUUID(),
+                                                content: section.passage?.content || (section as any).passageContent || '',
+                                                title,
+                                                wordCount: section.passage?.wordCount || 0,
+                                                imageUrl: section.passage?.imageUrl,
+                                            },
+                                        } as any);
+                                    }}
                                     size="xs"
                                 />
                                 <Textarea
                                     label="Passage Content"
                                     placeholder="Paste the reading passage here..."
-                                    value={section.passageContent || ''}
-                                    onChange={(e) => onUpdate({ ...section, passageContent: e.target.value } as any)}
+                                    value={(() => {
+                                        // Resolve best content: prefer whichever is longer
+                                        const flat = (section as any).passageContent as string | undefined;
+                                        const nested = section.passage?.content;
+                                        if (flat && nested) return flat.length >= nested.length ? flat : nested;
+                                        return nested || flat || '';
+                                    })()}
+                                    onChange={(e) => {
+                                        const content = e.target.value;
+                                        const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
+                                        const title = section.passage?.title || (section as any).passageTitle || '';
+                                        onUpdate({
+                                            ...section,
+                                            passageContent: content, // sync flat field
+                                            passageTitle: title,     // sync flat field
+                                            passage: {
+                                                id: section.passage?.id || crypto.randomUUID(),
+                                                content,
+                                                title,
+                                                wordCount,
+                                                imageUrl: section.passage?.imageUrl,
+                                            },
+                                        } as any);
+                                    }}
                                     minRows={6}
                                     autosize
                                     size="xs"

@@ -396,6 +396,14 @@ export const ROUTE_SECURITY_CONFIG: Record<string, RouteSecurityConfig> = {
         allowedRoles: ['teacher'],
         description: 'Create new homework assignment'
     },
+    '/teacher/homework/student/:studentId': {
+        path: '/teacher/homework/student/:studentId',
+        accessLevel: 'role-restricted',
+        allowedRoles: ['teacher'],
+        requiresOwnership: true,
+        ownershipField: 'studentId',
+        description: 'Teacher homework student profile (should verify assignment)'
+    },
     '/teacher/homework/:homeworkId': {
         path: '/teacher/homework/:homeworkId',
         accessLevel: 'role-restricted',

@@ -21,6 +21,7 @@ export { TeacherTable } from './TeacherTable';
 export { InvitationsPanel } from './InvitationsPanel';
 export { RequestsPanel } from './RequestsPanel';
 export { CourseTypesPanel } from './CourseTypesPanel';
+export { AdminTagManager } from './AdminTagManager';
 
 // Phase 4: Modal Components (NEW)
 export { EditUserModal } from './EditUserModal';

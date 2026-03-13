@@ -56,6 +56,7 @@ export const ROUTES = {
   TEACHER_HOMEWORK_CREATE: '/teacher/homework/create',
   TEACHER_HOMEWORK_DETAIL: '/teacher/homework/:homeworkId',
   TEACHER_HOMEWORK_EDIT: '/teacher/homework/:homeworkId/edit',
+  TEACHER_HOMEWORK_STUDENT: '/teacher/homework/student/:studentId',
 
   // Teacher Routes - Test Creation (PRD-0020)
   TEACHER_TEST_CREATE: '/teacher/test/create',
@@ -101,6 +102,7 @@ export interface RouteParams {
   testId?: string;
   id?: string;
   classId?: string;
+  studentId?: string;
   teacherId?: string; // For filtering students by teacher
   courseId?: string;
   // PRD-0016: Homework & Solo Study

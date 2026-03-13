@@ -23,7 +23,13 @@ import {
 } from 'firebase/firestore';
 // @ts-ignore - JS service file
 import { firestore as db } from './firebase';
-import { getHomeworkById, updateHomework } from './homeworkManager';
+import {
+    getEffectiveHomeworkDueDate,
+    getHomeworkById,
+    getStudentOverride,
+    isStudentExemptedFromHomework,
+    updateHomework
+} from './homeworkManager';
 import type {
     HomeworkSubmission,
     HomeworkSubmissionStatus,
@@ -44,6 +50,21 @@ export class HomeworkSubmissionError extends Error {
         super(message);
         this.name = 'HomeworkSubmissionError';
     }
+}
+
+export function isStudentExempted(
+    homework: HomeworkAssignment,
+    studentId: string
+): boolean {
+    return isStudentExemptedFromHomework(homework, studentId);
+}
+
+export function isLateSubmission(
+    homework: HomeworkAssignment,
+    studentId: string,
+    timestamp: number = Date.now()
+): boolean {
+    return timestamp > getEffectiveHomeworkDueDate(homework, studentId);
 }
 
 // ============================================================================
@@ -67,6 +88,10 @@ export async function createSubmission(
     const homework = await getHomeworkById(homeworkId);
     if (!homework) {
         throw new HomeworkSubmissionError('Homework not found', 'HOMEWORK_NOT_FOUND');
+    }
+
+    if (isStudentExempted(homework, studentId)) {
+        throw new HomeworkSubmissionError('You are exempt from this homework', 'HOMEWORK_CLOSED');
     }
 
     // Check if homework is closed
@@ -97,7 +122,7 @@ export async function createSubmission(
     }
 
     // Determine if this is a late submission
-    const isLate = now > homework.scheduling.dueDate;
+    const isLate = isLateSubmission(homework, studentId, now);
 
     // Check if late submissions are allowed
     if (isLate && !homework.config.lateSubmissionAllowed) {
@@ -113,6 +138,7 @@ export async function createSubmission(
         homeworkId,
         studentId,
         studentName,
+        teacherId: homework.createdBy, // Stored for Firestore security rules (teacher reset authorization)
         attemptNumber,
         startedAt: now,
         isLate,
@@ -200,7 +226,7 @@ export async function submitHomework(
 
     // Check if this is a late submission (could have started on time but submitted late)
     const homework = await getHomeworkById(submission.homeworkId);
-    const isLate = homework ? now > homework.scheduling.dueDate : submission.isLate;
+    const isLate = homework ? isLateSubmission(homework, submission.studentId, now) : submission.isLate;
 
     // Update submission
     await updateDoc(submissionRef, {
@@ -253,14 +279,18 @@ export async function getHomeworkSubmissions(
     homeworkId: string
 ): Promise<HomeworkSubmission[]> {
     const submissionsRef = collection(db, SUBMISSION_COLLECTION);
+    // NOTE: Do NOT use orderBy('submittedAt') — Firestore excludes documents
+    // where submittedAt is undefined (i.e. in_progress submissions).
+    // Instead, query without orderBy and sort client-side.
     const q = query(
         submissionsRef,
-        where('homeworkId', '==', homeworkId),
-        orderBy('submittedAt', 'desc')
+        where('homeworkId', '==', homeworkId)
     );
 
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => doc.data() as HomeworkSubmission);
+    const submissions = snapshot.docs.map(doc => doc.data() as HomeworkSubmission);
+    // Sort by submittedAt desc (submitted first), then startedAt desc for in-progress
+    return submissions.sort((a, b) => (b.submittedAt ?? 0) - (a.submittedAt ?? 0) || b.startedAt - a.startedAt);
 }
 
 /**
@@ -321,7 +351,7 @@ export async function getLatestSubmission(
     if (submissions.length === 0) {
         return null;
     }
-    return submissions[submissions.length - 1];
+    return submissions[submissions.length - 1] ?? null;
 }
 
 /**
@@ -369,6 +399,10 @@ export async function getStudentHomeworkList(
     isOverdue: boolean;
     canSubmit: boolean;
     canViewFeedback: boolean;
+    effectiveDueDate: number;
+    lastRemindedAt?: number;
+    reminderCount: number;
+    isExempted: boolean;
 }>> {
     // Import here to avoid circular dependency
     const { getHomeworkForStudent } = await import('./homeworkManager');
@@ -389,14 +423,16 @@ export async function getStudentHomeworkList(
     const now = Date.now();
 
     return homeworks.map(homework => {
-        const submissions = submissionsByHomework.get(homework.id) || [];
+        const submissions = [...(submissionsByHomework.get(homework.id) || [])].sort(
+            (a, b) => (b.startedAt || 0) - (a.startedAt || 0)
+        );
         const completedAttempts = submissions.filter(s =>
             s.status === 'submitted' || s.status === 'graded'
         );
-        const inProgressSubmission = submissions.find(s => s.status === 'in_progress');
-        const latestSubmission = submissions.length > 0
-            ? submissions[submissions.length - 1]
-            : null;
+        const latestSubmission: HomeworkSubmission | null = submissions[0] ?? null;
+        const studentOverride = getStudentOverride(homework, studentId);
+        const effectiveDueDate = getEffectiveHomeworkDueDate(homework, studentId);
+        const isExempted = isStudentExempted(homework, studentId);
 
         const maxAttempts = homework.config.maxAttempts;
         const attemptsUsed = completedAttempts.length;
@@ -404,7 +440,7 @@ export async function getStudentHomeworkList(
             ? Math.max(0, maxAttempts - attemptsUsed)
             : null;
 
-        const isOverdue = now > homework.scheduling.dueDate;
+        const isOverdue = now > effectiveDueDate;
         const isAvailable = !homework.scheduling.availableFrom ||
             now >= homework.scheduling.availableFrom;
 
@@ -412,6 +448,7 @@ export async function getStudentHomeworkList(
         // and either not past due or late submissions allowed
         const canSubmit =
             homework.status !== 'closed' &&
+            !isExempted &&
             isAvailable &&
             (attemptsRemaining === null || attemptsRemaining > 0) &&
             (!isOverdue || homework.config.lateSubmissionAllowed);
@@ -425,7 +462,7 @@ export async function getStudentHomeworkList(
                     canViewFeedback = true;
                     break;
                 case 'after_deadline':
-                    canViewFeedback = now > homework.scheduling.dueDate;
+                    canViewFeedback = now > effectiveDueDate;
                     break;
                 case 'never':
                     canViewFeedback = false;
@@ -440,7 +477,11 @@ export async function getStudentHomeworkList(
             attemptsRemaining,
             isOverdue,
             canSubmit,
-            canViewFeedback
+            canViewFeedback,
+            effectiveDueDate,
+            lastRemindedAt: studentOverride.lastRemindedAt,
+            reminderCount: studentOverride.reminderCount ?? 0,
+            isExempted
         };
     });
 }
@@ -582,13 +623,22 @@ export async function resetStudentHomework(
         s => s.isLate && (s.status === 'submitted' || s.status === 'graded')
     ).length;
 
-    // 4. Delete each submission doc from Firestore
+    // 4. Get homework for teacher ownership info (needed for backfilling old submissions)
+    const homework = await getHomeworkById(homeworkId);
+    const teacherId = homework?.createdBy;
+
+    // 5. Delete each submission doc from Firestore
+    // For submissions created before teacherId was added, stamp it first so
+    // the security rule (resource.data.teacherId == auth.uid) passes on delete.
     for (const submission of submissions) {
         const submissionRef = doc(db, SUBMISSION_COLLECTION, submission.id);
+        if (!submission.teacherId && teacherId) {
+            await updateDoc(submissionRef, { teacherId });
+        }
         await deleteDoc(submissionRef);
     }
 
-    // 5. Delete each linked test result from RTDB
+    // 6. Delete each linked test result from RTDB
     let resultsDeleted = 0;
     if (resultIds.length > 0) {
         const { deleteTestResult } = await import('./testResults.service');
@@ -603,9 +653,8 @@ export async function resetStudentHomework(
         }
     }
 
-    // 6. Recalculate homework stats
+    // 7. Recalculate homework stats (reuse homework fetched in step 4)
     try {
-        const homework = await getHomeworkById(homeworkId);
         if (homework) {
             const stats = { ...homework.stats };
             stats.started = Math.max(0, (stats.started || 0) - startedCount);
@@ -626,7 +675,7 @@ export async function resetStudentHomework(
         // Non-critical — submissions are already deleted
     }
 
-    // 7. Send notification to the student
+    // 8. Send notification to the student
     try {
         const { sendHomeworkResetNotification } = await import('./notificationService');
         await sendHomeworkResetNotification(

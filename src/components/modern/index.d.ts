@@ -81,3 +81,62 @@ export interface TextareaProps {
 }
 
 export const Textarea: React.FC<TextareaProps>;
+
+export interface NativeSelectProps {
+  value?: string;
+  onChange?: (value: string) => void;
+  options?: Array<{ value: string; label: string }>;
+  label?: string;
+  className?: string;
+  disabled?: boolean;
+  minWidth?: number;
+  style?: React.CSSProperties;
+}
+
+export const NativeSelect: React.FC<NativeSelectProps>;
+
+export interface VanillaTabDefinition {
+  key: string;
+  label: string;
+  icon?: string;
+}
+
+export interface VanillaTabsProps {
+  tabs: VanillaTabDefinition[];
+  activeTab: string;
+  onTabChange: (key: string) => void;
+  className?: string;
+}
+
+export const VanillaTabs: React.FC<VanillaTabsProps>;
+
+export interface VanillaLoaderProps {
+  size?: 'sm' | 'md' | 'lg' | 'xl';
+  color?: string;
+  className?: string;
+}
+
+export const VanillaLoader: React.FC<VanillaLoaderProps>;
+
+export type ToastTone = 'success' | 'error' | 'info' | 'warning';
+
+export interface ToastContainerProps {
+  className?: string;
+}
+
+export interface ToastOptions {
+  title?: string;
+  message: string;
+  tone?: ToastTone;
+}
+
+export const ToastContainer: React.FC<ToastContainerProps>;
+
+export const toast: {
+  success: (message: string) => string;
+  error: (message: string) => string;
+  info: (message: string) => string;
+  warning: (message: string) => string;
+  show: (options: ToastOptions) => string;
+  dismiss: (id: string) => void;
+};

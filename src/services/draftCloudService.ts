@@ -1,4 +1,4 @@
-import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, updateDoc, query, where, orderBy, Timestamp } from 'firebase/firestore';
+import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, updateDoc, query, where, Timestamp } from 'firebase/firestore';
 import type {
   DraftServiceInterface,
   ServiceResponse,
@@ -483,10 +483,11 @@ export const testDraftService: DraftServiceInterface = {
   async getUserDrafts(userId: string): Promise<ServiceResponse<DraftListItem[]>> {
     try {
       const draftsRef = collection(db, DRAFTS_COLLECTION);
+      // Only filter by userId (single-field, auto-indexed) — sort client-side
+      // to avoid needing a composite index on userId + updatedAt
       const q = query(
         draftsRef,
-        where('userId', '==', userId),
-        orderBy('updatedAt', 'desc')
+        where('userId', '==', userId)
       );
 
       const querySnapshot = await getDocs(q);
@@ -494,6 +495,9 @@ export const testDraftService: DraftServiceInterface = {
 
       querySnapshot.forEach((docSnap) => {
         const data = docSnap.data();
+        const updatedAt = data.updatedAt instanceof Timestamp
+          ? data.updatedAt.toDate()
+          : data.updatedAt ? new Date(data.updatedAt) : new Date(0);
         drafts.push({
           id: data.id,
           title: data.metadata?.title || 'Untitled Draft',
@@ -507,7 +511,15 @@ export const testDraftService: DraftServiceInterface = {
           createdAt: data.createdAt instanceof Timestamp
             ? data.createdAt.toDate()
             : new Date(data.createdAt),
+          updatedAt,
         });
+      });
+
+      // Sort by updatedAt descending (most recent first) — done client-side
+      drafts.sort((a, b) => {
+        const timeA = a.updatedAt?.getTime?.() || 0;
+        const timeB = b.updatedAt?.getTime?.() || 0;
+        return timeB - timeA;
       });
 
       console.log(`✅ Loaded ${drafts.length} drafts for user:`, userId);

@@ -16,6 +16,11 @@ service cloud.firestore {
       // but restricting to at least authenticated users is better than public access.
       allow read, write: if request.auth != null;
     }
+
+    // Homework tag configuration
+    match /app_config/homework_tags {
+      allow read, write: if request.auth != null;
+    }
     
     // Allow users to read and write their own data (assuming standard structure)
     // You should expand these rules to match your other collections
@@ -80,14 +85,25 @@ service cloud.firestore {
         && resource.data.createdBy == request.auth.uid;
     }
 
-    // Homework submissions — students create their own, teachers read
+    // Homework submissions — students create their own, teachers can reset
+    // SECURITY FIX (2026-03-12): Previously `allow delete: if false` blocked the
+    // teacher homework reset feature. Teachers (homework creators) need to delete
+    // submissions when resetting a student's homework. Each submission now stores
+    // a `teacherId` field (the homework creator's UID) set at creation time.
     match /homework_submissions/{submissionId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null
         && request.resource.data.studentId == request.auth.uid;
+      // Students can update own submissions; teachers can update for grading
+      // Third condition: allows teacher to backfill teacherId on old submissions
+      // (created before teacherId was introduced) by writing their own UID.
       allow update: if request.auth != null
-        && resource.data.studentId == request.auth.uid;
-      allow delete: if false;  // Submissions are permanent records
+        && (resource.data.studentId == request.auth.uid
+            || resource.data.teacherId == request.auth.uid
+            || request.resource.data.teacherId == request.auth.uid);
+      // Only the homework creator (teacher) can delete submissions (for reset)
+      allow delete: if request.auth != null
+        && resource.data.teacherId == request.auth.uid;
     }
 
     // Homework templates — teacher-owned

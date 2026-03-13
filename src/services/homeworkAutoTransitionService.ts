@@ -13,14 +13,7 @@
  */
 
 import {
-    collection,
-    query,
-    where,
-    getDocs,
-    writeBatch
-} from 'firebase/firestore';
-import { db } from './firebase';
-import {
+    archiveHomework,
     getHomeworkByTeacher,
     getHomeworkForStudent,
     updateHomeworkStatus
@@ -51,7 +44,8 @@ export interface BatchTransitionResult {
 // CONSTANTS
 // ============================================================================
 
-const HOMEWORK_COLLECTION = 'homework_assignments';
+const ATTENTION_WINDOW_MS = 24 * 60 * 60 * 1000;
+const AUTO_ARCHIVE_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -79,11 +73,20 @@ function calculateCurrentStatus(homework: HomeworkAssignment): HomeworkStatus {
     }
 }
 
+function shouldAutoArchive(homework: HomeworkAssignment): boolean {
+    if (homework.archived || homework.status !== 'closed') {
+        return false;
+    }
+
+    const archiveReference = homework.closedAt ?? homework.updatedAt;
+    return Date.now() - archiveReference >= AUTO_ARCHIVE_AFTER_MS;
+}
+
 /**
  * Check if a homework needs status transition
  */
 function needsTransition(homework: HomeworkAssignment): boolean {
-    if (homework.status === 'closed') {
+    if (homework.archived || homework.status === 'closed') {
         return false; // Never auto-transition closed homework
     }
 
@@ -115,6 +118,27 @@ export async function checkTeacherHomeworkStatus(
         result.total = allHomework.length;
 
         for (const homework of allHomework) {
+            if (shouldAutoArchive(homework)) {
+                try {
+                    await archiveHomework(homework.id);
+                    result.transitioned++;
+                    result.transitions.push({
+                        homeworkId: homework.id,
+                        title: homework.title || homework.materialTitle,
+                        previousStatus: homework.status,
+                        newStatus: homework.status,
+                        transitionedAt: Date.now()
+                    });
+                } catch (error) {
+                    result.failed++;
+                    result.errors.push({
+                        homeworkId: homework.id,
+                        error: error instanceof Error ? error.message : 'Unknown error'
+                    });
+                }
+                continue;
+            }
+
             if (needsTransition(homework)) {
                 try {
                     const previousStatus = homework.status;
@@ -207,7 +231,6 @@ export async function getHomeworkNeedingAttention(
     recentlyPastDue: HomeworkAssignment[];
 }> {
     const now = Date.now();
-    const oneHour = 60 * 60 * 1000;
     const oneDayAgo = now - (24 * 60 * 60 * 1000);
 
     const becomingActive: HomeworkAssignment[] = [];
@@ -215,18 +238,18 @@ export async function getHomeworkNeedingAttention(
     const recentlyPastDue: HomeworkAssignment[] = [];
 
     for (const hw of homework) {
-        if (hw.status === 'closed') continue;
+        if (hw.archived || hw.status === 'closed') continue;
 
         const availableFrom = hw.scheduling.availableFrom || now;
         const dueDate = hw.scheduling.dueDate;
 
         // Becoming active within an hour
-        if (hw.status === 'scheduled' && availableFrom - now <= oneHour && availableFrom > now) {
+        if (hw.status === 'scheduled' && availableFrom - now <= ATTENTION_WINDOW_MS && availableFrom > now) {
             becomingActive.push(hw);
         }
 
         // Becoming past due within an hour
-        if (hw.status === 'active' && dueDate - now <= oneHour && dueDate > now) {
+        if (hw.status === 'active' && dueDate - now <= ATTENTION_WINDOW_MS && dueDate > now) {
             becomingPastDue.push(hw);
         }
 
@@ -251,7 +274,7 @@ export function scheduleStatusTransition(
     homework: HomeworkAssignment,
     onTransition: (homework: HomeworkAssignment, newStatus: HomeworkStatus) => void
 ): NodeJS.Timeout | null {
-    if (homework.status === 'closed') {
+    if (homework.archived || homework.status === 'closed') {
         return null;
     }
 

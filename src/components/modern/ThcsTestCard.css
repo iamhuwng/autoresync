@@ -1,0 +1,11 @@
+/* ThcsTestCard — additional styles beyond shared badges */
+
+.thcs-test-card--public {
+  border-left: 4px solid #7c3aed;
+}
+
+.thcs-test-card__author {
+  font-size: 0.8125rem;
+  color: #94a3b8;
+  margin-bottom: 0.5rem;
+}

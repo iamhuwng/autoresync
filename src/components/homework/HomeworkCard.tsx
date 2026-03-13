@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
+import { HomeworkTagChips } from './HomeworkTagChips';
 import { HomeworkStatusBadge } from './HomeworkStatusBadge';
-import type { HomeworkAssignment } from '../../types/homework.types';
+import type { HomeworkAssignment, HomeworkTagConfig } from '../../types/homework.types';
 import type { HomeworkSubmission } from '../../types/homework.types';
 import { resetStudentHomework, getHomeworkSubmissions } from '../../services/homeworkSubmissionService';
 import './HomeworkCard.css';
@@ -11,8 +12,11 @@ interface HomeworkCardProps {
     onDuplicate?: (homework: HomeworkAssignment) => void;
     onDelete?: (homework: HomeworkAssignment) => void;
     onExtendDeadline?: (homework: HomeworkAssignment) => void;
+    onRestore?: (homework: HomeworkAssignment) => void;
+    onPermanentDelete?: (homework: HomeworkAssignment) => void;
     onClick?: (homework: HomeworkAssignment) => void;
     showSubmissionProgress?: boolean;
+    availableTags?: HomeworkTagConfig['tags'];
     /** Called after a student's homework is successfully reset */
     onResetComplete?: () => void;
 }
@@ -23,8 +27,11 @@ export function HomeworkCard({
     onDuplicate,
     onDelete,
     onExtendDeadline,
+    onRestore,
+    onPermanentDelete,
     onClick,
     showSubmissionProgress = true,
+    availableTags = [],
     onResetComplete,
 }: HomeworkCardProps) {
     // Use scheduling object for dates (timestamps in milliseconds)
@@ -105,6 +112,7 @@ export function HomeworkCard({
 
     // ========== Reset Student Feature ==========
     const [showResetModal, setShowResetModal] = useState(false);
+    const [mobileExpanded, setMobileExpanded] = useState(false);
     const [submissions, setSubmissions] = useState<HomeworkSubmission[]>([]);
     const [loadingSubmissions, setLoadingSubmissions] = useState(false);
     const [resetTarget, setResetTarget] = useState<{ studentId: string; studentName: string } | null>(null);
@@ -173,60 +181,97 @@ export function HomeworkCard({
 
     return (
         <div
-            className={`homework-card ${isOverdue ? 'overdue' : ''} ${onClick ? 'clickable' : ''}`}
+            className={`homework-card ${isOverdue ? 'overdue' : ''} ${homework.archived ? 'archived' : ''} ${onClick ? 'clickable' : ''} ${mobileExpanded ? 'mobile-expanded' : ''}`}
             onClick={handleCardClick}
         >
             <div className="homework-card-header">
                 <div className="homework-title-section">
                     <h3 className="homework-title">{homework.title || homework.materialTitle}</h3>
-                    <HomeworkStatusBadge status={homework.status} />
+                    <div className="homework-status-row">
+                        <HomeworkStatusBadge status={homework.status} />
+                        {homework.archived ? (
+                            <span className="homework-archived-badge">🗄️ Archived</span>
+                        ) : null}
+                    </div>
                 </div>
 
-                {(onEdit || onDuplicate || onDelete || onExtendDeadline) && (
+                {(onEdit || onDuplicate || onDelete || onExtendDeadline || onRestore || onPermanentDelete) && (
                     <div className="homework-actions">
-                        {onEdit && (
-                            <button
-                                className="action-btn edit-btn"
-                                onClick={(e) => handleActionClick(e, onEdit)}
-                                title="Edit homework"
-                            >
-                                ✏️
-                            </button>
+                        {homework.archived ? (
+                            <>
+                                {onRestore ? (
+                                    <button
+                                        className="action-btn restore-btn"
+                                        onClick={(e) => handleActionClick(e, onRestore)}
+                                        title="Restore homework"
+                                        aria-label={`Restore ${homework.title || homework.materialTitle}`}
+                                    >
+                                        ♻️
+                                    </button>
+                                ) : null}
+                                {onPermanentDelete ? (
+                                    <button
+                                        className="action-btn permanent-delete-btn"
+                                        onClick={(e) => handleActionClick(e, onPermanentDelete)}
+                                        title="Permanently delete homework"
+                                        aria-label={`Permanently delete ${homework.title || homework.materialTitle}`}
+                                    >
+                                        🗑️
+                                    </button>
+                                ) : null}
+                            </>
+                        ) : (
+                            <>
+                                {onEdit && (
+                                    <button
+                                        className="action-btn edit-btn"
+                                        onClick={(e) => handleActionClick(e, onEdit)}
+                                        title="Edit homework"
+                                        aria-label={`Edit ${homework.title || homework.materialTitle}`}
+                                    >
+                                        ✏️
+                                    </button>
+                                )}
+                                {onDuplicate && (
+                                    <button
+                                        className="action-btn duplicate-btn"
+                                        onClick={(e) => handleActionClick(e, onDuplicate)}
+                                        title="Duplicate homework"
+                                        aria-label={`Duplicate ${homework.title || homework.materialTitle}`}
+                                    >
+                                        📋
+                                    </button>
+                                )}
+                                {onExtendDeadline && homework.status === 'active' && (
+                                    <button
+                                        className="action-btn extend-btn"
+                                        onClick={(e) => handleActionClick(e, onExtendDeadline)}
+                                        title="Extend deadline"
+                                        aria-label={`Extend ${homework.title || homework.materialTitle}`}
+                                    >
+                                        ⏰
+                                    </button>
+                                )}
+                                {onDelete && (
+                                    <button
+                                        className="action-btn delete-btn"
+                                        onClick={(e) => handleActionClick(e, onDelete)}
+                                        title="Delete homework"
+                                        aria-label={`Archive ${homework.title || homework.materialTitle}`}
+                                    >
+                                        🗑️
+                                    </button>
+                                )}
+                                <button
+                                    className="action-btn reset-student-btn"
+                                    onClick={openResetModal}
+                                    title="Reset student's homework"
+                                    aria-label={`Reset student homework for ${homework.title || homework.materialTitle}`}
+                                >
+                                    🔄
+                                </button>
+                            </>
                         )}
-                        {onDuplicate && (
-                            <button
-                                className="action-btn duplicate-btn"
-                                onClick={(e) => handleActionClick(e, onDuplicate)}
-                                title="Duplicate homework"
-                            >
-                                📋
-                            </button>
-                        )}
-                        {onExtendDeadline && homework.status === 'active' && (
-                            <button
-                                className="action-btn extend-btn"
-                                onClick={(e) => handleActionClick(e, onExtendDeadline)}
-                                title="Extend deadline"
-                            >
-                                ⏰
-                            </button>
-                        )}
-                        {onDelete && (
-                            <button
-                                className="action-btn delete-btn"
-                                onClick={(e) => handleActionClick(e, onDelete)}
-                                title="Delete homework"
-                            >
-                                🗑️
-                            </button>
-                        )}
-                        <button
-                            className="action-btn reset-student-btn"
-                            onClick={openResetModal}
-                            title="Reset student's homework"
-                        >
-                            🔄
-                        </button>
                     </div>
                 )}
             </div>
@@ -268,6 +313,12 @@ export function HomeworkCard({
                     </div>
                 )}
 
+                {(homework.tags?.length ?? 0) > 0 ? (
+                    <div style={{ marginTop: '0.9rem' }}>
+                        <HomeworkTagChips tags={homework.tags ?? []} allTags={availableTags} />
+                    </div>
+                ) : null}
+
                 {showSubmissionProgress && stats && (
                     <div className="submission-progress">
                         <div className="progress-header">
@@ -292,6 +343,27 @@ export function HomeworkCard({
                     </div>
                 )}
             </div>
+
+                {/* Task 17.5: Mobile expand/collapse toggle */}
+                <button
+                    type="button"
+                    className="hw-mobile-expand-toggle"
+                    onClick={(e) => { e.stopPropagation(); setMobileExpanded((v) => !v); }}
+                    style={{
+                        display: 'none', /* shown via CSS media query */
+                        width: '100%',
+                        border: 'none',
+                        background: 'transparent',
+                        color: '#64748b',
+                        fontSize: '0.78rem',
+                        fontWeight: 600,
+                        padding: '0.4rem 0',
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                    }}
+                >
+                    {mobileExpanded ? '▲ Show less' : '▼ Show more'}
+                </button>
 
             {/* Reset Student Modal — native HTML dialog */}
             {showResetModal && (

@@ -1,0 +1,42 @@
+.homework-score-distribution {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: end;
+}
+
+.homework-score-distribution__bucket {
+  display: grid;
+  gap: 0.45rem;
+  justify-items: center;
+}
+
+.homework-score-distribution__count {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #475569;
+}
+
+.homework-score-distribution__bar-shell {
+  height: 84px;
+  display: flex;
+  align-items: flex-end;
+}
+
+.homework-score-distribution__bar {
+  width: 100%;
+  min-width: 42px;
+  border-radius: 12px 12px 6px 6px;
+  background: linear-gradient(to top, #8b5cf6, #a78bfa);
+}
+
+.homework-score-distribution__bar.empty {
+  background: rgba(139, 92, 246, 0.32);
+  border-radius: 999px;
+}
+
+.homework-score-distribution__label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #64748b;
+}

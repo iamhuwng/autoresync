@@ -9,6 +9,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigation } from '../hooks/useNavigation';
+import { AdminTagManager } from '../components/admin';
 import { AdminLayout } from '../components/navigation';
 import { Card, Button, Input } from '../components/modern';
 import {
@@ -378,6 +379,7 @@ const AdminSettingsPage: React.FC = () => {
     const [addModalOpen, setAddModalOpen] = useState(false);
     const [addModalProvider, setAddModalProvider] = useState<AIProvider | null>(null);
     const [envKeys, setEnvKeys] = useState<{ gemini: string[]; groq: string[] }>({ gemini: [], groq: [] });
+    const [activeSection, setActiveSection] = useState<'api_keys' | 'tags'>('api_keys');
 
     const isSuperAdmin = profile?.role === 'super_admin';
 
@@ -551,11 +553,30 @@ const AdminSettingsPage: React.FC = () => {
                     </p>
                 </div>
 
+                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+                    <Button
+                        variant={activeSection === 'api_keys' ? 'primary' : 'glass'}
+                        aria-label="Show API keys settings section"
+                        onClick={() => setActiveSection('api_keys')}
+                    >
+                        API Keys
+                    </Button>
+                    <Button
+                        variant={activeSection === 'tags' ? 'primary' : 'glass'}
+                        aria-label="Show tags settings section"
+                        onClick={() => setActiveSection('tags')}
+                    >
+                        Tags
+                    </Button>
+                </div>
+
                 {loading ? (
                     <Card variant="glass" style={{ padding: '3rem', textAlign: 'center' }}>
                         <IconRefresh size={32} style={{ color: '#6366f1', animation: 'spin 1s linear infinite' }} />
                         <p style={{ marginTop: '1rem', color: '#64748b' }}>Loading settings...</p>
                     </Card>
+                ) : activeSection === 'tags' ? (
+                    <AdminTagManager />
                 ) : (
                     <>
                         {/* Gemini API Keys */}

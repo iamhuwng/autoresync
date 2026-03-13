@@ -7,8 +7,8 @@ labels:
   - from-spec-v2
   - integration
 createdAt: '2026-03-04T22:46:39.478Z'
-updatedAt: '2026-03-05T03:02:54.745Z'
-timeSpent: 147
+updatedAt: '2026-03-09T18:24:16.150Z'
+timeSpent: 402069
 assignee: '@me'
 spec: specs/ai-pipeline-redesign
 fulfills:
@@ -26,14 +26,7 @@ Wire everything into `parseThcsText()` replacing current internal AI call. Prese
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [x] #1 parseThcsText() uses new pipeline (preClean → Pass 1 → validation → repair → compromise → retry → engine)
-- [x] #2 ParsedTest output structure unchanged (existing consumers work)
-- [x] #3 Review Panel: yellow for AI-inferred, orange for compromised, warning for uncertain
-- [x] #4 Review Panel: expandable reasoning logs
-- [x] #5 Old 97-line JSON prompt removed
-- [x] #6 Old band-aid steps simplified/removed (TYPE_FIX_MAP, reconciliation)
-- [x] #7 Metadata override preserved as safety net
-- [x] #8 Order: 6 (depends on T6A 4f54n5 + T7 pqr0rq + T8 78pz92 + T9 le05g6)
+- [x] #1 Order: 6 (depends on T6A 4f54n5 + T7 pqr0rq + T8 78pz92 + T9 le05g6)
 <!-- AC:END -->
 
 ## Implementation Plan

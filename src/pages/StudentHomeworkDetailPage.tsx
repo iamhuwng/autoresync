@@ -121,6 +121,19 @@ const getFeedbackTimingDescription = (timing: string): string => {
     }
 };
 
+const formatTimeAgo = (timestamp: number): string => {
+    const diff = Date.now() - timestamp;
+    const minutes = Math.floor(diff / (1000 * 60));
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    if (minutes < 1) return 'just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    if (days < 7) return `${days}d ago`;
+    return new Date(timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
+
 // ============================================================================
 // COMPONENT
 // ============================================================================
@@ -411,6 +424,11 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                                                 {isOverdue && (
                                                     <Badge color="red" variant="filled" size="lg">
                                                         Overdue
+                                                    </Badge>
+                                                )}
+                                                {material?.updatedAt && (
+                                                    <Badge color="teal" variant="light" size="lg" title={`Test last updated: ${new Date(material.updatedAt).toLocaleString()}`}>
+                                                        🔄 Updated {formatTimeAgo(material.updatedAt)}
                                                     </Badge>
                                                 )}
                                             </Group>

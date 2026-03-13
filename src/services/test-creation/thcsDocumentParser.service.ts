@@ -241,6 +241,25 @@ function detectSections(lines: string[]): ParsedSection[] {
             ? line.match(PATTERNS.typeTagInline)
             : null;
 
+        // ── Sub-part merge check for inline [TYPE: xxx] ──
+        // If an inline type tag's instruction text is essentially the same as the
+        // current section's (differing only by a sub-part label like "(b)", "(c)", "(d)"),
+        // extend the current section instead of creating a new one.
+        // This prevents "Choose the best option... (b) [TYPE: mcq-grammar]" from
+        // fragmenting into separate 1-question sections.
+        if (inlineTypeMatch && currentSection && currentSection.startLine !== undefined) {
+            const newInstruction = line.replace(PATTERNS.typeTagInline, '').trim();
+            // Strip sub-part labels: "(a)", "(b)", "(c)" etc. at the end, and normalize
+            const stripSubPart = (s: string) => s.replace(/\s*\([a-z]\)\s*$/i, '').trim().toLowerCase();
+            const currentBase = stripSubPart(currentSection.instructionText || '');
+            const newBase = stripSubPart(newInstruction);
+            if (currentBase && newBase && currentBase === newBase) {
+                // Same instruction, different sub-part — extend current section, don't split
+                currentSection.endLine = lines.length - 1;
+                continue;
+            }
+        }
+
         if (sectionMatch || (typeTagMatch && !isMetadataTag) || aiMarkerMatch || inlineTypeMatch) {
             if (currentSection && currentSection.startLine !== undefined) {
                 currentSection.endLine = i - 1;
@@ -373,7 +392,27 @@ function parseQuestions(lines: string[], sections: ParsedSection[]): void {
             if (inPassage) {
                 const questionMatch = line.match(PATTERNS.question);
                 const optionMatch = line.match(PATTERNS.optionLine);
-                if (questionMatch || optionMatch) {
+
+                // False-positive filter: inside a passage, reject matches that are
+                // actually time/numeric patterns (e.g. "9:00 a.m.", "5:30 p.m.")
+                // not real questions. A bare-number match where the "text" starts
+                // with digits (like "00 a.m.") is a time, not a question.
+                let isRealQuestion = false;
+                if (questionMatch) {
+                    const hasPrefix = !!questionMatch[1]; // "Question N" / "Câu N" form
+                    const bareText = (questionMatch[2] || questionMatch[4] || '').trim();
+                    if (hasPrefix) {
+                        // Prefixed questions (Question 1, Câu 1) are always real
+                        isRealQuestion = true;
+                    } else {
+                        // Bare number match (e.g. "9:00") — reject if text starts with
+                        // digits (time pattern) or is a time-like format
+                        isRealQuestion = !/^\d/.test(bareText);
+                    }
+                }
+                const isRealOption = optionMatch && /^[A-H][.):\s]/.test(line);
+
+                if (isRealQuestion || isRealOption) {
                     // End of passage — fall through to question processing
                     inPassage = false;
                 } else {
