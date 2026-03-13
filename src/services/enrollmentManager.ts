@@ -82,10 +82,12 @@ export async function linkCourseToClass(
         const modules = await getModulesByCourse(originalCourseId);
 
         for (const module of modules) {
-            // Create Module Copy
+            // Create Module Copy with lineage tracking
             const newModuleResult = await createModule(courseCopyId, {
                 name: module.name,
-                accessType: module.accessType
+                accessType: module.accessType,
+                originalModuleId: module.id,   // Track which original module this was copied from
+                lastSyncedAt: now(),            // Mark as synced at creation time
             });
 
             if (newModuleResult.success && newModuleResult.moduleId) {
@@ -94,12 +96,8 @@ export async function linkCourseToClass(
                 // Fetch materials for this module
                 const materials = await getMaterialsByModule(module.id);
 
-                // Link materials to new module
+                // Link materials to new module (linkedAt is set automatically by linkMaterialToModule)
                 for (const materialLink of materials) {
-                    // We link to the SAME material ID (shared content) 
-                    // or if it was a copy, we link to that COPY (which effectively shares it between the Original Course and Class Course)
-                    // If we wanted true isolation of CONTENT, we would re-copy the material. 
-                    // Assuming shared content for now as per "Link" terminology.
                     await linkMaterialToModule(courseCopyId, newModuleId, materialLink.materialId);
                 }
             }

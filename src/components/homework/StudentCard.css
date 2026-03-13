@@ -1,0 +1,139 @@
+/* StudentCard.css — Student drill-down card (PRD-0035 Task 4.1) */
+
+/* ─── Base Card ───────────────────────────────────────────────────────────── */
+
+.student-card {
+  position: relative;
+  cursor: pointer;
+  padding: 1rem 1.1rem;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  transition:
+    transform 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.22s ease;
+}
+
+.student-card:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 6px 24px rgba(99, 102, 241, 0.1),
+    0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.student-card:active {
+  transform: translateY(0);
+}
+
+/* Overdue pulse — reuses pulseGlow from TargetCard.css */
+.student-card--overdue {
+  border: 1.5px solid rgba(239, 68, 68, 0.4);
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
+/* ─── Avatar ──────────────────────────────────────────────────────────────── */
+
+.student-card__avatar {
+  position: relative;
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #fff;
+  text-transform: uppercase;
+  user-select: none;
+}
+
+/* ─── Progress Ring (SVG overlay on avatar) ───────────────────────────────── */
+
+.student-card__progress-ring {
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  width: 54px;
+  height: 54px;
+  transform: rotate(-90deg);
+}
+
+.student-card__progress-ring-bg {
+  fill: none;
+  stroke: rgba(148, 163, 184, 0.15);
+  stroke-width: 3;
+}
+
+.student-card__progress-ring-fill {
+  fill: none;
+  stroke: #22c55e;
+  stroke-width: 3;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.student-card--overdue .student-card__progress-ring-fill {
+  stroke: #ef4444;
+}
+
+/* ─── Body ────────────────────────────────────────────────────────────────── */
+
+.student-card__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.student-card__name {
+  font-weight: 650;
+  font-size: 0.9rem;
+  color: var(--text-primary, #1e293b);
+  margin-bottom: 0.25rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.student-card__stats {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary, #64748b);
+  margin-bottom: 0.2rem;
+}
+
+.student-card__stat-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.student-card__stat-item--danger {
+  color: #ef4444;
+}
+
+.student-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.7rem;
+  color: var(--text-tertiary, #94a3b8);
+}
+
+.student-card__meta-separator {
+  color: rgba(148, 163, 184, 0.4);
+  font-size: 0.55rem;
+}
+
+/* ─── Dark Mode ───────────────────────────────────────────────────────────── */
+
+[data-theme="dark"] .student-card__name {
+  color: #f1f5f9;
+}
+
+[data-theme="dark"] .student-card__progress-ring-bg {
+  stroke: rgba(148, 163, 184, 0.1);
+}

@@ -23,6 +23,7 @@ export async function linkMaterialToModule(
         moduleId,
         materialId,
         order: Date.now(), // Default order
+        linkedAt: Date.now(),
         isCopy: false,
     };
 
@@ -145,9 +146,10 @@ export async function getMaterialsByCourse(courseId: string): Promise<GroupedMat
 }
 
 /**
- * Synchronize a copied material with its original version
+ * Synchronize a copied material's CONTENT with its original version
+ * (Updates test questions/answers, not course structure)
  */
-export async function syncMaterialWithOriginal(linkId: string): Promise<CourseMaterial> {
+export async function syncMaterialContentWithOriginal(linkId: string): Promise<CourseMaterial> {
     // 1. Get the link record
     const linkRef = ref(database, `${COURSE_MATERIALS_REF}/${linkId}`);
     const linkSnapshot = await get(linkRef);

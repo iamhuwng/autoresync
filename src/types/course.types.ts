@@ -77,6 +77,9 @@ export interface Module {
     order: number;
     accessType: ModuleAccessType;
     materialsCount?: number;
+    // Sync tracking fields (set when module is a copy created by linkCourseToClass)
+    originalModuleId?: string;  // ID of the source module in the original course template
+    lastSyncedAt?: number;      // Timestamp of last sync check or dismiss
     // Optional: Completion criteria, etc.
 }
 
@@ -88,6 +91,7 @@ export interface CourseMaterial {
     materialId: string; // ID of the test/quiz
 
     order: number;
+    linkedAt?: number; // When this material was linked to the module
 
     // Linking logic
     isCopy: boolean; // true if it's a deep copy, false if linked

@@ -23,3 +23,5 @@ export { default as AtRiskStudentList } from './AtRiskStudentList';
 export * from './HomeworkIcons';
 export { TargetCard } from './TargetCard';
 export { TargetGrid } from './TargetGrid';
+export { StudentCard } from './StudentCard';
+export { StudentGrid } from './StudentGrid';

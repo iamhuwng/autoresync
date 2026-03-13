@@ -30,7 +30,7 @@ import { MaterialSelectorModal } from './MaterialSelectorModal';
 import { PracticeSettingsModal } from '../PracticeSettingsModal';
 // @ts-ignore - JS service
 import queryOptimizer, { CacheTypes } from '../../services/firebaseQueryOptimizer';
-import { getMaterialsByCourse, syncMaterialWithOriginal, unmountMaterialFromModule, reorderMaterials } from '../../services/materialLinkManager';
+import { getMaterialsByCourse, syncMaterialContentWithOriginal, unmountMaterialFromModule, reorderMaterials } from '../../services/materialLinkManager';
 
 const addButtonStyles = {
     root: {
@@ -154,7 +154,7 @@ export const ModuleList = ({ courseId, classId, onStartSession }: ModuleListProp
 
     const handleSyncMaterial = async (linkId: string) => {
         try {
-            await syncMaterialWithOriginal(linkId);
+            await syncMaterialContentWithOriginal(linkId);
             notifications.show({ color: 'green', message: 'Material synced successfully' });
             loadModules(); // Refresh to update timestamp and content
         } catch (error) {

@@ -1,0 +1,192 @@
+/* StudentGrid.css — Student drill-down grid (PRD-0035 Task 4.3) */
+
+/* ─── Breadcrumb Bar ──────────────────────────────────────────────────────── */
+
+.student-grid__breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: #64748b;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.student-grid__back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(99, 102, 241, 0.08);
+  color: #6366f1;
+  cursor: pointer;
+  transition: background 0.18s ease, transform 0.18s ease;
+  flex-shrink: 0;
+}
+
+.student-grid__back:hover {
+  background: rgba(99, 102, 241, 0.15);
+  transform: scale(1.08);
+}
+
+.student-grid__breadcrumb-link {
+  cursor: pointer;
+  color: #6366f1;
+  font-weight: 500;
+  transition: color 0.15s ease;
+}
+
+.student-grid__breadcrumb-link:hover {
+  color: #4f46e5;
+  text-decoration: underline;
+}
+
+.student-grid__breadcrumb-current {
+  font-weight: 600;
+  color: var(--text-primary, #1e293b);
+}
+
+.student-grid__breadcrumb-separator {
+  color: rgba(148, 163, 184, 0.5);
+  display: inline-flex;
+}
+
+.student-grid__refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(148, 163, 184, 0.08);
+  color: #64748b;
+  cursor: pointer;
+  margin-left: auto;
+  transition: background 0.18s ease, transform 0.25s ease;
+}
+
+.student-grid__refresh:hover {
+  background: rgba(148, 163, 184, 0.18);
+  color: #6366f1;
+  transform: rotate(90deg);
+}
+
+/* ─── Grid Layout (same as TargetGrid) ────────────────────────────────────── */
+
+.student-grid__cards {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 768px) {
+  .student-grid__cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .student-grid__cards {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* Staggered entry */
+.student-grid__cards > * {
+  animation: targetSlideUp 0.45s ease-out backwards;
+  animation-delay: calc(var(--index, 0) * 0.04s);
+}
+
+/* ─── Skeleton Cards ──────────────────────────────────────────────────────── */
+
+.student-card--skeleton {
+  padding: 1rem 1.1rem;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  pointer-events: none;
+}
+
+.student-card--skeleton .skeleton-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(148, 163, 184, 0.12);
+  animation: shimmer 1.4s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+.student-card--skeleton .skeleton-line {
+  height: 10px;
+  border-radius: 5px;
+  background: rgba(148, 163, 184, 0.12);
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+.student-card--skeleton .skeleton-line--name {
+  width: 65%;
+  height: 13px;
+  margin-bottom: 0.35rem;
+}
+
+.student-card--skeleton .skeleton-line--stats {
+  width: 80%;
+  margin-bottom: 0.25rem;
+}
+
+.student-card--skeleton .skeleton-line--meta {
+  width: 50%;
+}
+
+@keyframes shimmer {
+  0%, 100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* ─── Empty State ─────────────────────────────────────────────────────────── */
+
+.student-grid__empty {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 3rem 1.5rem;
+  min-height: 200px;
+}
+
+.student-grid__empty-icon {
+  color: rgba(148, 163, 184, 0.45);
+  margin-bottom: 0.8rem;
+}
+
+.student-grid__empty-text {
+  font-size: 0.9rem;
+  color: var(--text-secondary, #64748b);
+  margin: 0;
+}
+
+/* ─── Dark Mode ───────────────────────────────────────────────────────────── */
+
+[data-theme="dark"] .student-grid__breadcrumb-current {
+  color: #f1f5f9;
+}
+
+[data-theme="dark"] .student-grid__back {
+  background: rgba(99, 102, 241, 0.12);
+}
+
+[data-theme="dark"] .student-card--skeleton .skeleton-avatar,
+[data-theme="dark"] .student-card--skeleton .skeleton-line {
+  background: rgba(148, 163, 184, 0.08);
+}
