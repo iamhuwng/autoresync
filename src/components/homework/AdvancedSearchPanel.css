@@ -1,0 +1,158 @@
+/* AdvancedSearchPanel.css — Collapsible filter panel (PRD-0035 Task 5.5) */
+
+/* ─── Toggle Button ───────────────────────────────────────────────────────── */
+
+.adv-search-panel__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 8px;
+  background: none;
+  color: var(--text-secondary, #64748b);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.adv-search-panel__toggle:hover {
+  border-color: rgba(99, 102, 241, 0.3);
+  color: #6366f1;
+}
+
+/* Active state: accent highlight (FR-39) */
+.adv-search-panel__toggle--active {
+  background: rgba(99, 102, 241, 0.08);
+  border-color: rgba(99, 102, 241, 0.3);
+  color: #6366f1;
+}
+
+/* ─── Expandable Panel ────────────────────────────────────────────────────── */
+
+.adv-search-panel {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition:
+    max-height 0.3s ease-out,
+    opacity 0.3s ease-out;
+}
+
+.adv-search-panel--open {
+  max-height: 500px;
+  opacity: 1;
+}
+
+/* ─── Panel Content ───────────────────────────────────────────────────────── */
+
+.adv-search-panel__content {
+  padding: 0.75rem 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+/* ─── Filter Group ────────────────────────────────────────────────────────── */
+
+.adv-search-panel__group {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.adv-search-panel__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-right: 0.1rem;
+}
+
+/* Status filter buttons */
+.adv-search-panel__status-btn {
+  padding: 0.3rem 0.6rem;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 6px;
+  background: none;
+  color: var(--text-secondary, #64748b);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.adv-search-panel__status-btn:hover {
+  border-color: rgba(99, 102, 241, 0.3);
+  color: #6366f1;
+}
+
+.adv-search-panel__status-btn--active {
+  background: #6366f1;
+  border-color: #6366f1;
+  color: #fff;
+}
+
+/* Sort select */
+.adv-search-panel__select {
+  padding: 0.3rem 0.5rem;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--text-primary, #1e293b);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+/* Toggle buttons (show closed, archived, bulk) */
+.adv-search-panel__toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 6px;
+  background: none;
+  color: var(--text-secondary, #64748b);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.adv-search-panel__toggle-btn:hover {
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+.adv-search-panel__toggle-btn--active {
+  background: rgba(99, 102, 241, 0.08);
+  border-color: rgba(99, 102, 241, 0.3);
+  color: #6366f1;
+}
+
+/* ─── Separator ───────────────────────────────────────────────────────────── */
+
+.adv-search-panel__divider {
+  width: 1px;
+  height: 24px;
+  background: rgba(148, 163, 184, 0.2);
+}
+
+/* ─── Dark Mode ───────────────────────────────────────────────────────────── */
+
+[data-theme="dark"] .adv-search-panel__select {
+  background: #1e293b;
+  border-color: rgba(148, 163, 184, 0.15);
+  color: #e2e8f0;
+}
+
+[data-theme="dark"] .adv-search-panel__status-btn {
+  border-color: rgba(148, 163, 184, 0.1);
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .adv-search-panel__toggle-btn {
+  border-color: rgba(148, 163, 184, 0.1);
+  color: #94a3b8;
+}

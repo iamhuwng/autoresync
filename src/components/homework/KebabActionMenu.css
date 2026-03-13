@@ -1,0 +1,115 @@
+/* KebabActionMenu.css — Dropdown action menu (PRD-0035 Task 5.1) */
+
+/* ─── Container ───────────────────────────────────────────────────────────── */
+
+.kebab-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+/* ─── Trigger Button ──────────────────────────────────────────────────────── */
+
+.kebab-menu__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  color: var(--text-secondary, #64748b);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.kebab-menu__trigger:hover {
+  background: rgba(99, 102, 241, 0.08);
+  color: #6366f1;
+}
+
+/* ─── Dropdown ────────────────────────────────────────────────────────────── */
+
+.kebab-menu__dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  min-width: 200px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  z-index: 100;
+  padding: 0.35rem 0;
+  animation: dropdownFadeIn 0.18s ease-out;
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ─── Menu Items ──────────────────────────────────────────────────────────── */
+
+.kebab-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 10px 16px;
+  border: none;
+  background: none;
+  font-size: 0.85rem;
+  color: var(--text-primary, #1e293b);
+  cursor: pointer;
+  transition: background 0.12s ease;
+  text-align: left;
+}
+
+.kebab-menu__item:hover {
+  background: rgba(99, 102, 241, 0.06);
+}
+
+.kebab-menu__item--danger {
+  color: #ef4444;
+}
+
+.kebab-menu__item--danger:hover {
+  background: rgba(239, 68, 68, 0.06);
+}
+
+.kebab-menu__item-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--text-secondary, #64748b);
+}
+
+.kebab-menu__item--danger .kebab-menu__item-icon {
+  color: #ef4444;
+}
+
+.kebab-menu__separator {
+  height: 1px;
+  background: rgba(148, 163, 184, 0.15);
+  margin: 0.25rem 0;
+}
+
+/* ─── Dark Mode ───────────────────────────────────────────────────────────── */
+
+[data-theme="dark"] .kebab-menu__dropdown {
+  background: #1e293b;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="dark"] .kebab-menu__item {
+  color: #e2e8f0;
+}
+
+[data-theme="dark"] .kebab-menu__item:hover {
+  background: rgba(99, 102, 241, 0.1);
+}

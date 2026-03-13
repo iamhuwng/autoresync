@@ -1,0 +1,165 @@
+/* CompactHomeworkCard.css — Horizontal homework card for modal (PRD-0035 Task 5.3) */
+
+/* ─── Base Card ───────────────────────────────────────────────────────────── */
+
+.compact-hw-card {
+  display: flex;
+  align-items: stretch;
+  min-height: 72px;
+  max-height: 88px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  cursor: pointer;
+  overflow: hidden;
+  transition: box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.compact-hw-card:hover {
+  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.08);
+  border-color: rgba(99, 102, 241, 0.2);
+}
+
+/* ─── Left Status Border (4px) ────────────────────────────────────────────── */
+
+.compact-hw-card__status-border {
+  width: 4px;
+  flex-shrink: 0;
+  border-radius: 10px 0 0 10px;
+}
+
+.compact-hw-card__status-border--active {
+  background: #14b8a6;
+}
+
+.compact-hw-card__status-border--scheduled {
+  background: #8b5cf6;
+}
+
+.compact-hw-card__status-border--past_due {
+  background: #ef4444;
+}
+
+.compact-hw-card__status-border--draft {
+  background: #94a3b8;
+}
+
+.compact-hw-card__status-border--closed {
+  background: #1e293b;
+}
+
+/* ─── Content Area ────────────────────────────────────────────────────────── */
+
+.compact-hw-card__content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0.55rem 0.75rem;
+  min-width: 0;
+  gap: 0.2rem;
+}
+
+/* Row 1: Title + badge + target */
+.compact-hw-card__row1 {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.compact-hw-card__title-icon {
+  display: inline-flex;
+  color: var(--text-secondary, #64748b);
+  flex-shrink: 0;
+}
+
+.compact-hw-card__title {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text-primary, #1e293b);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+.compact-hw-card__target {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.72rem;
+  color: var(--text-secondary, #64748b);
+  flex-shrink: 0;
+  max-width: 120px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Row 2: Due date + timer + attempts */
+.compact-hw-card__row2 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.72rem;
+  color: var(--text-secondary, #64748b);
+}
+
+.compact-hw-card__detail {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.compact-hw-card__detail--overdue {
+  color: #ef4444;
+}
+
+/* Row 3: Progress + submitted count + avg score */
+.compact-hw-card__row3 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.72rem;
+  color: var(--text-secondary, #64748b);
+}
+
+.compact-hw-card__inline-progress {
+  flex: 0 0 60px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(148, 163, 184, 0.15);
+  overflow: hidden;
+}
+
+.compact-hw-card__inline-progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: #22c55e;
+  transition: width 0.4s ease;
+}
+
+/* ─── Kebab Area ──────────────────────────────────────────────────────────── */
+
+.compact-hw-card__kebab {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 0.3rem;
+}
+
+/* ─── Dark Mode ───────────────────────────────────────────────────────────── */
+
+[data-theme="dark"] .compact-hw-card {
+  background: rgba(30, 41, 59, 0.85);
+  border-color: rgba(148, 163, 184, 0.08);
+}
+
+[data-theme="dark"] .compact-hw-card__title {
+  color: #f1f5f9;
+}
+
+[data-theme="dark"] .compact-hw-card__status-border--closed {
+  background: #94a3b8;
+}

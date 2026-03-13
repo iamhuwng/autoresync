@@ -1,0 +1,214 @@
+/* HomeworkListModal.css — Student homework modal (PRD-0035 Task 5.7) */
+
+/* ─── Overlay ─────────────────────────────────────────────────────────────── */
+
+.hw-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  animation: hwOverlayFadeIn 0.2s ease-out;
+}
+
+@keyframes hwOverlayFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ─── Modal Container ─────────────────────────────────────────────────────── */
+
+.hw-modal {
+  width: min(80vw, 960px);
+  max-height: 80vh;
+  background: #fff;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: modalSlideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes modalSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ─── Header ──────────────────────────────────────────────────────────────── */
+
+.hw-modal__header {
+  position: sticky;
+  top: 0;
+  padding: 1.25rem 1.5rem 1rem;
+  border-bottom: 1px solid #e2e8f0;
+  z-index: 2;
+  background: #fff;
+}
+
+.hw-modal__header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.hw-modal__title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary, #1e293b);
+  margin: 0;
+}
+
+.hw-modal__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: rgba(148, 163, 184, 0.08);
+  border-radius: 8px;
+  color: var(--text-secondary, #64748b);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.hw-modal__close:hover {
+  background: rgba(239, 68, 68, 0.08);
+  color: #ef4444;
+}
+
+.hw-modal__search {
+  width: 100%;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 8px;
+  font-size: 0.85rem;
+  color: var(--text-primary, #1e293b);
+  background: rgba(248, 250, 252, 0.8);
+  transition: border-color 0.15s ease;
+  outline: none;
+}
+
+.hw-modal__search:focus {
+  border-color: rgba(99, 102, 241, 0.4);
+}
+
+.hw-modal__search::placeholder {
+  color: #94a3b8;
+}
+
+.hw-modal__filter-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+/* ─── Body ────────────────────────────────────────────────────────────────── */
+
+.hw-modal__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem 1.5rem;
+}
+
+.hw-modal__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+/* ─── Load More ───────────────────────────────────────────────────────────── */
+
+.hw-modal__load-more {
+  display: flex;
+  justify-content: center;
+  padding: 0.75rem 0;
+}
+
+.hw-modal__load-more-btn {
+  padding: 0.45rem 1.2rem;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: 8px;
+  background: none;
+  color: #6366f1;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.hw-modal__load-more-btn:hover {
+  background: rgba(99, 102, 241, 0.06);
+  border-color: rgba(99, 102, 241, 0.4);
+}
+
+/* ─── Empty State ─────────────────────────────────────────────────────────── */
+
+.hw-modal__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 3rem 1.5rem;
+  min-height: 200px;
+}
+
+.hw-modal__empty-icon {
+  color: rgba(148, 163, 184, 0.45);
+  margin-bottom: 0.8rem;
+}
+
+.hw-modal__empty-text {
+  font-size: 0.9rem;
+  color: var(--text-secondary, #64748b);
+  margin: 0;
+}
+
+/* ─── Responsive (Mobile) ─────────────────────────────────────────────────── */
+
+@media (max-width: 767px) {
+  .hw-modal {
+    width: 95vw;
+    max-height: 90vh;
+    border-radius: 12px;
+  }
+
+  .hw-modal__header {
+    padding: 1rem;
+  }
+
+  .hw-modal__body {
+    padding: 0.75rem;
+  }
+}
+
+/* ─── Dark Mode ───────────────────────────────────────────────────────────── */
+
+[data-theme="dark"] .hw-modal {
+  background: #0f172a;
+}
+
+[data-theme="dark"] .hw-modal__header {
+  background: #0f172a;
+  border-bottom-color: rgba(148, 163, 184, 0.1);
+}
+
+[data-theme="dark"] .hw-modal__title {
+  color: #f1f5f9;
+}
+
+[data-theme="dark"] .hw-modal__search {
+  background: rgba(30, 41, 59, 0.8);
+  border-color: rgba(148, 163, 184, 0.15);
+  color: #e2e8f0;
+}

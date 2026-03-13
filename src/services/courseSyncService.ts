@@ -14,7 +14,7 @@ import { ref, get, update } from 'firebase/database';
 import { database } from './firebase';
 import { getCourse, getModulesByCourse, createModule, updateModule } from './courseManager';
 import { getMaterialsByModule, linkMaterialToModule } from './materialLinkManager';
-import type { Module, CourseMaterial, ClassCourseLink } from '../types/course.types';
+import type { Module, ClassCourseLink } from '../types/course.types';
 
 // ============================================================================
 // TYPES

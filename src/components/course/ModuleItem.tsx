@@ -6,6 +6,8 @@ import { CSS } from '@dnd-kit/utilities';
 import { Card, Group, Text, ActionIcon, Badge, TextInput, Tooltip, Collapse, Stack, Button } from '@mantine/core';
 import { IconGripVertical, IconEdit, IconTrash, IconBook, IconCheck, IconPlus, IconChevronRight, IconRefresh, IconAlertTriangle, IconPlayerPlay, IconSettings } from '@tabler/icons-react';
 import type { Module, CourseMaterial } from '../../types/course.types';
+import type { ModuleSyncStatus } from '../../services/courseSyncService';
+import { ModuleSyncBanner } from './ModuleSyncBanner';
 
 export interface ExtendedMaterial extends CourseMaterial {
     title: string;
@@ -38,6 +40,9 @@ interface ModuleItemProps {
     module: Module;
     materials?: ExtendedMaterial[];
     isCompleted?: boolean;
+    syncStatus?: ModuleSyncStatus;      // Pending sync updates for this module
+    copyCourseId?: string;               // Class-instance course ID (for sync operations)
+    onSyncComplete?: () => void;         // Callback when sync apply/dismiss completes
     onMarkComplete?: () => void;
     onAddMaterial?: () => void;
     onSyncMaterial?: (linkId: string) => Promise<void>;
@@ -136,6 +141,9 @@ export const ModuleItem = ({
     module,
     materials = [],
     isCompleted,
+    syncStatus,
+    copyCourseId,
+    onSyncComplete,
     onMarkComplete,
     onAddMaterial,
     onSyncMaterial,
@@ -254,6 +262,12 @@ export const ModuleItem = ({
                                     <Text size="11px">{module.materialsCount || 0} materials</Text>
                                 </Group>
 
+                                {syncStatus && syncStatus.pendingMaterials.length > 0 && (
+                                    <Badge size="xs" color="blue" variant="dot">
+                                        {syncStatus.pendingMaterials.length} update{syncStatus.pendingMaterials.length !== 1 ? 's' : ''}
+                                    </Badge>
+                                )}
+
                                 {isCompleted && (
                                     <Badge color="green" variant="light" size="xs" leftSection={<IconCheck size={10} />}>
                                         Done
@@ -313,6 +327,16 @@ export const ModuleItem = ({
             </Group>
 
             <Collapse in={isOpen}>
+                {/* Sync Banner (inside collapsed content) */}
+                {syncStatus && copyCourseId && onSyncComplete && syncStatus.pendingMaterials.length > 0 && (
+                    <div style={{ padding: '8px 0 4px 26px' }}>
+                        <ModuleSyncBanner
+                            copyCourseId={copyCourseId}
+                            syncStatus={syncStatus}
+                            onSyncComplete={onSyncComplete}
+                        />
+                    </div>
+                )}
                 <DndContext
                     id={`dnd-module-${module.id}`}
                     sensors={sensors}

@@ -25,3 +25,7 @@ export { TargetCard } from './TargetCard';
 export { TargetGrid } from './TargetGrid';
 export { StudentCard } from './StudentCard';
 export { StudentGrid } from './StudentGrid';
+export { KebabActionMenu } from './KebabActionMenu';
+export { CompactHomeworkCard } from './CompactHomeworkCard';
+export { AdvancedSearchPanel } from './AdvancedSearchPanel';
+export { HomeworkListModal } from './HomeworkListModal';

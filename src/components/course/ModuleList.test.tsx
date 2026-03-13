@@ -8,7 +8,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { ModuleList } from './ModuleList';
 import { getModulesByCourse, deleteModule, reorderModules } from '../../services/courseManager';
 import { getClass, updateModuleProgress } from '../../services/classManager';
-import { getMaterialsByCourse, syncMaterialWithOriginal, reorderMaterials } from '../../services/materialLinkManager';
+import { getMaterialsByCourse, syncMaterialContentWithOriginal, reorderMaterials } from '../../services/materialLinkManager';
 // @ts-ignore
 import queryOptimizer from '../../services/firebaseQueryOptimizer';
 
@@ -31,9 +31,13 @@ vi.mock('../../services/materialLinkManager', () => ({
     getMaterialsByCourse: vi.fn(),
     linkMaterialToModule: vi.fn(),
     copyMaterialToModule: vi.fn(),
-    syncMaterialWithOriginal: vi.fn(),
+    syncMaterialContentWithOriginal: vi.fn(),
     unmountMaterialFromModule: vi.fn(),
     reorderMaterials: vi.fn()
+}));
+
+vi.mock('../../services/courseSyncService', () => ({
+    detectSyncUpdates: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock('../../services/firebaseQueryOptimizer', () => ({

@@ -91,7 +91,7 @@ describe('materialLinkManager', () => {
 
     it('synchronizes copied material with original correctly', async () => {
         const { get, set } = await import('firebase/database');
-        const { syncMaterialWithOriginal } = await import('./materialLinkManager');
+        const { syncMaterialContentWithOriginal } = await import('./materialLinkManager');
 
         const mockLink = {
             id: 'link-123',
@@ -129,7 +129,7 @@ describe('materialLinkManager', () => {
 
         (set as any).mockResolvedValue(true);
 
-        const result = await syncMaterialWithOriginal('link-123');
+        const result = await syncMaterialContentWithOriginal('link-123');
 
         expect(result.syncedAt).toBeDefined();
         // Verify set was called for both the test update and the junction update

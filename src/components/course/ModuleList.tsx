@@ -28,6 +28,9 @@ import { ModuleItem, ExtendedMaterial } from './ModuleItem';
 import { ModuleEditor } from './ModuleEditor'; // Modal for editing
 import { MaterialSelectorModal } from './MaterialSelectorModal';
 import { PracticeSettingsModal } from '../PracticeSettingsModal';
+import { NewModuleSyncBanner } from './NewModuleSyncBanner';
+import { detectSyncUpdates } from '../../services/courseSyncService';
+import type { CourseSyncStatus } from '../../services/courseSyncService';
 // @ts-ignore - JS service
 import queryOptimizer, { CacheTypes } from '../../services/firebaseQueryOptimizer';
 import { getMaterialsByCourse, syncMaterialContentWithOriginal, unmountMaterialFromModule, reorderMaterials } from '../../services/materialLinkManager';
@@ -57,6 +60,7 @@ export const ModuleList = ({ courseId, classId, onStartSession }: ModuleListProp
     const [moduleProgress, setModuleProgress] = useState<Record<string, ModuleProgress>>({});
     const [moduleMaterials, setModuleMaterials] = useState<Record<string, ExtendedMaterial[]>>({});
     const [loading, setLoading] = useState(true);
+    const [syncStatus, setSyncStatus] = useState<CourseSyncStatus | null>(null);
     const [isEditorOpen, setIsEditorOpen] = useState(false);
     const [editingModule, setEditingModule] = useState<Module | undefined>(undefined);
 
@@ -112,6 +116,13 @@ export const ModuleList = ({ courseId, classId, onStartSession }: ModuleListProp
                 }));
             }
             setModuleMaterials(resolvedMaterials);
+
+            // Detect sync updates (non-blocking, runs after materials load)
+            detectSyncUpdates(courseId).then(status => {
+                setSyncStatus(status);
+            }).catch(err => {
+                console.error('Sync detection failed:', err);
+            });
         } catch (error) {
             console.error(error);
             notifications.show({ color: 'red', message: 'Failed to load modules' });
@@ -249,6 +260,15 @@ export const ModuleList = ({ courseId, classId, onStartSession }: ModuleListProp
             {modules.length === 0 ? (
                 <Text c="dimmed" ta="center" py="lg" size="sm">No modules yet. Add your first one to get started.</Text>
             ) : (
+                <>
+                {/* New Modules Sync Banner */}
+                {syncStatus?.newModules && syncStatus.newModules.length > 0 && (
+                    <NewModuleSyncBanner
+                        copyCourseId={courseId}
+                        newModules={syncStatus.newModules}
+                        onSyncComplete={loadModules}
+                    />
+                )}
                 <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}
@@ -265,6 +285,9 @@ export const ModuleList = ({ courseId, classId, onStartSession }: ModuleListProp
                                     module={module}
                                     materials={moduleMaterials[module.id] || []}
                                     isCompleted={moduleProgress[module.id]?.status === 'completed'}
+                                    syncStatus={syncStatus?.moduleUpdates.find(u => u.copyModuleId === module.id)}
+                                    copyCourseId={courseId}
+                                    onSyncComplete={loadModules}
                                     onMarkComplete={() => handleMarkComplete(module.id)}
                                     onAddMaterial={() => {
                                         setTargetModuleId(module.id);
@@ -293,6 +316,7 @@ export const ModuleList = ({ courseId, classId, onStartSession }: ModuleListProp
                         </Stack>
                     </SortableContext>
                 </DndContext>
+                </>
             )}
 
             <ModuleEditor
