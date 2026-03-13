@@ -1,10 +1,11 @@
+import type { ReactNode } from 'react';
 import { Button } from './Button';
 import './VanillaTabs.css';
 
 export interface VanillaTabDefinition {
   key: string;
   label: string;
-  icon?: string;
+  icon?: string | ReactNode;
 }
 
 export interface VanillaTabsProps {
@@ -37,7 +38,7 @@ export function VanillaTabs({
               className={`vanilla-tabs__button ${isActive ? 'vanilla-tabs__button--active' : ''}`.trim()}
             >
               <span className="vanilla-tabs__label">
-                {tab.icon ? `${tab.icon} ` : ''}
+                {typeof tab.icon === 'string' ? tab.icon + ' ' : tab.icon ? <span style={{ marginRight: '0.35rem', display: 'inline-flex', verticalAlign: 'middle' }}>{tab.icon}</span> : null}
                 {tab.label}
               </span>
             </Button>
