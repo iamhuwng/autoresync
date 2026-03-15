@@ -249,8 +249,8 @@
   - [x] 5.4 Integrate into `src/components/homework/HomeworkCreateModal.tsx` in the config step. Find the config section (approximately around line 616 where existing config fields like timer and attempts are rendered). Add `<AntiCheatConfigSection config={antiCheatConfig} onChange={setAntiCheatConfig} />` below the existing config fields. Initialize state: `const [antiCheatConfig, setAntiCheatConfig] = useState<AntiCheatConfig>(() => ({ ...resolvePreset('standard'), ...getContextDefaults('homework') }))`. Pass `antiCheatConfig` to the create function when the form is submitted.
   - [x] 5.5 Update the homework creation service call: find where the homework document is written to Firestore (in `homeworkManager.ts` or the function called from `HomeworkCreateModal`). Add `antiCheatConfig` to the document data. Use the undefined-sanitization pattern: `...(antiCheatConfig ? { antiCheatConfig } : {})`. This prevents writing `undefined` to Firestore (which throws).
 
-- [ ] 6.0 Integrate `useTestIntegrity` into all student test surfaces
-  - [ ] 6.1 Integrate into `src/pages/StudentTestPage.tsx`:
+- [x] 6.0 Integrate `useTestIntegrity` into all student test surfaces
+  - [x] 6.1 Integrate into `src/pages/StudentTestPage.tsx`:
     - Import `useTestIntegrity` from `../../hooks/test/useTestIntegrity`.
     - Import `useAntiCopyPaste` from `../../hooks/test/useAntiCopyPaste`.
     - Import `{ toast }` from `../../components/modern/ToastNotification`.
@@ -262,14 +262,14 @@
     - Add a `useEffect` to watch `shouldAutoSubmit`: when it becomes true, call the existing submission function with force-submit flag, then call `flushEvents()`.
     - Before the existing submission logic, add `await flushEvents()` to ensure all events are written.
     - For IELTS Writing tests (FR-16): add `data-allow-paste` attribute to the essay editor's container element.
-  - [ ] 6.2 Integrate into `src/components/practice/THCSPracticeView.tsx`:
+  - [x] 6.2 Integrate into `src/components/practice/THCSPracticeView.tsx`:
     - Only activate if the practice view is in homework context. Check for the presence of a `homeworkId` prop or a `homework` data prop. If either exists, read `antiCheatConfig` from the homework document data.
     - Call `useTestIntegrity({ config: homework?.antiCheatConfig || null, context: 'homework', studentId: currentUser.uid, testId: homework?.materialId || '' })`. Note: do NOT pass `sessionCode` — this is homework, not a session.
     - Wrap test content in `<div ref={containerRef}>` and call `useAntiCopyPaste`.
     - Add `useBeforeUnloadWarning` import from `../../hooks/test/useBeforeUnloadWarning` and call it. Activate only when the student is actively working (not reviewing results).
     - Same warning toast/modal pattern as 6.1.
     - On submission, call `getIntegrityReport()` and pass the result to the homework submission function (Task 6.5).
-  - [ ] 6.3 Integrate into `src/pages/StudentQuizPageNew.jsx`:
+  - [x] 6.3 Integrate into `src/pages/StudentQuizPageNew.jsx`:
     - This file is `.jsx` (not TypeScript). Import hooks normally — TypeScript types are inferred at runtime. Do NOT rename the file.
     - Import: `import { useTestIntegrity } from '../hooks/test/useTestIntegrity'`
     - Import: `import { useAntiCopyPaste } from '../hooks/test/useAntiCopyPaste'`
@@ -277,15 +277,15 @@
     - Import: `import useBeforeUnloadWarning from '../hooks/test/useBeforeUnloadWarning'` (or named import, verify existing export style)
     - Activation pattern same as 6.1 but for quiz session data.
     - Call `useBeforeUnloadWarning()` when quiz is in-progress.
-  - [ ] 6.4 Update `src/hooks/test/useTestSubmission.ts`: find the main submission function. Add an optional `integrityReport?: IntegrityReport` parameter. When provided, include it in the RTDB write payload at the `integrity` sub-path of the player's node: `update(ref(database, \`game_sessions/${sessionCode}/players/${studentId}/integrity\`), integrityReport)`.
-  - [ ] 6.5 Update `src/services/homeworkSubmissionService.ts`: find the function that creates/updates a `HomeworkSubmission` document in Firestore. Add an optional `integrity?: HomeworkIntegrity` field to the submission data. When provided, include it in the Firestore document write. Use the sanitization pattern: `...(integrity ? { integrity } : {})`.
-  - [ ] 6.6 Handle auto-submit + nullify attempts: when `shouldAutoSubmit` is triggered on homework AND `config.nullifyRemainingAttempts === true`:
+  - [x] 6.4 Update `src/hooks/test/useTestSubmission.ts`: find the main submission function. Add an optional `integrityReport?: IntegrityReport` parameter. When provided, include it in the RTDB write payload at the `integrity` sub-path of the player's node: `update(ref(database, \`game_sessions/${sessionCode}/players/${studentId}/integrity\`), integrityReport)`.
+  - [x] 6.5 Update `src/services/homeworkSubmissionService.ts`: find the function that creates/updates a `HomeworkSubmission` document in Firestore. Add an optional `integrity?: HomeworkIntegrity` field to the submission data. When provided, include it in the Firestore document write. Use the sanitization pattern: `...(integrity ? { integrity } : {})`.
+  - [x] 6.6 Handle auto-submit + nullify attempts: when `shouldAutoSubmit` is triggered on homework AND `config.nullifyRemainingAttempts === true`:
     - After submitting the current attempt, update the student's homework status to prevent further attempts. Find how `attemptsRemaining` or max attempts is tracked (check `HomeworkSubmission.attemptNumber` vs `HomeworkConfig.maxAttempts` or `thcsConfig.maxAttempts`).
     - Set a flag or adjust the attempt tracking so the student sees "No remaining attempts" on their next visit.
     - The existing `resetStudentHomework` function in `src/services/homeworkSubmissionService.ts` (line 600) MUST remain functional as the teacher's ability to restore attempts (FR-45). Do NOT modify `resetStudentHomework` — it already handles resetting submission status.
 
-- [ ] 7.0 Add integrity badges and action buttons to Teacher Monitor student cards
-  - [ ] 7.1 Create `src/components/test/IntegrityBadge.tsx`. A small, reusable component:
+- [x] 7.0 Add integrity badges and action buttons to Teacher Monitor student cards
+  - [x] 7.1 Create `src/components/test/IntegrityBadge.tsx`. A small, reusable component:
     ```typescript
     interface IntegrityBadgeProps {
       violationCount: number;
@@ -299,15 +299,15 @@
     - `high` (3+): red dot + count: `<span>🚩 {violationCount}</span>` with `color: #ef4444`, `font-size: 0.75rem`.
     - Size should be compact: `display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 999px; font-weight: 600`.
     - If `onClick` is provided, render as a `<button>` with cursor pointer. Otherwise render as `<span>`.
-  - [ ] 7.2 Add `integrityData?: { violationCount: number, riskLevel: 'low' | 'medium' | 'high' }` prop to `src/components/test/StudentProgressCard.tsx`. Render the `IntegrityBadge` in the header section — find the status badge area (approximately line 250, look for the div that shows "Working" / "Completed" etc.) and place the badge next to it. Only render if `integrityData` is provided. Add `onForceSubmit?: () => void` and `onResetSubmit?: () => void` props — wire these to Task 7.5.
-  - [ ] 7.3 Add the same `integrityData` prop to `src/components/thcs-grading/THCSStudentProgressCard.tsx`. Render `IntegrityBadge` in the equivalent header position.
-  - [ ] 7.4 Add the same `integrityData` prop to `src/components/writing-monitor/WritingMonitorCard.tsx`. Render `IntegrityBadge` in the equivalent header position.
-  - [ ] 7.5 Add "Force Submit" and "Reset" action buttons to `src/components/test/StudentProgressCard.tsx`. These should appear as a row of small buttons below the stats grid and above the "Click to view details" hint. Show ONLY when the student's status is 'working' (test in-progress, not completed). Layout:
+  - [x] 7.2 Add `integrityData?: { violationCount: number, riskLevel: 'low' | 'medium' | 'high' }` prop to `src/components/test/StudentProgressCard.tsx`. Render the `IntegrityBadge` in the header section — find the status badge area (approximately line 250, look for the div that shows "Working" / "Completed" etc.) and place the badge next to it. Only render if `integrityData` is provided. Add `onForceSubmit?: () => void` and `onResetSubmit?: () => void` props — wire these to Task 7.5.
+  - [x] 7.3 Add the same `integrityData` prop to `src/components/thcs-grading/THCSStudentProgressCard.tsx`. Render `IntegrityBadge` in the equivalent header position.
+  - [x] 7.4 Add the same `integrityData` prop to `src/components/writing-monitor/WritingMonitorCard.tsx`. Render `IntegrityBadge` in the equivalent header position.
+  - [x] 7.5 Add "Force Submit" and "Reset" action buttons to `src/components/test/StudentProgressCard.tsx`. These should appear as a row of small buttons below the stats grid and above the "Click to view details" hint. Show ONLY when the student's status is 'working' (test in-progress, not completed). Layout:
     - "Force Submit" — red outline button: `{ border: '1px solid #ef4444', color: '#ef4444', background: 'transparent', fontSize: '0.75rem', padding: '4px 8px', borderRadius: '6px' }`. On click: `if (window.confirm('Force submit this student? Their current answers will be submitted.')) onForceSubmit?.()`.
     - "Reset" — gray outline button: `{ border: '1px solid #94a3b8', color: '#64748b', ... }`. On click: `if (window.confirm('Reset this student\\'s submission? They will be able to continue the test.')) onResetSubmit?.()`.
     - Use `window.confirm()` for confirmation — do NOT build a custom confirmation modal for this.
-  - [ ] 7.6 In `src/pages/TeacherTestMonitorPage.tsx`, read integrity data for each student. The existing page already subscribes to player data at `game_sessions/{sessionCode}/players/`. Integrity data will be at `game_sessions/{sessionCode}/players/{playerId}/integrity/` (written by the student's `useTestIntegrity` hook). Access it as `player.integrity?.violationCount` and compute `riskLevel` using `computeRiskLevel(player.integrity?.violationCount || 0, player.integrity?.forceSubmitted || false)`. Pass `integrityData={{ violationCount, riskLevel }}` to each `StudentProgressCard`.
-  - [ ] 7.7 Implement `handleForceSubmit(studentId: string)` in `src/pages/TeacherTestMonitorPage.tsx`:
+  - [x] 7.6 In `src/pages/TeacherTestMonitorPage.tsx`, read integrity data for each student. The existing page already subscribes to player data at `game_sessions/{sessionCode}/players/`. Integrity data will be at `game_sessions/{sessionCode}/players/{playerId}/integrity/` (written by the student's `useTestIntegrity` hook). Access it as `player.integrity?.violationCount` and compute `riskLevel` using `computeRiskLevel(player.integrity?.violationCount || 0, player.integrity?.forceSubmitted || false)`. Pass `integrityData={{ violationCount, riskLevel }}` to each `StudentProgressCard`.
+  - [x] 7.7 Implement `handleForceSubmit(studentId: string)` in `src/pages/TeacherTestMonitorPage.tsx`:
     ```typescript
     const handleForceSubmit = async (studentId: string) => {
       const sessionRef = ref(database, `game_sessions/${sessionCode}/players/${studentId}`);
@@ -319,7 +319,7 @@
     };
     ```
     Import `{ ref, update }` from `firebase/database` and `{ database }` from `../services/firebase` (or reuse existing imports). Pass `onForceSubmit={() => handleForceSubmit(playerId)}` to each student card.
-  - [ ] 7.8 Implement `handleResetSubmit(studentId: string)` in `src/pages/TeacherTestMonitorPage.tsx`:
+  - [x] 7.8 Implement `handleResetSubmit(studentId: string)` in `src/pages/TeacherTestMonitorPage.tsx`:
     ```typescript
     const handleResetSubmit = async (studentId: string) => {
       const sessionRef = ref(database, `game_sessions/${sessionCode}/players/${studentId}`);
@@ -331,10 +331,10 @@
     };
     ```
     Pass `onResetSubmit={() => handleResetSubmit(playerId)}` to each student card.
-  - [ ] 7.9 Add a "🔄 Refresh Logs" button to the teacher monitor page. Place it near existing controls (e.g., the pagination area or near the search input). Use `<Button variant="glass" size="sm" onClick={handleRefreshLogs}>🔄 Refresh Logs</Button>`. The handler simply forces a re-read by updating a `refreshKey` state: `const [refreshKey, setRefreshKey] = useState(0); const handleRefreshLogs = () => setRefreshKey(k => k + 1);`. If the existing RTDB subscription is via `onValue`, it already receives real-time updates — in that case, the Refresh button forces a `once('value')` read using `get(ref(database, \`game_sessions/${sessionCode}\`))` and updates the state.
+  - [x] 7.9 Add a "🔄 Refresh Logs" button to the teacher monitor page. Place it near existing controls (e.g., the pagination area or near the search input). Use `<Button variant="glass" size="sm" onClick={handleRefreshLogs}>🔄 Refresh Logs</Button>`. The handler simply forces a re-read by updating a `refreshKey` state: `const [refreshKey, setRefreshKey] = useState(0); const handleRefreshLogs = () => setRefreshKey(k => k + 1);`. If the existing RTDB subscription is via `onValue`, it already receives real-time updates — in that case, the Refresh button forces a `once('value')` read using `get(ref(database, \`game_sessions/${sessionCode}\`))` and updates the state.
 
-- [ ] 8.0 Build integrity detail panel on Teacher Results pages
-  - [ ] 8.1 Create `src/components/test/IntegrityDetailPanel.tsx` with props:
+- [x] 8.0 Build integrity detail panel on Teacher Results pages
+  - [x] 8.1 Create `src/components/test/IntegrityDetailPanel.tsx` with props:
     ```typescript
     interface IntegrityDetailPanelProps {
       report: IntegrityReport;
@@ -347,28 +347,28 @@
     - Header: "Integrity Report — {studentName}" + risk level badge
     - Stats grid (2-column): Tab Switches (X counted, Y grace), Time Away (format as seconds/minutes), Copy Attempts, Paste Attempts, Fullscreen Exits, Right-Click Attempts, Keyboard Shortcut Attempts
     - Force-submit info: "Force Submitted: ✅ By {forceSubmittedBy}" or "No" if not force-submitted
-  - [ ] 8.2 Add an event timeline section below the stats grid. Map `report.events` to a chronological list. Each row shows:
+  - [x] 8.2 Add an event timeline section below the stats grid. Map `report.events` to a chronological list. Each row shows:
     - Timestamp: format as `HH:mm:ss` using `new Date(event.timestamp).toLocaleTimeString()`
     - Type icon: 🔄 tab_switch, 📋 copy_attempt, 📎 paste_attempt, 🖱️ right_click, ⛶ fullscreen_exit, ⌨️ keyboard_shortcut, 🪟 devtools_resize, ⏱️ time_per_question, 🔁 page_reload
     - Duration: "(8s)" for tab switches, empty for others
     - Status: green text "grace ✓" if `withinGrace`, amber text "counted ⚠️" if `counted`
-  - [ ] 8.3 Create `src/components/test/IntegrityDetailPanel.css`. Key styles: glass-panel background (`background: rgba(255,255,255,0.95); backdrop-filter: blur(12px)`), `max-height: 80vh; overflow-y: auto`, stats grid with `display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem`, timeline items with left border indicating grace (green) or counted (amber/red).
-  - [ ] 8.4 Integrate into `src/pages/TeacherTestResultsPage.tsx` (session results): find where student results are rendered (each student row/card). Add `IntegrityBadge` next to each student's name/score. Read integrity data from RTDB at `game_sessions/{sessionCode}/players/{playerId}/integrity/` using `get(ref(database, path))` on page load (one-time read, not real-time subscription). On badge click, set `selectedStudentIntegrity` state and render `IntegrityDetailPanel`. Also add import for `computeRiskLevel` to compute the risk level for the badge.
-  - [ ] 8.5 Integrate into `src/pages/TeacherHomeworkDetailPage.tsx` (homework results): find where student submissions are rendered. Each `HomeworkSubmission` document in Firestore may contain an `integrity` field (written by Task 6.5). Read it from the submission data. Add `IntegrityBadge` next to each student row. On click, open `IntegrityDetailPanel`. If `integrity` data doesn't exist on the submission (pre-anti-cheat homework), show no badge.
-  - [ ] 8.6 Verify integrity data is NOT in exports: search both results pages for any CSV/PDF export functions (grep for "csv", "export", "download", "pdf" in both files). Currently no export functions exist in `TeacherTestResultsPage.tsx` or `TeacherHomeworkDetailPage.tsx` — if they are added in the future, integrity data MUST be excluded. Add a code comment: `// FR-40: Integrity data is UI-only — do NOT include in any CSV/PDF exports`.
+  - [x] 8.3 Create `src/components/test/IntegrityDetailPanel.css`. Key styles: glass-panel background (`background: rgba(255,255,255,0.95); backdrop-filter: blur(12px)`), `max-height: 80vh; overflow-y: auto`, stats grid with `display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem`, timeline items with left border indicating grace (green) or counted (amber/red).
+  - [x] 8.4 Integrate into `src/pages/TeacherTestResultsPage.tsx` (session results): find where student results are rendered (each student row/card). Add `IntegrityBadge` next to each student's name/score. Read integrity data from RTDB at `game_sessions/{sessionCode}/players/{playerId}/integrity/` using `get(ref(database, path))` on page load (one-time read, not real-time subscription). On badge click, set `selectedStudentIntegrity` state and render `IntegrityDetailPanel`. Also add import for `computeRiskLevel` to compute the risk level for the badge.
+  - [x] 8.5 Integrate into `src/pages/TeacherHomeworkDetailPage.tsx` (homework results): find where student submissions are rendered. Each `HomeworkSubmission` document in Firestore may contain an `integrity` field (written by Task 6.5). Read it from the submission data. Add `IntegrityBadge` next to each student row. On click, open `IntegrityDetailPanel`. If `integrity` data doesn't exist on the submission (pre-anti-cheat homework), show no badge.
+  - [x] 8.6 Verify integrity data is NOT in exports: search both results pages for any CSV/PDF export functions (grep for "csv", "export", "download", "pdf" in both files). Currently no export functions exist in `TeacherTestResultsPage.tsx` or `TeacherHomeworkDetailPage.tsx` — if they are added in the future, integrity data MUST be excluded. Add a code comment: `// FR-40: Integrity data is UI-only — do NOT include in any CSV/PDF exports`.
 
-- [ ] 9.0 Implement answer key obfuscation (separate fetch)
-  - [ ] 9.1 Identify where test questions with `correctAnswer` (or field name `correctAns`) are fetched on student-facing pages. Based on codebase search, `correctAns` is used as the field name across: `StudentTestPage.tsx`, `THCSPracticeView.tsx` (via `thcsShuffle.ts`), `StudentQuizPageNew.jsx`, `scoring.js`, `answerNormalization.js`, `autoMarking.service.ts`. The field comes from Firestore/RTDB test documents and is loaded as part of the question objects.
-  - [ ] 9.2 Modify the student-facing test data fetch to strip `correctAns` from the question objects BEFORE passing them to component state. Do this at the data-fetching layer (wherever questions are loaded from Firebase). Implementation: after fetching questions, map them: `questions.map(q => { const { correctAns, ...rest } = q; return rest; })`. Store the stripped questions in component state for rendering. Store the original questions (with answers) in a separate ref for grading at submission time.
-  - [ ] 9.3 For a cleaner separation, create a `fetchAnswerKeys(questions: any[]): Record<string, string | string[]>` utility in `src/utils/answerKeyHelper.ts` that extracts `{ [questionId]: correctAns }` from the full question array. This function is called at submission time to get the answer keys.
-  - [ ] 9.4 Update the grading/submission logic in each surface: instead of grading against `question.correctAns` directly, use the answer keys map from the ref (which was saved before stripping). This is a minimal refactor — the answer keys are still loaded client-side, just separated from the rendered question objects to prevent casual inspection.
-  - [ ] 9.5 Add a code comment to the answer key helper: `// FR-53: This is CLIENT-SIDE obfuscation only. The answer keys are still fetched and processed on the client. This prevents casual inspection of page source / React DevTools but does NOT prevent a determined student from intercepting the grading request. True server-side grading requires Cloud Functions on the Blaze plan (deferred to future PRD).`
+- [x] 9.0 Implement answer key obfuscation (separate fetch)
+  - [x] 9.1 Identify where test questions with `correctAnswer` (or field name `correctAns`) are fetched on student-facing pages. Based on codebase search, `correctAns` is used as the field name across: `StudentTestPage.tsx`, `THCSPracticeView.tsx` (via `thcsShuffle.ts`), `StudentQuizPageNew.jsx`, `scoring.js`, `answerNormalization.js`, `autoMarking.service.ts`. The field comes from Firestore/RTDB test documents and is loaded as part of the question objects.
+  - [x] 9.2 Modify the student-facing test data fetch to strip `correctAns` from the question objects BEFORE passing them to component state. Do this at the data-fetching layer (wherever questions are loaded from Firebase). Implementation: after fetching questions, map them: `questions.map(q => { const { correctAns, ...rest } = q; return rest; })`. Store the stripped questions in component state for rendering. Store the original questions (with answers) in a separate ref for grading at submission time.
+  - [x] 9.3 For a cleaner separation, create a `fetchAnswerKeys(questions: any[]): Record<string, string | string[]>` utility in `src/utils/answerKeyHelper.ts` that extracts `{ [questionId]: correctAns }` from the full question array. This function is called at submission time to get the answer keys.
+  - [x] 9.4 Update the grading/submission logic in each surface: instead of grading against `question.correctAns` directly, use the answer keys map from the ref (which was saved before stripping). This is a minimal refactor — the answer keys are still loaded client-side, just separated from the rendered question objects to prevent casual inspection.
+  - [x] 9.5 Add a code comment to the answer key helper: `// FR-53: This is CLIENT-SIDE obfuscation only. The answer keys are still fetched and processed on the client. This prevents casual inspection of page source / React DevTools but does NOT prevent a determined student from intercepting the grading request. True server-side grading requires Cloud Functions on the Blaze plan (deferred to future PRD).`
 
-- [ ] 10.0 Extend existing protections to all test surfaces
-  - [ ] 10.1 Add `useBeforeUnloadWarning` to `src/components/practice/THCSPracticeView.tsx`. Import: check the existing export style in `src/hooks/test/useBeforeUnloadWarning.ts` (default or named export). Call it at the top of the component. Activate only when the student is actively working — pass a condition like `isActive: status === 'in_progress'` or wrap in a conditional. Do NOT activate when the student is reviewing results or browsing.
-  - [ ] 10.2 Add `useBeforeUnloadWarning` to `src/pages/StudentQuizPageNew.jsx`. Same import pattern. Activate when the quiz session status is 'in-progress'.
-  - [ ] 10.3 Extend `src/hooks/test/useTestCompletionCheck.ts` to work with THCS homework: add an optional parameter `{ mode: 'session' | 'homework', homeworkId?: string, maxAttempts?: number, currentAttempt?: number }`. When `mode === 'homework'`, check if `currentAttempt >= maxAttempts` — if so, the student has used all attempts and should be redirected. This prevents re-entry to a completed homework assignment.
-  - [ ] 10.4 Create `shuffleArray<T>` wrapper in `src/utils/thcsShuffle.ts` (add to existing file, do NOT create a new file). The generic `fisherYatesShuffle<T>` already exists and is exported from this file at line 17. It accepts `(array: T[], rng: () => number)`. Create a new convenience function:
+- [x] 10.0 Extend existing protections to all test surfaces
+  - [x] 10.1 Add `useBeforeUnloadWarning` to `src/components/practice/THCSPracticeView.tsx`. Import: check the existing export style in `src/hooks/test/useBeforeUnloadWarning.ts` (default or named export). Call it at the top of the component. Activate only when the student is actively working — pass a condition like `isActive: status === 'in_progress'` or wrap in a conditional. Do NOT activate when the student is reviewing results or browsing.
+  - [x] 10.2 Add `useBeforeUnloadWarning` to `src/pages/StudentQuizPageNew.jsx`. Same import pattern. Activate when the quiz session status is 'in-progress'.
+  - [x] 10.3 Extend `src/hooks/test/useTestCompletionCheck.ts` to work with THCS homework: add an optional parameter `{ mode: 'session' | 'homework', homeworkId?: string, maxAttempts?: number, currentAttempt?: number }`. When `mode === 'homework'`, check if `currentAttempt >= maxAttempts` — if so, the student has used all attempts and should be redirected. This prevents re-entry to a completed homework assignment.
+  - [x] 10.4 Create `shuffleArray<T>` wrapper in `src/utils/thcsShuffle.ts` (add to existing file, do NOT create a new file). The generic `fisherYatesShuffle<T>` already exists and is exported from this file at line 17. It accepts `(array: T[], rng: () => number)`. Create a new convenience function:
     ```typescript
     import seedrandom from 'seedrandom';
     // Already imported at line 12
@@ -379,12 +379,12 @@
     }
     ```
     This avoids requiring every consumer to import `seedrandom` directly.
-  - [ ] 10.5 Create IELTS-specific shuffle utility: add a `shuffleIELTSTest(questions: any[], studentUid: string, testId: string, options: { shuffleQuestions: boolean, shuffleOptions: boolean }): any[]` function in `src/utils/thcsShuffle.ts` (or a new `src/utils/ieltsTestShuffle.ts` if the file is getting too large). Implementation:
+  - [x] 10.5 Create IELTS-specific shuffle utility: add a `shuffleIELTSTest(questions: any[], studentUid: string, testId: string, options: { shuffleQuestions: boolean, shuffleOptions: boolean }): any[]` function in `src/utils/thcsShuffle.ts` (or a new `src/utils/ieltsTestShuffle.ts` if the file is getting too large). Implementation:
     - Use `shuffleArray(questions, \`${studentUid}_${testId}_q\`)` for question order shuffling.
     - For option shuffling: for each question with MCQ options (array of choices), use `shuffleArray(question.options, \`${studentUid}_${testId}_opt_${question.id}\`)` to shuffle options. Remap the `correctAns` letter using the existing `remapAnswerKey` function (already exported from `thcsShuffle.ts` at line 31).
-  - [ ] 10.6 Integrate IELTS shuffle into `src/pages/StudentTestPage.tsx`: when the session's `antiCheatConfig.shuffleQuestions` or `antiCheatConfig.shuffleOptions` is true, apply the shuffle utility to the question array. Use `useMemo(() => shuffleIELTSTest(questions, uid, testId, { shuffleQuestions, shuffleOptions }), [questions, uid, testId, shuffleQuestions, shuffleOptions])` to ensure stable shuffle across re-renders. The shuffled output should be used for rendering; the original order is preserved for grading.
+  - [x] 10.6 Integrate IELTS shuffle into `src/pages/StudentTestPage.tsx`: when the session's `antiCheatConfig.shuffleQuestions` or `antiCheatConfig.shuffleOptions` is true, apply the shuffle utility to the question array. Use `useMemo(() => shuffleIELTSTest(questions, uid, testId, { shuffleQuestions, shuffleOptions }), [questions, uid, testId, shuffleQuestions, shuffleOptions])` to ensure stable shuffle across re-renders. The shuffled output should be used for rendering; the original order is preserved for grading.
 
-- [ ] 11.0 Quality assurance and FR-14 compliance
-  - [ ] 11.1 **FR-14 Audit:** Grep the entire `src/pages/Student*.tsx` and `src/pages/Student*.jsx` directories to ensure NO student-facing page imports `IntegrityBadge`, `IntegrityDetailPanel`, `IntegrityReport`, or `computeRiskLevel`. These are teacher-only components/utilities. If any student page imports them, it is a bug.
-  - [ ] 11.2 **Cleanup audit:** Verify that ALL `useEffect` hooks in the new integrity-related files return proper cleanup functions. Check: `useTestIntegrity` (event listeners + interval + sessionStorage), `useAntiCopyPaste` (event listeners), `useFullscreenMode` (event listener).
-  - [ ] 11.3 **Unit tests:** Create the following test files (if not already created in earlier tasks): `src/hooks/test/useAntiCopyPaste.test.ts`, `src/hooks/test/useFullscreenMode.test.ts`, `src/components/test/IntegrityBadge.test.tsx`. Each should test the core behavior described in their sub-tasks.
+- [x] 11.0 Quality assurance and FR-14 compliance
+  - [x] 11.1 **FR-14 Audit:** Grep the entire `src/pages/Student*.tsx` and `src/pages/Student*.jsx` directories to ensure NO student-facing page imports `IntegrityBadge`, `IntegrityDetailPanel`, `IntegrityReport`, or `computeRiskLevel`. These are teacher-only components/utilities. If any student page imports them, it is a bug.
+  - [x] 11.2 **Cleanup audit:** Verify that ALL `useEffect` hooks in the new integrity-related files return proper cleanup functions. Check: `useTestIntegrity` (event listeners + interval + sessionStorage), `useAntiCopyPaste` (event listeners), `useFullscreenMode` (event listener).
+  - [x] 11.3 **Unit tests:** Create the following test files (if not already created in earlier tasks): `src/hooks/test/useAntiCopyPaste.test.ts`, `src/hooks/test/useFullscreenMode.test.ts`, `src/components/test/IntegrityBadge.test.tsx`. Each should test the core behavior described in their sub-tasks.

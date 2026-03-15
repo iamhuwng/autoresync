@@ -32,6 +32,11 @@ import { useNavigation } from '../hooks/useNavigation';
 import { useTestCompletionCheck } from '../hooks/test/useTestCompletionCheck'; // PRD-0019 Task 6.3
 import { useBeforeUnloadWarning } from '../hooks/test/useBeforeUnloadWarning'; // PRD-0019 Task 6.7
 import { useTeacherEndRedirect } from '../hooks/test/useTeacherEndRedirect'; // BUG-FIX: Redirect to results on teacher-end
+import { useTestIntegrity } from '../hooks/test/useTestIntegrity'; // PRD-0036
+import { useAntiCopyPaste } from '../hooks/test/useAntiCopyPaste'; // PRD-0036
+import { useFullscreenMode } from '../hooks/test/useFullscreenMode'; // PRD-0036
+import { toast } from '../components/modern/ToastNotification'; // PRD-0036
+import { shuffleIELTSTest } from '../utils/thcsShuffle'; // PRD-0036 Task 10.6
 
 // Services
 import { sessionService } from '../services/sessionService';
@@ -41,13 +46,13 @@ const StudentTestPageContent: React.FC = () => {
   const { navigateTo, handleSessionChange } = useNavigation('student');
   const { checkAndRedirect } = useTeacherEndRedirect({ sessionCode }); // BUG-FIX: Redirect to results on teacher-end
 
-  // Core test data and session state
   const {
     testData,
     loading,
     error,
     activePassageId,
     setActivePassageId,
+    questionsWithAnswersRef, // PRD-0036 Task 9
   } = useTestData({ sessionCode });
 
   // PRD-0019 Task 6.3: Re-entry prevention - check if test already completed
@@ -191,13 +196,13 @@ const StudentTestPageContent: React.FC = () => {
     loadedAnswers,
     handleSubmit: submitTest,
     isLocked, // PRD-0019: Input locking during grace period
-    lockInputs, // PRD-0019: Function to lock inputs
   } = useTestSubmission({
     testData,
     session,
     sessionCode,
     answers,
     timeRemaining,
+    questionsWithAnswersRef, // PRD-0036 Task 9.4
   });
 
   // Store submit function ref for timer callback
@@ -214,6 +219,72 @@ const StudentTestPageContent: React.FC = () => {
   useBeforeUnloadWarning({
     enabled: !testSubmitted && sessionStatus === 'in-progress',
   });
+
+  // ── PRD-0036: Anti-Cheat Integration (Task 6.1) ───────────────
+  const antiCheatConfig = (session as any)?.antiCheatConfig || null;
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const {
+    addEvent,
+    warningLevel,
+    warningMessage,
+    shouldAutoSubmit,
+    flushEvents,
+  } = useTestIntegrity({
+    config: antiCheatConfig,
+    context: 'session',
+    sessionCode: sessionCode || '',
+    studentId: sessionService.getPlayerId() || '',
+    testId: testData?.id || '',
+  });
+
+  useAntiCopyPaste({
+    enabled: antiCheatConfig?.detectCopyPaste || false,
+    containerRef: containerRef as React.RefObject<HTMLElement>,
+    onEvent: addEvent,
+    allowEditorPaste: testData?.skill === 'Writing',
+  });
+
+  useFullscreenMode({
+    enabled: antiCheatConfig?.requireFullscreen || false,
+    onFullscreenExit: addEvent,
+  });
+
+  // PRD-0036 Task 10.6: Deterministic question/option shuffle
+  const displayQuestions = useMemo(() => {
+    if (!testData) return [];
+    const studentId = sessionService.getPlayerId() || 'anon';
+    const shuffleQ = antiCheatConfig?.shuffleQuestions || false;
+    const shuffleO = antiCheatConfig?.shuffleOptions || false;
+
+    if (!shuffleQ && !shuffleO) return testData.questions;
+
+    return shuffleIELTSTest(
+      testData.questions,
+      studentId,
+      testData.id,
+      { shuffleQuestions: shuffleQ, shuffleOptions: shuffleO }
+    );
+  }, [testData, antiCheatConfig?.shuffleQuestions, antiCheatConfig?.shuffleOptions]);
+
+  // PRD-0036: Show toast warnings on escalation
+  const prevWarningRef = useRef(warningLevel);
+  useEffect(() => {
+    if (warningLevel !== prevWarningRef.current) {
+      prevWarningRef.current = warningLevel;
+      if (warningLevel === 'toast' || warningLevel === 'escalated') {
+        toast.warning(warningMessage);
+      }
+    }
+  }, [warningLevel, warningMessage]);
+
+  // PRD-0036: Auto-submit on violation threshold
+  useEffect(() => {
+    if (shouldAutoSubmit && !testSubmitted && submitTestRef.current) {
+      flushEvents();
+      submitTestRef.current(true);
+    }
+  }, [shouldAutoSubmit, testSubmitted, flushEvents]);
 
   // Load previously submitted answers if they exist
   useEffect(() => {
@@ -398,13 +469,13 @@ const StudentTestPageContent: React.FC = () => {
   const currentPassage = testData.passages.find(p => p.id === activePassageId);
 
   return (
-    <div style={{
+    <div ref={containerRef} style={{
       height: '100vh',
       display: 'flex',
       flexDirection: 'column',
       background: '#f8fafc',
       position: 'relative'
-    }}>
+    }} className={antiCheatConfig?.detectCopyPaste ? 'anti-select' : ''}>
       {/* Connection Monitor */}
       <ConnectionMonitor
         sessionCode={sessionCode}
@@ -526,7 +597,7 @@ const StudentTestPageContent: React.FC = () => {
         }
         rightColumn={
           <IELTSQuestionsPanel
-            questions={testData.questions}
+            questions={displayQuestions}
             currentPassageId={activePassageId}
             answers={answers}
             onAnswerChange={(testSubmitted || isLocked) ? () => { } : handleAnswerChange} // PRD-0019: Disable during grace period
@@ -542,7 +613,7 @@ const StudentTestPageContent: React.FC = () => {
 
       {/* Footer Navigation (Inspera-style) */}
       <InspiraFooterNav
-        questions={testData.questions}
+        questions={displayQuestions}
         passages={testData.passages}
         answers={answers}
         activePassageId={activePassageId}

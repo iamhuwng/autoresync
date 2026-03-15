@@ -4,9 +4,11 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
+import type { MutableRefObject } from 'react';
 import type { TestData } from '../../services/testStorage';
 import { getTestFromFirebase } from '../../services/testStorage';
 import { sessionService } from '../../services/sessionService';
+import { stripAnswerKeys, extractAnswerKeys } from '../../utils/answerKeyHelper'; // PRD-0036 Task 9
 // @ts-ignore - Firebase is a .js file
 import { database } from '../../services/firebase';
 // @ts-ignore - Firebase is a .js file
@@ -22,6 +24,17 @@ interface UseTestDataReturn {
   error: string | null;
   activePassageId: string | null;
   setActivePassageId: (id: string | null) => void;
+  /**
+   * PRD-0036 Task 9.2: Ref containing the ORIGINAL questions array
+   * (with answer keys). Use this for grading — NOT testData.questions
+   * which has answers stripped for DevTools obfuscation.
+   */
+  questionsWithAnswersRef: MutableRefObject<TestData['questions'] | null>;
+  /**
+   * PRD-0036 Task 9.3: Pre-extracted answer key map.
+   * Keyed by question number (as string). Only populated when testData loads.
+   */
+  answerKeysRef: MutableRefObject<Record<string, string | string[]> | null>;
   // Callbacks for component to handle navigation
   onTestCleared?: () => void;
   onAuthFailed?: () => void;
@@ -40,6 +53,10 @@ export const useTestData = ({ sessionCode }: UseTestDataOptions): UseTestDataRet
 
   // Track loaded testId to prevent redundant loads
   const loadedTestIdRef = useRef<string | null>(null);
+
+  // PRD-0036 Task 9.2: Store original questions with answer keys in a ref (not state)
+  const questionsWithAnswersRef = useRef<TestData['questions'] | null>(null);
+  const answerKeysRef = useRef<Record<string, string | string[]> | null>(null);
 
   // Real-time monitoring: Load test when testId appears or clear when removed
   // CRITICAL FIX: This listener now handles BOTH directions:
@@ -115,7 +132,21 @@ export const useTestData = ({ sessionCode }: UseTestDataOptions): UseTestDataRet
           const result = await getTestFromFirebase(testId);
 
           if (result.success && result.data) {
-            setTestData(result.data);
+            // PRD-0036 Task 9.2: Save original questions with answers in ref
+            questionsWithAnswersRef.current = result.data.questions;
+            answerKeysRef.current = extractAnswerKeys(
+              result.data.questions.map(q => ({ id: String(q.number), ...q }))
+            );
+
+            // Strip answer keys from questions before putting in state
+            // This prevents casual inspection via React DevTools
+            const strippedQuestions = stripAnswerKeys(result.data.questions);
+            const obfuscatedData: TestData = {
+              ...result.data,
+              questions: strippedQuestions,
+            };
+
+            setTestData(obfuscatedData);
             loadedTestIdRef.current = testId;
 
             // Set active passage
@@ -153,5 +184,7 @@ export const useTestData = ({ sessionCode }: UseTestDataOptions): UseTestDataRet
     error,
     activePassageId,
     setActivePassageId,
+    questionsWithAnswersRef,
+    answerKeysRef,
   };
 };

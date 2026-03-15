@@ -18,7 +18,7 @@
  * ╚══════════════════════════════════════════════════════════════════╝
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useNavigation } from '../hooks/useNavigation';
 import { database } from '../services/firebase';
@@ -27,6 +27,10 @@ import { calculateScore } from '../utils/scoring';
 // import { useLog } from '../context/LogContext'; // DISABLED FOR TESTING
 import SemicircleTimer from '../components/SemicircleTimer';
 import StudentAnswerInput from '../components/StudentAnswerInput';
+import { useTestIntegrity } from '../hooks/test/useTestIntegrity'; // PRD-0036
+import { useAntiCopyPaste } from '../hooks/test/useAntiCopyPaste'; // PRD-0036
+import { useBeforeUnloadWarning } from '../hooks/test/useBeforeUnloadWarning'; // PRD-0036 Task 10.2
+import { toast } from '../components/modern/ToastNotification'; // PRD-0036
 
 /**
  * StudentQuizPageNew - Enhanced with adaptive layout and all question types
@@ -45,6 +49,10 @@ const StudentQuizPageNew = () => {
   const selectedAnswerRef = useRef(''); // Store answer synchronously
   const hasSubmittedRef = useRef(false);
   const currentQuestionIndexRef = useRef(null);
+  const containerRef = useRef(null); // PRD-0036: Anti-cheat scope
+
+  // PRD-0036 Task 10.2: Warn student before closing/refreshing during active quiz
+  useBeforeUnloadWarning({ enabled: gameSession?.status === 'in-progress' });
 
   // Listen to game session
   useEffect(() => {
@@ -246,6 +254,50 @@ const StudentQuizPageNew = () => {
     addLog(`Answer stored in ref: ${storedDisplay}`);
   };
 
+  // ── PRD-0036: Anti-Cheat Integration (Task 6.3) ─────────────────────────
+  const antiCheatConfig = gameSession?.antiCheatConfig || null;
+  const playerId = typeof window !== 'undefined' ? sessionStorage.getItem('playerId') : null;
+
+  const {
+    addEvent,
+    warningLevel,
+    warningMessage,
+    shouldAutoSubmit,
+    flushEvents,
+  } = useTestIntegrity({
+    config: antiCheatConfig,
+    context: 'session',
+    sessionCode: gameSessionId,
+    studentId: playerId || '',
+    testId: gameSession?.quizId || '',
+  });
+
+  useAntiCopyPaste({
+    enabled: antiCheatConfig?.detectCopyPaste || false,
+    containerRef,
+    onEvent: addEvent,
+  });
+
+  // PRD-0036: Show toast warnings on escalation
+  const prevWarningRef = useRef(warningLevel);
+  useEffect(() => {
+    if (warningLevel !== prevWarningRef.current) {
+      prevWarningRef.current = warningLevel;
+      if (warningLevel === 'toast' || warningLevel === 'escalated') {
+        toast.warning(warningMessage);
+      }
+    }
+  }, [warningLevel, warningMessage]);
+
+  // PRD-0036: Auto-submit on violation threshold
+  useEffect(() => {
+    if (shouldAutoSubmit) {
+      flushEvents();
+      handleTimeUp();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shouldAutoSubmit]);
+
   if (!gameSession || !quiz) {
     return (
       <div style={{
@@ -271,7 +323,7 @@ const StudentQuizPageNew = () => {
   const currentQuestion = questions[gameSession.currentQuestionIndex || 0];
 
   return (
-    <div style={{
+    <div ref={containerRef} style={{
       height: '100vh',
       width: '100vw',
       background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
@@ -281,7 +333,7 @@ const StudentQuizPageNew = () => {
       top: 0,
       left: 0,
       overflow: 'hidden'
-    }}>
+    }} className={antiCheatConfig?.detectCopyPaste ? 'anti-select' : ''}>
       {/* Timer */}
       {currentQuestion?.timer && gameSession.timer && (
         <SemicircleTimer

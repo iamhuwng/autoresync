@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { Card, CardBody, Button } from '../modern';
+import { IntegrityBadge } from '../test/IntegrityBadge'; // PRD-0036
 
 interface THCSPartProgress {
     partName: string;
@@ -27,6 +28,8 @@ interface THCSStudentCardProps {
     maxScore?: number;
     onClick?: () => void;
     onGradeWriting?: () => void;
+    /** PRD-0036: Integrity data for badge display */
+    integrityData?: { violationCount: number; riskLevel: 'low' | 'medium' | 'high' };
 }
 
 export const THCSStudentProgressCard: React.FC<THCSStudentCardProps> = ({
@@ -44,6 +47,7 @@ export const THCSStudentProgressCard: React.FC<THCSStudentCardProps> = ({
     maxScore,
     onClick,
     onGradeWriting,
+    integrityData, // PRD-0036
 }) => {
     const getStatusColor = () => {
         switch (status) {
@@ -105,8 +109,15 @@ export const THCSStudentProgressCard: React.FC<THCSStudentCardProps> = ({
                         }}>
                             {name}
                         </div>
-                        <div style={{ fontSize: '0.7rem', color: statusStyle.text, fontWeight: 600 }}>
+                        <div style={{ fontSize: '0.7rem', color: statusStyle.text, fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
                             {statusStyle.icon} {status === 'submitted' ? 'Submitted' : status === 'disconnected' ? 'Offline' : 'In Progress'}
+                            {/* PRD-0036: Integrity Badge */}
+                            {integrityData && (
+                                <IntegrityBadge
+                                    violationCount={integrityData.violationCount}
+                                    riskLevel={integrityData.riskLevel}
+                                />
+                            )}
                         </div>
                     </div>
                     <div style={{

@@ -13,6 +13,7 @@
 
 import React from 'react';
 import { Card, CardBody } from '../modern';
+import { IntegrityBadge } from './IntegrityBadge'; // PRD-0036
 
 interface StudentProgressCardProps {
   /**
@@ -93,6 +94,15 @@ interface StudentProgressCardProps {
    * PRD-0019: Extra time remaining in seconds (for students with accommodations)
    */
   extraTimeRemaining?: number;
+
+  /** PRD-0036: Integrity data for badge display */
+  integrityData?: { violationCount: number; riskLevel: 'low' | 'medium' | 'high' };
+
+  /** PRD-0036: Force-submit this student (teacher action) */
+  onForceSubmit?: () => void;
+
+  /** PRD-0036: Reset this student's submission (teacher action) */
+  onResetSubmit?: () => void;
 }
 
 export const StudentProgressCard: React.FC<StudentProgressCardProps> = ({
@@ -110,6 +120,9 @@ export const StudentProgressCard: React.FC<StudentProgressCardProps> = ({
   accommodations,
   baseTimeExpired, // PRD-0019
   extraTimeRemaining, // PRD-0019
+  integrityData, // PRD-0036
+  onForceSubmit, // PRD-0036
+  onResetSubmit, // PRD-0036
 }) => {
 
   /**
@@ -247,7 +260,6 @@ export const StudentProgressCard: React.FC<StudentProgressCardProps> = ({
                 {name}
               </div>
 
-              {/* Status Badge */}
               <div
                 style={{
                   display: 'inline-flex',
@@ -265,6 +277,14 @@ export const StudentProgressCard: React.FC<StudentProgressCardProps> = ({
                 <span>{statusColors.icon}</span>
                 <span style={{ textTransform: 'capitalize' }}>{status}</span>
               </div>
+
+              {/* PRD-0036: Integrity Badge */}
+              {integrityData && (
+                <IntegrityBadge
+                  violationCount={integrityData.violationCount}
+                  riskLevel={integrityData.riskLevel}
+                />
+              )}
             </div>
           </div>
 
@@ -491,6 +511,58 @@ export const StudentProgressCard: React.FC<StudentProgressCardProps> = ({
             }
           }
         `}</style>
+
+          {/* PRD-0036: Force Submit / Reset action buttons (only when working) */}
+          {status === 'working' && (onForceSubmit || onResetSubmit) && (
+            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
+              {onForceSubmit && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (window.confirm('Force submit this student? Their current answers will be submitted.')) {
+                      onForceSubmit();
+                    }
+                  }}
+                  style={{
+                    border: '1px solid #ef4444',
+                    color: '#ef4444',
+                    background: 'transparent',
+                    fontSize: '0.75rem',
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                  }}
+                >
+                  Force Submit
+                </button>
+              )}
+              {onResetSubmit && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (window.confirm('Reset this student\'s submission? They will be able to continue the test.')) {
+                      onResetSubmit();
+                    }
+                  }}
+                  style={{
+                    border: '1px solid #94a3b8',
+                    color: '#64748b',
+                    background: 'transparent',
+                    fontSize: '0.75rem',
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                  }}
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Click hint */}
           {onClick && (

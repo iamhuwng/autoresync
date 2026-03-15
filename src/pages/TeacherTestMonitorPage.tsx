@@ -38,10 +38,11 @@ import type { THCSSection, THCSQuestion } from '../types/thcs-test.types';
 import WritingMonitorCard from '../components/writing-monitor/WritingMonitorCard';
 import WritingPeekModal from '../components/writing-monitor/WritingPeekModal';
 import { autoSubmitFromRTDB } from '../services/writingSubmissionService';
-import { ref, get, set } from 'firebase/database';
+import { ref, get, set, update } from 'firebase/database';
 // @ts-ignore — JS service file
 import { database } from '../services/firebase';
 import type { WritingTestFormat, IELTSWritingTest } from '../types/ielts-writing.types';
+import { computeRiskLevel } from '../utils/integrityUtils'; // PRD-0036
 
 // Types imported from hooks (StudentProgress used internally by useMonitorSession)
 
@@ -257,6 +258,35 @@ export const TeacherTestMonitorPage: React.FC = () => {
     completeBaseTest, // PRD-0019: Complete base test (submit base students only)
     endFullSession, // PRD-0019: End full session (cleanup)
   } = useMonitorControls(sessionCode, session, testData, fullTestData);
+
+  // PRD-0036: Force-submit and reset handlers
+  const handleForceSubmit = useCallback(async (studentId: string) => {
+    if (!sessionCode) return;
+    try {
+      const sessionRef = ref(database, `game_sessions/${sessionCode}/players/${studentId}`);
+      await update(sessionRef, {
+        hasCompletedTest: true,
+        forceSubmittedBy: 'teacher',
+        completedAt: Date.now(),
+      });
+    } catch (err) {
+      console.error('❌ [PRD-0036] Failed to force submit student:', err);
+    }
+  }, [sessionCode]);
+
+  const handleResetSubmit = useCallback(async (studentId: string) => {
+    if (!sessionCode) return;
+    try {
+      const sessionRef = ref(database, `game_sessions/${sessionCode}/players/${studentId}`);
+      await update(sessionRef, {
+        hasCompletedTest: null,
+        forceSubmittedBy: null,
+        completedAt: null,
+      });
+    } catch (err) {
+      console.error('❌ [PRD-0036] Failed to reset student submission:', err);
+    }
+  }, [sessionCode]);
 
   // PRD-0018 Task 6.4: Headphone permission management for offline mode
   const audioMode = (session as any)?.settings?.audioMode;
@@ -684,6 +714,11 @@ export const TeacherTestMonitorPage: React.FC = () => {
 
                 // PRD-0030: Render Writing monitor card
                 if (isWritingSession) {
+                  // PRD-0036: Read integrity data for writing students
+                  const wPlayerData = session?.players?.[student.studentId];
+                  const wViolationCount = wPlayerData?.integrity?.violationCount || 0;
+                  const wForceSubmitted = wPlayerData?.integrity?.forceSubmitted || false;
+                  const wRisk = computeRiskLevel(wViolationCount, wForceSubmitted);
                   return (
                     <WritingMonitorCard
                       key={student.studentId}
@@ -693,6 +728,7 @@ export const TeacherTestMonitorPage: React.FC = () => {
                       testFormat={writingTestFormat}
                       onPeek={(uid) => setPeekStudentUid(uid)}
                       onReopen={handleWritingReopen}
+                      integrityData={{ violationCount: wViolationCount, riskLevel: wRisk }}
                     />
                   );
                 }
@@ -702,6 +738,10 @@ export const TeacherTestMonitorPage: React.FC = () => {
                   const playerData = session?.players?.[student.studentId];
                   const partBreakdown = getStudentPartBreakdownRef.current(playerData);
                   const writingInfo = getStudentWritingInfoRef.current(playerData);
+                  // PRD-0036: Integrity data
+                  const tViolationCount = playerData?.integrity?.violationCount || 0;
+                  const tForceSubmitted = playerData?.integrity?.forceSubmitted || false;
+                  const tRisk = computeRiskLevel(tViolationCount, tForceSubmitted);
                   return (
                     <THCSStudentProgressCard
                       key={student.studentId}
@@ -719,9 +759,16 @@ export const TeacherTestMonitorPage: React.FC = () => {
                       maxScore={fullTestData?.totalPoints}
                       onClick={() => setSelectedStudentId(student.studentId)}
                       onGradeWriting={student.status === 'submitted' ? () => setGradingStudentId(student.studentId) : undefined}
+                      integrityData={{ violationCount: tViolationCount, riskLevel: tRisk }}
                     />
                   );
                 }
+
+                // PRD-0036: Integrity data for IELTS/regular cards
+                const iPlayerData = session?.players?.[student.studentId];
+                const iViolationCount = iPlayerData?.integrity?.violationCount || 0;
+                const iForceSubmitted = iPlayerData?.integrity?.forceSubmitted || false;
+                const iRisk = computeRiskLevel(iViolationCount, iForceSubmitted);
 
                 return (
                   <StudentProgressCard
@@ -737,10 +784,12 @@ export const TeacherTestMonitorPage: React.FC = () => {
                     recentAnswers={student.recentAnswers}
                     bandScore={student.bandScore}
                     accommodations={studentAccommodation || null}
-                    baseTimeExpired={session?.baseTimeExpired || false} // PRD-0019
-                    extraTimeRemaining={hasExtraTime ? extraTimeRemaining : undefined} // PRD-0019
+                    baseTimeExpired={session?.baseTimeExpired || false}
+                    extraTimeRemaining={hasExtraTime ? extraTimeRemaining : undefined}
+                    integrityData={{ violationCount: iViolationCount, riskLevel: iRisk }}
+                    onForceSubmit={() => handleForceSubmit(student.studentId)}
+                    onResetSubmit={() => handleResetSubmit(student.studentId)}
                     onClick={() => {
-                      // Store only the student ID - modal will get current data from students array
                       setSelectedStudentId(student.studentId);
                     }}
                   />
@@ -748,6 +797,24 @@ export const TeacherTestMonitorPage: React.FC = () => {
               })}
             </div>
           )}
+
+          {/* PRD-0036: Refresh Logs button */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem', marginBottom: '0.5rem' }}>
+            <Button
+              variant="glass"
+              size="sm"
+              onClick={async () => {
+                if (!sessionCode) return;
+                try {
+                  await get(ref(database, `game_sessions/${sessionCode}`));
+                } catch (err) {
+                  console.error('❌ [PRD-0036] Refresh failed:', err);
+                }
+              }}
+            >
+              🔄 Refresh
+            </Button>
+          </div>
 
           {/* Pagination Controls */}
           {showPagination && (

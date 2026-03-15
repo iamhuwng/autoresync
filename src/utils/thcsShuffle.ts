@@ -25,6 +25,15 @@ export function fisherYatesShuffle<T>(array: T[], rng: () => number): T[] {
     return result;
 }
 
+/**
+ * PRD-0036 Task 10.4: Convenience wrapper — deterministic shuffle with a
+ * string seed. Consumers don't need to import seedrandom directly.
+ */
+export function shuffleArray<T>(array: T[], seed: string): T[] {
+    const rng = seedrandom(seed);
+    return fisherYatesShuffle(array, rng);
+}
+
 // ── Remap Answer Key ──
 // Maps the correct answer letter to its new position after option shuffle.
 // E.g., if answer was 'A' and option A moved to position C, returns 'C'.
@@ -103,3 +112,59 @@ export function shuffleTest(test: THCSTest, studentUid: string): THCSTest {
 }
 
 export default shuffleTest;
+
+// ── IELTS-specific shuffle (PRD-0036 Task 10.5) ──
+
+interface IELTSShuffleOptions {
+    shuffleQuestions: boolean;
+    shuffleOptions: boolean;
+}
+
+/**
+ * Deterministic shuffle for IELTS-style tests (used by StudentTestPage).
+ *
+ * - `shuffleQuestions`: reorder the flat questions array
+ * - `shuffleOptions`: for each MCQ question with `options[]`, shuffle the
+ *   options and remap the `answer` field using remapAnswerKey.
+ *
+ * Seeds are derived from `studentUid + testId` so the same student always
+ * sees the same order.
+ */
+export function shuffleIELTSTest(
+    questions: any[],
+    studentUid: string,
+    testId: string,
+    options: IELTSShuffleOptions
+): any[] {
+    if (!questions || questions.length === 0) return questions;
+
+    let result = [...questions];
+
+    // 1. Shuffle question order
+    if (options.shuffleQuestions) {
+        result = shuffleArray(result, `${studentUid}_${testId}_q`);
+    }
+
+    // 2. Shuffle MCQ options per question
+    if (options.shuffleOptions) {
+        result = result.map(q => {
+            // Only shuffle if the question has MCQ-style options
+            if (!q.options || !Array.isArray(q.options) || q.options.length <= 1) return q;
+
+            const originalOptions = [...q.options];
+            const shuffledOptions = shuffleArray<string>(
+                q.options as string[],
+                `${studentUid}_${testId}_opt_${q.number || q.id}`
+            );
+
+            // Remap the answer key to the new option positions
+            const newAnswer = (typeof q.answer === 'string' && q.answer.length === 1)
+                ? remapAnswerKey(q.answer, originalOptions, shuffledOptions)
+                : q.answer;
+
+            return { ...q, options: shuffledOptions, answer: newAnswer };
+        });
+    }
+
+    return result;
+}

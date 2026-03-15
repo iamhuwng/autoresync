@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
+import type { MutableRefObject } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { sessionService } from '../../services/sessionService';
 import { calculateIELTSReadingBandScore } from '../../config/scoring.config';
@@ -17,6 +18,7 @@ import { saveTestResult } from '../../services/testResults.service';
 import { sendResultNotification } from '../../services/emailNotification.service';
 import { auth } from '../../services/firebase';
 import { scoreQuestion } from '../../services/autoMarking.service';
+import type { IntegrityReport } from '../../types/integrity.types'; // PRD-0036
 
 interface Question {
   number: number;
@@ -62,6 +64,13 @@ interface UseTestSubmissionOptions {
   sessionCode: string | undefined;
   answers: StudentAnswers;
   timeRemaining: number;
+  /** PRD-0036: Optional integrity report to attach on submission */
+  integrityReport?: IntegrityReport | null;
+  /**
+   * PRD-0036 Task 9.4: Ref to original questions WITH answer keys.
+   * Used for grading instead of testData.questions (which may be stripped).
+   */
+  questionsWithAnswersRef?: MutableRefObject<Question[] | null>;
 }
 
 interface UseTestSubmissionReturn {
@@ -83,6 +92,8 @@ export const useTestSubmission = ({
   sessionCode,
   answers,
   timeRemaining,
+  integrityReport,
+  questionsWithAnswersRef,
 }: UseTestSubmissionOptions): UseTestSubmissionReturn => {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -193,7 +204,10 @@ export const useTestSubmission = ({
     let correctAnswers = 0;
     const questionResults: Record<number, boolean> = {};
 
-    testData.questions.forEach(question => {
+    // PRD-0036 Task 9.4: Prefer original questions (with answer keys) for grading
+    const gradingQuestions = questionsWithAnswersRef?.current ?? testData.questions;
+
+    gradingQuestions.forEach(question => {
       const studentAnswer = submittedAnswers[question.number];
 
       // Delegate to the robust autoMarking service
@@ -492,6 +506,17 @@ export const useTestSubmission = ({
         completedAt: now,
         submittedBy: isAutoSubmit ? 'system-timeout' : 'student',
       });
+
+      // PRD-0036: Write integrity report to player's integrity sub-path
+      if (integrityReport) {
+        try {
+          const integrityRef = ref(database, `game_sessions/${sessionCode}/players/${playerId}/integrity`);
+          await update(integrityRef, integrityReport);
+          console.log('✅ [PRD-0036] Integrity report saved');
+        } catch (integrityErr) {
+          console.warn('[PRD-0036] Failed to save integrity report:', integrityErr);
+        }
+      }
 
       // NEW: Save permanent result record
       await savePermanentResult(playerId, playerName, results);

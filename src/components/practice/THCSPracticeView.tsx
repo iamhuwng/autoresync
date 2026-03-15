@@ -41,6 +41,12 @@ import { getThcsTestFromFirebase } from '../../services/thcsTestStorage';
 import { shuffleTest } from '../../utils/thcsShuffle';
 import { Button } from '../modern';
 import { getSubmissionById } from '../../services/homeworkSubmissionService';
+import { getHomeworkById } from '../../services/homeworkManager'; // PRD-0036
+import { useTestIntegrity } from '../../hooks/test/useTestIntegrity'; // PRD-0036
+import { useAntiCopyPaste } from '../../hooks/test/useAntiCopyPaste'; // PRD-0036
+import { toast } from '../modern/ToastNotification'; // PRD-0036
+import type { AntiCheatConfig } from '../../types/integrity.types'; // PRD-0036
+import { useBeforeUnloadWarning } from '../../hooks/test/useBeforeUnloadWarning'; // PRD-0036 Task 10.1
 
 import type { THCSTest } from '../../types/thcs-test.types';
 import type { PracticeContext } from './IELTSPracticeView';
@@ -226,6 +232,9 @@ const THCSPracticeInner: React.FC<{
         percentage: number;
         pendingWritingCount?: number;
     } | null>(null);
+
+    // PRD-0036 Task 10.1: Warn student before closing/refreshing during active test
+    useBeforeUnloadWarning({ enabled: !isSubmitted && !isSubmitting });
 
     // ── Timer (local, not session-synced) ──────────────────────────────────────
     // BUG FIX: When resuming homework, calculate remaining time from submission's startedAt
@@ -616,6 +625,58 @@ const THCSPracticeInner: React.FC<{
         return () => window.removeEventListener('beforeunload', handler);
     }, [isSubmitted]);
 
+    // ── PRD-0036: Anti-Cheat Integration (Task 6.2) ─────────────────────────
+    const [antiCheatConfig, setAntiCheatConfig] = useState<AntiCheatConfig | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    // Fetch antiCheatConfig from homework document (only for homework context)
+    useEffect(() => {
+        if (!isHomework || !practiceContext.homeworkId) return;
+        getHomeworkById(practiceContext.homeworkId).then(hw => {
+            if (hw?.antiCheatConfig) {
+                setAntiCheatConfig(hw.antiCheatConfig as AntiCheatConfig);
+            }
+        }).catch(err => console.warn('[THCSPractice] Failed to load anti-cheat config:', err));
+    }, [isHomework, practiceContext.homeworkId]);
+
+    const {
+        addEvent,
+        warningLevel,
+        warningMessage,
+        shouldAutoSubmit,
+        flushEvents,
+    } = useTestIntegrity({
+        config: antiCheatConfig,
+        context: 'homework',
+        studentId: user?.uid || '',
+        testId: materialId,
+    });
+
+    useAntiCopyPaste({
+        enabled: antiCheatConfig?.detectCopyPaste || false,
+        containerRef: containerRef as React.RefObject<HTMLElement>,
+        onEvent: addEvent,
+    });
+
+    // PRD-0036: Show toast warnings on escalation
+    const prevWarningRef = useRef(warningLevel);
+    useEffect(() => {
+        if (warningLevel !== prevWarningRef.current) {
+            prevWarningRef.current = warningLevel;
+            if (warningLevel === 'toast' || warningLevel === 'escalated') {
+                toast.warning(warningMessage);
+            }
+        }
+    }, [warningLevel, warningMessage]);
+
+    // PRD-0036: Auto-submit on violation threshold
+    useEffect(() => {
+        if (shouldAutoSubmit && !isSubmitted) {
+            flushEvents();
+            handleSubmitRef.current();
+        }
+    }, [shouldAutoSubmit, isSubmitted, flushEvents]);
+
     // ── Format Timer ───────────────────────────────────────────────────────────
     const formatTime = (seconds: number) => {
         const m = Math.floor(seconds / 60);
@@ -631,11 +692,11 @@ const THCSPracticeInner: React.FC<{
     // ════════════════════════════════════════════════════════════════════════════
 
     return (
-        <div style={{
+        <div ref={containerRef} style={{
             minHeight: '100vh',
             background: 'linear-gradient(135deg, #faf5ff 0%, #f0f9ff 50%, #f0fdfa 100%)',
             display: 'flex', flexDirection: 'column',
-        }}>
+        }} className={antiCheatConfig?.detectCopyPaste ? 'anti-select' : ''}>
             {/* Header — 3-zone layout: [Title+meta] [Student name] [Timer+Submit] */}
             <div style={{
                 background: 'rgba(255,255,255,0.95)',

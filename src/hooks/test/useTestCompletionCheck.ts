@@ -17,6 +17,18 @@ interface UseTestCompletionCheckOptions {
   sessionCode: string | undefined;
   testSkill?: 'Listening' | 'Reading' | 'Writing' | string;
   enabled?: boolean;
+  /**
+   * PRD-0036 Task 10.3: Mode for the check.
+   * - 'session' (default): checks RTDB session for hasCompletedTest flag
+   * - 'homework': checks if currentAttempt >= maxAttempts
+   */
+  mode?: 'session' | 'homework';
+  /** Homework-only: the homework assignment ID (used for redirect) */
+  homeworkId?: string;
+  /** Homework-only: max allowed attempts */
+  maxAttempts?: number;
+  /** Homework-only: the student's current attempt count */
+  currentAttempt?: number;
 }
 
 /**
@@ -29,13 +41,35 @@ export const useTestCompletionCheck = ({
   sessionCode,
   testSkill = '',
   enabled = true,
+  mode = 'session',
+  homeworkId,
+  maxAttempts,
+  currentAttempt,
 }: UseTestCompletionCheckOptions): void => {
   const navigate = useNavigate();
   const hasCheckedRef = useRef(false);
 
+  // PRD-0036 Task 10.3: Homework attempt exhaustion check
   useEffect(() => {
-    // Skip if disabled or already checked
-    if (!enabled || hasCheckedRef.current || !sessionCode) return;
+    if (mode !== 'homework' || !enabled || hasCheckedRef.current) return;
+    if (maxAttempts === undefined || currentAttempt === undefined) return;
+
+    if (currentAttempt >= maxAttempts) {
+      console.log(`⚠️ [PRD-0036] Homework max attempts reached (${currentAttempt}/${maxAttempts}). Redirecting...`);
+      hasCheckedRef.current = true;
+
+      // Redirect to the homework detail page (or student library as fallback)
+      if (homeworkId) {
+        navigate(`/student/homework/${homeworkId}`, { replace: true });
+      } else {
+        navigate('/student/library', { replace: true });
+      }
+    }
+  }, [mode, enabled, maxAttempts, currentAttempt, homeworkId, navigate]);
+
+  // Session-mode check (original behavior)
+  useEffect(() => {
+    if (mode !== 'session' || !enabled || hasCheckedRef.current || !sessionCode) return;
 
     const checkCompletion = async () => {
       try {
@@ -94,7 +128,7 @@ export const useTestCompletionCheck = ({
     };
 
     checkCompletion();
-  }, [sessionCode, testSkill, enabled, navigate]);
+  }, [sessionCode, testSkill, enabled, navigate, mode]);
 };
 
 export default useTestCompletionCheck;

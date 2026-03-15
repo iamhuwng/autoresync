@@ -27,6 +27,10 @@ import { FeedbackEditor } from '../components/feedback/FeedbackEditor';
 import { saveQuestionFeedback, saveOverallFeedback } from '../services/feedbackService';
 import { Modal, Stack, Title, Text, Tabs, Badge, Group } from '@mantine/core';
 import WritingTestResultsSection from '../components/writing-results/WritingTestResultsSection';
+import { IntegrityBadge } from '../components/test/IntegrityBadge'; // PRD-0036
+import { IntegrityDetailPanel } from '../components/test/IntegrityDetailPanel'; // PRD-0036
+import { computeRiskLevel } from '../utils/integrityUtils'; // PRD-0036
+import type { IntegrityReport } from '../types/integrity.types'; // PRD-0036
 
 interface StudentResult {
   resultId?: string; // Link to backend record
@@ -98,6 +102,10 @@ export const TeacherTestResultsPage: React.FC = () => {
   const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
   const [selectedStudentForFeedback, setSelectedStudentForFeedback] = useState<StudentResult | null>(null);
 
+  // PRD-0036: Integrity data
+  const [integrityMap, setIntegrityMap] = useState<Record<string, IntegrityReport>>({});
+  const [selectedIntegrity, setSelectedIntegrity] = useState<{ report: IntegrityReport; studentName: string } | null>(null);
+
   /**
    * Load session and calculate all results
    */
@@ -153,6 +161,17 @@ export const TeacherTestResultsPage: React.FC = () => {
       }
 
       setSession(sessionData);
+
+      // PRD-0036: Read integrity data from session players
+      const intMap: Record<string, IntegrityReport> = {};
+      if (sessionData.players) {
+        Object.entries(sessionData.players).forEach(([playerId, playerData]: [string, any]) => {
+          if (playerData?.integrity) {
+            intMap[playerId] = playerData.integrity;
+          }
+        });
+      }
+      setIntegrityMap(intMap);
 
       // Load test data
       // PRD-0019: Use testId if active, otherwise fallback to lastTestId
@@ -393,6 +412,7 @@ export const TeacherTestResultsPage: React.FC = () => {
 
   /**
    * Handle CSV export
+   * // FR-40: Integrity data is UI-only — do NOT include in any CSV/PDF exports
    */
   const handleExportCSV = () => {
     if (!testData || studentResults.length === 0) {
@@ -864,6 +884,19 @@ export const TeacherTestResultsPage: React.FC = () => {
                               ✓ Reviewed
                             </Badge>
                           )}
+                          {/* PRD-0036: Integrity Badge */}
+                          {(() => {
+                            const iData = integrityMap[student.studentId];
+                            if (!iData) return null;
+                            const risk = iData.riskLevel || computeRiskLevel(iData.violationCount || 0, iData.forceSubmitted || false);
+                            return (
+                              <IntegrityBadge
+                                violationCount={iData.violationCount || 0}
+                                riskLevel={risk}
+                                onClick={() => setSelectedIntegrity({ report: iData, studentName: student.studentName })}
+                              />
+                            );
+                          })()}
                         </div>
                       </td>
                       <td style={{ padding: '1rem', textAlign: 'center', fontWeight: 600, color: '#1e293b' }}>
@@ -1058,6 +1091,16 @@ export const TeacherTestResultsPage: React.FC = () => {
           </Modal>
         )}
       </div>
+
+      {/* PRD-0036: Integrity Detail Panel */}
+      {selectedIntegrity && (
+        <IntegrityDetailPanel
+          report={selectedIntegrity.report}
+          studentName={selectedIntegrity.studentName}
+          isOpen={true}
+          onClose={() => setSelectedIntegrity(null)}
+        />
+      )}
     </div>
   );
 };
