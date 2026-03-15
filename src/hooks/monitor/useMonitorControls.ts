@@ -15,6 +15,7 @@ import { database } from '../../services/firebase';
 import { useNavigation } from '../useNavigation';
 import { TestSession, TestData } from './useMonitorSession'; // Import from local definition
 import type { MasterAudioState } from '../../types/audio.types';
+import type { AntiCheatConfig } from '../../types/integrity.types';
 import { autoSubmitDisconnectedStudents, identifyDisconnectedStudents, identifyUnsubmittedStudents, autoSubmitAllUnsubmittedStudents } from '../../utils/monitor';
 
 /** Per-student accommodation settings */
@@ -32,7 +33,7 @@ export interface CompleteBaseTestResult {
 }
 
 export interface MonitorControlsResult {
-  startTest: () => Promise<void>;
+  startTest: (antiCheatConfig?: AntiCheatConfig) => Promise<void>;
   pauseTest: () => Promise<void>;
   endTest: () => Promise<void>;
   extendTime: (minutes: number) => Promise<void>;
@@ -99,7 +100,7 @@ export function useMonitorControls(
    * Starts the test by updating session status and setting start time.
    * This triggers students to begin the test.
    */
-  const startTest = async () => {
+  const startTest = async (antiCheatConfig?: AntiCheatConfig) => {
     if (!sessionCode) {
       console.error('❌ [Controls] No session code provided');
       return;
@@ -111,6 +112,7 @@ export function useMonitorControls(
         status: 'in-progress',
         startTime: Date.now(),
         isPaused: false,
+        antiCheatConfig: antiCheatConfig || null,
       });
       console.log('✅ [Controls] Test started successfully');
 

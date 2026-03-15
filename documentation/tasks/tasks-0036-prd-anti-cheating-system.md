@@ -159,8 +159,8 @@
     The `getIntegrityReport()` method computes and returns the current summary from the event buffer. The `addEvent()` method allows external hooks (useAntiCopyPaste, useFullscreenMode) to inject events into the shared buffer.
   - [x] 2.13 Write unit tests `src/hooks/test/useTestIntegrity.test.ts` using Vitest. Test: (a) no-op when config is null, (b) no-op when context is 'solo', (c) grace period correctly ignores first 2 switches, (d) grace period correctly ignores switches < 5s, (e) violationCount increments only for counted events, (f) warning levels map correctly to thresholds. Mock `firebase/database` and `sessionStorage`.
 
-- [ ] 3.0 Integrate copy/paste prevention and fullscreen mode
-  - [ ] 3.1 Create `src/hooks/test/useAntiCopyPaste.ts`. The hook accepts:
+- [x] 3.0 Integrate copy/paste prevention and fullscreen mode
+  - [x] 3.1 Create `src/hooks/test/useAntiCopyPaste.ts`. The hook accepts:
     ```typescript
     interface UseAntiCopyPasteOptions {
       enabled: boolean; // Maps to config.detectCopyPaste — both detects AND prevents
@@ -176,12 +176,12 @@
     - `contextmenu` event: `e.preventDefault()`, call `onEvent({ type: 'right_click', ... })`. Only attach if the consuming component passes `detectRightClick: true` as a separate prop or if enabled is true (use a separate `detectRightClick` prop).
     - All listeners MUST be added with `{ passive: false }` to allow `preventDefault()`.
     - MUST return cleanup that removes all listeners.
-  - [ ] 3.2 Add keyboard shortcut detection inside `useAntiCopyPaste`. Listen for `keydown` on the container for: Ctrl+C, Ctrl+V, Ctrl+X, Ctrl+Shift+I, F12, Ctrl+U (view source). For each match: `e.preventDefault()`, log as `type: 'keyboard_shortcut'` with `details` field containing the key combo (e.g., `"Ctrl+C"`, `"F12"`). Only attach this listener if a `detectKeyboardShortcuts` prop is true.
-  - [ ] 3.3 Apply `user-select: none` CSS to the container element when copy/paste prevention is enabled. Implementation:
+  - [x] 3.2 Add keyboard shortcut detection inside `useAntiCopyPaste`. Listen for `keydown` on the container for: Ctrl+C, Ctrl+V, Ctrl+X, Ctrl+Shift+I, F12, Ctrl+U (view source). For each match: `e.preventDefault()`, log as `type: 'keyboard_shortcut'` with `details` field containing the key combo (e.g., `"Ctrl+C"`, `"F12"`). Only attach this listener if a `detectKeyboardShortcuts` prop is true.
+  - [x] 3.3 Apply `user-select: none` CSS to the container element when copy/paste prevention is enabled. Implementation:
     - In a `useEffect`, when `enabled` changes to `true`, add class `'anti-select'` to `containerRef.current`. On cleanup or when `enabled` changes to `false`, remove the class.
     - Define the CSS class in the consuming page's CSS file (or a shared utility CSS): `.anti-select { user-select: none; -webkit-user-select: none; }` and `.anti-select input, .anti-select textarea, .anti-select [data-allow-select], .anti-select [data-allow-paste] { user-select: text; -webkit-user-select: text; }`
     - This ensures answer input fields (`<input>`, `<textarea>`) and elements with `data-allow-select` or `data-allow-paste` attributes remain selectable (FR-16, FR-17). The IELTS writing editor container MUST have `data-allow-paste` attribute added to it.
-  - [ ] 3.4 Create `src/hooks/test/useFullscreenMode.ts`. The hook accepts:
+  - [x] 3.4 Create `src/hooks/test/useFullscreenMode.ts`. The hook accepts:
     ```typescript
     interface UseFullscreenModeOptions {
       enabled: boolean; // Maps to config.requireFullscreen
@@ -195,8 +195,8 @@
     - MUST return cleanup: `document.removeEventListener('fullscreenchange', handler)`.
     - Return `{ isFullscreen: boolean, isSupported: boolean, requestFullscreen: () => void }`.
 
-- [ ] 4.0 Build Session Start Config Modal (teacher pre-test setup)
-  - [ ] 4.1 Create `src/components/test/SessionStartConfigModal.tsx` with props:
+- [x] 4.0 Build Session Start Config Modal (teacher pre-test setup)
+  - [x] 4.1 Create `src/components/test/SessionStartConfigModal.tsx` with props:
     ```typescript
     interface SessionStartConfigModalProps {
       isOpen: boolean;
@@ -210,7 +210,7 @@
     - Preset dropdown: `<select>` with options "None", "Standard" (selected by default), "Strict", "Custom" (shown only when user manually toggles individual settings). On change, call `resolvePreset(selectedPreset)` merged with `getContextDefaults('session')` and update the internal config state.
     - Footer buttons: "Cancel" (calls `onClose`) and "Start Test" (calls `onConfirm(config)` — uses the `Button` component from `src/components/modern`)
     - The modal overlay MUST have `onClick={(e) => e.target === e.currentTarget && onClose()}` to close on backdrop click.
-  - [ ] 4.2 Add "▸ Customize settings" expandable section below the preset dropdown. Use a `showCustomize` boolean state. When expanded, show toggle switches (styled `<input type="checkbox">` with labels) for each `AntiCheatConfig` boolean field:
+  - [x] 4.2 Add "▸ Customize settings" expandable section below the preset dropdown. Use a `showCustomize` boolean state. When expanded, show toggle switches (styled `<input type="checkbox">` with labels) for each `AntiCheatConfig` boolean field:
     - "Tab-switch detection" → `detectTabSwitch`
     - "Copy/paste prevention" → `detectCopyPaste`
     - "Right-click prevention" → `detectRightClick`
@@ -221,22 +221,22 @@
     - "Shuffle questions" → `shuffleQuestions`
     - "Shuffle answer options" → `shuffleOptions`
     - When ANY toggle is changed, set the preset display to "Custom" in the dropdown.
-  - [ ] 4.3 Apply session-specific defaults (FR-28): when the modal opens (`isOpen` transitions to `true`), initialize state with `{ ...resolvePreset('standard'), ...getContextDefaults('session') }`. This means: Standard detection on, student warnings off, auto-submit off. Teacher can customize from there.
-  - [ ] 4.4 Create `src/components/test/SessionStartConfigModal.css`. Follow existing modal styling patterns from `src/components/homework/HomeworkCreateModal.css` (file exists at `src/components/homework/HomeworkCreateModal.css`). Key styles: fixed overlay with `rgba(0,0,0,0.5)` backdrop, centered white card with `border-radius: 1rem`, `box-shadow`, `max-width: 480px`, `padding: 2rem`. Toggle row: `display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 0; border-bottom: 1px solid #f1f5f9`.
-  - [ ] 4.5 Modify `src/components/test/TeacherTestControlBar.tsx`:
+  - [x] 4.3 Apply session-specific defaults (FR-28): when the modal opens (`isOpen` transitions to `true`), initialize state with `{ ...resolvePreset('standard'), ...getContextDefaults('session') }`. This means: Standard detection on, student warnings off, auto-submit off. Teacher can customize from there.
+  - [x] 4.4 Create `src/components/test/SessionStartConfigModal.css`. Follow existing modal styling patterns from `src/components/homework/HomeworkCreateModal.css` (file exists at `src/components/homework/HomeworkCreateModal.css`). Key styles: fixed overlay with `rgba(0,0,0,0.5)` backdrop, centered white card with `border-radius: 1rem`, `box-shadow`, `max-width: 480px`, `padding: 2rem`. Toggle row: `display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 0; border-bottom: 1px solid #f1f5f9`.
+  - [x] 4.5 Modify `src/components/test/TeacherTestControlBar.tsx`:
     - Change the `onStartTest` prop type from `() => Promise<void>` to `(config: AntiCheatConfig) => Promise<void>` in the `TeacherTestControlBarProps` interface (line 39).
     - Add state: `const [showConfigModal, setShowConfigModal] = useState(false);`
     - Change the "Start Test" button's `onClick` (line 172) from `() => handleAction(onStartTest)` to `() => setShowConfigModal(true)`.
     - Add `<SessionStartConfigModal isOpen={showConfigModal} onClose={() => setShowConfigModal(false)} onConfirm={(config) => { setShowConfigModal(false); handleAction(() => onStartTest(config)); }} testTitle={testData?.title || 'Test'} />` below the existing JSX.
     - Import `SessionStartConfigModal` and `AntiCheatConfig`.
-  - [ ] 4.6 Modify `src/hooks/monitor/useMonitorControls.ts` — this is where `startTest` is defined (line 102-142):
+  - [x] 4.6 Modify `src/hooks/monitor/useMonitorControls.ts` — this is where `startTest` is defined (line 102-142):
     - Change the `startTest` function signature from `const startTest = async () => {` to `const startTest = async (antiCheatConfig?: AntiCheatConfig) => {`.
     - In the `update(sessionRef, { ... })` call at line 110, add `antiCheatConfig: antiCheatConfig || null` to the update object: `await update(sessionRef, { status: 'in-progress', startTime: Date.now(), isPaused: false, antiCheatConfig: antiCheatConfig || null })`.
     - Update the `MonitorControlsResult` interface (line 34) to change `startTest: () => Promise<void>` to `startTest: (antiCheatConfig?: AntiCheatConfig) => Promise<void>`.
     - Import `AntiCheatConfig` from `../../types/integrity.types`.
 
-- [ ] 5.0 Add anti-cheat section to Homework Assignment Modal
-  - [ ] 5.1 Create `src/components/homework/AntiCheatConfigSection.tsx` with props:
+- [x] 5.0 Add anti-cheat section to Homework Assignment Modal
+  - [x] 5.1 Create `src/components/homework/AntiCheatConfigSection.tsx` with props:
     ```typescript
     interface AntiCheatConfigSectionProps {
       config: AntiCheatConfig;
@@ -244,10 +244,10 @@
     }
     ```
     The component renders as a collapsed section with header "🔒 Anti-Cheat Settings ▸" (using a `<button>` styled as a section header). On click, toggle `isExpanded` state. Use `max-height` CSS transition for smooth expand/collapse animation.
-  - [ ] 5.2 Inside the expanded section, add a preset dropdown (`<select>` with None/Standard/Strict/Custom) and a "▸ Customize" expandable sub-section with individual toggles (same toggle UI and field mapping as Task 4.2). Additionally include the `nullifyRemainingAttempts` toggle with label "Lock remaining attempts on auto-submit" — default OFF. When the dropdown changes, call `onChange(resolvePreset(selected))`. When any toggle changes, set dropdown to "Custom" and call `onChange(updatedConfig)`.
-  - [ ] 5.3 Create `src/components/homework/AntiCheatConfigSection.css`. Follow the collapsible section pattern from `HomeworkCreateModal.css`. Key styles: section header as flex row with chevron icon that rotates on expand, `transition: max-height 0.3s ease`, toggle row same as Task 4.4.
-  - [ ] 5.4 Integrate into `src/components/homework/HomeworkCreateModal.tsx` in the config step. Find the config section (approximately around line 616 where existing config fields like timer and attempts are rendered). Add `<AntiCheatConfigSection config={antiCheatConfig} onChange={setAntiCheatConfig} />` below the existing config fields. Initialize state: `const [antiCheatConfig, setAntiCheatConfig] = useState<AntiCheatConfig>(() => ({ ...resolvePreset('standard'), ...getContextDefaults('homework') }))`. Pass `antiCheatConfig` to the create function when the form is submitted.
-  - [ ] 5.5 Update the homework creation service call: find where the homework document is written to Firestore (in `homeworkManager.ts` or the function called from `HomeworkCreateModal`). Add `antiCheatConfig` to the document data. Use the undefined-sanitization pattern: `...(antiCheatConfig ? { antiCheatConfig } : {})`. This prevents writing `undefined` to Firestore (which throws).
+  - [x] 5.2 Inside the expanded section, add a preset dropdown (`<select>` with None/Standard/Strict/Custom) and a "▸ Customize" expandable sub-section with individual toggles (same toggle UI and field mapping as Task 4.2). Additionally include the `nullifyRemainingAttempts` toggle with label "Lock remaining attempts on auto-submit" — default OFF. When the dropdown changes, call `onChange(resolvePreset(selected))`. When any toggle changes, set dropdown to "Custom" and call `onChange(updatedConfig)`.
+  - [x] 5.3 Create `src/components/homework/AntiCheatConfigSection.css`. Follow the collapsible section pattern from `HomeworkCreateModal.css`. Key styles: section header as flex row with chevron icon that rotates on expand, `transition: max-height 0.3s ease`, toggle row same as Task 4.4.
+  - [x] 5.4 Integrate into `src/components/homework/HomeworkCreateModal.tsx` in the config step. Find the config section (approximately around line 616 where existing config fields like timer and attempts are rendered). Add `<AntiCheatConfigSection config={antiCheatConfig} onChange={setAntiCheatConfig} />` below the existing config fields. Initialize state: `const [antiCheatConfig, setAntiCheatConfig] = useState<AntiCheatConfig>(() => ({ ...resolvePreset('standard'), ...getContextDefaults('homework') }))`. Pass `antiCheatConfig` to the create function when the form is submitted.
+  - [x] 5.5 Update the homework creation service call: find where the homework document is written to Firestore (in `homeworkManager.ts` or the function called from `HomeworkCreateModal`). Add `antiCheatConfig` to the document data. Use the undefined-sanitization pattern: `...(antiCheatConfig ? { antiCheatConfig } : {})`. This prevents writing `undefined` to Firestore (which throws).
 
 - [ ] 6.0 Integrate `useTestIntegrity` into all student test surfaces
   - [ ] 6.1 Integrate into `src/pages/StudentTestPage.tsx`:

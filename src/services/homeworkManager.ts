@@ -25,6 +25,7 @@ import type {
     HomeworkStudentOverride,
     StudentOverride
 } from '../types/homework.types';
+import type { AntiCheatConfig } from '../types/integrity.types';
 
 const HOMEWORK_COLLECTION = 'homework_assignments';
 
@@ -56,6 +57,9 @@ interface CreateHomeworkInput {
         versionKey?: string;
         pinToVersion?: boolean;
     };
+
+    // PRD-0036: Anti-cheat configuration
+    antiCheatConfig?: AntiCheatConfig;
 }
 
 /**
@@ -155,6 +159,8 @@ export async function createHomework(data: CreateHomeworkInput): Promise<string>
                     Object.entries(data.thcsConfig).filter(([, v]) => v !== undefined)
                   ) }
                 : {}),
+            // PRD-0036: Anti-cheat configuration (Task 5.5)
+            ...(data.antiCheatConfig ? { antiCheatConfig: data.antiCheatConfig } : {}),
         };
 
         await setDoc(homeworkRef, homework);

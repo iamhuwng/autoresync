@@ -1,0 +1,291 @@
+/* ================================================================
+   AntiCheatConfigSection.css
+   PRD-0036: Anti-Cheating System — Task 5.3
+   Collapsible anti-cheat settings section for homework assignment
+   ================================================================ */
+
+.anticheat-section {
+    border: 2px solid #e5e7eb;
+    border-radius: 0.75rem;
+    overflow: hidden;
+    transition: border-color 0.2s ease;
+}
+
+.anticheat-section:hover {
+    border-color: #d1d5db;
+}
+
+/* Section Header */
+.anticheat-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 1rem 1.25rem;
+    border: none;
+    background: #f9fafb;
+    cursor: pointer;
+    transition: background 0.15s ease;
+    text-align: left;
+}
+
+.anticheat-header:hover {
+    background: #f1f5f9;
+}
+
+.anticheat-chevron {
+    display: inline-block;
+    font-size: 0.75rem;
+    color: #6b7280;
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
+}
+
+.anticheat-chevron.expanded {
+    transform: rotate(90deg);
+}
+
+.anticheat-header-text {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: #374151;
+}
+
+.anticheat-header-badge {
+    margin-left: auto;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.125rem 0.5rem;
+    border-radius: 999px;
+    background: #e5e7eb;
+    color: #6b7280;
+}
+
+.anticheat-header-badge.active {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+/* Expandable Content */
+.anticheat-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+.anticheat-content.expanded {
+    max-height: 800px;
+}
+
+.anticheat-inner {
+    padding: 1rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    border-top: 1px solid #e5e7eb;
+}
+
+/* Preset Dropdown */
+.ac-preset-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+}
+
+.ac-preset-label {
+    font-weight: 600;
+    color: #374151;
+    font-size: 0.8125rem;
+}
+
+.ac-preset-select {
+    width: 100%;
+    padding: 0.625rem 0.875rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    background: #ffffff;
+    color: #1e293b;
+    cursor: pointer;
+    transition: border-color 0.2s ease;
+}
+
+.ac-preset-select:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Customize Sub-Toggle */
+.ac-customize-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    border: none;
+    background: transparent;
+    color: #3b82f6;
+    font-weight: 600;
+    font-size: 0.8125rem;
+    cursor: pointer;
+    padding: 0.25rem 0;
+}
+
+.ac-customize-btn:hover {
+    color: #1d4ed8;
+}
+
+/* Toggle List */
+.ac-toggle-list {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    background: #ffffff;
+}
+
+.ac-toggle-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.625rem 0.875rem;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.ac-toggle-row:last-child {
+    border-bottom: none;
+}
+
+.ac-toggle-row:hover {
+    background: #f8fafc;
+}
+
+.ac-toggle-label {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #374151;
+}
+
+/* Re-use the same switch style from SessionStartConfigModal */
+.ac-switch {
+    position: relative;
+    width: 2.25rem;
+    height: 1.25rem;
+    -webkit-appearance: none;
+    appearance: none;
+    background: #d1d5db;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.2s ease;
+    border: none;
+    outline: none;
+    flex-shrink: 0;
+}
+
+.ac-switch::before {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 1rem;
+    height: 1rem;
+    background: #ffffff;
+    border-radius: 50%;
+    transition: transform 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.ac-switch:checked {
+    background: #3b82f6;
+}
+
+.ac-switch:checked::before {
+    transform: translateX(1rem);
+}
+
+/* Threshold Input Row */
+.ac-threshold-row {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.875rem 0.625rem;
+    font-size: 0.75rem;
+    color: #6b7280;
+    background: #f8fafc;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.ac-threshold-input {
+    width: 3rem;
+    padding: 0.25rem 0.375rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    text-align: center;
+    font-weight: 700;
+    font-size: 0.8125rem;
+    color: #1e293b;
+}
+
+.ac-threshold-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+    .anticheat-section {
+        border-color: #4b5563;
+    }
+
+    .anticheat-header {
+        background: #374151;
+    }
+
+    .anticheat-header:hover {
+        background: #4b5563;
+    }
+
+    .anticheat-header-text {
+        color: #d1d5db;
+    }
+
+    .anticheat-inner {
+        border-top-color: #4b5563;
+    }
+
+    .ac-preset-select {
+        background: #374151;
+        border-color: #4b5563;
+        color: #f9fafb;
+    }
+
+    .ac-toggle-list {
+        background: #374151;
+        border-color: #4b5563;
+    }
+
+    .ac-toggle-row {
+        border-bottom-color: #4b5563;
+    }
+
+    .ac-toggle-row:hover {
+        background: #4b5563;
+    }
+
+    .ac-toggle-label {
+        color: #d1d5db;
+    }
+
+    .ac-threshold-row {
+        background: #374151;
+        border-bottom-color: #4b5563;
+        color: #9ca3af;
+    }
+
+    .ac-threshold-input {
+        background: #374151;
+        border-color: #4b5563;
+        color: #f9fafb;
+    }
+}

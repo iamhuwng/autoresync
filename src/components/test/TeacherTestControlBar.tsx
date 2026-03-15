@@ -11,6 +11,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../modern';
+import { SessionStartConfigModal } from './SessionStartConfigModal';
+import type { AntiCheatConfig } from '../../types/integrity.types';
 
 interface TestSession {
   sessionCode: string;
@@ -36,7 +38,7 @@ interface TeacherTestControlBarProps {
   sessionCode: string;
   session: TestSession | null;
   testData: TestData | null;
-  onStartTest: () => Promise<void>;
+  onStartTest: (config: AntiCheatConfig) => Promise<void>;
   onPauseTest: () => Promise<void>;
   onEndTest: () => Promise<void>;
   onExtendTime: (minutes: number) => Promise<void>;
@@ -67,6 +69,7 @@ export const TeacherTestControlBar: React.FC<TeacherTestControlBarProps> = ({
   const [timeRemaining, setTimeRemaining] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [showTimeMenu, setShowTimeMenu] = useState(false);
+  const [showConfigModal, setShowConfigModal] = useState(false);
   const [currentSpeed, setCurrentSpeed] = useState(1.0);
   const speedOptions = [0.75, 1.0, 1.25, 1.5, 2.0];
 
@@ -169,7 +172,7 @@ export const TeacherTestControlBar: React.FC<TeacherTestControlBarProps> = ({
 
           {/* Start/Pause Control */}
           {session?.status === 'waiting' ? (
-            <Button variant="primary" onClick={() => handleAction(onStartTest)} disabled={isLoading || !testData} size="sm">
+            <Button variant="primary" onClick={() => setShowConfigModal(true)} disabled={isLoading || !testData} size="sm">
               Start Test
             </Button>
           ) : session?.status === 'in-progress' ? (
@@ -378,6 +381,15 @@ export const TeacherTestControlBar: React.FC<TeacherTestControlBarProps> = ({
         </div>
       </div>
       <style>{`@keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }`}</style>
+      <SessionStartConfigModal
+        isOpen={showConfigModal}
+        onClose={() => setShowConfigModal(false)}
+        onConfirm={(config) => {
+          setShowConfigModal(false);
+          handleAction(() => onStartTest(config));
+        }}
+        testTitle={testData?.title || 'Test'}
+      />
     </div>
   );
 };

@@ -3,10 +3,13 @@ import { useAuth } from '../../contexts/AuthContext';
 import { HomeworkConfigPanel } from './HomeworkConfigPanel';
 import { HomeworkTagChips } from './HomeworkTagChips';
 import { StudentGroupSelector } from './StudentGroupSelector';
+import { AntiCheatConfigSection } from './AntiCheatConfigSection';
 import { useHomeworkTags } from '../../hooks/useHomeworkTags';
 import { createHomework } from '../../services/homeworkManager';
 import { createTemplate, getTemplatesByTeacher } from '../../services/homeworkTemplateService';
 import type { HomeworkConfig, HomeworkTarget } from '../../types/homework.types';
+import type { AntiCheatConfig } from '../../types/integrity.types';
+import { resolvePreset, getContextDefaults } from '../../utils/antiCheatPresets';
 // @ts-ignore - JS service
 import queryOptimizer from '../../services/firebaseQueryOptimizer';
 import { THCSHomeworkAssignDialog } from '../thcs-editor/THCSHomeworkAssignDialog';
@@ -97,6 +100,12 @@ export function HomeworkCreateModal({
 
     // Writing-specific config state
     const [wordMinEnforced, setWordMinEnforced] = useState(true);
+
+    // PRD-0036: Anti-cheat configuration for homework
+    const [antiCheatConfig, setAntiCheatConfig] = useState<AntiCheatConfig>(() => ({
+        ...resolvePreset('standard'),
+        ...getContextDefaults('homework'),
+    }));
 
     const [availableFrom, setAvailableFrom] = useState<string>('');
     const [dueDate, setDueDate] = useState<string>('');
@@ -320,6 +329,7 @@ export function HomeworkCreateModal({
                 dueDate: new Date(dueDate),
                 instructions,
                 tags: selectedTags,
+                antiCheatConfig,
             });
 
             onSuccess();
@@ -787,6 +797,12 @@ export function HomeworkCreateModal({
                                         })}
                                     </div>
                                 </div>
+
+                                {/* PRD-0036: Anti-Cheat Config Section */}
+                                <AntiCheatConfigSection
+                                    config={antiCheatConfig}
+                                    onChange={setAntiCheatConfig}
+                                />
 
                                 {/* Save as Template (all materials) */}
                                 {selectedMaterial?.skill !== 'writing' && (
