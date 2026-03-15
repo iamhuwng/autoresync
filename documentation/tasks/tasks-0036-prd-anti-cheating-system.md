@@ -93,8 +93,8 @@
     - Both fields are optional so existing homework documents without anti-cheat config continue to work.
   - [x] 1.4 Write unit tests `src/utils/antiCheatPresets.test.ts` using Vitest. Test: `resolvePreset('standard')` returns expected config, `resolvePreset('none')` has all detection flags false, `getContextDefaults('session')` disables warnings and auto-submit, `getContextDefaults('solo')` disables everything, `computeRiskLevel(0, false)` = 'low', `computeRiskLevel(2, false)` = 'medium', `computeRiskLevel(3, false)` = 'high', `computeRiskLevel(0, true)` = 'high'.
 
-- [ ] 2.0 Build the `useTestIntegrity` detection hook (core engine)
-  - [ ] 2.1 Create `src/hooks/test/useTestIntegrity.ts`. The hook accepts a single config object:
+- [x] 2.0 Build the `useTestIntegrity` detection hook (core engine)
+  - [x] 2.1 Create `src/hooks/test/useTestIntegrity.ts`. The hook accepts a single config object:
     ```typescript
     interface UseTestIntegrityOptions {
       config: AntiCheatConfig | null;
@@ -105,22 +105,22 @@
     }
     ```
     If `config` is null OR `context` is `'solo'`, the hook MUST return a no-op state: `{ violationCount: 0, totalEvents: 0, warningLevel: 'none' as const, warningMessage: '', shouldAutoSubmit: false, flushEvents: async () => {}, getIntegrityReport: () => emptyReport, addEvent: () => {} }`. No listeners are attached, no intervals are created.
-  - [ ] 2.2 Implement `visibilitychange` listener: use `document.addEventListener('visibilitychange', handler)`. When `document.visibilityState === 'hidden'`, record `hiddenAtRef.current = Date.now()`. When `document.visibilityState === 'visible'`, calculate `durationMs = Date.now() - hiddenAtRef.current`. Create an `IntegrityEvent` with `type: 'tab_switch'` and `durationMs`. Pass the event through the grace period calculator (task 2.4) to set `withinGrace` and `counted`. Add the event to the buffer (task 2.5). Only attach this listener if `config.detectTabSwitch` is true. MUST return cleanup: `document.removeEventListener('visibilitychange', handler)`.
-  - [ ] 2.3 Implement `window.blur`/`focus` listeners using `window.addEventListener('blur', blurHandler)` and `window.addEventListener('focus', focusHandler)`. Same duration tracking pattern as 2.2 but log with `type: 'window_blur'`. Only attach if `config.detectTabSwitch` is true. MUST return cleanup for both listeners.
-  - [ ] 2.4 Implement grace period calculator (FR-6 through FR-10). Maintain a `switchCountRef = useRef(0)` counter for total tab switches + window blurs. For each tab_switch or window_blur event, increment `switchCountRef.current`, then determine:
+  - [x] 2.2 Implement `visibilitychange` listener: use `document.addEventListener('visibilitychange', handler)`. When `document.visibilityState === 'hidden'`, record `hiddenAtRef.current = Date.now()`. When `document.visibilityState === 'visible'`, calculate `durationMs = Date.now() - hiddenAtRef.current`. Create an `IntegrityEvent` with `type: 'tab_switch'` and `durationMs`. Pass the event through the grace period calculator (task 2.4) to set `withinGrace` and `counted`. Add the event to the buffer (task 2.5). Only attach this listener if `config.detectTabSwitch` is true. MUST return cleanup: `document.removeEventListener('visibilitychange', handler)`.
+  - [x] 2.3 Implement `window.blur`/`focus` listeners using `window.addEventListener('blur', blurHandler)` and `window.addEventListener('focus', focusHandler)`. Same duration tracking pattern as 2.2 but log with `type: 'window_blur'`. Only attach if `config.detectTabSwitch` is true. MUST return cleanup for both listeners.
+  - [x] 2.4 Implement grace period calculator (FR-6 through FR-10). Maintain a `switchCountRef = useRef(0)` counter for total tab switches + window blurs. For each tab_switch or window_blur event, increment `switchCountRef.current`, then determine:
     - `isShortDuration = durationMs < 5000` (5 seconds)
     - `isFreeSwitchLeft = switchCountRef.current <= 2`
     - `withinGrace = isShortDuration || isFreeSwitchLeft`
     - `counted = !withinGrace` (only counted if duration ≥ 5s AND switchCount > 2)
     - ALL events MUST be logged regardless of grace status. Grace only affects `counted` and warning triggers.
-  - [ ] 2.5 Implement in-memory event buffer using `useRef<IntegrityEvent[]>([])`. Also maintain `violationCountRef = useRef(0)` that only counts events where `counted === true`. Expose an `addEvent(event: IntegrityEvent)` internal function that: (a) pushes to buffer, (b) if `counted`, increments `violationCountRef`, (c) mirrors to sessionStorage (task 2.6), (d) triggers warning evaluation (task 2.8).
-  - [ ] 2.6 Implement `sessionStorage` crash-recovery mirror (FR-3, FR-5, FR-46):
+  - [x] 2.5 Implement in-memory event buffer using `useRef<IntegrityEvent[]>([])`. Also maintain `violationCountRef = useRef(0)` that only counts events where `counted === true`. Expose an `addEvent(event: IntegrityEvent)` internal function that: (a) pushes to buffer, (b) if `counted`, increments `violationCountRef`, (c) mirrors to sessionStorage (task 2.6), (d) triggers warning evaluation (task 2.8).
+  - [x] 2.6 Implement `sessionStorage` crash-recovery mirror (FR-3, FR-5, FR-46):
     - On hook mount (in a `useEffect`), set `sessionStorage.setItem('test_in_progress', testId)` to mark that a test is active.
     - On hook unmount, remove it: `sessionStorage.removeItem('test_in_progress')`.
     - On every `addEvent` call, serialize the full event buffer to `sessionStorage.setItem(\`integrity_events_${testId}\`, JSON.stringify(eventsRef.current))`.
     - On hook mount, check for existing events: if `sessionStorage.getItem(\`integrity_events_${testId}\`)` returns data AND `sessionStorage.getItem('test_in_progress') === testId`, this indicates a crash/reload. Load the existing events into the buffer. Add a new `{ type: 'page_reload', timestamp: Date.now(), withinGrace: true, counted: false }` event. Check `performance.navigation?.type === 1` (reload) as an additional signal — if `performance.navigation` is not available (deprecated), fall back to the sessionStorage flag alone.
     - On successful submission (in `flushEvents`), clear: `sessionStorage.removeItem(\`integrity_events_${testId}\`)` and `sessionStorage.removeItem('test_in_progress')`.
-  - [ ] 2.7 Implement batched RTDB writer (FR-4). This ONLY applies when `context === 'session'` and `sessionCode` is provided:
+  - [x] 2.7 Implement batched RTDB writer (FR-4). This ONLY applies when `context === 'session'` and `sessionCode` is provided:
     - Use `setInterval` at **5-minute intervals** (300000ms). Store the interval ID in a `useRef`.
     - On each tick, call an internal `writeBatchToRTDB()` function that:
       1. Imports `{ ref, update } from 'firebase/database'` and `{ database } from '../../services/firebase'` (use the same import pattern as `useMonitorControls.ts` lines 12-14).
@@ -131,7 +131,7 @@
     - On `flushEvents()` (called at submission time), write the FULL report INCLUDING the `events` array to RTDB. Then clear sessionStorage.
     - For `context === 'homework'`: NO interval writes. The hook only buffers events in memory + sessionStorage. The Firestore write happens at submission time in the consuming component (Task 6.5), by calling `getIntegrityReport()` and passing the result to `homeworkSubmissionService`.
     - MUST clear the interval on unmount: `clearInterval(intervalIdRef.current)`.
-  - [ ] 2.8 Implement warning manager (FR-11 through FR-13). Only active if `config.enableStudentWarnings === true`. Maintain a `warningLevel` state:
+  - [x] 2.8 Implement warning manager (FR-11 through FR-13). Only active if `config.enableStudentWarnings === true`. Maintain a `warningLevel` state:
     - `'none'`: `violationCount === 0`
     - `'toast'`: `1 <= violationCount < (config.autoSubmitThreshold - 1)`. Message: `"Please stay on this page to complete your work."`
     - `'escalated'`: `violationCount === (config.autoSubmitThreshold - 1)`. Message: `"You have left this page multiple times. Continuing may affect your submission."`
@@ -139,10 +139,10 @@
     - For `toast` and `escalated` levels: the consuming component calls `toast.warning(warningMessage)` from `src/components/modern/ToastNotification.tsx` (import `{ toast }` from that file). See ToastNotification.tsx lines 149-168 for the API.
     - For `final` level: the consuming component renders a blocking modal (custom `<div>` overlay, NOT a Mantine modal). The modal has two buttons: "Continue Test" (dismisses modal, resets `warningLevel` to `'escalated'`) and no second button — if they dismiss, the auto-submit triggers on the next violation.
     - Return `{ warningLevel, warningMessage, onDismissWarning: () => void }` from the hook where `onDismissWarning` resets `warningLevel` one step back.
-  - [ ] 2.9 Implement auto-submit trigger: if `config.enableAutoSubmit === true` AND `violationCountRef.current >= config.autoSubmitThreshold`, set `shouldAutoSubmitRef.current = true` and update a state to trigger re-render. The consuming component checks `shouldAutoSubmit` and calls its own submission logic, setting `forceSubmitted: true, forceSubmittedBy: 'system'` in the integrity report before flushing.
-  - [ ] 2.10 Implement `devtools_resize` detection (FR-1): listen for `window.addEventListener('resize')`. Use a heuristic: if the window width changes by MORE than 200px in a single resize event while height stays similar (±50px), log as `type: 'devtools_resize'` with `withinGrace: true, counted: false`. This is a soft indicator logged for teacher review, never a violation. Only attach if `config.detectKeyboardShortcuts` is true (bundled with the shortcut detection flag). MUST return cleanup.
-  - [ ] 2.11 Implement `time_per_question` tracking (FR-1): expose a `trackQuestionTime(questionIndex: number)` function from the hook. The consuming component calls this when the student navigates to a new question. Internally, maintain `currentQuestionRef = useRef({ index: number, startedAt: number })`. When `trackQuestionTime` is called, if there's a previous question tracked, log an event `{ type: 'time_per_question', timestamp: Date.now(), durationMs: elapsed, withinGrace: true, counted: false, details: \`Q${previousIndex}\` }`. This is for post-analysis only — never triggers warnings or violations.
-  - [ ] 2.12 Define the complete return type and implement the final export:
+  - [x] 2.9 Implement auto-submit trigger: if `config.enableAutoSubmit === true` AND `violationCountRef.current >= config.autoSubmitThreshold`, set `shouldAutoSubmitRef.current = true` and update a state to trigger re-render. The consuming component checks `shouldAutoSubmit` and calls its own submission logic, setting `forceSubmitted: true, forceSubmittedBy: 'system'` in the integrity report before flushing.
+  - [x] 2.10 Implement `devtools_resize` detection (FR-1): listen for `window.addEventListener('resize')`. Use a heuristic: if the window width changes by MORE than 200px in a single resize event while height stays similar (±50px), log as `type: 'devtools_resize'` with `withinGrace: true, counted: false`. This is a soft indicator logged for teacher review, never a violation. Only attach if `config.detectKeyboardShortcuts` is true (bundled with the shortcut detection flag). MUST return cleanup.
+  - [x] 2.11 Implement `time_per_question` tracking (FR-1): expose a `trackQuestionTime(questionIndex: number)` function from the hook. The consuming component calls this when the student navigates to a new question. Internally, maintain `currentQuestionRef = useRef({ index: number, startedAt: number })`. When `trackQuestionTime` is called, if there's a previous question tracked, log an event `{ type: 'time_per_question', timestamp: Date.now(), durationMs: elapsed, withinGrace: true, counted: false, details: \`Q${previousIndex}\` }`. This is for post-analysis only — never triggers warnings or violations.
+  - [x] 2.12 Define the complete return type and implement the final export:
     ```typescript
     interface UseTestIntegrityResult {
       violationCount: number;
@@ -157,7 +157,7 @@
     }
     ```
     The `getIntegrityReport()` method computes and returns the current summary from the event buffer. The `addEvent()` method allows external hooks (useAntiCopyPaste, useFullscreenMode) to inject events into the shared buffer.
-  - [ ] 2.13 Write unit tests `src/hooks/test/useTestIntegrity.test.ts` using Vitest. Test: (a) no-op when config is null, (b) no-op when context is 'solo', (c) grace period correctly ignores first 2 switches, (d) grace period correctly ignores switches < 5s, (e) violationCount increments only for counted events, (f) warning levels map correctly to thresholds. Mock `firebase/database` and `sessionStorage`.
+  - [x] 2.13 Write unit tests `src/hooks/test/useTestIntegrity.test.ts` using Vitest. Test: (a) no-op when config is null, (b) no-op when context is 'solo', (c) grace period correctly ignores first 2 switches, (d) grace period correctly ignores switches < 5s, (e) violationCount increments only for counted events, (f) warning levels map correctly to thresholds. Mock `firebase/database` and `sessionStorage`.
 
 - [ ] 3.0 Integrate copy/paste prevention and fullscreen mode
   - [ ] 3.1 Create `src/hooks/test/useAntiCopyPaste.ts`. The hook accepts:
