@@ -3,7 +3,6 @@
  * 
  * Shows warnings in the browser console during development when:
  * - A NEW file contains @mantine imports (Rule 15)
- * - WebMCP module is not initialized (setup reminder)
  * 
  * This is a soft enforcement — warnings only, never blocks dev server.
  * 

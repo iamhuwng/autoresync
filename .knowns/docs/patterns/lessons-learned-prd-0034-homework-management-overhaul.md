@@ -1,0 +1,83 @@
+---
+title: 'Lessons Learned: PRD-0034 Homework Management Overhaul'
+createdAt: '2026-03-13T19:20:55.832Z'
+updatedAt: '2026-03-13T19:21:25.473Z'
+description: >-
+  Consolidated lessons from PRD-0034 homework management overhaul: placeholder
+  stubs as debt bombs, N+1 write patterns hiding in hooks, data hook purity
+  rules, route ordering, CSS display:table bug, duplicate CSS rules, function
+  existence verification.
+tags:
+  - lesson
+  - pattern
+  - homework
+  - prd-0034
+  - post-mortem
+---
+# Lessons Learned: PRD-0034 Homework Management Overhaul
+
+## L1: Placeholder Components Are Technical Debt Bombs
+**What happened:** `VanillaTabs`, `VanillaLoader`, `HomeworkScoreDistribution` were all empty stubs (`<div>Placeholder</div>`). Downstream tasks used workarounds.
+**Standard:** Never commit placeholder components. Either implement fully or don't create the file.
+
+## L2: N+1 Write Pattern Hides in Data Hooks
+**What happened:** `useHomeworkList` called `updateHomeworkStatus()` for every homework on every fetch — N writes + 2N reads per page load.
+**Standard:** `useFoo` hooks that fetch data MUST be pure readers. Write operations belong in services or dedicated mutation hooks.
+
+## L3: Toast Architecture — Singleton vs Component
+**What happened:** Initial implementation used per-component `<ToastNotification>` requiring prop-drilling. PRD specified `toast.success()` singleton.
+**Standard:** Global UI feedback → module-level singleton + `useSyncExternalStore`. See @doc/patterns/pattern-toast-singleton-via-usesyncexternalstore
+
+## L4: Firestore Rejects `undefined` — Always Sanitize
+**What happened:** "Assign Homework" button silently failed. `thcsConfig` contained `undefined` fields.
+**Standard:** Every Firestore write must sanitize `undefined` values. See @doc/patterns/pattern-firestore-undefined-sanitization
+
+## L5: Route Parameter Ordering Matters
+**What happened:** `/teacher/homework/student/:studentId` must be BEFORE `/teacher/homework/:homeworkId` — otherwise "student" is parsed as a homework ID.
+**Standard:** Specific routes before parameterized catch-alls. Verify in `App.jsx` after every route addition.
+
+## L6: CSS `display: table` on `<div>` Breaks Layout
+**What happened:** Used `display: table` as default for desktop table wrapper div.
+**Standard:** Only `<table>` elements should use `display: table`. Wrapping divs use `display: block`.
+
+## L7: Duplicate CSS Rules Across Files
+**What happened:** `HomeworkMobilePolish.css` duplicated rules from `HomeworkBulkActionBar.css`.
+**Standard:** Component-specific responsive rules → component's own CSS. Shared mobile CSS → only cross-component rules.
+
+## L8: "Function Was Reportedly Added But Grep Found Nothing"
+**What happened:** `clearSubsumedOverrides` was mentioned in commit messages but not found in codebase.
+**Standard:** After implementing a critical function, `grep -r "functionName" src/` to verify it persists.
+
+## L9: `useMemo` for State Reset Is an Anti-Pattern
+**What happened:** `useMemo(() => { setDisplayCount(PAGE_SIZE); }, [deps])` — side effect inside memoization.
+**Standard:** `useMemo` for computations, `useEffect` for side effects. Will break in React concurrent mode.
+
+## L10: Kebab Menu — Always `stopPropagation()`
+**What happened:** Clicking "Edit" in kebab menu also triggered the card's onClick navigation.
+**Standard:** Any clickable element inside a clickable container MUST call `e.stopPropagation()`.
+
+---
+
+## Moving Forward Standards
+
+| # | Standard | Scope |
+|---|----------|-------|
+| S1 | Data hooks must be pure readers — no DB writes | All `useFoo` hooks |
+| S2 | No placeholder/stub components — implement or don't create | All components |
+| S3 | Sanitize `undefined` before Firestore writes | All Firestore writes |
+| S4 | CSS-only responsive layouts — no JS breakpoints | All responsive UI |
+| S5 | Specific routes before parameterized catch-alls | `App.jsx` routing |
+| S6 | Component CSS owns its responsive rules | CSS architecture |
+| S7 | Assess codebase before implementing large PRDs | PRD workflow |
+| S8 | Post-implementation grep verification | Critical functions |
+| S9 | `Promise.allSettled` for bulk operations | All bulk actions |
+| S10 | Notification guard: limit + cooldown + state filter | All reminders |
+| S11 | Target-based view as default for assignment lists | List pages |
+| S12 | Module-level cache for async name resolution | ID → name mapping |
+| S13 | 3-row compact card layout standard | High-density cards |
+| S14 | Filter controls in drill-down modal, not main page | Drill-down UIs |
+
+## Source
+
+- `documentation/prd0034-knowledge-extraction.md` — full post-mortem
+- PRD-0034 Teacher Homework Management Overhaul (17 task groups, 112+ sub-tasks)

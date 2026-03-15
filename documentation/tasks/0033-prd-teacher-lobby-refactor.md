@@ -362,9 +362,9 @@ The following CSS custom properties should be added to `NativeSelect.css` and `T
 - All new `.jsx` component files are NEW files → Rule 15 applies. ZERO Mantine imports are allowed in these new files.
 - Exception: `ClassSelectionModal.jsx` and `UseAsIsModal.jsx` use Mantine `Modal` and `Select` because they extract existing Mantine usage from TeacherLobbyPage. These are MOVED code, not new Mantine adoption. Document this exception with a comment: `// Rule 15 Exception: Mantine Modal/Select moved from TeacherLobbyPage.jsx — see PRD-0033 NG-1`.
 
-### 7.2 WebMCP Tool Registration (Integration Safety Rule 16)
+### 7.2 ~~WebMCP Tool Registration (Integration Safety Rule 16)~~ — RETIRED
 
-- No new user-facing features are created → Rule 16 does not apply.
+- Rule 16 was retired on 2026-03-14. WebMCP system fully removed from codebase. No action needed.
 
 ### 7.3 Route/Path Validation (Integration Safety Rule 1)
 

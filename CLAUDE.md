@@ -60,29 +60,28 @@ The canonical example is `src/pages/StudentDashboardPage.jsx`. All student pages
 
 ---
 
-## 🔴 Integration Safety Rules (ZERO BYPASS — Enforced 2026-02-22, Updated 2026-02-27)
+## 🔴 Integration Safety Rules (22 rules — ZERO BYPASS)
 
-17 rules from real production bugs. **When you hit a trigger condition, STOP and read the full rule before writing code:**
+When your action matches a trigger below, **STOP and READ the linked file** before writing code. Do NOT load all files — only the one that matches.
 
-| # | When you are... | Rule | Full details → READ before coding |
-|---|---|---|---|
-| 1 | Writing any `navigate()`, link, or redirect URL | Route Registry Validation | [`integration-safety-rules.md#rule-1`](./documentation/integration-safety-rules.md#rule-1) |
-| 2 | Navigating to `/student-test/*` or `/student-wait/*` | Session Entry Handshake | [`integration-safety-rules.md#rule-2`](./documentation/integration-safety-rules.md#rule-2) |
-| 3 | Writing a new nav/notif handler or session entry point | Pattern-First Research | [`integration-safety-rules.md#rule-3`](./documentation/integration-safety-rules.md#rule-3) |
-| 4 | Causing layout shift during a dnd-kit drag | Force Re-measurement | [`integration-safety-rules.md#rule-4`](./documentation/integration-safety-rules.md#rule-4) |
-| 5 | Adding custom pointer handlers on dnd-kit draggables | No setPointerCapture | [`integration-safety-rules.md#rule-5`](./documentation/integration-safety-rules.md#rule-5) |
-| 6 | Writing `useEffect` with `setInterval` + state in deps | Hot Values → Refs | [`integration-safety-rules.md#rule-6`](./documentation/integration-safety-rules.md#rule-6) |
-| 7 | Creating state initialized as `'pending'` or `'loading'` | Guaranteed Resolution | [`integration-safety-rules.md#rule-7`](./documentation/integration-safety-rules.md#rule-7) |
-| 8 | Creating a new component for use in another page | Verify Integration E2E | [`integration-safety-rules.md#rule-8`](./documentation/integration-safety-rules.md#rule-8) |
-| 9 | PRD/task says "replace ALL" or "every" | Grep Audit | [`integration-safety-rules.md#rule-9`](./documentation/integration-safety-rules.md#rule-9) |
-| 10 | Before any `git pull`, `git fetch`, or sync operation | Git Sync Safety Protocol | [`integration-safety-rules.md#rule-10`](./documentation/integration-safety-rules.md#rule-10) |
-| 11 | Creating a service that writes to RTDB/Firestore as a side effect | Restore Guard Middleware | [`integration-safety-rules.md#rule-11`](./documentation/integration-safety-rules.md#rule-11) |
-| 12 | Adding a new RTDB node or Firestore collection | Backup Coverage Check | [`integration-safety-rules.md#rule-12`](./documentation/integration-safety-rules.md#rule-12) |
-| 13 | Building serverless function (CF Workers, Lambda) with heavy workloads | Client-Driven Multi-Step | [`integration-safety-rules.md#rule-13`](./documentation/integration-safety-rules.md#rule-13) |
-| 14 | Using an ID shared between creator and consumer (client, DB, webhook) | Never Regenerate Shared IDs | [`integration-safety-rules.md#rule-14`](./documentation/integration-safety-rules.md#rule-14) |
-| 15 | Writing ANY `import` statement or `npm install` | No Mantine — Absolute Import Ban | [`integration-safety-rules.md#rule-15`](./documentation/integration-safety-rules.md#rule-15) |
-| 16 | Creating ANY new user-facing feature (page, modal, form, action) | WebMCP Tool Registration | [`integration-safety-rules.md#rule-16`](./documentation/integration-safety-rules.md#rule-16) |
-| 17 | Writing new data to a path where existing code already reads | Producer-Consumer Contract | [`integration-safety-rules.md#rule-17`](./documentation/integration-safety-rules.md#rule-17) |
+| When you are... | READ this file |
+|----------------|----------------|
+| Writing `navigate()`, `<Link>`, redirect URLs, or notification links | [`rules/navigation.md`](documentation/rules/navigation.md) |
+| Writing `useEffect` with `setInterval`/`setTimeout` + state deps | [`rules/react-patterns.md`](documentation/rules/react-patterns.md) |
+| Creating state initialized as `'pending'` or `'loading'` | [`rules/react-patterns.md`](documentation/rules/react-patterns.md) |
+| Creating a new component for use in another page | [`rules/react-patterns.md`](documentation/rules/react-patterns.md) |
+| Before `git pull`, `git fetch + merge`, or sync operations | [`rules/infrastructure.md`](documentation/rules/infrastructure.md) |
+| Adding new RTDB node or Firestore collection | [`rules/infrastructure.md`](documentation/rules/infrastructure.md) |
+| Writing a service that writes to DB on data events | [`rules/infrastructure.md`](documentation/rules/infrastructure.md) |
+| Building or modifying Cloudflare Workers (R2, backup, etc.) | [`rules/infrastructure.md`](documentation/rules/infrastructure.md) |
+| PRD says "replace ALL", "every", or "replaces existing" | [`rules/codebase-hygiene.md`](documentation/rules/codebase-hygiene.md) |
+| Writing ANY `import` — `@mantine/*` is **banned** | [`rules/codebase-hygiene.md`](documentation/rules/codebase-hygiene.md) |
+| Writing data to a path where existing code reads | [`rules/codebase-hygiene.md`](documentation/rules/codebase-hygiene.md) |
+| Writing `localStorage`, `sessionStorage`, or `IndexedDB` | [`rules/mobile-portability.md`](documentation/rules/mobile-portability.md) |
+| Writing hooks using `window.*`, `document.*`, `navigator.*` | [`rules/mobile-portability.md`](documentation/rules/mobile-portability.md) |
+| Writing `dangerouslySetInnerHTML` | [`rules/mobile-portability.md`](documentation/rules/mobile-portability.md) |
+| Writing `useNavigate()` from `react-router-dom` directly | [`rules/mobile-portability.md`](documentation/rules/mobile-portability.md) |
+| Writing `window.innerWidth` or `window.matchMedia()` | [`rules/mobile-portability.md`](documentation/rules/mobile-portability.md) |
 
 <!-- KNOWNS GUIDELINES START -->
 # Knowns Guidelines

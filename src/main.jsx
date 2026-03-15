@@ -14,9 +14,4 @@ createRoot(document.getElementById('root')).render(
       </ThemeProvider>
     </AuthProvider>
   </StrictMode>,
-);
-
-// WebMCP: AI agent tool registration (dev-only, tree-shaken in production)
-if (import.meta.env.DEV) {
-  import('./webmcp/index.ts').then(({ initWebMCP }) => initWebMCP());
-}
+);

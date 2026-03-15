@@ -27,23 +27,5 @@ export default defineConfig([
     },
   },
 
-  // ============================================================
-  // 🚫 NO MANTINE — Only in guaranteed-clean zones (Rule 15)
-  // These directories must NEVER contain @mantine imports.
-  // Existing files elsewhere are left alone until migrated.
-  // ============================================================
-  {
-    files: [
-      'src/webmcp/**/*.{ts,tsx}',
-    ],
-    rules: {
-      'no-restricted-imports': ['error', {
-        patterns: [{
-          group: ['@mantine/*'],
-          message: '🚫 Mantine is BANNED in this directory (Rule 15). Use native HTML/CSS.',
-        }],
-      }],
-    },
-  },
 ])
 

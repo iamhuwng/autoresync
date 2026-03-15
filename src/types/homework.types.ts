@@ -121,6 +121,9 @@ export interface HomeworkConfig {
 
     /** Allow late submissions after deadline */
     lateSubmissionAllowed: boolean;
+
+    /** Anti-cheat configuration for this homework (PRD-0036, FR-31) */
+    antiCheatConfig?: import('./integrity.types').AntiCheatConfig;
 }
 
 /**
@@ -212,6 +215,10 @@ export interface HomeworkAssignment {
 
     /** Visibility settings */
     visibility: HomeworkVisibility;
+
+    // ========== Anti-Cheat (PRD-0036) ==========
+    /** Anti-cheat configuration for this homework assignment (FR-31) */
+    antiCheatConfig?: import('./integrity.types').AntiCheatConfig;
 
     // ========== Status ==========
     /** Current status */

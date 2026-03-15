@@ -4,8 +4,8 @@ Guidelines for managing task lists in markdown files to track progress on comple
 
 ## Task Implementation
 - **Completion protocol:**  
-  1. When you finish a **sub‑task**, immediately mark it as completed by changing `[ ]` to `[x]`.
-  2. If **all** subtasks underneath a parent task are now `[x]`, follow this sequence:
+
+  1. If **all** subtasks underneath a parent task are now `[x]`, follow this sequence:
     - **First**: Run the full test suite (`pytest`, `npm test`, `bin/rails test`, etc.)
     - **Only if all tests pass**: Stage changes (`git add .`)
     - **Clean up**: Remove any temporary files and temporary code before committing
@@ -19,7 +19,7 @@ Guidelines for managing task lists in markdown files to track progress on comple
         ```
         git commit -m "feat: add payment validation logic" -m "- Validates card type and expiry" -m "- Adds unit tests for edge cases" -m "Related to T123 in PRD"
         ```
-  3. Once all the subtasks are marked completed and changes have been committed, mark the **parent task** as completed.
+  2. Once all the subtasks are marked completed and changes have been committed, mark the **parent task** as completed.
 
 ## Task List Maintenance
 

@@ -8,7 +8,6 @@
  * 
  * Rules enforced:
  * - Rule 15: No @mantine/* imports in NEW .tsx/.jsx/.ts files
- * - Rule 16: New pages/components should have WebMCP tools (warning only)
  * 
  * Usage:
  *   node scripts/pre-commit-enforcement.js          (check staged files)
@@ -86,23 +85,7 @@ function checkMantineInNewFile(filePath) {
     }
 }
 
-function isComponentOrPage(filePath) {
-    return filePath.match(/src\/(pages|components)\/.*\.(tsx|jsx)$/);
-}
 
-function hasWebMCPTools(filePath) {
-    // Extract feature name from path
-    const match = filePath.match(/src\/(pages|components)\/(.+?)\.(tsx|jsx)$/);
-    if (!match) return true; // Not a component/page, skip
-
-    // Check if any webmcp tool file references this feature
-    try {
-        const toolFiles = execSync('dir /b src\\webmcp\\tools\\ 2>nul', { encoding: 'utf-8' });
-        return toolFiles.trim().length > 0; // At least some tools exist
-    } catch {
-        return false;
-    }
-}
 
 // ── Main ──────────────────────────────────────────────────────────
 
@@ -155,26 +138,7 @@ if (modifiedFiles.length > 0) {
     }
 }
 
-// ── Rule 16: WebMCP tools for new pages/components (warning) ─────
 
-const newPagesOrComponents = newFiles.filter(isComponentOrPage);
-
-if (newPagesOrComponents.length > 0) {
-    console.log(`${DIM}Checking ${newPagesOrComponents.length} new page/component(s) for WebMCP tools...${RESET}`);
-
-    // Check if there are any corresponding tool files being committed
-    const newToolFiles = newFiles.filter(f => f.startsWith('src/webmcp/tools/'));
-
-    if (newToolFiles.length === 0 && newPagesOrComponents.length > 0) {
-        hasWarnings = true;
-        console.log(`\n${YELLOW}${BOLD}⚠️  Rule 16 WARNING: New UI files without WebMCP tools${RESET}`);
-        for (const file of newPagesOrComponents) {
-            console.log(`${YELLOW}   📄 ${file}${RESET}`);
-        }
-        console.log(`${YELLOW}   → Create tool definitions in src/webmcp/tools/{feature}.tools.ts${RESET}`);
-        console.log(`${DIM}   → See documentation/integration-safety-rules.md#rule-16${RESET}`);
-    }
-}
 
 // ── Summary ──────────────────────────────────────────────────────
 
