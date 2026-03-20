@@ -111,6 +111,11 @@ class NavigationService {
     const from = window.location.pathname;
     const to = buildRoute(destination, params);
 
+    if (typeof to !== 'string' || to.length === 0) {
+      this.log('❌ Invalid destination route', { destination, params });
+      return { success: false, reason: 'invalid_route' };
+    }
+
     // Guard: Check if already at destination
     if (from === to && !options?.force) {
       this.log('ℹ️ Already at destination', { from, to });

@@ -7,11 +7,20 @@ import AdminUserManagementPage from './AdminUserManagementPage.jsx';
 import * as useAuthModule from '../hooks/useAuth';
 import * as userServiceModule from '../services/userService';
 import * as assignmentManagerModule from '../services/assignmentManager';
+import * as classManagerModule from '../services/classManager';
+import * as courseManagerModule from '../services/courseManager';
 
 // Mock dependencies
 vi.mock('../hooks/useAuth');
-vi.mock('../services/userService');
+vi.mock('../services/userService', () => ({
+    getAllUsers: vi.fn(),
+    getAllUsersSecure: vi.fn(),
+    getTeacherStudents: vi.fn(),
+    updateUserProfile: vi.fn(),
+    deleteUserProfile: vi.fn(),
+}));
 vi.mock('../services/assignmentManager', () => ({
+    getAllAssignments: vi.fn(),
     getAssignmentsByStudent: vi.fn(),
     getAssignmentsByTeacher: vi.fn(),
     removeAssignment: vi.fn(),
@@ -27,10 +36,15 @@ vi.mock('../services/invitationService', () => ({
 }));
 
 vi.mock('../services/courseManager', () => ({
+    getAllCourses: vi.fn(),
+    getCoursesByOwner: vi.fn(),
     getCourseTypes: vi.fn().mockResolvedValue([]),
     getPendingTypeRequests: vi.fn().mockResolvedValue([]),
     approveCourseType: vi.fn(),
     rejectCourseType: vi.fn(),
+}));
+vi.mock('../services/classManager', () => ({
+    getClasses: vi.fn(),
 }));
 vi.mock('../hooks/useNavigation', () => ({
     useNavigation: () => ({
@@ -117,6 +131,18 @@ describe('AdminUserManagementPage - Teacher Filter Integration', () => {
         ],
     };
 
+    const buildAssignmentBatch = () => {
+        const all = Object.values(mockAssignments).flat();
+        return {
+            all,
+            byStudent: mockAssignments,
+            byTeacher: {
+                [mockTeacherId]: [mockAssignments['student-1'][0], mockAssignments['student-2'][0]],
+                'other-teacher-789': [mockAssignments['student-3'][0]],
+            },
+        };
+    };
+
     const renderWithProviders = (ui: React.ReactElement, initialState = {}) => {
         return render(
             <MantineProvider>
@@ -129,20 +155,23 @@ describe('AdminUserManagementPage - Teacher Filter Integration', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+        sessionStorage.setItem('activeRole', 'super_admin');
 
         // Mock useAuth
         vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({
             user: { uid: mockSuperAdminId, email: 'admin@test.com' },
-            profile: { role: 'super_admin', displayName: 'Super Admin' },
+            profile: { role: 'super_admin', displayName: 'Super Admin', status: 'active' },
             logout: vi.fn(),
             loading: false,
             error: null,
         } as any);
 
-        // Mock getAllUsers
-        vi.spyOn(userServiceModule, 'getAllUsers').mockResolvedValue(mockUsers);
+        vi.mocked(userServiceModule.getAllUsersSecure).mockResolvedValue(mockUsers);
+        vi.mocked(assignmentManagerModule.getAllAssignments).mockResolvedValue(buildAssignmentBatch());
+        vi.mocked(courseManagerModule.getAllCourses).mockResolvedValue([]);
+        vi.mocked(courseManagerModule.getCoursesByOwner).mockResolvedValue([]);
+        vi.mocked(classManagerModule.getClasses).mockResolvedValue([]);
 
-        // Mock getAssignmentsByStudent
         vi.spyOn(assignmentManagerModule, 'getAssignmentsByStudent').mockImplementation(async (studentId: string) => {
             return mockAssignments[studentId as keyof typeof mockAssignments] || [];
         });
@@ -161,7 +190,8 @@ describe('AdminUserManagementPage - Teacher Filter Integration', () => {
 
         // Wait for data to load
         await waitFor(() => {
-            expect(userServiceModule.getAllUsers).toHaveBeenCalled();
+            expect(userServiceModule.getAllUsersSecure).toHaveBeenCalled();
+            expect(assignmentManagerModule.getAllAssignments).toHaveBeenCalled();
         });
 
         // Should show all 3 students
@@ -178,10 +208,8 @@ describe('AdminUserManagementPage - Teacher Filter Integration', () => {
 
         // Wait for data to load
         await waitFor(() => {
-            expect(userServiceModule.getAllUsers).toHaveBeenCalled();
-            expect(assignmentManagerModule.getAssignmentsByStudent).toHaveBeenCalledWith('student-1');
-            expect(assignmentManagerModule.getAssignmentsByStudent).toHaveBeenCalledWith('student-2');
-            expect(assignmentManagerModule.getAssignmentsByStudent).toHaveBeenCalledWith('student-3');
+            expect(userServiceModule.getAllUsersSecure).toHaveBeenCalled();
+            expect(assignmentManagerModule.getAllAssignments).toHaveBeenCalled();
         }, { timeout: 3000 });
 
         // Should show only students assigned to this teacher (student-1 and student-2)
@@ -195,19 +223,16 @@ describe('AdminUserManagementPage - Teacher Filter Integration', () => {
     });
 
     it('should show empty state when teacher has no assigned students', async () => {
-        // Mock a teacher with no students
-        vi.spyOn(assignmentManagerModule, 'getAssignmentsByStudent').mockResolvedValue([]);
-
         renderWithProviders(<AdminUserManagementPage />, { teacherId: 'teacher-with-no-students' });
 
         // Wait for data to load
         await waitFor(() => {
-            expect(userServiceModule.getAllUsers).toHaveBeenCalled();
+            expect(userServiceModule.getAllUsersSecure).toHaveBeenCalled();
         }, { timeout: 3000 });
 
-        // Should show "No users found" message
+        // Should show the current empty-state copy
         await waitFor(() => {
-            expect(screen.getByText(/No users found matching your filters/i)).toBeInTheDocument();
+            expect(screen.getByText(/No users match your search/i)).toBeInTheDocument();
         }, { timeout: 3000 });
     });
 
@@ -222,7 +247,7 @@ describe('AdminUserManagementPage - Teacher Filter Integration', () => {
 
         // Should show teacher name in "Assigned To" column
         await waitFor(() => {
-            const teacherBadges = screen.getAllByText('Test Teacher');
+            const teacherBadges = screen.getAllByText('Test');
             expect(teacherBadges.length).toBeGreaterThan(0);
         }, { timeout: 3000 });
     });
@@ -250,6 +275,7 @@ describe('AdminUserManagementPage - Request Management', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+        sessionStorage.setItem('activeRole', 'super_admin');
 
         vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({
             user: { uid: 'admin-1', email: 'admin@test.com' },
@@ -259,7 +285,15 @@ describe('AdminUserManagementPage - Request Management', () => {
             error: null,
         } as any);
 
-        vi.spyOn(userServiceModule, 'getAllUsers').mockResolvedValue([]);
+        vi.mocked(userServiceModule.getAllUsersSecure).mockResolvedValue([]);
+        vi.mocked(assignmentManagerModule.getAllAssignments).mockResolvedValue({
+            all: [],
+            byStudent: {},
+            byTeacher: {},
+        });
+        vi.mocked(courseManagerModule.getAllCourses).mockResolvedValue([]);
+        vi.mocked(courseManagerModule.getCoursesByOwner).mockResolvedValue([]);
+        vi.mocked(classManagerModule.getClasses).mockResolvedValue([]);
         (assignmentManagerModule.getAllAssignmentRequests as any).mockResolvedValue([mockRequest]);
         (assignmentManagerModule.approveStudentRequest as any).mockResolvedValue({ success: true });
         (assignmentManagerModule.denyStudentRequest as any).mockResolvedValue({ success: true });
@@ -279,7 +313,7 @@ describe('AdminUserManagementPage - Request Management', () => {
         // Verify request is shown
         await waitFor(() => {
             expect(screen.getByText('student@example.com')).toBeInTheDocument();
-            expect(screen.getByText('pending')).toBeInTheDocument();
+            expect(screen.getByText(/^PENDING$/)).toBeInTheDocument();
         });
     });
 

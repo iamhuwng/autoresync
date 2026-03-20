@@ -369,6 +369,12 @@ export interface HomeworkSubmission {
     latePenaltyApplied?: number;
     /** Raw student answers keyed by question ID (for potential re-grading or teacher review) */
     studentAnswers?: Record<string, any>;
+
+    // ========== PRD-0036: Anti-Cheat ==========
+    /** PRD-0036: When true, remaining attempts were nullified due to anti-cheat violation */
+    attemptsNullified?: boolean;
+    /** PRD-0036: Integrity report data written by the client during the test session (Task 6.5) */
+    integrity?: import('./integrity.types').HomeworkIntegrity;
 }
 
 // ============================================================================

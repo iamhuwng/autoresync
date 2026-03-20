@@ -1,552 +1,548 @@
-/**
- * Tests for homeworkManager.ts
- * 
- * Tests cover:
- * - CRUD operations for homework assignments
- * - Query operations (by teacher, class, student)
- * - Status management and automatic updates
- * - Duplication functionality
- * - Target type handling (class, students, group)
- */
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type {
+    HomeworkAssignment,
+    HomeworkConfig,
+    HomeworkStats,
+    HomeworkTarget,
+    HomeworkVisibility,
+} from '../types/homework.types';
+import type { AntiCheatConfig } from '../types/integrity.types';
 
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import {
-    createHomework,
-    updateHomework,
-    deleteHomework,
-    getHomework,
-    getHomeworkByTeacher,
-    getHomeworkByClass,
-    getHomeworkByStudent,
-    duplicateHomework,
-    extendDeadline,
-    updateHomeworkStatus,
-} from './homeworkManager';
-import type { HomeworkConfig, HomeworkTarget } from '../types/homework.types';
+const firestoreHarness = vi.hoisted(() => {
+    const store = new Map<string, Record<string, unknown>>();
+    let counter = 0;
+    const deleteFieldToken = Symbol('deleteField');
 
-// Mock Firebase
-vi.mock('../config/firebase', () => ({
-    db: {
-        collection: vi.fn(() => ({
-            doc: vi.fn(() => ({
-                set: vi.fn(),
-                get: vi.fn(),
-                update: vi.fn(),
-                delete: vi.fn(),
-            })),
-            where: vi.fn(() => ({
-                get: vi.fn(),
-                where: vi.fn(function () { return this; }),
-            })),
-            add: vi.fn(),
+    return {
+        store,
+        deleteFieldToken,
+        nextId: () => `homework-${++counter}`,
+        reset: () => {
+            store.clear();
+            counter = 0;
+        },
+    };
+});
+
+const mockIsRestoreInProgress = vi.hoisted(() => vi.fn());
+const mockGetClass = vi.hoisted(() => vi.fn());
+const mockGetStudentClasses = vi.hoisted(() => vi.fn());
+
+vi.mock('firebase/firestore', () => {
+    const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
+
+    const getValueAtPath = (value: Record<string, unknown>, path: string): unknown =>
+        path.split('.').reduce<unknown>((current, segment) => {
+            if (!current || typeof current !== 'object') {
+                return undefined;
+            }
+
+            return (current as Record<string, unknown>)[segment];
+        }, value);
+
+    const setValueAtPath = (value: Record<string, unknown>, path: string, nextValue: unknown) => {
+        const segments = path.split('.');
+        const lastSegment = segments.pop();
+
+        if (!lastSegment) {
+            return;
+        }
+
+        let current: Record<string, unknown> = value;
+        for (const segment of segments) {
+            const existing = current[segment];
+            if (!existing || typeof existing !== 'object' || Array.isArray(existing)) {
+                current[segment] = {};
+            }
+            current = current[segment] as Record<string, unknown>;
+        }
+
+        current[lastSegment] = nextValue;
+    };
+
+    const deleteValueAtPath = (value: Record<string, unknown>, path: string) => {
+        const segments = path.split('.');
+        const lastSegment = segments.pop();
+
+        if (!lastSegment) {
+            return;
+        }
+
+        let current: Record<string, unknown> = value;
+        for (const segment of segments) {
+            const existing = current[segment];
+            if (!existing || typeof existing !== 'object' || Array.isArray(existing)) {
+                return;
+            }
+            current = existing as Record<string, unknown>;
+        }
+
+        delete current[lastSegment];
+    };
+
+    const applyUpdates = (currentValue: Record<string, unknown>, updates: Record<string, unknown>) => {
+        const nextValue = clone(currentValue);
+
+        Object.entries(updates).forEach(([key, value]) => {
+            if (value === firestoreHarness.deleteFieldToken) {
+                deleteValueAtPath(nextValue, key);
+                return;
+            }
+
+            if (key.includes('.')) {
+                setValueAtPath(nextValue, key, clone(value));
+                return;
+            }
+
+            nextValue[key] = clone(value);
+        });
+
+        return nextValue;
+    };
+
+    const listDocuments = (collectionName: string) =>
+        [...firestoreHarness.store.entries()]
+            .filter(([path]) => path.startsWith(`${collectionName}/`))
+            .map(([path, value]) => {
+                const id = path.slice(collectionName.length + 1);
+                const ref = { kind: 'doc', collection: collectionName, id, path };
+                return {
+                    id,
+                    ref,
+                    data: () => clone(value),
+                };
+            });
+
+    const matchesCondition = (
+        data: Record<string, unknown>,
+        condition: { fieldPath: string; op: string; value: unknown },
+    ) => {
+        const actualValue = getValueAtPath(data, condition.fieldPath);
+
+        if (condition.op === '==') {
+            return actualValue === condition.value;
+        }
+
+        if (condition.op === 'array-contains') {
+            return Array.isArray(actualValue) && actualValue.includes(condition.value);
+        }
+
+        return false;
+    };
+
+    return {
+        collection: vi.fn((_db: unknown, name: string) => ({ kind: 'collection', name })),
+        doc: vi.fn((...args: unknown[]) => {
+            if ((args[0] as { kind?: string })?.kind === 'collection') {
+                const collectionRef = args[0] as { name: string };
+                const id = (args[1] as string | undefined) ?? firestoreHarness.nextId();
+                return {
+                    kind: 'doc',
+                    collection: collectionRef.name,
+                    id,
+                    path: `${collectionRef.name}/${id}`,
+                };
+            }
+
+            const collectionName = args[1] as string;
+            const id = (args[2] as string | undefined) ?? firestoreHarness.nextId();
+            return {
+                kind: 'doc',
+                collection: collectionName,
+                id,
+                path: `${collectionName}/${id}`,
+            };
+        }),
+        setDoc: vi.fn(async (ref: { path: string }, value: Record<string, unknown>) => {
+            firestoreHarness.store.set(ref.path, clone(value));
+        }),
+        getDoc: vi.fn(async (ref: { path: string }) => {
+            const value = firestoreHarness.store.get(ref.path);
+            return {
+                exists: () => value !== undefined,
+                data: () => clone(value),
+            };
+        }),
+        getDocs: vi.fn(async (target: { kind: string; collection: string; conditions?: Array<{ fieldPath: string; op: string; value: unknown }> }) => {
+            const docs = listDocuments(target.collection).filter((docSnap) => (
+                target.kind !== 'query'
+                    ? true
+                    : (target.conditions ?? []).every((condition) => matchesCondition(docSnap.data(), condition))
+            ));
+
+            return {
+                empty: docs.length === 0,
+                docs,
+            };
+        }),
+        updateDoc: vi.fn(async (ref: { path: string }, updates: Record<string, unknown>) => {
+            const currentValue = firestoreHarness.store.get(ref.path) ?? {};
+            firestoreHarness.store.set(ref.path, applyUpdates(currentValue, updates));
+        }),
+        deleteDoc: vi.fn(async (ref: { path: string }) => {
+            firestoreHarness.store.delete(ref.path);
+        }),
+        query: vi.fn((collectionRef: { name: string }, ...conditions: Array<{ fieldPath: string; op: string; value: unknown }>) => ({
+            kind: 'query',
+            collection: collectionRef.name,
+            conditions,
         })),
-    },
-    serverTimestamp: vi.fn(() => Date.now()),
+        where: vi.fn((fieldPath: string, op: string, value: unknown) => ({
+            fieldPath,
+            op,
+            value,
+        })),
+        deleteField: vi.fn(() => firestoreHarness.deleteFieldToken),
+        writeBatch: vi.fn(() => {
+            const operations: Array<() => void> = [];
+
+            return {
+                update: (ref: { path: string }, updates: Record<string, unknown>) => {
+                    operations.push(() => {
+                        const currentValue = firestoreHarness.store.get(ref.path) ?? {};
+                        firestoreHarness.store.set(ref.path, applyUpdates(currentValue, updates));
+                    });
+                },
+                commit: async () => {
+                    operations.forEach((operation) => operation());
+                },
+            };
+        }),
+    };
+});
+
+vi.mock('./firebase', () => ({
+    firestore: { name: 'mock-firestore' },
 }));
 
+vi.mock('./restoreGuard', () => ({
+    isRestoreInProgress: (...args: unknown[]) => mockIsRestoreInProgress(...args),
+}));
+
+vi.mock('./classManager', () => ({
+    getClass: (...args: unknown[]) => mockGetClass(...args),
+    getStudentClasses: (...args: unknown[]) => mockGetStudentClasses(...args),
+}));
+
+import {
+    createHomework,
+    deleteHomework,
+    duplicateHomework,
+    extendDeadline,
+    getHomeworkByClass,
+    getHomeworkById,
+    getHomeworkByTeacher,
+    getHomeworkForStudent,
+    updateHomeworkStatus,
+} from './homeworkManager';
+
+const mockTeacherId = 'teacher-123';
+const mockMaterialId = 'material-456';
+const mockClassId = 'class-789';
+const mockStudentId = 'student-001';
+
+const mockConfig: HomeworkConfig = {
+    timerMinutes: 60,
+    maxAttempts: 3,
+    feedbackTiming: 'after_completion',
+    lateSubmissionAllowed: false,
+};
+
+const mockVisibility: HomeworkVisibility = {
+    showTimer: true,
+    showAttempts: true,
+    showDueDate: true,
+    showQuestionCount: true,
+    showDuration: true,
+};
+
+const mockStats: HomeworkStats = {
+    totalAssigned: 0,
+    started: 0,
+    submitted: 0,
+    lateSubmissions: 0,
+};
+
+const mockAntiCheatConfig: AntiCheatConfig = {
+    preset: 'standard',
+    detectTabSwitch: true,
+    detectCopyPaste: true,
+    detectRightClick: true,
+    detectFullscreenExit: false,
+    detectKeyboardShortcuts: true,
+    enableStudentWarnings: true,
+    enableAutoSubmit: true,
+    autoSubmitThreshold: 5,
+    requireFullscreen: false,
+    shuffleQuestions: true,
+    shuffleOptions: true,
+    nullifyRemainingAttempts: true,
+};
+
+const mockClassTarget: HomeworkTarget = {
+    type: 'class',
+    classId: mockClassId,
+    className: 'Test Class',
+};
+
+const mockStudentsTarget: HomeworkTarget = {
+    type: 'students',
+    studentIds: ['student-001', 'student-002', 'student-003'],
+};
+
+const cloneValue = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
+
+const buildHomeworkRecord = (overrides: Partial<HomeworkAssignment> = {}): HomeworkAssignment => {
+    const homework: HomeworkAssignment = {
+        id: overrides.id ?? 'homework-seeded',
+        createdBy: overrides.createdBy ?? mockTeacherId,
+        createdAt: overrides.createdAt ?? Date.now() - 10_000,
+        updatedAt: overrides.updatedAt ?? Date.now() - 5_000,
+        materialId: overrides.materialId ?? mockMaterialId,
+        materialTitle: overrides.materialTitle ?? 'Seeded Material',
+        materialType: overrides.materialType ?? 'quiz',
+        materialSkill: overrides.materialSkill ?? 'reading',
+        target: overrides.target ?? mockClassTarget,
+        scheduling: overrides.scheduling ?? {
+            availableFrom: Date.now() - 1_000,
+            dueDate: Date.now() + 86_400_000,
+        },
+        config: overrides.config ?? mockConfig,
+        visibility: overrides.visibility ?? mockVisibility,
+        status: overrides.status ?? 'active',
+        tags: overrides.tags ?? [],
+        archived: overrides.archived ?? false,
+        studentOverrides: overrides.studentOverrides ?? {},
+        description: overrides.description ?? '',
+        stats: overrides.stats ?? mockStats,
+    };
+
+    if (overrides.title !== undefined) {
+        homework.title = overrides.title;
+    }
+
+    if (overrides.antiCheatConfig !== undefined) {
+        homework.antiCheatConfig = overrides.antiCheatConfig;
+    }
+
+    return homework;
+};
+
+const seedHomework = (overrides: Partial<HomeworkAssignment> = {}) => {
+    const homework = buildHomeworkRecord(overrides);
+    firestoreHarness.store.set(`homework_assignments/${homework.id}`, cloneValue(homework) as Record<string, unknown>);
+    return homework;
+};
+
 describe('homeworkManager', () => {
-    const mockTeacherId = 'teacher-123';
-    const mockMaterialId = 'material-456';
-    const mockClassId = 'class-789';
-    const mockStudentId = 'student-001';
-
-    const mockConfig: HomeworkConfig = {
-        timerMinutes: 60,
-        maxAttempts: 3,
-        feedbackTiming: 'after_completion',
-        lateSubmissionAllowed: false,
-    };
-
-    const mockClassTarget: HomeworkTarget = {
-        type: 'class',
-        classId: mockClassId,
-        className: 'Test Class',
-    };
-
-    const mockStudentsTarget: HomeworkTarget = {
-        type: 'students',
-        studentIds: ['student-001', 'student-002', 'student-003'],
-    };
-
     beforeEach(() => {
+        firestoreHarness.reset();
         vi.clearAllMocks();
-    });
-
-    afterEach(() => {
-        vi.restoreAllMocks();
+        mockIsRestoreInProgress.mockResolvedValue(false);
+        mockGetClass.mockResolvedValue({
+            id: mockClassId,
+            students: {
+                'student-001': { uid: 'student-001' },
+                'student-002': { uid: 'student-002' },
+            },
+        });
+        mockGetStudentClasses.mockResolvedValue([]);
     });
 
     describe('createHomework', () => {
-        it('should create homework with class target', async () => {
-            const homeworkData = {
+        it('creates class-target homework, resolves assigned count, and strips undefined title fields', async () => {
+            const homeworkId = await createHomework({
                 materialId: mockMaterialId,
                 materialTitle: 'Test Material',
                 teacherId: mockTeacherId,
                 target: mockClassTarget,
                 config: mockConfig,
-                availableFrom: new Date('2024-01-01'),
-                dueDate: new Date('2024-01-15'),
+                availableFrom: new Date(Date.now() - 1_000),
+                dueDate: new Date(Date.now() + 86_400_000),
                 instructions: 'Complete all questions',
-            };
+            });
 
-            const homeworkId = await createHomework(homeworkData);
+            const storedHomework = await getHomeworkById(homeworkId);
+            const rawHomework = firestoreHarness.store.get(`homework_assignments/${homeworkId}`);
 
-            expect(homeworkId).toBeDefined();
-            expect(typeof homeworkId).toBe('string');
+            expect(storedHomework).toMatchObject({
+                id: homeworkId,
+                createdBy: mockTeacherId,
+                description: 'Complete all questions',
+                status: 'active',
+                stats: expect.objectContaining({ totalAssigned: 2 }),
+            });
+            expect(rawHomework).not.toHaveProperty('title');
         });
 
-        it('should create homework with students target', async () => {
-            const homeworkData = {
+        it('creates student-target homework with the student count as totalAssigned', async () => {
+            const homeworkId = await createHomework({
                 materialId: mockMaterialId,
-                materialTitle: 'Test Material',
+                materialTitle: 'Direct Assignment',
                 teacherId: mockTeacherId,
                 target: mockStudentsTarget,
                 config: mockConfig,
-                availableFrom: new Date('2024-01-01'),
-                dueDate: new Date('2024-01-15'),
-            };
+                dueDate: new Date(Date.now() + 86_400_000),
+            });
 
-            const homeworkId = await createHomework(homeworkData);
+            const storedHomework = await getHomeworkById(homeworkId);
 
-            expect(homeworkId).toBeDefined();
-            expect(typeof homeworkId).toBe('string');
+            expect(storedHomework?.stats.totalAssigned).toBe(3);
+            expect(storedHomework?.target).toEqual(mockStudentsTarget);
         });
 
-        it('should set status to scheduled for future homework', async () => {
-            const futureDate = new Date();
-            futureDate.setDate(futureDate.getDate() + 7);
-
-            const homeworkData = {
+        it('persists homework anti-cheat configuration when provided', async () => {
+            const homeworkId = await createHomework({
                 materialId: mockMaterialId,
-                materialTitle: 'Future Homework',
+                materialTitle: 'Protected Homework',
                 teacherId: mockTeacherId,
-                target: mockClassTarget,
+                target: mockStudentsTarget,
                 config: mockConfig,
-                availableFrom: futureDate,
-                dueDate: new Date(futureDate.getTime() + 7 * 24 * 60 * 60 * 1000),
-            };
+                dueDate: new Date(Date.now() + 86_400_000),
+                antiCheatConfig: mockAntiCheatConfig,
+            });
 
-            const homeworkId = await createHomework(homeworkData);
-            const homework = await getHomework(homeworkId);
+            const storedHomework = await getHomeworkById(homeworkId);
 
-            expect(homework?.status).toBe('scheduled');
-        });
-
-        it('should set status to active for current homework', async () => {
-            const now = new Date();
-            const futureDate = new Date();
-            futureDate.setDate(futureDate.getDate() + 7);
-
-            const homeworkData = {
-                materialId: mockMaterialId,
-                materialTitle: 'Active Homework',
-                teacherId: mockTeacherId,
-                target: mockClassTarget,
-                config: mockConfig,
-                availableFrom: now,
-                dueDate: futureDate,
-            };
-
-            const homeworkId = await createHomework(homeworkData);
-            const homework = await getHomework(homeworkId);
-
-            expect(homework?.status).toBe('active');
-        });
-
-        it('should throw error for invalid date range', async () => {
-            const homeworkData = {
-                materialId: mockMaterialId,
-                materialTitle: 'Invalid Homework',
-                teacherId: mockTeacherId,
-                target: mockClassTarget,
-                config: mockConfig,
-                availableFrom: new Date('2024-01-15'),
-                dueDate: new Date('2024-01-01'), // Due date before available date
-            };
-
-            await expect(createHomework(homeworkData)).rejects.toThrow();
+            expect(storedHomework?.antiCheatConfig).toEqual(mockAntiCheatConfig);
         });
     });
 
-    describe('updateHomework', () => {
-        it('should update homework configuration', async () => {
-            const homeworkId = 'homework-123';
-            const updates = {
-                config: {
-                    ...mockConfig,
-                    maxAttempts: 5,
-                },
-            };
+    describe('queries', () => {
+        it('returns teacher homework sorted by createdAt descending', async () => {
+            seedHomework({ id: 'older', createdAt: 100, updatedAt: 100 });
+            seedHomework({ id: 'newer', createdAt: 200, updatedAt: 200 });
+            seedHomework({ id: 'other-teacher', createdBy: 'teacher-999' });
 
-            await updateHomework(homeworkId, updates);
-
-            // Verify update was called
-            expect(true).toBe(true); // Mock verification
-        });
-
-        it('should update homework instructions', async () => {
-            const homeworkId = 'homework-123';
-            const updates = {
-                instructions: 'Updated instructions',
-            };
-
-            await updateHomework(homeworkId, updates);
-
-            expect(true).toBe(true);
-        });
-
-        it('should not allow updating immutable fields', async () => {
-            const homeworkId = 'homework-123';
-            const updates = {
-                id: 'new-id', // Should be ignored
-                createdAt: Date.now(), // Should be ignored
-            };
-
-            await updateHomework(homeworkId, updates as any);
-
-            expect(true).toBe(true);
-        });
-    });
-
-    describe('deleteHomework', () => {
-        it('should delete homework assignment', async () => {
-            const homeworkId = 'homework-123';
-
-            await deleteHomework(homeworkId);
-
-            expect(true).toBe(true);
-        });
-
-        it('should handle non-existent homework gracefully', async () => {
-            const homeworkId = 'non-existent';
-
-            await expect(deleteHomework(homeworkId)).resolves.not.toThrow();
-        });
-    });
-
-    describe('getHomework', () => {
-        it('should retrieve homework by id', async () => {
-            const homeworkId = 'homework-123';
-
-            const homework = await getHomework(homeworkId);
-
-            expect(homework).toBeDefined();
-        });
-
-        it('should return null for non-existent homework', async () => {
-            const homeworkId = 'non-existent';
-
-            const homework = await getHomework(homeworkId);
-
-            expect(homework).toBeNull();
-        });
-    });
-
-    describe('getHomeworkByTeacher', () => {
-        it('should retrieve all homework for a teacher', async () => {
             const homework = await getHomeworkByTeacher(mockTeacherId);
 
-            expect(Array.isArray(homework)).toBe(true);
+            expect(homework.map((item) => item.id)).toEqual(['newer', 'older']);
         });
 
-        it('should return empty array for teacher with no homework', async () => {
-            const homework = await getHomeworkByTeacher('teacher-no-homework');
+        it('returns class homework sorted by dueDate descending', async () => {
+            seedHomework({
+                id: 'first-class',
+                target: mockClassTarget,
+                scheduling: { availableFrom: Date.now() - 1_000, dueDate: 1_000 },
+            });
+            seedHomework({
+                id: 'second-class',
+                target: mockClassTarget,
+                scheduling: { availableFrom: Date.now() - 1_000, dueDate: 2_000 },
+            });
+            seedHomework({
+                id: 'other-class',
+                target: { type: 'class', classId: 'class-other', className: 'Other Class' },
+            });
 
-            expect(homework).toEqual([]);
+            const homework = await getHomeworkByClass(mockClassId);
+
+            expect(homework.map((item) => item.id)).toEqual(['second-class', 'first-class']);
+        });
+
+        it('combines direct and class homework for a student while filtering exemptions', async () => {
+            mockGetStudentClasses.mockResolvedValue([{ id: mockClassId }]);
+
+            seedHomework({
+                id: 'direct-assignment',
+                target: {
+                    type: 'students',
+                    studentIds: [mockStudentId],
+                },
+                scheduling: { availableFrom: Date.now() - 1_000, dueDate: 1_000 },
+            });
+            seedHomework({
+                id: 'class-assignment',
+                target: mockClassTarget,
+                scheduling: { availableFrom: Date.now() - 1_000, dueDate: 2_000 },
+            });
+            seedHomework({
+                id: 'exempted-assignment',
+                target: mockClassTarget,
+                studentOverrides: {
+                    [mockStudentId]: { exempted: true },
+                },
+                scheduling: { availableFrom: Date.now() - 1_000, dueDate: 3_000 },
+            });
+
+            const homework = await getHomeworkForStudent(mockStudentId);
+
+            expect(homework.map((item) => item.id)).toEqual(['class-assignment', 'direct-assignment']);
         });
     });
 
-    describe('getHomeworkByClass', () => {
-        it('should retrieve all homework for a class', async () => {
-            const homework = await getHomeworkByClass(mockClassId);
+    describe('mutations', () => {
+        it('archives homework on delete', async () => {
+            seedHomework({ id: 'archive-me' });
 
-            expect(Array.isArray(homework)).toBe(true);
+            await deleteHomework('archive-me');
+
+            const storedHomework = await getHomeworkById('archive-me');
+            expect(storedHomework?.archived).toBe(true);
+            expect(typeof storedHomework?.trashExpiresAt).toBe('number');
         });
 
-        it('should only return homework targeted to the class', async () => {
-            const homework = await getHomeworkByClass(mockClassId);
+        it('duplicates homework using a generated copy title', async () => {
+            seedHomework({
+                id: 'original-homework',
+                target: mockStudentsTarget,
+                title: 'Original Homework',
+            });
 
-            homework.forEach(hw => {
-                expect(hw.target.type).toBe('class');
-                if (hw.target.type === 'class') {
-                    expect(hw.target.classId).toBe(mockClassId);
-                }
+            const duplicatedId = await duplicateHomework('original-homework');
+            const duplicatedHomework = await getHomeworkById(duplicatedId);
+
+            expect(duplicatedId).not.toBe('original-homework');
+            expect(duplicatedHomework).toMatchObject({
+                title: 'Original Homework (Copy)',
+                materialId: mockMaterialId,
+                target: mockStudentsTarget,
             });
         });
-    });
 
-    describe('getHomeworkByStudent', () => {
-        it('should retrieve all homework for a student', async () => {
-            const homework = await getHomeworkByStudent(mockStudentId);
+        it('preserves anti-cheat configuration when duplicating homework', async () => {
+            seedHomework({
+                id: 'protected-homework',
+                antiCheatConfig: mockAntiCheatConfig,
+            });
 
-            expect(Array.isArray(homework)).toBe(true);
+            const duplicatedId = await duplicateHomework('protected-homework');
+            const duplicatedHomework = await getHomeworkById(duplicatedId);
+
+            expect(duplicatedHomework?.antiCheatConfig).toEqual(mockAntiCheatConfig);
         });
 
-        it('should include homework from student classes', async () => {
-            const homework = await getHomeworkByStudent(mockStudentId);
+        it('extends a deadline and recalculates status', async () => {
+            seedHomework({
+                id: 'deadline-homework',
+                scheduling: {
+                    availableFrom: Date.now() - 86_400_000,
+                    dueDate: Date.now() - 1_000,
+                },
+                status: 'past_due',
+            });
 
-            expect(homework.length).toBeGreaterThanOrEqual(0);
+            await extendDeadline('deadline-homework', new Date(Date.now() + 86_400_000));
+
+            const storedHomework = await getHomeworkById('deadline-homework');
+            expect(storedHomework?.status).toBe('active');
+            expect(storedHomework?.scheduling.dueDate).toBeGreaterThan(Date.now());
         });
 
-        it('should include directly assigned homework', async () => {
-            const homework = await getHomeworkByStudent(mockStudentId);
+        it('updates stale homework status from active to past_due', async () => {
+            seedHomework({
+                id: 'status-homework',
+                scheduling: {
+                    availableFrom: Date.now() - 86_400_000,
+                    dueDate: Date.now() - 1_000,
+                },
+                status: 'active',
+            });
 
-            const directAssignment = homework.find(hw =>
-                hw.target.type === 'students' &&
-                hw.target.studentIds?.includes(mockStudentId)
-            );
+            await updateHomeworkStatus('status-homework');
 
-            // May or may not exist depending on test data
-            expect(directAssignment === undefined || directAssignment !== undefined).toBe(true);
-        });
-    });
-
-    describe('duplicateHomework', () => {
-        it('should create a copy of homework with new dates', async () => {
-            const originalId = 'homework-123';
-            const newDates = {
-                availableFrom: new Date('2024-02-01'),
-                dueDate: new Date('2024-02-15'),
-            };
-
-            const newId = await duplicateHomework(originalId, newDates);
-
-            expect(newId).toBeDefined();
-            expect(newId).not.toBe(originalId);
-        });
-
-        it('should preserve configuration when duplicating', async () => {
-            const originalId = 'homework-123';
-
-            const newId = await duplicateHomework(originalId, {});
-
-            expect(newId).toBeDefined();
-        });
-
-        it('should set status to draft for duplicated homework', async () => {
-            const originalId = 'homework-123';
-
-            const newId = await duplicateHomework(originalId, {});
-            const duplicated = await getHomework(newId);
-
-            expect(duplicated?.status).toBe('draft');
-        });
-    });
-
-    describe('extendDeadline', () => {
-        it('should extend homework deadline', async () => {
-            const homeworkId = 'homework-123';
-            const newDeadline = new Date('2024-03-01');
-
-            await extendDeadline(homeworkId, newDeadline);
-
-            expect(true).toBe(true);
-        });
-
-        it('should not allow setting deadline before current deadline', async () => {
-            const homeworkId = 'homework-123';
-            const pastDate = new Date('2020-01-01');
-
-            await expect(extendDeadline(homeworkId, pastDate)).rejects.toThrow();
-        });
-
-        it('should update status if homework was past_due', async () => {
-            const homeworkId = 'homework-past-due';
-            const futureDate = new Date();
-            futureDate.setDate(futureDate.getDate() + 7);
-
-            await extendDeadline(homeworkId, futureDate);
-
-            const homework = await getHomework(homeworkId);
-            expect(homework?.status).not.toBe('past_due');
-        });
-    });
-
-    describe('updateHomeworkStatus', () => {
-        it('should update homework status', async () => {
-            const homeworkId = 'homework-123';
-
-            await updateHomeworkStatus(homeworkId, 'closed');
-
-            expect(true).toBe(true);
-        });
-
-        it('should handle all valid status transitions', async () => {
-            const homeworkId = 'homework-123';
-            const statuses: Array<'draft' | 'scheduled' | 'active' | 'past_due' | 'closed'> = [
-                'draft',
-                'scheduled',
-                'active',
-                'past_due',
-                'closed',
-            ];
-
-            for (const status of statuses) {
-                await updateHomeworkStatus(homeworkId, status);
-            }
-
-            expect(true).toBe(true);
-        });
-    });
-
-    describe('Status Management', () => {
-        it('should automatically update status from scheduled to active', async () => {
-            const now = new Date();
-            const past = new Date(now.getTime() - 1000);
-            const future = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-
-            const homeworkData = {
-                materialId: mockMaterialId,
-                materialTitle: 'Auto-activate Homework',
-                teacherId: mockTeacherId,
-                target: mockClassTarget,
-                config: mockConfig,
-                availableFrom: past,
-                dueDate: future,
-            };
-
-            const homeworkId = await createHomework(homeworkData);
-            const homework = await getHomework(homeworkId);
-
-            expect(homework?.status).toBe('active');
-        });
-
-        it('should automatically update status from active to past_due', async () => {
-            const now = new Date();
-            const past = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-            const recentPast = new Date(now.getTime() - 1000);
-
-            const homeworkData = {
-                materialId: mockMaterialId,
-                materialTitle: 'Past Due Homework',
-                teacherId: mockTeacherId,
-                target: mockClassTarget,
-                config: mockConfig,
-                availableFrom: past,
-                dueDate: recentPast,
-            };
-
-            const homeworkId = await createHomework(homeworkData);
-            const homework = await getHomework(homeworkId);
-
-            expect(homework?.status).toBe('past_due');
-        });
-    });
-
-    describe('Target Type Handling', () => {
-        it('should handle group target type', async () => {
-            const groupTarget: HomeworkTarget = {
-                type: 'group',
-                groupId: 'group-123',
-                groupName: 'Advanced Students',
-            };
-
-            const homeworkData = {
-                materialId: mockMaterialId,
-                materialTitle: 'Group Homework',
-                teacherId: mockTeacherId,
-                target: groupTarget,
-                config: mockConfig,
-                availableFrom: new Date(),
-                dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            };
-
-            const homeworkId = await createHomework(homeworkData);
-
-            expect(homeworkId).toBeDefined();
-        });
-
-        it('should handle course target type', async () => {
-            const courseTarget: HomeworkTarget = {
-                type: 'course',
-                courseId: 'course-123',
-                courseName: 'English 101',
-            };
-
-            const homeworkData = {
-                materialId: mockMaterialId,
-                materialTitle: 'Course Homework',
-                teacherId: mockTeacherId,
-                target: courseTarget,
-                config: mockConfig,
-                availableFrom: new Date(),
-                dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            };
-
-            const homeworkId = await createHomework(homeworkData);
-
-            expect(homeworkId).toBeDefined();
-        });
-    });
-
-    describe('Configuration Validation', () => {
-        it('should accept valid configuration', async () => {
-            const validConfig: HomeworkConfig = {
-                timerMinutes: 45,
-                maxAttempts: 2,
-                feedbackTiming: 'after_deadline',
-                lateSubmissionAllowed: true,
-            };
-
-            const homeworkData = {
-                materialId: mockMaterialId,
-                materialTitle: 'Valid Config Homework',
-                teacherId: mockTeacherId,
-                target: mockClassTarget,
-                config: validConfig,
-                availableFrom: new Date(),
-                dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            };
-
-            const homeworkId = await createHomework(homeworkData);
-
-            expect(homeworkId).toBeDefined();
-        });
-
-        it('should handle null timer (no time limit)', async () => {
-            const noTimerConfig: HomeworkConfig = {
-                timerMinutes: null,
-                maxAttempts: 3,
-                feedbackTiming: 'after_completion',
-                lateSubmissionAllowed: false,
-            };
-
-            const homeworkData = {
-                materialId: mockMaterialId,
-                materialTitle: 'No Timer Homework',
-                teacherId: mockTeacherId,
-                target: mockClassTarget,
-                config: noTimerConfig,
-                availableFrom: new Date(),
-                dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            };
-
-            const homeworkId = await createHomework(homeworkData);
-
-            expect(homeworkId).toBeDefined();
-        });
-
-        it('should handle null maxAttempts (unlimited attempts)', async () => {
-            const unlimitedConfig: HomeworkConfig = {
-                timerMinutes: 60,
-                maxAttempts: null,
-                feedbackTiming: 'after_completion',
-                lateSubmissionAllowed: false,
-            };
-
-            const homeworkData = {
-                materialId: mockMaterialId,
-                materialTitle: 'Unlimited Attempts Homework',
-                teacherId: mockTeacherId,
-                target: mockClassTarget,
-                config: unlimitedConfig,
-                availableFrom: new Date(),
-                dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            };
-
-            const homeworkId = await createHomework(homeworkData);
-
-            expect(homeworkId).toBeDefined();
+            const storedHomework = await getHomeworkById('status-homework');
+            expect(storedHomework?.status).toBe('past_due');
         });
     });
 });

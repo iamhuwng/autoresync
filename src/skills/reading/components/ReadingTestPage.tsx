@@ -33,6 +33,12 @@ import { useNavigation } from '../../../hooks/useNavigation';
 import { useTestCompletionCheck } from '../../../hooks/test/useTestCompletionCheck'; // PRD-0019 Task 6.3
 import { useBeforeUnloadWarning } from '../../../hooks/test/useBeforeUnloadWarning'; // PRD-0019 Task 6.7
 import { useTeacherEndRedirect } from '../../../hooks/test/useTeacherEndRedirect'; // BUG-FIX: Redirect to results on teacher-end
+import { useIntegrityRefreshRequest } from '../../../hooks/test/useIntegrityRefreshRequest';
+import { useTestIntegrity } from '../../../hooks/test/useTestIntegrity';
+import { useAntiCopyPaste } from '../../../hooks/test/useAntiCopyPaste';
+import { useFullscreenMode } from '../../../hooks/test/useFullscreenMode';
+import { toast } from '../../../components/modern/ToastNotification';
+import { getIELTSQuestionsForStudent } from '../../../utils/thcsShuffle';
 
 // Services
 import { sessionService } from '../../../services/sessionService';
@@ -45,6 +51,11 @@ const ReadingTestPageContent: React.FC = () => {
   const { sessionCode } = useParams<{ sessionCode: string }>();
   const { navigateTo, handleSessionChange } = useNavigation('student');
   const { checkAndRedirect } = useTeacherEndRedirect({ sessionCode }); // BUG-FIX: Redirect to results on teacher-end
+  const submitTestRef = useRef<
+    ((submitMode?: boolean | 'teacher') => Promise<void>) | null
+  >(null);
+  const flushIntegrityRef = useRef<(() => Promise<void>) | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // ═══════════════════════════════════════════════════════════════
   // CORE TEST STATE (Phase 1 Abstractions)
@@ -57,6 +68,7 @@ const ReadingTestPageContent: React.FC = () => {
     error,
     activePassageId,
     setActivePassageId,
+    questionsWithAnswersRef,
   } = useTestData({ sessionCode });
 
   // PRD-0019 Task 6.3: Re-entry prevention - check if test already completed
@@ -64,11 +76,20 @@ const ReadingTestPageContent: React.FC = () => {
     sessionCode,
     testSkill: testData?.skill,
     enabled: !loading && !!testData,
+    surface: 'reading_test',
+    onForceSubmit: async () => {
+      if (!submitTestRef.current) return;
+      if (flushIntegrityRef.current) {
+        await flushIntegrityRef.current();
+      }
+      await submitTestRef.current('teacher');
+    },
   });
 
   // Answer management
   const [answers, setAnswers] = useState<StudentAnswers>({});
   const [currentQuestionNumber, setCurrentQuestionNumber] = useState(1);
+  const hasInitializedQuestionRef = useRef(false);
 
   // Test submission state (must be declared before useTestSession)
   const [testSubmitted, setTestSubmitted] = useState(false);
@@ -85,6 +106,8 @@ const ReadingTestPageContent: React.FC = () => {
     showReMarkModal,
     setShowReMarkModal,
     isConnected,
+    antiCheatConfig,
+    integrityRefreshRequestedAt,
   } = useTestSession({
     sessionCode,
     testData,
@@ -94,8 +117,6 @@ const ReadingTestPageContent: React.FC = () => {
   });
 
   // Timer management - must come BEFORE submission to provide timeRemaining
-  const submitTestRef = useRef<((isAuto: boolean) => void) | null>(null);
-
   const handleTimeUp = useCallback(() => {
     // Only auto-submit if test is actually in progress and not already submitted
     if (sessionStatus === 'in-progress' && !testSubmitted && submitTestRef.current) {
@@ -117,6 +138,46 @@ const ReadingTestPageContent: React.FC = () => {
   useEffect(() => {
     setTimeRemaining(calculatedTime);
   }, [calculatedTime]);
+
+  const {
+    addEvent,
+    warningLevel,
+    warningMessage,
+    shouldAutoSubmit,
+    flushEvents,
+    getIntegrityReport,
+  } = useTestIntegrity({
+    config: antiCheatConfig,
+    context: 'session',
+    surface: 'reading_test',
+    sessionCode: sessionCode || '',
+    studentId: sessionService.getPlayerId() || '',
+    testId: testData?.id || '',
+  });
+
+  useAntiCopyPaste({
+    enabled: antiCheatConfig?.detectCopyPaste || false,
+    containerRef: containerRef as React.RefObject<HTMLElement>,
+    onEvent: addEvent,
+    allowEditorPaste: false,
+    detectRightClick: antiCheatConfig?.detectRightClick || false,
+    detectKeyboardShortcuts: antiCheatConfig?.detectKeyboardShortcuts || false,
+  });
+
+  useFullscreenMode({
+    enabled: antiCheatConfig?.requireFullscreen || false,
+    onFullscreenExit: addEvent,
+  });
+
+  useEffect(() => {
+    flushIntegrityRef.current = () => flushEvents('teacher_force_submit');
+  }, [flushEvents]);
+
+  useIntegrityRefreshRequest({
+    enabled: sessionStatus === 'in-progress' && !testSubmitted,
+    requestTimestamp: integrityRefreshRequestedAt,
+    onRefreshRequested: () => flushEvents('teacher_refresh'),
+  });
 
   // Status stabilization - prevent navigation on brief status flickers
   const statusStableTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -195,6 +256,14 @@ const ReadingTestPageContent: React.FC = () => {
     sessionCode,
     answers,
     timeRemaining,
+    integrityReport: antiCheatConfig ? getIntegrityReport() : null,
+    questionsWithAnswersRef,
+    questionPresentation: {
+      studentId: sessionService.getPlayerId() || 'anon',
+      shuffleQuestions: antiCheatConfig?.shuffleQuestions || false,
+      shuffleOptions: antiCheatConfig?.shuffleOptions || false,
+    },
+    telemetrySurface: 'reading_test',
   });
 
   // Store submit function ref for timer callback
@@ -207,10 +276,60 @@ const ReadingTestPageContent: React.FC = () => {
     setTestSubmitted(submissionTestSubmitted);
   }, [submissionTestSubmitted]);
 
+  const displayQuestions = useMemo(() => {
+    if (!testData) return [];
+    return getIELTSQuestionsForStudent(
+      testData.questions,
+      sessionService.getPlayerId() || 'anon',
+      testData.id,
+      {
+        shuffleQuestions: antiCheatConfig?.shuffleQuestions || false,
+        shuffleOptions: antiCheatConfig?.shuffleOptions || false,
+      },
+    );
+  }, [
+    antiCheatConfig?.shuffleOptions,
+    antiCheatConfig?.shuffleQuestions,
+    testData,
+  ]);
+
+  const activePassageQuestions = useMemo(
+    () => displayQuestions.filter((question) => question.passageId === activePassageId),
+    [activePassageId, displayQuestions],
+  );
+
+  useEffect(() => {
+    if (hasInitializedQuestionRef.current || activePassageQuestions.length === 0) {
+      return;
+    }
+
+    setCurrentQuestionNumber(activePassageQuestions[0]!.number);
+    hasInitializedQuestionRef.current = true;
+  }, [activePassageQuestions]);
+
   // PRD-0019 Task 6.7: Warn before leaving page during active test
   useBeforeUnloadWarning({
     enabled: !testSubmitted && sessionStatus === 'in-progress',
   });
+
+  const prevWarningRef = useRef(warningLevel);
+  useEffect(() => {
+    if (warningLevel !== prevWarningRef.current) {
+      prevWarningRef.current = warningLevel;
+      if (warningLevel === 'toast' || warningLevel === 'escalated') {
+        toast.warning(warningMessage);
+      }
+    }
+  }, [warningLevel, warningMessage]);
+
+  useEffect(() => {
+    if (shouldAutoSubmit && !testSubmitted && submitTestRef.current) {
+      (async () => {
+        await flushEvents('auto_submit');
+        await submitTestRef.current?.(true);
+      })();
+    }
+  }, [flushEvents, shouldAutoSubmit, testSubmitted]);
 
   // Load previously submitted answers if they exist
   useEffect(() => {
@@ -302,8 +421,11 @@ const ReadingTestPageContent: React.FC = () => {
    * Handle test submission (wrapper for hook's handleSubmit)
    */
   const handleSubmit = useCallback(() => {
-    submitTest(false); // Manual submission
-  }, [submitTest]);
+    (async () => {
+      await flushEvents('manual_submit');
+      await submitTest(false);
+    })();
+  }, [flushEvents, submitTest]);
 
   /**
    * Clear highlights handler (Reading-specific)
@@ -379,7 +501,10 @@ const ReadingTestPageContent: React.FC = () => {
   // ═══════════════════════════════════════════════════════════════
 
   return (
-    <div style={{
+    <div
+      ref={containerRef}
+      className={antiCheatConfig?.detectCopyPaste ? 'anti-select' : undefined}
+      style={{
       height: '100vh',
       display: 'flex',
       flexDirection: 'column',
@@ -509,7 +634,7 @@ const ReadingTestPageContent: React.FC = () => {
            * RIGHT COLUMN: QUESTIONS PANEL (Generic - used by all skills)
            * ═══════════════════════════════════════════════════════════════ */
           <IELTSQuestionsPanel
-            questions={testData.questions}
+            questions={displayQuestions}
             currentPassageId={activePassageId}
             answers={answers}
             onAnswerChange={(testSubmitted || isLocked) ? () => { } : handleAnswerChange} // PRD-0019: Disable during grace period
@@ -533,12 +658,26 @@ const ReadingTestPageContent: React.FC = () => {
           gap: '8px',
           zIndex: 999,
         }}>
+          {(() => {
+            const currentQuestionIndex = activePassageQuestions.findIndex(
+              (question) => question.number === currentQuestionNumber,
+            );
+            const previousQuestion = currentQuestionIndex > 0
+              ? activePassageQuestions[currentQuestionIndex - 1]
+              : null;
+            const nextQuestion = currentQuestionIndex >= 0
+              ? activePassageQuestions[currentQuestionIndex + 1]
+              : null;
+
+            return (
+              <>
           <button
             onClick={() => {
-              const prev = testData.questions.find(q => q.number === currentQuestionNumber - 1);
-              if (prev) goToQuestion(prev.number);
+              if (previousQuestion) {
+                goToQuestion(previousQuestion.number);
+              }
             }}
-            disabled={currentQuestionNumber <= 1}
+            disabled={!previousQuestion}
             style={{
               width: '45px',
               height: '45px',
@@ -546,8 +685,8 @@ const ReadingTestPageContent: React.FC = () => {
               color: 'white',
               border: 'none',
               borderRadius: '4px',
-              cursor: currentQuestionNumber <= 1 ? 'not-allowed' : 'pointer',
-              opacity: currentQuestionNumber <= 1 ? 0.5 : 1,
+              cursor: previousQuestion ? 'pointer' : 'not-allowed',
+              opacity: previousQuestion ? 1 : 0.5,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -558,10 +697,11 @@ const ReadingTestPageContent: React.FC = () => {
           </button>
           <button
             onClick={() => {
-              const next = testData.questions.find(q => q.number === currentQuestionNumber + 1);
-              if (next) goToQuestion(next.number);
+              if (nextQuestion) {
+                goToQuestion(nextQuestion.number);
+              }
             }}
-            disabled={currentQuestionNumber >= testData.questions.length}
+            disabled={!nextQuestion}
             style={{
               width: '45px',
               height: '45px',
@@ -569,7 +709,8 @@ const ReadingTestPageContent: React.FC = () => {
               color: 'white',
               border: 'none',
               borderRadius: '4px',
-              cursor: currentQuestionNumber >= testData.questions.length ? 'not-allowed' : 'pointer',
+              cursor: nextQuestion ? 'pointer' : 'not-allowed',
+              opacity: nextQuestion ? 1 : 0.5,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -578,12 +719,15 @@ const ReadingTestPageContent: React.FC = () => {
           >
             →
           </button>
+              </>
+            );
+          })()}
         </div>
       )}
 
       {/* Footer Navigation (Inspera-style) */}
       <InspiraFooterNav
-        questions={testData.questions}
+        questions={displayQuestions}
         passages={testData.passages}
         answers={answers}
         activePassageId={activePassageId}

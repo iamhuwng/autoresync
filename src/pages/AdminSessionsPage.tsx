@@ -73,6 +73,7 @@ const AdminSessionsPage: React.FC = () => {
             sessions: 'ADMIN_SESSIONS',
             settings: 'ADMIN_SETTINGS',
             backup: 'ADMIN_BACKUP',
+            reports: 'ADMIN_REPORTS',
         };
 
         const route = pageRoutes[page];

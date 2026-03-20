@@ -13,6 +13,29 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { MantineProvider } from '@mantine/core';
+import { BrowserRouter } from 'react-router-dom';
+vi.mock('../../hooks/useAuth', () => ({
+    useAuth: () => ({
+        user: { uid: 'user-1' },
+    }),
+}));
+vi.mock('../../services/draftCloudService', () => ({
+    testDraftService: {
+        createDraft: vi.fn(),
+        updateDraftStatus: vi.fn(),
+        saveParsedContent: vi.fn(),
+    },
+}));
+vi.mock('../../services/test-creation', () => ({
+    default: {
+        parseDocument: vi.fn(),
+        parseText: vi.fn(),
+    },
+}));
+vi.mock('../../services/writingTestService', () => ({
+    saveWritingDraft: vi.fn(),
+    publishWritingTest: vi.fn(),
+}));
 import TestCreationModal from './TestCreationModal';
 
 // ═══════════════════════════════════════════════════════════════
@@ -27,9 +50,11 @@ const renderModal = (props: Partial<Parameters<typeof TestCreationModal>[0]> = {
     };
 
     return render(
-        <MantineProvider>
-            <TestCreationModal {...defaultProps} {...props} />
-        </MantineProvider>
+        <BrowserRouter>
+            <MantineProvider>
+                <TestCreationModal {...defaultProps} {...props} />
+            </MantineProvider>
+        </BrowserRouter>
     );
 };
 
@@ -87,8 +112,8 @@ describe('TestCreationModal', () => {
             renderModal();
 
             const comingSoonBadges = screen.getAllByText('COMING SOON');
-            // TOEIC, SAT, THCS-THPT, Custom are unavailable
-            expect(comingSoonBadges.length).toBe(4);
+            // TOEIC, SAT, Custom are unavailable
+            expect(comingSoonBadges.length).toBe(3);
         });
 
         it('advances to skill step when IELTS is clicked', async () => {

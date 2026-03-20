@@ -99,8 +99,9 @@ export function AdminToolbar({
 
                     {/* Student Scope Filter */}
                     {activeTab === 'students' && assignmentFilter && onAssignmentFilterChange && (
-                        <div style={{ flex: '0 0 200px' }}>
+                        <div data-testid="student-scope-filter" style={{ flex: '0 0 200px' }}>
                             <Select
+                                aria-label="Student Scope"
                                 placeholder="Student Scope"
                                 data={[
                                     { value: 'all', label: 'All Students' },
@@ -125,6 +126,7 @@ export function AdminToolbar({
                     {activeTab === 'students' && isSuperAdmin && onTeacherFilterChange && (
                         <div style={{ flex: '0 0 220px' }}>
                             <Select
+                                aria-label="Teacher Filter"
                                 placeholder="Filter by Teacher"
                                 data={teacherOptions}
                                 value={filterByTeacherId}

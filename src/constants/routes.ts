@@ -47,6 +47,7 @@ export const ROUTES = {
   ADMIN_CLASSES: '/admin/classes',
   ADMIN_SETTINGS: '/admin/settings',
   ADMIN_BACKUP: '/admin/backup',
+  ADMIN_REPORTS: '/admin/reports',
 
   // Teacher Routes - Student Management
   TEACHER_STUDENTS: '/teacher/students',
@@ -170,7 +171,9 @@ export const extractParams = (
     const templatePart = templateParts[i];
     const pathPart = pathParts[i];
 
-    if (!templatePart || !pathPart) continue;
+    if (templatePart === '' && pathPart === '') continue;
+    if (!templatePart || !pathPart) return null;
+    if (pathPart.includes('?') || pathPart.includes('#')) return null;
 
     if (templatePart.startsWith(':')) {
       const paramName = templatePart.slice(1) as keyof RouteParams;

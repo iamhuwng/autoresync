@@ -85,6 +85,22 @@ const DEFAULT_STATS: HomeworkStats = {
 
 const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
+function stripUndefinedFields<T>(value: T): T {
+    if (Array.isArray(value)) {
+        return value.map((item) => stripUndefinedFields(item)) as T;
+    }
+
+    if (value && typeof value === 'object') {
+        return Object.fromEntries(
+            Object.entries(value)
+                .filter(([, currentValue]) => currentValue !== undefined)
+                .map(([key, currentValue]) => [key, stripUndefinedFields(currentValue)])
+        ) as T;
+    }
+
+    return value;
+}
+
 function normalizeHomeworkAssignment(homework: HomeworkAssignment): HomeworkAssignment {
     return {
         ...homework,
@@ -163,7 +179,7 @@ export async function createHomework(data: CreateHomeworkInput): Promise<string>
             ...(data.antiCheatConfig ? { antiCheatConfig: data.antiCheatConfig } : {}),
         };
 
-        await setDoc(homeworkRef, homework);
+        await setDoc(homeworkRef, stripUndefinedFields(homework));
         return homeworkRef.id;
     } catch (error) {
         console.error('Error creating homework:', error);
@@ -505,6 +521,7 @@ export async function duplicateHomework(
             instructions: original.description,
             title: modifications?.title || `${original.title || original.materialTitle} (Copy)`,
             tags: original.tags ?? [],
+            antiCheatConfig: original.antiCheatConfig,
             // Phase 3: Preserve THCS config when duplicating
             ...(original.thcsConfig ? { thcsConfig: original.thcsConfig } : {}),
         };

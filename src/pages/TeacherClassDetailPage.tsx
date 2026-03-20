@@ -11,13 +11,14 @@ import { useAuth } from '../hooks/useAuth';
 import { TeacherHeader } from '../components/navigation';
 import { Tabs, Table, Badge, Modal, Loader, Group, Tooltip, ActionIcon } from '@mantine/core';
 import { Card, CardBody, Button } from '../components/modern';
-import { classManager, removeStudentFromClass } from '../services/classManager';
+import { classManager, removeStudentFromClass, approveClassStudent, rejectClassStudent } from '../services/classManager';
 import { LinkCourseModal } from '../components/course/LinkCourseModal';
 import { ExtendCourseModal } from '../components/course/ExtendCourseModal';
 import { CourseCreateModal } from '../components/course/CourseCreateModal';
 import { notifications } from '@mantine/notifications';
 import { getLinkedCourses, unlinkCourseFromClass, syncCourseWithOriginal } from '../services/enrollmentManager';
 import { getCourse } from '../services/courseManager';
+import { detectSyncUpdates, applySyncMaterials, applySyncNewModule } from '../services/courseSyncService';
 import type { ClassSession } from '../types/class.types';
 import type { ClassCourseLink, Course } from '../types/course.types';
 import { ModuleList } from '../components/course/ModuleList';
@@ -34,7 +35,9 @@ import {
   IconRefresh,
   IconClock,
   IconTrash,
-  IconPlus
+  IconPlus,
+  IconCheck,
+  IconX
 } from '@tabler/icons-react';
 
 const TeacherClassDetailPage: React.FC = () => {
@@ -54,6 +57,8 @@ const TeacherClassDetailPage: React.FC = () => {
 
   const [accessDenied, setAccessDenied] = useState(false);
   const [removingStudentId, setRemovingStudentId] = useState<string | null>(null);
+  const [approvingStudentId, setApprovingStudentId] = useState<string | null>(null);
+  const [rejectingStudentId, setRejectingStudentId] = useState<string | null>(null);
 
   // Edit course details modal (for class instance copies)
   const [courseToEditDetails, setCourseToEditDetails] = useState<Course | null>(null);
@@ -98,6 +103,65 @@ const TeacherClassDetailPage: React.FC = () => {
       });
     } finally {
       setRemovingStudentId(null);
+    }
+  };
+
+  const handleApproveStudent = async (studentId: string, studentName: string) => {
+    if (!classId || !user?.uid) return;
+    setApprovingStudentId(studentId);
+    try {
+      const result = await approveClassStudent(classId, studentId, user.uid);
+      if (result.success) {
+        notifications.show({
+          title: 'Student Approved',
+          message: `${studentName} is now an active member of this class.`,
+          color: 'green',
+        });
+        loadClassData();
+      } else {
+        notifications.show({
+          title: 'Approval Failed',
+          message: result.error || 'Could not approve student',
+          color: 'red',
+        });
+      }
+    } catch (error) {
+      console.error('Error approving student:', error);
+      notifications.show({ title: 'Error', message: 'An unexpected error occurred.', color: 'red' });
+    } finally {
+      setApprovingStudentId(null);
+    }
+  };
+
+  const handleRejectStudent = async (studentId: string, studentName: string) => {
+    if (!classId) return;
+    const confirmed = window.confirm(
+      `Reject ${studentName || 'this student'}? They will be removed from the class.`
+    );
+    if (!confirmed) return;
+
+    setRejectingStudentId(studentId);
+    try {
+      const result = await rejectClassStudent(classId, studentId);
+      if (result.success) {
+        notifications.show({
+          title: 'Student Rejected',
+          message: `${studentName} has been removed from the class.`,
+          color: 'orange',
+        });
+        loadClassData();
+      } else {
+        notifications.show({
+          title: 'Rejection Failed',
+          message: result.error || 'Could not reject student',
+          color: 'red',
+        });
+      }
+    } catch (error) {
+      console.error('Error rejecting student:', error);
+      notifications.show({ title: 'Error', message: 'An unexpected error occurred.', color: 'red' });
+    } finally {
+      setRejectingStudentId(null);
     }
   };
 
@@ -183,11 +247,52 @@ const TeacherClassDetailPage: React.FC = () => {
     }
   };
 
-  const handleSyncCourse = async (linkId: string) => {
+  const handleSyncCourse = async (linkId: string, copyCourseId: string) => {
     try {
+      // 1. Metadata sync (name, description, etc.)
       await syncCourseWithOriginal(linkId);
-      notifications.show({ title: 'Success', message: 'Course synced with original', color: 'green' });
-      loadLinkedCourses(); // Refresh to check consistency
+
+      // 2. Material & module sync — detect then auto-apply ALL pending updates
+      let materialsAdded = 0;
+      let modulesAdded = 0;
+      const syncStatus = await detectSyncUpdates(copyCourseId);
+
+      if (syncStatus) {
+        // Apply new materials within existing modules
+        for (const modUpdate of syncStatus.moduleUpdates) {
+          if (modUpdate.pendingMaterials.length > 0) {
+            const materialIds = modUpdate.pendingMaterials.map(m => m.materialId);
+            const result = await applySyncMaterials(
+              copyCourseId,
+              modUpdate.copyModuleId,
+              materialIds
+            );
+            if (result.success) materialsAdded += result.addedCount;
+          }
+        }
+
+        // Apply entirely new modules
+        for (const newMod of syncStatus.newModules) {
+          const result = await applySyncNewModule(copyCourseId, newMod.originalModuleId);
+          if (result.success) modulesAdded++;
+        }
+      }
+
+      // 3. Show result
+      if (materialsAdded > 0 || modulesAdded > 0) {
+        const parts = [];
+        if (materialsAdded > 0) parts.push(`${materialsAdded} material${materialsAdded > 1 ? 's' : ''}`);
+        if (modulesAdded > 0) parts.push(`${modulesAdded} module${modulesAdded > 1 ? 's' : ''}`);
+        notifications.show({
+          title: 'Sync Complete',
+          message: `Added ${parts.join(' and ')} from the original course. Students can now access the new content.`,
+          color: 'green',
+        });
+      } else {
+        notifications.show({ title: 'Up to Date', message: 'Course metadata synced. No new materials or modules to add.', color: 'blue' });
+      }
+
+      loadLinkedCourses(); // Refresh
     } catch (error) {
       console.error('Error syncing course:', error);
       notifications.show({ title: 'Error', message: 'Failed to sync course', color: 'red' });
@@ -344,60 +449,146 @@ const TeacherClassDetailPage: React.FC = () => {
                 </Tabs.List>
 
                 <Tabs.Panel value="students">
-                  {students.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '4rem 2rem', color: '#94a3b8' }}>
-                      <div style={{ fontSize: '4rem', marginBottom: '1.5rem' }}>👥</div>
-                      <h3 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#1e293b', marginBottom: '0.5rem' }}>No Students Yet</h3>
-                      <p style={{ maxWidth: '400px', margin: '0 auto' }}>
-                        Share your class code <strong>{classData.classCode}</strong> with students to have them join this class.
-                      </p>
-                    </div>
-                  ) : (
-                    <div style={{ overflowX: 'auto' }}>
-                      <Table verticalSpacing="sm" highlightOnHover striped>
-                        <Table.Thead>
-                          <Table.Tr>
-                            <Table.Th style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Student Name</Table.Th>
-                            <Table.Th style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</Table.Th>
-                            <Table.Th style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Joined Date</Table.Th>
-                            <Table.Th style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Last Active</Table.Th>
-                            <Table.Th style={{ textAlign: 'right', color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Actions</Table.Th>
-                          </Table.Tr>
-                        </Table.Thead>
-                        <Table.Tbody>
-                          {students.map((student) => (
-                            <Table.Tr key={student.id}>
-                              <Table.Td style={{ fontWeight: 700, color: '#1e293b' }}>{student.name}</Table.Td>
-                              <Table.Td>
-                                <Badge
-                                  color={student.isOnline ? 'green' : 'gray'}
-                                  variant="dot"
-                                  styles={{ root: { fontWeight: 700, paddingLeft: '0.5rem' } }}
+                  {(() => {
+                    const pendingStudents = students.filter(s => s.status === 'pending_approval');
+                    const activeStudents = students.filter(s => !s.status || s.status === 'active');
+
+                    if (students.length === 0) {
+                      return (
+                        <div style={{ textAlign: 'center', padding: '4rem 2rem', color: '#94a3b8' }}>
+                          <div style={{ fontSize: '4rem', marginBottom: '1.5rem' }}>👥</div>
+                          <h3 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#1e293b', marginBottom: '0.5rem' }}>No Students Yet</h3>
+                          <p style={{ maxWidth: '400px', margin: '0 auto' }}>
+                            Share your class code <strong>{classData.classCode}</strong> with students to have them join this class.
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                        {/* Pending Approval Section */}
+                        {pendingStudents.length > 0 && (
+                          <div style={{
+                            background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.08) 0%, rgba(245, 158, 11, 0.05) 100%)',
+                            border: '1px solid rgba(245, 158, 11, 0.25)',
+                            borderRadius: '1rem',
+                            padding: '1.25rem',
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+                              <span style={{ fontSize: '1.25rem' }}>⏳</span>
+                              <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#92400e' }}>
+                                Pending Approval
+                              </h4>
+                              <Badge color="amber" variant="filled" size="sm" styles={{ root: { fontWeight: 800 } }}>
+                                {pendingStudents.length}
+                              </Badge>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                              {pendingStudents.map((student) => (
+                                <div
+                                  key={student.id}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    padding: '0.75rem 1rem',
+                                    background: 'rgba(255, 255, 255, 0.7)',
+                                    borderRadius: '0.75rem',
+                                    border: '1px solid rgba(245, 158, 11, 0.15)',
+                                  }}
                                 >
-                                  {student.isOnline ? 'Online' : 'Offline'}
-                                </Badge>
-                              </Table.Td>
-                              <Table.Td style={{ fontSize: '0.875rem', color: '#64748b' }}>{new Date(student.joinedAt).toLocaleDateString()}</Table.Td>
-                              <Table.Td style={{ fontSize: '0.875rem', color: '#64748b' }}>{new Date(student.lastActiveAt).toLocaleString()}</Table.Td>
-                              <Table.Td style={{ textAlign: 'right' }}>
-                                <div style={{ display: 'inline-flex', gap: '0.5rem', alignItems: 'center' }}>
-                                  <Button variant="glass" size="xs">View Progress</Button>
-                                  <Button
-                                    variant="danger"
-                                    size="xs"
-                                    onClick={() => handleRemoveStudent(student.id, student.name)}
-                                    disabled={removingStudentId === student.id}
-                                  >
-                                    {removingStudentId === student.id ? 'Removing...' : 'Remove'}
-                                  </Button>
+                                  <div>
+                                    <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.95rem' }}>{student.name}</div>
+                                    <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                                      {student.email && <span>{student.email} · </span>}
+                                      Requested {new Date(student.joinedAt).toLocaleDateString()}
+                                    </div>
+                                  </div>
+                                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                    <Button
+                                      variant="primary"
+                                      size="xs"
+                                      onClick={() => handleApproveStudent(student.id, student.name)}
+                                      disabled={approvingStudentId === student.id}
+                                      style={{ background: '#16a34a', fontWeight: 700 }}
+                                    >
+                                      <IconCheck size={14} style={{ marginRight: '0.25rem' }} />
+                                      {approvingStudentId === student.id ? 'Approving...' : 'Approve'}
+                                    </Button>
+                                    <Button
+                                      variant="danger"
+                                      size="xs"
+                                      onClick={() => handleRejectStudent(student.id, student.name)}
+                                      disabled={rejectingStudentId === student.id}
+                                    >
+                                      <IconX size={14} style={{ marginRight: '0.25rem' }} />
+                                      {rejectingStudentId === student.id ? 'Rejecting...' : 'Reject'}
+                                    </Button>
+                                  </div>
                                 </div>
-                              </Table.Td>
-                            </Table.Tr>
-                          ))}
-                        </Table.Tbody>
-                      </Table>
-                    </div>
-                  )}
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Active Students Table */}
+                        {activeStudents.length > 0 && (
+                          <div style={{ overflowX: 'auto' }}>
+                            <Table verticalSpacing="sm" highlightOnHover striped>
+                              <Table.Thead>
+                                <Table.Tr>
+                                  <Table.Th style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Student Name</Table.Th>
+                                  <Table.Th style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</Table.Th>
+                                  <Table.Th style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Joined Date</Table.Th>
+                                  <Table.Th style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Last Active</Table.Th>
+                                  <Table.Th style={{ textAlign: 'right', color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Actions</Table.Th>
+                                </Table.Tr>
+                              </Table.Thead>
+                              <Table.Tbody>
+                                {activeStudents.map((student) => (
+                                  <Table.Tr key={student.id}>
+                                    <Table.Td style={{ fontWeight: 700, color: '#1e293b' }}>{student.name}</Table.Td>
+                                    <Table.Td>
+                                      <Badge
+                                        color={student.isOnline ? 'green' : 'gray'}
+                                        variant="dot"
+                                        styles={{ root: { fontWeight: 700, paddingLeft: '0.5rem' } }}
+                                      >
+                                        {student.isOnline ? 'Online' : 'Offline'}
+                                      </Badge>
+                                    </Table.Td>
+                                    <Table.Td style={{ fontSize: '0.875rem', color: '#64748b' }}>{new Date(student.joinedAt).toLocaleDateString()}</Table.Td>
+                                    <Table.Td style={{ fontSize: '0.875rem', color: '#64748b' }}>{new Date(student.lastActiveAt).toLocaleString()}</Table.Td>
+                                    <Table.Td style={{ textAlign: 'right' }}>
+                                      <div style={{ display: 'inline-flex', gap: '0.5rem', alignItems: 'center' }}>
+                                        <Button variant="glass" size="xs">View Progress</Button>
+                                        <Button
+                                          variant="danger"
+                                          size="xs"
+                                          onClick={() => handleRemoveStudent(student.id, student.name)}
+                                          disabled={removingStudentId === student.id}
+                                        >
+                                          {removingStudentId === student.id ? 'Removing...' : 'Remove'}
+                                        </Button>
+                                      </div>
+                                    </Table.Td>
+                                  </Table.Tr>
+                                ))}
+                              </Table.Tbody>
+                            </Table>
+                          </div>
+                        )}
+
+                        {/* If only pending students and no active ones */}
+                        {activeStudents.length === 0 && pendingStudents.length > 0 && (
+                          <div style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>
+                            <p style={{ fontSize: '0.9rem' }}>No approved students yet. Approve pending requests above to add students to this class.</p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </Tabs.Panel>
 
                 <Tabs.Panel value="courses">
@@ -483,7 +674,7 @@ const TeacherClassDetailPage: React.FC = () => {
                                   </ActionIcon>
                                 </Tooltip>
                                 <Tooltip label="Sync Updates">
-                                  <ActionIcon variant="light" color="teal" onClick={(e) => { e.stopPropagation(); handleSyncCourse(link.id); }}>
+                                  <ActionIcon variant="light" color="teal" onClick={(e) => { e.stopPropagation(); handleSyncCourse(link.id, course.id); }}>
                                     <IconRefresh size={16} />
                                   </ActionIcon>
                                 </Tooltip>

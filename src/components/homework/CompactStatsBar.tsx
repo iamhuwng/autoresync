@@ -19,7 +19,6 @@ export interface CompactStatsBarProps {
   needsAttentionCount: number;
   onClosePastDue: () => void;
   onCreateHomework: () => void;
-  onCreateThcsHomework: () => void;
   userId?: string;
 }
 
@@ -34,7 +33,6 @@ export function CompactStatsBar({
   needsAttentionCount,
   onClosePastDue,
   onCreateHomework,
-  onCreateThcsHomework,
   userId,
 }: CompactStatsBarProps) {
   return (
@@ -97,19 +95,10 @@ export function CompactStatsBar({
           variant="primary"
           onClick={onCreateHomework}
           style={{
-            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+            background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
           }}
         >
-          Create Homework
-        </Button>
-        <Button
-          variant="primary"
-          onClick={onCreateThcsHomework}
-          style={{
-            background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 100%)',
-          }}
-        >
-          Create THCS Homework
+          ➕ Create New Homework
         </Button>
       </div>
     </div>

@@ -167,30 +167,6 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
   thcsSections,
   thcsResults,
 }) => {
-
-  // Debug logging to trace answer data
-  useEffect(() => {
-    if (opened) {
-      console.log('🔍 [StudentDetailModal] Modal opened for:', studentName);
-      console.log('🔍 [StudentDetailModal] Student ID:', studentId);
-      console.log('🔍 [StudentDetailModal] Raw answers received:', answers);
-      console.log('🔍 [StudentDetailModal] Is answers null/undefined?', answers == null);
-      console.log('🔍 [StudentDetailModal] Type of answers:', typeof answers);
-      console.log('🔍 [StudentDetailModal] Answer keys:', answers ? Object.keys(answers) : 'No answers');
-      console.log('🔍 [StudentDetailModal] Answer count:', Object.keys(answers || {}).length);
-      console.log('🔍 [StudentDetailModal] Total questions:', totalQuestions);
-
-      // Check first few answers for structure
-      if (answers && Object.keys(answers).length > 0) {
-        Object.entries(answers).slice(0, 3).forEach(([qNum, answerData]) => {
-          console.log(`🔍 [StudentDetailModal] Q${qNum} structure:`, answerData);
-        });
-      } else {
-        console.warn('🔍 [StudentDetailModal] No answers to display!');
-      }
-    }
-  }, [opened, answers, studentName, studentId, totalQuestions]);
-
   // Re-marking state
   const [isReMarking, setIsReMarking] = useState(false);
   const [manualMarks, setManualMarks] = useState<Record<number, boolean>>({});
@@ -381,12 +357,9 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
    * Calculate statistics
    */
   const answeredCount = Object.keys(answers || {}).length;
-  const progress = Math.round((answeredCount / totalQuestions) * 100);
-
-  // Debug: Check if answers is actually populated
-  console.log('🔍 [Modal Debug] answeredCount:', answeredCount);
-  console.log('🔍 [Modal Debug] answers object:', answers);
-  console.log('🔍 [Modal Debug] totalQuestions:', totalQuestions);
+  const progress = totalQuestions > 0
+    ? Math.round((answeredCount / totalQuestions) * 100)
+    : 0;
 
   /**
    * Format answer display
@@ -492,9 +465,6 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
     return allQuestions;
   }, [answers, totalQuestions, status, checkAnswerCorrectness]);
 
-  console.log('🔍 [Modal Debug] Question list sample:', questionList.slice(0, 3));
-  console.log('🔍 [Modal Debug] Status:', status, '| Showing questions:', questionList.length);
-
   return (
     <Modal
       opened={opened}
@@ -596,6 +566,11 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                     : 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
                   transition: 'width 0.3s ease',
                 }}
+                role="progressbar"
+                aria-label="Student progress"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={progress}
               />
             </div>
           </div>

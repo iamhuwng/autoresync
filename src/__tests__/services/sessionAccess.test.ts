@@ -1,9 +1,9 @@
 /**
  * Session Access Control Tests
- * Tests for guest access, authenticated access, and access control enforcement
+ * Contract tests for guest access, authenticated access, and access control enforcement
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createSession,
   validateGuestJoin,
@@ -13,16 +13,139 @@ import {
 import { database } from '../../services/firebase';
 import { ref, set, get, remove } from 'firebase/database';
 
-// Test data
-const TEST_SESSION_CODE = 'TEST01';
+const {
+  mockGenerateUniqueCode,
+  mockDatabaseStore,
+  mockRef,
+  mockGet,
+  mockSet,
+  mockRemove,
+  mockUpdate,
+  resetMockDatabase,
+} = vi.hoisted(() => {
+  const store: Record<string, any> = {};
 
-// Cleanup helper
+  const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
+  const pathParts = (path?: string) => (path || '').split('/').filter(Boolean);
+
+  const readAtPath = (path?: string) => {
+    const parts = pathParts(path);
+    let current: any = store;
+
+    for (const part of parts) {
+      if (current == null || typeof current !== 'object' || !(part in current)) {
+        return undefined;
+      }
+
+      current = current[part];
+    }
+
+    return current;
+  };
+
+  const writeAtPath = (path: string | undefined, value: any) => {
+    const parts = pathParts(path);
+
+    if (parts.length === 0) {
+      Object.keys(store).forEach(key => delete store[key]);
+      if (value && typeof value === 'object') {
+        Object.assign(store, clone(value));
+      }
+      return;
+    }
+
+    let current: any = store;
+
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i];
+      if (!current[part] || typeof current[part] !== 'object') {
+        current[part] = {};
+      }
+      current = current[part];
+    }
+
+    current[parts[parts.length - 1]] = value === undefined ? null : clone(value);
+  };
+
+  const updateAtPath = (path: string | undefined, updates: Record<string, any>) => {
+    const basePath = pathParts(path).join('/');
+
+    if (!basePath) {
+      for (const [key, value] of Object.entries(updates)) {
+        writeAtPath(key, value);
+      }
+      return;
+    }
+
+    const currentValue = readAtPath(basePath);
+    const merged =
+      currentValue && typeof currentValue === 'object' && !Array.isArray(currentValue)
+        ? { ...currentValue, ...clone(updates) }
+        : clone(updates);
+
+    writeAtPath(basePath, merged);
+  };
+
+  const snapshot = (value: any) => ({
+    exists: () => value !== undefined && value !== null,
+    val: () => clone(value),
+  });
+
+  let sequence = 1;
+
+  return {
+    mockGenerateUniqueCode: vi.fn(async () => `S${String(sequence++).padStart(5, '0')}`),
+    mockDatabaseStore: store,
+    mockRef: vi.fn((_db, path = '') => ({ __path: path })),
+    mockGet: vi.fn(async (refObj) => snapshot(readAtPath(refObj?.__path))),
+    mockSet: vi.fn(async (refObj, value) => {
+      writeAtPath(refObj?.__path, value);
+    }),
+    mockRemove: vi.fn(async (refObj) => {
+      writeAtPath(refObj?.__path, undefined);
+    }),
+    mockUpdate: vi.fn(async (refObj, updates) => {
+      updateAtPath(refObj?.__path, updates);
+    }),
+    resetMockDatabase: () => {
+      Object.keys(store).forEach(key => delete store[key]);
+      sequence = 1;
+    },
+  };
+});
+
+vi.mock('firebase/database', () => ({
+  ref: mockRef,
+  set: mockSet,
+  get: mockGet,
+  remove: mockRemove,
+  update: mockUpdate,
+  onValue: vi.fn(() => vi.fn()),
+  serverTimestamp: vi.fn(() => Date.now()),
+}));
+
+vi.mock('../../services/sessionCodeService', async () => {
+  const actual = await vi.importActual<typeof import('../../services/sessionCodeService')>(
+    '../../services/sessionCodeService'
+  );
+
+  return {
+    ...actual,
+    generateUniqueCode: mockGenerateUniqueCode,
+  };
+});
+
+vi.mock('../../services/firebase', () => ({
+  database: mockDatabaseStore,
+}));
+
 const cleanupTestData = async () => {
-  try {
-    await remove(ref(database, `game_sessions/${TEST_SESSION_CODE}`));
-  } catch (error) {
-    console.error('Cleanup error:', error);
-  }
+  resetMockDatabase();
+  vi.clearAllMocks();
+  sessionStorage.clear();
+  await remove(ref(database, 'game_sessions'));
+  await remove(ref(database, 'teacher_sessions'));
+  await remove(ref(database, 'classes'));
 };
 
 describe('Session Access Control - Guest Access', () => {
@@ -34,8 +157,7 @@ describe('Session Access Control - Guest Access', () => {
     await cleanupTestData();
   });
 
-  it('should allow guest to join session when allowAnonymous is true', async () => {
-    // Create session with guest access enabled
+  it('allows guests when allowAnonymous is true', async () => {
     const result = await createSession({
       mode: SessionMode.QUIZ,
       settings: {
@@ -45,16 +167,13 @@ describe('Session Access Control - Guest Access', () => {
     });
 
     expect(result.success).toBe(true);
-    const sessionCode = result.sessionCode!;
 
-    // Validate guest can join
-    const validation = await validateGuestJoin(sessionCode);
+    const validation = await validateGuestJoin(result.sessionCode!);
     expect(validation.valid).toBe(true);
     expect(validation.session).toBeDefined();
   });
 
-  it('should block guest from joining session when allowAnonymous is false', async () => {
-    // Create session with guest access disabled
+  it('blocks guests when allowAnonymous is false', async () => {
     const result = await createSession({
       mode: SessionMode.QUIZ,
       settings: {
@@ -63,17 +182,12 @@ describe('Session Access Control - Guest Access', () => {
       },
     });
 
-    expect(result.success).toBe(true);
-    const sessionCode = result.sessionCode!;
-
-    // Validate guest cannot join
-    const validation = await validateGuestJoin(sessionCode);
+    const validation = await validateGuestJoin(result.sessionCode!);
     expect(validation.valid).toBe(false);
     expect(validation.message).toContain('requires authentication');
   });
 
-  it('should allow guest to join when allowAnonymous is undefined (defaults to true)', async () => {
-    // Create session without explicitly setting allowAnonymous
+  it('defaults to allowing guests when allowAnonymous is undefined', async () => {
     const result = await createSession({
       mode: SessionMode.QUIZ,
       settings: {
@@ -81,16 +195,11 @@ describe('Session Access Control - Guest Access', () => {
       },
     });
 
-    expect(result.success).toBe(true);
-    const sessionCode = result.sessionCode!;
-
-    // Validate guest can join (should default to allowing guests)
-    const validation = await validateGuestJoin(sessionCode);
+    const validation = await validateGuestJoin(result.sessionCode!);
     expect(validation.valid).toBe(true);
   });
 
-  it('should enforce other session rules even when allowAnonymous is true', async () => {
-    // Create session that's expired
+  it('still blocks guests for expired sessions', async () => {
     const result = await createSession({
       mode: SessionMode.QUIZ,
       settings: {
@@ -99,15 +208,14 @@ describe('Session Access Control - Guest Access', () => {
     });
 
     const sessionCode = result.sessionCode!;
-
-    // Manually set session to expired
     const sessionRef = ref(database, `game_sessions/${sessionCode}`);
+    const sessionData = (await get(sessionRef)).val();
+
     await set(sessionRef, {
-      ...(await get(sessionRef)).val(),
+      ...sessionData,
       status: 'expired',
     });
 
-    // Guest should still be blocked due to expiration
     const validation = await validateGuestJoin(sessionCode);
     expect(validation.valid).toBe(false);
     expect(validation.message).toContain('expired');
@@ -123,8 +231,7 @@ describe('Session Access Control - Authenticated Student Access', () => {
     await cleanupTestData();
   });
 
-  it('should allow authenticated student to join public session', async () => {
-    // Create public session
+  it('allows authenticated students to join public sessions', async () => {
     const result = await createSession({
       mode: SessionMode.TEST,
       settings: {
@@ -133,16 +240,11 @@ describe('Session Access Control - Authenticated Student Access', () => {
       },
     });
 
-    expect(result.success).toBe(true);
-    const sessionCode = result.sessionCode!;
-
-    // Authenticated students use validateSessionForJoin (not validateGuestJoin)
-    const validation = await validateSessionForJoin(sessionCode);
+    const validation = await validateSessionForJoin(result.sessionCode!);
     expect(validation.valid).toBe(true);
   });
 
-  it('should allow authenticated student to join even when allowAnonymous is false', async () => {
-    // Create session that blocks guests but allows authenticated users
+  it('allows authenticated students when guests are blocked', async () => {
     const result = await createSession({
       mode: SessionMode.TEST,
       settings: {
@@ -151,15 +253,10 @@ describe('Session Access Control - Authenticated Student Access', () => {
       },
     });
 
-    expect(result.success).toBe(true);
-    const sessionCode = result.sessionCode!;
-
-    // Authenticated students should be able to join
-    const validation = await validateSessionForJoin(sessionCode);
+    const validation = await validateSessionForJoin(result.sessionCode!);
     expect(validation.valid).toBe(true);
 
-    // But guests should be blocked
-    const guestValidation = await validateGuestJoin(sessionCode);
+    const guestValidation = await validateGuestJoin(result.sessionCode!);
     expect(guestValidation.valid).toBe(false);
   });
 });
@@ -173,7 +270,7 @@ describe('Session Access Control - Access Control Settings', () => {
     await cleanupTestData();
   });
 
-  it('should create session with public access control', async () => {
+  it('persists public access control settings', async () => {
     const result = await createSession({
       mode: SessionMode.QUIZ,
       settings: {
@@ -182,19 +279,14 @@ describe('Session Access Control - Access Control Settings', () => {
       },
     });
 
-    expect(result.success).toBe(true);
-    const sessionCode = result.sessionCode!;
-
-    // Verify settings were saved
-    const sessionRef = ref(database, `game_sessions/${sessionCode}`);
-    const snapshot = await get(sessionRef);
+    const snapshot = await get(ref(database, `game_sessions/${result.sessionCode!}`));
     const session = snapshot.val();
 
     expect(session.settings.accessControl).toBe('public');
     expect(session.settings.allowAnonymous).toBe(true);
   });
 
-  it('should create session with class-only access control', async () => {
+  it('persists class-only access control settings', async () => {
     const result = await createSession({
       mode: SessionMode.TEST,
       settings: {
@@ -203,12 +295,7 @@ describe('Session Access Control - Access Control Settings', () => {
       },
     });
 
-    expect(result.success).toBe(true);
-    const sessionCode = result.sessionCode!;
-
-    // Verify settings were saved
-    const sessionRef = ref(database, `game_sessions/${sessionCode}`);
-    const snapshot = await get(sessionRef);
+    const snapshot = await get(ref(database, `game_sessions/${result.sessionCode!}`));
     const session = snapshot.val();
 
     expect(session.settings.accessControl).toBe('class-only');
@@ -225,8 +312,7 @@ describe('Session Access Control - Late Join with Guest Access', () => {
     await cleanupTestData();
   });
 
-  it('should block guest from late join when allowLateJoin is false', async () => {
-    // Create session with late join disabled
+  it('blocks guest late join when allowLateJoin is false', async () => {
     const result = await createSession({
       mode: SessionMode.QUIZ,
       settings: {
@@ -236,23 +322,20 @@ describe('Session Access Control - Late Join with Guest Access', () => {
     });
 
     const sessionCode = result.sessionCode!;
-
-    // Set session to in-progress
     const sessionRef = ref(database, `game_sessions/${sessionCode}`);
     const sessionData = (await get(sessionRef)).val();
+
     await set(sessionRef, {
       ...sessionData,
       status: 'in-progress',
     });
 
-    // Guest should be blocked from joining
     const validation = await validateGuestJoin(sessionCode);
     expect(validation.valid).toBe(false);
     expect(validation.message).toContain('already started');
   });
 
-  it('should allow guest to late join when both allowAnonymous and allowLateJoin are true', async () => {
-    // Create session with both settings enabled
+  it('allows guest late join when both toggles are true', async () => {
     const result = await createSession({
       mode: SessionMode.QUIZ,
       settings: {
@@ -262,16 +345,14 @@ describe('Session Access Control - Late Join with Guest Access', () => {
     });
 
     const sessionCode = result.sessionCode!;
-
-    // Set session to in-progress
     const sessionRef = ref(database, `game_sessions/${sessionCode}`);
     const sessionData = (await get(sessionRef)).val();
+
     await set(sessionRef, {
       ...sessionData,
       status: 'in-progress',
     });
 
-    // Guest should be allowed to join
     const validation = await validateGuestJoin(sessionCode);
     expect(validation.valid).toBe(true);
   });
@@ -286,7 +367,7 @@ describe('Session Access Control - Combined Scenarios', () => {
     await cleanupTestData();
   });
 
-  it('should handle strict session (class-only, no guests, no late join)', async () => {
+  it('handles a strict session', async () => {
     const result = await createSession({
       mode: SessionMode.TEST,
       settings: {
@@ -296,23 +377,18 @@ describe('Session Access Control - Combined Scenarios', () => {
       },
     });
 
-    const sessionCode = result.sessionCode!;
-
-    // Verify all settings
-    const sessionRef = ref(database, `game_sessions/${sessionCode}`);
-    const snapshot = await get(sessionRef);
+    const snapshot = await get(ref(database, `game_sessions/${result.sessionCode!}`));
     const session = snapshot.val();
 
     expect(session.settings.accessControl).toBe('class-only');
     expect(session.settings.allowAnonymous).toBe(false);
     expect(session.settings.allowLateJoin).toBe(false);
 
-    // Guest should be blocked
-    const guestValidation = await validateGuestJoin(sessionCode);
+    const guestValidation = await validateGuestJoin(result.sessionCode!);
     expect(guestValidation.valid).toBe(false);
   });
 
-  it('should handle open session (public, guests allowed, late join allowed)', async () => {
+  it('handles an open session', async () => {
     const result = await createSession({
       mode: SessionMode.QUIZ,
       settings: {
@@ -323,8 +399,6 @@ describe('Session Access Control - Combined Scenarios', () => {
     });
 
     const sessionCode = result.sessionCode!;
-
-    // Verify all settings
     const sessionRef = ref(database, `game_sessions/${sessionCode}`);
     const snapshot = await get(sessionRef);
     const session = snapshot.val();
@@ -333,11 +407,9 @@ describe('Session Access Control - Combined Scenarios', () => {
     expect(session.settings.allowAnonymous).toBe(true);
     expect(session.settings.allowLateJoin).toBe(true);
 
-    // Guest should be allowed
     const guestValidation = await validateGuestJoin(sessionCode);
     expect(guestValidation.valid).toBe(true);
 
-    // Set to in-progress and verify late join works
     await set(sessionRef, {
       ...session,
       status: 'in-progress',
@@ -357,7 +429,7 @@ describe('Session Access Control - Error Messages', () => {
     await cleanupTestData();
   });
 
-  it('should provide clear error message for guest blocked by allowAnonymous', async () => {
+  it('returns a clear message for guest blocks', async () => {
     const result = await createSession({
       mode: SessionMode.QUIZ,
       settings: {
@@ -365,21 +437,20 @@ describe('Session Access Control - Error Messages', () => {
       },
     });
 
-    const sessionCode = result.sessionCode!;
-    const validation = await validateGuestJoin(sessionCode);
+    const validation = await validateGuestJoin(result.sessionCode!);
 
     expect(validation.valid).toBe(false);
     expect(validation.message).toBe('This session requires authentication. Please log in to join.');
   });
 
-  it('should provide clear error message for non-existent session', async () => {
-    const validation = await validateGuestJoin('INVALID');
-    
+  it('returns not-found for a valid but missing session code', async () => {
+    const validation = await validateGuestJoin('ABC123');
+
     expect(validation.valid).toBe(false);
     expect(validation.message).toContain('not found');
   });
 
-  it('should provide clear error message for expired session', async () => {
+  it('returns expired for expired sessions', async () => {
     const result = await createSession({
       mode: SessionMode.QUIZ,
       settings: {
@@ -390,7 +461,7 @@ describe('Session Access Control - Error Messages', () => {
     const sessionCode = result.sessionCode!;
     const sessionRef = ref(database, `game_sessions/${sessionCode}`);
     const sessionData = (await get(sessionRef)).val();
-    
+
     await set(sessionRef, {
       ...sessionData,
       status: 'expired',

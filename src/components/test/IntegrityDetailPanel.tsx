@@ -8,12 +8,19 @@
  */
 
 import React from 'react';
-import type { IntegrityReport, IntegrityEventType } from '../../types/integrity.types';
+import type { IntegrityEventType } from '../../types/integrity.types';
+import type { IntegrityViewData } from '../../utils/integrityUtils';
 import { IntegrityBadge } from './IntegrityBadge';
+import {
+  getIntegrityEventCount,
+  getIntegrityEvents,
+  getIntegritySummary,
+  isIntegrityReport,
+} from '../../utils/integrityUtils';
 import './IntegrityDetailPanel.css';
 
 interface IntegrityDetailPanelProps {
-  report: IntegrityReport;
+  report: IntegrityViewData;
   studentName: string;
   isOpen: boolean;
   onClose: () => void;
@@ -64,6 +71,9 @@ export const IntegrityDetailPanel: React.FC<IntegrityDetailPanelProps> = ({
 }) => {
   if (!isOpen) return null;
 
+  const events = getIntegrityEvents(report);
+  const hasTimeline = isIntegrityReport(report);
+
   const stats = [
     { label: 'Tab Switches', value: report.tabSwitchCount, color: '#3b82f6' },
     { label: 'Time Away', value: formatDuration(report.totalTimeAwayMs), color: '#8b5cf6' },
@@ -113,16 +123,22 @@ export const IntegrityDetailPanel: React.FC<IntegrityDetailPanelProps> = ({
 
         {/* Event Timeline */}
         <div className="integrity-timeline-header">
-          Event Timeline ({report.events.length} events)
+          {hasTimeline
+            ? `Event Timeline (${getIntegrityEventCount(report)} events)`
+            : `Homework Summary (${getIntegrityEventCount(report)} events)`}
         </div>
 
-        {report.events.length === 0 ? (
+        {!hasTimeline ? (
+          <div className="integrity-timeline-empty">
+            {getIntegritySummary(report)}
+          </div>
+        ) : events.length === 0 ? (
           <div className="integrity-timeline-empty">
             No integrity events recorded.
           </div>
         ) : (
           <div className="integrity-timeline">
-            {report.events.map((event, idx) => {
+            {events.map((event, idx) => {
               const statusClass = event.withinGrace ? 'grace' : event.counted ? 'counted' : '';
               return (
                 <div

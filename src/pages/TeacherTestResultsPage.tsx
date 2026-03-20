@@ -29,8 +29,9 @@ import { Modal, Stack, Title, Text, Tabs, Badge, Group } from '@mantine/core';
 import WritingTestResultsSection from '../components/writing-results/WritingTestResultsSection';
 import { IntegrityBadge } from '../components/test/IntegrityBadge'; // PRD-0036
 import { IntegrityDetailPanel } from '../components/test/IntegrityDetailPanel'; // PRD-0036
-import { computeRiskLevel } from '../utils/integrityUtils'; // PRD-0036
+import { computeRiskLevel, normalizeIntegrityReport } from '../utils/integrityUtils'; // PRD-0036
 import type { IntegrityReport } from '../types/integrity.types'; // PRD-0036
+import { reportingService } from '../services/reportingService';
 
 interface StudentResult {
   resultId?: string; // Link to backend record
@@ -166,8 +167,9 @@ export const TeacherTestResultsPage: React.FC = () => {
       const intMap: Record<string, IntegrityReport> = {};
       if (sessionData.players) {
         Object.entries(sessionData.players).forEach(([playerId, playerData]: [string, any]) => {
-          if (playerData?.integrity) {
-            intMap[playerId] = playerData.integrity;
+          const normalizedIntegrity = normalizeIntegrityReport(playerData?.integrity);
+          if (normalizedIntegrity) {
+            intMap[playerId] = normalizedIntegrity;
           }
         });
       }
@@ -893,7 +895,15 @@ export const TeacherTestResultsPage: React.FC = () => {
                               <IntegrityBadge
                                 violationCount={iData.violationCount || 0}
                                 riskLevel={risk}
-                                onClick={() => setSelectedIntegrity({ report: iData, studentName: student.studentName })}
+                                onClick={() => {
+                                  reportingService.trackAction('results', 'viewIntegrityDetails', {
+                                    sessionCode,
+                                    studentId: student.studentId,
+                                    studentName: student.studentName,
+                                    violationCount: iData.violationCount || 0,
+                                  });
+                                  setSelectedIntegrity({ report: iData, studentName: student.studentName });
+                                }}
                               />
                             );
                           })()}

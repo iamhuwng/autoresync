@@ -57,6 +57,11 @@ import { useHeadphonePermission } from '../../../hooks/audio/useHeadphonePermiss
 import { useTestCompletionCheck } from '../../../hooks/test/useTestCompletionCheck'; // PRD-0019 Task 6.3
 import { useBeforeUnloadWarning } from '../../../hooks/test/useBeforeUnloadWarning'; // PRD-0019 Task 6.7
 import { useTeacherEndRedirect } from '../../../hooks/test/useTeacherEndRedirect'; // BUG-FIX: Redirect to results on teacher-end
+import { useIntegrityRefreshRequest } from '../../../hooks/test/useIntegrityRefreshRequest';
+import { useTestIntegrity } from '../../../hooks/test/useTestIntegrity';
+import { useAntiCopyPaste } from '../../../hooks/test/useAntiCopyPaste';
+import { useFullscreenMode } from '../../../hooks/test/useFullscreenMode';
+import { toast } from '../../../components/modern/ToastNotification';
 
 // Services
 import { sessionService } from '../../../services/sessionService';
@@ -114,6 +119,11 @@ const ListeningTestPageContent: React.FC = () => {
   const { sessionCode } = useParams<{ sessionCode: string }>();
   const { navigateTo, handleSessionChange } = useNavigation('student');
   const { checkAndRedirect } = useTeacherEndRedirect({ sessionCode }); // BUG-FIX: Redirect to results on teacher-end
+  const submitTestRef = useRef<
+    ((submitMode?: boolean | 'teacher') => Promise<void>) | null
+  >(null);
+  const flushIntegrityRef = useRef<(() => Promise<void>) | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // ═══════════════════════════════════════════════════════════════
   // CORE TEST STATE
@@ -123,6 +133,7 @@ const ListeningTestPageContent: React.FC = () => {
     testData,
     loading,
     error,
+    questionsWithAnswersRef,
   } = useTestData({ sessionCode });
 
   // PRD-0019 Task 6.3: Re-entry prevention - check if test already completed
@@ -130,6 +141,14 @@ const ListeningTestPageContent: React.FC = () => {
     sessionCode,
     testSkill: testData?.skill,
     enabled: !loading && !!testData,
+    surface: 'listening_test',
+    onForceSubmit: async () => {
+      if (!submitTestRef.current) return;
+      if (flushIntegrityRef.current) {
+        await flushIntegrityRef.current();
+      }
+      await submitTestRef.current('teacher');
+    },
   });
 
   // Answer management
@@ -182,6 +201,8 @@ const ListeningTestPageContent: React.FC = () => {
     masterAudioState,
     audioMode,
     headphoneRequest,
+    antiCheatConfig,
+    integrityRefreshRequestedAt,
   } = useTestSession({
     sessionCode,
     testData,
@@ -208,8 +229,6 @@ const ListeningTestPageContent: React.FC = () => {
   const effectivePlayerMode: 'solo' | 'session' = isSoloMode ? 'solo' : 'session';
 
   // Timer management
-  const submitTestRef = useRef<((isAuto: boolean) => void) | null>(null);
-
   const handleTimeUp = useCallback(() => {
     if (sessionStatus === 'in-progress' && !testSubmitted && submitTestRef.current) {
       submitTestRef.current(true);
@@ -230,6 +249,46 @@ const ListeningTestPageContent: React.FC = () => {
   useEffect(() => {
     setTimeRemaining(calculatedTime);
   }, [calculatedTime]);
+
+  const {
+    addEvent,
+    warningLevel,
+    warningMessage,
+    shouldAutoSubmit,
+    flushEvents,
+    getIntegrityReport,
+  } = useTestIntegrity({
+    config: antiCheatConfig,
+    context: 'session',
+    surface: 'listening_test',
+    sessionCode: sessionCode || '',
+    studentId: sessionService.getPlayerId() || '',
+    testId: testData?.id || '',
+  });
+
+  useAntiCopyPaste({
+    enabled: antiCheatConfig?.detectCopyPaste || false,
+    containerRef: containerRef as React.RefObject<HTMLElement>,
+    onEvent: addEvent,
+    allowEditorPaste: false,
+    detectRightClick: antiCheatConfig?.detectRightClick || false,
+    detectKeyboardShortcuts: antiCheatConfig?.detectKeyboardShortcuts || false,
+  });
+
+  useFullscreenMode({
+    enabled: antiCheatConfig?.requireFullscreen || false,
+    onFullscreenExit: addEvent,
+  });
+
+  useEffect(() => {
+    flushIntegrityRef.current = () => flushEvents('teacher_force_submit');
+  }, [flushEvents]);
+
+  useIntegrityRefreshRequest({
+    enabled: sessionStatus === 'in-progress' && !testSubmitted,
+    requestTimestamp: integrityRefreshRequestedAt,
+    onRefreshRequested: () => flushEvents('teacher_refresh'),
+  });
 
   // PRD-0019 Task 6.7: Warn before leaving page during active test
   useBeforeUnloadWarning({
@@ -397,6 +456,9 @@ const ListeningTestPageContent: React.FC = () => {
     sessionCode,
     answers,
     timeRemaining,
+    integrityReport: antiCheatConfig ? getIntegrityReport() : null,
+    questionsWithAnswersRef,
+    telemetrySurface: 'listening_test',
   });
 
   useEffect(() => {
@@ -406,6 +468,25 @@ const ListeningTestPageContent: React.FC = () => {
   useEffect(() => {
     setTestSubmitted(submissionTestSubmitted);
   }, [submissionTestSubmitted]);
+
+  const prevWarningRef = useRef(warningLevel);
+  useEffect(() => {
+    if (warningLevel !== prevWarningRef.current) {
+      prevWarningRef.current = warningLevel;
+      if (warningLevel === 'toast' || warningLevel === 'escalated') {
+        toast.warning(warningMessage);
+      }
+    }
+  }, [warningLevel, warningMessage]);
+
+  useEffect(() => {
+    if (shouldAutoSubmit && !testSubmitted && submitTestRef.current) {
+      (async () => {
+        await flushEvents('auto_submit');
+        await submitTestRef.current?.(true);
+      })();
+    }
+  }, [flushEvents, shouldAutoSubmit, testSubmitted]);
 
   useEffect(() => {
     if (loadedAnswers && Object.keys(loadedAnswers).length > 0) {
@@ -752,8 +833,11 @@ const ListeningTestPageContent: React.FC = () => {
   }, [audioSections, currentAudioIndex, currentSection, effectiveAudioControls]);
 
   const handleSubmit = useCallback(() => {
-    submitTest(false);
-  }, [submitTest]);
+    (async () => {
+      await flushEvents('manual_submit');
+      await submitTest(false);
+    })();
+  }, [flushEvents, submitTest]);
 
   // Audio handlers
   const handlePlayPause = useCallback(() => {
@@ -919,7 +1003,10 @@ const ListeningTestPageContent: React.FC = () => {
   // ═══════════════════════════════════════════════════════════════
 
   return (
-    <div style={{
+    <div
+      ref={containerRef}
+      className={antiCheatConfig?.detectCopyPaste ? 'anti-select' : undefined}
+      style={{
       height: '100vh',
       display: 'flex',
       flexDirection: 'column',

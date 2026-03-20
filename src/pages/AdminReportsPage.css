@@ -1,0 +1,224 @@
+.admin-reports-page {
+    --reports-red: #ef4444;
+    --reports-orange: #f59e0b;
+    --reports-yellow: #eab308;
+    --reports-green: #22c55e;
+    --reports-blue: #2563eb;
+    --reports-slate: #334155;
+}
+
+.admin-reports-shell-card,
+.admin-reports-section-card {
+    border: 1px solid rgba(226, 232, 240, 0.85);
+    box-shadow: 0 18px 45px rgba(15, 23, 42, 0.06);
+}
+
+.admin-reports-retention-banner {
+    box-shadow: 0 12px 32px rgba(180, 83, 9, 0.08);
+}
+
+.admin-reports-health-grid,
+.admin-reports-stat-grid {
+    align-items: stretch;
+}
+
+.admin-reports-tab-bar {
+    align-items: center;
+}
+
+.admin-reports-tab {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.admin-reports-tab:hover {
+    transform: translateY(-1px);
+}
+
+.admin-reports-tab.is-active {
+    box-shadow: 0 12px 28px rgba(37, 99, 235, 0.16);
+}
+
+.admin-reports-status-badge {
+    border: 1px solid transparent;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+}
+
+.admin-reports-status-badge.status-red {
+    background: rgba(239, 68, 68, 0.12) !important;
+    color: #b91c1c !important;
+}
+
+.admin-reports-status-badge.status-yellow {
+    background: rgba(245, 158, 11, 0.14) !important;
+    color: #b45309 !important;
+}
+
+.admin-reports-status-badge.status-green {
+    background: rgba(16, 185, 129, 0.12) !important;
+    color: #047857 !important;
+}
+
+.admin-reports-status-badge.status-blue {
+    background: rgba(37, 99, 235, 0.08) !important;
+    color: var(--reports-blue) !important;
+}
+
+.admin-reports-scroll-container {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.85) rgba(241, 245, 249, 0.55);
+}
+
+.admin-reports-scroll-container::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+.admin-reports-scroll-container::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.85);
+    border-radius: 999px;
+}
+
+.admin-reports-scroll-container::-webkit-scrollbar-track {
+    background: rgba(241, 245, 249, 0.55);
+    border-radius: 999px;
+}
+
+.admin-reports-health-table tbody tr {
+    transition: background 0.18s ease, transform 0.18s ease;
+}
+
+.admin-reports-health-table tbody tr:hover {
+    background: rgba(37, 99, 235, 0.04) !important;
+}
+
+.admin-reports-filter-controls {
+    position: relative;
+}
+
+.admin-reports-filter-primer {
+    box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.08);
+}
+
+.admin-reports-error-list-shell {
+    background: rgba(255, 255, 255, 0.74);
+}
+
+.admin-reports-error-row {
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.admin-reports-error-row:hover,
+.admin-reports-error-row:focus-visible {
+    background: rgba(248, 250, 252, 0.98) !important;
+}
+
+.admin-reports-error-row.is-expanded {
+    border-left: 4px solid var(--reports-blue);
+}
+
+.admin-reports-error-row.severity-crash {
+    box-shadow: inset 0 0 0 1px rgba(239, 68, 68, 0.04);
+}
+
+.admin-reports-error-row.severity-error {
+    box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.05);
+}
+
+.admin-reports-error-row.severity-warning {
+    box-shadow: inset 0 0 0 1px rgba(234, 179, 8, 0.05);
+}
+
+.admin-reports-error-panel {
+    box-shadow: inset 0 1px 0 rgba(226, 232, 240, 0.9);
+}
+
+.admin-reports-duplicate-badge {
+    letter-spacing: 0.02em;
+    box-shadow: 0 6px 18px rgba(75, 85, 99, 0.18);
+}
+
+.admin-reports-live-feed {
+    min-width: 0;
+}
+
+.admin-reports-live-feed-stream {
+    background: rgba(248, 250, 252, 0.35);
+    border-radius: 18px;
+}
+
+.admin-reports-live-feed-item {
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.admin-reports-live-feed-item:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+}
+
+.admin-reports-live-feed-item.kind-error {
+    border-left: 4px solid var(--reports-red);
+}
+
+.admin-reports-live-feed-item.kind-action {
+    border-left: 4px solid var(--reports-green);
+}
+
+.admin-reports-live-feed-item.kind-pageView {
+    border-left: 4px solid var(--reports-blue);
+}
+
+.admin-reports-empty-state {
+    border: 1px dashed rgba(148, 163, 184, 0.45);
+}
+
+.admin-reports-purge-modal-overlay {
+    animation: admin-reports-fade-in 0.2s ease;
+}
+
+.admin-reports-purge-modal {
+    border: 1px solid rgba(226, 232, 240, 0.95);
+}
+
+@keyframes admin-reports-fade-in {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@media (max-width: 768px) {
+    .admin-reports-page {
+        padding-bottom: 1rem;
+    }
+
+    .admin-reports-tab-bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .admin-reports-tab-bar .modern-btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .admin-reports-health-grid,
+    .admin-reports-stat-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    .admin-reports-health-table {
+        min-width: 620px !important;
+    }
+
+    .admin-reports-error-list-shell > div:first-child,
+    .admin-reports-error-row {
+        min-width: 720px;
+    }
+
+    .admin-reports-live-feed-stream {
+        max-height: 440px !important;
+    }
+}

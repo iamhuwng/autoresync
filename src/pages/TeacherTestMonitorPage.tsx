@@ -38,6 +38,12 @@ import type { THCSSection, THCSQuestion } from '../types/thcs-test.types';
 import WritingMonitorCard from '../components/writing-monitor/WritingMonitorCard';
 import WritingPeekModal from '../components/writing-monitor/WritingPeekModal';
 import { autoSubmitFromRTDB } from '../services/writingSubmissionService';
+import {
+  requestIntegrityLogRefresh,
+  requestTeacherForceSubmit,
+  resetStudentSessionSubmission,
+} from '../services/sessionStudentControlService';
+import { reportingService } from '../services/reportingService';
 import { ref, get, set, update } from 'firebase/database';
 // @ts-ignore — JS service file
 import { database } from '../services/firebase';
@@ -65,6 +71,7 @@ export const TeacherTestMonitorPage: React.FC = () => {
   // PRD-0030: Writing session detection and peek state
   const [isWritingSession, setIsWritingSession] = useState(false);
   const [peekStudentUid, setPeekStudentUid] = useState<string | null>(null);
+  const [isRefreshingLogs, setIsRefreshingLogs] = useState(false);
   const writingEndSubmitRef = useRef(false);
 
   // Use extracted hooks for session monitoring
@@ -263,25 +270,43 @@ export const TeacherTestMonitorPage: React.FC = () => {
   const handleForceSubmit = useCallback(async (studentId: string) => {
     if (!sessionCode) return;
     try {
-      const sessionRef = ref(database, `game_sessions/${sessionCode}/players/${studentId}`);
-      await update(sessionRef, {
-        hasCompletedTest: true,
-        forceSubmittedBy: 'teacher',
-        completedAt: Date.now(),
+      await requestTeacherForceSubmit(sessionCode, studentId);
+      reportingService.trackAction('liveSessions', 'forceSubmitStudent', {
+        sessionCode,
+        studentId,
+      });
+      notifications.show({
+        title: 'Force submit requested',
+        message: 'The student client is submitting this test now.',
+        color: 'orange',
+        autoClose: 3000,
       });
     } catch (err) {
       console.error('❌ [PRD-0036] Failed to force submit student:', err);
     }
   }, [sessionCode]);
 
-  const handleResetSubmit = useCallback(async (studentId: string) => {
+  const handleResetSubmit = useCallback(async (
+    studentId: string,
+    latestResultId?: string | null,
+  ) => {
     if (!sessionCode) return;
     try {
-      const sessionRef = ref(database, `game_sessions/${sessionCode}/players/${studentId}`);
-      await update(sessionRef, {
-        hasCompletedTest: null,
-        forceSubmittedBy: null,
-        completedAt: null,
+      const { deletedResultCount } = await resetStudentSessionSubmission(
+        sessionCode,
+        studentId,
+        latestResultId,
+      );
+      reportingService.trackAction('liveSessions', 'resetStudentSubmission', {
+        sessionCode,
+        studentId,
+        deletedResultCount,
+      });
+      notifications.show({
+        title: 'Submission reset',
+        message: 'The student can re-enter the active test and continue working.',
+        color: 'blue',
+        autoClose: 3000,
       });
     } catch (err) {
       console.error('❌ [PRD-0036] Failed to reset student submission:', err);
@@ -329,6 +354,28 @@ export const TeacherTestMonitorPage: React.FC = () => {
     setCurrentPlaybackSpeed(speed);
     if (setPlaybackSpeed) await setPlaybackSpeed(speed);
   };
+
+  const handleRefreshLogs = useCallback(async () => {
+    if (!sessionCode) return;
+
+    setIsRefreshingLogs(true);
+    try {
+      await requestIntegrityLogRefresh(sessionCode);
+      reportingService.trackAction('liveSessions', 'refreshIntegrityLogs', {
+        sessionCode,
+      });
+      notifications.show({
+        title: 'Integrity refresh requested',
+        message: 'Active student clients are flushing their latest integrity logs now.',
+        color: 'blue',
+        autoClose: 3000,
+      });
+    } catch (err) {
+      console.error('❌ [PRD-0036] Failed to refresh integrity logs:', err);
+    } finally {
+      setIsRefreshingLogs(false);
+    }
+  }, [sessionCode]);
 
   // ═══════════════════════════════════════════════════════════════
   // PRD-0019: Timer Expiry & Countdown Warning Logic
@@ -601,6 +648,22 @@ export const TeacherTestMonitorPage: React.FC = () => {
       <div style={{ padding: '2rem' }}>
         {/* Compact Dashboard Info */}
         <div style={{ maxWidth: '1400px', margin: '0 auto', marginBottom: '2rem' }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              marginBottom: '1rem',
+            }}
+          >
+            <Button
+              variant="glass"
+              size="sm"
+              onClick={handleRefreshLogs}
+              disabled={isRefreshingLogs || session?.status !== 'in-progress'}
+            >
+              {isRefreshingLogs ? 'Refreshing Logs...' : 'Refresh Logs'}
+            </Button>
+          </div>
 
           <div style={{
             display: 'grid',
@@ -725,6 +788,7 @@ export const TeacherTestMonitorPage: React.FC = () => {
                       sessionCode={sessionCode || ''}
                       studentUid={student.studentId}
                       studentName={student.name}
+                      status={student.status}
                       testFormat={writingTestFormat}
                       onPeek={(uid) => setPeekStudentUid(uid)}
                       onReopen={handleWritingReopen}
@@ -759,6 +823,11 @@ export const TeacherTestMonitorPage: React.FC = () => {
                       maxScore={fullTestData?.totalPoints}
                       onClick={() => setSelectedStudentId(student.studentId)}
                       onGradeWriting={student.status === 'submitted' ? () => setGradingStudentId(student.studentId) : undefined}
+                      onForceSubmit={() => handleForceSubmit(student.studentId)}
+                      onResetSubmit={() => handleResetSubmit(
+                        student.studentId,
+                        playerData?.latestResultId ?? null,
+                      )}
                       integrityData={{ violationCount: tViolationCount, riskLevel: tRisk }}
                     />
                   );
@@ -788,7 +857,10 @@ export const TeacherTestMonitorPage: React.FC = () => {
                     extraTimeRemaining={hasExtraTime ? extraTimeRemaining : undefined}
                     integrityData={{ violationCount: iViolationCount, riskLevel: iRisk }}
                     onForceSubmit={() => handleForceSubmit(student.studentId)}
-                    onResetSubmit={() => handleResetSubmit(student.studentId)}
+                    onResetSubmit={() => handleResetSubmit(
+                      student.studentId,
+                      iPlayerData?.latestResultId ?? null,
+                    )}
                     onClick={() => {
                       setSelectedStudentId(student.studentId);
                     }}
@@ -798,23 +870,6 @@ export const TeacherTestMonitorPage: React.FC = () => {
             </div>
           )}
 
-          {/* PRD-0036: Refresh Logs button */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem', marginBottom: '0.5rem' }}>
-            <Button
-              variant="glass"
-              size="sm"
-              onClick={async () => {
-                if (!sessionCode) return;
-                try {
-                  await get(ref(database, `game_sessions/${sessionCode}`));
-                } catch (err) {
-                  console.error('❌ [PRD-0036] Refresh failed:', err);
-                }
-              }}
-            >
-              🔄 Refresh
-            </Button>
-          </div>
 
           {/* Pagination Controls */}
           {showPagination && (

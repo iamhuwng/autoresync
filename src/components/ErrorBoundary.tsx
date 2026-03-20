@@ -1,4 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { reportingService } from '../services/reportingService';
 
 interface Props {
   children: ReactNode;
@@ -41,9 +42,11 @@ export class ErrorBoundary extends Component<Props, State> {
       this.props.onError(error, errorInfo);
     }
     
-    // TODO: Send to error tracking service (Sentry, LogRocket, etc.)
-    // Example:
-    // Sentry.captureException(error, { contexts: { react: { componentStack: errorInfo.componentStack } } });
+    // Report to production observability system (PRD-0037)
+    reportingService.reportError(error, {
+      componentStack: errorInfo.componentStack,
+      isBoundary: true,
+    });
   }
 
   handleReset = () => {
@@ -93,7 +96,7 @@ export class ErrorBoundary extends Component<Props, State> {
             </p>
 
             {/* Error Details (in development) */}
-            {process.env.NODE_ENV === 'development' && this.state.error && (
+            {import.meta.env.DEV && this.state.error && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
                 <h3 className="text-sm font-semibold text-red-900 mb-2">
                   Error Details (Development Only):

@@ -126,10 +126,10 @@ describe('AssignmentHistoryTab', () => {
         expect(screen.getByText(/2 entries/i)).toBeInTheDocument();
 
         // Check teacher name is displayed (for student view)
-        expect(screen.getByText('Ms. Smith')).toBeInTheDocument();
+        expect(screen.getAllByText('Ms. Smith').length).toBeGreaterThan(0);
 
         // Check admin name
-        expect(screen.getByText('Admin User')).toBeInTheDocument();
+        expect(screen.getAllByText('Admin User').length).toBeGreaterThan(0);
 
         // Check courses are displayed
         expect(screen.getByText('IELTS Academic')).toBeInTheDocument();
@@ -154,7 +154,7 @@ describe('AssignmentHistoryTab', () => {
         );
 
         // Check student name is displayed (for teacher view)
-        expect(screen.getByText('John Doe')).toBeInTheDocument();
+        expect(screen.getAllByText('John Doe').length).toBeGreaterThan(0);
 
         // Check "Student" label appears
         expect(screen.getAllByText('Student').length).toBeGreaterThan(0);
@@ -208,7 +208,7 @@ describe('AssignmentHistoryTab', () => {
 
         // The component should display entries in chronological order
         // Most recent (unassigned) should appear before older (assigned)
-        const badges = screen.getAllByText(/assigned|unassigned/i);
+        const badges = screen.getAllByText(/^(Assigned|Unassigned)$/);
         expect(badges[0]).toHaveTextContent('Unassigned');
         expect(badges[1]).toHaveTextContent('Assigned');
     });
@@ -226,8 +226,8 @@ describe('AssignmentHistoryTab', () => {
         );
 
         // Should display IDs when no name resolver provided
-        expect(screen.getByText('teacher-1')).toBeInTheDocument();
-        expect(screen.getByText('admin-1')).toBeInTheDocument();
+        expect(screen.getAllByText('teacher-1').length).toBeGreaterThan(0);
+        expect(screen.getAllByText('admin-1').length).toBeGreaterThan(0);
     });
 
     it('should handle missing getCourseName function with fallback', () => {

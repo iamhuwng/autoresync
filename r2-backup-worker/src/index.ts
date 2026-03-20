@@ -63,6 +63,13 @@ function createR2Client(env: WorkerEnv): BackupR2Client {
     );
 }
 
+function getBearerToken(headerValue: string | null): string | null {
+    if (!headerValue?.startsWith('Bearer ')) {
+        return null;
+    }
+    return headerValue.slice('Bearer '.length).trim() || null;
+}
+
 // ─── Route Handlers (stubs — implemented in subsequent tasks) ──────────
 
 async function handleBackupTrigger(
@@ -286,6 +293,107 @@ async function handleRestoreStatus(
 
 // ─── Main Router ───────────────────────────────────────────────────────
 
+async function handleDiagnosticUpload(
+    request: Request,
+    r2: BackupR2Client
+): Promise<Response> {
+    try {
+        const contentLengthHeader = request.headers.get('Content-Length');
+        const contentLength = contentLengthHeader ? parseInt(contentLengthHeader, 10) : 0;
+        if (Number.isFinite(contentLength) && contentLength > 500 * 1024) {
+            return errorResponse('Payload too large', 413);
+        }
+
+        const bundle = await request.json() as { errorId?: string };
+        if (!bundle?.errorId) {
+            return errorResponse('Missing errorId', 400);
+        }
+
+        const dateKey = new Date().toISOString().split('T')[0];
+        const objectKey = `diagnostic-reports/${dateKey}/${bundle.errorId}.json`;
+
+        await r2.putObject(objectKey, JSON.stringify(bundle), 'application/json');
+
+        const workerBaseUrl = new URL(request.url).origin;
+        return jsonResponse({
+            success: true,
+            url: `${workerBaseUrl}/api/diagnostic/${bundle.errorId}`,
+        });
+    } catch (err: unknown) {
+        console.error('[DiagnosticUpload] Upload failed:', err);
+        return errorResponse('Upload failed', 500);
+    }
+}
+
+async function handlePurgeDiagnostics(
+    request: Request,
+    r2: BackupR2Client
+): Promise<Response> {
+    try {
+        const body = await request.json() as { cutoffDate?: string };
+        const cutoffDate = body?.cutoffDate;
+
+        if (!cutoffDate || !/^\d{4}-\d{2}-\d{2}$/.test(cutoffDate)) {
+            return errorResponse('Invalid cutoffDate', 400);
+        }
+
+        const objects = await r2.listObjects('diagnostic-reports/');
+        const keysToDelete = objects
+            .map((object) => object.key)
+            .filter((key) => {
+                const match = key.match(/^diagnostic-reports\/(\d{4}-\d{2}-\d{2})\//);
+                return !!match && match[1] < cutoffDate;
+            });
+
+        for (const key of keysToDelete) {
+            await r2.deleteObject(key);
+        }
+
+        return jsonResponse({ success: true, deletedCount: keysToDelete.length });
+    } catch (err: unknown) {
+        console.error('[PurgeDiagnostics] Purge failed:', err);
+        return errorResponse('Purge failed', 500);
+    }
+}
+
+async function handleGetDiagnostic(
+    errorId: string,
+    r2: BackupR2Client
+): Promise<Response> {
+    try {
+        if (!errorId) {
+            return errorResponse('Missing errorId', 400);
+        }
+
+        const objects = await r2.listObjects('diagnostic-reports/');
+        const matchingObject = objects.find((object) =>
+            object.key.endsWith(`/${errorId}.json`)
+        );
+
+        if (!matchingObject) {
+            return errorResponse('Diagnostic bundle not found', 404);
+        }
+
+        const bundleBody = await r2.getObject(matchingObject.key);
+        if (!bundleBody) {
+            return errorResponse('Diagnostic bundle not found', 404);
+        }
+
+        return new Response(bundleBody, {
+            status: 200,
+            headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            },
+        });
+    } catch (err: unknown) {
+        console.error('[GetDiagnostic] Fetch failed:', err);
+        return errorResponse('Diagnostic bundle not found', 404);
+    }
+}
+
 async function handleRequest(
     request: Request,
     env: WorkerEnv,
@@ -300,7 +408,26 @@ async function handleRequest(
         return corsPreflightResponse();
     }
 
-    // All /api/* routes require admin authentication
+    const r2 = createR2Client(env);
+
+    // Clear stale restore flag on every request (PRD §4.6, safety net)
+    // Non-blocking: don't await — fire and forget
+    clearStaleRestoreFlag(env).catch((err: unknown) =>
+        console.warn('[Router] clearStaleRestoreFlag error (non-blocking):', err)
+    );
+
+    // ─── Route matching ─────────────────────────────────────────
+
+    // Diagnostic upload uses a shared secret instead of Firebase admin auth.
+    if (method === 'POST' && path === '/api/diagnostic') {
+        const token = getBearerToken(request.headers.get('Authorization'));
+        if (token !== env.DIAGNOSTIC_TOKEN) {
+            return errorResponse('Unauthorized', 403);
+        }
+        return handleDiagnosticUpload(request, r2);
+    }
+
+    // All remaining /api/* routes require admin authentication
     if (path.startsWith('/api/')) {
         const authResult = await verifyAdminToken(
             request.headers.get('Authorization'),
@@ -311,15 +438,16 @@ async function handleRequest(
         }
     }
 
-    const r2 = createR2Client(env);
+    // POST /api/purge-diagnostics
+    if (method === 'POST' && path === '/api/purge-diagnostics') {
+        return handlePurgeDiagnostics(request, r2);
+    }
 
-    // Clear stale restore flag on every request (PRD §4.6, safety net)
-    // Non-blocking: don't await — fire and forget
-    clearStaleRestoreFlag(env).catch((err: unknown) =>
-        console.warn('[Router] clearStaleRestoreFlag error (non-blocking):', err)
-    );
-
-    // ─── Route matching ─────────────────────────────────────────
+    // GET /api/diagnostic/:errorId
+    if (method === 'GET' && path.startsWith('/api/diagnostic/')) {
+        const errorId = path.replace('/api/diagnostic/', '');
+        return handleGetDiagnostic(errorId, r2);
+    }
 
     // POST /api/backup/trigger
     if (method === 'POST' && path === '/api/backup/trigger') {

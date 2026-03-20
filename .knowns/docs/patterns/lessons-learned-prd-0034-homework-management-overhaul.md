@@ -1,7 +1,7 @@
 ---
 title: 'Lessons Learned: PRD-0034 Homework Management Overhaul'
 createdAt: '2026-03-13T19:20:55.832Z'
-updatedAt: '2026-03-13T19:21:25.473Z'
+updatedAt: '2026-03-19T15:53:16.425Z'
 description: >-
   Consolidated lessons from PRD-0034 homework management overhaul: placeholder
   stubs as debt bombs, N+1 write patterns hiding in hooks, data hook purity
@@ -81,3 +81,14 @@ tags:
 
 - `documentation/prd0034-knowledge-extraction.md` — full post-mortem
 - PRD-0034 Teacher Homework Management Overhaul (17 task groups, 112+ sub-tasks)
+
+## L11: TODO Stubs in Service Calls Are Silent Time Bombs
+
+**What happened:** HomeworkCreateModal called queryOptimizer.getClassesByTeacher() and queryOptimizer.getAssignedStudents() - methods marked with TODO comments that were never implemented. TypeScript compiled fine because queryOptimizer is a JS file (no type-checking on method existence). Modal crashed instantly on open with TypeError: X is not a function. **Standard:** Never commit calls to non-existent methods. If a service method does not exist yet, create it or use an existing one. Run grep to verify before committing.
+## L12: Null-Safety on Firebase Data Shape Properties
+**What happened:** `m.title.toLowerCase()` in `filteredMaterials` crashed because some Firebase records had no `title` field. Firebase does not enforce schemas.
+**Standard:** Always use `(field || '').toLowerCase()` or optional chaining when filtering/searching Firebase data. Never assume field existence.
+
+## L13: Redundant Entry Points for the Same Modal
+**What happened:** Two buttons ('Create Homework' + 'Create THCS Homework') opened the same `HomeworkCreateModal` with different preset filters. The modal already had internal filter tabs (All/Quizzes/Tests/THCS-THPT).
+**Standard:** One entry point per modal. Let users select within the modal using tabs/filters. Multiple buttons for the same modal = confusion + maintenance overhead. Matches the 'Create New Test' pattern in Lobby.

@@ -12,7 +12,7 @@
  * - Header with draft info and save status
  * - Publishing flow (Draft → Test conversion)
  * - Visibility toggle for super admins
- * - Publish button disabled when answers are missing
+ * - Publish button remains enabled when only warning-level checks remain
  * - Back navigation with unsaved-change confirmation
  * - Missing draftId handling
  *
@@ -140,6 +140,7 @@ vi.mock('../components/test-creation/AnswerKeyModal', () => ({
 vi.mock('../constants/routes', () => ({
     ROUTES: {
         ADMIN_MATERIALS: '/admin/materials',
+        LOBBY: '/lobby',
         TEACHER_TEST_REVIEW: '/teacher/test/review/:draftId',
     },
 }));
@@ -200,6 +201,21 @@ const createMockDraft = (overrides: Record<string, any> = {}) => ({
     updatedAt: new Date('2026-02-07T12:00:00Z'),
     ...overrides,
 });
+
+const createPublishableDraft = (overrides: Record<string, any> = {}) => {
+    const baseDraft = createMockDraft();
+    const questions = overrides.questions ?? baseDraft.questions.map((question: any, index: number) => (
+        index === 1 ? { ...question, answer: '1670' } : question
+    ));
+
+    return {
+        ...baseDraft,
+        ...overrides,
+        questions,
+        questionCount: overrides.questionCount ?? questions.length,
+        missingAnswerCount: overrides.missingAnswerCount ?? 0,
+    };
+};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TEST UTILITIES
@@ -559,19 +575,19 @@ describe('TestReviewPage', () => {
             });
         });
 
-        it('disables publish button when answers are missing', async () => {
+        it('keeps publish enabled when answers are missing but only warnings remain', async () => {
             await renderPage();
 
             await waitFor(() => {
-                const publishButton = screen.getByText('Publish Test').closest('button');
-                expect(publishButton).toBeDisabled();
+                expect(screen.getByText(/missing answer key/i)).toBeInTheDocument();
+                expect(screen.getByRole('button', { name: 'Publish Test' })).not.toBeDisabled();
             });
         });
 
         it('enables publish button when all answers are present', async () => {
             mockLoadDraft.mockResolvedValue({
                 success: true,
-                data: createMockDraft({ missingAnswerCount: 0 }),
+                data: createPublishableDraft(),
             });
 
             await renderPage();
@@ -623,7 +639,7 @@ describe('TestReviewPage', () => {
 
             mockLoadDraft.mockResolvedValue({
                 success: true,
-                data: createMockDraft({ missingAnswerCount: 0 }),
+                data: createPublishableDraft(),
             });
 
             await renderPage();
@@ -648,7 +664,7 @@ describe('TestReviewPage', () => {
             });
         });
 
-        it('navigates to Materials on Exit click when no unsaved changes', async () => {
+        it('navigates to lobby on Exit click when a teacher has no unsaved changes', async () => {
             const user = userEvent.setup();
 
             await renderPage();
@@ -659,10 +675,10 @@ describe('TestReviewPage', () => {
 
             await user.click(screen.getByText('Exit'));
 
-            expect(mockNavigate).toHaveBeenCalledWith('/admin/materials');
+            expect(mockNavigate).toHaveBeenCalledWith('/lobby');
         });
 
-        it('navigates to Materials on Go Back click in error state', async () => {
+        it('navigates to lobby on Go Back click in error state for teachers', async () => {
             const user = userEvent.setup();
 
             mockLoadDraft.mockResolvedValue({
@@ -678,10 +694,10 @@ describe('TestReviewPage', () => {
 
             await user.click(screen.getByText('Go Back'));
 
-            expect(mockNavigate).toHaveBeenCalledWith('/admin/materials');
+            expect(mockNavigate).toHaveBeenCalledWith('/lobby');
         });
 
-        it('navigates to Materials on breadcrumb Materials click', async () => {
+        it('navigates to lobby on breadcrumb Materials click for teachers', async () => {
             const user = userEvent.setup();
 
             await renderPage();
@@ -692,7 +708,7 @@ describe('TestReviewPage', () => {
 
             await user.click(screen.getByText('Materials'));
 
-            expect(mockNavigate).toHaveBeenCalledWith('/admin/materials');
+            expect(mockNavigate).toHaveBeenCalledWith('/lobby');
         });
     });
 
@@ -763,7 +779,7 @@ describe('TestReviewPage', () => {
 
             mockLoadDraft.mockResolvedValue({
                 success: true,
-                data: createMockDraft({ missingAnswerCount: 0 }),
+                data: createPublishableDraft(),
             });
 
             await renderPage();
@@ -798,7 +814,7 @@ describe('TestReviewPage', () => {
 
             mockLoadDraft.mockResolvedValue({
                 success: true,
-                data: createMockDraft({ missingAnswerCount: 0 }),
+                data: createPublishableDraft(),
             });
 
             await renderPage();
@@ -819,7 +835,7 @@ describe('TestReviewPage', () => {
 
             mockLoadDraft.mockResolvedValue({
                 success: true,
-                data: createMockDraft({ missingAnswerCount: 0 }),
+                data: createPublishableDraft(),
             });
 
             await renderPage();
@@ -831,7 +847,7 @@ describe('TestReviewPage', () => {
             await user.click(screen.getByText('Publish Test'));
 
             await waitFor(() => {
-                expect(mockNavigate).toHaveBeenCalledWith('/admin/materials', {
+                expect(mockNavigate).toHaveBeenCalledWith('/lobby', {
                     state: expect.objectContaining({
                         publishSuccess: true,
                         publishedTestId: 'test-published-001',
@@ -851,7 +867,7 @@ describe('TestReviewPage', () => {
 
             mockLoadDraft.mockResolvedValue({
                 success: true,
-                data: createMockDraft({ missingAnswerCount: 0 }),
+                data: createPublishableDraft(),
             });
 
             await renderPage();
@@ -875,7 +891,7 @@ describe('TestReviewPage', () => {
 
             mockLoadDraft.mockResolvedValue({
                 success: true,
-                data: createMockDraft({ missingAnswerCount: 0 }),
+                data: createPublishableDraft(),
             });
 
             await renderPage();
@@ -894,7 +910,7 @@ describe('TestReviewPage', () => {
 
             mockLoadDraft.mockResolvedValue({
                 success: true,
-                data: createMockDraft({ missingAnswerCount: 0 }),
+                data: createPublishableDraft(),
             });
 
             await renderPage();
@@ -970,7 +986,7 @@ describe('TestReviewPage', () => {
 
             mockLoadDraft.mockResolvedValue({
                 success: true,
-                data: createMockDraft({ missingAnswerCount: 0 }),
+                data: createPublishableDraft(),
             });
 
             await renderPage();
@@ -1002,7 +1018,7 @@ describe('TestReviewPage', () => {
 
             mockLoadDraft.mockResolvedValue({
                 success: true,
-                data: createMockDraft({ missingAnswerCount: 0 }),
+                data: createPublishableDraft(),
             });
 
             await renderPage();

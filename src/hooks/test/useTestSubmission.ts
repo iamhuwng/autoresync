@@ -15,6 +15,7 @@ import { database } from '../../services/firebase';
 // @ts-ignore - Firebase is a .js file
 import { ref, update, get } from 'firebase/database';
 import { saveTestResult } from '../../services/testResults.service';
+import { deriveIeltsPassageResults } from '../../services/ieltsPassageResults.service';
 import { sendResultNotification } from '../../services/emailNotification.service';
 import { auth } from '../../services/firebase';
 import { scoreQuestion } from '../../services/autoMarking.service';
@@ -361,7 +362,39 @@ export const useTestSubmission = ({
       // 4. Determine if guest
       const isGuest = !auth.currentUser && playerId.startsWith('guest_');
 
-      // 5. Save to permanent storage with academic context
+      // 5. Derive IELTS passage results for IELTS Reading/Listening only (PRD-0039 Task 2.1-2.2)
+      const isIeltsReadingOrListening =
+        String(testType).toLowerCase().includes('ielts') &&
+        (String(testSkill).toLowerCase() === 'reading' ||
+         String(testSkill).toLowerCase() === 'listening');
+
+      let ieltsData: { passageResults: ReturnType<typeof deriveIeltsPassageResults> } | undefined;
+
+      if (isIeltsReadingOrListening) {
+        try {
+          // Map Question[] (uses .number) to GradingQuestion[] (uses .questionNumber)
+          const mappedQuestions = testData.questions.map((q: any) => ({
+            questionNumber: q.number,
+            passageId: q.passageId as string | undefined,
+            sectionId: q.sectionId as string | undefined,
+            passageName: q.passageName as string | undefined,
+            sectionName: q.sectionName as string | undefined,
+          }));
+          const passageResults = deriveIeltsPassageResults(
+            mappedQuestions,
+            questionResultsList
+          );
+          // Task 2.3: Do not pass undefined fields into RTDB writes
+          if (passageResults.length > 0) {
+            ieltsData = { passageResults };
+          }
+        } catch (ieltsErr) {
+          console.warn('Failed to derive IELTS passage results:', ieltsErr);
+          // Non-blocking — still save the result
+        }
+      }
+
+      // 6. Save to permanent storage with academic context
       const resultId = await saveTestResult(
         sessionCode,
         testData.id || sessionCode,
@@ -397,7 +430,9 @@ export const useTestSubmission = ({
             feedbackTiming: 'after_completion',
             source: 'material_default'
           }
-        }
+        },
+        undefined, // thcsData (not applicable for session-based tests)
+        ieltsData // PRD-0039: IELTS passage results
       );
 
       console.log('✅ Permanent result saved with ID:', resultId);

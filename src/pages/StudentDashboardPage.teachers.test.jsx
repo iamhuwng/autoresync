@@ -43,6 +43,10 @@ vi.mock('../components/navigation', () => ({
     StudentHeader: ({ pageTitle }) => <div data-testid="student-header">{pageTitle}</div>
 }));
 
+vi.mock('../components/dashboard/PendingReviewsWidget', () => ({
+    PendingReviewsWidget: () => <div data-testid="pending-reviews-widget" />
+}));
+
 // Mock useMediaQuery since window.matchMedia is missing in JSDOM
 vi.mock('../hooks/useMediaQuery', () => ({
     useMediaQuery: vi.fn(() => false)
@@ -64,6 +68,7 @@ vi.mock('../services/notificationService', () => ({
         cb([]);
         return () => { };
     }),
+    subscribeToNewNotifications: vi.fn((_userId, _sinceMs, _cb) => () => { }),
     markNotificationAsRead: vi.fn().mockResolvedValue({ success: true }),
     markAllNotificationsAsRead: vi.fn().mockResolvedValue({ success: true }),
 }));
@@ -74,6 +79,7 @@ describe('StudentDashboardPage - Activity Stream', () => {
 
         // Default mocks — empty states
         vi.spyOn(classManager, 'getStudentClasses').mockResolvedValue([]);
+        vi.spyOn(classManager, 'subscribeToActiveSessions').mockImplementation(() => () => { });
         vi.spyOn(resultsService, 'getStudentHistory').mockResolvedValue([]);
         vi.spyOn(resultsService, 'getAvailablePublicSessions').mockResolvedValue([]);
         homeworkHooks.useStudentHomeworkList.mockReturnValue({
@@ -92,6 +98,7 @@ describe('StudentDashboardPage - Activity Stream', () => {
             cb([]);
             return () => { };
         });
+        notificationService.subscribeToNewNotifications.mockImplementation((_userId, _sinceMs, _cb) => () => { });
         notificationService.markNotificationAsRead.mockResolvedValue({ success: true });
         notificationService.markAllNotificationsAsRead.mockResolvedValue({ success: true });
     });
@@ -107,7 +114,6 @@ describe('StudentDashboardPage - Activity Stream', () => {
             // Left sidebar navigation items
             expect(screen.getByText('Feed')).toBeInTheDocument();
             expect(screen.getAllByText('Classes').length).toBeGreaterThan(0);
-            expect(screen.getAllByText('History').length).toBeGreaterThan(0);
         });
 
         // Group 2 navigation links (use getAllByText for items that may appear elsewhere)

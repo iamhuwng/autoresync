@@ -52,8 +52,19 @@ describe('AI Router Service', () => {
     },
   };
 
-  beforeEach(() => {
-    vi.clearAllMocks();
+  beforeEach(async () => {
+    const { geminiProvider } = await import('./gemini.provider');
+    const { groqProvider } = await import('./groq.provider');
+
+    vi.resetAllMocks();
+    vi.mocked(geminiProvider.getStatus).mockReturnValue({
+      available: true,
+      provider: 'gemini',
+    });
+    vi.mocked(groqProvider.getStatus).mockReturnValue({
+      available: true,
+      provider: 'groq',
+    });
     aiService.reset();
     // Reset to default config
     aiService.setConfig({
@@ -188,9 +199,9 @@ describe('AI Router Service', () => {
       const { geminiProvider } = await import('./gemini.provider');
       const { groqProvider } = await import('./groq.provider');
 
-      vi.mocked(geminiProvider.getStatus).mockReturnValue({
-        available: false,
-        provider: 'gemini',
+      vi.mocked(geminiProvider.parseChunk).mockResolvedValue({
+        success: false,
+        error: 'No Gemini API key configured',
       });
       vi.mocked(groqProvider.parseChunk).mockResolvedValue({
         success: true,
@@ -200,7 +211,7 @@ describe('AI Router Service', () => {
       const result = await aiService.parseChunk(mockChunk);
 
       expect(result.success).toBe(true);
-      expect(geminiProvider.parseChunk).not.toHaveBeenCalled();
+      expect(geminiProvider.parseChunk).toHaveBeenCalledTimes(1);
       expect(groqProvider.parseChunk).toHaveBeenCalled();
     });
   });
@@ -253,7 +264,7 @@ describe('AI Router Service', () => {
         error: 'timeout',
       });
 
-      aiService.setConfig({ retryAttempts: 3 });
+      aiService.setConfig({ retryAttempts: 3, enableFallback: false });
       const result = await aiService.parseChunk(mockChunk);
 
       expect(result.success).toBe(false);
@@ -262,6 +273,7 @@ describe('AI Router Service', () => {
 
     it('should detect retryable error patterns', async () => {
       const { geminiProvider } = await import('./gemini.provider');
+      aiService.setConfig({ enableFallback: false });
 
       const retryableErrors = [
         'timeout',
@@ -280,7 +292,7 @@ describe('AI Router Service', () => {
         await aiService.parseChunk(mockChunk);
 
         expect(geminiProvider.parseChunk).toHaveBeenCalledTimes(2);
-        vi.clearAllMocks();
+        vi.mocked(geminiProvider.parseChunk).mockReset();
       }
     });
   });
@@ -463,21 +475,21 @@ describe('AI Router Service', () => {
       const { geminiProvider } = await import('./gemini.provider');
       const { groqProvider } = await import('./groq.provider');
 
-      vi.mocked(geminiProvider.getStatus).mockReturnValue({
-        available: false,
-        provider: 'gemini',
+      vi.mocked(geminiProvider.parseChunk).mockResolvedValue({
+        success: false,
+        error: 'No Gemini API key configured',
       });
-      vi.mocked(groqProvider.getStatus).mockReturnValue({
-        available: false,
-        provider: 'groq',
+      vi.mocked(groqProvider.parseChunk).mockResolvedValue({
+        success: false,
+        error: 'No Groq API key configured',
       });
 
       const result = await aiService.parseChunk(mockChunk);
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('All AI providers failed');
-      expect(geminiProvider.parseChunk).not.toHaveBeenCalled();
-      expect(groqProvider.parseChunk).not.toHaveBeenCalled();
+      expect(geminiProvider.parseChunk).toHaveBeenCalledTimes(1);
+      expect(groqProvider.parseChunk).toHaveBeenCalledTimes(1);
     });
   });
 });

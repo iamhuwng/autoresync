@@ -32,11 +32,12 @@ import { useNavigation } from '../hooks/useNavigation';
 import { useTestCompletionCheck } from '../hooks/test/useTestCompletionCheck'; // PRD-0019 Task 6.3
 import { useBeforeUnloadWarning } from '../hooks/test/useBeforeUnloadWarning'; // PRD-0019 Task 6.7
 import { useTeacherEndRedirect } from '../hooks/test/useTeacherEndRedirect'; // BUG-FIX: Redirect to results on teacher-end
+import { useIntegrityRefreshRequest } from '../hooks/test/useIntegrityRefreshRequest';
 import { useTestIntegrity } from '../hooks/test/useTestIntegrity'; // PRD-0036
 import { useAntiCopyPaste } from '../hooks/test/useAntiCopyPaste'; // PRD-0036
 import { useFullscreenMode } from '../hooks/test/useFullscreenMode'; // PRD-0036
 import { toast } from '../components/modern/ToastNotification'; // PRD-0036
-import { shuffleIELTSTest } from '../utils/thcsShuffle'; // PRD-0036 Task 10.6
+import { getIELTSQuestionsForStudent } from '../utils/thcsShuffle'; // PRD-0036 Task 10.6
 
 // Services
 import { sessionService } from '../services/sessionService';
@@ -45,6 +46,10 @@ const StudentTestPageContent: React.FC = () => {
   const { sessionCode } = useParams<{ sessionCode: string }>();
   const { navigateTo, handleSessionChange } = useNavigation('student');
   const { checkAndRedirect } = useTeacherEndRedirect({ sessionCode }); // BUG-FIX: Redirect to results on teacher-end
+  const submitTestRef = useRef<
+    ((submitMode?: boolean | 'teacher') => Promise<void>) | null
+  >(null);
+  const flushIntegrityRef = useRef<(() => Promise<void>) | null>(null);
 
   const {
     testData,
@@ -60,11 +65,20 @@ const StudentTestPageContent: React.FC = () => {
     sessionCode,
     testSkill: testData?.skill,
     enabled: !loading && !!testData,
+    surface: 'student_test',
+    onForceSubmit: async () => {
+      if (!submitTestRef.current) return;
+      if (flushIntegrityRef.current) {
+        await flushIntegrityRef.current();
+      }
+      await submitTestRef.current('teacher');
+    },
   });
 
   // Answer management
   const [answers, setAnswers] = useState<StudentAnswers>({});
   const [currentQuestionNumber, setCurrentQuestionNumber] = useState(1);
+  const hasInitializedQuestionRef = useRef(false);
 
   // Test submission state - moved up to be available for useTestSession
   const [testSubmitted, setTestSubmitted] = useState(false);
@@ -83,6 +97,8 @@ const StudentTestPageContent: React.FC = () => {
     setShowReMarkModal,
     // setTestResults, // Not needed in refactored version
     isConnected,
+    antiCheatConfig, // PRD-0036: From RTDB session data
+    integrityRefreshRequestedAt,
   } = useTestSession({
     sessionCode,
     testData,
@@ -92,8 +108,6 @@ const StudentTestPageContent: React.FC = () => {
   });
 
   // Timer management - must come BEFORE submission to provide timeRemaining
-  const submitTestRef = useRef<((isAuto: boolean) => void) | null>(null);
-
   const handleTimeUp = useCallback(() => {
     // Only auto-submit if test is actually in progress and not already submitted
     if (sessionStatus === 'in-progress' && !testSubmitted && submitTestRef.current) {
@@ -188,6 +202,50 @@ const StudentTestPageContent: React.FC = () => {
     };
   }, [testData, loading, error, sessionCode, sessionStatus, navigateTo, handleSessionChange]);
 
+  // ── PRD-0036: Anti-Cheat Integration (Task 6.1) ───────────────
+  // antiCheatConfig now comes from useTestSession which reads it from RTDB
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const {
+    addEvent,
+    warningLevel,
+    warningMessage,
+    shouldAutoSubmit,
+    flushEvents,
+    getIntegrityReport,
+  } = useTestIntegrity({
+    config: antiCheatConfig,
+    context: 'session',
+    surface: 'student_test',
+    sessionCode: sessionCode || '',
+    studentId: sessionService.getPlayerId() || '',
+    testId: testData?.id || '',
+  });
+
+  useAntiCopyPaste({
+    enabled: antiCheatConfig?.detectCopyPaste || false,
+    containerRef: containerRef as React.RefObject<HTMLElement>,
+    onEvent: addEvent,
+    allowEditorPaste: testData?.skill === 'Writing',
+    detectRightClick: antiCheatConfig?.detectRightClick || false,
+    detectKeyboardShortcuts: antiCheatConfig?.detectKeyboardShortcuts || false,
+  });
+
+  useFullscreenMode({
+    enabled: antiCheatConfig?.requireFullscreen || false,
+    onFullscreenExit: addEvent,
+  });
+
+  useEffect(() => {
+    flushIntegrityRef.current = () => flushEvents('teacher_force_submit');
+  }, [flushEvents]);
+
+  useIntegrityRefreshRequest({
+    enabled: sessionStatus === 'in-progress' && !testSubmitted,
+    requestTimestamp: integrityRefreshRequestedAt,
+    onRefreshRequested: () => flushEvents('teacher_refresh'),
+  });
+
   // Test submission - now receives correct timeRemaining
   const {
     isSubmitting,
@@ -202,7 +260,14 @@ const StudentTestPageContent: React.FC = () => {
     sessionCode,
     answers,
     timeRemaining,
+    integrityReport: antiCheatConfig ? getIntegrityReport() : null,
     questionsWithAnswersRef, // PRD-0036 Task 9.4
+    questionPresentation: {
+      studentId: sessionService.getPlayerId() || 'anon',
+      shuffleQuestions: antiCheatConfig?.shuffleQuestions || false,
+      shuffleOptions: antiCheatConfig?.shuffleOptions || false,
+    },
+    telemetrySurface: 'student_test',
   });
 
   // Store submit function ref for timer callback
@@ -220,52 +285,36 @@ const StudentTestPageContent: React.FC = () => {
     enabled: !testSubmitted && sessionStatus === 'in-progress',
   });
 
-  // ── PRD-0036: Anti-Cheat Integration (Task 6.1) ───────────────
-  const antiCheatConfig = (session as any)?.antiCheatConfig || null;
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const {
-    addEvent,
-    warningLevel,
-    warningMessage,
-    shouldAutoSubmit,
-    flushEvents,
-  } = useTestIntegrity({
-    config: antiCheatConfig,
-    context: 'session',
-    sessionCode: sessionCode || '',
-    studentId: sessionService.getPlayerId() || '',
-    testId: testData?.id || '',
-  });
-
-  useAntiCopyPaste({
-    enabled: antiCheatConfig?.detectCopyPaste || false,
-    containerRef: containerRef as React.RefObject<HTMLElement>,
-    onEvent: addEvent,
-    allowEditorPaste: testData?.skill === 'Writing',
-  });
-
-  useFullscreenMode({
-    enabled: antiCheatConfig?.requireFullscreen || false,
-    onFullscreenExit: addEvent,
-  });
-
   // PRD-0036 Task 10.6: Deterministic question/option shuffle
   const displayQuestions = useMemo(() => {
     if (!testData) return [];
-    const studentId = sessionService.getPlayerId() || 'anon';
-    const shuffleQ = antiCheatConfig?.shuffleQuestions || false;
-    const shuffleO = antiCheatConfig?.shuffleOptions || false;
-
-    if (!shuffleQ && !shuffleO) return testData.questions;
-
-    return shuffleIELTSTest(
+    return getIELTSQuestionsForStudent(
       testData.questions,
-      studentId,
+      sessionService.getPlayerId() || 'anon',
       testData.id,
-      { shuffleQuestions: shuffleQ, shuffleOptions: shuffleO }
+      {
+        shuffleQuestions: antiCheatConfig?.shuffleQuestions || false,
+        shuffleOptions: antiCheatConfig?.shuffleOptions || false,
+      },
     );
   }, [testData, antiCheatConfig?.shuffleQuestions, antiCheatConfig?.shuffleOptions]);
+
+  useEffect(() => {
+    if (hasInitializedQuestionRef.current || !activePassageId || displayQuestions.length === 0) {
+      return;
+    }
+
+    const firstPassageQuestion = displayQuestions.find(
+      (question) => question.passageId === activePassageId,
+    );
+
+    if (!firstPassageQuestion) {
+      return;
+    }
+
+    setCurrentQuestionNumber(firstPassageQuestion.number);
+    hasInitializedQuestionRef.current = true;
+  }, [activePassageId, displayQuestions]);
 
   // PRD-0036: Show toast warnings on escalation
   const prevWarningRef = useRef(warningLevel);
@@ -281,8 +330,10 @@ const StudentTestPageContent: React.FC = () => {
   // PRD-0036: Auto-submit on violation threshold
   useEffect(() => {
     if (shouldAutoSubmit && !testSubmitted && submitTestRef.current) {
-      flushEvents();
-      submitTestRef.current(true);
+      (async () => {
+        await flushEvents('auto_submit');
+        await submitTestRef.current?.(true);
+      })();
     }
   }, [shouldAutoSubmit, testSubmitted, flushEvents]);
 
@@ -397,9 +448,10 @@ const StudentTestPageContent: React.FC = () => {
   /**
    * Handle test submission (wrapper for hook's handleSubmit)
    */
-  const handleSubmit = useCallback(() => {
-    submitTest(false); // Manual submission
-  }, [submitTest]);
+  const handleSubmit = useCallback(async () => {
+    await flushEvents('manual_submit'); // PRD-0036: Write complete integrity event log before submission
+    await submitTest(false); // Manual submission
+  }, [flushEvents, submitTest]);
 
   /**
    * Clear highlights handler

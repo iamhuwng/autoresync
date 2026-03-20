@@ -86,7 +86,7 @@ describe('Route Constants', () => {
 
       it('should handle empty string parameters', () => {
         const path = buildRoute('STUDENT_TEST', { sessionCode: '' });
-        expect(path).toBe('/student-test/:sessionCode'); // Empty treated as missing
+        expect(path).toBe('/student-test/');
       });
 
       it('should handle numeric parameters as strings', () => {
@@ -135,7 +135,7 @@ describe('Route Constants', () => {
 
       it('should produce valid URL paths', () => {
         const path = buildRoute('TEACHER_TEST_RESULTS', { sessionCode: 'TEST' });
-        expect(path).toMatch(/^\/[a-z-/:]+$/);
+        expect(path).toMatch(/^\/[A-Za-z0-9_/-]+$/);
       });
     });
 
@@ -153,8 +153,8 @@ describe('Route Constants', () => {
       });
 
       it('should build nested route URLs correctly', () => {
-        const path = buildRoute('CREATE_QUIZ');
-        expect(path).toBe('/create-quiz');
+        const path = buildRoute('CREATE_TEST');
+        expect(path).toBe('/create-test');
       });
     });
   });

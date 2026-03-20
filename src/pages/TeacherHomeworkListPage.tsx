@@ -275,11 +275,6 @@ export function TeacherHomeworkListPage() {
         setShowCreateModal(true);
     };
 
-    const handleCreateThcsHomework = () => {
-        setCreateModalFilter('thcs-test');
-        setShowCreateModal(true);
-    };
-
     const handleClosePastDue = useCallback(async () => {
         if (!user?.uid) {
             return;
@@ -683,7 +678,6 @@ export function TeacherHomeworkListPage() {
                     needsAttentionCount={needsAttentionCount}
                     onClosePastDue={handleClosePastDue}
                     onCreateHomework={handleCreateHomework}
-                    onCreateThcsHomework={handleCreateThcsHomework}
                     userId={user?.uid}
                 />
 

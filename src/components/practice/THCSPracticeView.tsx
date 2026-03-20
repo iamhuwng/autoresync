@@ -44,9 +44,17 @@ import { getSubmissionById } from '../../services/homeworkSubmissionService';
 import { getHomeworkById } from '../../services/homeworkManager'; // PRD-0036
 import { useTestIntegrity } from '../../hooks/test/useTestIntegrity'; // PRD-0036
 import { useAntiCopyPaste } from '../../hooks/test/useAntiCopyPaste'; // PRD-0036
+import { useFullscreenMode } from '../../hooks/test/useFullscreenMode'; // PRD-0036 ISSUE-4
+import { useTestCompletionCheck } from '../../hooks/test/useTestCompletionCheck';
 import { toast } from '../modern/ToastNotification'; // PRD-0036
 import type { AntiCheatConfig } from '../../types/integrity.types'; // PRD-0036
 import { useBeforeUnloadWarning } from '../../hooks/test/useBeforeUnloadWarning'; // PRD-0036 Task 10.1
+import { toHomeworkIntegrity } from '../../utils/integrityUtils';
+import {
+    summarizeError,
+    summarizeIntegritySnapshot,
+    trackAntiCheatAction,
+} from '../../services/antiCheatReporting';
 
 import type { THCSTest } from '../../types/thcs-test.types';
 import type { PracticeContext } from './IELTSPracticeView';
@@ -193,6 +201,16 @@ const THCSPracticeInner: React.FC<{
     const { user, profile } = useAuth();
     const navigate = useNavigate();
     const isHomework = practiceContext.type === 'homework';
+
+    useTestCompletionCheck({
+        sessionCode: undefined,
+        enabled: isHomework && Boolean(user?.uid) && Boolean(practiceContext.homeworkId),
+        mode: 'homework',
+        surface: 'thcs_homework',
+        homeworkId: practiceContext.homeworkId,
+        studentId: user?.uid,
+        submissionId: practiceContext.submissionId,
+    });
 
     // ── Back navigation (context-aware) ───────────────────────────────────────
     const handleBack = useCallback(() => {
@@ -461,8 +479,40 @@ const THCSPracticeInner: React.FC<{
         };
     }, [answers, currentSectionIndex, shuffledTestData.sections, isSubmitted, handleSectionChange]);
 
+    // ── PRD-0036: Anti-Cheat Integration (Task 6.2) ─────────────────────────
+    // IMPORTANT: These MUST be declared before handleSubmit which references them
+    const [antiCheatConfig, setAntiCheatConfig] = useState<AntiCheatConfig | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    // Fetch antiCheatConfig from homework document (only for homework context)
+    useEffect(() => {
+        if (!isHomework || !practiceContext.homeworkId) return;
+        getHomeworkById(practiceContext.homeworkId).then(hw => {
+            if (hw?.antiCheatConfig) {
+                setAntiCheatConfig(hw.antiCheatConfig as AntiCheatConfig);
+            }
+        }).catch(err => console.warn('[THCSPractice] Failed to load anti-cheat config:', err));
+    }, [isHomework, practiceContext.homeworkId]);
+
+    const {
+        addEvent,
+        warningLevel,
+        warningMessage,
+        shouldAutoSubmit,
+        flushEvents,
+        getIntegrityReport,
+    } = useTestIntegrity({
+        config: antiCheatConfig,
+        context: 'homework',
+        surface: 'thcs_homework',
+        studentId: user?.uid || '',
+        testId: materialId,
+        homeworkId: practiceContext.homeworkId,
+        submissionId: practiceContext.submissionId,
+    });
+
     // ── Submission ──────────────────────────────────────────────────────────────
-    const handleSubmit = useCallback(async () => {
+    const handleSubmit = useCallback(async (flushReason = 'homework_submit') => {
         if (!user?.uid || isSubmitting) return;
 
         setIsSubmitting(true);
@@ -541,6 +591,11 @@ const THCSPracticeInner: React.FC<{
             if (isHomework && practiceContext.submissionId) {
                 try {
                     const { submitHomework } = await import('../../services/homeworkSubmissionService');
+                    // PRD-0036: Flush integrity events and build report before submission
+                    await flushEvents(flushReason);
+                    const integrityReport = getIntegrityReport();
+                    const shouldNullify = antiCheatConfig?.nullifyRemainingAttempts && integrityReport.riskLevel === 'high';
+                    const homeworkIntegrity = antiCheatConfig ? toHomeworkIntegrity(integrityReport) : undefined;
                     await submitHomework(
                         practiceContext.submissionId,
                         resultId,
@@ -549,9 +604,51 @@ const THCSPracticeInner: React.FC<{
                         percentage,
                         gradingResult.scaledScore,
                         timeElapsed,
+                        homeworkIntegrity,
+                        shouldNullify || false,
                     );
+                    if (homeworkIntegrity) {
+                        trackAntiCheatAction(
+                            'persistHomeworkIntegrity',
+                            {
+                                context: 'homework',
+                                surface: 'thcs_homework',
+                                studentId: user.uid,
+                                testId: testData.id,
+                                homeworkId: practiceContext.homeworkId,
+                                submissionId: practiceContext.submissionId,
+                            },
+                            {
+                                status: 'success',
+                                attemptsNullified: shouldNullify || false,
+                                ...summarizeIntegritySnapshot(homeworkIntegrity),
+                            },
+                        );
+                    }
                     console.log('✅ [THCSPractice] Homework submission updated');
                 } catch (err) {
+                    const integrityReport = antiCheatConfig ? getIntegrityReport() : null;
+                    const homeworkIntegrity = integrityReport
+                        ? toHomeworkIntegrity(integrityReport)
+                        : undefined;
+                    if (homeworkIntegrity) {
+                        trackAntiCheatAction(
+                            'persistHomeworkIntegrity',
+                            {
+                                context: 'homework',
+                                surface: 'thcs_homework',
+                                studentId: user.uid,
+                                testId: testData.id,
+                                homeworkId: practiceContext.homeworkId,
+                                submissionId: practiceContext.submissionId,
+                            },
+                            {
+                                status: 'failed',
+                                ...summarizeIntegritySnapshot(homeworkIntegrity),
+                                ...summarizeError(err),
+                            },
+                        );
+                    }
                     console.warn('[THCSPractice] Homework submission update failed:', err);
                 }
             }
@@ -612,10 +709,25 @@ const THCSPracticeInner: React.FC<{
         } finally {
             setIsSubmitting(false);
         }
-    }, [user, isSubmitting, testData, answers, materialId, timeElapsed, practiceContext, isHomework, navigate]);
+    }, [
+        answers,
+        antiCheatConfig,
+        flushEvents,
+        getIntegrityReport,
+        isHomework,
+        isSubmitting,
+        materialId,
+        navigate,
+        practiceContext,
+        testData,
+        timeElapsed,
+        user,
+    ]);
 
     // Keep ref in sync for timer auto-submit
-    handleSubmitRef.current = handleSubmit;
+    handleSubmitRef.current = () => {
+        void handleSubmit('auto_submit');
+    };
 
     // ── Warn on page leave ─────────────────────────────────────────────────────
     useEffect(() => {
@@ -625,37 +737,20 @@ const THCSPracticeInner: React.FC<{
         return () => window.removeEventListener('beforeunload', handler);
     }, [isSubmitted]);
 
-    // ── PRD-0036: Anti-Cheat Integration (Task 6.2) ─────────────────────────
-    const [antiCheatConfig, setAntiCheatConfig] = useState<AntiCheatConfig | null>(null);
-    const containerRef = useRef<HTMLDivElement>(null);
-
-    // Fetch antiCheatConfig from homework document (only for homework context)
-    useEffect(() => {
-        if (!isHomework || !practiceContext.homeworkId) return;
-        getHomeworkById(practiceContext.homeworkId).then(hw => {
-            if (hw?.antiCheatConfig) {
-                setAntiCheatConfig(hw.antiCheatConfig as AntiCheatConfig);
-            }
-        }).catch(err => console.warn('[THCSPractice] Failed to load anti-cheat config:', err));
-    }, [isHomework, practiceContext.homeworkId]);
-
-    const {
-        addEvent,
-        warningLevel,
-        warningMessage,
-        shouldAutoSubmit,
-        flushEvents,
-    } = useTestIntegrity({
-        config: antiCheatConfig,
-        context: 'homework',
-        studentId: user?.uid || '',
-        testId: materialId,
-    });
+    // Anti-cheat hooks (useAntiCopyPaste, useFullscreenMode, warning effects) ─
 
     useAntiCopyPaste({
         enabled: antiCheatConfig?.detectCopyPaste || false,
         containerRef: containerRef as React.RefObject<HTMLElement>,
         onEvent: addEvent,
+        detectRightClick: antiCheatConfig?.detectRightClick || false,
+        detectKeyboardShortcuts: antiCheatConfig?.detectKeyboardShortcuts || false,
+    });
+
+    // PRD-0036 ISSUE-4: Fullscreen mode enforcement for THCS practice
+    useFullscreenMode({
+        enabled: antiCheatConfig?.requireFullscreen || false,
+        onFullscreenExit: addEvent,
     });
 
     // PRD-0036: Show toast warnings on escalation
@@ -672,10 +767,9 @@ const THCSPracticeInner: React.FC<{
     // PRD-0036: Auto-submit on violation threshold
     useEffect(() => {
         if (shouldAutoSubmit && !isSubmitted) {
-            flushEvents();
             handleSubmitRef.current();
         }
-    }, [shouldAutoSubmit, isSubmitted, flushEvents]);
+    }, [shouldAutoSubmit, isSubmitted]);
 
     // ── Format Timer ───────────────────────────────────────────────────────────
     const formatTime = (seconds: number) => {
@@ -1026,7 +1120,7 @@ const THCSPracticeInner: React.FC<{
                 opened={showSubmitConfirm}
                 unansweredCount={unansweredCount}
                 totalCount={totalQuestions}
-                onConfirm={handleSubmit}
+                onConfirm={() => handleSubmit('manual_submit')}
                 onCancel={() => setShowSubmitConfirm(false)}
             />
         </div>

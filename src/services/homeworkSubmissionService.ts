@@ -35,6 +35,7 @@ import type {
     HomeworkSubmissionStatus,
     HomeworkAssignment
 } from '../types/homework.types';
+import type { HomeworkIntegrity } from '../types/integrity.types'; // PRD-0036
 
 const SUBMISSION_COLLECTION = 'homework_submissions';
 
@@ -108,6 +109,13 @@ export async function createSubmission(
     // Check attempt count
     const previousAttempts = await getStudentSubmissionsForHomework(homeworkId, studentId);
     const completedAttempts = previousAttempts.filter(s => s.status === 'submitted' || s.status === 'graded');
+
+    // PRD-0036: Check if attempts were nullified by anti-cheat system
+    const hasNullified = previousAttempts.some(s => s.attemptsNullified === true);
+    if (hasNullified) {
+        throw new HomeworkSubmissionError('No remaining attempts (integrity violation)', 'MAX_ATTEMPTS_REACHED');
+    }
+
     const maxAttempts = homework.config.maxAttempts;
 
     if (maxAttempts !== null && completedAttempts.length >= maxAttempts) {
@@ -208,7 +216,9 @@ export async function submitHomework(
     maxScore: number,
     percentage: number,
     bandScore?: number,
-    timeSpent?: number
+    timeSpent?: number,
+    integrity?: HomeworkIntegrity, // PRD-0036
+    attemptsNullified?: boolean // PRD-0036: nullify remaining attempts on integrity violation
 ): Promise<void> {
     const submissionRef = doc(db, SUBMISSION_COLLECTION, submissionId);
     const snapshot = await getDoc(submissionRef);
@@ -238,7 +248,9 @@ export async function submitHomework(
         bandScore: bandScore || null,
         timeSpent: timeSpent || null,
         isLate,
-        status: 'submitted' as HomeworkSubmissionStatus
+        status: 'submitted' as HomeworkSubmissionStatus,
+        ...(integrity ? { integrity } : {}), // PRD-0036: Anti-cheat integrity data
+        ...(attemptsNullified ? { attemptsNullified: true } : {}), // PRD-0036: Nullify remaining attempts
     });
 
     // Update homework stats
@@ -396,6 +408,7 @@ export async function getStudentHomeworkList(
     submission: HomeworkSubmission | null;
     attemptsUsed: number;
     attemptsRemaining: number | null;
+    attemptsNullified: boolean;
     isOverdue: boolean;
     canSubmit: boolean;
     canViewFeedback: boolean;
@@ -433,10 +446,13 @@ export async function getStudentHomeworkList(
         const studentOverride = getStudentOverride(homework, studentId);
         const effectiveDueDate = getEffectiveHomeworkDueDate(homework, studentId);
         const isExempted = isStudentExempted(homework, studentId);
+        const attemptsNullified = submissions.some(s => s.attemptsNullified === true);
 
         const maxAttempts = homework.config.maxAttempts;
         const attemptsUsed = completedAttempts.length;
-        const attemptsRemaining = maxAttempts !== null
+        const attemptsRemaining = attemptsNullified
+            ? 0
+            : maxAttempts !== null
             ? Math.max(0, maxAttempts - attemptsUsed)
             : null;
 
@@ -450,6 +466,7 @@ export async function getStudentHomeworkList(
             homework.status !== 'closed' &&
             !isExempted &&
             isAvailable &&
+            !attemptsNullified &&
             (attemptsRemaining === null || attemptsRemaining > 0) &&
             (!isOverdue || homework.config.lateSubmissionAllowed);
 
@@ -475,6 +492,7 @@ export async function getStudentHomeworkList(
             submission: latestSubmission,
             attemptsUsed,
             attemptsRemaining,
+            attemptsNullified,
             isOverdue,
             canSubmit,
             canViewFeedback,
@@ -544,6 +562,7 @@ export async function getAttemptInfo(
     usedAttempts: number;
     remainingAttempts: number | null;
     canAttempt: boolean;
+    attemptsNullified: boolean;
 }> {
     const homework = await getHomeworkById(homeworkId);
     if (!homework) {
@@ -551,7 +570,8 @@ export async function getAttemptInfo(
             maxAttempts: null,
             usedAttempts: 0,
             remainingAttempts: null,
-            canAttempt: false
+            canAttempt: false,
+            attemptsNullified: false,
         };
     }
 
@@ -559,20 +579,24 @@ export async function getAttemptInfo(
     const completedAttempts = submissions.filter(s =>
         s.status === 'submitted' || s.status === 'graded'
     );
+    const attemptsNullified = submissions.some(s => s.attemptsNullified === true);
 
     const maxAttempts = homework.config.maxAttempts;
     const usedAttempts = completedAttempts.length;
-    const remainingAttempts = maxAttempts !== null
+    const remainingAttempts = attemptsNullified
+        ? 0
+        : maxAttempts !== null
         ? Math.max(0, maxAttempts - usedAttempts)
         : null;
 
-    const canAttempt = remainingAttempts === null || remainingAttempts > 0;
+    const canAttempt = !attemptsNullified && (remainingAttempts === null || remainingAttempts > 0);
 
     return {
         maxAttempts,
         usedAttempts,
         remainingAttempts,
-        canAttempt
+        canAttempt,
+        attemptsNullified,
     };
 }
 

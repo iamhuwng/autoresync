@@ -19,7 +19,7 @@ export interface AdminModalsManagerProps {
     closeAssignmentModal: () => void;
     assignmentMode: 'assign-to-teacher' | 'assign-students' | null;
     selectedUserForAssignment: User | null;
-    teacherOptions: Array<{ value: string; label: string }>;
+    teacherOptions: Array<{ value: string; label: string; email?: string; photoURL?: string | null; avatarUrl?: string | null }>;
     studentOptions: Array<{ value: string; label: string }>;
     courses: Array<{ value: string; label: string }>;
     currentUserId: string | undefined;

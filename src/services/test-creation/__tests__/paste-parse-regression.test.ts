@@ -1,16 +1,5 @@
-/**
- * Regression test for the Paste Text regex parser.
- * Tests that the fixed PATTERNS + parseQuestions correctly parse
- * a real 40-question Grade 10 GK2 test with cloze + reading + sentence-arrangement formats.
- *
- * Run: npx tsx src/services/test-creation/__tests__/paste-parse-regression.test.ts
- */
+import { describe, it, expect } from 'vitest';
 
-// We can't import parseThcsTextRegex directly (it's not exported),
-// so we replicate the core regex patterns and parsing logic here
-// to validate the fix in isolation.
-
-// ── Fixed PATTERNS (must match thcsDocumentParser.service.ts) ──
 const PATTERNS = {
     sectionHeader: /^(?:(?:SECTION|Part|Phần|Ph[aầ]n)\s*(?:[IVXLCDM]+|\d+)[.:\s]*(.+)|(?:[IVXLCDM]{2,}|[IVX])[.:\s]+(.{4,}))/im,
     question: /^(?:(?:C[aâ]u\s*|Question\s*|Q\.?\s*)(?:s?\s*)?(\d+)[.):\s]*(.*)|([0-9]+)[.):\s]+(.{3,}))/i,
@@ -20,8 +9,6 @@ const PATTERNS = {
     answerKeySpaced: /^\s*(\d+)[.):\s]+([A-H])\s*$/i,
 };
 
-// ── Simulated AI output (Pass1 restructured text) ──
-// This is the EXACT text the AI produced for the user's 40-question test.
 const INPUT_TEXT = `[CONFIDENCE: 80]
 
 Question 1.
@@ -343,8 +330,6 @@ D. Vietnam faces insurmountable infrastructure and labor challenges.
 39. D
 40. A`;
 
-// ── Mini parser (mirrors thcsDocumentParser.service.ts logic) ──
-
 interface MiniSection {
     name: string;
     startLine: number;
@@ -367,28 +352,45 @@ function detectSections(lines: string[]): MiniSection[] {
         const line = lines[i]!.trim();
 
         if (PATTERNS.answerKeyHeader.test(line)) {
-            if (current) { current.endLine = i - 1; sections.push(current); current = null; }
+            if (current) {
+                current.endLine = i - 1;
+                sections.push(current);
+                current = null;
+            }
             break;
         }
 
         const m = line.match(PATTERNS.sectionHeader);
         if (m) {
-            if (current) { current.endLine = i - 1; sections.push(current); }
+            if (current) {
+                current.endLine = i - 1;
+                sections.push(current);
+            }
             current = {
                 name: (m[1] || m[2] || '').trim() || `Section ${sections.length + 1}`,
-                startLine: i, endLine: lines.length - 1,
-                questions: [], instructionText: '',
+                startLine: i,
+                endLine: lines.length - 1,
+                questions: [],
+                instructionText: '',
             };
         }
     }
 
-    if (current) { current.endLine = lines.length - 1; sections.push(current); }
+    if (current) {
+        current.endLine = lines.length - 1;
+        sections.push(current);
+    }
+
     if (sections.length === 0) {
         sections.push({
-            name: 'General', startLine: 0, endLine: lines.length - 1,
-            questions: [], instructionText: '',
+            name: 'General',
+            startLine: 0,
+            endLine: lines.length - 1,
+            questions: [],
+            instructionText: '',
         });
     }
+
     return sections;
 }
 
@@ -411,7 +413,10 @@ function parseQuestions(lines: string[], sections: MiniSection[]): void {
                 foundFirst = true;
                 section.instructionText = instructionLines.join(' ').trim();
             }
-            if (!foundFirst) { instructionLines.push(line); continue; }
+            if (!foundFirst) {
+                instructionLines.push(line);
+                continue;
+            }
 
             if (qm) {
                 const qNum = qm[1] || qm[3];
@@ -427,15 +432,16 @@ function parseQuestions(lines: string[], sections: MiniSection[]): void {
             } else if (om && currentQ) {
                 currentQ.options.push(om[2]!.trim());
             } else if (currentQ && currentQ.options.length === 0) {
-                if (line.length > 2 && !/^[-=_~*]{3,}$/.test(line)) currentQ.text += ' ' + line;
+                if (line.length > 2 && !/^[-=_~*]{3,}$/.test(line)) currentQ.text += ` ${line}`;
             }
         }
 
         if (currentQ && (currentQ.text || currentQ.options.length > 0)) {
             section.questions.push(currentQ);
         }
-        if (!section.instructionText && instructionLines.length > 0)
+        if (!section.instructionText && instructionLines.length > 0) {
             section.instructionText = instructionLines.join(' ').trim();
+        }
     }
 }
 
@@ -445,115 +451,72 @@ function extractAnswerKey(lines: string[]): Record<number, string> {
 
     for (const line of lines) {
         const trimmed = line.trim();
-        if (PATTERNS.answerKeyHeader.test(trimmed)) { inAnswerSection = true; continue; }
+        if (PATTERNS.answerKeyHeader.test(trimmed)) {
+            inAnswerSection = true;
+            continue;
+        }
         if (!inAnswerSection) continue;
 
-        // Try spaced format first: "1. A"
         const spacedMatch = trimmed.match(PATTERNS.answerKeySpaced);
         if (spacedMatch) {
             key[parseInt(spacedMatch[1]!, 10)] = spacedMatch[2]!.toUpperCase();
             continue;
         }
 
-        // Try inline format: "1:A 2:B 3:C"
         PATTERNS.answerKeyLine.lastIndex = 0;
-        let m;
+        let m: RegExpExecArray | null;
         while ((m = PATTERNS.answerKeyLine.exec(trimmed)) !== null) {
             key[parseInt(m[1]!, 10)] = m[2]!.toUpperCase();
         }
     }
+
     return key;
 }
 
-// ── Run the test ──
-
-function runTest() {
+describe('paste-parse regression', () => {
     const lines = INPUT_TEXT.split('\n');
-    let pass = true;
-    const errors: string[] = [];
-
-    function assert(condition: boolean, msg: string) {
-        if (!condition) { pass = false; errors.push(`❌ FAIL: ${msg}`); }
-        else { console.log(`  ✅ ${msg}`); }
-    }
-
-    console.log('━━━ Paste-Parse Regression Test ━━━\n');
-
-    // 1. Section detection
-    console.log('1. Section Detection');
     const sections = detectSections(lines);
-    // With the fix, "C. economically" etc should NOT create false sections
-    // We expect either 1 "General" section (if no real section headers found)
-    // or a small number of real sections
-    assert(sections.length <= 3, `Section count reasonable: ${sections.length} (was 9+ before fix due to C/D over-match)`);
-    console.log(`   Sections found: ${sections.map(s => `"${s.name}" [${s.startLine}-${s.endLine}]`).join(', ')}`);
-
-    // 2. Question parsing
-    console.log('\n2. Question Parsing');
     parseQuestions(lines, sections);
-    const totalQ = sections.reduce((sum, s) => sum + s.questions.length, 0);
-    assert(totalQ === 40, `Found 40 questions (got ${totalQ})`);
-
-    // Check specific questions
-    const allQ = sections.flatMap(s => s.questions);
-    const q1 = allQ.find(q => q.questionNumber === 1);
-    const q23 = allQ.find(q => q.questionNumber === 23);
-    const q40 = allQ.find(q => q.questionNumber === 40);
-
-    assert(!!q1, 'Question 1 exists');
-    if (q1) {
-        assert(q1.options.length === 4, `Q1 has 4 options (got ${q1.options.length})`);
-        assert(q1.options[0] === 'economic', `Q1 option A = "economic" (got "${q1.options[0]}")`);
-    }
-
-    assert(!!q23, 'Question 23 exists');
-    if (q23) {
-        assert(q23.text.includes('main idea'), `Q23 text contains "main idea" (got "${q23.text.substring(0, 50)}...")`);
-        assert(q23.options.length === 4, `Q23 has 4 options (got ${q23.options.length})`);
-    }
-
-    assert(!!q40, 'Question 40 exists');
-    if (q40) {
-        assert(q40.text.includes('summarises'), `Q40 text contains "summarises" (got "${q40.text.substring(0, 50)}...")`);
-    }
-
-    // Check cloze questions (1-12) — these have empty text, only options
-    console.log('\n3. Cloze Questions (empty text + options)');
-    for (let n = 1; n <= 12; n++) {
-        const q = allQ.find(qq => qq.questionNumber === n);
-        assert(!!q, `Q${n} exists`);
-        if (q) {
-            assert(q.options.length === 4, `Q${n} has 4 options (got ${q.options.length})`);
-        }
-    }
-
-    // Check sentence-arrangement (13-17) — have sub-items a,b,c,d as text + A-D options
-    console.log('\n4. Sentence Arrangement Questions (13-17)');
-    for (let n = 13; n <= 17; n++) {
-        const q = allQ.find(qq => qq.questionNumber === n);
-        assert(!!q, `Q${n} exists`);
-        if (q) assert(q.options.length >= 3, `Q${n} has ≥3 options (got ${q.options.length})`);
-    }
-
-    // 3. Answer key
-    console.log('\n5. Answer Key Extraction');
+    const allQuestions = sections.flatMap((section) => section.questions);
     const answerKey = extractAnswerKey(lines);
-    const akCount = Object.keys(answerKey).length;
-    assert(akCount === 40, `Answer key has 40 entries (got ${akCount})`);
-    assert(answerKey[1] === 'A', `Answer 1 = A (got ${answerKey[1]})`);
-    assert(answerKey[25] === 'C', `Answer 25 = C (got ${answerKey[25]})`);
-    assert(answerKey[40] === 'A', `Answer 40 = A (got ${answerKey[40]})`);
 
-    // Summary
-    console.log('\n━━━ Results ━━━');
-    if (pass) {
-        console.log('🎉 ALL TESTS PASSED');
-    } else {
-        console.log(`💥 ${errors.length} FAILURES:`);
-        errors.forEach(e => console.log(`  ${e}`));
-    }
+    it('keeps section detection bounded', () => {
+        expect(sections.length).toBeLessThanOrEqual(3);
+    });
 
-    process.exit(pass ? 0 : 1);
-}
+    it('parses the full 40-question set', () => {
+        expect(allQuestions).toHaveLength(40);
 
-runTest();
+        const q1 = allQuestions.find((q) => q.questionNumber === 1);
+        const q23 = allQuestions.find((q) => q.questionNumber === 23);
+        const q40 = allQuestions.find((q) => q.questionNumber === 40);
+
+        expect(q1).toBeDefined();
+        expect(q1?.options).toHaveLength(4);
+        expect(q1?.options[0]).toBe('economic');
+
+        expect(q23?.text).toContain('main idea');
+        expect(q23?.options).toHaveLength(4);
+
+        expect(q40?.text).toContain('summarises');
+
+        for (let n = 1; n <= 12; n++) {
+            const question = allQuestions.find((q) => q.questionNumber === n);
+            expect(question).toBeDefined();
+            expect(question?.options).toHaveLength(4);
+        }
+
+        for (let n = 13; n <= 17; n++) {
+            const question = allQuestions.find((q) => q.questionNumber === n);
+            expect(question).toBeDefined();
+            expect(question?.options.length).toBeGreaterThanOrEqual(3);
+        }
+    });
+
+    it('extracts the answer key cleanly', () => {
+        expect(Object.keys(answerKey)).toHaveLength(40);
+        expect(answerKey[1]).toBe('A');
+        expect(answerKey[25]).toBe('C');
+        expect(answerKey[40]).toBe('A');
+    });
+});

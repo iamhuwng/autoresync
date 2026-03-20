@@ -2,6 +2,9 @@ import { useState, useMemo } from 'react';
 import type { CSSProperties } from 'react';
 import { Button } from '../modern';
 import StudentActionMenu from './StudentActionMenu';
+import { IntegrityBadge } from '../test/IntegrityBadge'; // PRD-0036
+import { computeRiskLevel } from '../../utils/integrityUtils'; // PRD-0036
+import type { HomeworkIntegrity } from '../../types/integrity.types'; // PRD-0036
 import './HomeworkMobilePolish.css';
 
 /**
@@ -35,6 +38,8 @@ export interface HomeworkSubmissionTableRow {
     lastRemindedAt?: number | null;
     extendedDueDate?: number | null;
     note?: string;
+    /** PRD-0036: Integrity report from submission, if available */
+    integrityData?: HomeworkIntegrity;
 }
 
 interface StudentActionCallbacks {
@@ -52,6 +57,8 @@ interface HomeworkSubmissionTableProps {
     onResetStudent: (row: HomeworkSubmissionTableRow) => void;
     onStudentClick?: (row: HomeworkSubmissionTableRow) => void;
     studentActions?: StudentActionCallbacks;
+    /** PRD-0036: Handler called when integrity badge is clicked */
+    onIntegrityClick?: (report: HomeworkIntegrity, studentName: string) => void;
 }
 
 const statusStyles: Record<HomeworkSubmissionTableRow['status'], CSSProperties> = {
@@ -156,6 +163,7 @@ function HomeworkSubmissionTable({
     onResetStudent,
     onStudentClick,
     studentActions,
+    onIntegrityClick,
 }: HomeworkSubmissionTableProps) {
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -236,6 +244,17 @@ function HomeworkSubmissionTable({
                     ) : (
                         <span className="hw-mobile-card-name">{row.studentName}</span>
                     )}
+                    {/* PRD-0036: Integrity badge (mobile) */}
+                    {row.integrityData && (() => {
+                        const risk = row.integrityData.riskLevel || computeRiskLevel(row.integrityData.violationCount || 0, row.integrityData.forceSubmitted || false);
+                        return (
+                            <IntegrityBadge
+                                violationCount={row.integrityData.violationCount || 0}
+                                riskLevel={risk}
+                                onClick={onIntegrityClick ? () => onIntegrityClick(row.integrityData!, row.studentName) : undefined}
+                            />
+                        );
+                    })()}
                 </div>
                 {studentActions ? (
                     <StudentActionMenu
@@ -429,6 +448,17 @@ function HomeworkSubmissionTable({
                                     ) : (
                                         <span style={{ fontWeight: 700, color: '#0f172a' }}>{row.studentName}</span>
                                     )}
+                                    {/* PRD-0036: Integrity badge */}
+                                    {row.integrityData && (() => {
+                                        const risk = row.integrityData.riskLevel || computeRiskLevel(row.integrityData.violationCount || 0, row.integrityData.forceSubmitted || false);
+                                        return (
+                                            <IntegrityBadge
+                                                violationCount={row.integrityData.violationCount || 0}
+                                                riskLevel={risk}
+                                                onClick={onIntegrityClick ? () => onIntegrityClick(row.integrityData!, row.studentName) : undefined}
+                                            />
+                                        );
+                                    })()}
                                     <span style={{ fontSize: '0.82rem', color: '#64748b' }}>
                                         {row.studentEmail || row.studentId}
                                     </span>

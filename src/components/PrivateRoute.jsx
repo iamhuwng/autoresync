@@ -31,7 +31,12 @@ const PrivateRoute = ({ children, allowedRoles = [] }) => {
   // Show loading state while checking auth
   if (loading) {
     return (
-      <Center style={{ height: '100vh' }}>
+      <Center
+        style={{ height: '100vh' }}
+        role="status"
+        aria-label="Loading protected route"
+        aria-live="polite"
+      >
         <Loader size="xl" />
       </Center>
     );

@@ -1,20 +1,17 @@
-// TODO: UPDATE TESTS FOR SESSION CODE SYSTEM (Task 1.7)
-// These tests need to be updated to mock session code validation and input
-// Expected navigation paths should use dynamic session codes instead of 'active_session'
-// Mock validateSessionForJoin from sessionManager.js
-
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
-import LoginPage from './LoginPage';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MantineProvider } from '@mantine/core';
 import userEvent from '@testing-library/user-event';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// Mock fetch for IP API
-global.fetch = vi.fn();
+import LoginPage from './LoginPage';
 
-// Mock react-router-dom navigate
 const mockNavigate = vi.fn();
+const mockLogin = vi.fn();
+const mockLoginWithEmail = vi.fn();
+const mockUseAuth = vi.fn();
+const mockFetch = vi.fn();
+
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom');
   return {
@@ -23,357 +20,164 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
-// Mock the firebase/database module
-vi.mock('firebase/database', () => ({
-  ref: vi.fn(),
-  set: vi.fn(),
-  get: vi.fn(),
+vi.mock('../hooks/useAuth', () => ({
+  useAuth: () => mockUseAuth(),
 }));
 
-// Mock the firebase service
-vi.mock('../services/firebase', () => ({
-  database: {},
-  auth: {},
-}));
-
-// Import the mocked functions after mocking
-import { get as mockGet, set as mockSet, ref as mockRef } from 'firebase/database';
+function renderPage() {
+  return render(
+    <BrowserRouter>
+      <MantineProvider>
+        <LoginPage />
+      </MantineProvider>
+    </BrowserRouter>
+  );
+}
 
 describe('LoginPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Clear sessionStorage to prevent test pollution
-    sessionStorage.clear();
-    // Default fetch mock for IP API
-    global.fetch.mockResolvedValue({
-      json: async () => ({ ip: '192.168.1.1' }),
+    vi.stubGlobal('fetch', mockFetch);
+    mockFetch.mockResolvedValue({
+      json: async () => ({ ip: '127.0.0.1' }),
+    });
+    mockUseAuth.mockReturnValue({
+      user: null,
+      profile: null,
+      loading: false,
+      login: mockLogin,
+      loginWithEmail: mockLoginWithEmail,
     });
   });
 
-  it('renders the login page correctly', () => {
-    render(
-      <BrowserRouter>
-        <MantineProvider>
-          <LoginPage setShowAdminLogin={() => {}} />
-        </MantineProvider>
-      </BrowserRouter>
-    );
-
-    // Check for the main heading
-    expect(screen.getByRole('heading', { name: /join game/i })).toBeInTheDocument();
-
-    // Check for the name input field
-    expect(screen.getByPlaceholderText(/enter your name/i)).toBeInTheDocument();
-
-    // Check for the join button
-    expect(screen.getByRole('button', { name: /join/i })).toBeInTheDocument();
-
-    // Check for the admin login button
-    expect(screen.getByRole('button', { name: /admin login/i })).toBeInTheDocument();
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
-  describe('Duplicate Name Prevention', () => {
-    it('should allow joining when no duplicate name exists', async () => {
-      // Mock Firebase: 1st call for players (none), 2nd for bans (none)
-      mockGet
-        .mockResolvedValueOnce({ exists: () => false, val: () => null })
-        .mockResolvedValueOnce({ exists: () => false, val: () => null });
+  it('renders the current login actions', () => {
+    renderPage();
 
-      render(
-        <BrowserRouter>
-          <MantineProvider>
-            <LoginPage setShowAdminLogin={() => {}} />
-          </MantineProvider>
-        </BrowserRouter>
-      );
+    expect(screen.getByRole('heading', { name: /welcome/i })).toBeInTheDocument();
+    expect(screen.getByText(/sign in to access your account/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /sign in with google/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /teacher/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /student/i })).toBeInTheDocument();
+  });
 
-      const nameInput = screen.getByPlaceholderText(/enter your name/i);
-      const joinButton = screen.getByRole('button', { name: /join/i });
+  it('calls the google login handler when the Google button is clicked', async () => {
+    const user = userEvent.setup();
+    renderPage();
 
-      await userEvent.type(nameInput, 'John');
-      await userEvent.click(joinButton);
+    await user.click(screen.getByRole('button', { name: /sign in with google/i }));
 
-      await waitFor(() => {
-        expect(mockNavigate).toHaveBeenCalledWith('/student-wait/active_session');
-      });
+    expect(mockLogin).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls email login with the teacher demo credentials', async () => {
+    const user = userEvent.setup();
+    let resolveLogin;
+    const loginPromise = new Promise((resolve) => {
+      resolveLogin = resolve;
     });
 
-    it('should prevent joining when exact duplicate name exists', async () => {
-      // Mock Firebase: 1st call for players (has duplicate)
-      mockGet.mockResolvedValueOnce({
-        exists: () => true,
-        val: () => ({ 'player1': { name: 'John', score: 0 } }),
-      });
+    mockLoginWithEmail.mockReturnValueOnce(loginPromise);
+    renderPage();
 
-      render(
-        <BrowserRouter>
-          <MantineProvider>
-            <LoginPage setShowAdminLogin={() => {}} />
-          </MantineProvider>
-        </BrowserRouter>
-      );
+    await user.click(screen.getByRole('button', { name: /^teacher$/i }));
 
-      const nameInput = screen.getByPlaceholderText(/enter your name/i);
-      const joinButton = screen.getByRole('button', { name: /join/i });
+    expect(mockLoginWithEmail).toHaveBeenCalledWith('teacher@test.com', 'password123');
+    expect(screen.getByRole('button', { name: /logging in\.\.\./i })).toBeDisabled();
 
-      await userEvent.type(nameInput, 'John');
-      await userEvent.click(joinButton);
+    resolveLogin();
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /^teacher$/i })).not.toBeDisabled();
+    });
+  });
 
-      await waitFor(() => {
-        expect(screen.getByText(/this name is already taken/i)).toBeInTheDocument();
-      });
+  it('calls email login with the student demo credentials', async () => {
+    const user = userEvent.setup();
+    renderPage();
 
-      expect(mockNavigate).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: /^student$/i }));
+
+    expect(mockLoginWithEmail).toHaveBeenCalledWith('student@test.com', 'password123');
+  });
+
+  it('redirects teachers to the lobby', async () => {
+    mockUseAuth.mockReturnValueOnce({
+      user: { uid: 'teacher-1' },
+      profile: { role: 'teacher' },
+      loading: false,
+      login: mockLogin,
+      loginWithEmail: mockLoginWithEmail,
     });
 
-    it('should prevent joining when duplicate name exists with different case (case-insensitive)', async () => {
-      mockGet.mockResolvedValueOnce({
-        exists: () => true,
-        val: () => ({ 'player1': { name: 'John', score: 0 } }),
-      });
+    renderPage();
 
-      render(
-        <BrowserRouter>
-          <MantineProvider>
-            <LoginPage setShowAdminLogin={() => {}} />
-          </MantineProvider>
-        </BrowserRouter>
-      );
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/lobby', { replace: true });
+    });
+  });
 
-      const nameInput = screen.getByPlaceholderText(/enter your name/i);
-      const joinButton = screen.getByRole('button', { name: /join/i });
-
-      await userEvent.type(nameInput, 'JOHN');
-      await userEvent.click(joinButton);
-
-      await waitFor(() => {
-        expect(screen.getByText(/this name is already taken/i)).toBeInTheDocument();
-      });
-
-      expect(mockNavigate).not.toHaveBeenCalled();
+  it('redirects students to the student dashboard', async () => {
+    mockUseAuth.mockReturnValueOnce({
+      user: { uid: 'student-1' },
+      profile: { role: 'student' },
+      loading: false,
+      login: mockLogin,
+      loginWithEmail: mockLoginWithEmail,
     });
 
-    it('should prevent joining when duplicate name exists with different case variation', async () => {
-      mockGet.mockResolvedValueOnce({
-        exists: () => true,
-        val: () => ({ 'player1': { name: 'JoHn', score: 0 } }),
-      });
+    renderPage();
 
-      render(
-        <BrowserRouter>
-          <MantineProvider>
-            <LoginPage setShowAdminLogin={() => {}} />
-          </MantineProvider>
-        </BrowserRouter>
-      );
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/student', { replace: true });
+    });
+  });
 
-      const nameInput = screen.getByPlaceholderText(/enter your name/i);
-      const joinButton = screen.getByRole('button', { name: /join/i });
-
-      await userEvent.type(nameInput, 'john');
-      await userEvent.click(joinButton);
-
-      await waitFor(() => {
-        expect(screen.getByText(/this name is already taken/i)).toBeInTheDocument();
-      });
-
-      expect(mockNavigate).not.toHaveBeenCalled();
+  it('redirects super admins to the admin dashboard', async () => {
+    mockUseAuth.mockReturnValueOnce({
+      user: { uid: 'admin-1' },
+      profile: { role: 'super_admin' },
+      loading: false,
+      login: mockLogin,
+      loginWithEmail: mockLoginWithEmail,
     });
 
-    it('should trim whitespace and prevent duplicate names', async () => {
-      mockGet.mockResolvedValueOnce({
-        exists: () => true,
-        val: () => ({ 'player1': { name: 'John', score: 0 } }),
-      });
+    renderPage();
 
-      render(
-        <BrowserRouter>
-          <MantineProvider>
-            <LoginPage setShowAdminLogin={() => {}} />
-          </MantineProvider>
-        </BrowserRouter>
-      );
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/admin/dashboard', { replace: true });
+    });
+  });
 
-      const nameInput = screen.getByPlaceholderText(/enter your name/i);
-      const joinButton = screen.getByRole('button', { name: /join/i });
-
-      await userEvent.type(nameInput, '  John  ');
-      await userEvent.click(joinButton);
-
-      await waitFor(() => {
-        expect(screen.getByText(/this name is already taken/i)).toBeInTheDocument();
-      });
-
-      expect(mockNavigate).not.toHaveBeenCalled();
+  it('shows the loading state while auth is initializing', () => {
+    mockUseAuth.mockReturnValueOnce({
+      user: null,
+      profile: null,
+      loading: true,
+      login: mockLogin,
+      loginWithEmail: mockLoginWithEmail,
     });
 
-    it('should display error alert with correct message', async () => {
-      mockGet.mockResolvedValueOnce({
-        exists: () => true,
-        val: () => ({ 'player1': { name: 'Jane', score: 0 } }),
-      });
+    renderPage();
 
-      render(
-        <BrowserRouter>
-          <MantineProvider>
-            <LoginPage setShowAdminLogin={() => {}} />
-          </MantineProvider>
-        </BrowserRouter>
-      );
+    expect(screen.getByText(/loading\.\.\./i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /sign in with google/i })).not.toBeInTheDocument();
+  });
 
-      const nameInput = screen.getByPlaceholderText(/enter your name/i);
-      const joinButton = screen.getByRole('button', { name: /join/i });
+  it('shows a readable error message when login fails', async () => {
+    const user = userEvent.setup();
+    mockLogin.mockRejectedValueOnce({ code: 'auth/popup-blocked' });
 
-      await userEvent.type(nameInput, 'Jane');
-      await userEvent.click(joinButton);
+    renderPage();
 
-      await waitFor(() => {
-        expect(screen.getByText(/name already taken/i)).toBeInTheDocument();
-        expect(screen.getByText(/this name is already taken. please choose another./i)).toBeInTheDocument();
-      });
-    });
+    await user.click(screen.getByRole('button', { name: /sign in with google/i }));
 
-    it('should allow closing the error alert', async () => {
-      mockGet.mockResolvedValueOnce({
-        exists: () => true,
-        val: () => ({ 'player1': { name: 'Sarah', score: 0 } }),
-      });
-
-      render(
-        <BrowserRouter>
-          <MantineProvider>
-            <LoginPage setShowAdminLogin={() => {}} />
-          </MantineProvider>
-        </BrowserRouter>
-      );
-
-      const nameInput = screen.getByPlaceholderText(/enter your name/i);
-      const joinButton = screen.getByRole('button', { name: /join/i });
-
-      await userEvent.type(nameInput, 'Sarah');
-      await userEvent.click(joinButton);
-
-      await waitFor(() => {
-        expect(screen.getByText(/name already taken/i)).toBeInTheDocument();
-      });
-
-      const alert = screen.getByRole('alert');
-      const closeButton = alert.querySelector('.mantine-Alert-closeButton');
-      expect(closeButton).toBeInTheDocument();
-
-      await userEvent.click(closeButton);
-
-      await waitFor(() => {
-        expect(screen.queryByText(/name already taken/i)).not.toBeInTheDocument();
-      });
-    });
-
-    it('should clear error on new submission attempt', async () => {
-      mockGet
-        .mockResolvedValueOnce({
-          exists: () => true,
-          val: () => ({ 'player1': { name: 'Mike', score: 0 } }),
-        })
-        .mockResolvedValueOnce({ exists: () => false, val: () => null })
-        .mockResolvedValueOnce({ exists: () => false, val: () => null });
-
-      render(
-        <BrowserRouter>
-          <MantineProvider>
-            <LoginPage setShowAdminLogin={() => {}} />
-          </MantineProvider>
-        </BrowserRouter>
-      );
-
-      const nameInput = screen.getByPlaceholderText(/enter your name/i);
-      const joinButton = screen.getByRole('button', { name: /join/i });
-
-      await userEvent.type(nameInput, 'Mike');
-      await userEvent.click(joinButton);
-
-      await waitFor(() => {
-        expect(screen.getByText(/name already taken/i)).toBeInTheDocument();
-      });
-
-      await userEvent.clear(nameInput);
-      await userEvent.type(nameInput, 'Alex');
-      await userEvent.click(joinButton);
-
-      await waitFor(() => {
-        expect(mockNavigate).toHaveBeenCalledWith('/student-wait/active_session');
-      });
-    });
-
-    it('should handle multiple existing players correctly', async () => {
-      // Mock Firebase: 1st call for players (has duplicate "Bob")
-      mockGet
-        .mockResolvedValueOnce({
-          exists: () => true,
-          val: () => ({
-            'player1': { name: 'Alice', score: 5 },
-            'player2': { name: 'Bob', score: 10 },
-          }),
-        })
-        // 2nd call for banned players (should not be reached if duplicate detected)
-        .mockResolvedValueOnce({
-          exists: () => false,
-          val: () => null,
-        });
-
-      render(
-        <BrowserRouter>
-          <MantineProvider>
-            <LoginPage setShowAdminLogin={() => {}} />
-          </MantineProvider>
-        </BrowserRouter>
-      );
-
-      const nameInput = screen.getByPlaceholderText(/enter your name/i);
-      const joinButton = screen.getByRole('button', { name: /join/i });
-
-      await userEvent.type(nameInput, 'bob');
-      await userEvent.click(joinButton);
-
-      await waitFor(() => {
-        expect(screen.getByText(/this name is already taken/i)).toBeInTheDocument();
-      });
-
-      expect(mockNavigate).not.toHaveBeenCalled();
-    });
-
-    it('should allow name that is not in the existing players list', async () => {
-      mockGet
-        .mockResolvedValueOnce({
-          exists: () => true,
-          val: () => ({
-            'player1': { name: 'Alice', score: 5 },
-            'player2': { name: 'Bob', score: 10 },
-          }),
-        })
-        .mockResolvedValueOnce({
-          exists: () => false,
-          val: () => null,
-        });
-
-      render(
-        <BrowserRouter>
-          <MantineProvider>
-            <LoginPage setShowAdminLogin={() => {}} />
-          </MantineProvider>
-        </BrowserRouter>
-      );
-
-      const nameInput = screen.getByPlaceholderText(/enter your name/i);
-      const joinButton = screen.getByRole('button', { name: /join/i });
-
-      await userEvent.type(nameInput, 'David');
-      await userEvent.click(joinButton);
-
-      await waitFor(() => {
-        expect(mockNavigate).toHaveBeenCalledWith('/student-wait/active_session');
-      });
-
-      expect(screen.queryByText(/name already taken/i)).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.getByText(/sign-in popup was blocked/i)
+      ).toBeInTheDocument();
     });
   });
 });

@@ -115,15 +115,96 @@ export default shuffleTest;
 
 // ── IELTS-specific shuffle (PRD-0036 Task 10.5) ──
 
-interface IELTSShuffleOptions {
+export interface IELTSShuffleOptions {
     shuffleQuestions: boolean;
     shuffleOptions: boolean;
+}
+
+interface IELTSQuestionLike {
+    id?: string | number;
+    number?: string | number;
+    type?: string;
+    passageId?: string | null;
+    summaryGroupId?: string | null;
+    options?: string[];
+    answer?: unknown;
+}
+
+const IELTS_NO_PASSAGE_ID = '__no_passage__';
+
+function buildIELTSGroupKey(question: IELTSQuestionLike): string {
+    return `${question.type ?? ''}::${question.summaryGroupId ?? ''}`;
+}
+
+function getIELTSQuestionGroups(questions: IELTSQuestionLike[]): IELTSQuestionLike[][] {
+    if (!questions.length) return [];
+
+    const groups: IELTSQuestionLike[][] = [];
+    let currentGroup: IELTSQuestionLike[] = [questions[0]!];
+    let currentPassageId = questions[0]?.passageId ?? IELTS_NO_PASSAGE_ID;
+    let currentGroupKey = buildIELTSGroupKey(questions[0]!);
+
+    for (let i = 1; i < questions.length; i++) {
+        const question = questions[i];
+        if (!question) continue;
+
+        const passageId = question.passageId ?? IELTS_NO_PASSAGE_ID;
+        const groupKey = buildIELTSGroupKey(question);
+
+        if (passageId === currentPassageId && groupKey === currentGroupKey) {
+            currentGroup.push(question);
+            continue;
+        }
+
+        groups.push(currentGroup);
+        currentGroup = [question];
+        currentPassageId = passageId;
+        currentGroupKey = groupKey;
+    }
+
+    groups.push(currentGroup);
+    return groups;
+}
+
+function shuffleIELTSQuestionOrder(
+    questions: IELTSQuestionLike[],
+    studentUid: string,
+    testId: string,
+): IELTSQuestionLike[] {
+    const groups = getIELTSQuestionGroups(questions);
+    if (groups.length <= 1) return [...questions];
+
+    const passageIds = groups.reduce<string[]>((result, group) => {
+        const passageId = group[0]?.passageId ?? IELTS_NO_PASSAGE_ID;
+        if (!result.includes(passageId)) {
+            result.push(passageId);
+        }
+        return result;
+    }, []);
+
+    return passageIds.flatMap((passageId) => {
+        const passageGroups = groups.filter(
+            (group) => (group[0]?.passageId ?? IELTS_NO_PASSAGE_ID) === passageId,
+        );
+
+        if (passageGroups.length <= 1) {
+            return passageGroups.flat();
+        }
+
+        return shuffleArray(
+            passageGroups,
+            `${studentUid}_${testId}_passage_${passageId}_groups`,
+        ).flat();
+    });
 }
 
 /**
  * Deterministic shuffle for IELTS-style tests (used by StudentTestPage).
  *
- * - `shuffleQuestions`: reorder the flat questions array
+ * To keep IELTS task rendering coherent, question shuffling preserves
+ * contiguous task blocks within each passage and only reorders those blocks.
+ *
+ * - `shuffleQuestions`: reorder task blocks within each passage
  * - `shuffleOptions`: for each MCQ question with `options[]`, shuffle the
  *   options and remap the `answer` field using remapAnswerKey.
  *
@@ -140,9 +221,9 @@ export function shuffleIELTSTest(
 
     let result = [...questions];
 
-    // 1. Shuffle question order
+    // 1. Shuffle question order while preserving IELTS task-group coherence
     if (options.shuffleQuestions) {
-        result = shuffleArray(result, `${studentUid}_${testId}_q`);
+        result = shuffleIELTSQuestionOrder(result, studentUid, testId);
     }
 
     // 2. Shuffle MCQ options per question
@@ -154,7 +235,7 @@ export function shuffleIELTSTest(
             const originalOptions = [...q.options];
             const shuffledOptions = shuffleArray<string>(
                 q.options as string[],
-                `${studentUid}_${testId}_opt_${q.number || q.id}`
+                `${studentUid}_${testId}_opt_${q.number ?? q.id ?? 'unknown'}`
             );
 
             // Remap the answer key to the new option positions
@@ -162,9 +243,40 @@ export function shuffleIELTSTest(
                 ? remapAnswerKey(q.answer, originalOptions, shuffledOptions)
                 : q.answer;
 
-            return { ...q, options: shuffledOptions, answer: newAnswer };
+            const nextQuestion = { ...q, options: shuffledOptions } as Record<string, any>;
+            if ('answer' in q && newAnswer !== undefined) {
+                nextQuestion.answer = newAnswer;
+            }
+            return nextQuestion;
         });
     }
 
     return result;
+}
+
+/**
+ * Applies the deterministic IELTS presentation transform used on student pages.
+ * The grading flow replays this against answer-bearing questions so shuffled
+ * option letters still align with what the student actually saw.
+ */
+export function getIELTSQuestionsForStudent(
+    questions: any[],
+    studentUid: string | null | undefined,
+    testId: string,
+    options?: Partial<IELTSShuffleOptions> | null,
+): any[] {
+    if (!questions || questions.length === 0) {
+        return questions ?? [];
+    }
+
+    const normalizedOptions: IELTSShuffleOptions = {
+        shuffleQuestions: Boolean(options?.shuffleQuestions),
+        shuffleOptions: Boolean(options?.shuffleOptions),
+    };
+
+    if (!studentUid || (!normalizedOptions.shuffleQuestions && !normalizedOptions.shuffleOptions)) {
+        return [...questions];
+    }
+
+    return shuffleIELTSTest(questions, studentUid, testId, normalizedOptions);
 }

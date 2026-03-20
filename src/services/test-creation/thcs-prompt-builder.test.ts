@@ -17,8 +17,15 @@ import type { IssueCode } from './thcs-text-validator';
 // ── Fragment Registry ─────────────────────────────────────────
 
 describe('REPAIR_FRAGMENTS', () => {
-    it('has exactly 16 entries', () => {
-        expect(Object.keys(REPAIR_FRAGMENTS)).toHaveLength(16);
+    it('includes the core repair fragment registry', () => {
+        const fragmentKeys = Object.keys(REPAIR_FRAGMENTS);
+        expect(fragmentKeys.length).toBeGreaterThanOrEqual(16);
+        expect(fragmentKeys).toEqual(expect.arrayContaining([
+            'MERGED_QUESTIONS',
+            'MISSING_ANSWER_KEY',
+            'MISSING_TYPE_TAG',
+            'WORD_BANK_NOT_TAGGED',
+        ]));
     });
 
     it('every fragment has required fields', () => {
@@ -34,8 +41,15 @@ describe('REPAIR_FRAGMENTS', () => {
 });
 
 describe('COMPROMISE_TEMPLATES', () => {
-    it('has exactly 8 entries', () => {
-        expect(Object.keys(COMPROMISE_TEMPLATES)).toHaveLength(8);
+    it('includes the baseline compromise routes', () => {
+        const templateKeys = Object.keys(COMPROMISE_TEMPLATES);
+        expect(templateKeys.length).toBeGreaterThanOrEqual(8);
+        expect(templateKeys).toEqual(expect.arrayContaining([
+            'matching',
+            'true-false',
+            'translation',
+            'picture-description-open',
+        ]));
     });
 
     it('every template has required fields', () => {

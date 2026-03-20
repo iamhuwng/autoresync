@@ -322,11 +322,8 @@ describe('UI Store', () => {
 
       expect(useUIStore.getState().notifications).toHaveLength(1);
 
-      // Fast-forward 3 seconds
-      vi.advanceTimersByTime(3000);
-
-      // Wait for async operation
-      await new Promise(resolve => setTimeout(resolve, 0));
+      // Fast-forward 3 seconds and flush the pending callback
+      await vi.advanceTimersByTimeAsync(3000);
 
       expect(useUIStore.getState().notifications).toHaveLength(0);
 
@@ -554,18 +551,15 @@ describe('UI Store', () => {
       expect(useUIStore.getState().notifications).toHaveLength(3);
 
       // After 1 second, first should be removed
-      vi.advanceTimersByTime(1000);
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await vi.advanceTimersByTimeAsync(1000);
       expect(useUIStore.getState().notifications).toHaveLength(2);
 
       // After another second, second should be removed
-      vi.advanceTimersByTime(1000);
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await vi.advanceTimersByTimeAsync(1000);
       expect(useUIStore.getState().notifications).toHaveLength(1);
 
       // After another second, third should be removed
-      vi.advanceTimersByTime(1000);
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await vi.advanceTimersByTimeAsync(1000);
       expect(useUIStore.getState().notifications).toHaveLength(0);
 
       vi.useRealTimers();

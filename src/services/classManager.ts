@@ -652,6 +652,7 @@ export async function enrollStudent(
       uid: studentUid, // Store UID for reference
       name: studentName,
       email: studentEmail,
+      status: 'pending_approval', // Awaiting teacher approval
       joinedAt: now,
       lastActiveAt: now,
       isOnline: true,
@@ -682,43 +683,161 @@ export async function enrollStudent(
       console.warn('Failed to auto-enroll student in class courses:', e);
     }
 
-    // Auto-create student-teacher assignment so the student appears in teacher's student list
-    try {
-      const { createAssignment } = await import('./assignmentManager');
-      const teacherId = classData.createdBy;
-      if (teacherId && teacherId !== 'unknown') {
-        const assignResult = await createAssignment(studentUid, teacherId, teacherId);
-        if (assignResult.success) {
-          console.log(`📋 [ClassManager] Auto-created student-teacher assignment for ${studentUid} → ${teacherId}`);
-        } else if (assignResult.error?.includes('already exists')) {
-          console.log(`📋 [ClassManager] Student-teacher assignment already exists for ${studentUid} → ${teacherId}`);
-        } else {
-          console.warn(`⚠️ [ClassManager] Failed to auto-create assignment: ${assignResult.error}`);
-        }
-      }
-    } catch (assignError) {
-      console.warn('⚠️ [ClassManager] Failed to auto-create student-teacher assignment (non-blocking):', assignError);
-    }
+    // NOTE: Student-teacher assignment is NOT auto-created here.
+    // The student appears with "pending_approval" status in the teacher's class view.
+    // The teacher must explicitly approve the student, which creates the assignment.
 
-    // PRD-0002: Dashboard feed notification
+    // PRD-0002: Dashboard feed notification for student
     try {
       const { createNotification } = await import('./notificationService');
       await createNotification({
         userId: studentUid,
-        type: 'success',
-        title: '🏫 Joined Class',
-        message: `You joined ${classData.name || classCode}!`,
+        type: 'info',
+        title: '🏫 Joined Class — Pending Approval',
+        message: `You've requested to join ${classData.name || classCode}. Waiting for teacher approval.`,
         link: '/student/dashboard',
         metadata: { className: classData.name || classCode, classCode }
       });
-      console.log(`📢 [ClassManager] Feed notification sent for student ${studentUid} joining class ${classCode}`);
     } catch (notifError) {
       console.warn('⚠️ [ClassManager] Failed to send join-class notification (non-blocking):', notifError);
+    }
+
+    // Notify the class owner (teacher) about the pending student
+    try {
+      const { createNotification } = await import('./notificationService');
+      const teacherId = classData.createdBy;
+      if (teacherId && teacherId !== 'unknown') {
+        await createNotification({
+          userId: teacherId,
+          type: 'info',
+          title: '👋 New Student Request',
+          message: `${studentName} wants to join your class "${classData.name || classCode}". Review in class management.`,
+          link: `/teacher/classes/${classCode}`,
+          metadata: { studentName, studentUid, classCode, className: classData.name || classCode }
+        });
+      }
+    } catch (notifError) {
+      console.warn('⚠️ [ClassManager] Failed to send teacher notification (non-blocking):', notifError);
     }
 
     return { success: true, classId: classCode };
   } catch (error) {
     console.error('Error enrolling student:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
+/**
+ * Approve a pending student in a class.
+ * Updates their status to 'active' and creates the student-teacher assignment.
+ * Must be called by the class owner (teacher) who has write permission.
+ */
+export async function approveClassStudent(
+  classCode: string,
+  studentId: string,
+  teacherId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Verify class exists
+    const classData = await getClass(classCode);
+    if (!classData) {
+      return { success: false, error: 'Class not found' };
+    }
+
+    // Verify student exists in class
+    const student = classData.students?.[studentId];
+    if (!student) {
+      return { success: false, error: 'Student not found in this class' };
+    }
+
+    // Update student status to active
+    const statusRef = ref(database, `${CLASSES_REF}/${classCode}/students/${studentId}/status`);
+    await set(statusRef, 'active');
+
+    // Create student-teacher assignment (teacher is the authenticated user, so they have write permission)
+    try {
+      const { createAssignment } = await import('./assignmentManager');
+      const assignResult = await createAssignment(studentId, teacherId, teacherId);
+      if (assignResult.success) {
+        console.log(`✅ [ClassManager] Approved student ${studentId} in class ${classCode} and created assignment`);
+      } else if (assignResult.error?.includes('already exists')) {
+        console.log(`📋 [ClassManager] Assignment already exists for ${studentId} → ${teacherId}`);
+      } else {
+        console.warn(`⚠️ [ClassManager] Assignment creation issue: ${assignResult.error}`);
+      }
+    } catch (assignError) {
+      console.warn('⚠️ [ClassManager] Failed to create assignment during approval (non-blocking):', assignError);
+    }
+
+    // Notify the student
+    try {
+      const { createNotification } = await import('./notificationService');
+      await createNotification({
+        userId: studentId,
+        type: 'success',
+        title: '✅ Approved!',
+        message: `You've been approved to join ${classData.name || classCode}.`,
+        link: '/student/dashboard',
+        metadata: { className: classData.name || classCode, classCode }
+      });
+    } catch (notifError) {
+      console.warn('⚠️ [ClassManager] Failed to send approval notification:', notifError);
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error approving student:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
+/**
+ * Reject a pending student from a class.
+ * Removes the student from the class roster.
+ */
+export async function rejectClassStudent(
+  classCode: string,
+  studentId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Verify class exists
+    const classData = await getClass(classCode);
+    if (!classData) {
+      return { success: false, error: 'Class not found' };
+    }
+
+    const student = classData.students?.[studentId];
+    if (!student) {
+      return { success: false, error: 'Student not found in this class' };
+    }
+
+    // Remove student from class
+    const studentRef = ref(database, `${CLASSES_REF}/${classCode}/students/${studentId}`);
+    await set(studentRef, null);
+
+    // Remove from legacy session
+    const legacyRef = ref(database, `${GAME_SESSIONS_REF}/${classCode}/players/${studentId}`);
+    await set(legacyRef, null);
+
+    // Notify the student
+    try {
+      const { createNotification } = await import('./notificationService');
+      await createNotification({
+        userId: studentId,
+        type: 'info',
+        title: '❌ Request Declined',
+        message: `Your request to join ${classData.name || classCode} was not approved.`,
+        link: '/student/dashboard',
+        metadata: { className: classData.name || classCode, classCode }
+      });
+    } catch (notifError) {
+      console.warn('⚠️ [ClassManager] Failed to send rejection notification:', notifError);
+    }
+
+    console.log(`🚫 [ClassManager] Rejected student ${studentId} from class ${classCode}`);
+    return { success: true };
+  } catch (error) {
+    console.error('Error rejecting student:', error);
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
   }
 }

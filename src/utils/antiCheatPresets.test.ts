@@ -72,7 +72,7 @@ describe('resolvePreset', () => {
 // ============================================================================
 
 describe('getContextDefaults', () => {
-  it('disables warnings and auto-submit for "session" context', () => {
+  it('disables student warnings and auto-submit for "session" context', () => {
     const overrides = getContextDefaults('session');
     expect(overrides.enableStudentWarnings).toBe(false);
     expect(overrides.enableAutoSubmit).toBe(false);
@@ -97,12 +97,11 @@ describe('getContextDefaults', () => {
     expect(Object.keys(overrides)).toHaveLength(0);
   });
 
-  it('session overrides apply correctly when merged with standard preset', () => {
+  it('session context disables warnings and auto-submit on top of the preset', () => {
     const config = { ...resolvePreset('standard'), ...getContextDefaults('session') };
-    // Detection stays on
+
     expect(config.detectTabSwitch).toBe(true);
     expect(config.detectCopyPaste).toBe(true);
-    // But student-facing features are off
     expect(config.enableStudentWarnings).toBe(false);
     expect(config.enableAutoSubmit).toBe(false);
   });

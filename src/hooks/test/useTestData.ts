@@ -6,13 +6,12 @@
 import { useState, useEffect, useRef } from 'react';
 import type { MutableRefObject } from 'react';
 import type { TestData } from '../../services/testStorage';
-import { getTestFromFirebase } from '../../services/testStorage';
+import { getSessionStudentSafeTestData } from '../../services/testStorage';
 import { sessionService } from '../../services/sessionService';
-import { stripAnswerKeys, extractAnswerKeys } from '../../utils/answerKeyHelper'; // PRD-0036 Task 9
 // @ts-ignore - Firebase is a .js file
 import { database } from '../../services/firebase';
 // @ts-ignore - Firebase is a .js file
-import { ref, get, onValue } from 'firebase/database';
+import { ref, onValue } from 'firebase/database';
 
 interface UseTestDataOptions {
   sessionCode: string | undefined;
@@ -25,14 +24,14 @@ interface UseTestDataReturn {
   activePassageId: string | null;
   setActivePassageId: (id: string | null) => void;
   /**
-   * PRD-0036 Task 9.2: Ref containing the ORIGINAL questions array
-   * (with answer keys). Use this for grading — NOT testData.questions
-   * which has answers stripped for DevTools obfuscation.
+   * Ref containing the ORIGINAL questions array (with answer keys).
+   * This is now populated lazily by the grading/submission path, not
+   * during the initial student-facing session load.
    */
   questionsWithAnswersRef: MutableRefObject<TestData['questions'] | null>;
   /**
-   * PRD-0036 Task 9.3: Pre-extracted answer key map.
-   * Keyed by question number (as string). Only populated when testData loads.
+   * Answer-key map cache for grading-time use.
+   * Left null during the initial student-facing session load.
    */
   answerKeysRef: MutableRefObject<Record<string, string | string[]> | null>;
   // Callbacks for component to handle navigation
@@ -129,24 +128,15 @@ export const useTestData = ({ sessionCode }: UseTestDataOptions): UseTestDataRet
         // If this is a switch, we might want to show loading.
 
         try {
-          const result = await getTestFromFirebase(testId);
+          const result = await getSessionStudentSafeTestData(sessionCode, testId);
 
           if (result.success && result.data) {
-            // PRD-0036 Task 9.2: Save original questions with answers in ref
-            questionsWithAnswersRef.current = result.data.questions;
-            answerKeysRef.current = extractAnswerKeys(
-              result.data.questions.map(q => ({ id: String(q.number), ...q }))
-            );
-
-            // Strip answer keys from questions before putting in state
-            // This prevents casual inspection via React DevTools
-            const strippedQuestions = stripAnswerKeys(result.data.questions);
-            const obfuscatedData: TestData = {
-              ...result.data,
-              questions: strippedQuestions,
-            };
-
-            setTestData(obfuscatedData);
+            // Live student delivery now reads a pre-sanitized render payload.
+            // Full grading questions are loaded later, only when needed.
+            questionsWithAnswersRef.current = null;
+            answerKeysRef.current = null;
+            setError(null);
+            setTestData(result.data);
             loadedTestIdRef.current = testId;
 
             // Set active passage
@@ -157,10 +147,12 @@ export const useTestData = ({ sessionCode }: UseTestDataOptions): UseTestDataRet
             console.log('✅ [TestData] Test content loaded');
           } else {
             console.error('❌ [TestData] Failed to load test content:', result.error);
+            setTestData(null);
             setError(result.error || 'Failed to load test');
           }
         } catch (err) {
           console.error('❌ [TestData] Error loading test:', err);
+          setTestData(null);
           setError('Failed to load test');
         } finally {
           setLoading(false);

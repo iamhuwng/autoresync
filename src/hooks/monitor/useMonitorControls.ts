@@ -17,6 +17,7 @@ import { TestSession, TestData } from './useMonitorSession'; // Import from loca
 import type { MasterAudioState } from '../../types/audio.types';
 import type { AntiCheatConfig } from '../../types/integrity.types';
 import { autoSubmitDisconnectedStudents, identifyDisconnectedStudents, identifyUnsubmittedStudents, autoSubmitAllUnsubmittedStudents } from '../../utils/monitor';
+import { cacheSessionStudentSafeTestData } from '../../services/testStorage';
 
 /** Per-student accommodation settings */
 export interface StudentAccommodationInput {
@@ -107,6 +108,14 @@ export function useMonitorControls(
     }
 
     try {
+      const currentTestId = (session as any)?.testId;
+      if (currentTestId) {
+        const payloadResult = await cacheSessionStudentSafeTestData(sessionCode, currentTestId);
+        if (!payloadResult.success) {
+          throw new Error(payloadResult.error || 'Failed to prepare student-safe test payload');
+        }
+      }
+
       const sessionRef = ref(database, `game_sessions/${sessionCode}`);
       await update(sessionRef, {
         status: 'in-progress',
@@ -460,7 +469,12 @@ export function useMonitorControls(
         // PRD-0019: Clear base time expiry flags
         baseTimeExpired: null,
         baseTimeExpiredAt: null,
+        integrityRefreshRequestedAt: null,
         updatedAt: now,
+      });
+
+      await update(ref(database), {
+        [`session_test_payloads/${sessionCode}`]: null,
       });
 
       // CRITICAL FIX: Delay player data cleanup to give students time to:
@@ -493,6 +507,10 @@ export function useMonitorControls(
               playerUpdates[`players/${playerId}/hasCompletedTest`] = null;
               playerUpdates[`players/${playerId}/completedAt`] = null;
               playerUpdates[`players/${playerId}/submittedBy`] = null;
+              playerUpdates[`players/${playerId}/forceSubmittedBy`] = null;
+              playerUpdates[`players/${playerId}/forceSubmitRequestedAt`] = null;
+              playerUpdates[`players/${playerId}/submissionResetAt`] = null;
+              playerUpdates[`players/${playerId}/latestResultId`] = null;
               // NOTE: We intentionally DO NOT clear lastTestId, lastTestSessionCode, lastTestEndedAt
               // These persist so students can always find their last test results
             });

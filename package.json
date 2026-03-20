@@ -36,6 +36,7 @@
     "@tiptap/pm": "^3.20.0",
     "@tiptap/react": "^3.20.0",
     "@tiptap/starter-kit": "^3.20.0",
+    "antigravity-sdk": "^1.6.0",
     "aws4fetch": "^1.0.20",
     "bootstrap": "^5.3.8",
     "firebase": "^12.4.0",

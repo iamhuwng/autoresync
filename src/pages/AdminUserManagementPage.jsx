@@ -72,7 +72,7 @@ const AdminUserManagementPage = () => {
   // Derived options
   const teacherOptions = userManagement.users
     .filter(u => u.role === 'teacher' || u.role === 'super_admin')
-    .map(u => ({ value: u.uid, label: u.displayName || u.email }));
+    .map(u => ({ value: u.uid, label: u.displayName || u.email, email: u.email, photoURL: u.photoURL, avatarUrl: u.avatarUrl }));
   const studentOptions = userManagement.users
     .filter(u => u.role === 'student')
     .map(u => ({ value: u.uid, label: u.displayName || u.email }));
@@ -117,7 +117,7 @@ const AdminUserManagementPage = () => {
     navigateTo('LOGIN', {}, { reason: 'admin_logout', replace: true });
   };
 
-  const handleSidebarNavigate = (page) => {
+    const handleSidebarNavigate = (page) => {
     // Map sidebar page IDs to routes
     const pageRoutes = {
       dashboard: 'ADMIN_DASHBOARD',
@@ -128,6 +128,7 @@ const AdminUserManagementPage = () => {
       sessions: 'ADMIN_SESSIONS',
       settings: 'ADMIN_SETTINGS',
       backup: 'ADMIN_BACKUP',
+      reports: 'ADMIN_REPORTS',
     };
 
     const route = pageRoutes[page];

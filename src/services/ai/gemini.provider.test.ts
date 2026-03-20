@@ -44,17 +44,40 @@ describe('Gemini Provider', () => {
   });
 
   describe('Initialization', () => {
-    it('should initialize with API keys', () => {
+    it('should start uninitialized before first use', () => {
       const status = provider.getStatus();
 
-      expect(status.available).toBe(true);
+      expect(status.available).toBe(false);
       expect(status.name).toBe('gemini');
     });
 
-    it('should handle initialization with multiple keys', () => {
-      const { loadAllGeminiApiKeys } = require('../../config/env.config');
+    it('should initialize with API keys on first parse', async () => {
+      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const mockModel = {
+        generateContent: vi.fn().mockResolvedValue({
+          response: {
+            text: () => JSON.stringify({
+              passages: [],
+              questions: [],
+              answerKey: {},
+              confidence: 90,
+            }),
+          },
+        }),
+      };
+
+      vi.mocked(GoogleGenerativeAI).mockImplementation(() => ({
+        getGenerativeModel: vi.fn().mockReturnValue(mockModel),
+      }) as any);
+
+      const result = await provider.parseChunk(mockChunk);
+
+      expect(result.success).toBe(true);
+
+      const { loadAllGeminiApiKeys } = await import('../../config/env.config');
 
       expect(loadAllGeminiApiKeys).toHaveBeenCalled();
+      expect(provider.getStatus().available).toBe(true);
     });
   });
 

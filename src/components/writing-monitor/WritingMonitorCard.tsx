@@ -11,14 +11,18 @@ import { ref, onValue } from 'firebase/database';
 // @ts-ignore — JS service file
 import { database } from '../../services/firebase';
 import type { WritingTestFormat } from '../../types/ielts-writing.types';
+import { IntegrityBadge } from '../test/IntegrityBadge'; // PRD-0036
 
 interface WritingMonitorCardProps {
     sessionCode: string;
     studentUid: string;
     studentName: string;
+    status: 'working' | 'submitted' | 'disconnected';
     testFormat: WritingTestFormat;
     onPeek?: (studentUid: string) => void;
     onReopen?: (studentUid: string) => void;
+    /** PRD-0036: Integrity data for badge display */
+    integrityData?: { violationCount: number; riskLevel: 'low' | 'medium' | 'high' };
 }
 
 interface WritingStudentData {
@@ -33,9 +37,11 @@ export default function WritingMonitorCard({
     sessionCode,
     studentUid,
     studentName,
+    status,
     testFormat,
     onPeek,
     onReopen,
+    integrityData, // PRD-0036
 }: WritingMonitorCardProps) {
     const [data, setData] = useState<WritingStudentData | null>(null);
 
@@ -66,14 +72,18 @@ export default function WritingMonitorCard({
     const task1Words = getWordCount(data?.task1?.text);
     const task2Words = getWordCount(data?.task2?.text);
     const active = isActive();
-    const submitted = data?.submitted === true;
+    const submitted = status === 'submitted' || data?.submitted === true;
+    const disconnected = status === 'disconnected';
+    const working = !submitted && !disconnected;
 
     return (
         <div
             style={{
                 padding: '16px',
                 background: '#fff',
-                border: `1px solid ${submitted ? '#86efac' : active ? '#bfdbfe' : '#e2e8f0'}`,
+                border: `1px solid ${
+                    submitted ? '#86efac' : disconnected ? '#fdba74' : active ? '#bfdbfe' : '#e2e8f0'
+                }`,
                 borderRadius: '10px',
                 display: 'flex',
                 flexDirection: 'column',
@@ -98,6 +108,17 @@ export default function WritingMonitorCard({
                         }}>
                             ✅ Submitted
                         </span>
+                    ) : disconnected ? (
+                        <span style={{
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            background: '#ffedd5',
+                            color: '#c2410c',
+                        }}>
+                            ⚠ Offline
+                        </span>
                     ) : active ? (
                         <span style={{
                             padding: '2px 8px',
@@ -121,8 +142,15 @@ export default function WritingMonitorCard({
                             ⚪ Idle
                         </span>
                     )}
+                    {/* PRD-0036: Integrity Badge */}
+                    {integrityData && (
+                        <IntegrityBadge
+                            violationCount={integrityData.violationCount}
+                            riskLevel={integrityData.riskLevel}
+                        />
+                    )}
                 </div>
-                {onPeek && !submitted && (
+                {onPeek && working && (
                     <button
                         onClick={() => onPeek(studentUid)}
                         style={{

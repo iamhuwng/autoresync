@@ -1,11 +1,20 @@
 // File: src/hooks/solo/useSoloSubmission.ts
 import { useState } from 'react';
+import type { MutableRefObject } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { scoreQuestion } from '../../services/autoMarking.service';
 import { calculateIELTSReadingBandScore } from '../../config/scoring.config';
 import { saveTestResult } from '../../services/testResults.service';
+import { getTestQuestionsFromFirebase } from '../../services/testStorage';
+import { getIELTSQuestionsForStudent } from '../../utils/thcsShuffle';
 import { clearSoloProgress } from './useSoloAutoSave';
 import type { ResolvedPracticeSettings } from '../../types/practice.types';
+import type { HomeworkIntegrity } from '../../types/integrity.types';
+import {
+    summarizeError,
+    summarizeIntegritySnapshot,
+    trackAntiCheatAction,
+} from '../../services/antiCheatReporting';
 
 interface TestData {
     id: string;
@@ -51,6 +60,15 @@ interface UseSoloSubmissionOptions {
     homeworkId?: string;
     /** Homework submission ID — required for homework mode */
     submissionId?: string;
+    questionsWithAnswersRef?: MutableRefObject<TestData['questions'] | null>;
+    questionPresentation?: {
+        studentId?: string | null;
+        shuffleQuestions?: boolean;
+        shuffleOptions?: boolean;
+    } | null;
+    integrity?: HomeworkIntegrity;
+    attemptsNullified?: boolean;
+    telemetrySurface?: string;
 }
 
 interface UseSoloSubmissionReturn {
@@ -58,7 +76,7 @@ interface UseSoloSubmissionReturn {
     testSubmitted: boolean;
     testResults: TestResults | null;
     handleSubmit: (isAutoSubmit?: boolean) => Promise<void>;
-    markTest: () => TestResults;
+    markTest: () => Promise<TestResults>;
     isLocked: boolean;
     lockInputs: () => void;
 }
@@ -75,6 +93,11 @@ export const useSoloSubmission = ({
     courseContext,
     homeworkId,
     submissionId,
+    questionsWithAnswersRef,
+    questionPresentation,
+    integrity,
+    attemptsNullified = false,
+    telemetrySurface = 'solo_submission',
 }: UseSoloSubmissionOptions): UseSoloSubmissionReturn => {
     const isHomework = context.type === 'homework' && !!homeworkId;
     const navigate = useNavigate();
@@ -83,13 +106,45 @@ export const useSoloSubmission = ({
     const [testResults, setTestResults] = useState<TestResults | null>(null);
     const [isLocked, setIsLocked] = useState(false);
 
-    const markTest = (): TestResults => {
+    const loadGradingQuestions = async (): Promise<NonNullable<TestData['questions']>> => {
+        if (questionsWithAnswersRef?.current && questionsWithAnswersRef.current.length > 0) {
+            return questionsWithAnswersRef.current;
+        }
+
+        if (!testData?.id) {
+            return testData?.questions ?? [];
+        }
+
+        const result = await getTestQuestionsFromFirebase(testData.id);
+        if (!result.success || !result.data) {
+            throw new Error(result.error || 'Failed to load grading questions');
+        }
+
+        const gradingQuestions = getIELTSQuestionsForStudent(
+            result.data,
+            questionPresentation?.studentId,
+            testData.id,
+            {
+                shuffleQuestions: questionPresentation?.shuffleQuestions,
+                shuffleOptions: questionPresentation?.shuffleOptions,
+            },
+        ) as NonNullable<TestData['questions']>;
+
+        if (questionsWithAnswersRef) {
+            questionsWithAnswersRef.current = gradingQuestions;
+        }
+
+        return gradingQuestions;
+    };
+
+    const markTest = async (): Promise<TestResults> => {
         if (!testData) return { correctAnswers: 0, totalQuestions: 0, questionResults: {} };
+        const gradingQuestions = await loadGradingQuestions();
 
         let correctAnswers = 0;
         const questionResults: Record<number, boolean> = {};
 
-        testData.questions.forEach(question => {
+        gradingQuestions.forEach(question => {
             const studentAnswer = answers[question.number];
             const result = scoreQuestion(
                 question as any,
@@ -141,10 +196,11 @@ export const useSoloSubmission = ({
         setIsSubmitting(true);
 
         try {
-            const results = markTest();
+            const results = await markTest();
 
             // Build marking result for saveTestResult
-            const questionResultsList = testData.questions.map(q => ({
+            const gradingQuestions = await loadGradingQuestions();
+            const questionResultsList = gradingQuestions.map(q => ({
                 questionId: String(q.id || q.number),
                 questionNumber: q.number,
                 questionType: q.type as any,
@@ -238,10 +294,49 @@ export const useSoloSubmission = ({
                         results.totalQuestions,
                         results.percentage || 0,
                         results.bandScore,
-                        timeSpent
+                        timeSpent,
+                        integrity,
+                        attemptsNullified
                     );
+                    if (integrity) {
+                        trackAntiCheatAction(
+                            'persistHomeworkIntegrity',
+                            {
+                                context: 'homework',
+                                surface: telemetrySurface,
+                                studentId,
+                                testId: testData.id,
+                                homeworkId,
+                                submissionId,
+                            },
+                            {
+                                status: 'success',
+                                attemptsNullified,
+                                ...summarizeIntegritySnapshot(integrity),
+                            },
+                        );
+                    }
                     console.log('✅ Homework submission updated:', submissionId);
                 } catch (err) {
+                    if (integrity) {
+                        trackAntiCheatAction(
+                            'persistHomeworkIntegrity',
+                            {
+                                context: 'homework',
+                                surface: telemetrySurface,
+                                studentId,
+                                testId: testData.id,
+                                homeworkId,
+                                submissionId,
+                            },
+                            {
+                                status: 'failed',
+                                attemptsNullified,
+                                ...summarizeIntegritySnapshot(integrity),
+                                ...summarizeError(err),
+                            },
+                        );
+                    }
                     console.warn('Failed to update homework submission:', err);
                     // Don't block — the test result is already saved
                 }

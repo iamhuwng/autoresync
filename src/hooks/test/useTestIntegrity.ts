@@ -1,25 +1,23 @@
 /**
- * useTestIntegrity Hook — Core Anti-Cheat Detection Engine
+ * useTestIntegrity Hook - Core Anti-Cheat Detection Engine
  *
- * PRD-0036: Anti-Cheating & Test Integrity System (Task 2.0)
+ * PRD-0036: Anti-Cheating & Test Integrity System
  *
  * Central hook that:
  *   - Detects tab switches (visibilitychange + blur/focus)
  *   - Applies grace period logic (first 2 switches free + <5s grace)
  *   - Buffers events in memory + sessionStorage for crash recovery
  *   - Batches RTDB writes every 5 minutes (session context only)
- *   - Manages student warning escalation (toast → escalated → final)
+ *   - Manages student warning escalation (toast -> escalated -> final)
  *   - Triggers auto-submit when threshold is reached
  *   - Tracks time-per-question for post-analysis
  *   - Provides devtools resize heuristic detection
  *
  * External hooks (useAntiCopyPaste, useFullscreenMode) inject events
- * via the exposed `addEvent` function.
- *
- * @module hooks/test/useTestIntegrity
+ * via the exposed addEvent function.
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   AntiCheatConfig,
   IntegrityEvent,
@@ -27,17 +25,23 @@ import type {
 } from '../../types/integrity.types';
 import { EMPTY_INTEGRITY_REPORT } from '../../types/integrity.types';
 import { computeRiskLevel } from '../../utils/antiCheatPresets';
-
-// ============================================================================
-// TYPES
-// ============================================================================
+import {
+  summarizeAntiCheatConfig,
+  summarizeError,
+  summarizeIntegrityEvent,
+  summarizeIntegritySnapshot,
+  trackAntiCheatAction,
+} from '../../services/antiCheatReporting';
 
 export interface UseTestIntegrityOptions {
   config: AntiCheatConfig | null;
   context: 'session' | 'homework' | 'solo';
-  sessionCode?: string; // Required for session context (RTDB writes)
+  surface: string;
+  sessionCode?: string;
   studentId: string;
   testId: string;
+  homeworkId?: string;
+  submissionId?: string;
 }
 
 export interface UseTestIntegrityResult {
@@ -46,15 +50,11 @@ export interface UseTestIntegrityResult {
   warningLevel: 'none' | 'toast' | 'escalated' | 'final';
   warningMessage: string;
   shouldAutoSubmit: boolean;
-  flushEvents: () => Promise<void>;
+  flushEvents: (reason?: string) => Promise<void>;
   getIntegrityReport: () => IntegrityReport;
   addEvent: (event: IntegrityEvent) => void;
   trackQuestionTime: (questionIndex: number) => void;
 }
-
-// ============================================================================
-// WARNING MESSAGES
-// ============================================================================
 
 const WARNING_MESSAGES = {
   none: '',
@@ -64,26 +64,6 @@ const WARNING_MESSAGES = {
   final:
     "Your submission is about to be finalized. Click 'Continue Test' to keep working, or your current answers will be submitted.",
 } as const;
-
-// ============================================================================
-// NO-OP RESULT
-// ============================================================================
-
-const NOOP_RESULT: UseTestIntegrityResult = {
-  violationCount: 0,
-  totalEvents: 0,
-  warningLevel: 'none',
-  warningMessage: '',
-  shouldAutoSubmit: false,
-  flushEvents: async () => {},
-  getIntegrityReport: () => ({ ...EMPTY_INTEGRITY_REPORT }),
-  addEvent: () => {},
-  trackQuestionTime: () => {},
-};
-
-// ============================================================================
-// HELPER — build report from event buffer
-// ============================================================================
 
 function buildReport(
   events: IntegrityEvent[],
@@ -143,21 +123,22 @@ function buildReport(
   };
 }
 
-// ============================================================================
-// HOOK
-// ============================================================================
-
 export function useTestIntegrity(
   options: UseTestIntegrityOptions,
 ): UseTestIntegrityResult {
-  const { config, context, sessionCode, studentId, testId } = options;
+  const {
+    config,
+    context,
+    surface,
+    sessionCode,
+    studentId,
+    testId,
+    homeworkId,
+    submissionId,
+  } = options;
 
-  // ── No-op early return ──
-  if (!config || context === 'solo') {
-    return NOOP_RESULT;
-  }
+  const disabled = !config || context === 'solo';
 
-  // ── State ──
   const [violationCount, setViolationCount] = useState(0);
   const [totalEvents, setTotalEvents] = useState(0);
   const [warningLevel, setWarningLevel] = useState<
@@ -165,7 +146,6 @@ export function useTestIntegrity(
   >('none');
   const [shouldAutoSubmit, setShouldAutoSubmit] = useState(false);
 
-  // ── Refs ──
   const eventsRef = useRef<IntegrityEvent[]>([]);
   const violationCountRef = useRef(0);
   const switchCountRef = useRef(0);
@@ -174,112 +154,251 @@ export function useTestIntegrity(
   const intervalIdRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const forceSubmittedRef = useRef(false);
   const forceSubmittedByRef = useRef<'system' | 'teacher' | null>(null);
-  const currentQuestionRef = useRef<{
-    index: number;
-    startedAt: number;
-  } | null>(null);
+  const currentQuestionRef = useRef<{ index: number; startedAt: number } | null>(
+    null,
+  );
+  const immediateWritePendingRef = useRef(false);
+  const initTrackingKeyRef = useRef<string | null>(null);
+  const autoSubmitTrackedRef = useRef(false);
+  const lastTrackedWarningRef = useRef<'none' | 'toast' | 'escalated' | 'final'>(
+    'none',
+  );
+  const lastVisibilityReturnRef = useRef(0);
 
-  // Store config in ref to avoid stale closure issues in intervals
   const configRef = useRef(config);
   configRef.current = config;
 
-  // ── Grace Period Calculator (Task 2.4) ──
+  const trackTelemetry = useCallback(
+    (action: string, metadata?: Record<string, unknown>) => {
+      if (disabled) return;
+
+      trackAntiCheatAction(
+        action,
+        {
+          context,
+          surface,
+          sessionCode,
+          studentId,
+          testId,
+          homeworkId,
+          submissionId,
+        },
+        metadata,
+      );
+    },
+    [
+      context,
+      disabled,
+      homeworkId,
+      sessionCode,
+      studentId,
+      submissionId,
+      surface,
+      testId,
+    ],
+  );
+
+  useEffect(() => {
+    if (disabled || !config) {
+      initTrackingKeyRef.current = null;
+      return;
+    }
+
+    const initTrackingKey = [
+      context,
+      surface,
+      sessionCode || '',
+      studentId,
+      testId,
+      homeworkId || '',
+      submissionId || '',
+      config.preset,
+    ].join(':');
+
+    if (initTrackingKeyRef.current === initTrackingKey) {
+      return;
+    }
+
+    initTrackingKeyRef.current = initTrackingKey;
+    trackTelemetry('initializeProtection', summarizeAntiCheatConfig(config));
+  }, [
+    config,
+    context,
+    disabled,
+    homeworkId,
+    sessionCode,
+    studentId,
+    submissionId,
+    surface,
+    testId,
+    trackTelemetry,
+  ]);
+
+  const immediateWriteToRTDB = useCallback(async () => {
+    if (disabled || context !== 'session' || !sessionCode) return;
+    if (immediateWritePendingRef.current) return;
+    immediateWritePendingRef.current = true;
+
+    try {
+      const { ref: dbRef, update: dbUpdate } = await import('firebase/database');
+      // @ts-ignore - firebase.js is a JS file without type declarations
+      const { database } = await import('../../services/firebase');
+
+      const report = buildReport(
+        eventsRef.current,
+        forceSubmittedRef.current,
+        forceSubmittedByRef.current,
+      );
+      const { events: _events, ...reportWithoutEvents } = report;
+
+      await dbUpdate(
+        dbRef(
+          database,
+          `game_sessions/${sessionCode}/players/${studentId}/integrity`,
+        ),
+        reportWithoutEvents,
+      );
+
+      trackTelemetry('persistIntegritySnapshot', {
+        stage: 'immediate',
+        status: 'success',
+        ...summarizeIntegritySnapshot(report),
+      });
+    } catch (error) {
+      const report = buildReport(
+        eventsRef.current,
+        forceSubmittedRef.current,
+        forceSubmittedByRef.current,
+      );
+
+      trackTelemetry('persistIntegritySnapshot', {
+        stage: 'immediate',
+        status: 'failed',
+        ...summarizeIntegritySnapshot(report),
+        ...summarizeError(error),
+      });
+      console.error('[Integrity] Immediate write failed:', error);
+    } finally {
+      immediateWritePendingRef.current = false;
+    }
+  }, [context, disabled, sessionCode, studentId, trackTelemetry]);
+
   const applyGracePeriod = useCallback(
     (durationMs: number): { withinGrace: boolean; counted: boolean } => {
       switchCountRef.current++;
       const isShortDuration = durationMs < 5000;
       const isFreeSwitchLeft = switchCountRef.current <= 2;
       const withinGrace = isShortDuration || isFreeSwitchLeft;
-      const counted = !withinGrace;
-      return { withinGrace, counted };
+      return {
+        withinGrace,
+        counted: !withinGrace,
+      };
     },
     [],
   );
 
-  // ── Warning Evaluator (Task 2.8) ──
-  const evaluateWarning = useCallback(
-    (currentViolations: number) => {
-      if (!configRef.current?.enableStudentWarnings) return;
+  const evaluateWarning = useCallback((currentViolations: number) => {
+    if (!configRef.current?.enableStudentWarnings) return;
 
-      const threshold = configRef.current.autoSubmitThreshold;
+    const threshold = configRef.current.autoSubmitThreshold;
 
-      if (currentViolations === 0) {
-        setWarningLevel('none');
-      } else if (currentViolations < threshold - 1) {
-        setWarningLevel('toast');
-      } else if (currentViolations === threshold - 1) {
-        setWarningLevel('escalated');
-      } else {
-        setWarningLevel('final');
-      }
-    },
-    [],
-  );
+    if (currentViolations === 0) {
+      setWarningLevel('none');
+    } else if (currentViolations < threshold - 1) {
+      setWarningLevel('toast');
+    } else if (currentViolations === threshold - 1) {
+      setWarningLevel('escalated');
+    } else {
+      setWarningLevel('final');
+    }
+  }, []);
 
-  // ── Add Event (Task 2.5) ──
   const addEvent = useCallback(
     (event: IntegrityEvent) => {
-      // (a) Push to buffer
+      if (disabled) return;
+
       eventsRef.current.push(event);
       setTotalEvents(eventsRef.current.length);
 
-      // (b) Increment violation count if counted
       if (event.counted) {
         violationCountRef.current++;
         setViolationCount(violationCountRef.current);
+        trackTelemetry('recordViolation', {
+          ...summarizeIntegrityEvent(event),
+          violationCount: violationCountRef.current,
+          totalEvents: eventsRef.current.length,
+        });
+        immediateWriteToRTDB();
+      } else if (
+        event.type === 'page_reload' ||
+        event.type === 'fullscreen_unavailable' ||
+        event.type === 'devtools_resize'
+      ) {
+        trackTelemetry('recordSignal', {
+          ...summarizeIntegrityEvent(event),
+          violationCount: violationCountRef.current,
+          totalEvents: eventsRef.current.length,
+        });
       }
 
-      // (c) Mirror to sessionStorage (Task 2.6)
       try {
         sessionStorage.setItem(
           `integrity_events_${testId}`,
           JSON.stringify(eventsRef.current),
         );
       } catch {
-        // sessionStorage might be full or unavailable — silently continue
+        // Ignore sessionStorage issues.
       }
 
-      // (d) Evaluate warnings
       evaluateWarning(violationCountRef.current);
     },
-    [testId, evaluateWarning],
+    [disabled, evaluateWarning, immediateWriteToRTDB, testId, trackTelemetry],
   );
 
-  // ── Auto-Submit Check (Task 2.9) ──
   useEffect(() => {
+    if (disabled || !config) return;
+
     if (
       config.enableAutoSubmit &&
       violationCount >= config.autoSubmitThreshold &&
       !shouldAutoSubmit
     ) {
+      if (!autoSubmitTrackedRef.current) {
+        autoSubmitTrackedRef.current = true;
+        trackTelemetry('triggerAutoSubmit', {
+          violationCount,
+          totalEvents: eventsRef.current.length,
+          autoSubmitThreshold: config.autoSubmitThreshold,
+        });
+      }
+
       forceSubmittedRef.current = true;
       forceSubmittedByRef.current = 'system';
       setShouldAutoSubmit(true);
+    } else if (!shouldAutoSubmit) {
+      autoSubmitTrackedRef.current = false;
     }
-  }, [violationCount, config.enableAutoSubmit, config.autoSubmitThreshold, shouldAutoSubmit]);
+  }, [config, disabled, shouldAutoSubmit, trackTelemetry, violationCount]);
 
-  // ── Crash Recovery on Mount (Task 2.6) ──
   useEffect(() => {
-    // Mark test as in progress
+    if (disabled) return;
+
     try {
       sessionStorage.setItem('test_in_progress', testId);
     } catch {
-      // Ignore
+      // Ignore sessionStorage issues.
     }
 
-    // Check for existing events (crash recovery)
     try {
       const existingFlag = sessionStorage.getItem('test_in_progress');
-      const existingEvents = sessionStorage.getItem(
-        `integrity_events_${testId}`,
-      );
+      const existingEvents = sessionStorage.getItem(`integrity_events_${testId}`);
 
       if (existingEvents && existingFlag === testId) {
         const parsed: IntegrityEvent[] = JSON.parse(existingEvents);
+
         if (Array.isArray(parsed) && parsed.length > 0) {
           eventsRef.current = parsed;
 
-          // Recompute violation count from recovered events
           let recoveredViolations = 0;
           let recoveredSwitchCount = 0;
           for (const evt of parsed) {
@@ -288,12 +407,18 @@ export function useTestIntegrity(
               recoveredSwitchCount++;
             }
           }
+
           violationCountRef.current = recoveredViolations;
           switchCountRef.current = recoveredSwitchCount;
           setViolationCount(recoveredViolations);
           setTotalEvents(parsed.length);
 
-          // Add reload event
+          trackTelemetry('restoreIntegrityState', {
+            recoveredEvents: parsed.length,
+            recoveredViolations,
+            recoveredSwitchCount,
+          });
+
           const reloadEvent: IntegrityEvent = {
             type: 'page_reload',
             timestamp: Date.now(),
@@ -302,28 +427,23 @@ export function useTestIntegrity(
           };
           eventsRef.current.push(reloadEvent);
           setTotalEvents(eventsRef.current.length);
-
-          console.log(
-            `[Integrity] Crash recovery: restored ${parsed.length} events, ${recoveredViolations} violations`,
-          );
         }
       }
     } catch {
-      // Ignore parse errors
+      // Ignore parse errors.
     }
 
     return () => {
       try {
         sessionStorage.removeItem('test_in_progress');
       } catch {
-        // Ignore
+        // Ignore sessionStorage issues.
       }
     };
-  }, [testId]);
+  }, [disabled, testId, trackTelemetry]);
 
-  // ── Visibilitychange Listener (Task 2.2) ──
   useEffect(() => {
-    if (!config.detectTabSwitch) return;
+    if (disabled || !config?.detectTabSwitch) return;
 
     const handler = () => {
       if (document.visibilityState === 'hidden') {
@@ -334,6 +454,7 @@ export function useTestIntegrity(
       ) {
         const durationMs = Date.now() - hiddenAtRef.current;
         hiddenAtRef.current = null;
+        lastVisibilityReturnRef.current = Date.now();
         const { withinGrace, counted } = applyGracePeriod(durationMs);
         addEvent({
           type: 'tab_switch',
@@ -346,32 +467,34 @@ export function useTestIntegrity(
     };
 
     document.addEventListener('visibilitychange', handler);
-    return () => {
-      document.removeEventListener('visibilitychange', handler);
-    };
-  }, [config.detectTabSwitch, applyGracePeriod, addEvent]);
+    return () => document.removeEventListener('visibilitychange', handler);
+  }, [addEvent, applyGracePeriod, config?.detectTabSwitch, disabled]);
 
-  // ── Window Blur/Focus Listeners (Task 2.3) ──
   useEffect(() => {
-    if (!config.detectTabSwitch) return;
+    if (disabled || !config?.detectTabSwitch) return;
 
     const blurHandler = () => {
       blurAtRef.current = Date.now();
     };
 
     const focusHandler = () => {
-      if (blurAtRef.current !== null) {
-        const durationMs = Date.now() - blurAtRef.current;
-        blurAtRef.current = null;
-        const { withinGrace, counted } = applyGracePeriod(durationMs);
-        addEvent({
-          type: 'window_blur',
-          timestamp: Date.now(),
-          durationMs,
-          withinGrace,
-          counted,
-        });
+      if (blurAtRef.current === null) return;
+
+      const durationMs = Date.now() - blurAtRef.current;
+      blurAtRef.current = null;
+
+      if (Date.now() - lastVisibilityReturnRef.current < 500) {
+        return;
       }
+
+      const { withinGrace, counted } = applyGracePeriod(durationMs);
+      addEvent({
+        type: 'window_blur',
+        timestamp: Date.now(),
+        durationMs,
+        withinGrace,
+        counted,
+      });
     };
 
     window.addEventListener('blur', blurHandler);
@@ -380,11 +503,10 @@ export function useTestIntegrity(
       window.removeEventListener('blur', blurHandler);
       window.removeEventListener('focus', focusHandler);
     };
-  }, [config.detectTabSwitch, applyGracePeriod, addEvent]);
+  }, [addEvent, applyGracePeriod, config?.detectTabSwitch, disabled]);
 
-  // ── Devtools Resize Detection (Task 2.10) ──
   useEffect(() => {
-    if (!config.detectKeyboardShortcuts) return;
+    if (disabled || !config?.detectKeyboardShortcuts) return;
 
     let lastWidth = window.innerWidth;
     let lastHeight = window.innerHeight;
@@ -408,14 +530,11 @@ export function useTestIntegrity(
     };
 
     window.addEventListener('resize', resizeHandler);
-    return () => {
-      window.removeEventListener('resize', resizeHandler);
-    };
-  }, [config.detectKeyboardShortcuts, addEvent]);
+    return () => window.removeEventListener('resize', resizeHandler);
+  }, [addEvent, config?.detectKeyboardShortcuts, disabled]);
 
-  // ── Batched RTDB Writer (Task 2.7) ──
   useEffect(() => {
-    if (context !== 'session' || !sessionCode) return;
+    if (disabled || context !== 'session' || !sessionCode) return;
 
     const writeBatchToRTDB = async () => {
       try {
@@ -428,8 +547,6 @@ export function useTestIntegrity(
           forceSubmittedRef.current,
           forceSubmittedByRef.current,
         );
-
-        // Batch writes exclude the full events array to keep RTDB lean
         const { events: _events, ...reportWithoutEvents } = report;
 
         await update(
@@ -439,13 +556,29 @@ export function useTestIntegrity(
           ),
           reportWithoutEvents,
         );
-        console.log('[Integrity] Batched write success');
+
+        trackTelemetry('persistIntegritySnapshot', {
+          stage: 'batch',
+          status: 'success',
+          ...summarizeIntegritySnapshot(report),
+        });
       } catch (error) {
+        const report = buildReport(
+          eventsRef.current,
+          forceSubmittedRef.current,
+          forceSubmittedByRef.current,
+        );
+
+        trackTelemetry('persistIntegritySnapshot', {
+          stage: 'batch',
+          status: 'failed',
+          ...summarizeIntegritySnapshot(report),
+          ...summarizeError(error),
+        });
         console.error('[Integrity] Batched write failed:', error);
       }
     };
 
-    // Write every 5 minutes
     intervalIdRef.current = setInterval(writeBatchToRTDB, 300_000);
 
     return () => {
@@ -454,78 +587,128 @@ export function useTestIntegrity(
         intervalIdRef.current = null;
       }
     };
-  }, [context, sessionCode, studentId]);
+  }, [context, disabled, sessionCode, studentId, trackTelemetry]);
 
-  // ── Flush Events (called at submission time) ──
-  const flushEvents = useCallback(async () => {
-    if (context === 'session' && sessionCode) {
-      // Write FULL report (including events) to RTDB
-      try {
-        const { ref, update } = await import('firebase/database');
-        // @ts-ignore - firebase.js is a JS file without type declarations
-        const { database } = await import('../../services/firebase');
+  const flushEvents = useCallback(
+    async (reason = 'manual') => {
+      if (disabled) return;
 
-        const report = buildReport(
-          eventsRef.current,
-          forceSubmittedRef.current,
-          forceSubmittedByRef.current,
-        );
+      const report = buildReport(
+        eventsRef.current,
+        forceSubmittedRef.current,
+        forceSubmittedByRef.current,
+      );
 
-        await update(
-          ref(
-            database,
-            `game_sessions/${sessionCode}/players/${studentId}/integrity`,
-          ),
-          report,
-        );
-        console.log('[Integrity] Final flush success');
-      } catch (error) {
-        console.error('[Integrity] Final flush failed:', error);
+      if (context === 'session' && sessionCode) {
+        try {
+          const { ref, update } = await import('firebase/database');
+          // @ts-ignore - firebase.js is a JS file without type declarations
+          const { database } = await import('../../services/firebase');
+
+          await update(
+            ref(
+              database,
+              `game_sessions/${sessionCode}/players/${studentId}/integrity`,
+            ),
+            report,
+          );
+
+          trackTelemetry('flushIntegrityLogs', {
+            status: 'success',
+            trigger: reason,
+            persistenceTarget: 'rtdb',
+            ...summarizeIntegritySnapshot(report),
+          });
+        } catch (error) {
+          trackTelemetry('flushIntegrityLogs', {
+            status: 'failed',
+            trigger: reason,
+            persistenceTarget: 'rtdb',
+            ...summarizeIntegritySnapshot(report),
+            ...summarizeError(error),
+          });
+          console.error('[Integrity] Final flush failed:', error);
+        }
+      } else {
+        trackTelemetry('flushIntegrityLogs', {
+          status: 'success',
+          trigger: reason,
+          persistenceTarget: 'local',
+          ...summarizeIntegritySnapshot(report),
+        });
       }
+
+      try {
+        sessionStorage.removeItem(`integrity_events_${testId}`);
+        sessionStorage.removeItem('test_in_progress');
+      } catch {
+        // Ignore sessionStorage issues.
+      }
+    },
+    [context, disabled, sessionCode, studentId, testId, trackTelemetry],
+  );
+
+  useEffect(() => {
+    if (disabled) {
+      lastTrackedWarningRef.current = 'none';
+      return;
     }
 
-    // Clear sessionStorage
-    try {
-      sessionStorage.removeItem(`integrity_events_${testId}`);
-      sessionStorage.removeItem('test_in_progress');
-    } catch {
-      // Ignore
+    if (warningLevel === 'none') {
+      lastTrackedWarningRef.current = 'none';
+      return;
     }
-  }, [context, sessionCode, studentId, testId]);
 
-  // ── Get Integrity Report ──
+    if (lastTrackedWarningRef.current === warningLevel) {
+      return;
+    }
+
+    lastTrackedWarningRef.current = warningLevel;
+    trackTelemetry('escalateWarning', {
+      warningLevel,
+      violationCount: violationCountRef.current,
+      totalEvents: eventsRef.current.length,
+      autoSubmitThreshold: configRef.current?.autoSubmitThreshold,
+    });
+  }, [disabled, trackTelemetry, warningLevel]);
+
   const getIntegrityReport = useCallback((): IntegrityReport => {
+    if (disabled) return { ...EMPTY_INTEGRITY_REPORT };
+
     return buildReport(
       eventsRef.current,
       forceSubmittedRef.current,
       forceSubmittedByRef.current,
     );
-  }, []);
+  }, [disabled]);
 
-  // ── Track Question Time (Task 2.11) ──
   const trackQuestionTime = useCallback(
     (questionIndex: number) => {
-      const now = Date.now();
-      const prev = currentQuestionRef.current;
+      if (disabled) return;
 
-      if (prev !== null) {
-        const elapsed = now - prev.startedAt;
+      const now = Date.now();
+      const previousQuestion = currentQuestionRef.current;
+
+      if (previousQuestion !== null) {
+        const elapsed = now - previousQuestion.startedAt;
         addEvent({
           type: 'time_per_question',
           timestamp: now,
           durationMs: elapsed,
           withinGrace: true,
           counted: false,
-          details: `Q${prev.index}`,
+          details: `Q${previousQuestion.index}`,
         });
       }
 
-      currentQuestionRef.current = { index: questionIndex, startedAt: now };
+      currentQuestionRef.current = {
+        index: questionIndex,
+        startedAt: now,
+      };
     },
-    [addEvent],
+    [addEvent, disabled],
   );
 
-  // ── Dismiss Warning ──
   const warningMessage = WARNING_MESSAGES[warningLevel];
 
   return {

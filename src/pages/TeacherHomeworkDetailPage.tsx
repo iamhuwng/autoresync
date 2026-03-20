@@ -19,7 +19,11 @@ import { TeacherHeader } from '../components/navigation';
 import { resetStudentHomework } from '../services/homeworkSubmissionService';
 import { updateStudentOverride } from '../services/homeworkManager';
 import { sendHomeworkReminderNotification } from '../services/notificationService';
+import { reportingService } from '../services/reportingService';
 import './TeacherHomeworkDetailPage.css';
+import { IntegrityDetailPanel } from '../components/test/IntegrityDetailPanel'; // PRD-0036
+import type { HomeworkIntegrity } from '../types/integrity.types'; // PRD-0036
+import { normalizeHomeworkIntegrity } from '../utils/integrityUtils';
 
 interface AssignedStudent {
     studentId: string;
@@ -113,6 +117,8 @@ function TeacherHomeworkDetailPage() {
     const [extendTarget, setExtendTarget] = useState<HomeworkSubmissionTableRow | null>(null);
     const [exemptTarget, setExemptTarget] = useState<HomeworkSubmissionTableRow | null>(null);
     const [noteTarget, setNoteTarget] = useState<HomeworkSubmissionTableRow | null>(null);
+    // PRD-0036: Integrity detail panel state
+    const [selectedIntegrity, setSelectedIntegrity] = useState<{ report: HomeworkIntegrity; studentName: string } | null>(null);
 
     const latestSubmissionByStudent = useMemo(() => {
         const submissionMap = new Map<string, typeof submissions[number]>();
@@ -212,6 +218,8 @@ function TeacherHomeworkDetailPage() {
                     lastRemindedAt: studentOverride?.lastRemindedAt ?? null,
                     extendedDueDate: studentOverride?.dueDate ?? null,
                     note: studentOverride?.notes ?? '',
+                    // PRD-0036: Attach integrity data from submission if present
+                    integrityData: normalizeHomeworkIntegrity(submission?.integrity),
                 };
             })
             .sort((left, right) => {
@@ -880,6 +888,15 @@ function TeacherHomeworkDetailPage() {
                             )
                         }
                         studentActions={studentActions}
+                        // PRD-0036: Integrity click handler
+                        onIntegrityClick={(report, studentName) => {
+                            reportingService.trackAction('homework', 'viewIntegrityDetails', {
+                                homeworkId: homework?.id,
+                                studentName,
+                                violationCount: report.violationCount,
+                            });
+                            setSelectedIntegrity({ report, studentName });
+                        }}
                     />
                 </CardBody>
             </Card>
@@ -1027,6 +1044,15 @@ function TeacherHomeworkDetailPage() {
                     </div>
                 </div>
             ) : null}
+            {/* PRD-0036: Integrity Detail Panel */}
+            {selectedIntegrity && (
+                <IntegrityDetailPanel
+                    report={selectedIntegrity.report}
+                    studentName={selectedIntegrity.studentName}
+                    isOpen={true}
+                    onClose={() => setSelectedIntegrity(null)}
+                />
+            )}
             </div>
         </div>
     );

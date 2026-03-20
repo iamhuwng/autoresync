@@ -1,11 +1,12 @@
-# r2-backup-worker — Cloudflare Worker for Backup & Disaster Recovery (PRD-0026)
+# r2-backup-worker - Cloudflare Worker for Backup & Disaster Recovery (PRD-0026)
 #
 # Secrets (set via `wrangler secret put <NAME>`):
-#   1. GOOGLE_SA_KEY         — Full Service Account JSON key (~2.3 KB)
-#   2. BACKUP_R2_ACCESS_KEY_ID    — S3-compatible API key ID for backup R2 bucket
-#   3. BACKUP_R2_SECRET_ACCESS_KEY — S3-compatible API secret for backup R2 bucket
-#   4. BACKUP_R2_BUCKET_NAME      — Backup R2 bucket name
-#   5. BACKUP_R2_ENDPOINT         — Backup R2 S3 endpoint (https://<account-id>.r2.cloudflarestorage.com)
+#   1. GOOGLE_SA_KEY - Full Service Account JSON key (~2.3 KB)
+#   2. BACKUP_R2_ACCESS_KEY_ID - S3-compatible API key ID for backup R2 bucket
+#   3. BACKUP_R2_SECRET_ACCESS_KEY - S3-compatible API secret for backup R2 bucket
+#   4. BACKUP_R2_BUCKET_NAME - Backup R2 bucket name
+#   5. BACKUP_R2_ENDPOINT - Backup R2 S3 endpoint (https://<account-id>.r2.cloudflarestorage.com)
+#   6. DIAGNOSTIC_TOKEN - Required secret: set via `wrangler secret put DIAGNOSTIC_TOKEN`
 
 name = "r2-backup-worker"
 main = "src/index.ts"

@@ -1,0 +1,1226 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Test Result Slide Panel — Live Mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ─── Reset ─────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: #f3f4f6;
+  color: #111827;
+  overflow-x: hidden;
+}
+
+/* ─── DESIGN TOKENS (from studentLayoutStyles.ts) ────────── */
+:root {
+  --sidebar-w: 256px;
+  --feed-max: 600px;
+  --right-w: 320px;
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --text-primary: #111827;
+  --text-body: #374151;
+  --text-muted: #6b7280;
+  --text-dim: #9ca3af;
+  --border: #e5e7eb;
+  --surface: #ffffff;
+  --bg-feed: #f9fafb;
+  --success-bg: #d1fae5;
+  --success: #059669;
+  --warning-bg: #fef3c7;
+  --warning: #d97706;
+  --error-bg: #fee2e2;
+  --error: #dc2626;
+  --error-red: #ef4444;
+  --nav-badge-bg: #ef4444;
+}
+
+/* ─── 3-Column Layout ───────────────────────────────────── */
+.app-root { min-height: 100vh; display: flex; max-width: 1400px; margin: 0 auto; justify-content: center; }
+
+/* ── LEFT SIDEBAR (pixel-accurate from StudentSidebar.tsx) ── */
+.sidebar {
+  width: var(--sidebar-w);
+  flex-shrink: 0;
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  z-index: 20;
+  background: #f3f4f6;
+}
+.sidebar-logo {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--accent);
+  margin-bottom: 32px;
+  padding: 0 12px;
+  letter-spacing: -0.02em;
+}
+.nav-group { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 999px;
+  color: #4b5563;
+  font-weight: 500;
+  text-decoration: none;
+  font-size: 0.95rem;
+  transition: all 0.15s;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  text-align: left;
+  width: 100%;
+}
+.nav-item:hover { background: #e5e7eb; }
+.nav-item.active { font-weight: 700; color: var(--text-primary); }
+.nav-icon { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.nav-badge {
+  margin-left: auto;
+  background: var(--nav-badge-bg);
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+.join-btn {
+  width: 100%;
+  background: var(--accent);
+  color: white;
+  font-weight: 700;
+  padding: 14px 16px;
+  border-radius: 999px;
+  font-size: 1.125rem;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  margin-bottom: 16px;
+}
+.join-btn:hover { background: var(--accent-hover); }
+
+/* Profile Row */
+.profile-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.profile-row:hover { background: #e5e7eb; }
+.profile-avatar {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: #e0e7ff; color: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 0.875rem; flex-shrink: 0;
+}
+.profile-name { font-weight: 700; font-size: 0.875rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.profile-email { color: var(--text-muted); font-size: 0.875rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── CENTER FEED ── */
+.feed {
+  flex: 1;
+  max-width: var(--feed-max);
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  background: var(--bg-feed);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.feed-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.feed-header-title { font-size: 1.25rem; font-weight: 800; color: var(--text-primary); }
+
+/* ── RIGHT PANEL ── */
+.right-panel {
+  width: var(--right-w);
+  flex-shrink: 0;
+  padding: 24px 0 24px 32px;
+}
+
+/* ─── Feed Cards (test result items in feed) ─────────── */
+.feed-content { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+.result-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.result-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 2px 8px rgba(79,70,229,0.1);
+  transform: translateY(-1px);
+}
+.result-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+.result-card-title { font-weight: 700; font-size: 0.95rem; color: var(--text-primary); }
+.result-card-subtitle { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
+.result-card-badge {
+  font-size: 0.7rem; font-weight: 700; padding: 3px 10px;
+  border-radius: 999px; white-space: nowrap;
+}
+.badge-green { background: var(--success-bg); color: var(--success); }
+.badge-red { background: var(--error-bg); color: var(--error); }
+.badge-amber { background: var(--warning-bg); color: var(--warning); }
+
+.result-card-stats {
+  display: flex; gap: 16px;
+  font-size: 0.8rem; color: var(--text-muted);
+}
+.result-card-stats span { display: flex; align-items: center; gap: 4px; }
+
+/* ─── SLIDE PANEL ─────────────────────────────────────── */
+.slide-panel-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.08);
+  z-index: 49;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+.slide-panel-backdrop.open { opacity: 1; pointer-events: auto; }
+
+.slide-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  /* Width = everything except sidebar */
+  width: calc(100% - var(--sidebar-w));
+  max-width: calc(1400px - var(--sidebar-w));
+  background: var(--surface);
+  z-index: 50;
+  transform: translateX(100%);
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: -8px 0 40px rgba(0,0,0,0.08);
+  display: flex;
+  flex-direction: column;
+  will-change: transform;
+}
+.slide-panel.open { transform: translateX(0); }
+
+/* Panel Header */
+.panel-header {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255,255,255,0.95);
+  backdrop-filter: blur(12px);
+  flex-shrink: 0;
+}
+.panel-back-btn {
+  width: 36px; height: 36px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.panel-back-btn:hover { background: #f3f4f6; border-color: #d1d5db; }
+.panel-title-wrap { flex: 1; min-width: 0; }
+.panel-title { font-weight: 700; font-size: 1.05rem; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.panel-subtitle { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
+.panel-type-badge {
+  font-size: 0.7rem; font-weight: 700; padding: 3px 10px;
+  border-radius: 999px; background: #ede9fe; color: #7c3aed;
+  white-space: nowrap; flex-shrink: 0;
+}
+.panel-close-btn {
+  width: 36px; height: 36px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+  font-size: 1.1rem;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+.panel-close-btn:hover { background: var(--error-bg); color: var(--error); border-color: var(--error); }
+
+/* Tab Bar (from studentLayoutStyles filterBar + filterTab) */
+.tab-bar {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  padding: 0 24px;
+  gap: 0;
+  flex-shrink: 0;
+}
+.tab-btn {
+  padding: 12px 20px;
+  font-weight: 500;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+.tab-btn:hover:not(.active) { color: var(--text-body); }
+.tab-btn.active { font-weight: 700; color: var(--text-primary); border-bottom-color: var(--accent); }
+
+/* Panel scrollable content */
+.panel-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  background: #f9fafb;
+}
+
+/* ─── Overview Tab Content ─────────────────────────────── */
+/* Compact score header: ring + stat cards in one row */
+.score-header-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+/* Circular ring */
+.score-ring-wrap {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  flex-shrink: 0;
+}
+.score-ring-wrap svg { transform: rotate(-90deg); }
+.score-ring-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.score-ring-value { font-size: 1.5rem; font-weight: 800; color: var(--text-primary); }
+.score-ring-sub { font-size: 0.65rem; color: var(--text-muted); font-weight: 600; }
+
+/* Stat row: 3 cards beside the ring */
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  flex: 1;
+}
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  text-align: center;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+.stat-value { font-size: 1.5rem; font-weight: 800; line-height: 1.2; }
+.stat-label { font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; font-weight: 600; margin-top: 4px; }
+
+/* Overview answer map pill grid */
+.answer-map {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 24px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+.answer-map-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.answer-map-title {
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.answer-map-summary {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  display: flex;
+  gap: 12px;
+}
+.answer-map-summary span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.answer-map-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.answer-map-grid {
+  display: grid;
+  grid-template-columns: repeat(20, 1fr);
+  gap: 4px;
+}
+.map-pill {
+  aspect-ratio: 1;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 0.7rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: default;
+  transition: transform 0.1s;
+  line-height: 1;
+}
+.map-pill.pill-correct:hover { transform: scale(1.12); }
+.map-pill.pill-correct {
+  background: #ecfdf5;
+  color: #059669;
+}
+.map-pill.pill-incorrect {
+  background: #fef2f2;
+  color: #dc2626;
+  cursor: pointer;
+  position: relative;
+}
+.map-pill.pill-incorrect:hover {
+  transform: scale(1.18);
+  box-shadow: 0 2px 8px rgba(220,38,38,0.25);
+  z-index: 2;
+}
+.map-pill.pill-incorrect::after {
+  content: 'Click to review';
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%) scale(0.9);
+  background: #1f2937;
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s, transform 0.15s;
+}
+.map-pill.pill-incorrect:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
+
+/* Section progress */
+.sections-heading {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  margin-bottom: 12px;
+  letter-spacing: 0.04em;
+}
+.section-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.section-name { font-weight: 600; font-size: 0.9rem; color: var(--text-primary); min-width: 100px; }
+.section-bar-wrap { flex: 1; height: 8px; background: #f3f4f6; border-radius: 999px; overflow: hidden; }
+.section-bar { height: 100%; border-radius: 999px; transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1); }
+.section-score { font-weight: 700; font-size: 0.85rem; min-width: 80px; text-align: right; }
+
+/* Performance feedback card */
+.performance-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 20px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+.performance-emoji { font-size: 2rem; flex-shrink: 0; line-height: 1; }
+.performance-title { font-weight: 700; font-size: 0.95rem; color: var(--text-primary); margin-bottom: 4px; }
+.performance-text { font-size: 0.85rem; color: var(--text-muted); line-height: 1.6; }
+
+/* ─── Questions Tab ────────────────────────────────────── */
+.pills-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.q-pill {
+  width: 44px; height: 44px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column;
+  gap: 1px;
+  padding: 2px;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  border-width: 1px;
+  border-style: solid;
+}
+.q-pill:hover { transform: scale(1.08); }
+.q-pill-num { font-size: 0.55rem; font-weight: 600; opacity: 0.65; line-height: 1; }
+.q-pill-answer { font-size: 0.85rem; font-weight: 800; line-height: 1; }
+.q-pill.correct { background: var(--success-bg); border-color: var(--success); color: var(--success); }
+.q-pill.incorrect { background: var(--error-bg); border-color: var(--error); color: var(--error); }
+.q-pill.partial { background: var(--warning-bg); border-color: var(--warning); color: var(--warning); }
+.q-pill.selected { border-width: 2px; border-color: var(--accent); transform: scale(1.1); box-shadow: 0 0 0 3px rgba(79,70,229,0.2); }
+
+/* Question detail (two-column grid) */
+.questions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+.question-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.question-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.question-number-badge {
+  width: 32px; height: 32px; border-radius: 8px;
+  font-weight: 700; font-size: 0.85rem;
+  display: flex; align-items: center; justify-content: center;
+}
+.question-meta { flex: 1; }
+.question-meta-title { font-weight: 600; font-size: 0.95rem; color: var(--text-primary); }
+.question-meta-status { font-size: 0.8rem; font-weight: 600; }
+
+.answer-block { margin-bottom: 10px; }
+.answer-label {
+  font-size: 0.7rem; color: var(--text-muted);
+  text-transform: uppercase; font-weight: 600;
+  margin-bottom: 4px;
+}
+.answer-box {
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  word-break: break-word;
+  border-width: 1px;
+  border-style: solid;
+}
+.answer-student-correct { background: var(--success-bg); border-color: var(--success); color: var(--text-primary); }
+.answer-student-wrong { background: var(--error-bg); border-color: var(--error); color: var(--text-primary); }
+.answer-correct { background: var(--success-bg); border-color: var(--success); color: var(--success); font-weight: 600; }
+
+.ai-explanation {
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #eff6ff 0%, #f5f3ff 100%);
+  border-radius: 8px;
+  font-size: 0.8rem;
+  color: #1e40af;
+  line-height: 1.6;
+  border-left: 4px solid #818cf8;
+  margin-top: 8px;
+}
+.ai-explanation-label {
+  font-weight: 800; font-size: 0.65rem;
+  text-transform: uppercase; margin-bottom: 4px;
+  color: #6366f1; display: flex; align-items: center; gap: 6px;
+}
+
+/* Congratulations card (when all correct) */
+.congrats-card {
+  background: linear-gradient(135deg, #d1fae5 0%, #ecfdf5 100%);
+  border: 1px solid #a7f3d0;
+  border-radius: 16px;
+  padding: 40px;
+  text-align: center;
+}
+.congrats-emoji { font-size: 3rem; margin-bottom: 12px; }
+.congrats-title { font-size: 1.25rem; font-weight: 800; color: #059669; margin-bottom: 8px; }
+.congrats-text { font-size: 0.9rem; color: #047857; line-height: 1.6; max-width: 420px; margin: 0 auto; }
+
+/* Incorrect-only heading */
+.incorrect-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.incorrect-heading-icon { font-size: 1.25rem; }
+.incorrect-heading-title { font-weight: 700; font-size: 1rem; color: var(--text-primary); }
+.incorrect-heading-count {
+  font-size: 0.8rem; font-weight: 600;
+  padding: 2px 10px; border-radius: 999px;
+  background: var(--error-bg); color: var(--error);
+}
+
+/* ─── Feedback Tab ─────────────────────────────────────── */
+.feedback-layout { display: grid; grid-template-columns: 3fr 2fr; gap: 20px; }
+.feedback-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+.feedback-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.feedback-card-icon { font-size: 1.25rem; }
+.feedback-card-title { font-weight: 700; font-size: 1rem; color: var(--text-primary); }
+
+.feedback-section {
+  margin-bottom: 16px;
+}
+.feedback-section:last-child { margin-bottom: 0; }
+.feedback-section-title {
+  font-weight: 700; font-size: 0.8rem;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  display: flex; align-items: center; gap: 6px;
+}
+.feedback-bullet {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--text-body);
+  line-height: 1.5;
+  margin-bottom: 6px;
+}
+.feedback-bullet-icon { font-size: 0.7rem; margin-top: 4px; flex-shrink: 0; }
+
+.teacher-feedback-card {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.teacher-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.teacher-avatar-mini {
+  width: 28px; height: 28px;
+  border-radius: 50%; background: #dbeafe;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.7rem; font-weight: 700; color: #3b82f6;
+}
+.teacher-name { font-weight: 700; font-size: 0.85rem; color: #1e40af; }
+.teacher-time { font-size: 0.7rem; color: #60a5fa; margin-left: auto; }
+.teacher-text { font-size: 0.85rem; color: #1e40af; line-height: 1.6; }
+
+/* Widget (right panel style) */
+.widget {
+  background: var(--bg-feed);
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+}
+.widget-title { font-weight: 700; font-size: 0.95rem; margin-bottom: 12px; color: var(--text-primary); }
+
+/* ─── Animations ──────────────────────────────────────── */
+@keyframes dashFadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-in { animation: dashFadeIn 0.3s ease-out both; }
+.fade-in-d1 { animation-delay: 0.05s; }
+.fade-in-d2 { animation-delay: 0.1s; }
+.fade-in-d3 { animation-delay: 0.15s; }
+.fade-in-d4 { animation-delay: 0.2s; }
+.fade-in-d5 { animation-delay: 0.25s; }
+
+/* Footer removed — Close/Print/Download PDF are not supported props */
+</style>
+</head>
+<body>
+
+<div class="app-root">
+  <!-- ═══ LEFT SIDEBAR (exact replica) ═══ -->
+  <header class="sidebar">
+    <div class="sidebar-logo">StudentDash</div>
+    <nav class="nav-group">
+      <!-- Group 1 -->
+      <button class="nav-item">
+        <span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg></span>
+        Feed
+      </button>
+      <button class="nav-item">
+        <span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span>
+        Classes
+      </button>
+
+      <!-- Group 2 -->
+      <button class="nav-item">
+        <span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg></span>
+        Homework
+        <span class="nav-badge">3</span>
+      </button>
+      <button class="nav-item">
+        <span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg></span>
+        Courses
+      </button>
+      <button class="nav-item">
+        <span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg></span>
+        Library
+      </button>
+      <button class="nav-item active">
+        <span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg></span>
+        Records
+      </button>
+      <button class="nav-item">
+        <span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></span>
+        Profile
+      </button>
+    </nav>
+
+    <div style="margin-top: auto; padding: 0 8px;">
+      <button class="join-btn">Join Class</button>
+      <div class="profile-row">
+        <div class="profile-avatar">N</div>
+        <div style="flex:1; min-width:0;">
+          <div class="profile-name">Nguyễn Văn An</div>
+          <div class="profile-email">an.nguyen@school.edu</div>
+        </div>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>
+      </div>
+    </div>
+  </header>
+
+  <!-- ═══ CENTER FEED ═══ -->
+  <main class="feed">
+    <div class="feed-header">
+      <h1 class="feed-header-title">Academic Records</h1>
+    </div>
+    <div class="feed-content">
+      <!-- Result cards (clickable) -->
+      <div class="result-card fade-in" onclick="openPanel()">
+        <div class="result-card-header">
+          <div>
+            <div class="result-card-title">Bài kiểm tra Tiếng Anh 9 - Unit 5</div>
+            <div class="result-card-subtitle">THCS • Reading & Vocabulary • 20 Mar 2026</div>
+          </div>
+          <span class="result-card-badge badge-green">85%</span>
+        </div>
+        <div class="result-card-stats">
+          <span>✓ 34/40</span>
+          <span>⏱ 23:45</span>
+          <span>📊 Band 6.5</span>
+        </div>
+      </div>
+
+      <div class="result-card fade-in fade-in-d1" onclick="openPanel()">
+        <div class="result-card-header">
+          <div>
+            <div class="result-card-title">Grammar Practice - Tenses Review</div>
+            <div class="result-card-subtitle">THPT • Grammar • 18 Mar 2026</div>
+          </div>
+          <span class="result-card-badge badge-amber">68%</span>
+        </div>
+        <div class="result-card-stats">
+          <span>✓ 17/25</span>
+          <span>⏱ 15:22</span>
+          <span>📊 Band 5.0</span>
+        </div>
+      </div>
+
+      <div class="result-card fade-in fade-in-d2" onclick="openPanel()">
+        <div class="result-card-header">
+          <div>
+            <div class="result-card-title">Listening Comprehension - Unit 4</div>
+            <div class="result-card-subtitle">THCS • Listening • 15 Mar 2026</div>
+          </div>
+          <span class="result-card-badge badge-red">42%</span>
+        </div>
+        <div class="result-card-stats">
+          <span>✓ 8/19</span>
+          <span>⏱ 18:10</span>
+          <span>📊 Band 3.5</span>
+        </div>
+      </div>
+
+      <div class="result-card fade-in fade-in-d3" onclick="openPanel()">
+        <div class="result-card-header">
+          <div>
+            <div class="result-card-title">Writing Task - Environmental Issues</div>
+            <div class="result-card-subtitle">THPT • Writing • 12 Mar 2026</div>
+          </div>
+          <span class="result-card-badge badge-green">78%</span>
+        </div>
+        <div class="result-card-stats">
+          <span>✓ 7.8/10</span>
+          <span>⏱ 35:00</span>
+          <span>📊 Band 6.0</span>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ═══ RIGHT PANEL ═══ -->
+  <aside class="right-panel">
+    <div style="position: sticky; top: 24px;">
+      <div class="widget">
+        <div class="widget-title">📊 Performance Overview</div>
+        <div style="font-size:0.85rem; color:var(--text-muted); line-height:1.6;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+            <span>Total Tests</span>
+            <span style="font-weight:700; color:var(--text-primary);">12</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+            <span>Average Score</span>
+            <span style="font-weight:700; color:var(--accent);">72.3%</span>
+          </div>
+          <div style="display:flex; justify-content:space-between;">
+            <span>Best Score</span>
+            <span style="font-weight:700; color:var(--success);">92%</span>
+          </div>
+        </div>
+      </div>
+      <div class="widget">
+        <div class="widget-title">🎯 Upcoming</div>
+        <div style="font-size:0.85rem; color:var(--text-muted);">
+          No upcoming tests
+        </div>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<!-- ═══ SLIDE PANEL BACKDROP ═══ -->
+<div class="slide-panel-backdrop" id="panelBackdrop" onclick="closePanel()"></div>
+
+<!-- ═══ SLIDE PANEL ═══ -->
+<div class="slide-panel" id="slidePanel">
+  <!-- Panel Header -->
+  <div class="panel-header">
+    <button class="panel-back-btn" onclick="closePanel()" aria-label="Close">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+    </button>
+    <div class="panel-title-wrap">
+      <div class="panel-title">Bài kiểm tra Tiếng Anh 9 - Unit 5</div>
+      <div class="panel-subtitle">Reading & Vocabulary • 20 Mar 2026 • 23:45</div>
+    </div>
+    <span class="panel-type-badge">THCS</span>
+    <button class="panel-close-btn" onclick="closePanel()" aria-label="Close">✕</button>
+  </div>
+
+  <!-- Tab Bar -->
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab('overview', this)">Overview</button>
+    <button class="tab-btn" onclick="switchTab('questions', this)">Review Mistakes</button>
+    <button class="tab-btn" onclick="switchTab('feedback', this)">Feedback</button>
+  </div>
+
+  <!-- Scrollable Content -->
+  <div class="panel-content" id="panelContent">
+    <!-- Content injected by JS based on active tab -->
+  </div>
+
+  <!-- Footer removed — not applicable -->
+</div>
+
+<script>
+// ─── Panel open/close ───────────────────────────────────────
+const panel = document.getElementById('slidePanel');
+const backdrop = document.getElementById('panelBackdrop');
+
+function openPanel() {
+  panel.classList.add('open');
+  backdrop.classList.add('open');
+  switchTab('overview', document.querySelector('.tab-btn'));
+  document.addEventListener('keydown', handleEscape);
+}
+
+function closePanel() {
+  panel.classList.remove('open');
+  backdrop.classList.remove('open');
+  document.removeEventListener('keydown', handleEscape);
+}
+
+function handleEscape(e) {
+  if (e.key === 'Escape') closePanel();
+}
+
+// ─── Tab switching ──────────────────────────────────────────
+function switchTab(tab, btn) {
+  // Update tab buttons
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  const content = document.getElementById('panelContent');
+
+  if (tab === 'overview') {
+    content.innerHTML = renderOverview();
+  } else if (tab === 'questions') {
+    content.innerHTML = renderQuestions();
+  } else if (tab === 'feedback') {
+    content.innerHTML = renderFeedback();
+  }
+}
+
+// ─── OVERVIEW TAB ───────────────────────────────────────────
+function renderOverview() {
+  const pct = 85;
+  const circumference = 2 * Math.PI * 42;
+  const dashOffset = circumference * (1 - pct / 100);
+
+  return `
+    <!-- Compact Score Header: Ring + 3 Stat Cards -->
+    <div class="score-header-row fade-in">
+      <div class="score-ring-wrap">
+        <svg width="100" height="100" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="42" fill="none" stroke="#e5e7eb" stroke-width="8"/>
+          <circle cx="50" cy="50" r="42" fill="none" stroke="#4f46e5" stroke-width="8"
+            stroke-dasharray="${circumference}" stroke-dashoffset="${dashOffset}"
+            stroke-linecap="round" style="transition: stroke-dashoffset 0.8s cubic-bezier(0.16,1,0.3,1)"/>
+        </svg>
+        <div class="score-ring-center">
+          <div class="score-ring-value">${pct}%</div>
+          <div class="score-ring-sub">34/40</div>
+        </div>
+      </div>
+      <div class="stat-row">
+        <div class="stat-card">
+          <div class="stat-value" style="color:var(--accent);">34/40</div>
+          <div class="stat-label">Points</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" style="color:#10b981;">8.5</div>
+          <div class="stat-label">Score (THCS)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" style="color:#3b82f6;">23:45</div>
+          <div class="stat-label">Time Used</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Answer Map Pill Grid -->
+    <div class="answer-map fade-in fade-in-d1">
+      <div class="answer-map-header">
+        <div class="answer-map-title">Answer Map</div>
+        <div class="answer-map-summary">
+          <span><span class="answer-map-dot" style="background:#059669;"></span> 34 correct</span>
+          <span><span class="answer-map-dot" style="background:#dc2626;"></span> 6 incorrect</span>
+        </div>
+      </div>
+      <div class="answer-map-grid">
+        ${(() => {
+          const wrongNums = [6, 15, 23, 32, 36, 40];
+          let pills = '';
+          for (let i = 1; i <= 40; i++) {
+            const isWrong = wrongNums.includes(i);
+            const cls = isWrong ? 'pill-incorrect' : 'pill-correct';
+            const click = isWrong ? ' onclick="goToQuestion(' + i + ')"' : '';
+            pills += '<div class="map-pill ' + cls + '"' + click + '>' + i + '</div>';
+          }
+          return pills;
+        })()}
+      </div>
+    </div>
+
+    <!-- Section Breakdown -->
+    <div class="sections-heading fade-in fade-in-d2">Performance by Section</div>
+
+    <div class="section-card fade-in fade-in-d2">
+      <div class="section-name">Reading</div>
+      <div class="section-bar-wrap"><div class="section-bar" style="width:90%; background:var(--success);"></div></div>
+      <div class="section-score" style="color:var(--success);">18/20 • 90%</div>
+    </div>
+    <div class="section-card fade-in fade-in-d3">
+      <div class="section-name">Vocabulary</div>
+      <div class="section-bar-wrap"><div class="section-bar" style="width:85%; background:var(--warning);"></div></div>
+      <div class="section-score" style="color:var(--warning);">8.5/10 • 85%</div>
+    </div>
+    <div class="section-card fade-in fade-in-d4">
+      <div class="section-name">Grammar</div>
+      <div class="section-bar-wrap"><div class="section-bar" style="width:70%; background:var(--error);"></div></div>
+      <div class="section-score" style="color:var(--error);">7/10 • 70%</div>
+    </div>
+
+    <!-- Performance Feedback -->
+    <div class="performance-card fade-in fade-in-d5">
+      <div class="performance-emoji">🎉</div>
+      <div>
+        <div class="performance-title">Performance Feedback</div>
+        <div class="performance-text">
+          Excellent work! You demonstrated strong reading comprehension and vocabulary skills.
+          Consider reviewing grammar tenses, specifically past perfect and conditional structures,
+          to push your score even higher next time.
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ─── QUESTIONS TAB (Incorrect only + AI explanation) ────────
+function renderQuestions() {
+  // Generate 40 mock questions with stable answers
+  const questions = [];
+  const answers = ['A','B','C','D'];
+  // Deterministic answers for consistency
+  const studentAnswers = ['C','C','A','C','C','D','C','B','C','C','A','D','D','A','B','C','A','C','C','C','D','C','A','B','A','C','C','B','A','B','A','A','D','C','D','C','B','A','B','C'];
+  const wrongIndices = [5, 14, 22, 31, 35, 39]; // 6 wrong questions
+  
+  for (let i = 0; i < 40; i++) {
+    const isWrong = wrongIndices.includes(i);
+    const sa = studentAnswers[i];
+    const ca = isWrong ? answers[(answers.indexOf(sa) + 1) % 4] : sa;
+    questions.push({ num: i + 1, correct: !isWrong, studentAnswer: sa, correctAnswer: ca });
+  }
+
+  const incorrectQs = questions.filter(q => !q.correct);
+
+  // If all correct, show congratulations
+  if (incorrectQs.length === 0) {
+    return `
+      <div class="congrats-card fade-in">
+        <div class="congrats-emoji">🎉</div>
+        <div class="congrats-title">Perfect Score!</div>
+        <div class="congrats-text">
+          Congratulations! You answered all questions correctly.
+          Keep up the excellent work!
+        </div>
+      </div>`;
+  }
+
+  // Heading
+  let html = `
+    <div class="incorrect-heading fade-in">
+      <span class="incorrect-heading-icon">❌</span>
+      <span class="incorrect-heading-title">Incorrect Questions</span>
+      <span class="incorrect-heading-count">${incorrectQs.length} question${incorrectQs.length > 1 ? 's' : ''}</span>
+    </div>`;
+
+  // AI explanation topics per question
+  const explanations = {
+    6: 'This question tests the <b>past perfect tense</b>. When describing an action completed before another past action, use "had + past participle" (e.g., "had finished"). Your answer used the simple past, which doesn\'t convey the correct sequence of events.',
+    15: 'This involves a <b>conditional sentence (Type 2)</b>. For hypothetical/unreal present situations, the structure is: "If + past simple, ... would + base verb". The answer you chose used the present tense in the if-clause, which makes it Type 1 (real condition).',
+    23: 'The question requires a <b>relative clause with "whose"</b>. When indicating possession in a relative clause, "whose" is correct (e.g., "the student whose book..."). Your answer used "which", which cannot show possession.',
+    32: 'This tests <b>subject-verb agreement</b> with collective nouns. "The committee" is singular when acting as a unit, so it takes a singular verb ("decides" not "decide"). Context determines whether the group acts collectively or individually.',
+    36: 'This question involves a <b>preposition pattern</b> with "depend on". In English, we say "depend on" (not "depend of" or "depend in"). Preposition collocations must be memorized as fixed patterns.',
+    40: 'This tests the <b>present perfect continuous</b> tense. For actions that started in the past and continue to the present with emphasis on duration, use "have/has been + V-ing" (e.g., "has been studying for two hours").'
+  };
+
+  // Question cards (single column for detailed view)
+  html += '<div style="display:flex; flex-direction:column; gap:16px;" class="fade-in fade-in-d1">';
+  incorrectQs.forEach(q => {
+    html += `
+      <div class="question-card" id="qcard-${q.num}">
+        <div class="question-card-header">
+          <div class="question-number-badge" style="background:var(--error-bg); border:1px solid var(--error); color:var(--error);">
+            ${q.num}
+          </div>
+          <div class="question-meta">
+            <div class="question-meta-title">Question ${q.num}</div>
+            <div class="question-meta-status" style="color:var(--error);">✗ Incorrect — 0/1</div>
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div class="answer-block">
+            <div class="answer-label">Your Answer</div>
+            <div class="answer-box answer-student-wrong">${q.studentAnswer}</div>
+          </div>
+          <div class="answer-block">
+            <div class="answer-label">Correct Answer</div>
+            <div class="answer-box answer-correct">${q.correctAnswer}</div>
+          </div>
+        </div>
+        <div class="ai-explanation">
+          <div class="ai-explanation-label"><span>🤖</span> AI Explanation</div>
+          ${explanations[q.num] || 'The correct answer involves recognizing the grammar pattern tested in this context.'}
+        </div>
+      </div>`;
+  });
+  html += '</div>';
+
+  return html;
+}
+
+// Navigate from pill grid → Review Mistakes tab → scroll to question
+function goToQuestion(num) {
+  // Switch to Review Mistakes tab
+  const tabBtns = document.querySelectorAll('.tab-btn');
+  switchTab('questions', tabBtns[1]);
+
+  // Wait for DOM render, then scroll + highlight
+  requestAnimationFrame(() => {
+    setTimeout(() => {
+      highlightQuestion(num);
+    }, 80);
+  });
+}
+
+function highlightQuestion(num) {
+  const el = document.getElementById('qcard-' + num);
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.style.boxShadow = '0 0 0 3px rgba(79,70,229,0.3)';
+    el.style.borderColor = 'var(--accent)';
+    setTimeout(() => {
+      el.style.boxShadow = '';
+      el.style.borderColor = '';
+    }, 2000);
+  }
+}
+
+// ─── FEEDBACK TAB ───────────────────────────────────────────
+function renderFeedback() {
+  return `
+    <div class="feedback-layout fade-in">
+      <!-- Left: AI Analysis -->
+      <div>
+        <div class="feedback-card">
+          <div class="feedback-card-header">
+            <span class="feedback-card-icon">🤖</span>
+            <span class="feedback-card-title">AI Performance Analysis</span>
+          </div>
+
+          <div style="font-size:0.85rem; color:var(--text-body); line-height:1.7; margin-bottom:16px;">
+            You demonstrated strong reading comprehension skills with a 90% accuracy rate in the reading section.
+            Your vocabulary recognition is solid, though there's room for improvement in contextual usage.
+          </div>
+
+          <div class="feedback-section">
+            <div class="feedback-section-title" style="color:var(--success);">✅ Strengths</div>
+            <div class="feedback-bullet"><span class="feedback-bullet-icon" style="color:var(--success);">●</span> Reading comprehension — 90% accuracy</div>
+            <div class="feedback-bullet"><span class="feedback-bullet-icon" style="color:var(--success);">●</span> Vocabulary recognition and word choice</div>
+            <div class="feedback-bullet"><span class="feedback-bullet-icon" style="color:var(--success);">●</span> Context clue interpretation</div>
+            <div class="feedback-bullet"><span class="feedback-bullet-icon" style="color:var(--success);">●</span> Time management — finished 6m early</div>
+          </div>
+
+          <div class="feedback-section">
+            <div class="feedback-section-title" style="color:var(--warning);">⚠️ Areas for Improvement</div>
+            <div class="feedback-bullet"><span class="feedback-bullet-icon" style="color:var(--warning);">●</span> Grammar tense consistency (past perfect)</div>
+            <div class="feedback-bullet"><span class="feedback-bullet-icon" style="color:var(--warning);">●</span> Conditional sentence structures</div>
+            <div class="feedback-bullet"><span class="feedback-bullet-icon" style="color:var(--warning);">●</span> Subject-verb agreement in complex sentences</div>
+          </div>
+
+          <div class="feedback-section">
+            <div class="feedback-section-title" style="color:var(--accent);">📘 Recommended Practice</div>
+            <div class="feedback-bullet"><span class="feedback-bullet-icon" style="color:var(--accent);">●</span> Review Unit 5 Grammar exercises (pp. 42-48)</div>
+            <div class="feedback-bullet"><span class="feedback-bullet-icon" style="color:var(--accent);">●</span> Practice past tense / past perfect formations</div>
+            <div class="feedback-bullet"><span class="feedback-bullet-icon" style="color:var(--accent);">●</span> Complete conditional sentence worksheet</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Teacher + Stats -->
+      <div>
+        <!-- Teacher feedback -->
+        <div class="teacher-feedback-card fade-in fade-in-d1">
+          <div class="teacher-name-row">
+            <div class="teacher-avatar-mini">T</div>
+            <span class="teacher-name">Cô Trần Thị Mai</span>
+            <span class="teacher-time">2 hours ago</span>
+          </div>
+          <div class="teacher-text">
+            Bài làm tốt em! Chú ý thêm phần ngữ pháp thì quá khứ hoàn thành và câu điều kiện loại 2.
+            Cô đã gửi thêm bài tập bổ sung trong phần Homework.
+          </div>
+        </div>
+
+        <!-- Score trend widget -->
+        <div class="widget fade-in fade-in-d2">
+          <div class="widget-title">📈 Score Trend</div>
+          <div style="display:flex; align-items:flex-end; gap:6px; height:80px; padding-top:8px;">
+            ${[42, 58, 65, 72, 85].map((v, i) => `
+              <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px;">
+                <span style="font-size:0.65rem; font-weight:700; color:${i === 4 ? 'var(--accent)' : 'var(--text-dim)'};">${v}%</span>
+                <div style="width:100%; background:${i === 4 ? 'var(--accent)' : '#e0e7ff'}; border-radius:4px 4px 0 0; height:${v * 0.7}px;"></div>
+              </div>
+            `).join('')}
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:0.65rem; color:var(--text-dim); margin-top:4px;">
+            <span>Test 1</span><span>Test 2</span><span>Test 3</span><span>Test 4</span><span style="color:var(--accent); font-weight:700;">Latest</span>
+          </div>
+        </div>
+
+        <!-- Course position -->
+        <div class="widget fade-in fade-in-d3">
+          <div class="widget-title">🎯 Class Position</div>
+          <div style="display:flex; justify-content:space-between; font-size:0.85rem; margin-bottom:6px;">
+            <span style="color:var(--text-muted);">Your score</span>
+            <span style="font-weight:700; color:var(--accent);">85%</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:0.85rem; margin-bottom:6px;">
+            <span style="color:var(--text-muted);">Class average</span>
+            <span style="font-weight:700; color:var(--text-body);">71%</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:0.85rem;">
+            <span style="color:var(--text-muted);">Status</span>
+            <span style="font-weight:700; color:var(--success);">Above Average ↑</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+</script>
+
+</body>
+</html>

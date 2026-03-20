@@ -132,7 +132,7 @@ describe('ValidatorService', () => {
         });
 
         describe('Weighted Confidence Calculation', () => {
-            it('should apply 70/30 weighting (rules/AI)', () => {
+            it('should apply 50/50 weighting (rules/AI)', () => {
                 const aiResults: AIQuestionResult[] = [
                     { questionNumber: 1, questionText: 'Q1', type: 'true-false-not-given', confidence: 100 },
                 ];
@@ -143,7 +143,7 @@ describe('ValidatorService', () => {
 
                 const result = validator.compareAIvsRules(aiResults, rulesResults);
 
-                // 100 * 0.7 + 100 * 0.3 = 100
+                // 100 * 0.5 + 100 * 0.5 = 100
                 expect(result.mergedQuestions[0].confidence).toBe(100);
             });
 
@@ -158,8 +158,8 @@ describe('ValidatorService', () => {
 
                 const result = validator.compareAIvsRules(aiResults, rulesResults);
 
-                // 90 * 0.7 + 80 * 0.3 = 63 + 24 = 87
-                expect(result.mergedQuestions[0].confidence).toBe(87);
+                // 90 * 0.5 + 80 * 0.5 = 45 + 40 = 85
+                expect(result.mergedQuestions[0].confidence).toBe(85);
             });
         });
 
@@ -175,7 +175,7 @@ describe('ValidatorService', () => {
 
                 const result = validator.compareAIvsRules(aiResults, rulesResults);
 
-                // 80 * 0.7 + 70 * 0.3 = 56 + 21 = 77 < 90
+                // 80 * 0.5 + 70 * 0.5 = 40 + 35 = 75 < 90
                 expect(result.mergedQuestions[0].uncertain).toBe(true);
                 expect(result.mergedQuestions[0].uncertainReason).toContain('Low confidence');
             });
@@ -709,8 +709,8 @@ describe('ValidatorService', () => {
 
         it('should export validation constants', () => {
             expect(VALIDATION_CONSTANTS.UNCERTAINTY_THRESHOLD).toBe(90);
-            expect(VALIDATION_CONSTANTS.RULES_WEIGHT).toBe(0.7);
-            expect(VALIDATION_CONSTANTS.AI_WEIGHT).toBe(0.3);
+            expect(VALIDATION_CONSTANTS.RULES_WEIGHT).toBe(0.5);
+            expect(VALIDATION_CONSTANTS.AI_WEIGHT).toBe(0.5);
             expect(VALIDATION_CONSTANTS.TYPES_REQUIRING_OPTIONS).toContain('multiple-choice');
             expect(VALIDATION_CONSTANTS.TYPES_REQUIRING_IMAGES).toContain('diagram-labeling');
         });

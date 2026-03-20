@@ -6,6 +6,7 @@
  * 2. assign-students: Assign multiple students to a teacher
  */
 
+import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
@@ -21,6 +22,78 @@ import * as assignmentManager from '../../services/assignmentManager';
 vi.mock('../../services/assignmentManager', () => ({
     createAssignment: vi.fn(),
 }));
+
+vi.mock('@mantine/core', async () => {
+    const actual = await vi.importActual<typeof import('@mantine/core')>('@mantine/core');
+
+    const MockSelect = ({
+        label,
+        placeholder,
+        value,
+        onChange,
+        data = [],
+        disabled,
+    }: any) => (
+        <div>
+            <label>
+                {label}
+                <input
+                    aria-label={label}
+                    placeholder={placeholder}
+                    disabled={disabled}
+                    value={value ?? ''}
+                    onChange={(event) => onChange?.(event.currentTarget.value || null)}
+                />
+            </label>
+            <ul aria-label={`${label} options`}>
+                {data.map((item: { value: string; label: string }) => (
+                    <li key={item.value}>{item.label}</li>
+                ))}
+            </ul>
+        </div>
+    );
+
+    const MockMultiSelect = ({
+        label,
+        placeholder,
+        value = [],
+        onChange,
+        data = [],
+        disabled,
+        description,
+    }: any) => (
+        <div>
+            <label>
+                {label}
+                <input
+                    aria-label={label}
+                    placeholder={placeholder}
+                    disabled={disabled}
+                    value={value.join(',')}
+                    onChange={(event) => {
+                        const nextValue = event.currentTarget.value
+                            .split(',')
+                            .map((item) => item.trim())
+                            .filter(Boolean);
+                        onChange?.(nextValue);
+                    }}
+                />
+            </label>
+            {description && <div>{description}</div>}
+            <ul aria-label={`${label} options`}>
+                {data.map((item: { value: string; label: string }) => (
+                    <li key={item.value}>{item.label}</li>
+                ))}
+            </ul>
+        </div>
+    );
+
+    return {
+        ...actual,
+        Select: MockSelect,
+        MultiSelect: MockMultiSelect,
+    };
+});
 
 // ============================================================================
 // TEST DATA
@@ -79,6 +152,18 @@ const defaultPropsAssignStudents = {
 
 const renderWithProvider = (ui: React.ReactElement) => {
     return render(<MantineProvider>{ui}</MantineProvider>);
+};
+
+const getTeacherField = () => screen.getByRole('textbox', { name: /Select Teacher/i });
+
+const getStudentsField = () => screen.getByRole('textbox', { name: /Select Students/i });
+
+const selectTeacher = (teacherId: string) => {
+    fireEvent.change(getTeacherField(), { target: { value: teacherId } });
+};
+
+const selectStudents = (studentIds: string[]) => {
+    fireEvent.change(getStudentsField(), { target: { value: studentIds.join(',') } });
 };
 
 // ============================================================================
@@ -140,17 +225,15 @@ describe('AssignmentModal Component', () => {
         it('should render teacher selection dropdown', () => {
             renderWithProvider(<AssignmentModal {...defaultPropsAssignToTeacher} />);
 
-            expect(screen.getByLabelText(/Select Teacher/i)).toBeInTheDocument();
+            expect(getTeacherField()).toBeInTheDocument();
         });
 
         it('should show all available teachers in dropdown', () => {
             renderWithProvider(<AssignmentModal {...defaultPropsAssignToTeacher} />);
 
-            const teacherSelect = screen.getByLabelText(/Select Teacher/i);
-            fireEvent.click(teacherSelect);
-
-            // Check if teachers are in the dropdown (Mantine renders them in a portal)
-            expect(teacherSelect).toBeInTheDocument();
+            expect(screen.getByRole('list', { name: /Select Teacher options/i })).toHaveTextContent(
+                'John Doe (john@example.com)'
+            );
         });
 
         it('should disable submit button when no teacher selected', () => {
@@ -163,10 +246,7 @@ describe('AssignmentModal Component', () => {
         it('should enable submit button when teacher is selected', async () => {
             renderWithProvider(<AssignmentModal {...defaultPropsAssignToTeacher} />);
 
-            const teacherSelect = screen.getByLabelText(/Select Teacher/i);
-
-            // Simulate selecting a teacher
-            fireEvent.change(teacherSelect, { target: { value: 'teacher-1' } });
+            selectTeacher('teacher-1');
 
             await waitFor(() => {
                 const submitButton = screen.getByRole('button', { name: /Assign Student/i });
@@ -180,9 +260,7 @@ describe('AssignmentModal Component', () => {
 
             renderWithProvider(<AssignmentModal {...defaultPropsAssignToTeacher} />);
 
-            // Select a teacher
-            const teacherSelect = screen.getByLabelText(/Select Teacher/i);
-            fireEvent.change(teacherSelect, { target: { value: 'teacher-1' } });
+            selectTeacher('teacher-1');
 
             // Click submit
             const submitButton = screen.getByRole('button', { name: /Assign Student/i });
@@ -213,9 +291,7 @@ describe('AssignmentModal Component', () => {
                 />
             );
 
-            // Select teacher and submit
-            const teacherSelect = screen.getByLabelText(/Select Teacher/i);
-            fireEvent.change(teacherSelect, { target: { value: 'teacher-1' } });
+            selectTeacher('teacher-1');
 
             const submitButton = screen.getByRole('button', { name: /Assign Student/i });
             fireEvent.click(submitButton);
@@ -235,9 +311,7 @@ describe('AssignmentModal Component', () => {
 
             renderWithProvider(<AssignmentModal {...defaultPropsAssignToTeacher} />);
 
-            // Select teacher and submit
-            const teacherSelect = screen.getByLabelText(/Select Teacher/i);
-            fireEvent.change(teacherSelect, { target: { value: 'teacher-1' } });
+            selectTeacher('teacher-1');
 
             const submitButton = screen.getByRole('button', { name: /Assign Student/i });
             fireEvent.click(submitButton);
@@ -262,7 +336,7 @@ describe('AssignmentModal Component', () => {
         it('should render student multi-selection dropdown', () => {
             renderWithProvider(<AssignmentModal {...defaultPropsAssignStudents} />);
 
-            expect(screen.getByLabelText(/Select Students/i)).toBeInTheDocument();
+            expect(getStudentsField()).toBeInTheDocument();
         });
 
         it('should disable submit button when no students selected', () => {
@@ -275,13 +349,12 @@ describe('AssignmentModal Component', () => {
         it('should show selected student count', async () => {
             renderWithProvider(<AssignmentModal {...defaultPropsAssignStudents} />);
 
-            const studentSelect = screen.getByLabelText(/Select Students/i);
+            const studentSelect = getStudentsField();
 
             // Initially 0 students
             expect(screen.getByText(/0 student\(s\) selected/i)).toBeInTheDocument();
 
-            // Simulate selecting students (this is simplified - actual Mantine MultiSelect is more complex)
-            fireEvent.change(studentSelect, { target: { value: ['student-1', 'student-2'] } });
+            fireEvent.change(studentSelect, { target: { value: 'student-1,student-2' } });
 
             await waitFor(() => {
                 expect(screen.getByText(/2 student\(s\) selected/i)).toBeInTheDocument();
@@ -291,10 +364,7 @@ describe('AssignmentModal Component', () => {
         it('should update submit button text with student count', async () => {
             renderWithProvider(<AssignmentModal {...defaultPropsAssignStudents} />);
 
-            const studentSelect = screen.getByLabelText(/Select Students/i);
-
-            // Select 2 students
-            fireEvent.change(studentSelect, { target: { value: ['student-1', 'student-2'] } });
+            selectStudents(['student-1', 'student-2']);
 
             await waitFor(() => {
                 expect(screen.getByRole('button', { name: /Assign 2 Student\(s\)/i })).toBeInTheDocument();
@@ -307,9 +377,7 @@ describe('AssignmentModal Component', () => {
 
             renderWithProvider(<AssignmentModal {...defaultPropsAssignStudents} />);
 
-            // Select multiple students
-            const studentSelect = screen.getByLabelText(/Select Students/i);
-            fireEvent.change(studentSelect, { target: { value: ['student-1', 'student-2', 'student-3'] } });
+            selectStudents(['student-1', 'student-2', 'student-3']);
 
             // Click submit
             const submitButton = screen.getByRole('button', { name: /Assign 3 Student\(s\)/i });
@@ -332,9 +400,7 @@ describe('AssignmentModal Component', () => {
 
             renderWithProvider(<AssignmentModal {...defaultPropsAssignStudents} />);
 
-            // Select students and submit
-            const studentSelect = screen.getByLabelText(/Select Students/i);
-            fireEvent.change(studentSelect, { target: { value: ['student-1', 'student-2', 'student-3'] } });
+            selectStudents(['student-1', 'student-2', 'student-3']);
 
             const submitButton = screen.getByRole('button', { name: /Assign 3 Student\(s\)/i });
             fireEvent.click(submitButton);
@@ -374,9 +440,7 @@ describe('AssignmentModal Component', () => {
 
             renderWithProvider(<AssignmentModal {...defaultPropsAssignToTeacher} />);
 
-            // Select teacher and submit
-            const teacherSelect = screen.getByLabelText(/Select Teacher/i);
-            fireEvent.change(teacherSelect, { target: { value: 'teacher-1' } });
+            selectTeacher('teacher-1');
 
             const submitButton = screen.getByRole('button', { name: /Assign Student/i });
             fireEvent.click(submitButton);
@@ -409,9 +473,7 @@ describe('AssignmentModal Component', () => {
                 <AssignmentModal {...defaultPropsAssignToTeacher} opened={true} />
             );
 
-            // Select a teacher
-            const teacherSelect = screen.getByLabelText(/Select Teacher/i);
-            fireEvent.change(teacherSelect, { target: { value: 'teacher-1' } });
+            selectTeacher('teacher-1');
 
             // Close modal
             rerender(
@@ -428,7 +490,7 @@ describe('AssignmentModal Component', () => {
             );
 
             // Form should be reset
-            const teacherSelectAfterReopen = screen.getByLabelText(/Select Teacher/i);
+            const teacherSelectAfterReopen = getTeacherField();
             expect(teacherSelectAfterReopen).toHaveValue('');
         });
 
@@ -441,7 +503,7 @@ describe('AssignmentModal Component', () => {
 
             renderWithProvider(<AssignmentModal {...defaultPropsAssignToTeacher} />);
 
-            const teacherSelect = screen.getByLabelText(/Select Teacher/i);
+            const teacherSelect = getTeacherField();
             fireEvent.change(teacherSelect, { target: { value: 'teacher-1' } });
 
             const submitButton = screen.getByRole('button', { name: /Assign Student/i });
@@ -521,7 +583,7 @@ describe('AssignmentModal Component', () => {
                 <AssignmentModal {...defaultPropsAssignToTeacher} teachers={[]} />
             );
 
-            const teacherSelect = screen.getByLabelText(/Select Teacher/i);
+            const teacherSelect = getTeacherField();
             expect(teacherSelect).toBeInTheDocument();
         });
 
@@ -530,7 +592,7 @@ describe('AssignmentModal Component', () => {
                 <AssignmentModal {...defaultPropsAssignStudents} students={[]} />
             );
 
-            const studentSelect = screen.getByLabelText(/Select Students/i);
+            const studentSelect = getStudentsField();
             expect(studentSelect).toBeInTheDocument();
         });
     });
@@ -543,7 +605,7 @@ describe('AssignmentModal Component', () => {
         it('should have proper ARIA labels for form fields', () => {
             renderWithProvider(<AssignmentModal {...defaultPropsAssignToTeacher} />);
 
-            expect(screen.getByLabelText(/Select Teacher/i)).toBeInTheDocument();
+            expect(getTeacherField()).toBeInTheDocument();
         });
 
         it('should have accessible modal dialog', () => {

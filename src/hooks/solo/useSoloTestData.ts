@@ -1,7 +1,8 @@
 // File: src/hooks/solo/useSoloTestData.ts
 import { useState, useEffect, useRef } from 'react';
+import type { MutableRefObject } from 'react';
 import type { TestData } from '../../services/testStorage';
-import { getTestFromFirebase } from '../../services/testStorage';
+import { getStudentSafeTestFromFirebase } from '../../services/testStorage';
 
 interface UseSoloTestDataOptions {
     materialId: string | undefined;
@@ -13,12 +14,14 @@ interface UseSoloTestDataReturn {
     error: string | null;
     activePassageId: string | null;
     setActivePassageId: (id: string | null) => void;
+    questionsWithAnswersRef: MutableRefObject<TestData['questions'] | null>;
+    answerKeysRef: MutableRefObject<Record<string, string | string[]> | null>;
 }
 
 /**
- * Loads test data directly from tests/{materialId}.
+ * Loads the pre-sanitized student-safe payload for solo/homework delivery.
  * Unlike useTestData (which subscribes to game_sessions), this is a one-shot load.
- * No real-time listener, no sessionService dependency.
+ * Full grading questions are loaded later by the submission hook only when needed.
  */
 export const useSoloTestData = ({ materialId }: UseSoloTestDataOptions): UseSoloTestDataReturn => {
     const [testData, setTestData] = useState<TestData | null>(null);
@@ -26,6 +29,8 @@ export const useSoloTestData = ({ materialId }: UseSoloTestDataOptions): UseSolo
     const [error, setError] = useState<string | null>(null);
     const [activePassageId, setActivePassageId] = useState<string | null>(null);
     const loadedRef = useRef<string | null>(null);
+    const questionsWithAnswersRef = useRef<TestData['questions'] | null>(null);
+    const answerKeysRef = useRef<Record<string, string | string[]> | null>(null);
 
     useEffect(() => {
         if (!materialId || loadedRef.current === materialId) return;
@@ -34,9 +39,11 @@ export const useSoloTestData = ({ materialId }: UseSoloTestDataOptions): UseSolo
         const loadTest = async () => {
             setLoading(true);
             setError(null);
+            questionsWithAnswersRef.current = null;
+            answerKeysRef.current = null;
 
             try {
-                const result = await getTestFromFirebase(materialId);
+                const result = await getStudentSafeTestFromFirebase(materialId);
 
                 if (result.success && result.data) {
                     setTestData(result.data);
@@ -62,5 +69,13 @@ export const useSoloTestData = ({ materialId }: UseSoloTestDataOptions): UseSolo
         loadTest();
     }, [materialId]);
 
-    return { testData, loading, error, activePassageId, setActivePassageId };
+    return {
+        testData,
+        loading,
+        error,
+        activePassageId,
+        setActivePassageId,
+        questionsWithAnswersRef,
+        answerKeysRef,
+    };
 };

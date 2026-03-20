@@ -30,6 +30,10 @@ interface THCSStudentCardProps {
     onGradeWriting?: () => void;
     /** PRD-0036: Integrity data for badge display */
     integrityData?: { violationCount: number; riskLevel: 'low' | 'medium' | 'high' };
+    /** PRD-0036: Force-submit this student (teacher action) */
+    onForceSubmit?: () => void;
+    /** PRD-0036: Reset this student's submission (teacher action) */
+    onResetSubmit?: () => void;
 }
 
 export const THCSStudentProgressCard: React.FC<THCSStudentCardProps> = ({
@@ -48,6 +52,8 @@ export const THCSStudentProgressCard: React.FC<THCSStudentCardProps> = ({
     onClick,
     onGradeWriting,
     integrityData, // PRD-0036
+    onForceSubmit,
+    onResetSubmit,
 }) => {
     const getStatusColor = () => {
         switch (status) {
@@ -63,6 +69,8 @@ export const THCSStudentProgressCard: React.FC<THCSStudentCardProps> = ({
     const statusStyle = getStatusColor();
     const isSubmitted = status === 'submitted';
     const hasWriting = writingTotal > 0;
+    const showForceSubmitAction = (status === 'working' || status === 'disconnected') && !!onForceSubmit;
+    const showResetAction = status === 'submitted' && !!onResetSubmit;
 
     // Avatar
     const initial = name.charAt(0).toUpperCase();
@@ -227,6 +235,57 @@ export const THCSStudentProgressCard: React.FC<THCSStudentCardProps> = ({
                             >
                                 Grade Writing →
                             </Button>
+                        )}
+                    </div>
+                )}
+
+                {(showForceSubmitAction || showResetAction) && (
+                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
+                        {showForceSubmitAction && (
+                            <button
+                                type="button"
+                                onClick={(e: React.MouseEvent) => {
+                                    e.stopPropagation();
+                                    if (window.confirm('Force submit this student? Their current answers will be submitted.')) {
+                                        onForceSubmit?.();
+                                    }
+                                }}
+                                style={{
+                                    border: '1px solid #ef4444',
+                                    color: '#ef4444',
+                                    background: 'transparent',
+                                    fontSize: '0.75rem',
+                                    padding: '4px 8px',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    fontWeight: 600,
+                                }}
+                            >
+                                Force Submit
+                            </button>
+                        )}
+                        {showResetAction && (
+                            <button
+                                type="button"
+                                onClick={(e: React.MouseEvent) => {
+                                    e.stopPropagation();
+                                    if (window.confirm('Reset this student\'s submission? They will be returned to the active test if it is still running.')) {
+                                        onResetSubmit?.();
+                                    }
+                                }}
+                                style={{
+                                    border: '1px solid #94a3b8',
+                                    color: '#64748b',
+                                    background: 'transparent',
+                                    fontSize: '0.75rem',
+                                    padding: '4px 8px',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    fontWeight: 600,
+                                }}
+                            >
+                                Reset
+                            </button>
                         )}
                     </div>
                 )}

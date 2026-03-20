@@ -1,4 +1,6 @@
 import type { ResultContext } from './solo.types';
+import type { FormativeFeedback } from './thcs-test.types';
+import type { SectionResult } from './thcs-test.types';
 
 export interface EnhancedTestResultRecord {
     resultId: string;
@@ -17,8 +19,8 @@ export interface EnhancedTestResultRecord {
 
     // Test info
     testTitle: string;
-    testType: 'quiz' | 'test';
-    testSkill: 'reading' | 'listening' | 'writing' | 'speaking';
+    testType: string;
+    testSkill: string;
     testDuration: number;
 
     // Question details
@@ -90,6 +92,24 @@ export interface EnhancedTestResultRecord {
     // - 'graded': Writing tests graded by teacher (PRD-0030)
     markingStatus: 'auto-marked' | 'pending-review' | 'reviewed' | 'graded';
 
+    // PRD-0027: THCS-THPT specific grading data
+    thcsData?: {
+        scaledScore: number;
+        sectionResults: SectionResult[];
+        intentBreakdown: Record<string, { correct: number; total: number }>;
+    };
+
+    // PRD-0039: IELTS passage breakdown
+    ieltsData?: {
+        passageResults: PassageResult[];
+    };
+
+    // PRD-0039: AI formative feedback (stored at test_results/{id}/formativeFeedback in RTDB)
+    formativeFeedback?: FormativeFeedback;
+
+    // PRD-0039: Derived attempt summary (UI-only, not persisted to RTDB)
+    attemptSummary?: AttemptSummary;
+
     // Result Context (PRD-0016: Solo Study & Homework System)
     // Identifies how the result was generated:
     // - class_session: Teacher-led live session
@@ -97,6 +117,25 @@ export interface EnhancedTestResultRecord {
     // - self_study: Student-initiated practice
     // - course_material: Course material practice
     context?: ResultContext;
+}
+
+/** PRD-0039: IELTS passage-level result */
+export interface PassageResult {
+    passageName: string;
+    questionRange: [number, number];
+    correct: number;
+    total: number;
+    percentage: number;
+}
+
+/** PRD-0039: Derived attempt summary (UI-only, not persisted) */
+export interface AttemptSummary {
+    attemptNumber: number;
+    totalAttempts: number;
+    isLatestAttempt: boolean;
+    trend: 'up' | 'down' | 'stable';
+    firstAttemptPercentage: number;
+    latestAttemptPercentage: number;
 }
 
 export interface QuestionResult {
@@ -144,8 +183,8 @@ export interface QuestionAnalytics {
 export interface ResultFilters {
     dateFrom?: number;
     dateTo?: number;
-    testType?: 'quiz' | 'test';
-    skill?: 'reading' | 'listening' | 'writing' | 'speaking';
+    testType?: string;
+    skill?: string;
     scoreMin?: number;
     scoreMax?: number;
     isGuest?: boolean;

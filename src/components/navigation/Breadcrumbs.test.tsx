@@ -209,8 +209,8 @@ describe('Breadcrumbs', () => {
             const customStyle = { backgroundColor: 'red' };
             const { container } = renderComponent({ items, style: customStyle });
 
-            const nav = container.querySelector('nav');
-            expect(nav).toHaveStyle('backgroundColor: red');
+            const nav = container.querySelector('nav') as HTMLElement | null;
+            expect(nav?.style.backgroundColor).toBe('red');
         });
     });
 });

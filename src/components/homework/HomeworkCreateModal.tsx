@@ -12,6 +12,7 @@ import type { AntiCheatConfig } from '../../types/integrity.types';
 import { resolvePreset, getContextDefaults } from '../../utils/antiCheatPresets';
 // @ts-ignore - JS service
 import queryOptimizer from '../../services/firebaseQueryOptimizer';
+import { getClasses, getClass } from '../../services/classManager';
 import { THCSHomeworkAssignDialog } from '../thcs-editor/THCSHomeworkAssignDialog';
 import TemplateSaveModal from './TemplateSaveModal';
 import ToastNotification from '../modern/ToastNotification';
@@ -58,6 +59,11 @@ interface Student {
     email: string;
 }
 
+const createDefaultHomeworkAntiCheatConfig = (): AntiCheatConfig => ({
+    ...resolvePreset('standard'),
+    ...getContextDefaults('homework'),
+});
+
 export function HomeworkCreateModal({
     isOpen,
     onClose,
@@ -102,10 +108,9 @@ export function HomeworkCreateModal({
     const [wordMinEnforced, setWordMinEnforced] = useState(true);
 
     // PRD-0036: Anti-cheat configuration for homework
-    const [antiCheatConfig, setAntiCheatConfig] = useState<AntiCheatConfig>(() => ({
-        ...resolvePreset('standard'),
-        ...getContextDefaults('homework'),
-    }));
+    const [antiCheatConfig, setAntiCheatConfig] = useState<AntiCheatConfig>(
+        createDefaultHomeworkAntiCheatConfig
+    );
 
     const [availableFrom, setAvailableFrom] = useState<string>('');
     const [dueDate, setDueDate] = useState<string>('');
@@ -148,16 +153,18 @@ export function HomeworkCreateModal({
 
     // Handle preselected target
     useEffect(() => {
-        if (preselectedTarget) {
-            if (preselectedTarget.type === 'class') {
-                setTargetType('class');
-                setSelectedClass({
-                    id: preselectedTarget.classId,
-                    name: preselectedTarget.className || 'Unknown Class',
-                });
-            }
+        if (!isOpen || !preselectedTarget) {
+            return;
         }
-    }, [preselectedTarget]);
+
+        if (preselectedTarget.type === 'class') {
+            setTargetType('class');
+            setSelectedClass({
+                id: preselectedTarget.classId,
+                name: preselectedTarget.className || 'Unknown Class',
+            });
+        }
+    }, [isOpen, preselectedTarget]);
 
     useEffect(() => {
         if (!isOpen) {
@@ -234,12 +241,11 @@ export function HomeworkCreateModal({
 
     const loadClasses = async () => {
         try {
-            // TODO: Replace with actual class loading service
-            const classData = await queryOptimizer.getClassesByTeacher(user?.uid);
-            setClasses(classData.map((c: any) => ({
+            const classData = await getClasses(user?.uid);
+            setClasses(classData.map((c) => ({
                 id: c.id,
                 name: c.name,
-                studentCount: c.studentIds?.length || 0,
+                studentCount: c.studentCount ?? 0,
             })));
         } catch (err) {
             console.error('Error loading classes:', err);
@@ -248,13 +254,26 @@ export function HomeworkCreateModal({
 
     const loadStudents = async () => {
         try {
-            // TODO: Replace with actual student loading service
-            const studentData = await queryOptimizer.getAssignedStudents(user?.uid);
-            setStudents(studentData.map((s: any) => ({
-                id: s.id,
-                name: s.name || s.displayName,
-                email: s.email,
-            })));
+            // Derive students from loaded classes
+            const teacherClasses = await getClasses(user?.uid);
+            const studentMap = new Map<string, { id: string; name: string; email: string }>();
+
+            for (const cls of teacherClasses) {
+                const fullClass = await getClass(cls.id);
+                if (fullClass?.students) {
+                    for (const [studentId, studentData] of Object.entries(fullClass.students)) {
+                        if (!studentMap.has(studentId)) {
+                            studentMap.set(studentId, {
+                                id: studentId,
+                                name: studentData.name || studentData.uid || studentId,
+                                email: studentData.email || '',
+                            });
+                        }
+                    }
+                }
+            }
+
+            setStudents(Array.from(studentMap.values()));
         } catch (err) {
             console.error('Error loading students:', err);
         }
@@ -403,19 +422,23 @@ export function HomeworkCreateModal({
         }
     };
 
-    const handleClose = () => {
+    const resetFormState = () => {
         setCurrentStep('material');
         setSelectedMaterial(null);
         setMaterialFilter('all');
         setMaterialSearch('');
+        setTargetType('class');
         setSelectedClass(null);
         setSelectedStudents([]);
+        setShowStudentSelector(false);
         setConfig({
             timerMinutes: null,
             maxAttempts: null,
             feedbackTiming: 'after_completion',
             lateSubmissionAllowed: false,
         });
+        setWordMinEnforced(true);
+        setAntiCheatConfig(createDefaultHomeworkAntiCheatConfig());
         setAvailableFrom('');
         setDueDate('');
         setInstructions('');
@@ -428,13 +451,17 @@ export function HomeworkCreateModal({
         setExistingTemplateNames([]);
         setTemplateToast(null);
         setError(null);
+    };
+
+    const handleClose = () => {
+        resetFormState();
         onClose();
     };
 
     if (!isOpen) return null;
 
     const filteredMaterials = materials.filter(m => {
-        const matchesSearch = m.title.toLowerCase().includes(materialSearch.toLowerCase());
+        const matchesSearch = (m.title || '').toLowerCase().includes(materialSearch.toLowerCase());
         const matchesFilter = materialFilter === 'all' || m.type === materialFilter;
         return matchesSearch && matchesFilter;
     });

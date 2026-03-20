@@ -474,7 +474,7 @@ export const TeacherStudentHistoryPage: React.FC = () => {
                                 result={result}
                                 isExpanded={expandedIds.has(result.resultId)}
                                 onToggle={() => handleToggleExpand(result.resultId)}
-                                onViewDetails={() => navigate(`/teacher/results/${result.sessionCode}`)}
+                                onViewDetails={() => navigate(`/teacher-test-results/${result.sessionCode}`)}
                             />
                         ))
                     )}

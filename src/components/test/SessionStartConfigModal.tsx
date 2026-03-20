@@ -11,6 +11,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import type { AntiCheatConfig, AntiCheatPreset } from '../../types/integrity.types';
 import { resolvePreset, getContextDefaults } from '../../utils/antiCheatPresets';
 import { Button } from '../modern';
@@ -103,7 +104,7 @@ export const SessionStartConfigModal: React.FC<SessionStartConfigModalProps> = (
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div
       className="session-config-overlay"
       onClick={(e) => e.target === e.currentTarget && onClose()}
@@ -206,6 +207,7 @@ export const SessionStartConfigModal: React.FC<SessionStartConfigModalProps> = (
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

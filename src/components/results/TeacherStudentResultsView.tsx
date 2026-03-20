@@ -126,7 +126,7 @@ export const TeacherStudentResultsView: React.FC<TeacherStudentResultsViewProps>
      */
     const handleViewResult = (resultId: string, sessionCode: string) => {
         // Navigate to result detail page
-        navigate(`/teacher/results/${sessionCode}?highlight=${resultId}`);
+        navigate(`/teacher-test-results/${sessionCode}?highlight=${resultId}`);
     };
 
     // Display results (limited if maxResults > 0)

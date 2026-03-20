@@ -1,11 +1,10 @@
 /**
- * Backup R2 Client — S3-compatible wrapper using aws4fetch (PRD §4.8.2)
+ * Backup R2 Client - S3-compatible wrapper using aws4fetch (PRD §4.8.2)
  *
  * Uses aws4fetch (Cloudflare's recommended library) for Workers S3 compatibility.
- * NOTE: This client has NO deleteObject method — deletion is handled by R2 lifecycle rules.
  *
- * ⚠️ @aws-sdk/client-s3 does NOT work in Workers (DOMParser not available).
- *    aws4fetch handles AWS Signature V4 signing natively in Workers.
+ * @aws-sdk/client-s3 does NOT work in Workers (DOMParser not available).
+ * aws4fetch handles AWS Signature V4 signing natively in Workers.
  */
 
 import { AwsClient } from 'aws4fetch';
@@ -153,5 +152,22 @@ export class BackupR2Client {
 
         const size = parseInt(response.headers.get('content-length') ?? '0', 10);
         return { exists: true, size };
+    }
+
+    /**
+     * Delete an object from backup R2.
+     */
+    async deleteObject(key: string): Promise<void> {
+        const response = await this.client.fetch(`${this.baseUrl}/${key}`, {
+            method: 'DELETE',
+        });
+
+        if (response.status === 404) {
+            return;
+        }
+        if (!response.ok) {
+            const text = await response.text();
+            throw new Error(`R2 DELETE failed (${response.status}): ${text.slice(0, 200)}`);
+        }
     }
 }

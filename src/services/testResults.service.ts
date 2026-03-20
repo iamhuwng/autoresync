@@ -13,7 +13,7 @@ import { ref, set, get, push, update } from 'firebase/database';
 // @ts-ignore
 import { database } from './firebase';
 import { TestMarkingResult } from './autoMarking.service';
-import { ReMarkEntry, ResultFilters, EnhancedTestResultRecord } from '../types/results.types';
+import { ReMarkEntry, ResultFilters, EnhancedTestResultRecord, PassageResult } from '../types/results.types';
 import type { ResultContext } from '../types/solo.types';
 import { saveGuestResult } from './guestResultsService';
 import type { SectionResult } from '../types/thcs-test.types';
@@ -90,7 +90,7 @@ export interface TestResultRecord {
     maxScore: number;
     feedback: string;
   }[];
-  markingStatus?: 'auto-marked' | 'pending-review' | 'reviewed'; // PRD-0015: Phase 7 & 8
+  markingStatus?: 'auto-marked' | 'pending-review' | 'reviewed' | 'graded'; // PRD-0015: Phase 7 & 8, PRD-0030
 
   // Academic context (PRD-0015: Phase 3)
   courseId?: string | null;
@@ -114,6 +114,11 @@ export interface TestResultRecord {
     scaledScore: number; // 10-point scale (e.g., 8.3)
     sectionResults: SectionResult[]; // Full SectionResult[] from thcs-test.types.ts — includes intentBreakdown per section
     intentBreakdown: Record<string, { correct: number; total: number }>; // Merged intent breakdown across ALL sections
+  };
+
+  /** PRD-0039: IELTS passage breakdown */
+  ieltsData?: {
+    passageResults: PassageResult[];
   };
 }
 
@@ -149,7 +154,8 @@ export async function saveTestResult(
     moduleName?: string;
   },
   context?: ResultContext, // PRD-0016: Result context (class_session, homework, self_study, course_material)
-  thcsData?: TestResultRecord['thcsData'] // PRD-0027: THCS grading data
+  thcsData?: TestResultRecord['thcsData'], // PRD-0027: THCS grading data
+  ieltsData?: TestResultRecord['ieltsData'] // PRD-0039: IELTS passage results
 ): Promise<string> {
   try {
     // PRD-0015: Phase 7 - Route guest results to separate storage
@@ -239,6 +245,7 @@ export async function saveTestResult(
     if (submissionContent?.speaking) resultRecord.speakingSubmission = submissionContent.speaking;
     if (context) resultRecord.context = context;
     if (thcsData) (resultRecord as any).thcsData = thcsData;
+    if (ieltsData) resultRecord.ieltsData = ieltsData; // PRD-0039
 
     // Save to test_results/{resultId}
     await set(resultRef, resultRecord);
@@ -766,6 +773,39 @@ export async function deleteTestResult(resultId: string): Promise<void> {
 }
 
 /**
+ * Delete all permanent result records for a student in a specific session.
+ * Used when a teacher reopens a live submission so the student can submit again
+ * without leaving stale result rows behind.
+ */
+export async function deleteStudentSessionResults(
+  studentId: string,
+  sessionCode: string
+): Promise<number> {
+  try {
+    const studentResults = await getStudentResults(studentId);
+    const matchingResults = studentResults.filter(
+      (result) => result.sessionCode === sessionCode
+    );
+
+    if (matchingResults.length === 0) {
+      return 0;
+    }
+
+    await Promise.all(
+      matchingResults.map((result) => deleteTestResult(result.resultId))
+    );
+
+    console.log(
+      `🗑️ Deleted ${matchingResults.length} test result(s) for ${studentId} in session ${sessionCode}`
+    );
+    return matchingResults.length;
+  } catch (error) {
+    console.error('Error deleting student session results:', error);
+    throw error;
+  }
+}
+
+/**
  * Check if result exists for student in session
  */
 export async function hasStudentSubmitted(
@@ -906,5 +946,204 @@ async function saveGuestResultInternal(
   } catch (error) {
     console.error('Error saving guest result:', error);
     throw error;
+  }
+}
+
+// ============================================
+// PRD-0039: Slide Panel Service Queries
+// ============================================
+
+/**
+ * PRD-0039 Task 2.4: Get all test attempts for a student on a specific test.
+ * Grouping key: studentId + testId (Task 2.5 — NOT sessionCode).
+ *
+ * Algorithm:
+ * - Read test_results_by_student/{studentId}
+ * - Fetch each full record from test_results/{resultId}
+ * - Keep only records whose testId === testId
+ * - Sort by submittedAt DESC
+ * - Return the full sorted array
+ */
+export async function getStudentTestAttempts(
+  studentId: string,
+  testId: string
+): Promise<TestResultRecord[]> {
+  try {
+    const indexRef = ref(database, `test_results_by_student/${studentId}`);
+    const indexSnapshot = await get(indexRef);
+
+    if (!indexSnapshot.exists()) {
+      return [];
+    }
+
+    const resultIds = Object.keys(indexSnapshot.val());
+
+    // Fetch all results in parallel, skip inaccessible ones
+    const results = await Promise.all(
+      resultIds.map(async (resultId) => {
+        try {
+          const resultRef = ref(database, `test_results/${resultId}`);
+          const snapshot = await get(resultRef);
+          return snapshot.exists() ? (snapshot.val() as TestResultRecord) : null;
+        } catch {
+          return null;
+        }
+      })
+    );
+
+    // Filter by testId and sort by submittedAt DESC
+    return results
+      .filter((r): r is TestResultRecord => r !== null && r.testId === testId)
+      .sort((a, b) => b.submittedAt - a.submittedAt);
+  } catch (error) {
+    console.error('[TestResults] Error fetching student test attempts:', error);
+    throw new Error('Failed to fetch student test attempts');
+  }
+}
+
+/**
+ * PRD-0039 Task 2.6: Get historical scores for trend analysis.
+ *
+ * Filtering rules (exact from task spec):
+ * - If anchorResult.context?.type === 'homework' && anchorResult.testId → match by testId
+ * - Else if anchorResult.testType === 'THCS-THPT' → match same testType and same lowercase testSkill
+ * - Else if testType includes 'ielts' (case-insensitive) → match same lowercase testType
+ * - Else → match same lowercase testType and same lowercase testSkill
+ *
+ * Sort by submittedAt DESC, return at most `limit` records.
+ */
+export async function getHistoricalScores(
+  studentId: string,
+  anchorResult: TestResultRecord,
+  limit: number = 5
+): Promise<TestResultRecord[]> {
+  try {
+    const indexRef = ref(database, `test_results_by_student/${studentId}`);
+    const indexSnapshot = await get(indexRef);
+
+    if (!indexSnapshot.exists()) {
+      return [];
+    }
+
+    const resultIds = Object.keys(indexSnapshot.val());
+
+    // Fetch all results
+    const allResults = await Promise.all(
+      resultIds.map(async (resultId) => {
+        try {
+          const resultRef = ref(database, `test_results/${resultId}`);
+          const snapshot = await get(resultRef);
+          return snapshot.exists() ? (snapshot.val() as TestResultRecord) : null;
+        } catch {
+          return null;
+        }
+      })
+    );
+
+    const validResults = allResults.filter((r): r is TestResultRecord => r !== null);
+
+    // Determine filter function based on anchor result context
+    const anchorContext = (anchorResult as any).context;
+    const anchorTestType = String(anchorResult.testType || '').toLowerCase();
+    const anchorTestSkill = String(anchorResult.testSkill || '').toLowerCase();
+
+    let filtered: TestResultRecord[];
+
+    if (anchorContext?.type === 'homework' && anchorResult.testId) {
+      // Homework context: match by testId
+      filtered = validResults.filter((r) => r.testId === anchorResult.testId);
+    } else if (anchorResult.testType === 'THCS-THPT') {
+      // THCS-THPT: match same testType and same lowercase testSkill
+      filtered = validResults.filter(
+        (r) =>
+          String(r.testType || '').toLowerCase() === anchorTestType &&
+          String(r.testSkill || '').toLowerCase() === anchorTestSkill
+      );
+    } else if (anchorTestType.includes('ielts')) {
+      // IELTS: match same lowercase testType
+      filtered = validResults.filter(
+        (r) => String(r.testType || '').toLowerCase() === anchorTestType
+      );
+    } else {
+      // Default: match same lowercase testType and same lowercase testSkill
+      filtered = validResults.filter(
+        (r) =>
+          String(r.testType || '').toLowerCase() === anchorTestType &&
+          String(r.testSkill || '').toLowerCase() === anchorTestSkill
+      );
+    }
+
+    // Sort by submittedAt DESC and limit
+    return filtered
+      .sort((a, b) => b.submittedAt - a.submittedAt)
+      .slice(0, limit);
+  } catch (error) {
+    console.error('[TestResults] Error fetching historical scores:', error);
+    throw new Error('Failed to fetch historical scores');
+  }
+}
+
+/**
+ * PRD-0039 Task 2.7: Get class test scores for a specific test.
+ *
+ * Algorithm:
+ * - If classId is missing, return []
+ * - Read test_results_by_class/{classId}
+ * - Flatten all student buckets into result IDs
+ * - Fetch full records from test_results/{resultId}
+ * - Keep only records with testId === testId
+ * - Return the full filtered array
+ */
+export async function getClassTestScores(
+  testId: string,
+  classId: string | undefined | null
+): Promise<TestResultRecord[]> {
+  if (!classId) {
+    return [];
+  }
+
+  try {
+    const classIndexRef = ref(database, `test_results_by_class/${classId}`);
+    const classSnapshot = await get(classIndexRef);
+
+    if (!classSnapshot.exists()) {
+      return [];
+    }
+
+    // Flatten: test_results_by_class/{classId}/{studentId}/{resultId}
+    const classData = classSnapshot.val();
+    const resultIds: string[] = [];
+
+    for (const studentId of Object.keys(classData)) {
+      const studentResults = classData[studentId];
+      if (studentResults && typeof studentResults === 'object') {
+        resultIds.push(...Object.keys(studentResults));
+      }
+    }
+
+    if (resultIds.length === 0) {
+      return [];
+    }
+
+    // Fetch all results in parallel
+    const results = await Promise.all(
+      resultIds.map(async (resultId) => {
+        try {
+          const resultRef = ref(database, `test_results/${resultId}`);
+          const snapshot = await get(resultRef);
+          return snapshot.exists() ? (snapshot.val() as TestResultRecord) : null;
+        } catch {
+          return null;
+        }
+      })
+    );
+
+    // Filter by testId
+    return results.filter(
+      (r): r is TestResultRecord => r !== null && r.testId === testId
+    );
+  } catch (error) {
+    console.error('[TestResults] Error fetching class test scores:', error);
+    throw new Error('Failed to fetch class test scores');
   }
 }

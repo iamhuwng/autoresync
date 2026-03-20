@@ -556,4 +556,156 @@ describe('AcademicRecordService', () => {
             expect(previews.every(p => p.skill === 'reading')).toBe(true);
         });
     });
+
+    // ============================================
+    // PRD-0039: Attempt grouping & summary (Task 3.6)
+    // ============================================
+
+    describe('groupResultsByTestId', () => {
+        it('should group results by testId', async () => {
+            const { groupResultsByTestId } = await import('./academicRecordService');
+
+            const results = [
+                { ...mockResult1, resultId: 'r1', testId: 'T1', submittedAt: 1000 },
+                { ...mockResult1, resultId: 'r2', testId: 'T1', submittedAt: 3000 },
+                { ...mockResult1, resultId: 'r3', testId: 'T2', submittedAt: 2000 },
+            ] as EnhancedTestResultRecord[];
+
+            const groups = groupResultsByTestId(results);
+
+            expect(groups.size).toBe(2);
+            expect(groups.get('T1')).toHaveLength(2);
+            expect(groups.get('T2')).toHaveLength(1);
+        });
+
+        it('should sort each group by submittedAt DESC', async () => {
+            const { groupResultsByTestId } = await import('./academicRecordService');
+
+            const results = [
+                { ...mockResult1, resultId: 'r1', testId: 'T1', submittedAt: 1000 },
+                { ...mockResult1, resultId: 'r2', testId: 'T1', submittedAt: 3000 },
+                { ...mockResult1, resultId: 'r3', testId: 'T1', submittedAt: 2000 },
+            ] as EnhancedTestResultRecord[];
+
+            const groups = groupResultsByTestId(results);
+            const t1Group = groups.get('T1')!;
+
+            expect(t1Group[0].resultId).toBe('r2'); // newest
+            expect(t1Group[1].resultId).toBe('r3');
+            expect(t1Group[2].resultId).toBe('r1'); // oldest
+        });
+
+        it('should skip results without testId', async () => {
+            const { groupResultsByTestId } = await import('./academicRecordService');
+
+            const results = [
+                { ...mockResult1, resultId: 'r1', testId: 'T1', submittedAt: 1000 },
+                { ...mockResult1, resultId: 'r2', testId: undefined as any, submittedAt: 2000 },
+            ] as EnhancedTestResultRecord[];
+
+            const groups = groupResultsByTestId(results);
+            expect(groups.size).toBe(1);
+        });
+    });
+
+    describe('computeAttemptSummaries', () => {
+        it('should compute correct attempt summaries with stable trend', async () => {
+            const { computeAttemptSummaries } = await import('./academicRecordService');
+
+            const group = [
+                { ...mockResult1, resultId: 'r2', percentage: 80, submittedAt: 2000 },
+                { ...mockResult1, resultId: 'r1', percentage: 80, submittedAt: 1000 },
+            ] as EnhancedTestResultRecord[];
+
+            const enriched = computeAttemptSummaries(group);
+
+            expect(enriched).toHaveLength(2);
+            expect(enriched[0].attemptSummary!.attemptNumber).toBe(2); // latest
+            expect(enriched[0].attemptSummary!.isLatestAttempt).toBe(true);
+            expect(enriched[0].attemptSummary!.trend).toBe('stable');
+            expect(enriched[1].attemptSummary!.attemptNumber).toBe(1); // first
+            expect(enriched[1].attemptSummary!.isLatestAttempt).toBe(false);
+        });
+
+        it('should compute up trend when latest > first', async () => {
+            const { computeAttemptSummaries } = await import('./academicRecordService');
+
+            const group = [
+                { ...mockResult1, resultId: 'r2', percentage: 90, submittedAt: 2000 },
+                { ...mockResult1, resultId: 'r1', percentage: 60, submittedAt: 1000 },
+            ] as EnhancedTestResultRecord[];
+
+            const enriched = computeAttemptSummaries(group);
+            expect(enriched[0].attemptSummary!.trend).toBe('up');
+            expect(enriched[0].attemptSummary!.firstAttemptPercentage).toBe(60);
+            expect(enriched[0].attemptSummary!.latestAttemptPercentage).toBe(90);
+        });
+
+        it('should compute down trend when latest < first', async () => {
+            const { computeAttemptSummaries } = await import('./academicRecordService');
+
+            const group = [
+                { ...mockResult1, resultId: 'r2', percentage: 50, submittedAt: 2000 },
+                { ...mockResult1, resultId: 'r1', percentage: 80, submittedAt: 1000 },
+            ] as EnhancedTestResultRecord[];
+
+            const enriched = computeAttemptSummaries(group);
+            expect(enriched[0].attemptSummary!.trend).toBe('down');
+        });
+
+        it('should return empty array for empty input', async () => {
+            const { computeAttemptSummaries } = await import('./academicRecordService');
+            expect(computeAttemptSummaries([])).toEqual([]);
+        });
+    });
+
+    describe('getLatestResultPerTest', () => {
+        it('should return one result per testId (the newest)', async () => {
+            const { getLatestResultPerTest } = await import('./academicRecordService');
+
+            const results = [
+                { ...mockResult1, resultId: 'r1', testId: 'T1', percentage: 60, submittedAt: 1000 },
+                { ...mockResult1, resultId: 'r2', testId: 'T1', percentage: 90, submittedAt: 3000 },
+                { ...mockResult1, resultId: 'r3', testId: 'T2', percentage: 70, submittedAt: 2000 },
+            ] as EnhancedTestResultRecord[];
+
+            const latest = getLatestResultPerTest(results);
+
+            expect(latest).toHaveLength(2); // one per testId
+            expect(latest.find(r => r.testId === 'T1')!.resultId).toBe('r2'); // newest T1
+            expect(latest.find(r => r.testId === 'T2')!.resultId).toBe('r3');
+        });
+
+        it('should include attemptSummary on returned results', async () => {
+            const { getLatestResultPerTest } = await import('./academicRecordService');
+
+            const results = [
+                { ...mockResult1, resultId: 'r1', testId: 'T1', percentage: 60, submittedAt: 1000 },
+                { ...mockResult1, resultId: 'r2', testId: 'T1', percentage: 90, submittedAt: 3000 },
+            ] as EnhancedTestResultRecord[];
+
+            const latest = getLatestResultPerTest(results);
+
+            expect(latest[0].attemptSummary).toBeDefined();
+            expect(latest[0].attemptSummary!.totalAttempts).toBe(2);
+            expect(latest[0].attemptSummary!.isLatestAttempt).toBe(true);
+            expect(latest[0].attemptSummary!.trend).toBe('up');
+        });
+
+        it('should sort final list by submittedAt DESC', async () => {
+            const { getLatestResultPerTest } = await import('./academicRecordService');
+
+            const results = [
+                { ...mockResult1, resultId: 'r1', testId: 'T1', submittedAt: 1000 },
+                { ...mockResult1, resultId: 'r2', testId: 'T2', submittedAt: 5000 },
+                { ...mockResult1, resultId: 'r3', testId: 'T3', submittedAt: 3000 },
+            ] as EnhancedTestResultRecord[];
+
+            const latest = getLatestResultPerTest(results);
+
+            expect(latest[0].submittedAt).toBe(5000);
+            expect(latest[1].submittedAt).toBe(3000);
+            expect(latest[2].submittedAt).toBe(1000);
+        });
+    });
 });

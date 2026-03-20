@@ -12,6 +12,7 @@ import { database } from '../../services/firebase';
 // @ts-ignore - Firebase is a .js file
 import { ref, onValue, update, onDisconnect } from 'firebase/database';
 import type { MasterAudioState, AudioMode, HeadphoneRequest } from '../../types/audio.types';
+import type { AntiCheatConfig } from '../../types/integrity.types';
 
 export interface TestSession {
   testId: string;
@@ -88,6 +89,10 @@ interface UseTestSessionReturn {
   audioMode: AudioMode | null;
   /** Headphone permission status (for offline mode) */
   headphoneRequest: HeadphoneRequest | null;
+  /** PRD-0036: Anti-cheat config from session */
+  antiCheatConfig: AntiCheatConfig | null;
+  /** PRD-0036: Session-level teacher request for clients to flush buffered integrity logs */
+  integrityRefreshRequestedAt: number | null;
 }
 
 export const useTestSession = ({
@@ -114,6 +119,9 @@ export const useTestSession = ({
   const [masterAudioState, setMasterAudioState] = useState<MasterAudioState | null>(null);
   const [audioMode, setAudioMode] = useState<AudioMode | null>(null);
   const [headphoneRequest, setHeadphoneRequest] = useState<HeadphoneRequest | null>(null);
+  // PRD-0036: Anti-cheat config from RTDB session data
+  const [antiCheatConfig, setAntiCheatConfig] = useState<AntiCheatConfig | null>(null);
+  const [integrityRefreshRequestedAt, setIntegrityRefreshRequestedAt] = useState<number | null>(null);
   const lastMasterStateTimestampRef = useRef<number>(0);
   const lastSyncedStartTimeRef = useRef<number | null>(null);
 
@@ -264,6 +272,19 @@ export const useTestSession = ({
           const request = data.players[currentPlayerId].headphoneRequest as HeadphoneRequest;
           setHeadphoneRequest(request);
         }
+
+        // PRD-0036: Extract anti-cheat config from session
+        if (data.antiCheatConfig) {
+          setAntiCheatConfig(data.antiCheatConfig);
+        } else {
+          setAntiCheatConfig(null);
+        }
+
+        setIntegrityRefreshRequestedAt(
+          typeof data.integrityRefreshRequestedAt === 'number'
+            ? data.integrityRefreshRequestedAt
+            : null
+        );
       }
     });
 
@@ -343,5 +364,8 @@ export const useTestSession = ({
     masterAudioState,
     audioMode,
     headphoneRequest,
+    // PRD-0036: Anti-cheat config
+    antiCheatConfig,
+    integrityRefreshRequestedAt,
   };
 };

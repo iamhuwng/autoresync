@@ -6,6 +6,8 @@ import '@testing-library/jest-dom';
 import TeacherCourseProfilePage from './TeacherCourseProfilePage';
 import { getCourse } from '../services/courseManager';
 import { getRequestsByCourse } from '../services/courseRequestManager';
+import { getClasses } from '../services/classManager';
+import { getCourseAnnouncements } from '../services/courseAnnouncementService';
 
 // Mock dependencies
 vi.mock('react-router-dom', async () => {
@@ -19,6 +21,14 @@ vi.mock('react-router-dom', async () => {
 
 vi.mock('../services/courseManager');
 vi.mock('../services/courseRequestManager');
+vi.mock('../services/classManager');
+vi.mock('../services/courseAnnouncementService', async () => {
+    const actual = await vi.importActual('../services/courseAnnouncementService');
+    return {
+        ...actual,
+        getCourseAnnouncements: vi.fn(),
+    };
+});
 vi.mock('../hooks/useAuth', () => ({
     useAuth: () => ({ user: { uid: 't1' } })
 }));
@@ -47,6 +57,8 @@ describe('TeacherCourseProfilePage - Requests Tab', () => {
         vi.clearAllMocks();
         (getCourse as any).mockResolvedValue(mockCourse);
         (getRequestsByCourse as any).mockResolvedValue([mockRequest]);
+        (getClasses as any).mockResolvedValue([]);
+        (getCourseAnnouncements as any).mockResolvedValue([]);
     });
 
     const renderPage = () => {
@@ -66,9 +78,11 @@ describe('TeacherCourseProfilePage - Requests Tab', () => {
             expect(screen.getByText('Test Course')).toBeInTheDocument();
         });
 
-        expect(screen.getByText('Overview')).toBeInTheDocument();
-        expect(screen.getByText('Modules')).toBeInTheDocument();
-        expect(screen.getByText('Requests')).toBeInTheDocument();
+        expect(screen.getByText('Course Overview')).toBeInTheDocument();
+        expect(screen.getByRole('tab', { name: 'Modules' })).toBeInTheDocument();
+        expect(screen.getByRole('tab', { name: 'Announcements' })).toBeInTheDocument();
+        expect(screen.getByRole('tab', { name: 'Students' })).toBeInTheDocument();
+        expect(screen.getByRole('tab', { name: 'Requests' })).toBeInTheDocument();
     });
 
     it('should show pending requests when clicking Requests tab', async () => {

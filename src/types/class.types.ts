@@ -109,6 +109,8 @@ export interface ClassStudent {
   name: string;
   /** Email if available */
   email?: string;
+  /** Enrollment status: pending_approval (joined via code, awaiting teacher), active (approved), removed */
+  status?: 'pending_approval' | 'active' | 'removed';
   /** When student joined the class */
   joinedAt: number;
   /** Last activity timestamp */

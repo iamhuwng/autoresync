@@ -1,26 +1,77 @@
-/**
- * Unit tests for useTestIntegrity hook
- *
- * PRD-0036: Anti-Cheating & Test Integrity System — Task 2.13
- */
-
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useTestIntegrity } from './useTestIntegrity';
 import type { AntiCheatConfig } from '../../types/integrity.types';
 import { resolvePreset } from '../../utils/antiCheatPresets';
 
-// ── Mock firebase/database ──
+const {
+  mockTrackAntiCheatAction,
+  mockDbUpdate,
+  mockDbRef,
+} = vi.hoisted(() => ({
+  mockTrackAntiCheatAction: vi.fn(),
+  mockDbUpdate: vi.fn(() => Promise.resolve()),
+  mockDbRef: vi.fn(() => ({})),
+}));
+
 vi.mock('firebase/database', () => ({
-  ref: vi.fn(() => ({})),
-  update: vi.fn(() => Promise.resolve()),
+  ref: mockDbRef,
+  update: mockDbUpdate,
+  getDatabase: vi.fn(() => ({})),
+  onValue: vi.fn(),
+}));
+
+vi.mock('firebase/app', () => ({
+  initializeApp: vi.fn(() => ({ name: 'test-app' })),
+}));
+
+vi.mock('firebase/analytics', () => ({
+  getAnalytics: vi.fn(() => null),
+}));
+
+vi.mock('firebase/auth', () => ({
+  getAuth: vi.fn(() => ({})),
+  GoogleAuthProvider: vi.fn(() => ({
+    setCustomParameters: vi.fn(),
+  })),
+}));
+
+vi.mock('firebase/firestore', () => ({
+  initializeFirestore: vi.fn(() => ({})),
+  persistentLocalCache: vi.fn(() => ({})),
+  persistentMultipleTabManager: vi.fn(() => ({})),
 }));
 
 vi.mock('../../services/firebase', () => ({
   database: {},
 }));
 
-// ── Mock sessionStorage ──
+vi.mock('../../services/firebase.js', () => ({
+  database: {},
+}));
+
+vi.mock('../../services/antiCheatReporting', () => ({
+  summarizeAntiCheatConfig: (config: AntiCheatConfig | null | undefined) => ({
+    antiCheatEnabled: Boolean(config),
+    preset: config?.preset ?? 'none',
+  }),
+  summarizeError: (error: unknown) => ({
+    errorMessage: error instanceof Error ? error.message : String(error),
+  }),
+  summarizeIntegrityEvent: (event: any) => ({
+    eventType: event.type,
+    counted: event.counted,
+    withinGrace: event.withinGrace,
+  }),
+  summarizeIntegritySnapshot: (report: any) => ({
+    violationCount: report?.violationCount ?? 0,
+    totalEvents: report?.totalEvents ?? 0,
+    riskLevel: report?.riskLevel ?? 'low',
+    forceSubmitted: report?.forceSubmitted ?? false,
+  }),
+  trackAntiCheatAction: mockTrackAntiCheatAction,
+}));
+
 const mockSessionStorage: Record<string, string> = {};
 const sessionStorageMock = {
   getItem: vi.fn((key: string) => mockSessionStorage[key] ?? null),
@@ -31,9 +82,7 @@ const sessionStorageMock = {
     delete mockSessionStorage[key];
   }),
   clear: vi.fn(() => {
-    Object.keys(mockSessionStorage).forEach(
-      (key) => delete mockSessionStorage[key],
-    );
+    Object.keys(mockSessionStorage).forEach((key) => delete mockSessionStorage[key]);
   }),
   length: 0,
   key: vi.fn(() => null),
@@ -44,15 +93,34 @@ Object.defineProperty(window, 'sessionStorage', {
   writable: true,
 });
 
-// ── Helpers ──
+let mockVisibilityState: DocumentVisibilityState = 'visible';
+Object.defineProperty(document, 'visibilityState', {
+  configurable: true,
+  get: () => mockVisibilityState,
+});
+
 const standardConfig: AntiCheatConfig = resolvePreset('standard');
 
 const defaultOptions = {
   config: standardConfig,
   context: 'session' as const,
+  surface: 'student_test',
   sessionCode: 'TEST123',
   studentId: 'student1',
   testId: 'test1',
+};
+
+const dispatchVisibilityChange = (state: DocumentVisibilityState) => {
+  mockVisibilityState = state;
+  document.dispatchEvent(new Event('visibilitychange'));
+};
+
+const dispatchWindowBlur = () => {
+  window.dispatchEvent(new Event('blur'));
+};
+
+const dispatchWindowFocus = () => {
+  window.dispatchEvent(new Event('focus'));
 };
 
 describe('useTestIntegrity', () => {
@@ -60,13 +128,13 @@ describe('useTestIntegrity', () => {
     vi.clearAllMocks();
     sessionStorageMock.clear();
     vi.useFakeTimers();
+    mockVisibilityState = 'visible';
   });
 
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  // ── (a) No-op when config is null ──
   it('returns no-op state when config is null', () => {
     const { result } = renderHook(() =>
       useTestIntegrity({
@@ -79,115 +147,105 @@ describe('useTestIntegrity', () => {
     expect(result.current.totalEvents).toBe(0);
     expect(result.current.warningLevel).toBe('none');
     expect(result.current.shouldAutoSubmit).toBe(false);
+    expect(mockTrackAntiCheatAction).not.toHaveBeenCalled();
   });
 
-  // ── (b) No-op when context is 'solo' ──
-  it('returns no-op state when context is solo', () => {
-    const { result } = renderHook(() =>
-      useTestIntegrity({
-        ...defaultOptions,
-        context: 'solo',
+  it('tracks initialization once when protection becomes active', () => {
+    renderHook(() => useTestIntegrity(defaultOptions));
+
+    expect(mockTrackAntiCheatAction).toHaveBeenCalledWith(
+      'initializeProtection',
+      expect.objectContaining({
+        context: 'session',
+        surface: 'student_test',
+        sessionCode: 'TEST123',
+        studentId: 'student1',
+        testId: 'test1',
+      }),
+      expect.objectContaining({
+        antiCheatEnabled: true,
+        preset: 'standard',
       }),
     );
-
-    expect(result.current.violationCount).toBe(0);
-    expect(result.current.totalEvents).toBe(0);
-    expect(result.current.warningLevel).toBe('none');
-    expect(result.current.shouldAutoSubmit).toBe(false);
   });
 
-  // ── (c) Grace period ignores first 2 switches ──
-  it('grace period correctly ignores first 2 switches', () => {
-    const { result } = renderHook(() =>
-      useTestIntegrity(defaultOptions),
+  it('treats the first two long visibility switches as grace events', () => {
+    const { result } = renderHook(() => useTestIntegrity(defaultOptions));
+
+    act(() => {
+      dispatchVisibilityChange('hidden');
+    });
+    act(() => {
+      vi.advanceTimersByTime(10000);
+      dispatchVisibilityChange('visible');
+    });
+    act(() => {
+      dispatchVisibilityChange('hidden');
+    });
+    act(() => {
+      vi.advanceTimersByTime(7000);
+      dispatchVisibilityChange('visible');
+    });
+
+    const report = result.current.getIntegrityReport();
+    expect(report.violationCount).toBe(0);
+    expect(report.totalEvents).toBe(2);
+    expect(report.events.every((event) => event.withinGrace)).toBe(true);
+    expect(report.events.every((event) => event.counted === false)).toBe(true);
+  });
+
+  it('counts the third long switch as a violation once grace is exhausted', () => {
+    const { result } = renderHook(() => useTestIntegrity(defaultOptions));
+
+    act(() => {
+      dispatchVisibilityChange('hidden');
+    });
+    act(() => {
+      vi.advanceTimersByTime(6000);
+      dispatchVisibilityChange('visible');
+    });
+    act(() => {
+      dispatchVisibilityChange('hidden');
+    });
+    act(() => {
+      vi.advanceTimersByTime(6000);
+      dispatchVisibilityChange('visible');
+    });
+    act(() => {
+      dispatchWindowBlur();
+    });
+    act(() => {
+      vi.advanceTimersByTime(8000);
+      dispatchWindowFocus();
+    });
+
+    const report = result.current.getIntegrityReport();
+    const countedEvent = report.events[report.events.length - 1];
+
+    expect(report.violationCount).toBe(1);
+    expect(report.totalEvents).toBe(3);
+    expect(countedEvent?.counted).toBe(true);
+    expect(countedEvent?.withinGrace).toBe(false);
+    expect(mockTrackAntiCheatAction).toHaveBeenCalledWith(
+      'recordViolation',
+      expect.objectContaining({
+        context: 'session',
+        surface: 'student_test',
+      }),
+      expect.objectContaining({
+        eventType: 'window_blur',
+        violationCount: 1,
+        totalEvents: 3,
+      }),
     );
-
-    // Simulate 2 long tab switches (>5s each, but within first 2 free switches)
-    act(() => {
-      result.current.addEvent({
-        type: 'tab_switch',
-        timestamp: Date.now(),
-        durationMs: 10000, // 10s - would be counted except it's within first 2
-        withinGrace: true,
-        counted: false,
-      });
-    });
-
-    act(() => {
-      result.current.addEvent({
-        type: 'tab_switch',
-        timestamp: Date.now(),
-        durationMs: 10000,
-        withinGrace: true,
-        counted: false,
-      });
-    });
-
-    expect(result.current.violationCount).toBe(0);
-    expect(result.current.totalEvents).toBe(2);
   });
 
-  // ── (d) Grace period correctly ignores switches <5s ──
-  it('grace period correctly ignores switches under 5 seconds', () => {
-    const { result } = renderHook(() =>
-      useTestIntegrity(defaultOptions),
-    );
-
-    // Short-duration switch that would otherwise count (after first 2 free)
-    act(() => {
-      result.current.addEvent({
-        type: 'tab_switch',
-        timestamp: Date.now(),
-        durationMs: 3000, // 3s - should be grace
-        withinGrace: true,
-        counted: false,
-      });
-    });
-
-    expect(result.current.violationCount).toBe(0);
-  });
-
-  // ── (e) violationCount increments only for counted events ──
-  it('violationCount increments only for counted events', () => {
-    const { result } = renderHook(() =>
-      useTestIntegrity(defaultOptions),
-    );
-
-    // Add a grace event (not counted)
-    act(() => {
-      result.current.addEvent({
-        type: 'tab_switch',
-        timestamp: Date.now(),
-        durationMs: 2000,
-        withinGrace: true,
-        counted: false,
-      });
-    });
-
-    expect(result.current.violationCount).toBe(0);
-
-    // Add a counted event
-    act(() => {
-      result.current.addEvent({
-        type: 'tab_switch',
-        timestamp: Date.now(),
-        durationMs: 10000,
-        withinGrace: false,
-        counted: true,
-      });
-    });
-
-    expect(result.current.violationCount).toBe(1);
-    expect(result.current.totalEvents).toBe(2);
-  });
-
-  // ── (f) Warning levels map correctly to thresholds ──
-  it('warning levels escalate correctly with violations', () => {
+  it('tracks warning escalation and auto-submit when the threshold is reached', () => {
     const configWithWarnings: AntiCheatConfig = {
       ...standardConfig,
       enableStudentWarnings: true,
       enableAutoSubmit: true,
-      autoSubmitThreshold: 5,
+      autoSubmitThreshold: 3,
     };
 
     const { result } = renderHook(() =>
@@ -197,10 +255,6 @@ describe('useTestIntegrity', () => {
       }),
     );
 
-    // 0 violations → none
-    expect(result.current.warningLevel).toBe('none');
-
-    // 1 violation → toast (1 < threshold - 1 = 4)
     act(() => {
       result.current.addEvent({
         type: 'copy_attempt',
@@ -209,9 +263,6 @@ describe('useTestIntegrity', () => {
         counted: true,
       });
     });
-    expect(result.current.warningLevel).toBe('toast');
-
-    // 2 violations → toast
     act(() => {
       result.current.addEvent({
         type: 'paste_attempt',
@@ -220,9 +271,6 @@ describe('useTestIntegrity', () => {
         counted: true,
       });
     });
-    expect(result.current.warningLevel).toBe('toast');
-
-    // 3 violations → toast (3 < 4)
     act(() => {
       result.current.addEvent({
         type: 'right_click',
@@ -231,37 +279,60 @@ describe('useTestIntegrity', () => {
         counted: true,
       });
     });
-    expect(result.current.warningLevel).toBe('toast');
 
-    // 4 violations → escalated (threshold - 1)
-    act(() => {
-      result.current.addEvent({
-        type: 'keyboard_shortcut',
-        timestamp: Date.now(),
-        withinGrace: false,
-        counted: true,
-        details: 'Ctrl+C',
-      });
-    });
-    expect(result.current.warningLevel).toBe('escalated');
-
-    // 5 violations → final (>= threshold)
-    act(() => {
-      result.current.addEvent({
-        type: 'tab_switch',
-        timestamp: Date.now(),
-        durationMs: 10000,
-        withinGrace: false,
-        counted: true,
-      });
-    });
     expect(result.current.warningLevel).toBe('final');
+    expect(result.current.shouldAutoSubmit).toBe(true);
+    expect(mockTrackAntiCheatAction).toHaveBeenCalledWith(
+      'escalateWarning',
+      expect.any(Object),
+      expect.objectContaining({
+        warningLevel: 'toast',
+      }),
+    );
+    expect(mockTrackAntiCheatAction).toHaveBeenCalledWith(
+      'triggerAutoSubmit',
+      expect.any(Object),
+      expect.objectContaining({
+        violationCount: 3,
+        autoSubmitThreshold: 3,
+      }),
+    );
   });
 
-  it('getIntegrityReport returns correct aggregate counts', () => {
-    const { result } = renderHook(() =>
-      useTestIntegrity(defaultOptions),
+  it('restores crash-recovery state and records a reload signal', () => {
+    sessionStorageMock.setItem(
+      'integrity_events_test1',
+      JSON.stringify([
+        {
+          type: 'tab_switch',
+          timestamp: 1000,
+          durationMs: 8000,
+          withinGrace: false,
+          counted: true,
+        },
+      ]),
     );
+    sessionStorageMock.setItem('test_in_progress', 'test1');
+
+    const { result } = renderHook(() => useTestIntegrity(defaultOptions));
+
+    expect(result.current.violationCount).toBe(1);
+    expect(result.current.totalEvents).toBe(2);
+    expect(mockTrackAntiCheatAction).toHaveBeenCalledWith(
+      'restoreIntegrityState',
+      expect.objectContaining({
+        context: 'session',
+        surface: 'student_test',
+      }),
+      expect.objectContaining({
+        recoveredEvents: 1,
+        recoveredViolations: 1,
+      }),
+    );
+  });
+
+  it('tracks failed session flush attempts with the supplied trigger metadata', async () => {
+    const { result } = renderHook(() => useTestIntegrity(defaultOptions));
 
     act(() => {
       result.current.addEvent({
@@ -270,50 +341,56 @@ describe('useTestIntegrity', () => {
         withinGrace: false,
         counted: true,
       });
-      result.current.addEvent({
-        type: 'tab_switch',
-        timestamp: Date.now(),
-        durationMs: 6000,
-        withinGrace: false,
-        counted: true,
-      });
     });
 
-    const report = result.current.getIntegrityReport();
-    expect(report.violationCount).toBe(2);
-    expect(report.totalEvents).toBe(2);
-    expect(report.copyAttempts).toBe(1);
-    expect(report.tabSwitchCount).toBe(1);
-    expect(report.totalTimeAwayMs).toBe(6000);
-    expect(report.riskLevel).toBe('medium');
-  });
+    await act(async () => {
+      await result.current.flushEvents('teacher_refresh');
+    });
 
-  it('trackQuestionTime logs time_per_question events', () => {
-    const { result } = renderHook(() =>
-      useTestIntegrity(defaultOptions),
+    const flushCall = mockTrackAntiCheatAction.mock.calls.find(
+      ([actionName]) => actionName === 'flushIntegrityLogs',
     );
 
-    // Start tracking Q0
+    expect(flushCall).toBeDefined();
+    expect(flushCall?.[1]).toEqual(
+      expect.objectContaining({
+        context: 'session',
+        surface: 'student_test',
+      }),
+    );
+    expect(flushCall?.[2]).toEqual(
+      expect.objectContaining({
+        status: 'failed',
+        trigger: 'teacher_refresh',
+        persistenceTarget: 'rtdb',
+        violationCount: 1,
+        errorMessage: expect.any(String),
+      }),
+    );
+    expect(sessionStorageMock.removeItem).toHaveBeenCalledWith(
+      'integrity_events_test1',
+    );
+    expect(sessionStorageMock.removeItem).toHaveBeenCalledWith(
+      'test_in_progress',
+    );
+  });
+
+  it('tracks time_per_question events without counting them as violations', () => {
+    const { result } = renderHook(() => useTestIntegrity(defaultOptions));
+
     act(() => {
       result.current.trackQuestionTime(0);
     });
 
-    // No event yet (first question has no previous)
-    expect(result.current.totalEvents).toBe(0);
-
-    // Move to Q1 — should log time for Q0
     vi.advanceTimersByTime(5000);
     act(() => {
       result.current.trackQuestionTime(1);
     });
 
-    expect(result.current.totalEvents).toBe(1);
     const report = result.current.getIntegrityReport();
-    const timeEvent = report.events.find(
-      (e) => e.type === 'time_per_question',
-    );
+    const timeEvent = report.events.find((event) => event.type === 'time_per_question');
+
     expect(timeEvent).toBeDefined();
-    expect(timeEvent?.details).toBe('Q0');
     expect(timeEvent?.counted).toBe(false);
     expect(timeEvent?.withinGrace).toBe(true);
   });

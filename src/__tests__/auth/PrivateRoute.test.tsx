@@ -1,17 +1,29 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { BrowserRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { MantineProvider } from '@mantine/core';
 import PrivateRoute from '../../components/PrivateRoute';
 import * as useAuthModule from '../../hooks/useAuth';
 
 // Mock the useAuth hook
 vi.mock('../../hooks/useAuth');
+vi.mock('../../services/auditService', () => ({
+  logSecurityEvent: {
+    accessDenied: vi.fn()
+  }
+}));
 
 const renderWithRouter = (component: React.ReactElement) => {
   return render(
     <MantineProvider>
-      <BrowserRouter>{component}</BrowserRouter>
+      <MemoryRouter initialEntries={['/protected']}>
+        <Routes>
+          <Route path="/protected" element={component} />
+          <Route path="/" element={<div>Login Page</div>} />
+          <Route path="/access-denied" element={<div>Access Denied</div>} />
+          <Route path="/blocked" element={<div>Blocked</div>} />
+        </Routes>
+      </MemoryRouter>
     </MantineProvider>
   );
 };
@@ -39,7 +51,7 @@ describe('PrivateRoute', () => {
       </PrivateRoute>
     );
 
-    expect(screen.getByRole('progressbar')).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: /loading protected route/i })).toBeInTheDocument();
   });
 
   it('should redirect to / when user is not authenticated', () => {

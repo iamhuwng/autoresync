@@ -10,9 +10,6 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
     createSubmission,
     getStudentSubmissionsForHomework,
-    getLatestSubmission,
-    getBestSubmission,
-    getAttemptInfo,
     HomeworkSubmissionError
 } from '../services/homeworkSubmissionService';
 import { getHomeworkById } from '../services/homeworkManager';
@@ -42,6 +39,7 @@ export interface UseHomeworkSubmissionReturn {
     maxAttempts: number | null;
     attemptsUsed: number;
     attemptsRemaining: number | null;
+    attemptsNullified: boolean;
 
     // Status flags
     isLoading: boolean;
@@ -96,7 +94,12 @@ export function useHomeworkSubmission({
 
     const maxAttempts = homework?.config.maxAttempts ?? null;
     const attemptsUsed = completedSubmissions.length;
-    const attemptsRemaining = maxAttempts !== null
+    const attemptsNullified = allSubmissions.some(
+        (submission) => submission.attemptsNullified === true,
+    );
+    const attemptsRemaining = attemptsNullified
+        ? 0
+        : maxAttempts !== null
         ? Math.max(0, maxAttempts - attemptsUsed)
         : null;
 
@@ -113,6 +116,7 @@ export function useHomeworkSubmission({
         homework.status !== 'closed' &&
         isAvailable &&
         !hasInProgressAttempt &&
+        !attemptsNullified &&
         (attemptsRemaining === null || attemptsRemaining > 0) &&
         (!isOverdue || homework.config.lateSubmissionAllowed);
 
@@ -238,6 +242,7 @@ export function useHomeworkSubmission({
         maxAttempts,
         attemptsUsed,
         attemptsRemaining,
+        attemptsNullified,
 
         // Status flags
         isLoading,

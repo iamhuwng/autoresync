@@ -1,0 +1,358 @@
+/**
+ * Feature Registry — Central registry of all tracked features
+ * PRD-0037: Production Reporting & Observability System
+ *
+ * Exports:
+ * - FEATURE_REGISTRY: array of all feature definitions
+ * - resolveFeatureFromRoute(pathname): maps URL → feature ID
+ * - validateFeatureId(id): checks if a feature ID is registered
+ */
+
+// ─── Types ──────────────────────────────────────────────────────────────────
+
+export interface FeatureDefinition {
+  id: string;
+  name: string;
+  routes: string[];
+  actions: string[];
+  description: string;
+}
+
+export const FEATURE_IDS = {
+  antiCheat: 'antiCheat',
+} as const;
+
+// ─── Registry ───────────────────────────────────────────────────────────────
+
+export const FEATURE_REGISTRY: FeatureDefinition[] = [
+  {
+    id: 'testTaking',
+    name: 'Test Taking',
+    routes: [
+      '/student-test/:sessionCode',
+      '/student/practice/:materialId',
+      '/student/solo-test/:materialId',
+      '/student/homework/:homeworkId/test',
+    ],
+    actions: [
+      'startTest',
+      'submitAnswer',
+      'nextQuestion',
+      'previousQuestion',
+      'finishTest',
+      'timeOut',
+      'abandonTest',
+    ],
+    description: 'Student test-taking and practice sessions',
+  },
+  {
+    id: 'testCreation',
+    name: 'Test Creation',
+    routes: [
+      '/teacher/test/create',
+      '/teacher/test/create-standalone',
+      '/teacher/test/review/:draftId',
+      '/teacher/thcs-test/create',
+      '/teacher/thcs-test/edit/:draftId',
+      '/teacher/writing-test/create',
+      '/teacher/writing-test/edit/:draftId',
+    ],
+    actions: [
+      'createTest',
+      'editTest',
+      'publishTest',
+      'deleteTest',
+      'uploadDocument',
+      'parseDocument',
+      'aiGenerate',
+    ],
+    description: 'Teacher test creation and editing workflows',
+  },
+  {
+    id: 'homework',
+    name: 'Homework',
+    routes: [
+      '/teacher/homework',
+      '/teacher/homework/:homeworkId',
+      '/teacher/homework/student/:studentId',
+      '/student/homework',
+      '/student/homework/:homeworkId',
+    ],
+    actions: [
+      'assignHomework',
+      'submitHomework',
+      'reviewHomework',
+      'viewIntegrityDetails',
+      'archiveHomework',
+      'bulkAssign',
+    ],
+    description: 'Homework assignment and management',
+  },
+  {
+    id: 'courses',
+    name: 'Courses',
+    routes: [
+      '/teacher/courses',
+      '/teacher/courses/:courseId',
+      '/student/courses',
+      '/student/courses/:courseId',
+      '/student/courses/catalog',
+    ],
+    actions: [
+      'createCourse',
+      'editCourse',
+      'enrollStudent',
+      'syncCourse',
+      'addMaterial',
+      'addAnnouncement',
+    ],
+    description: 'Course management for teachers and students',
+  },
+  {
+    id: 'classes',
+    name: 'Classes',
+    routes: [
+      '/teacher/classes',
+      '/teacher/classes/:classId',
+      '/student/classes/:classId',
+    ],
+    actions: [
+      'createClass',
+      'editClass',
+      'addStudent',
+      'removeStudent',
+    ],
+    description: 'Class management and viewing',
+  },
+  {
+    id: 'liveSessions',
+    name: 'Live Sessions',
+    routes: [
+      '/teacher-wait/:gameSessionId',
+      '/teacher-test/:sessionCode',
+      '/teacher-quiz/:gameSessionId',
+      '/student-wait/:gameSessionId',
+      '/student-quiz/:gameSessionId',
+    ],
+    actions: [
+      'createSession',
+      'joinSession',
+      'startSession',
+      'endSession',
+      'forceSubmitStudent',
+      'refreshIntegrityLogs',
+      'resetStudentSubmission',
+    ],
+    description: 'Real-time quiz and game sessions',
+  },
+  {
+    id: FEATURE_IDS.antiCheat,
+    name: 'Anti-Cheat',
+    routes: [],
+    actions: [
+      'initializeProtection',
+      'restoreIntegrityState',
+      'recordViolation',
+      'recordSignal',
+      'escalateWarning',
+      'triggerAutoSubmit',
+      'flushIntegrityLogs',
+      'persistIntegritySnapshot',
+      'persistSessionIntegrity',
+      'persistHomeworkIntegrity',
+      'handleTeacherForceSubmit',
+      'blockHomeworkEntry',
+    ],
+    description:
+      'High-signal runtime telemetry for integrity detection, persistence, and teacher-triggered anti-cheat flows',
+  },
+  {
+    id: 'grading',
+    name: 'Grading',
+    routes: [
+      '/teacher/grading',
+      '/teacher/grading/writing',
+      '/teacher/grading/writing/:submissionId',
+    ],
+    actions: [
+      'gradeSubmission',
+      'addFeedback',
+      'bulkGrade',
+    ],
+    description: 'Teacher grading workflows',
+  },
+  {
+    id: 'aiOperations',
+    name: 'AI Operations',
+    routes: [],
+    actions: [
+      'generateFeedback',
+      'parseDocument',
+      'classifyQuestion',
+      'generateQuiz',
+      'aiRetry',
+      'aiFailure',
+    ],
+    description: 'AI-powered operations across features',
+  },
+  {
+    id: 'authentication',
+    name: 'Authentication',
+    routes: ['/'],
+    actions: [
+      'login',
+      'logout',
+      'register',
+      'resetPassword',
+      'roleSwitch',
+    ],
+    description: 'User authentication and authorization',
+  },
+  {
+    id: 'adminPanel',
+    name: 'Admin Panel',
+    routes: ['/admin/*'],
+    actions: [
+      'viewDashboard',
+      'manageUsers',
+      'manageClasses',
+      'viewBackups',
+      'triggerBackup',
+      'updateReportingMode',
+      'toggleReportingCategory',
+      'toggleReportingAdvancedPanel',
+      'saveReportingRetention',
+      'purgeReports',
+      'viewReports',
+    ],
+    description: 'Super admin management panel',
+  },
+  {
+    id: 'academicRecords',
+    name: 'Academic Records',
+    routes: ['/student/academic-record'],
+    actions: [
+      'viewRecords',
+      'viewFeedback',
+      'requestFeedback',
+    ],
+    description: 'Student academic record viewing',
+  },
+  {
+    id: 'results',
+    name: 'Results',
+    routes: [
+      '/teacher-results/:gameSessionId',
+      '/student-results/:gameSessionId',
+      '/teacher-test-results/:sessionCode',
+      '/student-test-results/:sessionCode',
+      '/student/results/:sessionCode',
+      '/result/:resultId',
+    ],
+    actions: [
+      'viewResults',
+      'viewIntegrityDetails',
+      'generateFeedback',
+      'viewQuestion',
+    ],
+    description: 'Quiz and test result viewing',
+  },
+  {
+    id: 'feedback',
+    name: 'Feedback',
+    routes: [
+      '/teacher-feedback/:gameSessionId',
+      '/student-feedback/:gameSessionId',
+    ],
+    actions: [
+      'viewFeedback',
+      'submitFeedback',
+    ],
+    description: 'Session feedback collection and viewing',
+  },
+  {
+    id: 'profile',
+    name: 'Profile',
+    routes: ['/profile', '/profile/complete'],
+    actions: [
+      'editProfile',
+      'changePassword',
+      'updateAvatar',
+    ],
+    description: 'User profile management',
+  },
+  {
+    id: 'materials',
+    name: 'Materials',
+    routes: [
+      '/material/:materialId',
+      '/student/library',
+    ],
+    actions: [
+      'viewMaterial',
+      'searchMaterials',
+      'startPractice',
+    ],
+    description: 'Material browsing and library access',
+  },
+  {
+    id: 'sessions',
+    name: 'Session Management',
+    routes: ['/sessions'],
+    actions: [
+      'viewSessions',
+      'archiveSession',
+      'deleteSession',
+    ],
+    description: 'Teacher session management',
+  },
+  // DEVELOPER NOTE: When adding a new feature, also:
+  // 1. Add a new entry here with id, name, routes, actions, description
+  // 2. Add the useFeatureTracking hook call in the page component
+  // 3. Add trackAction calls for user-facing actions
+  // 4. Update documentation/rules/observability.md if needed
+];
+
+// ─── Route Resolution ─────────────────────────────────────────────────────
+
+/**
+ * Resolve a pathname to a feature ID from the registry.
+ * Returns null if no match found.
+ */
+export function resolveFeatureFromRoute(pathname: string): string | null {
+  for (const feature of FEATURE_REGISTRY) {
+    for (const route of feature.routes) {
+      // Special case for /admin/* wildcard
+      if (route === '/admin/*') {
+        if (pathname.startsWith('/admin/')) {
+          return feature.id;
+        }
+        continue;
+      }
+
+      // Convert :param segments to regex wildcards
+      const regexStr = '^' + route.replace(/:[^/]+/g, '[^/]+') + '$';
+      try {
+        const regex = new RegExp(regexStr);
+        if (regex.test(pathname)) {
+          return feature.id;
+        }
+      } catch {
+        // Invalid regex — skip this route
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Validate that a feature ID exists in the registry.
+ * In development, logs a warning for unknown IDs.
+ */
+export function validateFeatureId(featureId: string): boolean {
+  const exists = FEATURE_REGISTRY.some((f) => f.id === featureId);
+  if (!exists && import.meta.env.DEV) {
+    console.warn('[FeatureRegistry] Unknown feature ID: ' + featureId);
+  }
+  return exists;
+}

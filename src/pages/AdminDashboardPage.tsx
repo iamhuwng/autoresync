@@ -106,6 +106,7 @@ const AdminDashboardPage: React.FC = () => {
             sessions: 'ADMIN_SESSIONS',
             settings: 'ADMIN_SETTINGS',
             backup: 'ADMIN_BACKUP',
+            reports: 'ADMIN_REPORTS',
         };
 
         const route = pageRoutes[page];
@@ -160,6 +161,15 @@ const AdminDashboardPage: React.FC = () => {
             route: 'SESSIONS',
             color: '#8b5cf6',
             bgColor: 'rgba(139, 92, 246, 0.1)'
+        },
+        {
+            id: 'reports',
+            title: 'Production Reports',
+            description: 'Monitor errors, feature usage, and system health',
+            icon: <IconChartBar size={32} />,
+            route: 'ADMIN_REPORTS',
+            color: '#ef4444',
+            bgColor: 'rgba(239, 68, 68, 0.1)'
         }
     ];
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { AuthProvider } from '../../contexts/AuthContext';
 import { useAuth } from '../../hooks/useAuth';
 import * as firebaseAuth from 'firebase/auth';
@@ -57,7 +57,7 @@ describe('AuthContext', () => {
     
     // Mock Firebase Database functions
     mockOnValue = vi.fn();
-    mockSet = vi.fn();
+    mockSet = vi.fn().mockResolvedValue(undefined);
     mockGet = vi.fn();
     
     vi.mocked(firebaseDatabase.ref).mockReturnValue({} as any);
@@ -86,8 +86,8 @@ describe('AuthContext', () => {
       </AuthProvider>
     );
     
-    // Initially should be loading (before auth state is determined)
-    expect(screen.getByTestId('loading').textContent).toBe('loading');
+    // While auth is unresolved, the provider withholds children entirely.
+    expect(screen.queryByTestId('loading')).not.toBeInTheDocument();
     
     // Now resolve auth state
     await waitFor(() => {
@@ -138,7 +138,9 @@ describe('AuthContext', () => {
     
     // Trigger login
     const loginBtn = screen.getByTestId('login-btn');
-    loginBtn.click();
+    await act(async () => {
+      loginBtn.click();
+    });
     
     await waitFor(() => {
       expect(mockSignInWithPopup).toHaveBeenCalled();
@@ -244,7 +246,9 @@ describe('AuthContext', () => {
     });
     
     const logoutBtn = screen.getByTestId('logout-btn');
-    logoutBtn.click();
+    await act(async () => {
+      logoutBtn.click();
+    });
     
     await waitFor(() => {
       expect(mockSignOut).toHaveBeenCalled();
@@ -303,15 +307,17 @@ describe('AuthContext', () => {
     });
     
     // Simulate profile update in RTDB
-    profileCallback({
-      exists: () => true,
-      val: () => ({
-        uid: 'test-uid',
-        email: 'test@example.com',
-        role: 'teacher',
-        status: 'active',
-        invitedBy: 'admin-uid'
-      })
+    await act(async () => {
+      profileCallback({
+        exists: () => true,
+        val: () => ({
+          uid: 'test-uid',
+          email: 'test@example.com',
+          role: 'teacher',
+          status: 'active',
+          invitedBy: 'admin-uid'
+        })
+      });
     });
     
     await waitFor(() => {

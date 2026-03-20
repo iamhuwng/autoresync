@@ -1,20 +1,7 @@
-/**
- * Tests for TeacherHomeworkListPage.tsx
- *
- * Tests cover:
- * - Page rendering and initial state
- * - View mode switching (chronological, by class, by status)
- * - Search and filtering functionality
- * - Homework CRUD operations
- * - Status counts display
- * - Empty states
- * - Error handling
- */
-
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { HomeworkAssignment } from '../types/homework.types';
 import type { UseHomeworkListReturn } from '../hooks/useHomeworkList';
+import type { HomeworkAssignment } from '../types/homework.types';
 import { TeacherHomeworkListPage } from './TeacherHomeworkListPage';
 
 const {
@@ -34,6 +21,7 @@ const {
     mockToggle,
     useBulkSelectionMock,
     useHomeworkListMock,
+    useTargetGridMock,
     useHomeworkTagsMock,
 } = vi.hoisted(() => ({
     mockBulkCloseHomework: vi.fn(async () => ({ success: 1, failed: 0, total: 1, results: [] })),
@@ -52,6 +40,7 @@ const {
     mockToggle: vi.fn(),
     useBulkSelectionMock: vi.fn(),
     useHomeworkListMock: vi.fn(),
+    useTargetGridMock: vi.fn(),
     useHomeworkTagsMock: vi.fn(),
 }));
 
@@ -79,6 +68,10 @@ vi.mock('../hooks/useNavigation', () => ({
 
 vi.mock('../hooks/useHomeworkList', () => ({
     useHomeworkList: (options: unknown) => useHomeworkListMock(options),
+}));
+
+vi.mock('../hooks/useTargetGrid', () => ({
+    useTargetGrid: (...args: unknown[]) => useTargetGridMock(...args),
 }));
 
 vi.mock('../hooks/useBulkSelection', () => ({
@@ -110,23 +103,6 @@ vi.mock('../components/navigation', () => ({
 }));
 
 vi.mock('../components/homework', () => ({
-    HomeworkAlertBanner: ({
-        alerts,
-    }: {
-        alerts: Array<{ id: string; title: string; message: string; actionLabel?: string; onAction?: () => void }>;
-    }) => (
-        <div>
-            {alerts.map((alert) => (
-                <div key={alert.id}>
-                    <div>{alert.title}</div>
-                    <div>{alert.message}</div>
-                    {alert.actionLabel && alert.onAction ? (
-                        <button onClick={alert.onAction}>{alert.actionLabel}</button>
-                    ) : null}
-                </div>
-            ))}
-        </div>
-    ),
     HomeworkCard: ({ homework }: { homework: HomeworkAssignment }) => (
         <div data-testid={`homework-card-${homework.id}`}>{homework.title || homework.materialTitle}</div>
     ),
@@ -137,7 +113,7 @@ vi.mock('../components/homework', () => ({
     }: {
         homework: HomeworkAssignment | null;
         isOpen: boolean;
-    }) => (isOpen ? <div>Edit homework modal {homework?.id}</div> : null),
+    }) => (isOpen ? <div>{`Edit homework modal ${homework?.id}`}</div> : null),
     BulkExtendModal: ({ isOpen }: { isOpen: boolean }) => (isOpen ? <div>Bulk extend modal</div> : null),
     BulkDeleteConfirmModal: ({ isOpen }: { isOpen: boolean }) => (isOpen ? <div>Bulk delete modal</div> : null),
     HomeworkBulkActionBar: ({
@@ -158,7 +134,7 @@ vi.mock('../components/homework', () => ({
         onCloseAllPastDue: () => void;
     }) => (
         <div>
-            <span>{selectedCount} selected</span>
+            <span>{`${selectedCount} selected`}</span>
             <button onClick={onExtend}>Extend</button>
             <button onClick={onClose}>Close</button>
             <button onClick={onDelete}>Delete</button>
@@ -167,47 +143,77 @@ vi.mock('../components/homework', () => ({
             <button onClick={onCloseAllPastDue}>Close All Past Due</button>
         </div>
     ),
-    HomeworkSummaryStats: ({
-        actions,
-        cards,
+    CompactStatsBar: ({
+        totalCount,
+        visibleCount,
+        activeScheduledCount,
+        pastDueCount,
+        avgCompletionRate,
+        needsAttentionCount,
+        onClosePastDue,
+        onCreateHomework,
     }: {
-        actions?: React.ReactNode;
-        cards?: Array<{ label: string; value: string; helper?: string }>;
+        totalCount: number;
+        visibleCount: number;
+        activeScheduledCount: number;
+        pastDueCount: number;
+        avgCompletionRate: number;
+        needsAttentionCount: number;
+        onClosePastDue: () => void;
+        onCreateHomework: () => void;
     }) => (
-        <div>
-            {cards?.map((card) => (
-                <div key={card.label}>
-                    <span>{card.label}</span>
-                    <span>{card.value}</span>
-                    {card.helper ? <span>{card.helper}</span> : null}
-                </div>
-            ))}
-            <div>{actions}</div>
+        <div data-testid="compact-stats-bar">
+            <div>{`Total: ${totalCount}`}</div>
+            <div>{`Visible: ${visibleCount}`}</div>
+            <div>{`Active: ${activeScheduledCount}`}</div>
+            <div>{`Past Due: ${pastDueCount}`}</div>
+            <div>{`Avg: ${Math.round(avgCompletionRate)}%`}</div>
+            <div>{`Attention: ${needsAttentionCount}`}</div>
+            <button onClick={onClosePastDue}>Close All Past Due</button>
+            <button onClick={onCreateHomework}>Create Homework</button>
         </div>
     ),
-    HomeworkTagChips: ({
-        allTags,
-        onTagSelect,
-        selectable,
+    TargetGrid: ({
+        targetCards,
+        onTargetClick,
     }: {
-        allTags?: Array<{ id: string; label: string }>;
-        onTagSelect?: (tag: string | null) => void;
-        selectable?: boolean;
+        targetCards: Array<{ targetId: string; targetName: string }>;
+        onTargetClick: (target: any) => void;
     }) => (
-        <div data-testid="homework-tag-chips">
-            {selectable ? <button onClick={() => onTagSelect?.(null)}>All</button> : null}
-            {allTags?.map((tag) => (
-                <button key={tag.id} onClick={() => onTagSelect?.(tag.id)}>
-                    {tag.label}
+        <div data-testid="target-grid">
+            {targetCards.map((target) => (
+                <button key={target.targetId} onClick={() => onTargetClick(target)}>
+                    {target.targetName}
                 </button>
             ))}
         </div>
     ),
+    StudentGrid: ({
+        className,
+        onBack,
+        onStudentClick,
+    }: {
+        className: string;
+        onBack: () => void;
+        onStudentClick: (studentId: string, studentName: string, classId?: string, className?: string) => void;
+    }) => (
+        <div data-testid="student-grid">
+            <div>{`Students for ${className}`}</div>
+            <button onClick={() => onStudentClick('student-1', 'Alex', 'class-a', className)}>Open Alex</button>
+            <button onClick={onBack}>Back</button>
+        </div>
+    ),
+    HomeworkListModal: ({
+        isOpen,
+        studentName,
+    }: {
+        isOpen: boolean;
+        studentName: string;
+    }) => (isOpen ? <div>{`Homework list modal ${studentName}`}</div> : null),
 }));
 
 const NOW = new Date('2026-03-13T08:00:00.000Z').getTime();
 
-// Mock homework data
 function createHomework(overrides: Partial<HomeworkAssignment>): HomeworkAssignment {
     return {
         id: overrides.id ?? 'homework-default',
@@ -382,6 +388,27 @@ const allHomework: HomeworkAssignment[] = [
     }),
 ];
 
+const targetCards = [
+    {
+        targetId: 'class-a',
+        targetName: 'Class A',
+        targetType: 'class',
+        homework: [allHomework[0]],
+    },
+    {
+        targetId: 'class-b',
+        targetName: 'Class B',
+        targetType: 'class',
+        homework: [allHomework[2]],
+    },
+    {
+        targetId: 'student-1',
+        targetName: 'Alex',
+        targetType: 'students',
+        homework: [allHomework[1]],
+    },
+];
+
 function normalizeSearchValue(value: string): string {
     return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
@@ -454,7 +481,6 @@ function buildHookResult(
     };
 }
 
-// Wrapper component for routing
 const renderPage = () => render(<TeacherHomeworkListPage />);
 
 describe('TeacherHomeworkListPage', () => {
@@ -477,6 +503,7 @@ describe('TeacherHomeworkListPage', () => {
         mockToggle.mockReset();
         useHomeworkListMock.mockReset();
         useBulkSelectionMock.mockReset();
+        useTargetGridMock.mockReset();
         useHomeworkTagsMock.mockReset();
 
         useHomeworkListMock.mockImplementation((options) =>
@@ -486,6 +513,7 @@ describe('TeacherHomeworkListPage', () => {
                 searchQuery?: string;
             })
         );
+        useTargetGridMock.mockImplementation(() => ({ targetCards }));
         useBulkSelectionMock.mockReturnValue({
             selected: new Set<string>(),
             selectedCount: 0,
@@ -496,8 +524,8 @@ describe('TeacherHomeworkListPage', () => {
         });
         useHomeworkTagsMock.mockReturnValue({
             tags: [
-                { id: 'practice', label: 'Luyện tập', color: '#3b82f6' },
-                { id: 'revision', label: 'Ôn tập', color: '#10b981' },
+                { id: 'practice', label: 'Practice', color: '#3b82f6' },
+                { id: 'revision', label: 'Revision', color: '#10b981' },
             ],
             loading: false,
         });
@@ -507,193 +535,149 @@ describe('TeacherHomeworkListPage', () => {
         vi.useRealTimers();
     });
 
-    describe('Initial Rendering', () => {
-        it('renders the rewritten summary, alerts, tabs, and visible homework list', () => {
-            renderPage();
+    it('renders the current targets-first management view', () => {
+        renderPage();
 
-            expect(screen.getByText('📋 Homework Management')).toBeInTheDocument();
-            expect(screen.getByText('Loaded Homework')).toBeInTheDocument();
-            expect(screen.getByText('5')).toBeInTheDocument();
-            expect(screen.getByText('Going live soon')).toBeInTheDocument();
-            expect(screen.getByText('Past deadline')).toBeInTheDocument();
-            expect(screen.getByText('📅 Timeline')).toBeInTheDocument();
-            expect(screen.getByText('📚 By Class')).toBeInTheDocument();
-            expect(screen.getByText('📋 By Status')).toBeInTheDocument();
-            expect(screen.getByPlaceholderText('Search by title, target, description, or tags...')).toBeInTheDocument();
-            expect(screen.getByTestId('homework-card-hw-active')).toBeInTheDocument();
-            expect(screen.getByTestId('homework-card-hw-past-due')).toBeInTheDocument();
-            expect(screen.getByTestId('homework-card-hw-scheduled')).toBeInTheDocument();
-            expect(screen.queryByTestId('homework-card-hw-closed')).not.toBeInTheDocument();
-            expect(screen.queryByTestId('homework-card-hw-archived')).not.toBeInTheDocument();
-        });
+        expect(screen.getByText(/Homework Management/)).toBeInTheDocument();
+        expect(screen.getByText('Total: 5')).toBeInTheDocument();
+        expect(screen.getByText('Visible: 3')).toBeInTheDocument();
+        expect(screen.getByText('Targets')).toBeInTheDocument();
+        expect(screen.getByText('Timeline')).toBeInTheDocument();
+        expect(screen.getByText('By Status')).toBeInTheDocument();
+        expect(screen.getByPlaceholderText('Search classes, students, or homework...')).toBeInTheDocument();
+        expect(screen.getByTestId('target-grid')).toBeInTheDocument();
+        expect(screen.getByText('Class A')).toBeInTheDocument();
+        expect(screen.getByText('Class B')).toBeInTheDocument();
+        expect(screen.getByText('Alex')).toBeInTheDocument();
+        expect(screen.queryByTestId('homework-card-hw-active')).not.toBeInTheDocument();
     });
 
-    describe('Search Functionality', () => {
-        it('debounces the search input and passes the query into useHomeworkList', async () => {
-            vi.useFakeTimers();
+    it('debounces the search input and filters timeline results', async () => {
+        renderPage();
 
-            renderPage();
-
-            fireEvent.change(screen.getByPlaceholderText('Search by title, target, description, or tags...'), {
-                target: { value: 'english' },
-            });
-
-            await act(async () => {
-                vi.advanceTimersByTime(300);
-                await Promise.resolve();
-            });
-
-            expect(useHomeworkListMock).toHaveBeenLastCalledWith(
-                expect.objectContaining({
-                    searchQuery: 'english',
-                })
-            );
-
-            expect(screen.getByTestId('homework-card-hw-active')).toBeInTheDocument();
-            expect(screen.queryByTestId('homework-card-hw-past-due')).not.toBeInTheDocument();
-            expect(screen.queryByTestId('homework-card-hw-scheduled')).not.toBeInTheDocument();
+        fireEvent.change(screen.getByPlaceholderText('Search classes, students, or homework...'), {
+            target: { value: 'english' },
         });
+
+        await act(async () => {
+            vi.advanceTimersByTime(300);
+            await Promise.resolve();
+        });
+
+        expect(useHomeworkListMock).toHaveBeenLastCalledWith(
+            expect.objectContaining({
+                searchQuery: 'english',
+            })
+        );
+        expect(useTargetGridMock).toHaveBeenLastCalledWith(allHomework, 'english');
+
+        fireEvent.click(screen.getByText('Timeline'));
+        expect(screen.getByTestId('homework-card-hw-active')).toBeInTheDocument();
+        expect(screen.queryByTestId('homework-card-hw-past-due')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('homework-card-hw-scheduled')).not.toBeInTheDocument();
     });
 
-    describe('Visibility Toggles', () => {
-        it('reveals closed homework when the closed toggle is enabled', () => {
-            renderPage();
+    it('opens the create modal from the stats bar', () => {
+        renderPage();
 
-            fireEvent.click(screen.getByText('Show Closed (1)'));
-
-            expect(useHomeworkListMock).toHaveBeenLastCalledWith(
-                expect.objectContaining({
-                    excludeClosed: false,
-                })
-            );
-
-            expect(screen.getByTestId('homework-card-hw-closed')).toBeInTheDocument();
-        });
-
-        it('reveals archived homework when the archived toggle is enabled', () => {
-            renderPage();
-
-            fireEvent.click(screen.getByText('Show Archived'));
-
-            expect(useHomeworkListMock).toHaveBeenLastCalledWith(
-                expect.objectContaining({
-                    excludeArchived: false,
-                })
-            );
-
-            expect(screen.getByTestId('homework-card-hw-archived')).toBeInTheDocument();
-        });
+        fireEvent.click(screen.getByText('Create Homework'));
+        expect(screen.getByText('Create homework modal')).toBeInTheDocument();
     });
 
-    describe('Filters and Sorting', () => {
-        it('forwards status filter clicks to the hook controller', () => {
-            renderPage();
+    it('drills into a class target from the targets view', () => {
+        renderPage();
 
-            fireEvent.click(screen.getByText('✅ Active (2)'));
+        fireEvent.click(screen.getByText('Class A'));
 
-            expect(mockFilterByStatus).toHaveBeenCalledWith('active');
-        });
+        expect(screen.getByText('Students for Class A')).toBeInTheDocument();
 
-        it('forwards sort changes through the new native select control', () => {
-            renderPage();
-
-            fireEvent.change(screen.getByRole('combobox'), {
-                target: { value: 'dueDate_asc' },
-            });
-
-            expect(mockSetSort).toHaveBeenCalledWith('dueDate_asc');
-        });
+        fireEvent.click(screen.getByText('Open Alex'));
+        expect(screen.getByText('Homework list modal Alex')).toBeInTheDocument();
     });
 
-    describe('View Mode Switching', () => {
-        it('groups homework by class in the class view', () => {
-            renderPage();
+    it('renders homework cards in timeline view', () => {
+        renderPage();
 
-            fireEvent.click(screen.getByText('📚 By Class'));
+        fireEvent.click(screen.getByText('Timeline'));
 
-            expect(screen.getByText('📚 Class A (1)')).toBeInTheDocument();
-            expect(screen.getByText('📚 Class B (1)')).toBeInTheDocument();
-            expect(screen.getByText('📚 Other (1)')).toBeInTheDocument();
-        });
-
-        it('groups homework by status in the status view', () => {
-            renderPage();
-
-            fireEvent.click(screen.getByText('📋 By Status'));
-
-            expect(screen.getByText('Active (1)')).toBeInTheDocument();
-            expect(screen.getByText('Scheduled (1)')).toBeInTheDocument();
-            expect(screen.getByText('Past Due (1)')).toBeInTheDocument();
-        });
+        expect(screen.getByTestId('homework-card-hw-active')).toBeInTheDocument();
+        expect(screen.getByTestId('homework-card-hw-past-due')).toBeInTheDocument();
+        expect(screen.getByTestId('homework-card-hw-scheduled')).toBeInTheDocument();
+        expect(screen.queryByTestId('homework-card-hw-closed')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('homework-card-hw-archived')).not.toBeInTheDocument();
     });
 
-    describe('Loading State', () => {
-        it('shows the vanilla loader state when the hook is loading', () => {
-            useHomeworkListMock.mockImplementation(() =>
-                buildHookResult({}, {
-                    homework: [],
-                    filteredHomework: [],
-                    loading: true,
-                    statusCounts: {},
-                    totalLoaded: 0,
-                })
-            );
+    it('groups homework by status in the status view', () => {
+        renderPage();
 
-            renderPage();
+        fireEvent.click(screen.getByText('By Status'));
 
-            expect(screen.getByText('Loading homework...')).toBeInTheDocument();
-        });
+        expect(screen.getByText('Active (1)')).toBeInTheDocument();
+        expect(screen.getByText('Scheduled (1)')).toBeInTheDocument();
+        expect(screen.getByText('Past Due (1)')).toBeInTheDocument();
     });
 
-    describe('Error State', () => {
-        it('shows the retry state and calls refetch when the user retries', () => {
-            useHomeworkListMock.mockImplementation(() =>
-                buildHookResult({}, {
-                    homework: [],
-                    filteredHomework: [],
-                    error: 'Failed to load homework',
-                    refetch: mockRefetch,
-                    statusCounts: {},
-                    totalLoaded: 0,
-                })
-            );
+    it('shows the loader state when the hook is loading', () => {
+        useHomeworkListMock.mockImplementation(() =>
+            buildHookResult({}, {
+                homework: [],
+                filteredHomework: [],
+                loading: true,
+                statusCounts: {},
+                totalLoaded: 0,
+            })
+        );
 
-            renderPage();
+        renderPage();
 
-            expect(screen.getByText('Failed to load homework')).toBeInTheDocument();
-
-            fireEvent.click(screen.getByText('Retry'));
-            expect(mockRefetch).toHaveBeenCalled();
-        });
+        expect(screen.getByText('Loading homework...')).toBeInTheDocument();
     });
 
-    describe('Pagination', () => {
-        it('renders the load more control when the hook reports more results', () => {
-            useHomeworkListMock.mockImplementation((options) =>
-                buildHookResult(
-                    options as {
-                        excludeArchived?: boolean;
-                        excludeClosed?: boolean;
-                        searchQuery?: string;
-                    },
-                    {
-                        filteredHomework: buildHookResult(
-                            options as {
-                                excludeArchived?: boolean;
-                                excludeClosed?: boolean;
-                                searchQuery?: string;
-                            }
-                        ).filteredHomework.slice(0, 2),
-                        hasMore: true,
-                        totalLoaded: 2,
-                    }
-                )
-            );
+    it('shows the retry state and calls refetch when retry is clicked', () => {
+        useHomeworkListMock.mockImplementation(() =>
+            buildHookResult({}, {
+                homework: [],
+                filteredHomework: [],
+                error: 'Failed to load homework',
+                refetch: mockRefetch,
+                statusCounts: {},
+                totalLoaded: 0,
+            })
+        );
 
-            renderPage();
+        renderPage();
 
-            fireEvent.click(screen.getByText('Load More'));
-            expect(mockLoadMore).toHaveBeenCalled();
-        });
+        expect(screen.getByText('Failed to load homework')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByText('Retry'));
+        expect(mockRefetch).toHaveBeenCalled();
+    });
+
+    it('renders the load more control when more results are available', () => {
+        useHomeworkListMock.mockImplementation((options) =>
+            buildHookResult(
+                options as {
+                    excludeArchived?: boolean;
+                    excludeClosed?: boolean;
+                    searchQuery?: string;
+                },
+                {
+                    filteredHomework: buildHookResult(
+                        options as {
+                            excludeArchived?: boolean;
+                            excludeClosed?: boolean;
+                            searchQuery?: string;
+                        }
+                    ).filteredHomework.slice(0, 2),
+                    hasMore: true,
+                    totalLoaded: 2,
+                }
+            )
+        );
+
+        renderPage();
+
+        fireEvent.click(screen.getByText('Load More'));
+        expect(mockLoadMore).toHaveBeenCalled();
     });
 });

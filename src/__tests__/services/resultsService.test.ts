@@ -17,6 +17,126 @@ import { createSession, SessionMode } from '../../services/sessionManager';
 import { database } from '../../services/firebase';
 import { ref, set, get, remove } from 'firebase/database';
 
+const {
+  mockDatabaseStore,
+  mockRef,
+  mockGet,
+  mockSet,
+  mockRemove,
+  mockUpdate,
+  mockPush,
+  resetMockDatabase,
+} = vi.hoisted(() => {
+  const store: Record<string, any> = {};
+
+  const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
+  const pathParts = (path?: string) => (path || '').split('/').filter(Boolean);
+
+  const readAtPath = (path?: string) => {
+    const parts = pathParts(path);
+    let current: any = store;
+
+    for (const part of parts) {
+      if (current == null || typeof current !== 'object' || !(part in current)) {
+        return undefined;
+      }
+
+      current = current[part];
+    }
+
+    return current;
+  };
+
+  const writeAtPath = (path: string | undefined, value: any) => {
+    const parts = pathParts(path);
+
+    if (parts.length === 0) {
+      Object.keys(store).forEach(key => delete store[key]);
+      if (value && typeof value === 'object') {
+        Object.assign(store, clone(value));
+      }
+      return;
+    }
+
+    let current: any = store;
+
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i];
+      if (!current[part] || typeof current[part] !== 'object') {
+        current[part] = {};
+      }
+      current = current[part];
+    }
+
+    current[parts[parts.length - 1]] = value === undefined ? null : clone(value);
+  };
+
+  const updateAtPath = (path: string | undefined, updates: Record<string, any>) => {
+    const basePath = pathParts(path).join('/');
+
+    if (!basePath) {
+      for (const [key, value] of Object.entries(updates)) {
+        writeAtPath(key, value);
+      }
+      return;
+    }
+
+    const currentValue = readAtPath(basePath);
+    const merged =
+      currentValue && typeof currentValue === 'object' && !Array.isArray(currentValue)
+        ? { ...currentValue, ...clone(updates) }
+        : clone(updates);
+
+    writeAtPath(basePath, merged);
+  };
+
+  const snapshot = (value: any) => ({
+    exists: () => value !== undefined && value !== null,
+    val: () => clone(value),
+    forEach: (callback: (child: { key: string; val: () => any }) => void) => {
+      if (!value || typeof value !== 'object') return;
+      Object.entries(value).forEach(([key, childValue]) => {
+        callback({
+          key,
+          val: () => clone(childValue),
+        });
+      });
+    },
+  });
+
+  return {
+    mockDatabaseStore: store,
+    mockRef: vi.fn((_db, path = '') => ({ __path: path })),
+    mockGet: vi.fn(async (refObj) => snapshot(readAtPath(refObj?.__path))),
+    mockSet: vi.fn(async (refObj, value) => {
+      writeAtPath(refObj?.__path, value);
+    }),
+    mockRemove: vi.fn(async (refObj) => {
+      writeAtPath(refObj?.__path, undefined);
+    }),
+    mockUpdate: vi.fn(async (refObj, updates) => {
+      updateAtPath(refObj?.__path, updates);
+    }),
+    mockPush: vi.fn(() => ({ key: `mock-${Math.random().toString(36).slice(2, 10)}` })),
+    resetMockDatabase: () => {
+      Object.keys(store).forEach(key => delete store[key]);
+    },
+  };
+});
+
+vi.mock('../../services/firebase', () => ({
+  database: mockDatabaseStore,
+}));
+
+vi.mock('firebase/database', () => ({
+  ref: mockRef,
+  set: mockSet,
+  get: mockGet,
+  remove: mockRemove,
+  update: mockUpdate,
+  push: mockPush,
+}));
+
 // Test data
 const TEST_TEACHER_UID = 'teacher-results-test-123';
 const TEST_TEACHER_UID_2 = 'teacher-results-test-456';
@@ -42,6 +162,11 @@ const cleanupTestData = async () => {
         }
       }
     }
+
+    await remove(ref(database, 'test_results'));
+    await remove(ref(database, 'test_results_by_session'));
+    await remove(ref(database, 'test_results_by_student'));
+    await remove(ref(database, 'test_results_by_teacher'));
   } catch (error) {
     console.error('Cleanup error:', error);
   }
@@ -52,6 +177,7 @@ describe('Results Service - Teacher Access Control', () => {
   let teacherBSessionCode: string;
 
   beforeEach(async () => {
+    resetMockDatabase();
     await cleanupTestData();
 
     // Create sessions for two different teachers
@@ -148,6 +274,7 @@ describe('Results Service - Student Access Control', () => {
   let sessionCode: string;
 
   beforeEach(async () => {
+    resetMockDatabase();
     await cleanupTestData();
 
     // Create a session
@@ -184,6 +311,91 @@ describe('Results Service - Student Access Control', () => {
       totalQuestions: 10,
       correctAnswers: 7.5,
       completedAt: Date.now(),
+    });
+
+    const student1SubmittedAt = Date.now();
+    const student2SubmittedAt = student1SubmittedAt + 1;
+
+    await set(ref(database, `test_results/result-1`), {
+      resultId: 'result-1',
+      sessionCode,
+      testId: 'test-quiz-1',
+      studentId: TEST_STUDENT_UID,
+      studentName: 'Student 1',
+      totalScore: 85,
+      maxScore: 100,
+      percentage: 85,
+      bandScore: 6.5,
+      questionResults: [],
+      correct: 8,
+      incorrect: 2,
+      partialCredit: 0,
+      totalQuestions: 10,
+      submittedAt: student1SubmittedAt,
+      timeElapsed: 0,
+      testDuration: 0,
+      createdAt: student1SubmittedAt,
+      testTitle: 'Test Quiz',
+      testType: 'quiz',
+      testSkill: 'reading',
+      isGuest: false,
+    });
+
+    await set(ref(database, `test_results_by_student/${TEST_STUDENT_UID}/result-1`), {
+      resultId: 'result-1',
+      sessionCode,
+      testId: 'test-quiz-1',
+      percentage: 85,
+      submittedAt: student1SubmittedAt,
+    });
+
+    await set(ref(database, `test_results_by_session/${sessionCode}/result-1`), {
+      resultId: 'result-1',
+      studentId: TEST_STUDENT_UID,
+      studentName: 'Student 1',
+      percentage: 85,
+      submittedAt: student1SubmittedAt,
+    });
+
+    await set(ref(database, `test_results/result-2`), {
+      resultId: 'result-2',
+      sessionCode,
+      testId: 'test-quiz-1',
+      studentId: TEST_STUDENT_UID_2,
+      studentName: 'Student 2',
+      totalScore: 75,
+      maxScore: 100,
+      percentage: 75,
+      bandScore: 6,
+      questionResults: [],
+      correct: 7.5,
+      incorrect: 2.5,
+      partialCredit: 0,
+      totalQuestions: 10,
+      submittedAt: student2SubmittedAt,
+      timeElapsed: 0,
+      testDuration: 0,
+      createdAt: student2SubmittedAt,
+      testTitle: 'Test Quiz',
+      testType: 'quiz',
+      testSkill: 'reading',
+      isGuest: false,
+    });
+
+    await set(ref(database, `test_results_by_student/${TEST_STUDENT_UID_2}/result-2`), {
+      resultId: 'result-2',
+      sessionCode,
+      testId: 'test-quiz-1',
+      percentage: 75,
+      submittedAt: student2SubmittedAt,
+    });
+
+    await set(ref(database, `test_results_by_session/${sessionCode}/result-2`), {
+      resultId: 'result-2',
+      studentId: TEST_STUDENT_UID_2,
+      studentName: 'Student 2',
+      percentage: 75,
+      submittedAt: student2SubmittedAt,
     });
   });
 
@@ -233,6 +445,7 @@ describe('Results Service - Student Access Control', () => {
 
 describe('Results Service - CSV Export', () => {
   beforeEach(async () => {
+    resetMockDatabase();
     await cleanupTestData();
   });
 
@@ -399,6 +612,7 @@ describe('Results Service - Session Results', () => {
   let sessionCode: string;
 
   beforeEach(async () => {
+    resetMockDatabase();
     await cleanupTestData();
 
     const session = await createSession({

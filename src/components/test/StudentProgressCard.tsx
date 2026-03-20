@@ -155,6 +155,8 @@ export const StudentProgressCard: React.FC<StudentProgressCardProps> = ({
   };
 
   const statusColors = getStatusColor();
+  const showForceSubmitAction = (status === 'working' || status === 'disconnected') && !!onForceSubmit;
+  const showResetAction = status === 'submitted' && !!onResetSubmit;
 
   /**
    * Format time elapsed
@@ -512,10 +514,10 @@ export const StudentProgressCard: React.FC<StudentProgressCardProps> = ({
           }
         `}</style>
 
-          {/* PRD-0036: Force Submit / Reset action buttons (only when working) */}
-          {status === 'working' && (onForceSubmit || onResetSubmit) && (
+          {/* PRD-0036: Teacher submission controls */}
+          {(showForceSubmitAction || showResetAction) && (
             <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
-              {onForceSubmit && (
+              {showForceSubmitAction && (
                 <button
                   type="button"
                   onClick={(e) => {
@@ -538,12 +540,12 @@ export const StudentProgressCard: React.FC<StudentProgressCardProps> = ({
                   Force Submit
                 </button>
               )}
-              {onResetSubmit && (
+              {showResetAction && (
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (window.confirm('Reset this student\'s submission? They will be able to continue the test.')) {
+                    if (window.confirm('Reset this student\'s submission? They will be returned to the active test if it is still running.')) {
                       onResetSubmit();
                     }
                   }}

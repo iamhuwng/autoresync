@@ -78,6 +78,7 @@ export async function copyMaterialToModule(
         moduleId,
         materialId: copyId,
         order: Date.now(),
+        linkedAt: Date.now(),
         isCopy: true,
         originalMaterialId: materialId,
     };

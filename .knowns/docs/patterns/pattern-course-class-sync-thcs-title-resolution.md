@@ -1,7 +1,7 @@
 ---
 title: 'Pattern: Course-Class Sync & THCS Title Resolution'
 createdAt: '2026-03-13T19:04:05.187Z'
-updatedAt: '2026-03-13T19:07:59.588Z'
+updatedAt: '2026-03-20T02:28:13.629Z'
 description: >-
   Canonical pattern for course sync between original templates and
   class-instance copies, THCS test title resolution, and component integration
@@ -215,3 +215,9 @@ When reading from a shared database node (e.g., `tests/`), ALWAYS:
 | `materialLinkManager.ts:syncMaterialContentWithOriginal()` | Test content sync (questions/answers) | Individual material |
 
 Never confuse these three — they operate at different granularities.
+
+
+
+---
+
+## ðŸ”´ Lesson 5: Wrong

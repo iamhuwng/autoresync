@@ -52,6 +52,7 @@ const StudentWaitingRoomPage = () => {
   //   WaitingRoom → (in-progress) → TestPage → (already completed) → WaitingRoom → ...
   // We store the testId so that if the teacher starts a NEW test, the student can join it.
   const completedTestIdRef = React.useRef(null);
+  const lastSubmissionResetAtRef = React.useRef(0);
 
   // PRD-TEST-END-FLOW: Auto-open results modal when arriving from teacher-end redirect
   useEffect(() => {
@@ -130,6 +131,47 @@ const StudentWaitingRoomPage = () => {
       if (!sessionData) {
         navigateTo('LOGIN', {}, { reason: 'session_not_found', replace: true });
         return;
+      }
+
+      const currentPlayerData = playerId ? sessionData.players?.[playerId] : null;
+      const submissionResetAt = currentPlayerData?.submissionResetAt;
+
+      if (
+        typeof submissionResetAt === 'number' &&
+        submissionResetAt > lastSubmissionResetAtRef.current
+      ) {
+        lastSubmissionResetAtRef.current = submissionResetAt;
+        completedTestIdRef.current = null;
+        setHasRecentResults(false);
+        setShowResultsModal(false);
+
+        if (
+          sessionData.mode === 'test' &&
+          sessionData.testId &&
+          sessionData.testId !== 'pending' &&
+          sessionData.status === 'in-progress'
+        ) {
+          console.log('🔄 [WaitingRoom] Teacher reset submission, resuming active test');
+          navigateTo('STUDENT_TEST',
+            { sessionCode: gameSessionId },
+            { reason: 'submission_reset_resume' }
+          );
+          return;
+        }
+
+        if (
+          sessionData.mode === 'quiz' &&
+          sessionData.quizId &&
+          sessionData.quizId !== 'pending' &&
+          sessionData.status === 'in-progress'
+        ) {
+          console.log('🔄 [WaitingRoom] Teacher reset submission, resuming active quiz');
+          navigateTo('STUDENT_QUIZ',
+            { gameSessionId: gameSessionId },
+            { reason: 'submission_reset_resume' }
+          );
+          return;
+        }
       }
 
       // Navigate to test/quiz page when content is selected AND status is 'in-progress'

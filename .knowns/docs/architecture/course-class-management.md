@@ -1,7 +1,7 @@
 ---
 title: Course Class Management
 createdAt: '2026-02-27T17:02:32.879Z'
-updatedAt: '2026-03-13T19:08:08.151Z'
+updatedAt: '2026-03-20T02:28:32.512Z'
 description: >-
   Course and class CRUD, enrollment flow, student-teacher assignments, access
   control, 8 services mapped.
@@ -122,3 +122,8 @@ When a course is linked to a class, a **deep copy** is created (point-in-time sn
 - `Module.lastSyncedAt` — timestamp-based sync filtering
 
 See @doc/patterns/pattern-course-class-sync-thcs-title-resolution for full implementation details, lessons learned, and standards.
+
+
+
+### Sync Button Fix (2026-03-19)
+The Sync

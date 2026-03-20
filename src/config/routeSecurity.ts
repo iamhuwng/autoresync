@@ -125,6 +125,12 @@ export const ROUTE_SECURITY_CONFIG: Record<string, RouteSecurityConfig> = {
         allowedRoles: ['super_admin'],
         description: 'Backup & disaster recovery (PRD-0026)'
     },
+    '/admin/reports': {
+        path: '/admin/reports',
+        accessLevel: 'role-restricted',
+        allowedRoles: ['super_admin'],
+        description: 'Production reporting & observability'
+    },
 
     // =========================================================================
     // TEACHER-ONLY ROUTES - teacher role exclusively

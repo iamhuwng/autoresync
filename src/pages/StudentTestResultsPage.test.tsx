@@ -34,6 +34,13 @@ vi.mock('../services/sessionService', () => ({
     }
 }));
 
+vi.mock('../services/writingSubmissionService', () => ({
+    getSubmissionsBySession: vi.fn().mockResolvedValue({
+        success: true,
+        data: [],
+    }),
+}));
+
 // Mock sub-components/modules that might cause issues in test env
 vi.mock('@mantine/core', () => ({
     Center: ({ children }: any) => <div>{children}</div>,

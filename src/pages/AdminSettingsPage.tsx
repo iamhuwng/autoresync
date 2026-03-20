@@ -7,6 +7,7 @@
  * Allowed Roles: super_admin only
  */
 import React, { useState, useEffect, useCallback } from 'react';
+import { onValue, ref, set } from 'firebase/database';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigation } from '../hooks/useNavigation';
 import { AdminTagManager } from '../components/admin';
@@ -34,6 +35,8 @@ import {
     subscribeToAPIKeys,
 } from '../services/api-keys.service';
 import { getEnv } from '../config/env.config';
+import { database } from '../services/firebase';
+import { reportingService } from '../services/reportingService';
 
 // ============================================================================
 // Types
@@ -51,6 +54,20 @@ interface AddKeyModalProps {
     provider: AIProvider | null;
     onClose: () => void;
     onAdd: (provider: AIProvider, label: string, key: string) => Promise<void>;
+}
+
+interface ReportingSettingsSectionProps {
+    onOpenReports: () => void;
+    onTrackAction: (actionName: string, metadata?: Record<string, unknown>) => void;
+}
+
+type ReportingMode = 'full' | 'errors-only' | 'off';
+
+interface ReportingCategories {
+    errors: boolean;
+    events: boolean;
+    performance: boolean;
+    diagnostics: boolean;
 }
 
 // ============================================================================
@@ -366,6 +383,299 @@ const AddKeyModal: React.FC<AddKeyModalProps> = ({ isOpen, provider, onClose, on
     );
 };
 
+const ReportingSettingsSection: React.FC<ReportingSettingsSectionProps> = ({
+    onOpenReports,
+    onTrackAction,
+}) => {
+    const [mode, setModeState] = useState<ReportingMode>('full');
+    const [categories, setCategoriesState] = useState<ReportingCategories>({
+        errors: true,
+        events: true,
+        performance: true,
+        diagnostics: true,
+    });
+    const [advancedOpen, setAdvancedOpen] = useState(true);
+    const [retentionInput, setRetentionInput] = useState('');
+    const [savedRetentionDays, setSavedRetentionDays] = useState(30);
+
+    useEffect(() => {
+        const modeRef = ref(database, '/reports/config/mode');
+        const categoriesRef = ref(database, '/reports/config/categories');
+        const retentionRef = ref(database, '/reports/config/retention/autoPurgeDays');
+
+        const unsubscribeMode = onValue(modeRef, (snapshot) => {
+            const value = snapshot.val();
+            if (value === 'full' || value === 'errors-only' || value === 'off') {
+                setModeState(value);
+                return;
+            }
+
+            setModeState('full');
+        });
+
+        const unsubscribeCategories = onValue(categoriesRef, (snapshot) => {
+            const value = snapshot.val();
+            if (value && typeof value === 'object') {
+                setCategoriesState({
+                    errors: value.errors !== false,
+                    events: value.events !== false,
+                    performance: value.performance !== false,
+                    diagnostics: value.diagnostics !== false,
+                });
+                return;
+            }
+
+            setCategoriesState({
+                errors: true,
+                events: true,
+                performance: true,
+                diagnostics: true,
+            });
+        });
+
+        const unsubscribeRetention = onValue(retentionRef, (snapshot) => {
+            const value = snapshot.val();
+            if (typeof value === 'number' && Number.isFinite(value)) {
+                setSavedRetentionDays(value);
+                return;
+            }
+
+            setSavedRetentionDays(30);
+        });
+
+        return () => {
+            if (typeof unsubscribeMode === 'function') unsubscribeMode();
+            if (typeof unsubscribeCategories === 'function') unsubscribeCategories();
+            if (typeof unsubscribeRetention === 'function') unsubscribeRetention();
+        };
+    }, []);
+
+    const handleModeChange = async (nextMode: ReportingMode) => {
+        await set(ref(database, '/reports/config/mode'), nextMode);
+        onTrackAction('updateReportingMode', { mode: nextMode });
+    };
+
+    const handleCategoryToggle = async (
+        category: keyof ReportingCategories,
+        enabled: boolean
+    ) => {
+        await set(ref(database, `/reports/config/categories/${category}`), enabled);
+        onTrackAction('toggleReportingCategory', { category, enabled });
+    };
+
+    const handleSaveRetention = async () => {
+        const parsed = Number(retentionInput || savedRetentionDays || 30);
+        if (!Number.isFinite(parsed) || parsed <= 0) {
+            return;
+        }
+
+        await set(ref(database, '/reports/config/retention/autoPurgeDays'), parsed);
+        setRetentionInput('');
+        onTrackAction('saveReportingRetention', { days: parsed });
+    };
+
+    const handleAdvancedPanelToggle = () => {
+        const nextExpanded = !advancedOpen;
+        setAdvancedOpen(nextExpanded);
+        onTrackAction('toggleReportingAdvancedPanel', {
+            expanded: nextExpanded,
+        });
+    };
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <Card variant="glass" style={{ padding: '1.5rem' }}>
+                <h2 style={{ fontSize: '1.1rem', fontWeight: '600', color: '#1e293b', marginTop: 0 }}>
+                    Reporting & Observability
+                </h2>
+                <p style={{ color: '#64748b', lineHeight: 1.6, margin: '0.5rem 0 1rem' }}>
+                    Control the reporting pipeline, telemetry categories, and data retention policy.
+                </p>
+
+                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    {[
+                        { key: 'full', label: 'Full', detail: 'Errors, events, diagnostics' },
+                        { key: 'errors-only', label: 'Errors Only', detail: 'Disable event tracking' },
+                        { key: 'off', label: 'Off', detail: 'Stop collecting reports' },
+                    ].map((option) => (
+                        <button
+                            key={option.key}
+                            type="button"
+                            onClick={() => void handleModeChange(option.key as ReportingMode)}
+                            style={{
+                                border: 'none',
+                                borderRadius: '16px',
+                                padding: '0.95rem 1rem',
+                                background: mode === option.key
+                                    ? 'linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(59, 130, 246, 0.18))'
+                                    : 'rgba(255, 255, 255, 0.75)',
+                                color: mode === option.key ? '#1d4ed8' : '#334155',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                minWidth: '180px',
+                                textAlign: 'left',
+                                boxShadow: mode === option.key
+                                    ? '0 10px 25px rgba(37, 99, 235, 0.12)'
+                                    : 'inset 0 0 0 1px rgba(226, 232, 240, 0.8)',
+                            }}
+                        >
+                            <div>{option.label}</div>
+                            <div style={{ marginTop: '0.35rem', fontSize: '0.82rem', fontWeight: 600, color: '#64748b' }}>
+                                {option.detail}
+                            </div>
+                        </button>
+                    ))}
+                </div>
+            </Card>
+
+            {mode === 'full' && (
+                <Card variant="glass" style={{ padding: '1.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+                        <div>
+                            <h2 style={{ fontSize: '1.1rem', fontWeight: '600', color: '#1e293b', marginTop: 0, marginBottom: '0.4rem' }}>
+                                Advanced Categories
+                            </h2>
+                            <p style={{ color: '#64748b', lineHeight: 1.6, margin: 0 }}>
+                                Fine-tune which reporting categories stay active in Full mode.
+                            </p>
+                        </div>
+                        <Button
+                            variant="glass"
+                            onClick={handleAdvancedPanelToggle}
+                        >
+                            {advancedOpen ? 'Hide Advanced Panel' : 'Show Advanced Panel'}
+                        </Button>
+                    </div>
+
+                    {advancedOpen && (
+                        <div
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                                gap: '1rem',
+                                marginTop: '1rem',
+                            }}
+                        >
+                            {([
+                                ['errors', 'Errors', 'Capture application failures and crash reports'],
+                                ['events', 'Events', 'Track feature usage and user actions'],
+                                ['performance', 'Performance', 'Reserve a toggle for future performance telemetry'],
+                                ['diagnostics', 'Diagnostics', 'Upload diagnostic bundles for deep inspection'],
+                            ] as Array<[keyof ReportingCategories, string, string]>).map(([key, label, detail]) => (
+                                <label
+                                    key={key}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'flex-start',
+                                        gap: '0.75rem',
+                                        padding: '1rem',
+                                        borderRadius: '14px',
+                                        background: categories[key]
+                                            ? 'rgba(16, 185, 129, 0.08)'
+                                            : 'rgba(148, 163, 184, 0.08)',
+                                        cursor: 'pointer',
+                                    }}
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={categories[key]}
+                                        onChange={(event) =>
+                                            void handleCategoryToggle(key, event.target.checked)
+                                        }
+                                    />
+                                    <div>
+                                        <div style={{ fontWeight: 700, color: '#1e293b' }}>{label}</div>
+                                        <div style={{ marginTop: '0.35rem', fontSize: '0.85rem', color: '#64748b', lineHeight: 1.5 }}>
+                                            {detail}
+                                        </div>
+                                    </div>
+                                </label>
+                            ))}
+                        </div>
+                    )}
+                </Card>
+            )}
+
+            <Card variant="glass" style={{ padding: '1.5rem' }}>
+                <h2 style={{ fontSize: '1.1rem', fontWeight: '600', color: '#1e293b', marginTop: 0 }}>
+                    Data Retention
+                </h2>
+                <p style={{ color: '#64748b', lineHeight: 1.6, margin: '0.5rem 0 1rem' }}>
+                    Set the auto-purge threshold used by the reporting admin tools.
+                </p>
+
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                    <div style={{ minWidth: '240px', flex: 1 }}>
+                        <Input
+                            type="number"
+                            label="Auto-Purge Days"
+                            value={retentionInput}
+                            onChange={(event) => setRetentionInput(event.target.value)}
+                            placeholder={String(savedRetentionDays || 30)}
+                            min={1}
+                            fullWidth
+                        />
+                    </div>
+                    <Button variant="primary" onClick={() => void handleSaveRetention()}>
+                        Save Retention
+                    </Button>
+                </div>
+
+                <p style={{ margin: '0.85rem 0 0', fontSize: '0.85rem', color: '#64748b' }}>
+                    Current saved retention: <strong>{savedRetentionDays} days</strong>
+                </p>
+            </Card>
+
+            <Card
+                variant="glass"
+                style={{
+                    padding: '1.5rem',
+                    background:
+                        'linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(37, 99, 235, 0.88))',
+                    color: '#e2e8f0',
+                }}
+            >
+                <div
+                    style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'flex-start',
+                        gap: '1rem',
+                        flexWrap: 'wrap',
+                    }}
+                >
+                    <div style={{ maxWidth: '640px' }}>
+                        <h2
+                            style={{
+                                fontSize: '1.1rem',
+                                fontWeight: '600',
+                                color: '#f8fafc',
+                                marginTop: 0,
+                                marginBottom: '0.45rem',
+                            }}
+                        >
+                            Manage Reporting Data
+                        </h2>
+                        <p style={{ color: '#cbd5e1', lineHeight: 1.6, margin: 0 }}>
+                            Review retention warnings, inspect diagnostic bundles, and run
+                            the purge workflow from the dedicated Reports workspace.
+                        </p>
+                    </div>
+                    <Button
+                        variant="primary"
+                        onClick={() => {
+                            onTrackAction('viewReports', { source: 'admin_settings' });
+                            onOpenReports();
+                        }}
+                    >
+                        Open Reports Workspace
+                    </Button>
+                </div>
+            </Card>
+        </div>
+    );
+};
+
 // ============================================================================
 // Main Component
 // ============================================================================
@@ -379,7 +689,7 @@ const AdminSettingsPage: React.FC = () => {
     const [addModalOpen, setAddModalOpen] = useState(false);
     const [addModalProvider, setAddModalProvider] = useState<AIProvider | null>(null);
     const [envKeys, setEnvKeys] = useState<{ gemini: string[]; groq: string[] }>({ gemini: [], groq: [] });
-    const [activeSection, setActiveSection] = useState<'api_keys' | 'tags'>('api_keys');
+    const [activeSection, setActiveSection] = useState<'api_keys' | 'tags' | 'reporting'>('api_keys');
 
     const isSuperAdmin = profile?.role === 'super_admin';
 
@@ -449,6 +759,7 @@ const AdminSettingsPage: React.FC = () => {
             sessions: 'ADMIN_SESSIONS',
             settings: 'ADMIN_SETTINGS',
             backup: 'ADMIN_BACKUP',
+            reports: 'ADMIN_REPORTS',
         };
 
         const route = pageRoutes[page];
@@ -471,6 +782,17 @@ const AdminSettingsPage: React.FC = () => {
         if (!user?.uid) return;
         await deleteAPIKey(provider, keyId, user.uid);
     }, [user?.uid]);
+
+    const trackAdminAction = useCallback(
+        (actionName: string, metadata?: Record<string, unknown>) => {
+            reportingService.trackAction('adminPanel', actionName, metadata);
+        },
+        []
+    );
+
+    const openReportsWorkspace = useCallback(() => {
+        navigateTo('ADMIN_REPORTS', {}, { reason: 'settings_manage_reporting_data' });
+    }, [navigateTo]);
 
     const openAddModal = (provider: AIProvider) => {
         setAddModalProvider(provider);
@@ -568,6 +890,13 @@ const AdminSettingsPage: React.FC = () => {
                     >
                         Tags
                     </Button>
+                    <Button
+                        variant={activeSection === 'reporting' ? 'primary' : 'glass'}
+                        aria-label="Show reporting settings section"
+                        onClick={() => setActiveSection('reporting')}
+                    >
+                        Reporting
+                    </Button>
                 </div>
 
                 {loading ? (
@@ -575,6 +904,11 @@ const AdminSettingsPage: React.FC = () => {
                         <IconRefresh size={32} style={{ color: '#6366f1', animation: 'spin 1s linear infinite' }} />
                         <p style={{ marginTop: '1rem', color: '#64748b' }}>Loading settings...</p>
                     </Card>
+                ) : activeSection === 'reporting' ? (
+                    <ReportingSettingsSection
+                        onOpenReports={openReportsWorkspace}
+                        onTrackAction={trackAdminAction}
+                    />
                 ) : activeSection === 'tags' ? (
                     <AdminTagManager />
                 ) : (

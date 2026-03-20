@@ -13,7 +13,7 @@ import { MantineProvider } from '@mantine/core';
 import PrivateRoute from './PrivateRoute';
 
 // Mock data
-const mockUser = { uid: 'test-user-id' };
+let mockUser: { uid: string } | null = { uid: 'test-user-id' };
 let mockProfile: { role: string; status?: string } | null = { role: 'student' };
 let mockLoading = false;
 
@@ -58,6 +58,7 @@ const renderWithRouter = (
 describe('PrivateRoute', () => {
     beforeEach(() => {
         // Reset mocks to defaults
+        mockUser = { uid: 'test-user-id' };
         mockProfile = { role: 'student' };
         mockLoading = false;
         vi.clearAllMocks();
@@ -74,18 +75,9 @@ describe('PrivateRoute', () => {
 
     describe('Unauthenticated Users', () => {
         it('should redirect to login when user is not authenticated', () => {
+            mockUser = null;
             mockProfile = null;
             mockLoading = false;
-            // Simulate no user by making useAuth return null user
-            vi.doMock('../hooks/useAuth', () => ({
-                useAuth: () => ({
-                    user: null,
-                    profile: null,
-                    loading: false,
-                }),
-            }));
-
-            // This test verifies the Navigate component redirects
             renderWithRouter();
             expect(screen.queryByTestId('protected-content')).not.toBeInTheDocument();
         });

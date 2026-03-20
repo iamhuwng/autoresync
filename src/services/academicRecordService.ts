@@ -750,3 +750,118 @@ export async function updateThcsProgress(
         // Non-blocking — don't throw, just log
     }
 }
+
+// ============================================
+// PRD-0039: Attempt grouping & attempt summary helpers
+// ============================================
+
+/**
+ * PRD-0039 Task 3.1: Group results by testId.
+ * Returns a Map where keys are testIds and values are arrays of results
+ * sorted by submittedAt DESC (newest first) within each group.
+ */
+export function groupResultsByTestId(
+    results: EnhancedTestResultRecord[]
+): Map<string, EnhancedTestResultRecord[]> {
+    const groups = new Map<string, EnhancedTestResultRecord[]>();
+    for (const result of results) {
+        if (!result.testId) continue;
+        const group = groups.get(result.testId) || [];
+        group.push(result);
+        groups.set(result.testId, group);
+    }
+    // Sort each group by submittedAt DESC
+    for (const [, group] of groups) {
+        group.sort((a, b) => (b.submittedAt || 0) - (a.submittedAt || 0));
+    }
+    return groups;
+}
+
+/**
+ * PRD-0039 Task 3.2: Compute attemptSummary for every result in a group.
+ * The group must already be sorted by submittedAt DESC (newest first).
+ *
+ * PRD-0039 Task 3.3 trend rule:
+ * - 'up' when latestAttemptPercentage > firstAttemptPercentage
+ * - 'down' when latestAttemptPercentage < firstAttemptPercentage
+ * - 'stable' when they are equal
+ */
+export function computeAttemptSummaries(
+    results: EnhancedTestResultRecord[]
+): EnhancedTestResultRecord[] {
+    if (results.length === 0) return [];
+
+    // Results are sorted DESC (newest first)
+    const totalAttempts = results.length;
+    const latestResult = results[0];
+    const firstResult = results[results.length - 1];
+    const latestPercentage = latestResult.percentage ?? 0;
+    const firstPercentage = firstResult.percentage ?? 0;
+
+    let trend: 'up' | 'down' | 'stable';
+    if (latestPercentage > firstPercentage) {
+        trend = 'up';
+    } else if (latestPercentage < firstPercentage) {
+        trend = 'down';
+    } else {
+        trend = 'stable';
+    }
+
+    // Assign attempt numbers: first attempt = 1 (oldest), latest = totalAttempts
+    // Since sorted DESC, index 0 = newest = attemptNumber totalAttempts
+    return results.map((result, index) => ({
+        ...result,
+        attemptSummary: {
+            attemptNumber: totalAttempts - index,
+            totalAttempts,
+            isLatestAttempt: index === 0,
+            trend,
+            firstAttemptPercentage: firstPercentage,
+            latestAttemptPercentage: latestPercentage,
+        },
+    }));
+}
+
+/**
+ * PRD-0039 Task 3.4: Collapse results to one card per testId,
+ * keeping only the newest result in each attempt group.
+ *
+ * PRD-0039 Task 3.5: Does NOT modify the original array.
+ * Older attempts are still accessible in the raw results array.
+ */
+export function getLatestResultPerTest(
+    results: EnhancedTestResultRecord[]
+): EnhancedTestResultRecord[] {
+    const groups = groupResultsByTestId(results);
+    const latestResults: EnhancedTestResultRecord[] = [];
+
+    for (const [, group] of groups) {
+        // Group is sorted DESC, so index 0 is the newest
+        const enrichedGroup = computeAttemptSummaries(group);
+        latestResults.push(enrichedGroup[0]);
+    }
+
+    // Sort the final list by submittedAt DESC for consistent ordering
+    latestResults.sort((a, b) => (b.submittedAt || 0) - (a.submittedAt || 0));
+    return latestResults;
+}
+
+/**
+ * PRD-0039: Enrich all results with attempt summaries.
+ * Returns a new array with attemptSummary set on every result.
+ * Does NOT modify the original array.
+ */
+export function enrichResultsWithAttemptSummaries(
+    results: EnhancedTestResultRecord[]
+): EnhancedTestResultRecord[] {
+    const groups = groupResultsByTestId(results);
+    const enriched: EnhancedTestResultRecord[] = [];
+
+    for (const [, group] of groups) {
+        enriched.push(...computeAttemptSummaries(group));
+    }
+
+    // Maintain original sort order (submittedAt DESC)
+    enriched.sort((a, b) => (b.submittedAt || 0) - (a.submittedAt || 0));
+    return enriched;
+}

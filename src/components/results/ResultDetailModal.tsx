@@ -3,7 +3,7 @@ import { IconArrowLeft } from '@tabler/icons-react';
 import { getTestResult, TestResultRecord } from '../../services/testResults.service';
 import { ref, onValue } from 'firebase/database';
 import { database } from '../../services/firebase';
-import { calculateBandScore } from '../../services/autoMarking.service';
+
 import { ResultContextBadge } from './ResultContextBadge';
 import { FormativeFeedbackPanel } from '../thcs-student/FormativeFeedbackPanel';
 import { QuestionPillsGrid } from './QuestionPillsGrid';
@@ -218,15 +218,6 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
             intentBreakdown: Record<string, { correct: number; total: number }>;
         } | undefined;
 
-        // Score display: THCS uses scaledScore (10-point), IELTS uses band score (0.5–9.0)
-        const displayScore = isTHCS && thcsData
-            ? thcsData.scaledScore
-            : calculateBandScore(result.percentage);
-        const scoreLabel = isTHCS ? 'Điểm số' : 'Estimated Band';
-        const scoreStandard = isTHCS ? 'Thang điểm 10' : 'IELTS Standard';
-        const scoreColor = isTHCS ? '#8b5cf6' : '#10b981';
-
-
         // feedbackTiming handling
         const feedbackTiming = result.context?.configApplied?.feedbackTiming || 'after_completion';
         const showDetailedFeedback = feedbackTiming !== 'never';
@@ -291,7 +282,7 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
                         {/* Primary Score Cards */}
                         <div style={{
                             display: 'grid',
-                            gridTemplateColumns: 'repeat(4, 1fr)',
+                            gridTemplateColumns: 'repeat(3, 1fr)',
                             gap: '0.625rem',
                             overflow: 'hidden',
                         }}>
@@ -305,13 +296,6 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
                                 </div>
                             </div>
 
-                            <div style={cardStyleCompact}>
-                                <div style={cardLabel}>{scoreLabel}</div>
-                                <div style={{ fontSize: '1.75rem', fontWeight: 800, color: scoreColor, margin: '0.125rem 0', lineHeight: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    {displayScore.toFixed(1)}
-                                </div>
-                                <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>{scoreStandard}</div>
-                            </div>
 
                             <div style={{ ...cardStyleCompact, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                                 <div style={cardLabel}>{isTHCS ? 'Phân bố' : 'Distribution'}</div>
@@ -337,14 +321,14 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
                             <div style={cardStyleCompact}>
                                 <div style={cardLabel}>{isTHCS ? 'Thời gian' : 'Time Spent'}</div>
                                 <div style={{ fontSize: '1.375rem', fontWeight: 800, color: '#3b82f6', margin: '0.125rem 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    {(result as any).timeSpent
-                                        ? `${Math.floor((result as any).timeSpent / 60)}:${String((result as any).timeSpent % 60).padStart(2, '0')}`
-                                        : (result as any).timeTaken
-                                            ? `${Math.floor((result as any).timeTaken / 60)}:${String((result as any).timeTaken % 60).padStart(2, '0')}`
-                                            : '—'}
+                                    {result.timeElapsed != null && result.timeElapsed > 0
+                                        ? `${Math.floor(result.timeElapsed / 60)}:${String(result.timeElapsed % 60).padStart(2, '0')}`
+                                        : '—'}
                                 </div>
                                 <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>
-                                    {(result as any).timeSpent || (result as any).timeTaken ? (isTHCS ? 'Phút' : 'Minutes') : (isTHCS ? 'Chưa ghi nhận' : 'Not recorded')}
+                                    {result.timeElapsed != null && result.timeElapsed > 0
+                                        ? (isTHCS ? 'Phút' : 'Minutes')
+                                        : (isTHCS ? 'Chưa ghi nhận' : 'Not recorded')}
                                 </div>
                             </div>
                         </div>

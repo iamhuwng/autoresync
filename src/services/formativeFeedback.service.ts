@@ -210,9 +210,25 @@ function formatAnswerValue(value: unknown): string {
 }
 
 function buildFallbackQuestionExplanations(
-    questionResults: Record<number, QuestionResult>
+    questionResults: Record<number, QuestionResult>,
+    sections?: THCSSection[]
 ): Record<string, string> {
     const explanations: Record<string, string> = {};
+
+    // Build a lookup of question data from sections for richer fallback
+    const questionDataMap: Record<number, { text?: string; options?: string[]; intent?: string }> = {};
+    if (sections) {
+        for (const section of sections) {
+            const questions = Array.isArray((section as any).questions) ? (section as any).questions : [];
+            for (const q of questions) {
+                questionDataMap[q.questionNumber] = {
+                    text: q.questionText,
+                    options: q.options,
+                    intent: q.intent || q.type,
+                };
+            }
+        }
+    }
 
     for (const [rawQuestionNumber, questionResult] of Object.entries(questionResults || {})) {
         if (questionResult.isCorrect) continue;
@@ -221,9 +237,30 @@ function buildFallbackQuestionExplanations(
         const studentAnswer = formatAnswerValue(questionResult.studentAnswer);
         const correctAnswer = questionResult.correctAnswer !== undefined
             ? formatAnswerValue(questionResult.correctAnswer)
-            : 'This item requires a more complete model response.';
+            : null;
+        const qData = questionDataMap[questionNumber];
 
-        explanations[`Q${questionNumber}`] = `For Q${questionNumber}, your answer was ${studentAnswer}. The expected answer is ${correctAnswer}. Recheck the core rule behind this item and practice the same pattern again to lock in the correction.`;
+        // Build a more informative fallback explanation
+        const parts: string[] = [];
+
+        if (studentAnswer !== 'No answer provided') {
+            parts.push(`You chose "${studentAnswer}", but the correct answer is "${correctAnswer || '(see correct answer above)'}"`);
+        } else {
+            parts.push(`You did not answer this question. The correct answer is "${correctAnswer || '(see correct answer above)'}"`);
+        }
+
+        // Add skill type hint if available
+        if (qData?.intent) {
+            const skillInfo = INTENT_SKILL_MAP[qData.intent];
+            if (skillInfo) {
+                parts.push(`This question tests ${skillInfo.name} (${skillInfo.category}).`);
+            }
+        }
+
+        // Add actionable tip
+        parts.push('Review the grammar rule or vocabulary pattern behind this question and try again with similar exercises.');
+
+        explanations[`Q${questionNumber}`] = parts.join('. ').replace(/\.\.+/g, '.');
     }
 
     return explanations;
@@ -299,13 +336,26 @@ function buildFeedbackPrompt(
     sections: THCSSection[],
     testMetadata: { title: string; gradeLevel: number },
 ): { systemPrompt: string; userPrompt: string } {
-    const systemPrompt = `You are an expert English teacher providing formative feedback to a Vietnamese student (Grade ${testMetadata.gradeLevel}).
-Your feedback should be specific, encouraging, and actionable. Reference question numbers when discussing topics.
+    const systemPrompt = `You are an expert English teacher providing deep, contextual formative feedback to a Vietnamese student (Grade ${testMetadata.gradeLevel}).
+Your explanations must analyse the SPECIFIC grammar rule, vocabulary usage, or reading context that each question tests.
+For each wrong answer, you MUST:
+1. Identify the exact grammar rule or language skill being tested (e.g., "present perfect vs past simple", "relative pronoun 'whose' vs 'who'", "phrasal verb 'look forward to + V-ing'")
+2. Explain WHY the student's chosen answer is wrong in THIS specific sentence/context — reference the actual words from the question
+3. Explain WHY the correct answer fits — cite the grammar rule or contextual clue that makes it correct
+4. Give a brief, memorable learning tip the student can use to avoid this mistake in the future
 Return ONLY valid JSON matching the schema below. No markdown, no commentary.`;
 
-    // Build question list
+    // Build question list with rich context
     const questionLines: string[] = [];
     for (const section of sections) {
+        // Include section context (passage, reading text) if available
+        const sectionContext = (section as any).passage?.content || (section as any).passageContent || '';
+        const sectionTitle = section.name || '';
+
+        if (sectionContext && sectionTitle) {
+            questionLines.push(`--- Section: ${sectionTitle} ---\n  Passage/Context: ${sectionContext.substring(0, 500)}${sectionContext.length > 500 ? '...' : ''}`);
+        }
+
         for (const q of section.questions) {
             const qResult = gradingResult.questionResults[q.questionNumber] as QuestionResult | undefined;
             const isCorrect = qResult?.isCorrect ?? false;
@@ -315,7 +365,7 @@ Return ONLY valid JSON matching the schema below. No markdown, no commentary.`;
             let line = `Q${q.questionNumber} [${intent}] ${status}`;
             line += `\n  Text: ${q.questionText}`;
 
-            // Include options for MCQ
+            // Include ALL options for MCQ so AI can analyse each choice
             if (q.options && q.options.length > 0) {
                 const labels = ['A', 'B', 'C', 'D'];
                 const optStr = q.options.map((opt, i) => `${labels[i]}. ${opt}`).join(' | ');
@@ -325,12 +375,17 @@ Return ONLY valid JSON matching the schema below. No markdown, no commentary.`;
             // Student answer + correct answer
             const studentAns = qResult?.studentAnswer ?? '(no answer)';
             const correctAns = q.correctAnswer || (qResult?.correctAnswer ?? '');
-            line += `\n  Student: ${Array.isArray(studentAns) ? studentAns.join(', ') : studentAns}`;
-            line += `\n  Correct: ${Array.isArray(correctAns) ? correctAns.join(', ') : correctAns}`;
+            line += `\n  Student chose: ${Array.isArray(studentAns) ? studentAns.join(', ') : studentAns}`;
+            line += `\n  Correct answer: ${Array.isArray(correctAns) ? correctAns.join(', ') : correctAns}`;
+
+            // Include original sentence for sentence-rewrite type
+            if ((q as any).originalSentence) {
+                line += `\n  Original sentence: ${(q as any).originalSentence}`;
+            }
 
             // Teacher explanation (so AI doesn't duplicate)
             if (q.explanation?.text) {
-                line += `\n  Teacher explanation: ${q.explanation.text}`;
+                line += `\n  Teacher explanation (DO NOT repeat): ${q.explanation.text}`;
             }
 
             questionLines.push(line);
@@ -350,28 +405,34 @@ ${questionLines.join('\n\n')}
 Return JSON with this EXACT schema:
 {
   "questionTopics": {
-    "<questionNumber>": { "topic": "<specific grammar/vocabulary topic>", "category": "<Phonetics|Grammar|Vocabulary|Reading|Writing|Communication>" }
+    "<questionNumber>": { "topic": "<specific grammar/vocabulary topic, e.g. 'present perfect with since/for', 'conditional type 2', 'word form: adjective vs adverb'>", "category": "<Phonetics|Grammar|Vocabulary|Reading|Writing|Communication>" }
   },
   "questionExplanations": {
-    "<questionNumber>": "<1-2 sentence explanation of WHY the student's answer is wrong and what the correct answer means>"
+    "<questionNumber>": "<3-5 sentence DEEP explanation. Structure: (1) Name the specific grammar rule or skill tested. (2) Quote the relevant part of the question and explain why the student's answer does not work in this context. (3) Explain why the correct answer works, citing the rule. (4) One-line tip to remember the rule.>"
   },
   "feedback": {
-    "summary": "<1-2 sentences summarizing overall performance>",
-    "strengths": "<1-2 sentences about what the student did well, referencing question numbers>",
-    "revision": "<1-2 sentences about areas needing practice, with specific topics>",
-    "critical": "<1-2 sentences about critical gaps, if any, or empty string if none>"
+    "summary": "<2-3 sentences summarizing overall performance with specific skill areas mentioned>",
+    "strengths": "<2-3 sentences about what the student did well, referencing question numbers and naming the skills>",
+    "revision": "<2-3 sentences about areas needing practice, with specific grammar/vocabulary topics and question refs>",
+    "critical": "<2-3 sentences about critical gaps with exact rule names, or empty string if student scored above 70%>"
   }
 }
 
 RULES:
 1. questionTopics: provide for ALL questions (correct and wrong)
-2. questionExplanations: provide ONLY for WRONG answers
-3. Be specific about grammar topics (e.g., "past perfect tense", "subject-verb agreement", "comparative adjectives")
-4. Keep each explanation to 1-2 sentences maximum
-5. Reference question numbers in feedback sections (e.g., "Q3, Q7")
-6. If teacher explanation exists, complement it — don't repeat it
-7. feedback.critical should be empty string "" if student scored above 70%
-8. Use encouraging, student-friendly language`;
+2. questionExplanations: provide ONLY for WRONG answers — but make each explanation THOROUGH and CONTEXTUAL
+3. Be VERY specific about grammar topics (e.g., "present perfect continuous vs present perfect simple", "subject-verb agreement with collective nouns", "comparative form of multi-syllable adjectives using 'more'")
+4. Each questionExplanation MUST:
+   a. Name the grammar rule or vocabulary pattern (e.g., "This tests the passive voice with modal verbs")
+   b. Explain why the student's specific choice fails IN THIS sentence (e.g., "You chose 'has went' but 'went' is the past simple form — after 'has', we need the past participle 'gone'")
+   c. Explain why the correct answer works (e.g., "'has gone' is correct because present perfect = has/have + past participle (V3)")
+   d. Give a short memorable tip (e.g., "Remember: has/have + V3, never V2")
+5. For vocabulary questions: explain the meaning difference between the student's choice and the correct answer, with usage context
+6. For reading comprehension: reference the specific passage clue that supports the correct answer
+7. Reference question numbers in feedback sections (e.g., "Q3, Q7")
+8. If teacher explanation exists, complement it — don't repeat it
+9. feedback.critical should be empty string "" if student scored above 70%
+10. Use encouraging, student-friendly language — be a supportive tutor, not a judge`;
 
     return { systemPrompt, userPrompt };
 }
@@ -806,7 +867,7 @@ export async function generateFormativeFeedback(
             console.log('📊 [FormativeFeedback] Using deterministic-only feedback');
         }
 
-        const fallbackExplanations = buildFallbackQuestionExplanations(gradingResult.questionResults || {});
+        const fallbackExplanations = buildFallbackQuestionExplanations(gradingResult.questionResults || {}, sections);
         if (!feedback.questionExplanations || Object.keys(feedback.questionExplanations).length === 0) {
             feedback.questionExplanations = fallbackExplanations;
         } else {

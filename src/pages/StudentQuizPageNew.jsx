@@ -27,8 +27,10 @@ import { calculateScore } from '../utils/scoring';
 // import { useLog } from '../context/LogContext'; // DISABLED FOR TESTING
 import SemicircleTimer from '../components/SemicircleTimer';
 import StudentAnswerInput from '../components/StudentAnswerInput';
+import { useIntegrityRefreshRequest } from '../hooks/test/useIntegrityRefreshRequest';
 import { useTestIntegrity } from '../hooks/test/useTestIntegrity'; // PRD-0036
 import { useAntiCopyPaste } from '../hooks/test/useAntiCopyPaste'; // PRD-0036
+import { useFullscreenMode } from '../hooks/test/useFullscreenMode'; // PRD-0036 ISSUE-4
 import { useBeforeUnloadWarning } from '../hooks/test/useBeforeUnloadWarning'; // PRD-0036 Task 10.2
 import { toast } from '../components/modern/ToastNotification'; // PRD-0036
 
@@ -42,7 +44,7 @@ const StudentQuizPageNew = () => {
   const { gameSessionId } = useParams();
   const { navigateTo, handleSessionChange } = useNavigation('student');
   // const { addLog } = useLog(); // DISABLED FOR TESTING
-  const addLog = () => {}; // No-op function
+  const addLog = useCallback(() => {}, []); // No-op function
   const [gameSession, setGameSession] = useState(null);
   const [quiz, setQuiz] = useState(null);
   const [selectedAnswer, setSelectedAnswer] = useState('');
@@ -50,6 +52,7 @@ const StudentQuizPageNew = () => {
   const hasSubmittedRef = useRef(false);
   const currentQuestionIndexRef = useRef(null);
   const containerRef = useRef(null); // PRD-0036: Anti-cheat scope
+  const flushIntegrityRef = useRef(null);
 
   // PRD-0036 Task 10.2: Warn student before closing/refreshing during active quiz
   useBeforeUnloadWarning({ enabled: gameSession?.status === 'in-progress' });
@@ -99,6 +102,44 @@ const StudentQuizPageNew = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameSession, quiz]);
 
+  const submitAnswer = useCallback(async ({
+    playerId,
+    questionIndex,
+    answerToSubmit,
+    currentPlayer,
+    question,
+    logPrefix,
+    markAsSubmitted = true,
+  }) => {
+    if (flushIntegrityRef.current) {
+      await flushIntegrityRef.current();
+    }
+
+    const score = answerToSubmit ? calculateScore(question, answerToSubmit) : 0;
+    const isCorrect = score === 10;
+
+    addLog(`${logPrefix} - Score: ${score}, Correct: ${isCorrect}`);
+
+    const playerRef = ref(database, `game_sessions/${gameSessionId}/players/${playerId}`);
+    await update(playerRef, {
+      score: (currentPlayer?.score || 0) + score,
+      answers: {
+        ...(currentPlayer?.answers || {}),
+        [questionIndex]: {
+          answer: answerToSubmit || null,
+          isCorrect,
+          score,
+          timeSpent: 0
+        }
+      }
+    });
+
+    if (markAsSubmitted) {
+      hasSubmittedRef.current = true;
+    }
+    addLog(`${logPrefix} - Answer submitted`);
+  }, [addLog, gameSessionId]);
+
   // Reset when question changes
   useEffect(() => {
     if (gameSession && quiz) {
@@ -123,23 +164,19 @@ const StudentQuizPageNew = () => {
             if (question) {
               const answerToSubmit = selectedAnswerRef.current;
               const currentPlayer = gameSession.players[playerId];
-              const score = calculateScore(question, answerToSubmit);
-              const isCorrect = score === 10;
               
               addLog(`Auto-submitting answer for Q${oldIndex}: ${typeof answerToSubmit === 'object' ? JSON.stringify(answerToSubmit) : answerToSubmit}`);
-              
-              const playerRef = ref(database, `game_sessions/${gameSessionId}/players/${playerId}`);
-              update(playerRef, {
-                score: (currentPlayer?.score || 0) + score,
-                answers: {
-                  ...(currentPlayer?.answers || {}),
-                  [oldIndex]: {
-                    answer: answerToSubmit,
-                    isCorrect,
-                    score,
-                    timeSpent: 0
-                  }
-                }
+
+              submitAnswer({
+                playerId,
+                questionIndex: oldIndex,
+                answerToSubmit,
+                currentPlayer,
+                question,
+                logPrefix: `handleQuestionChange Q${oldIndex}`,
+                markAsSubmitted: false,
+              }).catch((error) => {
+                console.error('[StudentQuizPageNew] Failed to auto-submit previous answer:', error);
               });
             }
           }
@@ -156,10 +193,10 @@ const StudentQuizPageNew = () => {
         currentQuestionIndexRef.current = newIndex;
       }
     }
-  }, [gameSession, quiz, addLog, gameSessionId]);
+  }, [gameSession, quiz, addLog, submitAnswer]);
 
   // Handle timer end - submit current answer
-  const handleTimeUp = () => {
+  const handleTimeUp = useCallback(async () => {
     addLog('handleTimeUp called');
     if (hasSubmittedRef.current) {
       addLog('handleTimeUp returned early because hasSubmittedRef.current is true');
@@ -206,31 +243,16 @@ const StudentQuizPageNew = () => {
     addLog(`handleTimeUp - Submitting answer: ${submitDisplay}`);
     
     const currentPlayer = gameSession.players[playerId];
-    
-    // Calculate score (will be 0 if no answer selected)
-    const score = answerToSubmit ? calculateScore(question, answerToSubmit) : 0;
-    const isCorrect = score === 10; // Only mark as correct if full points earned
-    
-    addLog(`handleTimeUp - Score: ${score}, Correct: ${isCorrect}`);
 
-    // Update Firebase
-    const playerRef = ref(database, `game_sessions/${gameSessionId}/players/${playerId}`);
-    update(playerRef, {
-      score: (currentPlayer?.score || 0) + score,
-      answers: {
-        ...(currentPlayer?.answers || {}),
-        [questionIndex]: {
-          answer: answerToSubmit || null,
-          isCorrect,
-          score,
-          timeSpent: 0
-        }
-      }
+    await submitAnswer({
+      playerId,
+      questionIndex,
+      answerToSubmit,
+      currentPlayer,
+      question,
+      logPrefix: 'handleTimeUp',
     });
-
-    hasSubmittedRef.current = true;
-    addLog('handleTimeUp - Answer submitted');
-  };
+  }, [addLog, gameSession, gameSessionId, quiz, submitAnswer]);
 
   // Handle answer selection - now using direct click instead of radio onChange
   const handleAnswerSelect = (answer) => {
@@ -240,7 +262,6 @@ const StudentQuizPageNew = () => {
       return;
     }
     
-    const questionIndex = gameSession?.currentQuestionIndex || 0;
     const answerDisplay = typeof answer === 'object' ? JSON.stringify(answer) : answer;
     addLog(`handleAnswerSelect called with answer: ${answerDisplay}`);
     
@@ -267,15 +288,32 @@ const StudentQuizPageNew = () => {
   } = useTestIntegrity({
     config: antiCheatConfig,
     context: 'session',
+    surface: 'student_quiz',
     sessionCode: gameSessionId,
     studentId: playerId || '',
     testId: gameSession?.quizId || '',
+  });
+
+  flushIntegrityRef.current = () => flushEvents('quiz_answer_write');
+
+  useIntegrityRefreshRequest({
+    enabled: gameSession?.status === 'in-progress',
+    requestTimestamp: gameSession?.integrityRefreshRequestedAt ?? null,
+    onRefreshRequested: () => flushEvents('teacher_refresh'),
   });
 
   useAntiCopyPaste({
     enabled: antiCheatConfig?.detectCopyPaste || false,
     containerRef,
     onEvent: addEvent,
+    detectRightClick: antiCheatConfig?.detectRightClick || false,
+    detectKeyboardShortcuts: antiCheatConfig?.detectKeyboardShortcuts || false,
+  });
+
+  // PRD-0036 ISSUE-4: Fullscreen mode enforcement for quiz
+  useFullscreenMode({
+    enabled: antiCheatConfig?.requireFullscreen || false,
+    onFullscreenExit: addEvent,
   });
 
   // PRD-0036: Show toast warnings on escalation
@@ -292,11 +330,12 @@ const StudentQuizPageNew = () => {
   // PRD-0036: Auto-submit on violation threshold
   useEffect(() => {
     if (shouldAutoSubmit) {
-      flushEvents();
-      handleTimeUp();
+      handleTimeUp().catch((error) => {
+        console.error('[StudentQuizPageNew] Auto-submit failed:', error);
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shouldAutoSubmit]);
+  }, [shouldAutoSubmit, handleTimeUp]);
 
   if (!gameSession || !quiz) {
     return (

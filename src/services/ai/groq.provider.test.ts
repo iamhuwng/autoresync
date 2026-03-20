@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { GroqProvider } from './groq.provider';
 import type { Chunk } from '../../types/document.types';
+import { getEnv } from '../../config/env.config';
 
 // Mock Groq SDK
 vi.mock('groq-sdk', () => ({
@@ -16,6 +17,10 @@ vi.mock('groq-sdk', () => ({
 // Mock env config
 vi.mock('../../config/env.config', () => ({
   getEnv: vi.fn(() => ({ VITE_GROQ_API_KEY: 'test-groq-key' })),
+}));
+
+vi.mock('../api-keys.service', () => ({
+  getDecryptedKeys: vi.fn().mockResolvedValue([]),
 }));
 
 // Mock response validator
@@ -39,19 +44,20 @@ describe('Groq Provider', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(getEnv).mockReturnValue({ VITE_GROQ_API_KEY: 'test-groq-key' });
     provider = new GroqProvider();
   });
 
   describe('Initialization', () => {
-    it('should initialize with API key', () => {
+    it('should initialize lazily when a client call is made', async () => {
+      await provider.testConnection();
+
       const status = provider.getStatus();
-      
       expect(status.available).toBe(true);
       expect(status.name).toBe('groq');
     });
 
     it('should handle missing API key', () => {
-      const { getEnv } = require('../../config/env.config');
       vi.mocked(getEnv).mockReturnValue({});
 
       const newProvider = new GroqProvider();
@@ -175,7 +181,6 @@ describe('Groq Provider', () => {
     });
 
     it('should fail when client not initialized', async () => {
-      const { getEnv } = require('../../config/env.config');
       vi.mocked(getEnv).mockReturnValue({});
 
       const newProvider = new GroqProvider();

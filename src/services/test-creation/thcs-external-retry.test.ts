@@ -135,7 +135,7 @@ describe('executeExternalRetry', () => {
         expect(result.bestConfidence).toBe(65);
     });
 
-    it('escalates to teacher when all 3 attempts fail', async () => {
+    it('escalates to teacher when all configured attempts fail', async () => {
         const callAI: ExternalAICallFn = vi.fn().mockResolvedValue('poor content');
         const runPipeline: PipelineCallback = vi.fn().mockResolvedValue({
             processedText: 'still bad',
@@ -148,9 +148,9 @@ describe('executeExternalRetry', () => {
         );
 
         expect(result.outcome).toBe('teacher-escalation');
-        expect(result.attemptsUsed).toBe(3);
+        expect(result.attemptsUsed).toBe(2);
         expect(result.teacherMessage).toContain('could not reliably extract');
-        expect(result.auditLog).toHaveLength(3);
+        expect(result.auditLog).toHaveLength(2);
     });
 
     it('handles AI returning null gracefully', async () => {
@@ -164,7 +164,7 @@ describe('executeExternalRetry', () => {
 
         expect(result.outcome).toBe('teacher-escalation');
         expect(runPipeline).not.toHaveBeenCalled();
-        expect(result.auditLog).toHaveLength(3);
+        expect(result.auditLog).toHaveLength(2);
     });
 
     it('handles pipeline returning null gracefully', async () => {
@@ -180,7 +180,7 @@ describe('executeExternalRetry', () => {
         expect(result.auditLog.some(e => e.issueCodes.includes('PIPELINE_FAILURE'))).toBe(true);
     });
 
-    it('enforces max 3 retries', async () => {
+    it('enforces the configured provider-chain retry limit', async () => {
         const callAI: ExternalAICallFn = vi.fn().mockResolvedValue('text');
         const runPipeline: PipelineCallback = vi.fn().mockResolvedValue({
             processedText: 'bad',
@@ -192,8 +192,8 @@ describe('executeExternalRetry', () => {
             callAI, runPipeline,
         );
 
-        expect(callAI).toHaveBeenCalledTimes(3);
-        expect(result.attemptsUsed).toBe(3);
+        expect(callAI).toHaveBeenCalledTimes(2);
+        expect(result.attemptsUsed).toBe(2);
     });
 
     it('tracks best confidence even on failure', async () => {
@@ -253,8 +253,9 @@ describe('executeExternalRetry', () => {
             callAI, runPipeline,
         );
 
-        expect(providers[0]).toBe('gemini/gemini-2.0-flash');
-        expect(providers[1]).toBe('gemini/gemini-2.0-pro');
-        expect(providers[2]).toBe('openai/gpt-4o-mini');
+        expect(providers).toEqual([
+            'groq/llama-3.3-70b-versatile',
+            'gemini/gemini-2.5-flash',
+        ]);
     });
 });

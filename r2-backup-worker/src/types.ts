@@ -203,6 +203,7 @@ export interface WorkerEnv {
 
     // Secrets (set via `wrangler secret put`)
     GOOGLE_SA_KEY: string;
+    DIAGNOSTIC_TOKEN: string;
     BACKUP_R2_ACCESS_KEY_ID: string;
     BACKUP_R2_SECRET_ACCESS_KEY: string;
     BACKUP_R2_BUCKET_NAME: string;

@@ -35,6 +35,17 @@
                 "status"
             ]
         },
+        "assignment_history": {
+            ".read": "root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+            "$historyId": {
+                ".write": "root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'"
+            },
+            ".indexOn": [
+                "studentId",
+                "teacherId",
+                "timestamp"
+            ]
+        },
         "results": {
             ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
             "$resultId": {
@@ -257,6 +268,14 @@
                 "createdAt"
             ]
         },
+        "session_test_payloads": {
+            ".read": "auth != null",
+            ".write": "auth != null"
+        },
+        "student_safe_tests": {
+            ".read": "auth != null",
+            ".write": "auth != null"
+        },
         "quizzes": {
             ".read": "auth != null",
             ".write": "auth != null",
@@ -426,6 +445,27 @@
                     "lastTestDate",
                     "lastHomeworkDate"
                 ]
+            }
+        },
+        "reports": {
+            "errors": {
+                "$date": {
+                    ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                    ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() !== 'guest'",
+                    "$errorId": {
+                        ".validate": "newData.hasChildren(['timestamp', 'message', 'feature', 'severity', 'userId'])"
+                    }
+                }
+            },
+            "events": {
+                "$date": {
+                    ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                    ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() !== 'guest'"
+                }
+            },
+            "config": {
+                ".read": "auth != null",
+                ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'super_admin'"
             }
         },
         "system_flags": {

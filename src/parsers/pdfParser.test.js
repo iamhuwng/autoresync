@@ -11,10 +11,22 @@ vi.mock('pdfjs-dist', () => ({
 
 // Mock textParser
 vi.mock('../utils/parsers/textParser.js', () => ({
-  parseTextFile: vi.fn()
+  parseTextToQuiz: vi.fn()
+}));
+
+vi.mock('../utils/parsers/aiParser.js', () => ({
+  parseWithAIFallback: vi.fn(),
+  shouldTriggerAI: vi.fn()
 }));
 
 describe('pdfParser', () => {
+  const createPdfFile = (name = 'test.pdf', content = 'pdf content') => ({
+    name,
+    size: content.length,
+    type: 'application/pdf',
+    arrayBuffer: vi.fn().mockResolvedValue(new TextEncoder().encode(content).buffer)
+  });
+
   describe('validatePdfFile', () => {
     it('should validate correct PDF file', () => {
       const file = new File(['content'], 'test.pdf', {
@@ -64,7 +76,8 @@ describe('pdfParser', () => {
 
     it('should parse PDF file successfully', async () => {
       const pdfjsLib = await import('pdfjs-dist');
-      const { parseTextFile } = await import('../utils/parsers/textParser.js');
+      const { parseTextToQuiz } = await import('../utils/parsers/textParser.js');
+      const { shouldTriggerAI } = await import('../utils/parsers/aiParser.js');
       
       // Mock PDF document
       const mockPage = {
@@ -89,7 +102,7 @@ describe('pdfParser', () => {
       pdfjsLib.getDocument.mockReturnValue(mockLoadingTask);
       
       // Mock text parser
-      parseTextFile.mockResolvedValue({
+      parseTextToQuiz.mockReturnValue({
         success: true,
         quiz: {
           title: 'Test Quiz',
@@ -104,10 +117,9 @@ describe('pdfParser', () => {
         },
         confidence: 85
       });
+      shouldTriggerAI.mockReturnValue(false);
       
-      const file = new File(['pdf content'], 'test.pdf', {
-        type: 'application/pdf'
-      });
+      const file = createPdfFile();
       
       const result = await parsePdfFile(file);
       
@@ -116,12 +128,13 @@ describe('pdfParser', () => {
       expect(result.originalFileName).toBe('test.pdf');
       expect(result.numPages).toBe(1);
       expect(pdfjsLib.getDocument).toHaveBeenCalled();
-      expect(parseTextFile).toHaveBeenCalled();
+      expect(parseTextToQuiz).toHaveBeenCalled();
     });
 
     it('should handle multi-page PDF', async () => {
       const pdfjsLib = await import('pdfjs-dist');
-      const { parseTextFile } = await import('../utils/parsers/textParser.js');
+      const { parseTextToQuiz } = await import('../utils/parsers/textParser.js');
+      const { shouldTriggerAI } = await import('../utils/parsers/aiParser.js');
       
       const mockPage1 = {
         getTextContent: vi.fn().mockResolvedValue({
@@ -148,15 +161,14 @@ describe('pdfParser', () => {
       
       pdfjsLib.getDocument.mockReturnValue(mockLoadingTask);
       
-      parseTextFile.mockResolvedValue({
+      parseTextToQuiz.mockReturnValue({
         success: true,
         quiz: { title: 'Test', questions: [] },
         confidence: 80
       });
+      shouldTriggerAI.mockReturnValue(false);
       
-      const file = new File(['pdf'], 'multi.pdf', {
-        type: 'application/pdf'
-      });
+      const file = createPdfFile('multi.pdf', 'pdf');
       
       const result = await parsePdfFile(file);
       
@@ -184,9 +196,7 @@ describe('pdfParser', () => {
       
       pdfjsLib.getDocument.mockReturnValue(mockLoadingTask);
       
-      const file = new File(['pdf'], 'empty.pdf', {
-        type: 'application/pdf'
-      });
+      const file = createPdfFile('empty.pdf', 'pdf');
       
       const result = await parsePdfFile(file);
       
@@ -204,14 +214,12 @@ describe('pdfParser', () => {
       
       pdfjsLib.getDocument.mockReturnValue(mockLoadingTask);
       
-      const file = new File(['corrupt'], 'corrupt.pdf', {
-        type: 'application/pdf'
-      });
+      const file = createPdfFile('corrupt.pdf', 'corrupt');
       
       const result = await parsePdfFile(file);
       
       expect(result.success).toBe(false);
-      expect(result.error).toContain('Failed to parse PDF');
+      expect(result.error).toContain('valid PDF');
       expect(result.confidence).toBe(0);
     });
 
@@ -224,9 +232,7 @@ describe('pdfParser', () => {
       
       pdfjsLib.getDocument.mockReturnValue(mockLoadingTask);
       
-      const file = new File(['protected'], 'protected.pdf', {
-        type: 'application/pdf'
-      });
+      const file = createPdfFile('protected.pdf', 'protected');
       
       const result = await parsePdfFile(file);
       
@@ -236,7 +242,8 @@ describe('pdfParser', () => {
 
     it('should include extracted text length in metadata', async () => {
       const pdfjsLib = await import('pdfjs-dist');
-      const { parseTextFile } = await import('../utils/parsers/textParser.js');
+      const { parseTextToQuiz } = await import('../utils/parsers/textParser.js');
+      const { shouldTriggerAI } = await import('../utils/parsers/aiParser.js');
       
       const mockPage = {
         getTextContent: vi.fn().mockResolvedValue({
@@ -258,15 +265,14 @@ describe('pdfParser', () => {
       
       pdfjsLib.getDocument.mockReturnValue(mockLoadingTask);
       
-      parseTextFile.mockResolvedValue({
+      parseTextToQuiz.mockReturnValue({
         success: true,
         quiz: { title: 'Test', questions: [] },
         confidence: 80
       });
+      shouldTriggerAI.mockReturnValue(false);
       
-      const file = new File(['pdf'], 'test.pdf', {
-        type: 'application/pdf'
-      });
+      const file = createPdfFile();
       
       const result = await parsePdfFile(file);
       

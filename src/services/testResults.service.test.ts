@@ -6,11 +6,19 @@ import {
     updateResultScore,
     getReMarkHistory,
     markAsReviewed,
+    getStudentTestAttempts,
+    getHistoricalScores,
+    getClassTestScores,
     TestResultRecord
 } from './testResults.service';
 // @ts-ignore
 import { database } from './firebase';
 import { ref, set, get, push, update } from 'firebase/database';
+
+const { mockCreateNotification, mockSendReviewedNotification } = vi.hoisted(() => ({
+    mockCreateNotification: vi.fn(),
+    mockSendReviewedNotification: vi.fn(),
+}));
 
 // Mock Firebase
 vi.mock('./firebase', () => ({
@@ -35,9 +43,16 @@ vi.mock('./guestResultsService', () => ({
     saveGuestResult: vi.fn().mockResolvedValue('guest-result-123')
 }));
 
+vi.mock('./notificationService', () => ({
+    createNotification: mockCreateNotification,
+    sendReviewedNotification: mockSendReviewedNotification,
+}));
+
 describe('testResults.service', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        mockCreateNotification.mockResolvedValue(undefined);
+        mockSendReviewedNotification.mockResolvedValue(undefined);
     });
 
     describe('saveTestResult', () => {
@@ -544,10 +559,7 @@ describe('testResults.service', () => {
                 val: () => mockResult
             });
 
-            // Mock notification to fail
-            vi.doMock('./notificationService', () => ({
-                sendReviewedNotification: vi.fn().mockRejectedValue(new Error('Notification failed'))
-            }));
+            mockSendReviewedNotification.mockRejectedValueOnce(new Error('Notification failed'));
 
             // Should not throw even if notification fails
             await expect(markAsReviewed('result-test-1', 'teacher-1')).resolves.not.toThrow();
@@ -657,6 +669,251 @@ describe('testResults.service', () => {
             expect(savedRecord.markingStatus).toBe('pending-review');
             expect(savedRecord.writingSubmission.text).toBe('Essay...');
             expect(savedRecord.speakingSubmission.audioUrl).toBe('https://audio.mp3');
+        });
+    });
+
+    // ============================================
+    // PRD-0039: New service function tests (Task 2.9)
+    // ============================================
+
+    describe('getStudentTestAttempts', () => {
+        it('should return attempts sorted by submittedAt DESC for matching testId', async () => {
+            const mockIndex = {
+                'res-1': { resultId: 'res-1' },
+                'res-2': { resultId: 'res-2' },
+                'res-3': { resultId: 'res-3' },
+            };
+            const mockResults: Record<string, any> = {
+                'res-1': { resultId: 'res-1', testId: 'T1', submittedAt: 1000 },
+                'res-2': { resultId: 'res-2', testId: 'T1', submittedAt: 3000 },
+                'res-3': { resultId: 'res-3', testId: 'T2', submittedAt: 2000 },
+            };
+
+            (get as any).mockImplementation((_refObj: any) => {
+                const refCalls = (ref as any).mock.calls;
+                const lastRefCall = refCalls[refCalls.length - 1];
+                const path = lastRefCall?.[1] || '';
+                if (path.includes('test_results_by_student')) {
+                    return Promise.resolve({ exists: () => true, val: () => mockIndex });
+                }
+                const resultId = path.split('/').pop();
+                return Promise.resolve({
+                    exists: () => !!mockResults[resultId],
+                    val: () => mockResults[resultId] || null,
+                });
+            });
+
+            const results = await getStudentTestAttempts('student-1', 'T1');
+
+            expect(results).toHaveLength(2);
+            expect(results[0].resultId).toBe('res-2');
+            expect(results[1].resultId).toBe('res-1');
+        });
+
+        it('should return empty array when no results exist', async () => {
+            (get as any).mockResolvedValue({ exists: () => false, val: () => null });
+
+            const results = await getStudentTestAttempts('student-1', 'T1');
+            expect(results).toEqual([]);
+        });
+    });
+
+    describe('getHistoricalScores', () => {
+        it('should filter by testId for homework context', async () => {
+            const anchor = {
+                resultId: 'res-1',
+                testId: 'T1',
+                context: { type: 'homework' },
+                testType: 'reading',
+                testSkill: 'reading',
+            } as any;
+
+            const mockIndex = {
+                'res-1': { resultId: 'res-1' },
+                'res-2': { resultId: 'res-2' },
+                'res-3': { resultId: 'res-3' },
+            };
+            const mockResults: Record<string, any> = {
+                'res-1': { resultId: 'res-1', testId: 'T1', testType: 'reading', testSkill: 'reading', submittedAt: 3000, percentage: 80 },
+                'res-2': { resultId: 'res-2', testId: 'T1', testType: 'reading', testSkill: 'reading', submittedAt: 1000, percentage: 60 },
+                'res-3': { resultId: 'res-3', testId: 'T2', testType: 'reading', testSkill: 'reading', submittedAt: 2000, percentage: 70 },
+            };
+
+            (get as any).mockImplementation((_refObj: any) => {
+                const refCalls = (ref as any).mock.calls;
+                const lastRefCall = refCalls[refCalls.length - 1];
+                const path = lastRefCall?.[1] || '';
+                if (path.includes('test_results_by_student')) {
+                    return Promise.resolve({ exists: () => true, val: () => mockIndex });
+                }
+                const resultId = path.split('/').pop();
+                return Promise.resolve({
+                    exists: () => !!mockResults[resultId],
+                    val: () => mockResults[resultId] || null,
+                });
+            });
+
+            const results = await getHistoricalScores('student-1', anchor, 5);
+
+            expect(results.every((r: any) => r.testId === 'T1')).toBe(true);
+            expect(results).toHaveLength(2);
+        });
+
+        it('should return at most limit records', async () => {
+            const anchor = {
+                resultId: 'res-1',
+                testId: 'T1',
+                testType: 'reading',
+                testSkill: 'reading',
+            } as any;
+
+            const mockIndex: Record<string, any> = {};
+            const mockResults: Record<string, any> = {};
+            for (let i = 0; i < 10; i++) {
+                mockIndex[`res-${i}`] = { resultId: `res-${i}` };
+                mockResults[`res-${i}`] = { resultId: `res-${i}`, testId: 'T1', testType: 'reading', testSkill: 'reading', submittedAt: i * 1000, percentage: 50 + i };
+            }
+
+            (get as any).mockImplementation((_refObj: any) => {
+                const refCalls = (ref as any).mock.calls;
+                const lastRefCall = refCalls[refCalls.length - 1];
+                const path = lastRefCall?.[1] || '';
+                if (path.includes('test_results_by_student')) {
+                    return Promise.resolve({ exists: () => true, val: () => mockIndex });
+                }
+                const resultId = path.split('/').pop();
+                return Promise.resolve({
+                    exists: () => !!mockResults[resultId],
+                    val: () => mockResults[resultId] || null,
+                });
+            });
+
+            const results = await getHistoricalScores('student-1', anchor, 5);
+            expect(results.length).toBeLessThanOrEqual(5);
+        });
+    });
+
+    describe('getClassTestScores', () => {
+        it('should return scores filtered by testId from class index', async () => {
+            const mockClassIndex = {
+                'student-1': { 'res-1': { resultId: 'res-1' } },
+                'student-2': { 'res-2': { resultId: 'res-2' }, 'res-3': { resultId: 'res-3' } },
+            };
+            const mockResults: Record<string, any> = {
+                'res-1': { resultId: 'res-1', testId: 'T1', percentage: 80, studentId: 'student-1' },
+                'res-2': { resultId: 'res-2', testId: 'T1', percentage: 60, studentId: 'student-2' },
+                'res-3': { resultId: 'res-3', testId: 'T2', percentage: 90, studentId: 'student-2' },
+            };
+
+            (get as any).mockImplementation((_refObj: any) => {
+                const refCalls = (ref as any).mock.calls;
+                const lastRefCall = refCalls[refCalls.length - 1];
+                const path = lastRefCall?.[1] || '';
+                if (path.includes('test_results_by_class')) {
+                    return Promise.resolve({ exists: () => true, val: () => mockClassIndex });
+                }
+                const resultId = path.split('/').pop();
+                return Promise.resolve({
+                    exists: () => !!mockResults[resultId],
+                    val: () => mockResults[resultId] || null,
+                });
+            });
+
+            const results = await getClassTestScores('T1', 'class-1');
+
+            expect(results).toHaveLength(2);
+            expect(results.every((r: any) => r.testId === 'T1')).toBe(true);
+        });
+
+        it('should return empty array when classId is missing', async () => {
+            const results = await getClassTestScores('T1', '');
+            expect(results).toEqual([]);
+        });
+
+        it('should return empty array when no class index exists', async () => {
+            (get as any).mockResolvedValue({ exists: () => false, val: () => null });
+
+            const results = await getClassTestScores('T1', 'class-1');
+            expect(results).toEqual([]);
+        });
+    });
+
+    describe('saveTestResult with ieltsData', () => {
+        it('should include ieltsData in saved record when provided', async () => {
+            const mockPush = { key: 'result-789' };
+            (push as any).mockReturnValue(mockPush);
+
+            const markingResult = {
+                totalScore: 30,
+                maxScore: 40,
+                percentage: 75,
+                completedAt: 1000,
+                questionResults: [],
+                summary: { correct: 30, incorrect: 10, partialCredit: 0, totalQuestions: 40 }
+            } as any;
+
+            const metadata = {
+                title: 'IELTS Reading Test',
+                type: 'ielts_reading',
+                skill: 'reading',
+                duration: 60
+            };
+
+            const ieltsData = {
+                passageResults: [
+                    { passageName: 'Passage 1', questionRange: [1, 13] as [number, number], correct: 10, total: 13, percentage: 76.9 },
+                    { passageName: 'Passage 2', questionRange: [14, 26] as [number, number], correct: 11, total: 13, percentage: 84.6 },
+                    { passageName: 'Passage 3', questionRange: [27, 40] as [number, number], correct: 9, total: 14, percentage: 64.3 },
+                ]
+            };
+
+            await saveTestResult(
+                'SESSION-IELTS', 'TEST-IELTS', 'student-1', 'Student Name',
+                markingResult, metadata, 3000, 'teacher-1', false,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                ieltsData
+            );
+
+            const mainRecordCall = (set as any).mock.calls[0];
+            const savedRecord = mainRecordCall[1];
+
+            expect(savedRecord.ieltsData).toBeDefined();
+            expect(savedRecord.ieltsData.passageResults).toHaveLength(3);
+            expect(savedRecord.ieltsData.passageResults[0].passageName).toBe('Passage 1');
+        });
+
+        it('should not include ieltsData when not provided', async () => {
+            const mockPush = { key: 'result-790' };
+            (push as any).mockReturnValue(mockPush);
+
+            const markingResult = {
+                totalScore: 10,
+                maxScore: 20,
+                percentage: 50,
+                completedAt: 1000,
+                questionResults: [],
+                summary: { correct: 5, incorrect: 5, partialCredit: 0, totalQuestions: 10 }
+            } as any;
+
+            const metadata = {
+                title: 'Test',
+                type: 'reading',
+                skill: 'reading',
+                duration: 30
+            };
+
+            await saveTestResult(
+                'SESSION-1', 'TEST-1', 'student-1', 'Student Name',
+                markingResult, metadata, 500, 'teacher-1', false
+            );
+
+            const mainRecordCall = (set as any).mock.calls[0];
+            const savedRecord = mainRecordCall[1];
+
+            expect(savedRecord.ieltsData).toBeUndefined();
         });
     });
 });

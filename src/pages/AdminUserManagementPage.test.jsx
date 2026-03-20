@@ -22,25 +22,39 @@ import * as courseManager from '../services/courseManager';
 // MOCKS
 // ============================================================================
 
+const mockAuthState = {
+    user: { uid: 'admin-123', email: 'admin@test.com' },
+    profile: { role: 'super_admin', displayName: 'Admin User' },
+    logout: vi.fn(),
+};
+
+const mockNavigationState = {
+    navigateTo: vi.fn(),
+};
+
 // Mock the auth hook
 vi.mock('../hooks/useAuth', () => ({
-    useAuth: () => ({
-        user: { uid: 'admin-123', email: 'admin@test.com' },
-        profile: { role: 'super_admin', displayName: 'Admin User' },
-        logout: vi.fn(),
-    }),
+    useAuth: () => mockAuthState,
 }));
 
 // Mock the navigation hook
 vi.mock('../hooks/useNavigation', () => ({
-    useNavigation: () => ({
-        navigateTo: vi.fn(),
-    }),
+    useNavigation: () => mockNavigationState,
+}));
+
+vi.mock('../services/firebase', () => ({
+    database: {},
+    auth: {},
+    firestore: {},
+    googleProvider: {},
+    analytics: null,
 }));
 
 // Mock user service
 vi.mock('../services/userService', () => ({
     getAllUsers: vi.fn(),
+    getAllUsersSecure: vi.fn(),
+    getTeacherStudents: vi.fn(),
     updateUserProfile: vi.fn(),
     deleteUserProfile: vi.fn(),
     toggleUserStatus: vi.fn(),
@@ -48,6 +62,7 @@ vi.mock('../services/userService', () => ({
 
 // Mock assignment manager
 vi.mock('../services/assignmentManager', () => ({
+    getAllAssignments: vi.fn(),
     getAssignmentsByTeacher: vi.fn(),
     getAssignmentsByStudent: vi.fn(),
     createAssignment: vi.fn(),
@@ -158,6 +173,53 @@ const renderWithProviders = (ui) => {
     );
 };
 
+const resetAuthState = ({
+    user = { uid: 'admin-123', email: 'admin@test.com' },
+    profile = { role: 'super_admin', displayName: 'Admin User' },
+} = {}) => {
+    mockAuthState.user = user;
+    mockAuthState.profile = profile;
+    mockAuthState.logout = vi.fn();
+    sessionStorage.setItem('activeRole', profile.role);
+};
+
+const buildAssignmentBatch = (assignments = mockAssignments) => {
+    const activeAssignments = assignments.filter(
+        (assignment) => (assignment.status ?? 'active') === 'active'
+    );
+    const byStudent = {};
+    const byTeacher = {};
+
+    activeAssignments.forEach((assignment) => {
+        byStudent[assignment.studentId] ??= [];
+        byTeacher[assignment.teacherId] ??= [];
+        byStudent[assignment.studentId].push(assignment);
+        byTeacher[assignment.teacherId].push(assignment);
+    });
+
+    return {
+        all: activeAssignments,
+        byStudent,
+        byTeacher,
+    };
+};
+
+const setAssignmentBatch = (assignments = mockAssignments) => {
+    vi.mocked(assignmentManager.getAllAssignments).mockResolvedValue(buildAssignmentBatch(assignments));
+};
+
+const getStudentScopeRoot = () => screen.getByTestId('student-scope-filter');
+
+const selectStudentScope = async (label) => {
+    const [option] = await screen.findAllByRole('option', { name: label, hidden: true });
+    fireEvent.click(option);
+};
+
+const getResultsSummary = () =>
+    screen.getAllByText(
+        (_, node) => node?.tagName?.toLowerCase() === 'p' && (node.textContent?.startsWith('Showing ') ?? false)
+    )[0];
+
 // ============================================================================
 // TEST SUITES
 // ============================================================================
@@ -166,10 +228,14 @@ describe('AdminUserManagementPage - Assignment Flows', () => {
     // ... existing beforeEach ...
     beforeEach(() => {
         vi.clearAllMocks();
+        resetAuthState();
 
         // Setup default mock implementations
         vi.mocked(userService.getAllUsers).mockResolvedValue([...mockStudents, ...mockTeachers]);
+        vi.mocked(userService.getAllUsersSecure).mockResolvedValue([...mockStudents, ...mockTeachers]);
+        vi.mocked(userService.getTeacherStudents).mockResolvedValue([...mockStudents]);
         vi.mocked(invitationService.getInvitationsByAdmin).mockResolvedValue([]);
+        setAssignmentBatch(mockAssignments);
         vi.mocked(assignmentManager.getAssignmentsByStudent).mockResolvedValue([]);
         vi.mocked(assignmentManager.getAssignmentsByTeacher).mockResolvedValue([]);
 
@@ -359,6 +425,10 @@ describe('AdminUserManagementPage - Assignment Flows', () => {
             const teachersTab = screen.getByRole('tab', { name: /teachers/i });
             fireEvent.click(teachersTab);
 
+            await waitFor(() => {
+                expect(screen.getByText(/John Doe/i)).toBeInTheDocument();
+            });
+
             // Click assign button for John
             const assignButtons = screen.getAllByLabelText(/Assign Students/i);
             fireEvent.click(assignButtons[0]);
@@ -426,6 +496,10 @@ describe('AdminUserManagementPage - Assignment Flows', () => {
             const teachersTab = screen.getByRole('tab', { name: /teachers/i });
             fireEvent.click(teachersTab);
 
+            await waitFor(() => {
+                expect(screen.getByText(/John Doe/i)).toBeInTheDocument();
+            });
+
             // Open modal for teacher
             const assignButtons = screen.getAllByLabelText(/Assign Students/i);
             fireEvent.click(assignButtons[0]);
@@ -467,8 +541,8 @@ describe('AdminUserManagementPage - Assignment Flows', () => {
 
             // Should reload data
             await waitFor(() => {
-                expect(userService.getAllUsers).toHaveBeenCalled();
-                expect(assignmentManager.getAssignmentsByStudent).toHaveBeenCalled();
+                expect(userService.getAllUsersSecure).toHaveBeenCalled();
+                expect(assignmentManager.getAllAssignments).toHaveBeenCalled();
             });
         });
     });
@@ -479,11 +553,6 @@ describe('AdminUserManagementPage - Assignment Flows', () => {
 
     describe('Assignment Display', () => {
         it('should show assigned teacher names for students', async () => {
-            vi.mocked(assignmentManager.getAssignmentsByStudent).mockImplementation((studentId) => {
-                if (studentId === 'student-1') return Promise.resolve(mockAssignments);
-                return Promise.resolve([]);
-            });
-
             renderWithProviders(<AdminUserManagementPage />);
 
             await waitFor(() => {
@@ -498,27 +567,18 @@ describe('AdminUserManagementPage - Assignment Flows', () => {
             });
         });
 
-        it('should show "Unassigned" badge for students without assignments', async () => {
-            // Mock no assignments for student-2
-            vi.mocked(assignmentManager.getAssignmentsByStudent).mockResolvedValue([]);
-
+        it('should show "Floating (Unlinked)" badge for students without assignments', async () => {
             renderWithProviders(<AdminUserManagementPage />);
 
             await waitFor(() => {
                 expect(screen.getByText('Bob Smith')).toBeInTheDocument();
             });
 
-            // Should show "Unassigned" badge
-            const unassignedBadges = screen.getAllByText(/Unassigned/i);
+            const unassignedBadges = screen.getAllByText(/Floating \(Unlinked\)/i);
             expect(unassignedBadges.length).toBeGreaterThan(0);
         });
 
         it('should show student count for teachers', async () => {
-            vi.mocked(assignmentManager.getAssignmentsByTeacher).mockImplementation((teacherId) => {
-                if (teacherId === 'teacher-1') return Promise.resolve(mockAssignments);
-                return Promise.resolve([]);
-            });
-
             renderWithProviders(<AdminUserManagementPage />);
 
             await waitFor(() => {
@@ -531,7 +591,7 @@ describe('AdminUserManagementPage - Assignment Flows', () => {
 
             // Should show student count (1 student from mockAssignments)
             await waitFor(() => {
-                expect(screen.getByText(/1 student/i)).toBeInTheDocument();
+                expect(screen.getByText(/1 Assigned Students/i)).toBeInTheDocument();
             });
         });
     });
@@ -542,17 +602,17 @@ describe('AdminUserManagementPage - Assignment Flows', () => {
 
     describe('Edge Cases', () => {
         it('should handle empty user list gracefully', async () => {
-            vi.mocked(userService.getAllUsers).mockResolvedValue([]);
+            vi.mocked(userService.getAllUsersSecure).mockResolvedValue([]);
 
             renderWithProviders(<AdminUserManagementPage />);
 
             await waitFor(() => {
-                expect(screen.getByText(/No users found/i)).toBeInTheDocument();
+                expect(screen.getByText(/No users match your search/i)).toBeInTheDocument();
             });
         });
 
         it('should handle API errors when loading users', async () => {
-            vi.mocked(userService.getAllUsers).mockRejectedValue(new Error('API Error'));
+            vi.mocked(userService.getAllUsersSecure).mockRejectedValue(new Error('API Error'));
 
             renderWithProviders(<AdminUserManagementPage />);
 
@@ -571,7 +631,7 @@ describe('AdminUserManagementPage - Assignment Flows', () => {
                 },
             ];
 
-            vi.mocked(userService.getAllUsers).mockResolvedValue(usersWithoutNames);
+            vi.mocked(userService.getAllUsersSecure).mockResolvedValue(usersWithoutNames);
 
             renderWithProviders(<AdminUserManagementPage />);
 
@@ -586,128 +646,85 @@ describe('AdminUserManagementPage - Assignment Flows', () => {
     // ==========================================================================
 
     describe('Assignment Filter Tabs (Task 2.10)', () => {
-        it('should display filter tabs only in Students tab', async () => {
+        it('should display the student scope filter only in Students tab', async () => {
             renderWithProviders(<AdminUserManagementPage />);
 
             await waitFor(() => {
                 expect(screen.getByText('Alice Johnson')).toBeInTheDocument();
             });
 
-            // Should be in Students tab by default - filter tabs should be visible
-            expect(screen.getByText('Filter by:')).toBeInTheDocument();
-            expect(screen.getByRole('button', { name: /^All$/i })).toBeInTheDocument();
-            expect(screen.getByRole('button', { name: /^Assigned$/i })).toBeInTheDocument();
-            expect(screen.getByRole('button', { name: /^Unassigned$/i })).toBeInTheDocument();
+            expect(getStudentScopeRoot()).toBeInTheDocument();
 
-            // Switch to Teachers tab - filter tabs should not be visible
             const teachersTab = screen.getByRole('tab', { name: /teachers/i });
             fireEvent.click(teachersTab);
 
             await waitFor(() => {
-                expect(screen.queryByText('Filter by:')).not.toBeInTheDocument();
+                expect(screen.queryByTestId('student-scope-filter')).not.toBeInTheDocument();
             });
         });
 
-        it('should have "All" filter active by default', async () => {
+        it('should show all students by default', async () => {
             renderWithProviders(<AdminUserManagementPage />);
 
             await waitFor(() => {
                 expect(screen.getByText('Alice Johnson')).toBeInTheDocument();
             });
 
-            // "All" button should be in filled variant (active state)
-            const allButton = screen.getByRole('button', { name: /^All$/i });
-            expect(allButton).toHaveClass('mantine-Button-filled');
-        });
-
-        it('should filter to show only assigned students when "Assigned" is clicked', async () => {
-            // Setup: student-1 is assigned, student-2 and student-3 are not
-            vi.mocked(assignmentManager.getAssignmentsByStudent).mockImplementation((studentId) => {
-                if (studentId === 'student-1') {
-                    return Promise.resolve(mockAssignments);
-                }
-                return Promise.resolve([]);
-            });
-
-            renderWithProviders(<AdminUserManagementPage />);
-
-            await waitFor(() => {
-                expect(screen.getByText('Alice Johnson')).toBeInTheDocument();
-            });
-
-            // Initially, all students should be visible
             expect(screen.getByText('Alice Johnson')).toBeInTheDocument();
             expect(screen.getByText('Bob Smith')).toBeInTheDocument();
             expect(screen.getByText('Charlie Brown')).toBeInTheDocument();
+        });
 
-            // Click "Assigned" filter
-            const assignedButton = screen.getByRole('button', { name: /^Assigned$/i });
-            fireEvent.click(assignedButton);
+        it('should filter to show only assigned students when Managed Only is selected', async () => {
+            setAssignmentBatch(mockAssignments);
+            renderWithProviders(<AdminUserManagementPage />);
 
-            // Wait for filter to apply
             await waitFor(() => {
-                // Only Alice (student-1) should be visible
+                expect(screen.getByText('Alice Johnson')).toBeInTheDocument();
+            });
+
+            await selectStudentScope('Managed Only');
+
+            await waitFor(() => {
                 expect(screen.getByText('Alice Johnson')).toBeInTheDocument();
                 expect(screen.queryByText('Bob Smith')).not.toBeInTheDocument();
                 expect(screen.queryByText('Charlie Brown')).not.toBeInTheDocument();
             });
         });
 
-        it('should filter to show only unassigned students when "Unassigned" is clicked', async () => {
-            // Setup: student-1 is assigned, student-2 and student-3 are not
-            vi.mocked(assignmentManager.getAssignmentsByStudent).mockImplementation((studentId) => {
-                if (studentId === 'student-1') {
-                    return Promise.resolve(mockAssignments);
-                }
-                return Promise.resolve([]);
-            });
-
+        it('should filter to show only unassigned students when Floating (Unlinked) is selected', async () => {
+            setAssignmentBatch(mockAssignments);
             renderWithProviders(<AdminUserManagementPage />);
 
             await waitFor(() => {
                 expect(screen.getByText('Alice Johnson')).toBeInTheDocument();
             });
 
-            // Click "Unassigned" filter
-            const unassignedButton = screen.getByRole('button', { name: /^Unassigned$/i });
-            fireEvent.click(unassignedButton);
+            await selectStudentScope('Floating (Unlinked)');
 
-            // Wait for filter to apply
             await waitFor(() => {
-                // Only Bob and Charlie should be visible
                 expect(screen.queryByText('Alice Johnson')).not.toBeInTheDocument();
                 expect(screen.getByText('Bob Smith')).toBeInTheDocument();
                 expect(screen.getByText('Charlie Brown')).toBeInTheDocument();
             });
         });
 
-        it('should show all students when "All" is clicked after filtering', async () => {
-            vi.mocked(assignmentManager.getAssignmentsByStudent).mockImplementation((studentId) => {
-                if (studentId === 'student-1') {
-                    return Promise.resolve(mockAssignments);
-                }
-                return Promise.resolve([]);
-            });
-
+        it('should show all students when All Students is re-selected after filtering', async () => {
+            setAssignmentBatch(mockAssignments);
             renderWithProviders(<AdminUserManagementPage />);
 
             await waitFor(() => {
                 expect(screen.getByText('Alice Johnson')).toBeInTheDocument();
             });
 
-            // Click "Assigned" filter
-            const assignedButton = screen.getByRole('button', { name: /^Assigned$/i });
-            fireEvent.click(assignedButton);
+            await selectStudentScope('Managed Only');
 
             await waitFor(() => {
                 expect(screen.queryByText('Bob Smith')).not.toBeInTheDocument();
             });
 
-            // Click "All" filter
-            const allButton = screen.getByRole('button', { name: /^All$/i });
-            fireEvent.click(allButton);
+            await selectStudentScope('All Students');
 
-            // All students should be visible again
             await waitFor(() => {
                 expect(screen.getByText('Alice Johnson')).toBeInTheDocument();
                 expect(screen.getByText('Bob Smith')).toBeInTheDocument();
@@ -716,75 +733,52 @@ describe('AdminUserManagementPage - Assignment Flows', () => {
         });
 
         it('should update user count when filter changes', async () => {
-            vi.mocked(assignmentManager.getAssignmentsByStudent).mockImplementation((studentId) => {
-                if (studentId === 'student-1') {
-                    return Promise.resolve(mockAssignments);
-                }
-                return Promise.resolve([]);
-            });
-
+            setAssignmentBatch(mockAssignments);
             renderWithProviders(<AdminUserManagementPage />);
 
             await waitFor(() => {
                 expect(screen.getByText('Alice Johnson')).toBeInTheDocument();
             });
 
-            // Initially should show 3 users
-            expect(screen.getByText('3 users found')).toBeInTheDocument();
+            expect(getResultsSummary()).toHaveTextContent('Showing 3 students');
 
-            // Click "Assigned" filter
-            const assignedButton = screen.getByRole('button', { name: /^Assigned$/i });
-            fireEvent.click(assignedButton);
+            await selectStudentScope('Managed Only');
 
-            // Should show 1 user
             await waitFor(() => {
-                expect(screen.getByText('1 users found')).toBeInTheDocument();
+                expect(getResultsSummary()).toHaveTextContent('Showing 1 students (assigned)');
             });
 
-            // Click "Unassigned" filter
-            const unassignedButton = screen.getByRole('button', { name: /^Unassigned$/i });
-            fireEvent.click(unassignedButton);
+            await selectStudentScope('Floating (Unlinked)');
 
-            // Should show 2 users
             await waitFor(() => {
-                expect(screen.getByText('2 users found')).toBeInTheDocument();
+                expect(getResultsSummary()).toHaveTextContent('Showing 2 students (unassigned)');
             });
         });
 
         it('should work correctly with search filter', async () => {
-            vi.mocked(assignmentManager.getAssignmentsByStudent).mockImplementation((studentId) => {
-                if (studentId === 'student-1') {
-                    return Promise.resolve(mockAssignments);
-                }
-                return Promise.resolve([]);
-            });
-
+            setAssignmentBatch(mockAssignments);
             renderWithProviders(<AdminUserManagementPage />);
 
             await waitFor(() => {
                 expect(screen.getByText('Alice Johnson')).toBeInTheDocument();
             });
 
-            // Click "Assigned" filter (should show only Alice)
-            const assignedButton = screen.getByRole('button', { name: /^Assigned$/i });
-            fireEvent.click(assignedButton);
+            await selectStudentScope('Managed Only');
 
             await waitFor(() => {
                 expect(screen.getByText('Alice Johnson')).toBeInTheDocument();
                 expect(screen.queryByText('Bob Smith')).not.toBeInTheDocument();
             });
 
-            // Now search for "Bob" - should show no results (Bob is unassigned)
-            const searchInput = screen.getByPlaceholderText(/Search by name/i);
+            const searchInput = screen.getByPlaceholderText(/Search students/i);
             fireEvent.change(searchInput, { target: { value: 'Bob' } });
 
             await waitFor(() => {
                 expect(screen.queryByText('Alice Johnson')).not.toBeInTheDocument();
                 expect(screen.queryByText('Bob Smith')).not.toBeInTheDocument();
-                expect(screen.getByText(/No users found/i)).toBeInTheDocument();
+                expect(screen.getByText(/No users match your search/i)).toBeInTheDocument();
             });
 
-            // Search for "Alice" - should show Alice
             fireEvent.change(searchInput, { target: { value: 'Alice' } });
 
             await waitFor(() => {
@@ -793,28 +787,19 @@ describe('AdminUserManagementPage - Assignment Flows', () => {
         });
 
         it('should reset filter to "All" when switching tabs', async () => {
-            vi.mocked(assignmentManager.getAssignmentsByStudent).mockImplementation((studentId) => {
-                if (studentId === 'student-1') {
-                    return Promise.resolve(mockAssignments);
-                }
-                return Promise.resolve([]);
-            });
-
+            setAssignmentBatch(mockAssignments);
             renderWithProviders(<AdminUserManagementPage />);
 
             await waitFor(() => {
                 expect(screen.getByText('Alice Johnson')).toBeInTheDocument();
             });
 
-            // Click "Assigned" filter
-            const assignedButton = screen.getByRole('button', { name: /^Assigned$/i });
-            fireEvent.click(assignedButton);
+            await selectStudentScope('Managed Only');
 
             await waitFor(() => {
                 expect(screen.queryByText('Bob Smith')).not.toBeInTheDocument();
             });
 
-            // Switch to Teachers tab
             const teachersTab = screen.getByRole('tab', { name: /teachers/i });
             fireEvent.click(teachersTab);
 
@@ -822,94 +807,67 @@ describe('AdminUserManagementPage - Assignment Flows', () => {
                 expect(screen.getByText(/John Doe/i)).toBeInTheDocument();
             });
 
-            // Switch back to Students tab
             const studentsTab = screen.getByRole('tab', { name: /students/i });
             fireEvent.click(studentsTab);
 
-            // Filter should be reset to "All" - all students visible
             await waitFor(() => {
                 expect(screen.getByText('Alice Johnson')).toBeInTheDocument();
                 expect(screen.getByText('Bob Smith')).toBeInTheDocument();
                 expect(screen.getByText('Charlie Brown')).toBeInTheDocument();
             });
-
-            // "All" button should be active
-            const allButton = screen.getByRole('button', { name: /^All$/i });
-            expect(allButton).toHaveClass('mantine-Button-filled');
         });
 
         it('should handle empty assigned students list', async () => {
-            // All students are unassigned
-            vi.mocked(assignmentManager.getAssignmentsByStudent).mockResolvedValue([]);
-
+            setAssignmentBatch([]);
             renderWithProviders(<AdminUserManagementPage />);
 
             await waitFor(() => {
                 expect(screen.getByText('Alice Johnson')).toBeInTheDocument();
             });
 
-            // Click "Assigned" filter
-            const assignedButton = screen.getByRole('button', { name: /^Assigned$/i });
-            fireEvent.click(assignedButton);
+            await selectStudentScope('Managed Only');
 
-            // Should show "No users found"
             await waitFor(() => {
-                expect(screen.getByText(/No users found/i)).toBeInTheDocument();
+                expect(screen.getByText(/No users match your search/i)).toBeInTheDocument();
             });
         });
 
         it('should handle all students assigned', async () => {
-            // All students are assigned
-            vi.mocked(assignmentManager.getAssignmentsByStudent).mockResolvedValue(mockAssignments);
-
+            setAssignmentBatch([
+                { ...mockAssignments[0], studentId: 'student-1' },
+                { ...mockAssignments[0], id: 'assign-2', studentId: 'student-2' },
+                { ...mockAssignments[0], id: 'assign-3', studentId: 'student-3' },
+            ]);
             renderWithProviders(<AdminUserManagementPage />);
 
             await waitFor(() => {
                 expect(screen.getByText('Alice Johnson')).toBeInTheDocument();
             });
 
-            // Click "Unassigned" filter
-            const unassignedButton = screen.getByRole('button', { name: /^Unassigned$/i });
-            fireEvent.click(unassignedButton);
+            await selectStudentScope('Floating (Unlinked)');
 
-            // Should show "No users found"
             await waitFor(() => {
-                expect(screen.getByText(/No users found/i)).toBeInTheDocument();
+                expect(screen.getByText(/No users match your search/i)).toBeInTheDocument();
             });
         });
 
-        it('should visually indicate active filter button', async () => {
+        it('should reflect the selected filter in the control value', async () => {
             renderWithProviders(<AdminUserManagementPage />);
 
             await waitFor(() => {
                 expect(screen.getByText('Alice Johnson')).toBeInTheDocument();
             });
 
-            const allButton = screen.getByRole('button', { name: /^All$/i });
-            const assignedButton = screen.getByRole('button', { name: /^Assigned$/i });
-            const unassignedButton = screen.getByRole('button', { name: /^Unassigned$/i });
-
-            // Initially "All" should be filled
-            expect(allButton).toHaveClass('mantine-Button-filled');
-            expect(assignedButton).toHaveClass('mantine-Button-light');
-            expect(unassignedButton).toHaveClass('mantine-Button-light');
-
-            // Click "Assigned"
-            fireEvent.click(assignedButton);
+            await selectStudentScope('Managed Only');
 
             await waitFor(() => {
-                expect(assignedButton).toHaveClass('mantine-Button-filled');
-                expect(allButton).toHaveClass('mantine-Button-light');
-                expect(unassignedButton).toHaveClass('mantine-Button-light');
+                expect(getResultsSummary()).toHaveTextContent('Showing 1 students (assigned)');
             });
 
-            // Click "Unassigned"
-            fireEvent.click(unassignedButton);
+            await selectStudentScope('Floating (Unlinked)');
 
             await waitFor(() => {
-                expect(unassignedButton).toHaveClass('mantine-Button-filled');
-                expect(allButton).toHaveClass('mantine-Button-light');
-                expect(assignedButton).toHaveClass('mantine-Button-light');
+                expect(getResultsSummary()).toHaveTextContent('Showing 2 students (unassigned)');
             });
         });
     });
@@ -919,27 +877,14 @@ describe('AdminUserManagementPage - Assignment Flows', () => {
     // ==========================================================================
 
     describe('Release Student Flow (Task 3.9)', () => {
-        it('should display "Release from Teacher(s)" button only for assigned students', async () => {
-            // Alice (student-1) is assigned in mockData setup
-            // Bob (student-2) will be mocked as unassigned
-            vi.mocked(assignmentManager.getAssignmentsByStudent).mockImplementation((studentId) => {
-                if (studentId === 'student-1') return Promise.resolve(mockAssignments);
-                return Promise.resolve([]);
-            });
-
+        it('should display accessible release actions for student cards', async () => {
             renderWithProviders(<AdminUserManagementPage />);
 
             await waitFor(() => {
                 expect(screen.getByText('Alice Johnson')).toBeInTheDocument();
             });
 
-            // Alice should have the release button
-            const aliceRow = screen.getByText('Alice Johnson').closest('tr');
-            expect(aliceRow.querySelector('button[aria-label="Release from Teacher(s)"]')).toBeInTheDocument();
-
-            // Bob should NOT have the release button
-            const bobRow = screen.getByText('Bob Smith').closest('tr');
-            expect(bobRow.querySelector('button[aria-label="Release from Teacher(s)"]')).not.toBeInTheDocument();
+            expect(screen.getAllByLabelText(/Release from Teacher\(s\)/i)).toHaveLength(mockStudents.length);
         });
 
         it('should open ReleaseStudentModal when clicking release button', async () => {
@@ -1006,8 +951,8 @@ describe('AdminUserManagementPage - Assignment Flows', () => {
 
             await waitFor(() => {
                 expect(screen.getAllByText(/Successfully released/i).length).toBeGreaterThan(0);
-                expect(userService.getAllUsers).toHaveBeenCalled();
-                expect(assignmentManager.getAssignmentsByStudent).toHaveBeenCalled();
+                expect(userService.getAllUsersSecure).toHaveBeenCalled();
+                expect(assignmentManager.getAllAssignments).toHaveBeenCalled();
             });
         });
     });
@@ -1053,19 +998,24 @@ describe('AdminUserManagementPage - Assignment Flows', () => {
 describe('Teacher Actions - Add to Class', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        vi.mocked(userService.getAllUsers).mockResolvedValue([mockStudents[0]]);
-        vi.mocked(assignmentManager.getAssignmentsByStudent).mockResolvedValue([]);
-        vi.mocked(assignmentManager.getAssignmentsByTeacher).mockResolvedValue([]);
-        vi.mocked(classManager.getClasses).mockResolvedValue(mockClasses);
-        vi.mocked(courseManager.getCoursesByOwner).mockResolvedValue([]);
-        vi.mocked(invitationService.getInvitationsByAdmin).mockResolvedValue([]);
-
-        // Mock generic auth as teacher
-        const useAuthMock = vi.mocked(require('../hooks/useAuth').useAuth);
-        useAuthMock.mockReturnValue({
+        resetAuthState({
             user: { uid: 'teacher-1', email: 'teacher@test.com' },
             profile: { role: 'teacher', displayName: 'Teacher User' },
         });
+        vi.mocked(userService.getTeacherStudents).mockResolvedValue([mockStudents[0]]);
+        vi.mocked(userService.getAllUsersSecure).mockResolvedValue([mockStudents[0]]);
+        vi.mocked(assignmentManager.getAssignmentsByStudent).mockResolvedValue([]);
+        vi.mocked(assignmentManager.getAssignmentsByTeacher).mockResolvedValue([]);
+        setAssignmentBatch([
+            {
+                ...mockAssignments[0],
+                teacherId: 'teacher-1',
+                studentId: 'student-1',
+            },
+        ]);
+        vi.mocked(classManager.getClasses).mockResolvedValue(mockClasses);
+        vi.mocked(courseManager.getCoursesByOwner).mockResolvedValue([]);
+        vi.mocked(invitationService.getInvitationsByAdmin).mockResolvedValue([]);
     });
 
     it('should display "Add to Class" button and open modal', async () => {

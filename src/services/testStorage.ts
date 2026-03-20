@@ -4,11 +4,12 @@
  * Uses structure defined in FIREBASE_TEST_STRUCTURE.md
  */
 
-import { ref, set, get } from 'firebase/database';
+import { ref, set, get, update } from 'firebase/database';
 // @ts-ignore - firebase.js doesn't have type declarations
 import { database } from './firebase';
 import type { Passage, ParsedQuestion } from '../types/document.types';
 import type { MaterialSoloConfig } from '../types/solo.types';
+import { stripAnswerKeys } from '../utils/answerKeyHelper';
 
 /** Link to source material (legacy - Materials feature removed) */
 export interface MaterialLink {
@@ -161,6 +162,12 @@ export interface TestData {
 
   /** PRD-0016: Solo study configuration */
   soloConfig?: MaterialSoloConfig;
+}
+
+export interface SessionStudentSafeTestPayload {
+  testId: string;
+  generatedAt: number;
+  testData: TestData;
 }
 
 /**
@@ -350,6 +357,7 @@ export const saveTestToFirebase = async (
     // Save to Firebase
     const testRef = ref(database, `tests/${testId}`);
     await set(testRef, testData);
+    await writeStudentSafeTestData(testId, testData);
 
     console.log('✅ Test saved to Firebase:', testId);
 
@@ -414,6 +422,166 @@ export const getTestFromFirebase = async (testId: string): Promise<{ success: bo
 };
 
 /**
+ * Create a student-safe test payload for live delivery.
+ * This keeps the rendered question state separate from grading data.
+ */
+export const buildStudentSafeTestData = (testData: TestData): TestData => ({
+  ...testData,
+  questions: stripAnswerKeys(testData.questions),
+});
+
+const writeStudentSafeTestData = async (
+  testId: string,
+  testData: TestData,
+): Promise<void> => {
+  await set(
+    ref(database, `student_safe_tests/${testId}`),
+    buildStudentSafeTestData(testData),
+  );
+};
+
+/**
+ * Read the global student-safe payload for solo/homework delivery.
+ */
+export const getStudentSafeTestFromFirebase = async (
+  testId: string,
+): Promise<{ success: boolean; data?: TestData; error?: string }> => {
+  try {
+    const safeRef = ref(database, `student_safe_tests/${testId}`);
+    const snapshot = await get(safeRef);
+
+    if (snapshot.exists()) {
+      return {
+        success: true,
+        data: snapshot.val() as TestData,
+      };
+    }
+
+    return {
+      success: false,
+      error: 'Student-safe test payload not found',
+    };
+  } catch (error) {
+    console.error('❌ Error getting student-safe test from Firebase:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to get student-safe test',
+    };
+  }
+};
+
+/**
+ * Cache a student-safe test payload for a live session.
+ * Students should read this payload instead of loading the grading object directly.
+ */
+export const cacheSessionStudentSafeTestData = async (
+  sessionCode: string,
+  testId: string,
+): Promise<{ success: boolean; data?: TestData; error?: string }> => {
+  try {
+    const result = await getTestFromFirebase(testId);
+
+    if (!result.success || !result.data) {
+      return {
+        success: false,
+        error: result.error || 'Test not found',
+      };
+    }
+
+    const studentSafeTestData = buildStudentSafeTestData(result.data);
+    const payload: SessionStudentSafeTestPayload = {
+      testId,
+      generatedAt: Date.now(),
+      testData: studentSafeTestData,
+    };
+
+    await set(ref(database, `session_test_payloads/${sessionCode}`), payload);
+
+    return {
+      success: true,
+      data: studentSafeTestData,
+    };
+  } catch (error) {
+    console.error('❌ Error caching session student-safe test payload:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to cache session test payload',
+    };
+  }
+};
+
+/**
+ * Read the student-safe payload prepared for a live session.
+ */
+export const getSessionStudentSafeTestData = async (
+  sessionCode: string,
+  testId: string,
+): Promise<{ success: boolean; data?: TestData; error?: string }> => {
+  try {
+    const payloadRef = ref(database, `session_test_payloads/${sessionCode}`);
+    const snapshot = await get(payloadRef);
+
+    if (!snapshot.exists()) {
+      return {
+        success: false,
+        error: 'Session test payload not ready',
+      };
+    }
+
+    const payload = snapshot.val() as SessionStudentSafeTestPayload;
+
+    if (!payload?.testData || payload.testId !== testId) {
+      return {
+        success: false,
+        error: 'Session test payload is stale',
+      };
+    }
+
+    return {
+      success: true,
+      data: payload.testData,
+    };
+  } catch (error) {
+    console.error('❌ Error getting session student-safe test payload:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to load session test payload',
+    };
+  }
+};
+
+/**
+ * Read full question objects for grading only.
+ * This is intentionally separate from the student-facing rendered payload.
+ */
+export const getTestQuestionsFromFirebase = async (
+  testId: string,
+): Promise<{ success: boolean; data?: TestData['questions']; error?: string }> => {
+  try {
+    const questionsRef = ref(database, `tests/${testId}/questions`);
+    const snapshot = await get(questionsRef);
+
+    if (!snapshot.exists()) {
+      return {
+        success: false,
+        error: 'Test questions not found',
+      };
+    }
+
+    return {
+      success: true,
+      data: snapshot.val() as TestData['questions'],
+    };
+  } catch (error) {
+    console.error('❌ Error getting grading questions from Firebase:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to get grading questions',
+    };
+  }
+};
+
+/**
  * Get all tests from Firebase
  */
 export const getAllTestsFromFirebase = async (): Promise<{ success: boolean; data?: TestData[]; error?: string }> => {
@@ -459,7 +627,12 @@ export const updateTestInFirebase = async (
       updatedAt: Date.now(),
     };
 
-    await set(testRef, updatedData);
+    await update(testRef, updatedData);
+
+    const result = await getTestFromFirebase(testId);
+    if (result.success && result.data) {
+      await writeStudentSafeTestData(testId, result.data);
+    }
 
     console.log('✅ Test updated in Firebase:', testId);
 
@@ -482,6 +655,7 @@ export const deleteTestFromFirebase = async (testId: string): Promise<{ success:
   try {
     const testRef = ref(database, `tests/${testId}`);
     await set(testRef, null);
+    await set(ref(database, `student_safe_tests/${testId}`), null);
 
     console.log('✅ Test deleted from Firebase:', testId);
 

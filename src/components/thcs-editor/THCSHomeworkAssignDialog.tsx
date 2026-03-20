@@ -26,6 +26,8 @@ import { getClasses, getClass } from '../../services/classManager';
 import { DateTimeCalendar } from '../common/DateTimeCalendar';
 import { Button, Input, Textarea } from '../modern';
 import type { HomeworkTarget } from '../../types/homework.types';
+import type { AntiCheatPreset } from '../../types/integrity.types';
+import { getContextDefaults, resolvePreset } from '../../utils/antiCheatPresets';
 
 // ============================================================================
 // Types
@@ -82,6 +84,8 @@ export function THCSHomeworkAssignDialog({
     const [penaltyPercent, setPenaltyPercent] = useState<number>(10);
     const [maxAttempts, setMaxAttempts] = useState<number>(1);
     const [feedbackTiming, setFeedbackTiming] = useState<FeedbackTimingOption>('after-submission');
+    const [antiCheatPreset, setAntiCheatPreset] = useState<AntiCheatPreset>('none');
+    const [nullifyRemainingAttempts, setNullifyRemainingAttempts] = useState(false);
     const [instructions, setInstructions] = useState('');
     const [pinToVersion, setPinToVersion] = useState(true);
     const [submitting, setSubmitting] = useState(false);
@@ -158,6 +162,8 @@ export function THCSHomeworkAssignDialog({
         setPenaltyPercent(10);
         setMaxAttempts(1);
         setFeedbackTiming('after-submission');
+        setAntiCheatPreset('none');
+        setNullifyRemainingAttempts(false);
         setInstructions('');
         setPinToVersion(true);
         setStudentSearch('');
@@ -242,6 +248,13 @@ export function THCSHomeworkAssignDialog({
                 dueDate: dueDate,
                 instructions: instructions || '',
                 title: testTitle,
+                antiCheatConfig: antiCheatPreset === 'none'
+                    ? undefined
+                    : {
+                        ...resolvePreset(antiCheatPreset),
+                        ...getContextDefaults('homework'),
+                        nullifyRemainingAttempts,
+                    },
                 thcsConfig: {
                     ...(timerModeOverride ? { timerModeOverride } : {}),
                     lateSubmissionPolicy: latePolicy,
@@ -810,6 +823,50 @@ export function THCSHomeworkAssignDialog({
                                 <option value="manual">👨‍🏫 Manual release by teacher</option>
                             </select>
                         </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gap: '0.65rem' }}>
+                        <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#1e293b' }}>
+                            Anti-Cheat Preset
+                        </div>
+                        <select
+                            value={antiCheatPreset}
+                            onChange={(event) => setAntiCheatPreset(event.target.value as AntiCheatPreset)}
+                            style={{
+                                width: '100%',
+                                minHeight: '44px',
+                                borderRadius: '0.9rem',
+                                border: '1px solid rgba(203,213,225,0.95)',
+                                padding: '0.75rem 0.9rem',
+                                background: '#fff',
+                                color: '#1e293b',
+                            }}
+                        >
+                            <option value="none">None</option>
+                            <option value="standard">Standard</option>
+                            <option value="strict">Strict</option>
+                        </select>
+                        <div style={{ fontSize: '0.82rem', color: '#64748b' }}>
+                            Standard enables monitoring and event logging. Strict also requires fullscreen and lowers the auto-submit threshold.
+                        </div>
+                        {antiCheatPreset !== 'none' ? (
+                            <label
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.65rem',
+                                    color: '#475569',
+                                    fontSize: '0.88rem',
+                                }}
+                            >
+                                <input
+                                    type="checkbox"
+                                    checked={nullifyRemainingAttempts}
+                                    onChange={(event) => setNullifyRemainingAttempts(event.currentTarget.checked)}
+                                />
+                                Nullify remaining attempts if the anti-cheat auto-submit path is triggered.
+                            </label>
+                        ) : null}
                     </div>
 
                     {/* Instructions */}

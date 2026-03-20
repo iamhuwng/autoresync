@@ -254,22 +254,16 @@ describe('AccessControlWrapper Component (PRD-0016 Task 6.8)', () => {
             // Now revoke access on the next check
             mockIsStudentAssignedToTeacher.mockResolvedValue(false);
 
-            // Advance timer to trigger recheck and wait for promise resolution
+            // Advance timer to trigger recheck and wait for the async access transition.
             await act(async () => {
-                vi.advanceTimersByTime(1000);
-                // Allow promises to resolve
-                await Promise.resolve();
-                await Promise.resolve();
+                await vi.advanceTimersByTimeAsync(1000);
             });
 
-            // Verify the callback was called after access was revoked
             await waitFor(() => {
+                expect(onAccessRevoked).toHaveBeenCalledTimes(1);
+                expect(mockIsStudentAssignedToTeacher).toHaveBeenCalledTimes(2);
                 expect(screen.getByText('Access Denied')).toBeInTheDocument();
             });
-
-            // Note: onAccessRevoked is called when access changes from granted to denied
-            // This verifies the revocation happened
-            expect(mockIsStudentAssignedToTeacher).toHaveBeenCalledTimes(2);
         });
     });
 
@@ -299,13 +293,12 @@ describe('AccessControlWrapper Component (PRD-0016 Task 6.8)', () => {
 
             // Advance timer by 5 seconds and resolve promises
             await act(async () => {
-                vi.advanceTimersByTime(5000);
-                await Promise.resolve();
+                await vi.advanceTimersByTimeAsync(5000);
             });
 
-            // The recheck should have been triggered
-            // Note: Due to timing, we check for at least 2 calls
-            expect(mockIsStudentAssignedToTeacher.mock.calls.length).toBeGreaterThanOrEqual(2);
+            await waitFor(() => {
+                expect(mockIsStudentAssignedToTeacher.mock.calls.length).toBeGreaterThanOrEqual(2);
+            });
         });
 
         it('should stop rechecking when recheckInterval is 0', async () => {
@@ -601,7 +594,7 @@ describe('Access Control Security Scenarios (PRD-0016 Task 6.8)', () => {
 
         // Trigger recheck
         await act(async () => {
-            vi.advanceTimersByTime(1000);
+            await vi.advanceTimersByTimeAsync(1000);
         });
 
         // Sensitive data should no longer be visible
@@ -658,14 +651,14 @@ describe('Access Control Security Scenarios (PRD-0016 Task 6.8)', () => {
 
         // Rapid changes
         accessGranted = false;
-        await act(async () => { vi.advanceTimersByTime(500); });
+        await act(async () => { await vi.advanceTimersByTimeAsync(500); });
 
         await waitFor(() => {
             expect(screen.getByText('Access Denied')).toBeInTheDocument();
         });
 
         accessGranted = true;
-        await act(async () => { vi.advanceTimersByTime(500); });
+        await act(async () => { await vi.advanceTimersByTimeAsync(500); });
 
         // Access should not be restored automatically (one-way revocation for security)
         // The component stops rechecking after access is denied

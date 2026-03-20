@@ -1,7 +1,11 @@
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
-import { useState, Suspense } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { lazyWithRetry } from './utils/lazyWithRetry.ts';
 import { ToastContainer, VanillaLoader } from './components/modern';
+import { TrackedRoute } from './components/TrackedRoute.tsx';
+import { initBreadcrumbs } from './hooks/useBreadcrumbs';
+import { auth, database } from './services/firebase';
+import { reportingService } from './services/reportingService';
 
 // Lazy load all page components for code splitting
 // Using lazyWithRetry to auto-recover from stale chunk errors after deployments
@@ -44,6 +48,7 @@ const AdminCoursesPage = lazyWithRetry(() => import('./pages/AdminCoursesPage.ts
 const AdminClassesPage = lazyWithRetry(() => import('./pages/AdminClassesPage.tsx'));
 const AdminSettingsPage = lazyWithRetry(() => import('./pages/AdminSettingsPage.tsx'));
 const AdminBackupPage = lazyWithRetry(() => import('./pages/AdminBackupPage.tsx'));
+const AdminReportsPage = lazyWithRetry(() => import('./pages/AdminReportsPage.tsx'));
 const TeacherStudentHistoryPage = lazyWithRetry(() => import('./pages/TeacherStudentHistoryPage.tsx'));
 const StudentCoursesPage = lazyWithRetry(() => import('./pages/StudentCoursesPage.tsx'));
 const StudentCourseDetailPage = lazyWithRetry(() => import('./pages/StudentCourseDetailPage.tsx'));
@@ -125,10 +130,19 @@ const Placeholder = ({ name }) => (
   </div>
 );
 
+const withTrackedRoute = (children, featureName) => (
+  <TrackedRoute featureName={featureName}>{children}</TrackedRoute>
+);
+
 
 
 function App() {
   const [showAdminLogin, setShowAdminLogin] = useState(false);
+
+  useEffect(() => {
+    reportingService.init(auth, database);
+    initBreadcrumbs();
+  }, []);
 
   return (
     <BrowserRouter>
@@ -145,68 +159,76 @@ function App() {
           {/* Profile Routes */}
           <Route path="/profile/complete" element={
             <PrivateRoute>
-              <ProfileCompletionPage />
+              {withTrackedRoute(<ProfileCompletionPage />, 'profile')}
             </PrivateRoute>
           } />
           <Route path="/profile" element={
             <PrivateRoute>
-              <ProfileCompletionGuard>
-                <ProfilePage />
-              </ProfileCompletionGuard>
+              {withTrackedRoute(
+                <ProfileCompletionGuard>
+                  <ProfilePage />
+                </ProfileCompletionGuard>,
+                'profile'
+              )}
             </PrivateRoute>
           } />
 
           {/* Admin Routes - SUPER ADMIN ONLY */}
           <Route path="/admin/dashboard" element={
             <PrivateRoute allowedRoles={['super_admin']}>
-              <AdminDashboardPage />
+              {withTrackedRoute(<AdminDashboardPage />)}
             </PrivateRoute>
           } />
           <Route path="/admin/materials" element={
             <PrivateRoute allowedRoles={['super_admin']}>
-              <AdminMaterialsPage />
+              {withTrackedRoute(<AdminMaterialsPage />)}
             </PrivateRoute>
           } />
           <Route path="/admin/sessions" element={
             <PrivateRoute allowedRoles={['super_admin']}>
-              <AdminSessionsPage />
+              {withTrackedRoute(<AdminSessionsPage />)}
             </PrivateRoute>
           } />
           <Route path="/admin/users" element={
             <PrivateRoute allowedRoles={['super_admin']}>
-              <AdminUserManagementPage />
+              {withTrackedRoute(<AdminUserManagementPage />)}
             </PrivateRoute>
           } />
           <Route path="/admin/migration" element={
             <PrivateRoute allowedRoles={['super_admin']}>
-              <AdminMigrationPage />
+              {withTrackedRoute(<AdminMigrationPage />)}
             </PrivateRoute>
           } />
           {/* Admin Courses - SUPER ADMIN ONLY */}
           <Route path="/admin/courses" element={
             <PrivateRoute allowedRoles={['super_admin']}>
-              <AdminCoursesPage />
+              {withTrackedRoute(<AdminCoursesPage />)}
             </PrivateRoute>
           } />
 
           {/* Admin Classes - SUPER ADMIN ONLY */}
           <Route path="/admin/classes" element={
             <PrivateRoute allowedRoles={['super_admin']}>
-              <AdminClassesPage />
+              {withTrackedRoute(<AdminClassesPage />)}
             </PrivateRoute>
           } />
 
           {/* Admin Settings - SUPER ADMIN ONLY */}
           <Route path="/admin/settings" element={
             <PrivateRoute allowedRoles={['super_admin']}>
-              <AdminSettingsPage />
+              {withTrackedRoute(<AdminSettingsPage />)}
             </PrivateRoute>
           } />
 
           {/* Admin Backup & Recovery - SUPER ADMIN ONLY (PRD-0026) */}
           <Route path="/admin/backup" element={
             <PrivateRoute allowedRoles={['super_admin']}>
-              <AdminBackupPage />
+              {withTrackedRoute(<AdminBackupPage />)}
+            </PrivateRoute>
+          } />
+          <Route path="/admin/reports" element={
+            <PrivateRoute allowedRoles={['super_admin']}>
+              {withTrackedRoute(<AdminReportsPage />)}
             </PrivateRoute>
           } />
 
@@ -214,125 +236,142 @@ function App() {
           {/* Teacher Student Management - TEACHERS ONLY */}
           <Route path="/teacher/students" element={
             <PrivateRoute allowedRoles={['teacher']}>
-              <TeacherStudentsPage />
+              {withTrackedRoute(<TeacherStudentsPage />)}
             </PrivateRoute>
           } />
 
           {/* PRD-0034: Student Homework Profile — MUST be before :homeworkId to avoid capture */}
           <Route path="/teacher/homework/student/:studentId" element={
             <PrivateRoute allowedRoles={['teacher']}>
-              <ErrorBoundary>
-                <StudentHomeworkProfile />
-              </ErrorBoundary>
+              {withTrackedRoute(
+                <ErrorBoundary>
+                  <StudentHomeworkProfile />
+                </ErrorBoundary>,
+                'homework'
+              )}
             </PrivateRoute>
           } />
           {/* Teacher Homework Management - TEACHERS ONLY (PRD-0016) */}
           <Route path="/teacher/homework/:homeworkId" element={
             <PrivateRoute allowedRoles={['teacher']}>
-              <ErrorBoundary>
-                <TeacherHomeworkDetailPage />
-              </ErrorBoundary>
+              {withTrackedRoute(
+                <ErrorBoundary>
+                  <TeacherHomeworkDetailPage />
+                </ErrorBoundary>,
+                'homework'
+              )}
             </PrivateRoute>
           } />
           <Route path="/teacher/homework" element={
             <PrivateRoute allowedRoles={['teacher']}>
-              <ErrorBoundary>
-                <TeacherHomeworkListPage />
-              </ErrorBoundary>
+              {withTrackedRoute(
+                <ErrorBoundary>
+                  <TeacherHomeworkListPage />
+                </ErrorBoundary>,
+                'homework'
+              )}
             </PrivateRoute>
           } />
 
           {/* Teacher Routes - TEACHERS ONLY (super_admin uses /admin routes) */}
           <Route path="/lobby" element={
             <PrivateRoute allowedRoles={['teacher']}>
-              <ProfileCompletionGuard>
-                <TeacherLobbyPage />
-              </ProfileCompletionGuard>
+              {withTrackedRoute(
+                <ProfileCompletionGuard>
+                  <TeacherLobbyPage />
+                </ProfileCompletionGuard>
+              )}
             </PrivateRoute>
           } />
           <Route path="/teacher-lobby/:sessionCode" element={
             <PrivateRoute allowedRoles={['teacher']}>
-              <ProfileCompletionGuard>
-                <TeacherLobbyPage />
-              </ProfileCompletionGuard>
+              {withTrackedRoute(
+                <ProfileCompletionGuard>
+                  <TeacherLobbyPage />
+                </ProfileCompletionGuard>
+              )}
             </PrivateRoute>
           } />
-          <Route path="/sessions" element={<PrivateRoute allowedRoles={['teacher']}><SessionManagementPage /></PrivateRoute>} />
-          <Route path="/teacher/results" element={<PrivateRoute allowedRoles={['teacher']}><TeacherResultsDashboard /></PrivateRoute>} />
+          <Route path="/sessions" element={<PrivateRoute allowedRoles={['teacher']}>{withTrackedRoute(<SessionManagementPage />, 'sessions')}</PrivateRoute>} />
+          <Route path="/teacher/results" element={<PrivateRoute allowedRoles={['teacher']}>{withTrackedRoute(<TeacherResultsDashboard />, 'results')}</PrivateRoute>} />
 
-          <Route path="/create-test" element={<PrivateRoute allowedRoles={['teacher']}><TestBuilderRouter /></PrivateRoute>} />
-          <Route path="/teacher-wait/:gameSessionId" element={<PrivateRoute allowedRoles={['teacher']}><TeacherWaitingRoomPage /></PrivateRoute>} />
-          <Route path="/teacher-quiz/:gameSessionId" element={<PrivateRoute allowedRoles={['teacher']}><TeacherQuizPage /></PrivateRoute>} />
-          <Route path="/teacher-test/:sessionCode" element={<PrivateRoute allowedRoles={['teacher']}><TeacherTestMonitorPage /></PrivateRoute>} />
-          <Route path="/teacher-test-results/:sessionCode" element={<PrivateRoute allowedRoles={['teacher']}><TeacherTestResultsPage /></PrivateRoute>} />
-          <Route path="/teacher-feedback/:gameSessionId" element={<PrivateRoute allowedRoles={['teacher']}><TeacherFeedbackPage /></PrivateRoute>} />
-          <Route path="/teacher-results/:gameSessionId" element={<PrivateRoute allowedRoles={['teacher']}><TeacherResultsPage /></PrivateRoute>} />
-          <Route path="/teacher/classes" element={<PrivateRoute allowedRoles={['teacher']}><TeacherClassesPage /></PrivateRoute>} />
-          <Route path="/teacher/courses" element={<PrivateRoute allowedRoles={['teacher']}><TeacherCoursesPage /></PrivateRoute>} />
-          <Route path="/teacher/courses/:courseId" element={<PrivateRoute allowedRoles={['teacher']}><TeacherCourseProfilePage /></PrivateRoute>} />
-          <Route path="/material/:materialId" element={<PrivateRoute allowedRoles={['teacher']}><MaterialProfilePage /></PrivateRoute>} />
-          <Route path="/teacher/classes/:classId" element={<PrivateRoute allowedRoles={['teacher']}><TeacherClassDetailPage /></PrivateRoute>} />
-          <Route path="/teacher/student/:studentId/history" element={<PrivateRoute allowedRoles={['teacher']}><TeacherStudentHistoryPage /></PrivateRoute>} />
+          <Route path="/create-test" element={<PrivateRoute allowedRoles={['teacher']}>{withTrackedRoute(<TestBuilderRouter />, 'testCreation')}</PrivateRoute>} />
+          <Route path="/teacher-wait/:gameSessionId" element={<PrivateRoute allowedRoles={['teacher']}>{withTrackedRoute(<TeacherWaitingRoomPage />, 'liveSessions')}</PrivateRoute>} />
+          <Route path="/teacher-quiz/:gameSessionId" element={<PrivateRoute allowedRoles={['teacher']}>{withTrackedRoute(<TeacherQuizPage />, 'liveSessions')}</PrivateRoute>} />
+          <Route path="/teacher-test/:sessionCode" element={<PrivateRoute allowedRoles={['teacher']}>{withTrackedRoute(<TeacherTestMonitorPage />)}</PrivateRoute>} />
+          <Route path="/teacher-test-results/:sessionCode" element={<PrivateRoute allowedRoles={['teacher']}>{withTrackedRoute(<TeacherTestResultsPage />, 'results')}</PrivateRoute>} />
+          <Route path="/teacher-feedback/:gameSessionId" element={<PrivateRoute allowedRoles={['teacher']}>{withTrackedRoute(<TeacherFeedbackPage />, 'feedback')}</PrivateRoute>} />
+          <Route path="/teacher-results/:gameSessionId" element={<PrivateRoute allowedRoles={['teacher']}>{withTrackedRoute(<TeacherResultsPage />, 'results')}</PrivateRoute>} />
+          <Route path="/teacher/classes" element={<PrivateRoute allowedRoles={['teacher']}>{withTrackedRoute(<TeacherClassesPage />, 'classes')}</PrivateRoute>} />
+          <Route path="/teacher/courses" element={<PrivateRoute allowedRoles={['teacher']}>{withTrackedRoute(<TeacherCoursesPage />, 'courses')}</PrivateRoute>} />
+          <Route path="/teacher/courses/:courseId" element={<PrivateRoute allowedRoles={['teacher']}>{withTrackedRoute(<TeacherCourseProfilePage />, 'courses')}</PrivateRoute>} />
+          <Route path="/material/:materialId" element={<PrivateRoute allowedRoles={['teacher']}>{withTrackedRoute(<MaterialProfilePage />, 'materials')}</PrivateRoute>} />
+          <Route path="/teacher/classes/:classId" element={<PrivateRoute allowedRoles={['teacher']}>{withTrackedRoute(<TeacherClassDetailPage />, 'classes')}</PrivateRoute>} />
+          <Route path="/teacher/student/:studentId/history" element={<PrivateRoute allowedRoles={['teacher']}>{withTrackedRoute(<TeacherStudentHistoryPage />, 'results')}</PrivateRoute>} />
 
           {/* PRD-0020: IELTS Test Creation - Redirects to Materials + auto-open modal */}
-          <Route path="/teacher/test/create" element={<PrivateRoute allowedRoles={['teacher', 'super_admin']}><TestCreationRedirectPage /></PrivateRoute>} />
+          <Route path="/teacher/test/create" element={<PrivateRoute allowedRoles={['teacher', 'super_admin']}>{withTrackedRoute(<TestCreationRedirectPage />, 'testCreation')}</PrivateRoute>} />
           {/* PRD-0020: Standalone test creation page (direct access) */}
-          <Route path="/teacher/test/create-standalone" element={<PrivateRoute allowedRoles={['teacher', 'super_admin']}><ErrorBoundary><TestCreationPage /></ErrorBoundary></PrivateRoute>} />
+          <Route path="/teacher/test/create-standalone" element={<PrivateRoute allowedRoles={['teacher', 'super_admin']}>{withTrackedRoute(<ErrorBoundary><TestCreationPage /></ErrorBoundary>, 'testCreation')}</PrivateRoute>} />
           {/* PRD-0022: Test Review Page - Teachers and Super Admins */}
-          <Route path="/teacher/test/review/:draftId" element={<PrivateRoute allowedRoles={['teacher', 'super_admin']}><ErrorBoundary><TestReviewPage /></ErrorBoundary></PrivateRoute>} />
+          <Route path="/teacher/test/review/:draftId" element={<PrivateRoute allowedRoles={['teacher', 'super_admin']}>{withTrackedRoute(<ErrorBoundary><TestReviewPage /></ErrorBoundary>, 'testCreation')}</PrivateRoute>} />
           {/* PRD-0027: THCS-THPT Test Editor - Teachers Only */}
-          <Route path="/teacher/thcs-test/create" element={<PrivateRoute allowedRoles={['teacher']}><ErrorBoundary><THCSTestEditorPage /></ErrorBoundary></PrivateRoute>} />
-          <Route path="/teacher/thcs-test/edit/:draftId" element={<PrivateRoute allowedRoles={['teacher']}><ErrorBoundary><THCSTestEditorPage /></ErrorBoundary></PrivateRoute>} />
+          <Route path="/teacher/thcs-test/create" element={<PrivateRoute allowedRoles={['teacher']}>{withTrackedRoute(<ErrorBoundary><THCSTestEditorPage /></ErrorBoundary>, 'testCreation')}</PrivateRoute>} />
+          <Route path="/teacher/thcs-test/edit/:draftId" element={<PrivateRoute allowedRoles={['teacher']}>{withTrackedRoute(<ErrorBoundary><THCSTestEditorPage /></ErrorBoundary>, 'testCreation')}</PrivateRoute>} />
           {/* PRD-0028: THCS Grading Tab - Teachers and Super Admins */}
-          <Route path="/teacher/grading" element={<PrivateRoute allowedRoles={['teacher', 'super_admin']}><ErrorBoundary><TeacherGradingPage /></ErrorBoundary></PrivateRoute>} />
+          <Route path="/teacher/grading" element={<PrivateRoute allowedRoles={['teacher', 'super_admin']}>{withTrackedRoute(<ErrorBoundary><TeacherGradingPage /></ErrorBoundary>, 'grading')}</PrivateRoute>} />
           {/* PRD-0030: IELTS Writing Test System */}
-          <Route path="/teacher/writing-test/create" element={<PrivateRoute allowedRoles={['teacher', 'super_admin']}><ErrorBoundary><WritingTestBuilder /></ErrorBoundary></PrivateRoute>} />
-          <Route path="/teacher/writing-test/edit/:draftId" element={<PrivateRoute allowedRoles={['teacher', 'super_admin']}><ErrorBoundary><WritingTestBuilder /></ErrorBoundary></PrivateRoute>} />
-          <Route path="/teacher/grading/writing" element={<PrivateRoute allowedRoles={['teacher', 'super_admin']}><ErrorBoundary><TeacherGradingPage /></ErrorBoundary></PrivateRoute>} />
-          <Route path="/teacher/grading/writing/:submissionId" element={<PrivateRoute allowedRoles={['teacher', 'super_admin']}><ErrorBoundary><WritingGradingPage /></ErrorBoundary></PrivateRoute>} />
+          <Route path="/teacher/writing-test/create" element={<PrivateRoute allowedRoles={['teacher', 'super_admin']}>{withTrackedRoute(<ErrorBoundary><WritingTestBuilder /></ErrorBoundary>, 'testCreation')}</PrivateRoute>} />
+          <Route path="/teacher/writing-test/edit/:draftId" element={<PrivateRoute allowedRoles={['teacher', 'super_admin']}>{withTrackedRoute(<ErrorBoundary><WritingTestBuilder /></ErrorBoundary>, 'testCreation')}</PrivateRoute>} />
+          <Route path="/teacher/grading/writing" element={<PrivateRoute allowedRoles={['teacher', 'super_admin']}>{withTrackedRoute(<ErrorBoundary><TeacherGradingPage /></ErrorBoundary>, 'grading')}</PrivateRoute>} />
+          <Route path="/teacher/grading/writing/:submissionId" element={<PrivateRoute allowedRoles={['teacher', 'super_admin']}>{withTrackedRoute(<ErrorBoundary><WritingGradingPage /></ErrorBoundary>, 'grading')}</PrivateRoute>} />
 
           {/* Student Routes */}
           <Route path="/student" element={
             <PrivateRoute allowedRoles={['student']}>
-              <ProfileCompletionGuard>
-                <StudentDashboardPage />
-              </ProfileCompletionGuard>
+              {withTrackedRoute(
+                <ProfileCompletionGuard>
+                  <StudentDashboardPage />
+                </ProfileCompletionGuard>
+              )}
             </PrivateRoute>
           } />
           <Route path="/student/dashboard" element={
             <PrivateRoute allowedRoles={['student']}>
-              <ProfileCompletionGuard>
-                <StudentDashboardPage />
-              </ProfileCompletionGuard>
+              {withTrackedRoute(
+                <ProfileCompletionGuard>
+                  <StudentDashboardPage />
+                </ProfileCompletionGuard>
+              )}
             </PrivateRoute>
           } />
-          <Route path="/student/courses" element={<PrivateRoute allowedRoles={['student']}><StudentCoursesPage /></PrivateRoute>} />
-          <Route path="/student/courses/:courseId" element={<PrivateRoute allowedRoles={['student']}><StudentCourseDetailPage /></PrivateRoute>} />
-          <Route path="/student/courses/catalog" element={<PrivateRoute allowedRoles={['student']}><StudentCourseCatalogPage /></PrivateRoute>} />
-          <Route path="/student/classes/:classId" element={<PrivateRoute allowedRoles={['student']}><StudentClassDetailPage /></PrivateRoute>} />
+          <Route path="/student/courses" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentCoursesPage />, 'courses')}</PrivateRoute>} />
+          <Route path="/student/courses/:courseId" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentCourseDetailPage />, 'courses')}</PrivateRoute>} />
+          <Route path="/student/courses/catalog" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentCourseCatalogPage />, 'courses')}</PrivateRoute>} />
+          <Route path="/student/classes/:classId" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentClassDetailPage />, 'classes')}</PrivateRoute>} />
           {/* Student Session Routes - PROTECTED (PRD-0016) */}
-          <Route path="/student-wait/:gameSessionId" element={<PrivateRoute allowedRoles={['student']}><StudentWaitingRoomPage /></PrivateRoute>} />
-          <Route path="/student-quiz/:gameSessionId" element={<PrivateRoute allowedRoles={['student']}><StudentQuizPage /></PrivateRoute>} />
-          <Route path="/student-test/:sessionCode" element={<PrivateRoute allowedRoles={['student']}><TestPageRouter /></PrivateRoute>} />
-          <Route path="/student-test-results/:sessionCode" element={<PrivateRoute allowedRoles={['student']}><StudentTestResultsPage /></PrivateRoute>} />
-          <Route path="/student-feedback/:gameSessionId" element={<PrivateRoute allowedRoles={['student']}><StudentFeedbackPage /></PrivateRoute>} />
-          <Route path="/student-results/:gameSessionId" element={<PrivateRoute allowedRoles={['student']}><StudentResultsPage /></PrivateRoute>} />
+          <Route path="/student-wait/:gameSessionId" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentWaitingRoomPage />, 'liveSessions')}</PrivateRoute>} />
+          <Route path="/student-quiz/:gameSessionId" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentQuizPage />, 'liveSessions')}</PrivateRoute>} />
+          <Route path="/student-test/:sessionCode" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<TestPageRouter />, 'testTaking')}</PrivateRoute>} />
+          <Route path="/student-test-results/:sessionCode" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentTestResultsPage />, 'results')}</PrivateRoute>} />
+          <Route path="/student-feedback/:gameSessionId" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentFeedbackPage />, 'feedback')}</PrivateRoute>} />
+          <Route path="/student-results/:gameSessionId" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentResultsPage />, 'results')}</PrivateRoute>} />
           {/* Student test results by session code (used by post-submission redirect) */}
-          <Route path="/student/results/:sessionCode" element={<PrivateRoute allowedRoles={['student']}><StudentTestResultsPage /></PrivateRoute>} />
+          <Route path="/student/results/:sessionCode" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentTestResultsPage />, 'results')}</PrivateRoute>} />
           {/* PRD-0016: Solo Study & Homework System */}
-          <Route path="/student/library" element={<PrivateRoute allowedRoles={['student']}><StudentLibraryPage /></PrivateRoute>} />
+          <Route path="/student/library" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentLibraryPage />, 'materials')}</PrivateRoute>} />
           {/* PRD-0025: Unified Solo Practice Mode - NEW canonical route */}
-          <Route path="/student/practice/:materialId" element={<PrivateRoute allowedRoles={['student']}><StudentPracticePage /></PrivateRoute>} />
+          <Route path="/student/practice/:materialId" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentPracticePage />, 'testTaking')}</PrivateRoute>} />
           {/* PRD-0025: Legacy redirect - old solo-test URLs still work */}
-          <Route path="/student/solo-test/:materialId" element={<PrivateRoute allowedRoles={['student']}><StudentPracticePage /></PrivateRoute>} />
+          <Route path="/student/solo-test/:materialId" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentPracticePage />, 'testTaking')}</PrivateRoute>} />
           {/* PRD-0016: Student Homework Routes */}
-          <Route path="/student/homework" element={<PrivateRoute allowedRoles={['student']}><StudentHomeworkListPage /></PrivateRoute>} />
-          <Route path="/student/homework/:homeworkId" element={<PrivateRoute allowedRoles={['student']}><StudentHomeworkDetailPage /></PrivateRoute>} />
-          <Route path="/student/homework/:homeworkId/test" element={<PrivateRoute allowedRoles={['student']}><StudentPracticePage /></PrivateRoute>} />
-          <Route path="/student/academic-record" element={<PrivateRoute allowedRoles={['student']}><AcademicRecordPage /></PrivateRoute>} />
+          <Route path="/student/homework" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentHomeworkListPage />, 'homework')}</PrivateRoute>} />
+          <Route path="/student/homework/:homeworkId" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentHomeworkDetailPage />, 'homework')}</PrivateRoute>} />
+          <Route path="/student/homework/:homeworkId/test" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentPracticePage />, 'testTaking')}</PrivateRoute>} />
+          <Route path="/student/academic-record" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<AcademicRecordPage />, 'academicRecords')}</PrivateRoute>} />
           {/* PRD-0019: Post-submission confirmation for Writing tests */}
-          <Route path="/submission-complete" element={<PrivateRoute allowedRoles={['student']}><SubmissionCompletePage /></PrivateRoute>} />
-          <Route path="/result/:resultId" element={<PrivateRoute allowedRoles={['student', 'teacher', 'super_admin']}><ResultDetailPage /></PrivateRoute>} />
+          <Route path="/submission-complete" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<SubmissionCompletePage />, 'results')}</PrivateRoute>} />
+          <Route path="/result/:resultId" element={<PrivateRoute allowedRoles={['student', 'teacher', 'super_admin']}>{withTrackedRoute(<ResultDetailPage />, 'results')}</PrivateRoute>} />
 
           {/* Demo/Testing Routes */}
           <Route path="/demo" element={<DemoIndexPage />} />

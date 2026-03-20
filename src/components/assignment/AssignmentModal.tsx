@@ -17,7 +17,8 @@ import {
     Text,
     Alert,
     Checkbox,
-    Divider
+    Divider,
+    Avatar
 } from '@mantine/core';
 import { IconAlertCircle, IconUserPlus, IconUsers } from '@tabler/icons-react';
 import { createAssignment } from '../../services/assignmentManager';
@@ -39,7 +40,7 @@ interface AssignmentModalProps {
         email: string;
     };
     // Available options
-    teachers: Array<{ value: string; label: string }>;
+    teachers: Array<{ value: string; label: string; email?: string; photoURL?: string | null; avatarUrl?: string | null }>;
     students: Array<{ value: string; label: string }>;
     courses?: Array<{ value: string; label: string }>;
     // Callbacks
@@ -234,6 +235,29 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
                         searchable
                         required
                         disabled={loading}
+                        renderOption={({ option }) => {
+                            const teacher = teachers.find(t => t.value === option.value);
+                            const avatarSrc = teacher?.avatarUrl || teacher?.photoURL || undefined;
+                            const email = teacher?.email;
+                            return (
+                                <Group gap="sm" wrap="nowrap">
+                                    <Avatar
+                                        src={avatarSrc}
+                                        size={32}
+                                        radius="xl"
+                                        color="indigo"
+                                    >
+                                        {option.label?.charAt(0)?.toUpperCase()}
+                                    </Avatar>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <Text size="sm" fw={500} truncate="end">{option.label}</Text>
+                                        {email && (
+                                            <Text size="xs" c="dimmed" truncate="end">{email}</Text>
+                                        )}
+                                    </div>
+                                </Group>
+                            );
+                        }}
                     />
                 ) : (
                     <MultiSelect

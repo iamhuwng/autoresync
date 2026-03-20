@@ -200,6 +200,7 @@ export function StudentCard({
                             radius="md"
                             color="red"
                             onClick={() => onRelease(student)}
+                            aria-label="Release from Teacher(s)"
                         >
                             <IconBan size={18} />
                         </ActionIcon>

@@ -1,0 +1,651 @@
+# Task List: PRD-0039 Test Results Slide Panel
+
+> **Source PRD:** `documentation/tasks/0039-prd-test-results-slide-panel.md`
+> **Generated:** 2026-03-20
+> **Audience:** Junior developer
+> **Execution Rule:** Follow the steps exactly. Do not invent missing behavior, do not change scope, and do not substitute a different architecture.
+
+## Non-Negotiable Rules
+
+- This PR is **student permanent-result detail** work only.
+- The student slide panel lives on **`/student/academic-record`**. Do **not** create a new student result page.
+- Keep the existing route **`/result/:resultId`**. Implement this exact behavior:
+  - Students: after ownership check, redirect to `/student/academic-record?result={resultId}`.
+  - Teachers and `super_admin`: keep the legacy full-page result view in place.
+- Keep `src/components/results/ResultDetailModal.tsx` for teacher-only consumers in this PR. Remove student usage, but do **not** delete the file.
+- Do **not** migrate session-result flows in this PR. Leave these files on their current session-based modal/page behavior:
+  - `src/components/test/TestResultsModal.tsx`
+  - `src/pages/StudentWaitingRoomPage.jsx`
+  - `src/pages/StudentTestResultsPage.tsx`
+  - `src/pages/StudentResultsPage.jsx`
+- Do **not** migrate writing-result flows in this PR. Leave these files unchanged:
+  - `src/components/writing-results/WritingResultDetailModal.tsx`
+  - `src/components/writing-results/WritingTestResultsSection.tsx`
+- Use `useNavigation` for route changes in new files. Import path: `import { useNavigation } from '../../hooks/useNavigation'` (adjust `../` depth for the file location). Do **not** add new `useNavigate()` imports from `react-router-dom`.
+- Use `useSearchParams` / `useLocation` for query-param handling in page components. Do **not** implement query-param state with manual string parsing.
+- Use `useScreenSize()` for responsive behavior. Import path: `import { useScreenSize } from '@/core/platform'` (or relative `../../core/platform`). Do **not** use `window.innerWidth` or `window.matchMedia()` in new code.
+- New files must use native HTML/CSS only. Do **not** add any `@mantine/*` imports.
+- The PRD's purple-gradient AI cards and shimmer states are **allowed only inside the slide-panel components**. Do not spread that styling to the surrounding student page layout.
+- Do **not** invent study-resource chapter mappings. Tasks `8.9` and `8.10` are blocked until Appendix A is filled by a senior/product owner. Task `8.8` is the gate — do not skip it.
+- The sidebar width in `StudentLayout.tsx` is hardcoded to `280px`. Define `--sidebar-w: 280px` as a CSS custom property in the slide-panel stylesheet and use it in panel width calculations. Do **not** query the DOM to get sidebar width.
+
+## Relevant Files
+
+### Create
+- `src/components/results/ResultSlidePanel.tsx` - Main slide panel shell and shared state owner.
+- `src/components/results/LegacyResultDetailView.tsx` - Extracted legacy full-page result UI for teacher and `super_admin` use.
+- `src/components/results/AttemptHistory.tsx` - Attempt dropdown, timeline, and improvement summary.
+- `src/components/results/AIPerformanceAnalysis.tsx` - Feedback-tab AI analysis card.
+- `src/components/results/StudyRecommendations.tsx` - Feedback-tab study resource recommendations.
+- `src/components/results/ScoreTrendWidget.tsx` - Feedback-tab recent-score trend widget.
+- `src/components/results/ClassPositionWidget.tsx` - Feedback-tab class-average comparison widget.
+- `src/services/ieltsPassageResults.service.ts` - Pure helper to derive `ieltsData.passageResults`.
+- `src/hooks/useTestAttempts.ts` - Hook for multi-attempt loading.
+- `src/hooks/useHistoricalScores.ts` - Hook for score-trend loading.
+- `src/hooks/useClassPosition.ts` - Hook for class-position loading.
+- `src/config/studyResources.config.ts` - Static resource mapping file. Do not start until Appendix A is filled.
+- `src/components/results/ResultSlidePanel.test.tsx`
+- `src/components/results/LegacyResultDetailView.test.tsx`
+- `src/components/results/AttemptHistory.test.tsx`
+- `src/components/results/AIPerformanceAnalysis.test.tsx`
+- `src/components/results/StudyRecommendations.test.tsx`
+- `src/components/results/ScoreTrendWidget.test.tsx`
+- `src/components/results/ClassPositionWidget.test.tsx`
+- `src/services/ieltsPassageResults.service.test.ts`
+- `src/services/formativeFeedback.service.test.ts` — create if it doesn't exist
+- `src/hooks/useTestAttempts.test.ts`
+- `src/hooks/useHistoricalScores.test.ts`
+- `src/hooks/useClassPosition.test.ts`
+- `src/pages/AcademicRecordPage.test.tsx`
+- `src/pages/ResultDetailPage.test.tsx`
+- `src/pages/StudentHomeworkListPage.test.tsx`
+- `src/pages/StudentHomeworkDetailPage.test.tsx`
+
+### Modify
+- `src/services/testResults.service.ts`
+- `src/services/testResults.service.test.ts`
+- `src/services/formativeFeedback.service.ts` — extend for IELTS AI feedback (Task 6.22a-c)
+- `src/hooks/test/useTestSubmission.ts`
+- `src/hooks/test/useTestSubmission.test.ts`
+- `src/types/results.types.ts`
+- `src/services/academicRecordService.ts`
+- `src/services/academicRecordService.test.ts`
+- `src/pages/AcademicRecordPage.tsx`
+- `src/pages/ResultDetailPage.tsx`
+- `src/components/results/QuestionPillsGrid.tsx`
+- `src/components/academicRecord/ResultCard.tsx`
+- `src/components/academicRecord/ResultTimeline.tsx` — rewire onClick (Task 4.6a)
+- `src/components/academicRecord/ResultsByCourse.tsx` — rewire onClick (Task 4.6a)
+- `src/components/academicRecord/ResultsBySkill.tsx` — rewire onClick (Task 4.6a)
+- `src/components/academicRecord/ResultsByTestType.tsx` — rewire onClick (Task 4.6a)
+- `src/components/academicRecord/THCSProgressTab.tsx` — rewire onClick (Task 4.7)
+- `src/pages/StudentDashboardPage.jsx`
+- `src/pages/StudentDashboardPage.teachers.test.jsx`
+- `src/pages/StudentHomeworkListPage.tsx`
+- `src/pages/StudentHomeworkDetailPage.tsx`
+- `src/services/notificationService.ts`
+- `src/config/featureRegistry.ts`
+
+### Leave Unchanged
+- `src/components/test/TestResultsModal.tsx`
+- `src/pages/StudentWaitingRoomPage.jsx`
+- `src/pages/StudentWaitingRoomPage.test.jsx`
+- `src/pages/StudentTestResultsPage.tsx`
+- `src/pages/StudentResultsPage.jsx`
+- `src/components/writing-results/WritingResultDetailModal.tsx`
+- `src/components/writing-results/WritingTestResultsSection.tsx`
+- `src/pages/TeacherHomeworkDetailPage.tsx`
+- `src/components/results/ResultDetailModal.tsx` — no code changes; kept intact for teacher consumers
+- `src/App.jsx` — route `/result/:resultId` already exists, no change needed
+- `src/constants/routes.ts` — no route constant changes needed in this PR
+- `src/config/routeSecurity.ts` — no security config changes needed in this PR
+- `src/components/practice/THCSPracticeView.tsx` — keep on current `location.state` handoff
+- `src/hooks/solo/useSoloSubmission.ts` — keep on current `location.state` handoff
+- `src/hooks/solo/useSoloSubmission.test.ts` — no changes needed
+
+## Tasks
+
+- [ ] 0.0 Lock the architecture before coding
+  - [ ] 0.1 Copy the "Non-Negotiable Rules" section above into the implementation notes for the PR/task and treat them as fixed constraints.
+  - [ ] 0.2 Do not start any code changes until you confirm the following fixed architecture:
+    - Student host page: `src/pages/AcademicRecordPage.tsx`
+    - Student deep link: `/student/academic-record?result={resultId}`
+    - Student wrapper route: `/result/:resultId` redirects to the deep link
+    - Teacher and `super_admin` wrapper route: `/result/:resultId` keeps legacy full-page UI
+    - Teacher modal: `src/components/results/ResultDetailModal.tsx` stays in use
+  - [ ] 0.3 Do not change `StudentWaitingRoomPage.jsx` or `TestResultsModal.tsx`. They are session-result flows, not permanent-result detail flows.
+  - [ ] 0.4 Do not start Task `8.9` or `8.10` until Appendix A is filled. Task `8.8` is the checkpoint gate. If Appendix A is blank, stop and ask a senior/product owner for the exact mapping. Do not guess.
+
+- [x] 1.0 Fix the result data contracts first
+  - [x] 1.1 Update `src/types/results.types.ts` so `EnhancedTestResultRecord` can represent real result data already used in the app:
+    - Widen `testType` so it is not limited to `'quiz' | 'test'`.
+    - Widen `testSkill` so it is not limited to the current four lowercase values.
+    - Add optional `thcsData` and `ieltsData` fields.
+    - Add optional `formativeFeedback`.
+    - Add optional `attemptSummary` with this exact shape:
+      - `attemptNumber: number`
+      - `totalAttempts: number`
+      - `isLatestAttempt: boolean`
+      - `trend: 'up' | 'down' | 'stable'`
+      - `firstAttemptPercentage: number`
+      - `latestAttemptPercentage: number`
+  - [x] 1.2 Update `src/services/testResults.service.ts` `TestResultRecord` to add:
+    - `ieltsData?: { passageResults: { passageName: string; questionRange: [number, number]; correct: number; total: number; percentage: number; }[] }`
+  - [x] 1.3 Do not add `attemptSummary` to the RTDB record. `attemptSummary` is a derived UI field only.
+  - [x] 1.4 Create `src/services/ieltsPassageResults.service.ts` with one exported pure function:
+    - `deriveIeltsPassageResults(gradingQuestions, questionResults): PassageResult[]`
+  - [x] 1.5 Implement `deriveIeltsPassageResults()` with this exact grouping order:
+    - First preference: `question.passageId`
+    - Second preference: `question.sectionId`
+    - Third preference: a parent section object if the loaded test structure already groups questions
+    - If none of the above exists, return an empty array
+  - [x] 1.6 Do **not** invent sequential passage buckets for legacy data. The PRD's legacy-data fallback is "do not show passage breakdown."
+  - [x] 1.7 Use this exact `passageName` selection order:
+    - explicit section/passage name from the source data
+    - fallback `"Passage {index}"`
+  - [x] 1.8 Use this exact `questionRange` rule:
+    - minimum and maximum `questionNumber` within the group after sorting ascending
+  - [x] 1.9 Create `src/services/ieltsPassageResults.service.test.ts` and cover:
+    - grouping by `passageId`
+    - grouping by `sectionId`
+    - returning `[]` when no grouping metadata exists
+    - correct `questionRange`
+    - correct percentage calculation
+
+- [x] 2.0 Update producers and service queries
+  - [x] 2.1 Update `src/hooks/test/useTestSubmission.ts` so `savePermanentResult()` calls `deriveIeltsPassageResults()` only for IELTS Reading and IELTS Listening results.
+  - [x] 2.2 Do not call `deriveIeltsPassageResults()` for THCS results, writing results, or speaking results.
+  - [x] 2.3 Pass the derived `ieltsData` into `saveTestResult()`. Do not pass `undefined` fields into RTDB writes.
+  - [x] 2.4 In `src/services/testResults.service.ts`, add `getStudentTestAttempts(studentId, testId)` with this exact algorithm:
+    - read `test_results_by_student/{studentId}`
+    - fetch each full record from `test_results/{resultId}`
+    - keep only records whose `testId === testId`
+    - sort by `submittedAt DESC`
+    - return the full sorted array
+  - [x] 2.5 The attempt grouping key is exactly `studentId + testId`. Do not use `sessionCode`.
+  - [x] 2.6 In `src/services/testResults.service.ts`, add `getHistoricalScores(studentId, anchorResult, limit = 5)` with this exact filtering rule:
+    - if `anchorResult.context?.type === 'homework'` and `anchorResult.testId` exists, match by `testId`
+    - else if `anchorResult.testType === 'THCS-THPT'`, match same `testType` and same lowercase `testSkill`
+    - else if `String(anchorResult.testType).toLowerCase().includes('ielts')`, match same lowercase `testType`
+    - else match same lowercase `testType` and same lowercase `testSkill`
+    - sort by `submittedAt DESC`
+    - return at most 5 records, including the current result if it matches the filter
+  - [x] 2.7 In `src/services/testResults.service.ts`, add `getClassTestScores(testId, classId)` with this exact algorithm:
+    - if `classId` is missing, return `[]`
+    - read `test_results_by_class/{classId}`
+    - flatten all student buckets into result IDs
+    - fetch full records from `test_results/{resultId}`
+    - keep only records with `testId === testId`
+    - return the full filtered array
+  - [x] 2.8 Do not create new RTDB indexes for attempts, historical scores, or class scores in this PR. Use the existing student and class indexes only.
+  - [x] 2.9 Update `src/services/testResults.service.test.ts` for:
+    - `getStudentTestAttempts()`
+    - `getHistoricalScores()`
+    - `getClassTestScores()`
+    - `saveTestResult()` writing `ieltsData`
+  - [x] 2.10 Create `src/hooks/useTestAttempts.ts` with this exact interface:
+    - Input: `(studentId: string | undefined, testId: string | undefined)`
+    - Return: `{ attempts: TestResultRecord[], loading: boolean, error: string | null }`
+    - Call `getStudentTestAttempts(studentId, testId)` in a `useEffect` keyed on `[studentId, testId]`
+    - If either input is `undefined`, return immediately with `{ attempts: [], loading: false, error: null }`
+    - Set `loading = true` before the call, `loading = false` after resolve or reject
+    - On catch, set `error` to the error message string
+    - Do not add retry logic inside the hook
+  - [x] 2.11 Create `src/hooks/useHistoricalScores.ts` with this exact interface:
+    - Input: `(studentId: string | undefined, anchorResult: TestResultRecord | null, limit?: number)`
+    - Return: `{ scores: TestResultRecord[], loading: boolean, error: string | null }`
+    - Call `getHistoricalScores(studentId, anchorResult, limit)` in a `useEffect` keyed on `[studentId, anchorResult?.resultId]`
+    - If `studentId` is `undefined` or `anchorResult` is `null`, return immediately with empty data
+    - Same loading/error pattern as `useTestAttempts`
+  - [x] 2.12 Create `src/hooks/useClassPosition.ts` with this exact interface:
+    - Input: `(testId: string | undefined, classId: string | undefined, studentPercentage: number | undefined)`
+    - Return: `{ average: number | null, totalStudents: number, position: 'above' | 'at' | 'below' | null, loading: boolean, error: string | null }`
+    - Call `getClassTestScores(testId, classId)` in a `useEffect` keyed on `[testId, classId]`
+    - Compute `average` inside the hook as `mean(records.map(r => r.percentage))`, or `null` if array is empty
+    - Compute `position` by comparing `studentPercentage` to `average`: `'above'` if `studentPercentage > average + 0.5`, `'below'` if `studentPercentage < average - 0.5`, `'at'` otherwise
+    - Set `totalStudents` to the length of the filtered records array
+    - Do **not** return the raw `classScores` array. The hook must return only aggregate data (`average`, `totalStudents`, `position`). This is a privacy constraint — individual student scores must never reach the UI layer.
+    - If `classId` is `undefined`, return immediately with `{ average: null, totalStudents: 0, position: null, loading: false, error: null }`
+  - [x] 2.13 Run this checkpoint before moving to Task `3.0`:
+    - `npx vitest run src/services/ieltsPassageResults.service.test.ts`
+    - `npx vitest run src/services/testResults.service.test.ts`
+    - `npx vitest run src/hooks/test/useTestSubmission.test.ts`
+
+- [x] 3.0 Enrich academic-record results for latest-only cards and attempt badges
+  - [x] 3.1 Modify `src/services/academicRecordService.ts` to add a helper that groups results by `testId`.
+  - [x] 3.2 In the same service, add a helper that computes `attemptSummary` for every result in a group.
+  - [x] 3.3 Use this exact trend rule:
+    - `up` when `latestAttemptPercentage > firstAttemptPercentage`
+    - `down` when `latestAttemptPercentage < firstAttemptPercentage`
+    - `stable` when they are equal
+  - [x] 3.4 Add a helper that collapses results to one card per `testId`, keeping only the newest result in each attempt group for timeline/grouped-card rendering.
+  - [x] 3.5 Do **not** remove older attempts from the raw full-result array. Older attempts are still needed for:
+    - direct result lookup by `resultId`
+    - the panel attempt history
+    - THCS history click resolution
+  - [x] 3.6 Update `src/services/academicRecordService.test.ts` to verify:
+    - grouped attempt summaries
+    - latest-only card dataset
+    - stable/up/down trend values
+  - [x] 3.7 Run this checkpoint before moving to Task `4.0`:
+    - `npx vitest run src/services/academicRecordService.test.ts`
+
+- [ ] 4.0 Replace the student host-page flow and lock the wrapper-route behavior
+  - [ ] 4.1 Update `src/pages/AcademicRecordPage.tsx` to use `useSearchParams()` and treat `searchParams.get('result')` as the single source of truth for the open panel.
+  - [ ] 4.2 Keep `location.state?.resultId` + `location.state?.showResult` support for existing in-app entry points. Implement this exact behavior:
+    - when those values exist, set the search param `result={resultId}`
+    - then render the panel from the query param, not from local state
+  - [ ] 4.3 Keep `location.state?.resetRecordsView` support from `StudentSidebar.tsx`. Implement this exact behavior:
+    - when `resetRecordsView` exists, remove the `result` search param
+    - render the normal record view
+  - [ ] 4.4 Replace the current `selectedResultId` local state with query-param state. Remove the inline student use of `ResultDetailModal`.
+  - [ ] 4.5 Keep the full raw results array in `AcademicRecordPage.tsx` for result lookup.
+  - [ ] 4.6 Create a second derived array in `AcademicRecordPage.tsx` named `latestResults` and pass that array to:
+    - `ResultTimeline`
+    - `ResultsByCourse`
+    - `ResultsBySkill`
+    - `ResultsByTestType`
+  - [ ] 4.6a In `AcademicRecordPage.tsx`, create a callback `handleOpenResult(resultId: string)` that calls `setSearchParams({ result: resultId })`. Pass this callback as the `onResultClick` prop to all four components listed in 4.6. Do **not** add navigation or modal opening inside those child components.
+  - [ ] 4.7 Keep `THCSProgressTab` click handling on the full raw results array. When the student clicks a THCS history entry, resolve the `testId` to its latest `resultId` using the raw results array, then call the same `handleOpenResult(resultId)` callback as the other tabs.
+  - [ ] 4.8 Create `src/components/results/LegacyResultDetailView.tsx` by extracting the current full-page JSX from `ResultDetailPage.tsx`. This component must:
+    - Accept these exact props: `resultId: string`
+    - Contain all ownership, loading, error, and data-fetching logic currently in `ResultDetailPage.tsx`
+    - Keep print and download certificate functionality intact
+    - Keep all existing inline styles — do not refactor styles in this extraction
+  - [ ] 4.9 Update `src/pages/ResultDetailPage.tsx` with this exact role behavior:
+    - run the existing ownership check first
+    - student: redirect with `replace` to `/student/academic-record?result={resultId}`
+    - teacher and `super_admin`: render `LegacyResultDetailView`
+  - [ ] 4.10 Do not change `src/App.jsx`. The route `/result/:resultId` already exists there and no modifications are needed.
+  - [ ] 4.11 Do not change `StudentTestResultsPage.tsx` or `StudentResultsPage.jsx`.
+  - [ ] 4.12 Create or update tests for:
+    - `AcademicRecordPage.tsx` query-param open/close
+    - `AcademicRecordPage.tsx` state-to-query normalization
+    - `ResultDetailPage.tsx` student redirect
+    - `ResultDetailPage.tsx` teacher legacy render
+
+- [ ] 5.0 Build the slide-panel shell and loading model
+  - [ ] 5.1 Create `src/components/results/ResultSlidePanel.tsx` with these exact props:
+    - `resultId: string`
+    - `onClose: () => void`
+  - [ ] 5.2 `ResultSlidePanel.tsx` owns these exact pieces of shared state:
+    - active tab: `'overview' | 'review' | 'feedback'`
+    - current result record
+    - loading
+    - error
+    - active attempt result ID
+    - full attempts array
+    - `showAllQuestions` boolean
+    - `highlightedQuestionNumber`
+    - `formativeFeedbackLoading`
+    - `feedbackError`
+    - `feedbackAttemptedRef`
+  - [ ] 5.3 Use this exact data-loading pattern:
+    - primary: `onValue(ref(database, 'test_results/${resultId}'))`
+    - if the listener errors before first snapshot: fallback to `getTestResult(resultId)`
+    - if both fail: show inline error card with retry button
+    - if data was already shown and the connection drops later: keep the loaded data visible
+  - [ ] 5.4 Implement these exact desktop shell values:
+    - panel width: `calc(100% - var(--sidebar-w))`
+    - panel max-width: `calc(1400px - var(--sidebar-w))`
+    - panel anchored to right edge
+    - panel `box-shadow: -8px 0 40px rgba(0,0,0,0.08)`
+    - panel `z-index: 1000` (must sit above page content and below any existing toast/notification overlays)
+    - backdrop color: `rgba(0, 0, 0, 0.08)`
+    - no blur on the backdrop
+    - animation: `350ms cubic-bezier(0.16, 1, 0.3, 1)` on `transform` (translate from 100% to 0)
+    - when the panel is open, set `document.body.style.overflow = 'hidden'` to prevent background scroll. Restore on close/unmount.
+  - [ ] 5.5 Implement these exact mobile shell values when `useScreenSize().isMobile` is true:
+    - width: `100vw`
+    - height: `100vh`
+    - no backdrop
+    - single full-screen overlay
+  - [ ] 5.6 Implement these exact close controls:
+    - back arrow button
+    - `Escape`
+    - backdrop click on desktop only
+    - no `x` close button
+  - [ ] 5.7 Implement this exact header content:
+    - title on first line with ellipsis
+    - type badge: `THCS`, `IELTS Reading`, or `IELTS Listening`
+    - subtitle line: `Skill/Section | Date`
+    - date format: `20 Mar 2026`
+    - do not show time in the subtitle
+  - [ ] 5.8 Implement these exact tabs and labels:
+    - `Overview`
+    - `Review Mistakes`
+    - `Feedback`
+  - [ ] 5.9 Keep the tab bar sticky. Each tab body must scroll independently.
+  - [ ] 5.10 Define the exact stagger animation keyframes and classes in the slide-panel CSS:
+    - Keyframes: `@keyframes dashFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }`
+    - Base animation: `animation: dashFadeIn 0.3s ease-out both`
+    - `.fade-in-d1` — `animation-delay: 50ms`
+    - `.fade-in-d2` — `animation-delay: 100ms`
+    - `.fade-in-d3` — `animation-delay: 150ms`
+    - `.fade-in-d4` — `animation-delay: 200ms`
+    - `.fade-in-d5` — `animation-delay: 250ms`
+    - Apply these classes to stat cards, section cards, answer map, and feedback cards
+  - [ ] 5.11 Create `src/components/results/ResultSlidePanel.test.tsx` and cover:
+    - shell render
+    - open state from `resultId`
+    - tab switch
+    - close callback
+    - error fallback
+    - mobile vs desktop shell mode
+
+- [ ] 6.0 Build the Overview tab exactly
+  - [ ] 6.1 Implement the score header as one row: SVG ring on the left, three stat cards on the right.
+    - Stat card style: white background, `border-radius: 8px`, centered text, large number (`font-size: 1.5rem, font-weight: 700`) + small label below (`font-size: 0.7rem`, `color: #6b7280`)
+    - Time Spent format: if total seconds `< 3600` show `Xm Ys` (e.g. `15m 30s`), if `>= 3600` show `Xh Ym` (e.g. `1h 15m`). If time data is missing, show `--`.
+  - [ ] 6.2 Use these exact SVG ring values:
+    - size `100x100`
+    - stroke width `8`
+    - track color `#e5e7eb`
+  - [ ] 6.3 Use these exact THCS values:
+    - main ring value: `scaledScore/10`
+    - fraction text: `X out of 10`
+    - stat cards: `Points Earned`, `Scaled Score`, `Time Spent`
+    - fill colors: green `>= 7`, amber `>= 5`, red `< 5`
+  - [ ] 6.4 Use these exact IELTS values:
+    - main ring value: `Band X.X`
+    - fraction text: `Y/Z correct`
+    - stat cards: `Band Score`, `Correct Answers`, `Time Spent`
+  - [ ] 6.5 Use this fallback display for other result types:
+    - main ring value: `XX%`
+    - stat cards: `Score`, `Correct`, `Time Spent`
+  - [ ] 6.6 Create `src/components/results/AttemptHistory.tsx` and place it directly below the score header.
+  - [ ] 6.7 Implement `AttemptHistory.tsx` with this exact behavior:
+    - hide entirely when total attempts is `1`
+    - dropdown label format: `Attempt 3 of 3`
+    - timeline sorted newest to oldest
+    - improvement text compares newest attempt to first attempt
+  - [ ] 6.8 Changing attempts must replace the active `resultId` inside the panel and reload all three tabs from the newly selected attempt.
+  - [ ] 6.9 Refactor `src/components/results/QuestionPillsGrid.tsx` so Overview pills are display-and-navigation only. Remove inline expand/collapse behavior from the Overview usage.
+  - [ ] 6.10 Implement the exact Overview answer-map grid:
+    - `20` columns when `totalQuestions <= 50`
+    - `10` columns when `totalQuestions > 50`
+    - gap `4px`
+    - question number only inside the pill
+  - [ ] 6.11 Implement the exact pill colors:
+    - correct: `#ecfdf5` bg + `#059669` text
+    - incorrect: `#fef2f2` bg + `#dc2626` text
+    - partial: `#fef3c7` bg + `#d97706` text
+    - pending review: `#f3f4f6` bg + `#94a3b8` text
+  - [ ] 6.11a Add the answer map legend directly above the pill grid:
+    - Row of colored dots with labels: green dot + `Correct`, red dot + `Incorrect`, amber dot + `Partial` (show partial dot only when partial results exist in this test)
+    - Dot size: `8px` circles. Row gap: `12px`. Font-size: `0.75rem`. Color: `#6b7280`
+  - [ ] 6.11b Correct pills must be non-interactive: `cursor: default`, no `onClick` handler, no hover effect. Only incorrect and partial pills are clickable.
+  - [ ] 6.11c Incorrect and partial pills must have this hover effect:
+    - `transform: scale(1.12)`
+    - `box-shadow: 0 2px 8px rgba(0,0,0,0.12)`
+    - `cursor: pointer`
+    - Transition: `all 0.15s ease`
+  - [ ] 6.12 Implement the exact incorrect-pill tooltip:
+    - content text: `Click to review`
+    - CSS pseudo-element
+    - no static helper text below the grid
+  - [ ] 6.13 Implement `goToQuestion(questionNumber)` with this exact sequence:
+    - set active tab to `review`
+    - wait `80ms`
+    - call `document.getElementById('qcard-${questionNumber}')?.scrollIntoView({ behavior: 'smooth', block: 'center' })`
+    - apply highlight glow with this exact CSS: `box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.4)` + `transition: box-shadow 0.3s ease`
+    - hold the glow for `2000ms`, then remove it by setting `box-shadow` back to `none`
+  - [ ] 6.14 Keep all timer IDs in refs and clear them on unmount. Do not leave stray `setTimeout()` callbacks.
+  - [ ] 6.15 Render THCS section cards from `thcsData.sectionResults`.
+  - [ ] 6.16 Render THCS intent grid from `thcsData.intentBreakdown` using these exact thresholds:
+    - green `>= 70%`
+    - amber `>= 50%`
+    - red `< 50%`
+  - [ ] 6.17 Render IELTS passage cards from `ieltsData.passageResults`.
+  - [ ] 6.18 For legacy IELTS results with no `ieltsData`, show no passage breakdown block. Do not fabricate one.
+  - [ ] 6.19 Render the Overview performance-summary card from `formativeFeedback.aiFeedback`.
+  - [ ] 6.19a The performance-summary card background must vary by score level:
+    - Excellent (`>= 80%`): light green card background `#f0fdf4`
+    - Good (`>= 60%`): light blue card background `#eff6ff`
+    - Needs work (`< 60%`): light amber card background `#fffbeb`
+  - [ ] 6.20 Use these exact performance-summary icon rules:
+    - excellent: `celebration`
+    - good: `strong`
+    - needs work: `study`
+  - [ ] 6.21 Keep the existing fire-and-forget feedback-generation pattern from `ResultDetailModal.tsx`.
+  - [ ] 6.22 Extend that pattern so it runs for THCS and IELTS results.
+  - [ ] 6.22a Modify `src/services/formativeFeedback.service.ts` to add an IELTS-specific prompt branch:
+    - When the result's `testType` includes `'ielts'` (case-insensitive), use a prompt that references IELTS band scoring, passage-based analysis, and IELTS-specific question types (T/F/NG, matching, completion)
+    - Keep the existing THCS/general prompt for non-IELTS results
+    - Do NOT change the function signature — the caller already passes the result record
+  - [ ] 6.22b The IELTS prompt must include these sections in its instruction:
+    - Band-score interpretation
+    - Passage-level performance (which passage was weakest)
+    - Question-type analysis (which IELTS question types need practice)
+    - Time management advice based on `timeSpent` vs question count
+  - [ ] 6.22c Add a test case in the `formativeFeedback.service.test.ts` file (create if missing) verifying that IELTS results trigger the IELTS-specific prompt branch.
+  - [ ] 6.23 Recreate the exact loading and retry states from the PRD:
+    - shimmer card while waiting
+    - red retry card on failure
+  - [ ] 6.24 Render the existing `FormativeFeedbackPanel` below the performance summary in Overview when `formativeFeedback` is available.
+  - [ ] 6.25 Add tests for:
+    - THCS overview
+    - IELTS overview
+    - 50+ question layout switch
+    - single-attempt hide
+    - multi-attempt switch
+    - tooltip text
+    - `goToQuestion()`
+
+- [ ] 7.0 Build the Review Mistakes tab exactly
+  - [ ] 7.1 The Review tab uses a single-column layout only. Do not add a pill strip to the top of this tab.
+  - [ ] 7.2 Add the incorrect heading banner with:
+    - `x-mark` icon: use this exact inline SVG — `<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="#ef4444" stroke-width="2" stroke-linecap="round"/></svg>`
+    - title text `Incorrect Questions`
+    - count badge showing number of incorrect answers (e.g. `5`)
+    - Banner style: `background: #fef2f2`, `border-left: 4px solid #ef4444`, `border-radius: 8px`, `padding: 12px 16px`, icon color `#ef4444`, title `font-weight: 600`
+    - Count badge: `background: #fee2e2`, `color: #dc2626`, `border-radius: 12px`, `padding: 2px 8px`, `font-size: 0.75rem`
+  - [ ] 7.3 Add the exact toggle label pair:
+    - `Show all questions`
+    - `Show incorrect only`
+  - [ ] 7.4 Default state is incorrect-only.
+  - [ ] 7.5 Every review card must use `id="qcard-${questionNumber}"`.
+  - [ ] 7.6 Every review card must contain, in this exact order:
+    - question number badge (circular, `background: #6366f1`, `color: white`, `width: 28px`, `height: 28px`, centered)
+    - question type label (e.g. `MCQ`, `Fill-in-blank`, `True/False`) in `font-size: 0.7rem`, `color: #6b7280`
+    - `Your Answer` block — for incorrect answers use `background: #fef2f2` with `color: #dc2626`; for correct answers use `background: #f0fdf4` with `color: #059669`
+    - `Correct Answer` block when the student was not correct — use `background: #f0fdf4` with `color: #059669`
+    - `Model Answers` for sentence-rewrite questions — same green background
+    - AI explanation callout when available — use `background: #f5f3ff` (light purple), `border-left: 3px solid #8b5cf6`, `padding: 12px`
+    - pending-review notice for sentence-rewrite questions waiting on teacher review — use `background: #f3f4f6`, italic text
+  - [ ] 7.7 Use these exact answer-format rules:
+    - MCQ: letter plus option text if available
+    - fill-in-blank: raw typed word/phrase
+    - sentence-rewrite: full student sentence plus model answers
+    - IELTS word answers: raw word/phrase
+  - [ ] 7.8 Update `getShortAnswerLabel()` in `QuestionPillsGrid.tsx` with this exact abbreviation map before generic truncation:
+    - `true -> T`
+    - `false -> F`
+    - `not given -> NG`
+    - `yes -> Y`
+    - `no -> N`
+  - [ ] 7.9 For perfect-score results:
+    - show a congratulations card in Review tab with this exact style:
+      - `background: linear-gradient(135deg, #f0fdf4, #ecfdf5)`
+      - `border-radius: 12px`
+      - `padding: 32px`
+      - `text-align: center`
+      - trophy icon: render the Unicode character U+1F3C6 (`\u{1F3C6}`) at `font-size: 3rem`
+      - title text: `Perfect Score!` at `font-size: 1.25rem, font-weight: 700` (no trailing emoji in the title — the trophy above is sufficient)
+      - subtitle: `You answered all questions correctly.` at `font-size: 0.9rem, color: #059669`
+    - do not show any incorrect-question list
+    - do not show the incorrect heading banner from 7.2
+    - do not show the toggle from 7.3
+    - keep all Overview pills green
+  - [ ] 7.10 Add tests for:
+    - incorrect-only default
+    - show-all toggle
+    - AI explanation render
+    - pending-review render
+    - IELTS abbreviations
+    - perfect-score state
+
+- [ ] 8.0 Build the Feedback tab exactly
+  - [ ] 8.1 Create `src/components/results/AIPerformanceAnalysis.tsx`.
+  - [ ] 8.2 Layout the Feedback tab exactly as:
+    - desktop: `3fr 2fr`
+    - mobile: single column
+  - [ ] 8.3 `AIPerformanceAnalysis.tsx` must render these exact sections from `formativeFeedback.aiFeedback`:
+    - `Strengths`
+    - `Areas for Improvement`
+    - `Recommended Practice`
+  - [ ] 8.4 Create `src/components/results/ScoreTrendWidget.tsx` using `useHistoricalScores.ts`.
+  - [ ] 8.5 Use these exact score-trend states:
+    - no widget when there is no usable result history (from `useHistoricalScores`)
+    - one bar + helper text `"Need more results to show a trend"` when only one result exists
+    - trend badge `Improving (up)`, `Declining (down)`, or `Stable`
+  - [ ] 8.5a Score Trend bar chart visual specifications:
+    - Each bar represents one attempt's percentage score
+    - Bar max height: `80px`. Bar width: `24px`. Gap between bars: `8px`
+    - Bar color: use the same green/amber/red thresholds as the score ring (`>= 70%` green `#059669`, `>= 50%` amber `#d97706`, `< 50%` red `#dc2626`)
+    - The current result bar has `opacity: 1` and a `2px` bottom border in the bar's color. Other bars have `opacity: 0.6`
+    - X-axis labels: attempt date in `DD/MM` format. Centered under each bar
+    - Widget card style: `background: white`, `border-radius: 12px`, `padding: 16px`, `border: 1px solid #e5e7eb`
+  - [ ] 8.6 Create `src/components/results/ClassPositionWidget.tsx` using `useClassPosition.ts`.
+  - [ ] 8.7 Use these exact class-position states:
+    - hide completely when `classId` is missing (do not render the widget at all)
+    - show score without comparison when class size is `1`, with text `"Only student in this test"`
+    - show `Above Average` with green up-arrow icon when student score > class average
+    - show `At Average` with neutral dash icon when student score === class average (within 0.5% tolerance)
+    - show `Below Average` with red down-arrow icon when student score < class average
+  - [ ] 8.7a Class Position display format:
+    - Main number: student's percentage in large text (`font-size: 1.5rem, font-weight: 700`)
+    - Subtitle: `Class average: XX%` in `font-size: 0.85rem, color: #6b7280`
+    - Widget card style: same as Score Trend (`background: white`, `border-radius: 12px`, `padding: 16px`, `border: 1px solid #e5e7eb`)
+  - [ ] 8.8 Stop here if Appendix A is blank. Do not start `8.9` or `8.10`.
+  - [ ] 8.9 After Appendix A is filled, create `src/config/studyResources.config.ts` with:
+    - only the 9 approved books from the PRD
+    - only the exact topic-to-resource mappings listed in Appendix A
+    - no extra books
+    - no extra chapter guesses
+  - [ ] 8.10 Create `src/components/results/StudyRecommendations.tsx` with this exact behavior:
+    - map weak skills/topics to `studyResources.config.ts`
+    - show a congratulatory advanced-resource state when the student has `0` incorrect answers
+    - if a topic has no approved mapping, show no recommendation card for that topic
+  - [ ] 8.11 Add tests for:
+    - AI analysis sections
+    - score-trend states
+    - class-position states
+    - recommendation cards
+    - perfect-score recommendation state
+
+- [ ] 9.0 Migrate student entry points and keep out-of-scope flows stable
+  - [ ] 9.1 Update `src/components/academicRecord/ResultCard.tsx` to read `attemptSummary`.
+  - [ ] 9.2 In `ResultCard.tsx`, show the attempt badge and trend icon only when:
+    - `attemptSummary.totalAttempts > 1`
+    - `attemptSummary.isLatestAttempt === true`
+  - [ ] 9.3 Do not show attempt badges on older attempts.
+  - [ ] 9.4 Keep grouped-card modules on the latest-only dataset from `AcademicRecordPage.tsx`.
+  - [ ] 9.5 Update `src/pages/StudentDashboardPage.jsx` so permanent-result notifications open the academic-record panel via `/student/academic-record?result={resultId}`.
+  - [ ] 9.6 Update `src/pages/StudentHomeworkListPage.tsx` so completed-homework score clicks open `/student/academic-record?result={resultId}`.
+  - [ ] 9.7 Update `src/pages/StudentHomeworkDetailPage.tsx` so `handleViewResult()` opens `/student/academic-record?result={resultId}`.
+  - [ ] 9.8 Do NOT modify `src/components/practice/THCSPracticeView.tsx` or `src/hooks/solo/useSoloSubmission.ts`. They already pass `state: { resultId, showResult: true }` to `AcademicRecordPage.tsx`, which normalizes that state to the query param (handled in Task 4.2). No code changes needed in these files.
+  - [ ] 9.9 Update `src/services/notificationService.ts` so all permanent-result notification links use `/student/academic-record?result={resultId}` instead of any direct result page links.
+  - [ ] 9.9a Tab changes within the panel should NOT update the URL. Tabs are ephemeral UI state. Only the `result` query param is persisted in the URL.
+  - [ ] 9.10 In `src/services/testResults.service.ts`, if any test-complete notification generates a link to a result page, update that link to use `/student/academic-record?result={resultId}`.
+  - [ ] 9.11 Do not change `StudentWaitingRoomPage.jsx`, `TestResultsModal.tsx`, `StudentTestResultsPage.tsx`, or `StudentResultsPage.jsx`.
+  - [ ] 9.12 Remove the student import/use of `ResultDetailModal` from `AcademicRecordPage.tsx`.
+  - [ ] 9.13 Keep `TeacherHomeworkDetailPage.tsx` on `ResultDetailModal`.
+  - [ ] 9.14 Update `src/config/featureRegistry.ts` for the `results` feature with these exact new actions:
+    - `openSlidePanel`
+    - `closeSlidePanel`
+    - `switchResultTab`
+    - `selectAttempt`
+    - `jumpToQuestion`
+    - `retryAiFeedback`
+  - [ ] 9.15 Instrument these exact actions:
+    - opening the panel from `AcademicRecordPage.tsx`
+    - closing the panel
+    - changing tabs
+    - selecting a different attempt
+    - clicking an incorrect Overview pill
+    - retrying AI feedback generation
+
+- [ ] 10.0 Verification gates
+  - [ ] 10.1 Create or update all listed test files before running full verification.
+  - [ ] 10.2 Run this component/page checkpoint:
+    - `npx vitest run src/components/results/ResultSlidePanel.test.tsx`
+    - `npx vitest run src/components/results/LegacyResultDetailView.test.tsx`
+    - `npx vitest run src/components/results/AttemptHistory.test.tsx`
+    - `npx vitest run src/components/results/AIPerformanceAnalysis.test.tsx`
+    - `npx vitest run src/components/results/ScoreTrendWidget.test.tsx`
+    - `npx vitest run src/components/results/ClassPositionWidget.test.tsx`
+  - [ ] 10.3 Run this host/migration checkpoint:
+    - `npx vitest run src/pages/AcademicRecordPage.test.tsx`
+    - `npx vitest run src/pages/ResultDetailPage.test.tsx`
+    - `npx vitest run src/pages/StudentDashboardPage.teachers.test.jsx`
+    - `npx vitest run src/pages/StudentHomeworkListPage.test.tsx`
+    - `npx vitest run src/pages/StudentHomeworkDetailPage.test.tsx`
+  - [ ] 10.4 Run this service and hooks checkpoint:
+    - `npx vitest run src/services/ieltsPassageResults.service.test.ts`
+    - `npx vitest run src/services/testResults.service.test.ts`
+    - `npx vitest run src/services/academicRecordService.test.ts`
+    - `npx vitest run src/services/formativeFeedback.service.test.ts`
+    - `npx vitest run src/hooks/test/useTestSubmission.test.ts`
+    - `npx vitest run src/hooks/useTestAttempts.test.ts`
+    - `npx vitest run src/hooks/useHistoricalScores.test.ts`
+    - `npx vitest run src/hooks/useClassPosition.test.ts`
+  - [ ] 10.5 Manual verification checklist. Do not mark the PR done until all items below pass:
+    - Student clicks a record card on Academic Record and the slide panel opens.
+    - The browser URL becomes `/student/academic-record?result={resultId}` without a page reload.
+    - Refreshing the page with the query param reopens the same result.
+    - Closing the panel removes the `result` query param.
+    - Tab changes within the panel do NOT update the URL.
+    - Pressing `Escape` closes the panel on desktop.
+    - Clicking the light desktop backdrop closes the panel.
+    - The panel has a visible left box-shadow (`-8px 0 40px`).
+    - Background page scrolling is disabled while the panel is open.
+    - On mobile, the panel becomes full-screen and no desktop backdrop is shown.
+    - A student opening `/result/{resultId}` is redirected to `/student/academic-record?result={resultId}`.
+    - A teacher opening `/result/{resultId}` still sees the legacy full-page result view.
+    - A THCS result shows THCS score formatting and section breakdown.
+    - An IELTS Reading or Listening result shows band formatting and passage breakdown when `ieltsData` exists.
+    - A legacy IELTS result with no `ieltsData` does not crash and simply hides the passage breakdown block.
+    - A result with multiple attempts shows the attempt-history section and can switch attempts.
+    - An incorrect Overview pill has a hover scale effect and shows `Click to review` tooltip.
+    - Correct Overview pills are non-interactive (no hover, no click).
+    - An answer-map legend (Correct/Incorrect/Partial dots) appears above the pill grid.
+    - An incorrect Overview pill switches to the Review tab and scrolls to the correct card with a purple glow.
+    - A perfect-score result shows the Review-tab congratulations card (green gradient, trophy icon).
+    - The performance-summary card background changes color based on score level.
+    - AI feedback auto-loads for THCS and IELTS records when missing.
+    - The shimmer state appears while waiting for AI feedback.
+    - The retry state appears on forced AI failure and the retry button works.
+    - Score Trend widget shows colored bars with date labels.
+    - Class Position widget shows student score vs class average.
+    - `TeacherHomeworkDetailPage.tsx` still opens `ResultDetailModal` and is unaffected.
+    - `THCSPracticeView.tsx` and `useSoloSubmission.ts` are unchanged and still navigate correctly.
+
+## Appendix A: Study Resource Mapping Input
+
+**Status:** Blocked until filled by a senior/product owner.
+
+**Junior rule:** Do not create `src/config/studyResources.config.ts` chapter mappings until every line below has an approved value.
+
+### THCS Mapping Table
+
+- [ ] `grammar` -> exact approved resources and exact chapter names
+- [ ] `vocabulary` -> exact approved resources and exact chapter names
+- [ ] `reading` -> exact approved resources and exact chapter names
+- [ ] `pronunciation` -> exact approved resources and exact chapter names
+- [ ] `writing` -> exact approved resources and exact chapter names
+
+### IELTS Mapping Table
+
+- [ ] `true_false_not_given` -> exact approved resources and exact chapter names
+- [ ] `yes_no_not_given` -> exact approved resources and exact chapter names
+- [ ] `matching` -> exact approved resources and exact chapter names
+- [ ] `summary_completion` -> exact approved resources and exact chapter names
+- [ ] `sentence_completion` -> exact approved resources and exact chapter names
+- [ ] `multiple_choice` -> exact approved resources and exact chapter names
+- [ ] `vocabulary` -> exact approved resources and exact chapter names
+- [ ] `grammar` -> exact approved resources and exact chapter names
+
+---
+
+*Generated from PRD-0039: Test Results Slide Panel*

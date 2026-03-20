@@ -10,7 +10,7 @@
  * and renders this view for IELTS tests.
  */
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useSoloTestData } from '../../hooks/solo/useSoloTestData';
@@ -18,10 +18,20 @@ import { useSoloTimer } from '../../hooks/solo/useSoloTimer';
 import { useSoloAutoSave } from '../../hooks/solo/useSoloAutoSave';
 import { useSoloResume } from '../../hooks/solo/useSoloResume';
 import { useSoloSubmission } from '../../hooks/solo/useSoloSubmission';
+import { useTestIntegrity } from '../../hooks/test/useTestIntegrity';
+import { useAntiCopyPaste } from '../../hooks/test/useAntiCopyPaste';
+import { useFullscreenMode } from '../../hooks/test/useFullscreenMode';
+import { useTestCompletionCheck } from '../../hooks/test/useTestCompletionCheck';
+import { useBeforeUnloadWarning } from '../../hooks/test/useBeforeUnloadWarning';
 import { SoloSettingsModal } from '../test/SoloSettingsModal';
 import { SoloResumeModal } from '../test/SoloResumeModal';
 import type { ResolvedPracticeSettings, StudentSoloPreferences } from '../../types/practice.types';
 import { DEFAULT_STUDENT_PREFS } from '../../types/practice.types';
+import type { AntiCheatConfig } from '../../types/integrity.types';
+import { getHomeworkById } from '../../services/homeworkManager';
+import { toast } from '../modern/ToastNotification';
+import { toHomeworkIntegrity } from '../../utils/integrityUtils';
+import { getIELTSQuestionsForStudent } from '../../utils/thcsShuffle';
 
 // Reuse existing live-test UI components
 // @ts-ignore
@@ -86,7 +96,14 @@ export const IELTSPracticeView: React.FC<IELTSPracticeViewProps> = ({
     }, [user?.uid]);
 
     // ── Test Data ─────────────────────────────────────────────────────────────
-    const { testData, loading: testLoading, error, activePassageId, setActivePassageId } = useSoloTestData({
+    const {
+        testData,
+        loading: testLoading,
+        error,
+        activePassageId,
+        setActivePassageId,
+        questionsWithAnswersRef,
+    } = useSoloTestData({
         materialId,
     });
 
@@ -144,6 +161,73 @@ export const IELTSPracticeView: React.FC<IELTSPracticeViewProps> = ({
     const studentName = profile?.displayName || user?.displayName || user?.email || 'Student';
 
     const isHomework = practiceContext.type === 'homework';
+    const [antiCheatConfig, setAntiCheatConfig] = useState<AntiCheatConfig | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    useTestCompletionCheck({
+        sessionCode: undefined,
+        enabled: isHomework && Boolean(user?.uid) && Boolean(practiceContext.homeworkId),
+        mode: 'homework',
+        surface: 'ielts_homework',
+        homeworkId: practiceContext.homeworkId,
+        studentId: user?.uid,
+        submissionId: practiceContext.submissionId,
+    });
+
+    useEffect(() => {
+        if (!isHomework || !practiceContext.homeworkId) {
+            setAntiCheatConfig(null);
+            return;
+        }
+
+        let cancelled = false;
+        getHomeworkById(practiceContext.homeworkId)
+            .then((homework) => {
+                if (!cancelled) {
+                    setAntiCheatConfig((homework?.antiCheatConfig as AntiCheatConfig) || null);
+                }
+            })
+            .catch((err) => {
+                console.warn('[IELTSPractice] Failed to load anti-cheat config:', err);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [isHomework, practiceContext.homeworkId]);
+
+    const {
+        addEvent,
+        violationCount,
+        totalEvents,
+        warningLevel,
+        warningMessage,
+        shouldAutoSubmit,
+        flushEvents,
+        getIntegrityReport,
+    } = useTestIntegrity({
+        config: isHomework ? antiCheatConfig : null,
+        context: isHomework ? 'homework' : 'solo',
+        surface: isHomework ? 'ielts_homework' : 'ielts_solo',
+        studentId: user?.uid || '',
+        testId: materialId,
+        homeworkId: practiceContext.homeworkId,
+        submissionId: practiceContext.submissionId,
+    });
+
+    useAntiCopyPaste({
+        enabled: isHomework && (antiCheatConfig?.detectCopyPaste || false),
+        containerRef: containerRef as React.RefObject<HTMLElement>,
+        onEvent: addEvent,
+        allowEditorPaste: testData?.skill === 'Writing',
+        detectRightClick: antiCheatConfig?.detectRightClick || false,
+        detectKeyboardShortcuts: antiCheatConfig?.detectKeyboardShortcuts || false,
+    });
+
+    useFullscreenMode({
+        enabled: isHomework && (antiCheatConfig?.requireFullscreen || false),
+        onFullscreenExit: addEvent,
+    });
 
     const { isSubmitting, testSubmitted, testResults, handleSubmit, isLocked: submissionLocked } = useSoloSubmission({
         testData: testData as any,
@@ -168,12 +252,32 @@ export const IELTSPracticeView: React.FC<IELTSPracticeViewProps> = ({
         // Homework-specific
         homeworkId: practiceContext.homeworkId,
         submissionId: practiceContext.submissionId,
+        questionsWithAnswersRef,
+        questionPresentation: {
+            studentId: user?.uid || 'anon',
+            shuffleQuestions: isHomework && (antiCheatConfig?.shuffleQuestions || false),
+            shuffleOptions: isHomework && (antiCheatConfig?.shuffleOptions || false),
+        },
+        integrity: isHomework && antiCheatConfig
+            ? toHomeworkIntegrity(getIntegrityReport())
+            : undefined,
+        attemptsNullified:
+            isHomework &&
+            Boolean(antiCheatConfig?.nullifyRemainingAttempts) &&
+            violationCount > 0 &&
+            (antiCheatConfig?.enableAutoSubmit ? violationCount >= antiCheatConfig.autoSubmitThreshold : false),
+        telemetrySurface: isHomework ? 'ielts_homework' : 'ielts_solo',
     });
 
     // Keep submitTestRef updated
     useEffect(() => {
-        submitTestRef.current = handleSubmit;
-    }, [handleSubmit]);
+        submitTestRef.current = async (isAutoSubmit = false) => {
+            if (isHomework && antiCheatConfig) {
+                await flushEvents(isAutoSubmit ? 'auto_submit' : 'homework_submit');
+            }
+            await handleSubmit(isAutoSubmit);
+        };
+    }, [antiCheatConfig, flushEvents, handleSubmit, isHomework]);
 
     // ── Auto-Save ─────────────────────────────────────────────────────────────
     const timeElapsedRef = useRef(0);
@@ -211,6 +315,40 @@ export const IELTSPracticeView: React.FC<IELTSPracticeViewProps> = ({
         setAnswers(prev => ({ ...prev, [questionNumber]: answer }));
     }, [isLocked, submissionLocked, testSubmitted]);
 
+    const displayQuestions = useMemo(() => {
+        if (!testData) return [];
+
+        return getIELTSQuestionsForStudent(
+            testData.questions,
+            user?.uid || 'anon',
+            testData.id,
+            {
+                shuffleQuestions: isHomework && (antiCheatConfig?.shuffleQuestions || false),
+                shuffleOptions: isHomework && (antiCheatConfig?.shuffleOptions || false),
+            },
+        );
+    }, [
+        antiCheatConfig?.shuffleOptions,
+        antiCheatConfig?.shuffleQuestions,
+        isHomework,
+        testData,
+        user?.uid,
+    ]);
+
+    useEffect(() => {
+        if (resumeDecision === 'resume' || currentQuestionNumber !== 1 || !activePassageId || displayQuestions.length === 0) {
+            return;
+        }
+
+        const firstPassageQuestion = displayQuestions.find(
+            (question) => question.passageId === activePassageId,
+        );
+
+        if (firstPassageQuestion) {
+            setCurrentQuestionNumber(firstPassageQuestion.number);
+        }
+    }, [activePassageId, currentQuestionNumber, displayQuestions, resumeDecision]);
+
     const goToQuestion = useCallback((questionNumber: number) => {
         setCurrentQuestionNumber(questionNumber);
         if (testData) {
@@ -227,8 +365,8 @@ export const IELTSPracticeView: React.FC<IELTSPracticeViewProps> = ({
     }, []);
 
     const handleManualSubmit = useCallback(() => {
-        handleSubmit(false);
-    }, [handleSubmit]);
+        submitTestRef.current?.(false);
+    }, []);
 
     // ── Back navigation (context-aware) ───────────────────────────────────────
     const handleBack = useCallback(() => {
@@ -242,12 +380,26 @@ export const IELTSPracticeView: React.FC<IELTSPracticeViewProps> = ({
     }, [navigate, practiceContext]);
 
     // ── Warn on page leave ────────────────────────────────────────────────────
+    useBeforeUnloadWarning({
+        enabled: !testSubmitted && resumeDecision !== 'pending',
+    });
+
+    const prevWarningRef = useRef(warningLevel);
     useEffect(() => {
-        if (testSubmitted) return;
-        const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
-        window.addEventListener('beforeunload', handler);
-        return () => window.removeEventListener('beforeunload', handler);
-    }, [testSubmitted]);
+        if (warningLevel !== prevWarningRef.current) {
+            prevWarningRef.current = warningLevel;
+            if (warningLevel === 'toast' || warningLevel === 'escalated') {
+                toast.warning(warningMessage);
+            }
+        }
+    }, [warningLevel, warningMessage]);
+
+    useEffect(() => {
+        if (!shouldAutoSubmit || !submitTestRef.current) return;
+        submitTestRef.current(true).catch((err) => {
+            console.error('[IELTSPractice] Auto-submit failed:', err);
+        });
+    }, [shouldAutoSubmit]);
 
     // ── Loading state ─────────────────────────────────────────────────────────
     if (testLoading || checking) {
@@ -294,7 +446,11 @@ export const IELTSPracticeView: React.FC<IELTSPracticeViewProps> = ({
     } : null;
 
     return (
-        <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#f8fafc', position: 'relative' }}>
+        <div
+            ref={containerRef}
+            className={isHomework && antiCheatConfig?.detectCopyPaste ? 'anti-select' : undefined}
+            style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#f8fafc', position: 'relative' }}
+        >
 
             {/* Resume Modal */}
             {showResumeModal && savedProgress && (
@@ -400,7 +556,7 @@ export const IELTSPracticeView: React.FC<IELTSPracticeViewProps> = ({
                 }
                 rightColumn={
                     <IELTSQuestionsPanel
-                        questions={testData.questions}
+                        questions={displayQuestions}
                         currentPassageId={activePassageId}
                         answers={answers}
                         onAnswerChange={inputsDisabled ? () => { } : handleAnswerChange}
@@ -416,7 +572,7 @@ export const IELTSPracticeView: React.FC<IELTSPracticeViewProps> = ({
 
             {/* Footer navigation */}
             <InspiraFooterNav
-                questions={testData.questions}
+                questions={displayQuestions}
                 passages={testData.passages || []}
                 answers={answers}
                 activePassageId={activePassageId}

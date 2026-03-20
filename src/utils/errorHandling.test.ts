@@ -121,13 +121,14 @@ describe('Error Handling Utilities', () => {
 
         it('should fail after max attempts', async () => {
             const fn = vi.fn().mockRejectedValue(new Error('Always fails'));
-
-            const promise = retryWithBackoff(fn, { maxAttempts: 2, delayMs: 100 });
+            const expectation = expect(
+                retryWithBackoff(fn, { maxAttempts: 2, delayMs: 100 })
+            ).rejects.toThrow('Always fails');
 
             // Run all timers
             await vi.runAllTimersAsync();
 
-            await expect(promise).rejects.toThrow('Always fails');
+            await expectation;
             expect(fn).toHaveBeenCalledTimes(2);
         });
 
@@ -135,17 +136,17 @@ describe('Error Handling Utilities', () => {
             const fn = vi.fn().mockRejectedValue(new Error('Fail'));
             const onRetry = vi.fn();
 
-            const promise = retryWithBackoff(fn, {
+            const expectation = expect(retryWithBackoff(fn, {
                 maxAttempts: 3,
                 delayMs: 100,
                 backoff: true,
                 onRetry,
-            });
+            })).rejects.toThrow('Fail');
 
             // Run all timers
             await vi.runAllTimersAsync();
 
-            await expect(promise).rejects.toThrow('Fail');
+            await expectation;
 
             // Verify retry was called correct number of times
             expect(onRetry).toHaveBeenCalledTimes(2); // Retries after 1st and 2nd failures
