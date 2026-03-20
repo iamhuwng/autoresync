@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
-import { useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, useMemo, Suspense, lazy } from 'react';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { getFilteredResults } from '@/services/academicRecordService';
-import { ResultTimeline, ResultsByCourse, ResultsBySkill, ResultsByTestType, StatisticsDashboard } from '@/components/academicRecord';
+import { getFilteredResults, getLatestResultPerTest } from '@/services/academicRecordService';
+import { ResultsByCourse, ResultsBySkill, ResultsByTestType, StatisticsDashboard } from '@/components/academicRecord';
 import { THCSProgressTab } from '@/components/academicRecord/THCSProgressTab';
 import type { EnhancedTestResultRecord } from '@/types/results.types';
 import type { AcademicRecordFilters } from '@/types/academicRecord.types';
@@ -10,7 +10,6 @@ import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
 import { S } from '../components/layout/studentLayoutStyles';
 import { IconAlertCircle } from '../components/layout/StudentIcons';
-import { ResultDetailModal } from '../components/results/ResultDetailModal';
 import { getProgressiveFeedback, refreshProgressiveFeedback } from '../services/progressiveFeedback.service';
 import type { ProgressiveFeedbackRecord } from '@/types/academicRecord.types';
 
@@ -275,8 +274,11 @@ const RIGHT_PANEL_MODULES = [
 export const AcademicRecordPage: React.FC = () => {
     const { user, profile } = useAuth();
     const location = useLocation();
+    const [searchParams, setSearchParams] = useSearchParams();
 
-    const [selectedResultId, setSelectedResultId] = useState<string | null>(null);
+    // PRD-0039 Task 4.1: Query param is the single source of truth for the open panel
+    const selectedResultId = searchParams.get('result');
+
     const [results, setResults] = useState<EnhancedTestResultRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -286,6 +288,10 @@ export const AcademicRecordPage: React.FC = () => {
     const [dateRange, setDateRange] = useState<string>('all');
     const [selectedRightModule, setSelectedRightModule] = useState<string>(RIGHT_PANEL_MODULES[0].value);
     const [showModuleMenu, setShowModuleMenu] = useState(false);
+
+    // PRD-0039 Task 4.5: Keep the full raw results array for result lookup
+    // PRD-0039 Task 4.6: Derived latest-only array for timeline/grouped-card rendering
+    const latestResults = useMemo(() => getLatestResultPerTest(results), [results]);
 
 
 
@@ -355,20 +361,24 @@ export const AcademicRecordPage: React.FC = () => {
         };
     }, [user?.uid]);
 
+    // PRD-0039 Task 4.2: Normalize location.state entries to query params
     useEffect(() => {
         if (location.state?.resultId && location.state?.showResult) {
-            setSelectedResultId(location.state.resultId);
+            setSearchParams({ result: location.state.resultId }, { replace: true });
         }
+        // PRD-0039 Task 4.3: Support resetRecordsView from StudentSidebar
         if (location.state?.resetRecordsView) {
-            setSelectedResultId(null);
+            setSearchParams({}, { replace: true });
         }
-    }, [location.state]);
+    }, [location.state, setSearchParams]);
 
-    const handleResultClick = (resultId: string) => {
-        setSelectedResultId(resultId);
-    };
+    // PRD-0039 Task 4.6a: Single callback for opening a result panel
+    const handleOpenResult = useCallback((resultId: string) => {
+        setSearchParams({ result: resultId });
+    }, [setSearchParams]);
 
-    const handleThcsHistoryClick = (historyTestId: string) => {
+    // PRD-0039 Task 4.7: THCS history click uses full raw results array, resolves to handleOpenResult
+    const handleThcsHistoryClick = useCallback((historyTestId: string) => {
         const matchingResult = results.find(result => {
             const candidateIds = [
                 (result as any).testId,
@@ -379,7 +389,7 @@ export const AcademicRecordPage: React.FC = () => {
         });
 
         if (matchingResult?.resultId) {
-            setSelectedResultId(matchingResult.resultId);
+            handleOpenResult(matchingResult.resultId);
             return;
         }
 
@@ -389,9 +399,9 @@ export const AcademicRecordPage: React.FC = () => {
             .find(result => ((result as any).testId || (result as any).quizId) === historyTestId);
 
         if (titleMatchedResult?.resultId) {
-            setSelectedResultId(titleMatchedResult.resultId);
+            handleOpenResult(titleMatchedResult.resultId);
         }
-    };
+    }, [results, handleOpenResult]);
 
     const handleExportPDF = () => {
         console.log('Export PDF clicked');
@@ -416,19 +426,14 @@ export const AcademicRecordPage: React.FC = () => {
     };
 
 
+    // PRD-0039 Task 4.4: Removed ResultDetailModal inline usage. Panel will be added in Task 5.0.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const _handleClosePanel = useCallback(() => {
+        setSearchParams({}, { replace: true });
+    }, [setSearchParams]);
+
     // ─── CENTER CONTENT ────────────────────────────────────────────────────────
     const renderContent = () => {
-        if (selectedResultId) {
-            return (
-                <ResultDetailModal
-                    opened={true}
-                    onClose={() => setSelectedResultId(null)}
-                    resultId={selectedResultId}
-                    inline={true}
-                />
-            );
-        }
-
         if (loading && results.length === 0) {
             return (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '64px 16px' }}>
@@ -454,11 +459,11 @@ export const AcademicRecordPage: React.FC = () => {
     const renderModulePreview = (module: string) => {
         switch (module) {
             case 'course':
-                return <ResultsByCourse results={results.slice(0, 8)} onResultClick={handleResultClick} />;
+                return <ResultsByCourse results={latestResults.slice(0, 8)} onResultClick={handleOpenResult} />;
             case 'skill':
-                return <ResultsBySkill results={results.slice(0, 8)} onResultClick={handleResultClick} />;
+                return <ResultsBySkill results={latestResults.slice(0, 8)} onResultClick={handleOpenResult} />;
             case 'type':
-                return <ResultsByTestType results={results.slice(0, 8)} onResultClick={handleResultClick} />;
+                return <ResultsByTestType results={latestResults.slice(0, 8)} onResultClick={handleOpenResult} />;
             case 'statistics':
                 return (
                     <StatisticsDashboard

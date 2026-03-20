@@ -230,35 +230,35 @@
   - [x] 3.7 Run this checkpoint before moving to Task `4.0`:
     - `npx vitest run src/services/academicRecordService.test.ts`
 
-- [ ] 4.0 Replace the student host-page flow and lock the wrapper-route behavior
-  - [ ] 4.1 Update `src/pages/AcademicRecordPage.tsx` to use `useSearchParams()` and treat `searchParams.get('result')` as the single source of truth for the open panel.
-  - [ ] 4.2 Keep `location.state?.resultId` + `location.state?.showResult` support for existing in-app entry points. Implement this exact behavior:
+- [x] 4.0 Replace the student host-page flow and lock the wrapper-route behavior
+  - [x] 4.1 Update `src/pages/AcademicRecordPage.tsx` to use `useSearchParams()` and treat `searchParams.get('result')` as the single source of truth for the open panel.
+  - [x] 4.2 Keep `location.state?.resultId` + `location.state?.showResult` support for existing in-app entry points. Implement this exact behavior:
     - when those values exist, set the search param `result={resultId}`
     - then render the panel from the query param, not from local state
-  - [ ] 4.3 Keep `location.state?.resetRecordsView` support from `StudentSidebar.tsx`. Implement this exact behavior:
+  - [x] 4.3 Keep `location.state?.resetRecordsView` support from `StudentSidebar.tsx`. Implement this exact behavior:
     - when `resetRecordsView` exists, remove the `result` search param
     - render the normal record view
-  - [ ] 4.4 Replace the current `selectedResultId` local state with query-param state. Remove the inline student use of `ResultDetailModal`.
-  - [ ] 4.5 Keep the full raw results array in `AcademicRecordPage.tsx` for result lookup.
-  - [ ] 4.6 Create a second derived array in `AcademicRecordPage.tsx` named `latestResults` and pass that array to:
+  - [x] 4.4 Replace the current `selectedResultId` local state with query-param state. Remove the inline student use of `ResultDetailModal`.
+  - [x] 4.5 Keep the full raw results array in `AcademicRecordPage.tsx` for result lookup.
+  - [x] 4.6 Create a second derived array in `AcademicRecordPage.tsx` named `latestResults` and pass that array to:
     - `ResultTimeline`
     - `ResultsByCourse`
     - `ResultsBySkill`
     - `ResultsByTestType`
-  - [ ] 4.6a In `AcademicRecordPage.tsx`, create a callback `handleOpenResult(resultId: string)` that calls `setSearchParams({ result: resultId })`. Pass this callback as the `onResultClick` prop to all four components listed in 4.6. Do **not** add navigation or modal opening inside those child components.
-  - [ ] 4.7 Keep `THCSProgressTab` click handling on the full raw results array. When the student clicks a THCS history entry, resolve the `testId` to its latest `resultId` using the raw results array, then call the same `handleOpenResult(resultId)` callback as the other tabs.
-  - [ ] 4.8 Create `src/components/results/LegacyResultDetailView.tsx` by extracting the current full-page JSX from `ResultDetailPage.tsx`. This component must:
+  - [x] 4.6a In `AcademicRecordPage.tsx`, create a callback `handleOpenResult(resultId: string)` that calls `setSearchParams({ result: resultId })`. Pass this callback as the `onResultClick` prop to all four components listed in 4.6. Do **not** add navigation or modal opening inside those child components.
+  - [x] 4.7 Keep `THCSProgressTab` click handling on the full raw results array. When the student clicks a THCS history entry, resolve the `testId` to its latest `resultId` using the raw results array, then call the same `handleOpenResult(resultId)` callback as the other tabs.
+  - [x] 4.8 Create `src/components/results/LegacyResultDetailView.tsx` by extracting the current full-page JSX from `ResultDetailPage.tsx`. This component must:
     - Accept these exact props: `resultId: string`
     - Contain all ownership, loading, error, and data-fetching logic currently in `ResultDetailPage.tsx`
     - Keep print and download certificate functionality intact
     - Keep all existing inline styles — do not refactor styles in this extraction
-  - [ ] 4.9 Update `src/pages/ResultDetailPage.tsx` with this exact role behavior:
+  - [x] 4.9 Update `src/pages/ResultDetailPage.tsx` with this exact role behavior:
     - run the existing ownership check first
     - student: redirect with `replace` to `/student/academic-record?result={resultId}`
     - teacher and `super_admin`: render `LegacyResultDetailView`
-  - [ ] 4.10 Do not change `src/App.jsx`. The route `/result/:resultId` already exists there and no modifications are needed.
-  - [ ] 4.11 Do not change `StudentTestResultsPage.tsx` or `StudentResultsPage.jsx`.
-  - [ ] 4.12 Create or update tests for:
+  - [x] 4.10 Do not change `src/App.jsx`. The route `/result/:resultId` already exists there and no modifications are needed.
+  - [x] 4.11 Do not change `StudentTestResultsPage.tsx` or `StudentResultsPage.jsx`.
+  - [x] 4.12 Create or update tests for:
     - `AcademicRecordPage.tsx` query-param open/close
     - `AcademicRecordPage.tsx` state-to-query normalization
     - `ResultDetailPage.tsx` student redirect
@@ -645,6 +645,18 @@
 - [ ] `multiple_choice` -> exact approved resources and exact chapter names
 - [ ] `vocabulary` -> exact approved resources and exact chapter names
 - [ ] `grammar` -> exact approved resources and exact chapter names
+
+---
+
+## Relevant Files
+
+| File | Purpose |
+|------|---------|
+| `src/pages/AcademicRecordPage.tsx` | Student host page — uses `useSearchParams` for panel state, `latestResults` derived array, `handleOpenResult` callback |
+| `src/pages/ResultDetailPage.tsx` | Route wrapper — student redirect to academic-record, teacher/admin renders LegacyResultDetailView |
+| `src/components/results/LegacyResultDetailView.tsx` | Self-contained result detail view — fetches data, validates ownership, renders full result detail |
+| `src/pages/ResultDetailPage.test.tsx` | Tests for student redirect + teacher legacy render + auth loading |
+| `src/pages/AcademicRecordPage.test.tsx` | Tests for query-param open/close, state-to-query normalization, resetRecordsView |
 
 ---
 

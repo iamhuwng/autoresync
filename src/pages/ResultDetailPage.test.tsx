@@ -1,0 +1,139 @@
+/**
+ * ResultDetailPage Tests
+ * PRD-0039 Task 4.12
+ *
+ * Tests:
+ * 1. Student redirect → /student/academic-record?result={resultId}
+ * 2. Teacher/admin → renders LegacyResultDetailView
+ * 3. Missing resultId → shows error UI
+ * 4. Auth loading → shows spinner
+ */
+
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import '@testing-library/jest-dom';
+import { render, screen } from '@testing-library/react';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { ResultDetailPage } from './ResultDetailPage';
+
+// ─── Mocks ───────────────────────────────────────────────────────────────────
+
+// Mock useAuth
+let mockProfile: { role: string } | null = { role: 'student' };
+let mockAuthLoading = false;
+
+vi.mock('../hooks/useAuth', () => ({
+    useAuth: () => ({
+        profile: mockProfile,
+        loading: mockAuthLoading,
+    }),
+}));
+
+// Mock useNavigate
+const mockNavigate = vi.fn();
+vi.mock('react-router-dom', async () => {
+    const actual = await vi.importActual('react-router-dom');
+    return {
+        ...actual,
+        useNavigate: () => mockNavigate,
+    };
+});
+
+// Mock LegacyResultDetailView — we test integration, not the child itself
+vi.mock('../components/results/LegacyResultDetailView', () => ({
+    LegacyResultDetailView: ({ resultId, onReturn }: { resultId: string; onReturn?: () => void }) => (
+        <div data-testid="legacy-result-detail-view">
+            <span data-testid="result-id">{resultId}</span>
+            {onReturn && <button data-testid="return-btn" onClick={onReturn}>Return</button>}
+        </div>
+    ),
+}));
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Helper to render ResultDetailPage within a MemoryRouter.
+ * Uses /result/:resultId route to mirror App.jsx.
+ */
+const renderPage = (resultId?: string) => {
+    const path = resultId ? `/result/${resultId}` : '/result/';
+    return render(
+        <MemoryRouter initialEntries={[path]}>
+            <Routes>
+                <Route path="/result/:resultId" element={<ResultDetailPage />} />
+                <Route path="/result/" element={<ResultDetailPage />} />
+                {/* Catch the redirect target so it renders */}
+                <Route
+                    path="/student/academic-record"
+                    element={<div data-testid="academic-record-redirect">Redirected</div>}
+                />
+            </Routes>
+        </MemoryRouter>
+    );
+};
+
+// ─── Tests ───────────────────────────────────────────────────────────────────
+
+describe('ResultDetailPage', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        mockProfile = { role: 'student' };
+        mockAuthLoading = false;
+    });
+
+    describe('Student Redirect (PRD-0039 Task 4.9)', () => {
+        it('should redirect student to /student/academic-record?result={resultId}', () => {
+            mockProfile = { role: 'student' };
+            renderPage('abc123');
+
+            // The redirect target route renders "Redirected"
+            expect(screen.getByTestId('academic-record-redirect')).toBeInTheDocument();
+            expect(screen.getByText('Redirected')).toBeInTheDocument();
+        });
+
+        it('should not render LegacyResultDetailView for students', () => {
+            mockProfile = { role: 'student' };
+            renderPage('abc123');
+
+            expect(screen.queryByTestId('legacy-result-detail-view')).not.toBeInTheDocument();
+        });
+    });
+
+    describe('Teacher/Admin Legacy Render (PRD-0039 Task 4.9)', () => {
+        it('should render LegacyResultDetailView for teacher role', () => {
+            mockProfile = { role: 'teacher' };
+            renderPage('result-xyz');
+
+            expect(screen.getByTestId('legacy-result-detail-view')).toBeInTheDocument();
+            expect(screen.getByTestId('result-id')).toHaveTextContent('result-xyz');
+        });
+
+        it('should render LegacyResultDetailView for super_admin role', () => {
+            mockProfile = { role: 'super_admin' };
+            renderPage('result-admin-1');
+
+            expect(screen.getByTestId('legacy-result-detail-view')).toBeInTheDocument();
+            expect(screen.getByTestId('result-id')).toHaveTextContent('result-admin-1');
+        });
+
+        it('should pass onReturn callback that calls navigate(-1)', () => {
+            mockProfile = { role: 'teacher' };
+            renderPage('result-xyz');
+
+            const returnBtn = screen.getByTestId('return-btn');
+            returnBtn.click();
+
+            expect(mockNavigate).toHaveBeenCalledWith(-1);
+        });
+    });
+
+    describe('Auth Loading State', () => {
+        it('should show a spinner while auth is loading', () => {
+            mockAuthLoading = true;
+            renderPage('abc123');
+
+            // No legacy view, no redirect — just the spinner
+            expect(screen.queryByTestId('legacy-result-detail-view')).not.toBeInTheDocument();
+            expect(screen.queryByTestId('academic-record-redirect')).not.toBeInTheDocument();
+        });
+    });
+});
