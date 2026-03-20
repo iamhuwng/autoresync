@@ -264,11 +264,11 @@
     - `ResultDetailPage.tsx` student redirect
     - `ResultDetailPage.tsx` teacher legacy render
 
-- [ ] 5.0 Build the slide-panel shell and loading model
-  - [ ] 5.1 Create `src/components/results/ResultSlidePanel.tsx` with these exact props:
+- [x] 5.0 Build the slide-panel shell and loading model
+  - [x] 5.1 Create `src/components/results/ResultSlidePanel.tsx` with these exact props:
     - `resultId: string`
     - `onClose: () => void`
-  - [ ] 5.2 `ResultSlidePanel.tsx` owns these exact pieces of shared state:
+  - [x] 5.2 `ResultSlidePanel.tsx` owns these exact pieces of shared state:
     - active tab: `'overview' | 'review' | 'feedback'`
     - current result record
     - loading
@@ -280,12 +280,12 @@
     - `formativeFeedbackLoading`
     - `feedbackError`
     - `feedbackAttemptedRef`
-  - [ ] 5.3 Use this exact data-loading pattern:
+  - [x] 5.3 Use this exact data-loading pattern:
     - primary: `onValue(ref(database, 'test_results/${resultId}'))`
     - if the listener errors before first snapshot: fallback to `getTestResult(resultId)`
     - if both fail: show inline error card with retry button
     - if data was already shown and the connection drops later: keep the loaded data visible
-  - [ ] 5.4 Implement these exact desktop shell values:
+  - [x] 5.4 Implement these exact desktop shell values:
     - panel width: `calc(100% - var(--sidebar-w))`
     - panel max-width: `calc(1400px - var(--sidebar-w))`
     - panel anchored to right edge
@@ -295,28 +295,28 @@
     - no blur on the backdrop
     - animation: `350ms cubic-bezier(0.16, 1, 0.3, 1)` on `transform` (translate from 100% to 0)
     - when the panel is open, set `document.body.style.overflow = 'hidden'` to prevent background scroll. Restore on close/unmount.
-  - [ ] 5.5 Implement these exact mobile shell values when `useScreenSize().isMobile` is true:
+  - [x] 5.5 Implement these exact mobile shell values when `useScreenSize().isMobile` is true:
     - width: `100vw`
     - height: `100vh`
     - no backdrop
     - single full-screen overlay
-  - [ ] 5.6 Implement these exact close controls:
+  - [x] 5.6 Implement these exact close controls:
     - back arrow button
     - `Escape`
     - backdrop click on desktop only
     - no `x` close button
-  - [ ] 5.7 Implement this exact header content:
+  - [x] 5.7 Implement this exact header content:
     - title on first line with ellipsis
     - type badge: `THCS`, `IELTS Reading`, or `IELTS Listening`
     - subtitle line: `Skill/Section | Date`
     - date format: `20 Mar 2026`
     - do not show time in the subtitle
-  - [ ] 5.8 Implement these exact tabs and labels:
+  - [x] 5.8 Implement these exact tabs and labels:
     - `Overview`
     - `Review Mistakes`
     - `Feedback`
-  - [ ] 5.9 Keep the tab bar sticky. Each tab body must scroll independently.
-  - [ ] 5.10 Define the exact stagger animation keyframes and classes in the slide-panel CSS:
+  - [x] 5.9 Keep the tab bar sticky. Each tab body must scroll independently.
+  - [x] 5.10 Define the exact stagger animation keyframes and classes in the slide-panel CSS:
     - Keyframes: `@keyframes dashFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }`
     - Base animation: `animation: dashFadeIn 0.3s ease-out both`
     - `.fade-in-d1` — `animation-delay: 50ms`
@@ -325,7 +325,7 @@
     - `.fade-in-d4` — `animation-delay: 200ms`
     - `.fade-in-d5` — `animation-delay: 250ms`
     - Apply these classes to stat cards, section cards, answer map, and feedback cards
-  - [ ] 5.11 Create `src/components/results/ResultSlidePanel.test.tsx` and cover:
+  - [x] 5.11 Create `src/components/results/ResultSlidePanel.test.tsx` and cover:
     - shell render
     - open state from `resultId`
     - tab switch
@@ -657,6 +657,9 @@
 | `src/components/results/LegacyResultDetailView.tsx` | Self-contained result detail view — fetches data, validates ownership, renders full result detail |
 | `src/pages/ResultDetailPage.test.tsx` | Tests for student redirect + teacher legacy render + auth loading |
 | `src/pages/AcademicRecordPage.test.tsx` | Tests for query-param open/close, state-to-query normalization, resetRecordsView |
+| `src/components/results/ResultSlidePanel.tsx` | Slide-panel shell — shared state owner, RTDB data loading with fallback, header/tabs/body, desktop/mobile responsive |
+| `src/components/results/ResultSlidePanel.css` | Panel styles — shell layout, animations, stagger fade-in classes, loading/error states, mobile overrides |
+| `src/components/results/ResultSlidePanel.test.tsx` | 17 tests covering shell render, data loading, tab switching, close controls, error fallback, mobile/desktop modes |
 
 ---
 
