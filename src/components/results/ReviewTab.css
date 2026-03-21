@@ -1,0 +1,242 @@
+/* ─── ReviewTab — PRD-0039 Task 7.0 ──────────────────────────────────────── */
+
+.rv-root {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* ─── Incorrect Banner (Task 7.2) ────────────────────────────────────────── */
+
+.rv-incorrect-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: -2px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.rv-banner-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #111827;
+  flex: 1;
+}
+
+.rv-banner-count {
+  background: #fee2e2;
+  color: #dc2626;
+  border-radius: 12px;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+/* ─── Toggle (Task 7.3) ─────────────────────────────────────────────────── */
+
+/* ─── Review Cards (Task 7.5–7.6) ────────────────────────────────────────── */
+
+.rv-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rv-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  transition: box-shadow 0.3s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.rv-card--highlighted {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.3);
+}
+
+.rv-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: -2px;
+}
+
+.rv-q-badge {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.rv-q-badge--incorrect {
+  background: #fee2e2;
+  border: 1px solid #dc2626;
+  color: #dc2626;
+}
+
+.rv-q-badge--correct {
+  background: #ecfdf5;
+  border: 1px solid #059669;
+  color: #059669;
+}
+
+.rv-question-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.rv-meta-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.rv-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.rv-q-type {
+  font-size: 0.7rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+}
+
+.rv-q-status {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.rv-q-status--incorrect {
+  color: #dc2626;
+}
+
+.rv-q-status--correct {
+  color: #059669;
+}
+
+/* Answer blocks */
+.rv-answer-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.rv-answer-grid--single {
+  grid-template-columns: 1fr;
+}
+
+.rv-answer-block {
+  padding: 10px 12px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rv-answer--correct {
+  background: #f0fdf4;
+  color: #059669;
+}
+
+.rv-answer--incorrect {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.rv-answer-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.8;
+}
+
+.rv-answer-text {
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+/* AI Explanation callout */
+.rv-explanation {
+  background: #f5f3ff;
+  border-left: 3px solid #8b5cf6;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.rv-explanation-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #7c3aed;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.rv-explanation-text {
+  margin: 4px 0 0;
+  font-size: 0.82rem;
+  color: #374151;
+  line-height: 1.5;
+}
+
+/* Pending review notice */
+.rv-pending {
+  background: #f3f4f6;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.8rem;
+  font-style: italic;
+  color: #6b7280;
+}
+
+/* ─── Perfect Score (Task 7.9) ───────────────────────────────────────────── */
+
+.rv-perfect-card {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 32px;
+  text-align: center;
+}
+
+.rv-perfect-trophy {
+  font-size: 3rem;
+  margin-bottom: 8px;
+}
+
+.rv-perfect-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.rv-perfect-subtitle {
+  font-size: 0.9rem;
+  color: #059669;
+  margin-top: 4px;
+}
+
+@media (max-width: 768px) {
+  .rv-answer-grid {
+    grid-template-columns: 1fr;
+  }
+}

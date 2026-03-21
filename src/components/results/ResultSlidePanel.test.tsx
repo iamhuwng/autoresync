@@ -17,11 +17,31 @@ import React from 'react';
 
 // ─── Hoisted mocks ──────────────────────────────────────────────────────────
 
-const { mockOnValue, mockGetTestResult, mockUseScreenSize } = vi.hoisted(() => {
+const {
+  mockOnValue,
+  mockGetTestResult,
+  mockGetHistoricalScores,
+  mockGetClassTestScores,
+  mockUseScreenSize,
+  mockUseTestAttempts,
+  mockGenerateFormativeFeedback,
+} = vi.hoisted(() => {
   const mockOnValue = vi.fn();
   const mockGetTestResult = vi.fn();
+  const mockGetHistoricalScores = vi.fn();
+  const mockGetClassTestScores = vi.fn();
   const mockUseScreenSize = vi.fn();
-  return { mockOnValue, mockGetTestResult, mockUseScreenSize };
+  const mockUseTestAttempts = vi.fn();
+  const mockGenerateFormativeFeedback = vi.fn();
+  return {
+    mockOnValue,
+    mockGetTestResult,
+    mockGetHistoricalScores,
+    mockGetClassTestScores,
+    mockUseScreenSize,
+    mockUseTestAttempts,
+    mockGenerateFormativeFeedback,
+  };
 });
 
 // ─── Mock firebase ──────────────────────────────────────────────────────────
@@ -39,7 +59,17 @@ vi.mock('../../services/firebase', () => ({
 
 vi.mock('../../services/testResults.service', () => ({
   getTestResult: mockGetTestResult,
+  getHistoricalScores: mockGetHistoricalScores,
+  getClassTestScores: mockGetClassTestScores,
   TestResultRecord: {},
+}));
+
+vi.mock('../../hooks/useTestAttempts', () => ({
+  useTestAttempts: (...args: any[]) => mockUseTestAttempts(...args),
+}));
+
+vi.mock('../../services/formativeFeedback.service', () => ({
+  generateFormativeFeedback: (...args: any[]) => mockGenerateFormativeFeedback(...args),
 }));
 
 // ─── Mock useScreenSize ─────────────────────────────────────────────────────
@@ -77,6 +107,22 @@ const MOCK_THCS_RESULT = {
   testTitle: 'English 6 Unit 3 Quiz',
   testType: 'practice_thcs',
   testSkill: 'grammar',
+};
+
+const MOCK_REVIEWABLE_RESULT = {
+  ...MOCK_THCS_RESULT,
+  resultId: 'res-review',
+  totalQuestions: 5,
+  correct: 3,
+  incorrect: 2,
+  percentage: 60,
+  questionResults: [
+    { questionNumber: 1, questionType: 'multiple-choice', isCorrect: true, score: 1, maxScore: 1, studentAnswer: 'A', correctAnswer: 'A' },
+    { questionNumber: 2, questionType: 'multiple-choice', isCorrect: true, score: 1, maxScore: 1, studentAnswer: 'B', correctAnswer: 'B' },
+    { questionNumber: 3, questionType: 'multiple-choice', isCorrect: false, score: 0, maxScore: 1, studentAnswer: 'A', correctAnswer: 'C' },
+    { questionNumber: 4, questionType: 'multiple-choice', isCorrect: false, score: 0, maxScore: 1, studentAnswer: 'D', correctAnswer: 'B' },
+    { questionNumber: 5, questionType: 'multiple-choice', isCorrect: true, score: 1, maxScore: 1, studentAnswer: 'C', correctAnswer: 'C' },
+  ],
 };
 
 /**
@@ -120,6 +166,14 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
       width: 1200,
       height: 800,
     });
+    mockUseTestAttempts.mockReturnValue({
+      attempts: [],
+      loading: false,
+      error: null,
+    });
+    mockGetHistoricalScores.mockResolvedValue([]);
+    mockGetClassTestScores.mockResolvedValue([]);
+    mockGenerateFormativeFeedback.mockResolvedValue(undefined);
     // Default: onValue returns an unsubscribe fn
     mockOnValue.mockReturnValue(vi.fn());
     document.body.style.overflow = '';
@@ -161,6 +215,29 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
       expect(screen.getByText('IELTS Reading')).toBeInTheDocument();
     });
 
+    it('should render attempt history beside the title when multiple attempts exist', () => {
+      mockUseTestAttempts.mockReturnValue({
+        attempts: [
+          MOCK_RESULT,
+          {
+            ...MOCK_RESULT,
+            resultId: 'res-0',
+            percentage: 72,
+            submittedAt: 1710835200000,
+            createdAt: 1710835200000,
+          },
+        ],
+        loading: false,
+        error: null,
+      });
+
+      render(<ResultSlidePanel resultId="res-1" onClose={mockOnClose} />);
+      simulateOnValueSuccess(MOCK_RESULT);
+
+      expect(screen.getByTestId('rsp-header-attempt')).toHaveTextContent('Attempt 2 of 2');
+      expect(screen.getByTestId('rsp-header-attempt')).toHaveTextContent('+13% improvement');
+    });
+
     it('should display THCS badge for THCS test types', () => {
       render(<ResultSlidePanel resultId="res-thcs" onClose={mockOnClose} />);
       simulateOnValueSuccess(MOCK_THCS_RESULT);
@@ -187,6 +264,16 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
 
       unmount();
       expect(document.body.style.overflow).toBe('');
+    });
+
+    it('should reload when the incoming resultId prop changes', () => {
+      const { rerender } = render(<ResultSlidePanel resultId="res-1" onClose={mockOnClose} />);
+      simulateOnValueSuccess(MOCK_RESULT);
+
+      rerender(<ResultSlidePanel resultId="res-2" onClose={mockOnClose} />);
+
+      const latestRefArg = mockOnValue.mock.calls.at(-1)?.[0];
+      expect(latestRefArg.path).toBe('test_results/res-2');
     });
   });
 
@@ -216,6 +303,26 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
       fireEvent.click(screen.getByTestId('rsp-tab-feedback'));
 
       expect(screen.getByTestId('rsp-tab-feedback').className).toContain('rsp-tab--active');
+    });
+
+    it('should jump from an incorrect overview pill to the matching review card', async () => {
+      const scrollIntoView = vi.fn();
+      Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+        configurable: true,
+        value: scrollIntoView,
+      });
+
+      render(<ResultSlidePanel resultId="res-review" onClose={mockOnClose} />);
+      simulateOnValueSuccess(MOCK_REVIEWABLE_RESULT);
+
+      fireEvent.click(screen.getByTestId('ov-pill-3'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('rsp-tab-review').className).toContain('rsp-tab--active');
+        expect(screen.getByTestId('rv-card-3')).toHaveClass('rv-card--highlighted');
+      });
+
+      expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center' });
     });
   });
 
@@ -331,6 +438,49 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
 
       // Backdrop present
       expect(screen.getByTestId('rsp-backdrop')).toBeInTheDocument();
+    });
+  });
+
+  describe('Feedback generation', () => {
+    it('should auto-trigger formative feedback for IELTS results without existing feedback', async () => {
+      render(<ResultSlidePanel resultId="res-1" onClose={mockOnClose} />);
+      simulateOnValueSuccess({
+        ...MOCK_RESULT,
+        testId: 'test-1',
+        studentId: 'student-1',
+        timeElapsed: 1800,
+        questionResults: [
+          {
+            questionNumber: 1,
+            questionType: 'true_false_not_given',
+            isCorrect: false,
+            score: 0,
+            maxScore: 1,
+            studentAnswer: 'False',
+            correctAnswer: 'True',
+            feedback: '',
+          },
+          {
+            questionNumber: 2,
+            questionType: 'matching',
+            isCorrect: true,
+            score: 1,
+            maxScore: 1,
+            studentAnswer: 'B',
+            correctAnswer: 'B',
+            feedback: '',
+          },
+        ],
+        ieltsData: {
+          passageResults: [
+            { passageName: 'Passage 1', questionRange: [1, 2], correct: 1, total: 2, percentage: 50 },
+          ],
+        },
+      });
+
+      await waitFor(() => {
+        expect(mockGenerateFormativeFeedback).toHaveBeenCalledTimes(1);
+      });
     });
   });
 });

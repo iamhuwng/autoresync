@@ -13,7 +13,13 @@ import { ref, onValue } from 'firebase/database';
 // @ts-ignore
 import { database } from '../../services/firebase';
 import { getTestResult, TestResultRecord } from '../../services/testResults.service';
+import { generateFormativeFeedback } from '../../services/formativeFeedback.service';
 import { useScreenSize } from '@/core/platform';
+import { useTestAttempts } from '../../hooks/useTestAttempts';
+import { AttemptHistory } from './AttemptHistory';
+import { OverviewTab } from './OverviewTab';
+import { ReviewTab } from './ReviewTab';
+import { FeedbackTab } from './FeedbackTab';
 import './ResultSlidePanel.css';
 
 /* ─── Props ──────────────────────────────────────────────────────────────── */
@@ -43,10 +49,10 @@ function getTypeBadge(result: TestResultRecord): { label: string; className: str
   if (type.startsWith('thcs') || type.startsWith('practice_thcs')) {
     return { label: 'THCS', className: 'rsp-type-badge--thcs' };
   }
-  if (skill === 'reading' || type === 'reading') {
+  if (skill === 'reading' || type === 'reading' || (type.includes('ielts') && type.includes('reading'))) {
     return { label: 'IELTS Reading', className: 'rsp-type-badge--reading' };
   }
-  if (skill === 'listening' || type === 'listening') {
+  if (skill === 'listening' || type === 'listening' || (type.includes('ielts') && type.includes('listening'))) {
     return { label: 'IELTS Listening', className: 'rsp-type-badge--listening' };
   }
   // Fallback for any other type
@@ -63,12 +69,201 @@ function formatDate(timestamp: number): string {
   });
 }
 
+function formatTime(timestamp: number): string {
+  const d = new Date(timestamp);
+  return d.toLocaleTimeString('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+}
+
+function formatSubtitleLabel(value: string): string {
+  return String(value || '')
+    .replace(/[_-]+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
 /** Build subtitle: "Skill/Section | Date" */
 function getSubtitle(result: TestResultRecord): string {
-  const skill = result.testSkill || result.testType || '';
-  const section = skill.charAt(0).toUpperCase() + skill.slice(1);
-  const date = formatDate(result.submittedAt || result.createdAt);
-  return `${section} | ${date}`;
+  const section = formatSubtitleLabel(result.testSkill || result.testType || 'Result');
+  const timestamp = result.submittedAt || result.createdAt;
+  const date = formatDate(timestamp);
+  const time = formatTime(timestamp);
+  return `${section} • ${date} • ${time}`;
+}
+
+function isIeltsResult(result: TestResultRecord): boolean {
+  const type = String(result.testType || '').toLowerCase();
+  const skill = String(result.testSkill || '').toLowerCase();
+  return type.includes('ielts') || skill === 'reading' || skill === 'listening';
+}
+
+function normalizeFeedbackQuestionType(questionType: string | undefined): string {
+  const raw = String(questionType || 'question').trim().toLowerCase();
+  if (!raw) return 'question';
+
+  return raw
+    .replace(/\s+/g, '_')
+    .replace(/-/g, '_');
+}
+
+function buildFeedbackPayload(result: TestResultRecord, activeResultId: string) {
+  const questionResults = Array.isArray(result.questionResults) ? result.questionResults : [];
+
+  if (questionResults.length === 0) {
+    return null;
+  }
+
+  const questionResultsRecord = Object.fromEntries(
+    questionResults.map((questionResult) => [
+      questionResult.questionNumber,
+      {
+        questionNumber: questionResult.questionNumber,
+        isCorrect: questionResult.isCorrect,
+        studentAnswer: questionResult.studentAnswer,
+        correctAnswer: questionResult.correctAnswer,
+        pointsEarned: questionResult.score,
+        pointsMax: questionResult.maxScore,
+      },
+    ]),
+  );
+
+  const buildIntentBreakdown = (items: typeof questionResults) =>
+    items.reduce<Record<string, { correct: number; total: number }>>((acc, item) => {
+      const key = normalizeFeedbackQuestionType(item.questionType);
+
+      if (!acc[key]) {
+        acc[key] = { correct: 0, total: 0 };
+      }
+
+      acc[key].total += 1;
+      if (item.isCorrect) {
+        acc[key].correct += 1;
+      }
+
+      return acc;
+    }, {});
+
+  if (result.thcsData?.sectionResults?.length) {
+    const thcsData = result.thcsData;
+    const safeSections = Array.isArray((result as any).sections)
+      ? (result as any).sections
+      : thcsData.sectionResults.map((section: any) => ({
+          id: section.sectionId || section.sectionName,
+          name: section.sectionName,
+          questions: [],
+        }));
+
+    return {
+      gradingResult: {
+        scaledScore: thcsData.scaledScore,
+        totalPoints: result.totalScore,
+        maxPoints: result.maxScore,
+        sectionResults: thcsData.sectionResults,
+        questionResults: questionResultsRecord,
+        gradingStatus: 'fully-graded',
+        gradedAt: result.submittedAt,
+        testId: result.testId,
+        studentId: result.studentId || (result as any).userId || '',
+      },
+      sections: safeSections,
+      testMetadata: {
+        title: result.testTitle || 'Test',
+        gradeLevel: (result as any).gradeLevel || 9,
+        type: result.testType,
+        skill: result.testSkill,
+        family: 'thcs',
+        timeSpent: result.timeElapsed,
+        totalQuestions: result.totalQuestions,
+      },
+      resultId: activeResultId,
+    };
+  }
+
+  if (!isIeltsResult(result)) {
+    return null;
+  }
+
+  const passageResults = result.ieltsData?.passageResults || [];
+  const derivedSections = passageResults.length > 0
+    ? passageResults.map((passage, index) => {
+        const sectionQuestions = questionResults.filter(
+          (questionResult) =>
+            questionResult.questionNumber >= passage.questionRange[0] &&
+            questionResult.questionNumber <= passage.questionRange[1],
+        );
+
+        return {
+          id: `passage-${index + 1}`,
+          name: passage.passageName || `Passage ${index + 1}`,
+          questions: sectionQuestions.map((questionResult) => ({
+            questionNumber: questionResult.questionNumber,
+            questionText: `Question ${questionResult.questionNumber}`,
+            type: normalizeFeedbackQuestionType(questionResult.questionType),
+            intent: normalizeFeedbackQuestionType(questionResult.questionType),
+          })),
+          questionItems: sectionQuestions,
+        };
+      })
+    : [
+        {
+          id: 'overall',
+          name: 'Overall Performance',
+          questions: questionResults.map((questionResult) => ({
+            questionNumber: questionResult.questionNumber,
+            questionText: `Question ${questionResult.questionNumber}`,
+            type: normalizeFeedbackQuestionType(questionResult.questionType),
+            intent: normalizeFeedbackQuestionType(questionResult.questionType),
+          })),
+          questionItems: questionResults,
+        },
+      ];
+
+  const sectionResults = derivedSections.map((section) => {
+    const items = section.questionItems;
+    const correctCount = items.filter((item) => item.isCorrect).length;
+    const totalCount = items.length;
+
+    return {
+      sectionId: section.id,
+      sectionName: section.name,
+      pointsEarned: correctCount,
+      pointsMax: totalCount,
+      correctCount,
+      totalCount,
+      percentage: totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0,
+      intentBreakdown: buildIntentBreakdown(items) as any,
+    };
+  });
+
+  return {
+    gradingResult: {
+      scaledScore: result.bandScore || Number((result.percentage / 10).toFixed(1)),
+      totalPoints: result.totalScore,
+      maxPoints: result.maxScore,
+      sectionResults,
+      questionResults: questionResultsRecord,
+      gradingStatus: 'fully-graded',
+      gradedAt: result.submittedAt,
+      testId: result.testId,
+      studentId: result.studentId || (result as any).userId || '',
+    },
+    sections: derivedSections.map(({ questionItems: _questionItems, ...section }) => section),
+    testMetadata: {
+      title: result.testTitle || 'IELTS Test',
+      gradeLevel: (result as any).gradeLevel || 9,
+      type: result.testType,
+      skill: result.testSkill,
+      family: 'ielts',
+      bandScore: result.bandScore,
+      passageResults,
+      timeSpent: result.timeElapsed,
+      totalQuestions: result.totalQuestions,
+    },
+    resultId: activeResultId,
+  };
 }
 
 /* ─── Component ──────────────────────────────────────────────────────────── */
@@ -82,8 +277,6 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeAttemptResultId, setActiveAttemptResultId] = useState<string>(resultId);
-  const [attempts, setAttempts] = useState<TestResultRecord[]>([]);
-  const [showAllQuestions, setShowAllQuestions] = useState(false);
   const [highlightedQuestionNumber, setHighlightedQuestionNumber] = useState<number | null>(null);
   const [formativeFeedbackLoading, setFormativeFeedbackLoading] = useState(false);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
@@ -92,6 +285,19 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
   // ── Closing animation ────────────────────────────────────────────────────
   const [isClosing, setIsClosing] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const studentId = result?.studentId || (result as any)?.userId;
+  const { attempts, loading: attemptsLoading } = useTestAttempts(studentId, result?.testId);
+
+  useEffect(() => {
+    setActiveAttemptResultId(resultId);
+    setActiveTab('overview');
+    setResult(null);
+    setLoading(true);
+    setError(null);
+    setHighlightedQuestionNumber(null);
+    setFeedbackError(null);
+    feedbackAttemptedRef.current = false;
+  }, [resultId]);
 
   const handleClose = useCallback(() => {
     setIsClosing(true);
@@ -132,7 +338,7 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
     setLoading(true);
     setError(null);
 
-    const resultRef = ref(database, `test_results/${resultId}`);
+    const resultRef = ref(database, `test_results/${activeAttemptResultId}`);
 
     const unsubscribe = onValue(
       resultRef,
@@ -163,7 +369,7 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
         // Fallback to one-shot fetch
         console.warn('[ResultSlidePanel] RTDB listener error, falling back to getTestResult.', err);
         try {
-          const fallbackResult = await getTestResult(resultId);
+          const fallbackResult = await getTestResult(activeAttemptResultId);
           if (cancelled) return;
           if (fallbackResult) {
             setResult(fallbackResult);
@@ -187,7 +393,7 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
       cancelled = true;
       unsubscribe();
     };
-  }, [resultId]);
+  }, [activeAttemptResultId]);
 
   // ── Retry handler ────────────────────────────────────────────────────────
   const handleRetry = useCallback(() => {
@@ -200,7 +406,7 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
     // Manual one-shot fetch for retry since the listener may already be dead
     (async () => {
       try {
-        const data = await getTestResult(resultId);
+        const data = await getTestResult(activeAttemptResultId);
         if (data) {
           setResult(data);
           setLoading(false);
@@ -213,7 +419,68 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
         setLoading(false);
       }
     })();
-  }, [resultId]);
+  }, [activeAttemptResultId]);
+
+  // ── Attempt change handler (Task 6.8) ─────────────────────────────────
+  const handleAttemptChange = useCallback((newResultId: string) => {
+    if (newResultId === activeAttemptResultId) {
+      return;
+    }
+
+    setActiveAttemptResultId(newResultId);
+    setActiveTab('overview');  // reset to overview on attempt switch
+    setHighlightedQuestionNumber(null);
+    setResult(null);           // clear stale data
+    setLoading(true);
+    setError(null);
+  }, [activeAttemptResultId]);
+
+  // ── Auto-trigger feedback generation (Task 6.21–6.22) ────────────────────
+  const handleGenerateFormativeFeedback = useCallback(async () => {
+    if (!result) return;
+    const payload = buildFeedbackPayload(result, activeAttemptResultId);
+    if (!payload) return;
+
+    try {
+      setFormativeFeedbackLoading(true);
+      setFeedbackError(null);
+
+      await generateFormativeFeedback(
+        payload.gradingResult as any,
+        payload.sections as any,
+        payload.testMetadata,
+        payload.resultId,
+      );
+      // RTDB onValue listener will pick up the new formativeFeedback
+    } catch (err) {
+      console.error('[ResultSlidePanel] Failed to generate formative feedback:', err);
+      setFeedbackError('Failed to generate feedback.');
+    } finally {
+      setFormativeFeedbackLoading(false);
+    }
+  }, [result, activeAttemptResultId]);
+
+  // Auto-trigger when result loads without feedback (THCS or IELTS)
+  useEffect(() => {
+    if (!result || loading) return;
+
+    const hasFeedback = !!result.formativeFeedback;
+    const hasThcsData = !!result.thcsData?.sectionResults;
+    const isEligible = hasThcsData || isIeltsResult(result);
+
+    if (isEligible && !hasFeedback && !formativeFeedbackLoading && !feedbackError) {
+      if (!feedbackAttemptedRef.current) {
+        feedbackAttemptedRef.current = true;
+        handleGenerateFormativeFeedback();
+      }
+    }
+  }, [result, loading, formativeFeedbackLoading, feedbackError, handleGenerateFormativeFeedback]);
+
+  // Reset feedback attempt when switching results
+  useEffect(() => {
+    feedbackAttemptedRef.current = false;
+    setFeedbackError(null);
+  }, [activeAttemptResultId]);
 
   // ── Badge / subtitle derived values ──────────────────────────────────────
   const badge = useMemo(() => (result ? getTypeBadge(result) : null), [result]);
@@ -241,14 +508,33 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
       );
     }
 
-    // Tab bodies — placeholders until Task 6/7/8 build real content
+    // Tab bodies — real content
     switch (activeTab) {
       case 'overview':
-        return <div className="rsp-placeholder">Overview tab — coming in Task 6.0</div>;
+        return (
+          <OverviewTab
+            result={result}
+            onTabSwitch={setActiveTab}
+            onHighlightQuestion={setHighlightedQuestionNumber}
+            formativeFeedbackLoading={formativeFeedbackLoading}
+            feedbackError={feedbackError}
+            onRetryFeedback={() => {
+              feedbackAttemptedRef.current = false;
+              setFeedbackError(null);
+              handleGenerateFormativeFeedback();
+            }}
+          />
+        );
       case 'review':
-        return <div className="rsp-placeholder">Review Mistakes tab — coming in Task 7.0</div>;
+        return (
+          <ReviewTab
+            result={result}
+            highlightedQuestionNumber={highlightedQuestionNumber}
+            onHighlightComplete={() => setHighlightedQuestionNumber(null)}
+          />
+        );
       case 'feedback':
-        return <div className="rsp-placeholder">Feedback tab — coming in Task 8.0</div>;
+        return <FeedbackTab result={result} />;
       default:
         return null;
     }
@@ -267,7 +553,7 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
       {/* Backdrop (desktop only) */}
       {!isMobile && (
         <div
-          className="rsp-backdrop"
+          className={`rsp-backdrop ${isClosing ? 'rsp-backdrop--closing' : ''}`}
           onClick={handleBackdropClick}
           data-testid="rsp-backdrop"
         />
@@ -310,22 +596,45 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
           <div className="rsp-header-content">
             {result ? (
               <>
-                <h2 className="rsp-title" title={result.testTitle}>
-                  {result.testTitle}
-                </h2>
-                <div className="rsp-subtitle-row">
-                  {badge && (
-                    <span className={`rsp-type-badge ${badge.className}`}>
-                      {badge.label}
-                    </span>
-                  )}
-                  <span className="rsp-subtitle-text">{subtitle}</span>
+                <div className="rsp-title-row">
+                  <div className="rsp-heading-inline">
+                    <h2 className="rsp-title" title={result.testTitle}>
+                      {result.testTitle}
+                    </h2>
+                    <div className="rsp-subtitle-row">
+                      {badge && (
+                        <span className={`rsp-type-badge ${badge.className}`}>
+                          {badge.label}
+                        </span>
+                      )}
+                      <span className="rsp-subtitle-text">{subtitle}</span>
+                    </div>
+                  </div>
+                  <div className="rsp-attempt-slot" data-testid="rsp-header-attempt">
+                    <AttemptHistory
+                      currentResult={result}
+                      attempts={attempts}
+                      loading={attemptsLoading}
+                      onAttemptChange={handleAttemptChange}
+                    />
+                  </div>
                 </div>
               </>
             ) : loading ? (
-              <span className="rsp-subtitle-text">Loading…</span>
+              <span className="rsp-subtitle-text">Loading...</span>
             ) : null}
           </div>
+
+          <button
+            className="rsp-close-btn"
+            onClick={handleClose}
+            aria-label="Close panel"
+            data-testid="rsp-close-btn"
+          >
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+              <path d="M5 5L13 13M13 5L5 13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+          </button>
         </div>
 
         {/* Tab bar (Task 5.8, 5.9) */}

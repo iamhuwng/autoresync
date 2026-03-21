@@ -1,0 +1,521 @@
+/* ─── OverviewTab — PRD-0039 Task 6.0 ────────────────────────────────────── */
+
+.ov-root {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  --accent: #4f46e5;
+}
+
+/* ─── Attempt wrap ───────────────────────────────────────────────────────── */
+
+/* ─── Score Header (Task 6.1) ────────────────────────────────────────────── */
+
+.ov-score-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.ov-ring-wrap {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  flex-shrink: 0;
+}
+
+.ov-ring-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.ov-ring-main {
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1;
+  color: #111827;
+}
+
+.ov-ring-sub {
+  font-size: 0.65rem;
+  color: #6b7280;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.ov-stat-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  flex: 1;
+}
+
+.ov-stat-card {
+  flex: 1;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.ov-stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.2;
+}
+
+.ov-stat-label {
+  font-size: 0.7rem;
+  color: #9ca3af;
+  margin-top: 4px;
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+/* ─── Performance Summary (Task 6.19, 6.19a, 6.20) ──────────────────────── */
+
+.ov-perf-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.ov-perf-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ov-perf--excellent {
+  background: #f0fdf4;
+  color: #065f46;
+}
+
+.ov-perf--good {
+  background: #eff6ff;
+  color: #1e40af;
+}
+
+.ov-perf--needs-work {
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.ov-perf-icon {
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.ov-perf-label {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.ov-perf-summary {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: inherit;
+}
+
+/* ─── Section / Passage Cards (Task 6.15, 6.17) ─────────────────────────── */
+
+.ov-section-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ov-section-cards,
+.ov-passage-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ov-section-toggle {
+  align-self: flex-start;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ov-section-toggle:hover {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.ov-section-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 14px 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.ov-section-card-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.ov-section-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #111827;
+  min-width: 108px;
+}
+
+.ov-section-score {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #374151;
+  min-width: 68px;
+  text-align: right;
+}
+
+.ov-section-bar-track {
+  flex: 1;
+  height: 6px;
+  background: #f3f4f6;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.ov-section-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.5s ease-out;
+}
+
+/* ─── Intent Grid (Task 6.16) ────────────────────────────────────────────── */
+
+/* ─── Answer Map (Task 6.10–6.12) ────────────────────────────────────────── */
+
+.ov-answer-map {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.ov-answer-map-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ov-answer-map-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #111827;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ov-answer-map-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.ov-answer-map-summary span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ov-answer-map-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.ov-answer-map-dot--correct { background: #059669; }
+.ov-answer-map-dot--incorrect { background: #dc2626; }
+.ov-answer-map-dot--partial { background: #d97706; }
+
+/* Legend (Task 6.11a) */
+.ov-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.ov-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.ov-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.ov-legend-dot--correct { background: #059669; }
+.ov-legend-dot--incorrect { background: #dc2626; }
+.ov-legend-dot--partial { background: #d97706; }
+
+/* Pill Grid */
+.ov-pill-grid {
+  display: grid;
+  gap: 4px;
+}
+
+.ov-pill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  border: none;
+  padding: 0;
+  aspect-ratio: 1;
+  min-height: 28px;
+  position: relative;
+  transition: all 0.15s ease;
+  line-height: 1;
+}
+
+/* Pill colors (Task 6.11) */
+.ov-pill--correct {
+  background: #ecfdf5;
+  color: #059669;
+  cursor: default;
+}
+
+.ov-pill--incorrect {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.ov-pill--partial {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.ov-pill--pending {
+  background: #f3f4f6;
+  color: #94a3b8;
+  cursor: default;
+}
+
+/* Clickable pill hover (Task 6.11c) */
+.ov-pill--correct:hover {
+  transform: scale(1.12);
+}
+
+.ov-pill--incorrect.ov-pill--clickable:hover,
+.ov-pill--partial.ov-pill--clickable:hover {
+  transform: scale(1.18);
+  z-index: 2;
+}
+
+.ov-pill--incorrect.ov-pill--clickable:hover {
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.25);
+}
+
+.ov-pill--partial.ov-pill--clickable:hover {
+  box-shadow: 0 2px 8px rgba(217, 119, 6, 0.2);
+}
+
+/* Tooltip (Task 6.12) */
+.ov-pill--clickable[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%) scale(0.92);
+  background: #1f2937;
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease 0.05s, transform 0.15s ease 0.05s;
+  z-index: 10;
+}
+
+.ov-pill--clickable[data-tooltip]:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
+
+/* ─── Feedback Shimmer (Task 6.23) ───────────────────────────────────────── */
+
+.ov-feedback-shimmer {
+  background: linear-gradient(135deg, rgba(139,92,246,0.04), rgba(99,102,241,0.08));
+  border: 1px solid rgba(139,92,246,0.12);
+  border-radius: 12px;
+  padding: 16px;
+  overflow: hidden;
+}
+
+.ov-shimmer-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.ov-shimmer-spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid rgba(139,92,246,0.15);
+  border-top-color: #8b5cf6;
+  animation: ovSpin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes ovSpin {
+  to { transform: rotate(360deg); }
+}
+
+.ov-shimmer-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #6d28d9;
+}
+
+.ov-shimmer-sub {
+  font-size: 0.7rem;
+  color: #8b5cf6;
+  margin-top: 2px;
+}
+
+.ov-shimmer-bar {
+  height: 8px;
+  border-radius: 4px;
+  margin-bottom: 6px;
+  background: linear-gradient(90deg, rgba(139,92,246,0.08) 25%, rgba(139,92,246,0.18) 50%, rgba(139,92,246,0.08) 75%);
+  background-size: 200% 100%;
+  animation: ovShimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes ovShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ─── Feedback Error/Retry (Task 6.23) ───────────────────────────────────── */
+
+.ov-feedback-error {
+  background: linear-gradient(135deg, rgba(239,68,68,0.04), rgba(239,68,68,0.08));
+  border: 1px solid rgba(239,68,68,0.15);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ov-error-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #991b1b;
+  margin-bottom: 2px;
+}
+
+.ov-error-sub {
+  font-size: 0.75rem;
+  color: #b91c1c;
+}
+
+.ov-retry-btn {
+  border: 1px solid rgba(239,68,68,0.3);
+  border-radius: 999px;
+  padding: 6px 14px;
+  background: rgba(239,68,68,0.08);
+  color: #dc2626;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease;
+}
+
+.ov-retry-btn:hover {
+  background: rgba(239,68,68,0.15);
+}
+
+@media (max-width: 768px) {
+  .ov-score-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ov-ring-wrap {
+    margin: 0 auto;
+  }
+
+  .ov-stat-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .ov-answer-map-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .ov-section-card-row {
+    flex-wrap: wrap;
+  }
+
+  .ov-section-name,
+  .ov-section-score {
+    min-width: 0;
+  }
+
+  .ov-intent-row {
+    flex-wrap: wrap;
+  }
+
+  .ov-intent-name,
+  .ov-intent-pct {
+    width: auto;
+  }
+}
