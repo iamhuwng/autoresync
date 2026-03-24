@@ -36,6 +36,8 @@ import { getCourseAverage } from '../services/resultsService';
 import { FeedbackDisplay } from '../components/feedback/FeedbackDisplay';
 import { getSubmissionsBySession } from '../services/writingSubmissionService';
 import type { WritingSubmission } from '../types/ielts-writing.types';
+import { getEffectiveReleaseState, getReleaseVisibility } from '../types/releaseState.types';
+
 
 // PRD-0030 Task 6.1.1: Lazy-load WritingResultView for Writing tests
 const WritingResultView = lazy(() => import('../components/writing-results/WritingResultView'));
@@ -49,6 +51,7 @@ interface TestSession {
   players: Record<string, any>;
   courseId?: string;
   courseName?: string;
+  reviewReleaseState?: string;
 }
 
 interface TestData {
@@ -494,6 +497,10 @@ export const StudentTestResultsPage: React.FC = () => {
   const bandScore = calculateBandScore(safeResults.percentage);
   const feedback = generatePerformanceFeedback(safeResults.percentage);
 
+  // PRD-0040 Task 4.4: Release-state governance for session-scoped results
+  const effectiveReleaseState = getEffectiveReleaseState(session?.reviewReleaseState);
+  const visibility = getReleaseVisibility(effectiveReleaseState);
+
   return (
     <div
       style={{
@@ -526,6 +533,44 @@ export const StudentTestResultsPage: React.FC = () => {
             {testData.type} - {testData.skill}
           </div>
         </div>
+
+        {/* PRD-0040 Task 4.4: Release-state governance banner */}
+        {effectiveReleaseState === 'locked-review' && (
+          <div style={{
+            padding: '1rem 1.5rem',
+            background: 'rgba(100, 116, 139, 0.08)',
+            border: '1px solid rgba(100, 116, 139, 0.2)',
+            borderRadius: '0.75rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem',
+            marginBottom: '1.5rem',
+          }}>
+            <span style={{ fontSize: '1.25rem' }}>🔒</span>
+            <div>
+              <div style={{ fontWeight: 600, color: '#475569', fontSize: '0.9375rem' }}>Detailed Review Locked</div>
+              <div style={{ fontSize: '0.8125rem', color: '#64748b' }}>Your teacher will release answers and feedback when ready.</div>
+            </div>
+          </div>
+        )}
+        {effectiveReleaseState === 'review-released' && (
+          <div style={{
+            padding: '1rem 1.5rem',
+            background: 'rgba(59, 130, 246, 0.06)',
+            border: '1px solid rgba(59, 130, 246, 0.15)',
+            borderRadius: '0.75rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem',
+            marginBottom: '1.5rem',
+          }}>
+            <span style={{ fontSize: '1.25rem' }}>📋</span>
+            <div>
+              <div style={{ fontWeight: 600, color: '#1e40af', fontSize: '0.9375rem' }}>Answers Released</div>
+              <div style={{ fontSize: '0.8125rem', color: '#3b82f6' }}>Correct answers are now available. Detailed feedback will follow.</div>
+            </div>
+          </div>
+        )}
 
         {/* Score Summary Cards */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
@@ -610,7 +655,8 @@ export const StudentTestResultsPage: React.FC = () => {
           )}
         </div>
 
-        {/* Performance Feedback */}
+        {/* Performance Feedback — gated by release state */}
+        {visibility.showAIFeedback && (
         <Card variant="glass" style={{ marginBottom: '2rem' }}>
           <CardBody style={{ padding: '2rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -628,9 +674,10 @@ export const StudentTestResultsPage: React.FC = () => {
             </div>
           </CardBody>
         </Card>
+        )}
 
-        {/* Teacher Overall Feedback */}
-        {permanentResultRecord?.overallFeedback && (
+        {/* Teacher Overall Feedback — gated by release state */}
+        {visibility.showTeacherFeedback && permanentResultRecord?.overallFeedback && (
           <Card variant="glass" style={{ marginBottom: '2rem' }}>
             <CardBody style={{ padding: '2rem' }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem' }}>
@@ -668,11 +715,14 @@ export const StudentTestResultsPage: React.FC = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {safeResults.questionResults.map((result) => {
               const isExpanded = expandedQuestions.has(result.questionNumber);
-              const statusColor = result.isCorrect
-                ? { bg: 'rgba(16, 185, 129, 0.1)', border: '#10b981', text: '#059669' }
-                : result.partialCredit
-                  ? { bg: 'rgba(245, 158, 11, 0.1)', border: '#f59e0b', text: '#d97706' }
-                  : { bg: 'rgba(239, 68, 68, 0.1)', border: '#ef4444', text: '#dc2626' };
+              // PRD-0040 Task 4.4: In locked-review, use neutral styling (no correct/incorrect indicators)
+              const statusColor = !visibility.showQuestionScoring
+                ? { bg: 'rgba(100, 116, 139, 0.06)', border: '#cbd5e1', text: '#64748b' }
+                : result.isCorrect
+                  ? { bg: 'rgba(16, 185, 129, 0.1)', border: '#10b981', text: '#059669' }
+                  : result.partialCredit
+                    ? { bg: 'rgba(245, 158, 11, 0.1)', border: '#f59e0b', text: '#d97706' }
+                    : { bg: 'rgba(239, 68, 68, 0.1)', border: '#ef4444', text: '#dc2626' };
 
               return (
                 <Card key={result.questionNumber} variant="glass">
@@ -715,7 +765,9 @@ export const StudentTestResultsPage: React.FC = () => {
                             Question {result.questionNumber}
                           </div>
                           <div style={{ fontSize: '0.875rem', color: statusColor.text, fontWeight: 600 }}>
-                            {result.isCorrect ? '✓ Correct' : result.partialCredit ? '⚡ Partial Credit' : '✗ Incorrect'} - {result.score}/{result.maxScore} points
+                            {visibility.showQuestionScoring
+                              ? `${result.isCorrect ? '✓ Correct' : result.partialCredit ? '⚡ Partial Credit' : '✗ Incorrect'} - ${result.score}/${result.maxScore} points`
+                              : 'Tap to view your answer'}
                           </div>
                         </div>
 
@@ -752,8 +804,8 @@ export const StudentTestResultsPage: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* Correct Answer */}
-                        {!result.isCorrect && (
+                        {/* Correct Answer — gated by release state */}
+                        {visibility.showCorrectAnswers && !result.isCorrect && (
                           <div style={{ marginBottom: '1rem' }}>
                             <div style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.5rem' }}>
                               Correct Answer
@@ -777,7 +829,8 @@ export const StudentTestResultsPage: React.FC = () => {
                           </div>
                         )}
 
-                        {/* Auto-Generated Feedback */}
+                        {/* Auto-Generated Feedback — gated by release state */}
+                        {visibility.showAIFeedback && (
                         <div
                           style={{
                             padding: '0.75rem 1rem',
@@ -791,9 +844,10 @@ export const StudentTestResultsPage: React.FC = () => {
                         >
                           {result.feedback}
                         </div>
+                        )}
 
-                        {/* Teacher Feedback */}
-                        {(() => {
+                        {/* Teacher Feedback — gated by release state */}
+                        {visibility.showTeacherFeedback && (() => {
                           const questionFeedback = permanentResultRecord?.questionResults?.find(
                             q => q.questionNumber === result.questionNumber
                           )?.teacherFeedback;

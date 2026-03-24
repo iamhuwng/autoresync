@@ -110,7 +110,7 @@ Status keys:
 |---|---|---|---|---|
 | Query-param owner bypass | partial | `/student/academic-record?result=` opens panel directly | `AcademicRecordPage.test.tsx` | Routing proven, ownership not runtime-proven. |
 | Notification metadata bypass | partial | dashboard opens result panel from `metadata.resultId` | `StudentDashboardPage.teachers.test.jsx` | No tamper-proof test. |
-| Guest claim writes non-canonical path | verified | `guestResultsService.ts` writes `test_results/{userId}` | `guestResultsService.test.ts` | Concrete mismatch established. |
+| Guest claim writes to canonical path with compatibility metadata | verified | `guestResultsService.ts` writes `test_results/{userId}` with additive `claimedAt`/`claimedFrom` | `guestResultsService.test.ts`, `ClaimResultsModal.test.tsx`, Finding F-5.2a | Storage decision: keep current compatibility path. Claim destination IS canonical (Finding F-5.2a). |
 | Session/post-test flattened into `resultId` loader | verified | current loaders remain session-first and fallback-heavy | `StudentTestResultsPage.test.tsx`, `TeacherTestResultsPage.test.tsx` | Strongly disproven by current code. |
 | Writing simplified into single result-view flow | verified | draft/monitor/queue/editor/result/THCS inline all exist | static audit docs | Strongly disproven by current code. |
 | Parent-owned entry pages treated as wrappers | verified | academic record, dashboard, homework, history all have real behavior | page tests | PRD warning grounded in code. |

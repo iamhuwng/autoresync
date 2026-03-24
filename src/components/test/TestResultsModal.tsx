@@ -19,6 +19,8 @@ import { getStudentSessionResult, getStudentResults, TestResultRecord } from '..
 import { calculateBandScore, generatePerformanceFeedback } from '../../services/autoMarking.service';
 import { sessionService } from '../../services/sessionService';
 import { ref, get } from 'firebase/database';
+import { getReleaseVisibility, getEffectiveReleaseState } from '../../types/releaseState.types';
+import type { ReviewReleaseState } from '../../types/releaseState.types';
 // @ts-ignore
 import { database } from '../../services/firebase';
 
@@ -26,6 +28,8 @@ interface TestResultsModalProps {
     opened: boolean;
     onClose: () => void;
     sessionCode: string;
+    /** PRD-0040 Phase 2: Controls what students can see */
+    reviewReleaseState?: ReviewReleaseState;
 }
 
 /**
@@ -36,6 +40,7 @@ export const TestResultsModal: React.FC<TestResultsModalProps> = ({
     opened,
     onClose,
     sessionCode,
+    reviewReleaseState,
 }) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -235,7 +240,11 @@ export const TestResultsModal: React.FC<TestResultsModalProps> = ({
         const scoreStandard = isTHCS ? 'Thang điểm 10' : 'IELTS Standard';
         const scoreColor = isTHCS ? '#8b5cf6' : '#10b981';
 
-        const feedback = generatePerformanceFeedback(result.percentage);
+        // PRD-0040 Phase 2: Derive visibility flags from release state
+        const effectiveState = getEffectiveReleaseState(reviewReleaseState);
+        const visibility = getReleaseVisibility(effectiveState);
+
+        const feedback = visibility.showAIFeedback ? generatePerformanceFeedback(result.percentage) : null;
 
         return (
             <ScrollArea h="calc(92vh - 85px)" offsetScrollbars variant="hover">
@@ -360,7 +369,8 @@ export const TestResultsModal: React.FC<TestResultsModalProps> = ({
                     )}
 
                     {/* ── THCS INTENT BREAKDOWN (THCS only) ── */}
-                    {isTHCS && thcsData?.intentBreakdown && Object.keys(thcsData.intentBreakdown).length > 0 && (
+                    {/* PRD-0040: Only show intent breakdown when review is released (shows scoring detail) */}
+                    {visibility.showCorrectAnswers && isTHCS && thcsData?.intentBreakdown && Object.keys(thcsData.intentBreakdown).length > 0 && (
                         <div style={{
                             padding: '1.25rem',
                             borderRadius: '1rem',
@@ -397,6 +407,8 @@ export const TestResultsModal: React.FC<TestResultsModalProps> = ({
                     )}
 
                     {/* ── FEEDBACK ── */}
+                    {/* PRD-0040: Only show feedback section when feedback is released */}
+                    {visibility.showAIFeedback && feedback && (
                     <div style={{
                         padding: '1.5rem',
                         borderRadius: '1.25rem',
@@ -430,6 +442,56 @@ export const TestResultsModal: React.FC<TestResultsModalProps> = ({
                             </div>
                         </div>
                     </div>
+                    )}
+
+                    {/* ── LOCKED-REVIEW NOTICE ── */}
+                    {/* PRD-0040: Show a notice when content is restricted */}
+                    {!visibility.showCorrectAnswers && (
+                        <div style={{
+                            padding: '1.25rem 1.5rem',
+                            borderRadius: '1rem',
+                            background: 'linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%)',
+                            border: '1px solid #fde68a',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '1rem',
+                        }}>
+                            <div style={{ fontSize: '1.5rem' }}>🔒</div>
+                            <div>
+                                <div style={{ fontWeight: 700, color: '#92400e', fontSize: '0.875rem' }}>
+                                    {isTHCS ? 'Kết quả chi tiết đang bị khóa' : 'Detailed Review Locked'}
+                                </div>
+                                <div style={{ fontSize: '0.8rem', color: '#b45309', marginTop: '0.15rem' }}>
+                                    {isTHCS
+                                        ? 'Giáo viên sẽ mở đáp án và phần giải thích sau.'
+                                        : 'Your teacher will release correct answers and explanations soon.'}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    {visibility.showCorrectAnswers && !visibility.showAIFeedback && (
+                        <div style={{
+                            padding: '1rem 1.25rem',
+                            borderRadius: '0.875rem',
+                            background: '#eff6ff',
+                            border: '1px solid #bfdbfe',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.75rem',
+                        }}>
+                            <div style={{ fontSize: '1.25rem' }}>📋</div>
+                            <div>
+                                <div style={{ fontWeight: 700, color: '#1e40af', fontSize: '0.8rem' }}>
+                                    {isTHCS ? 'Đáp án đã được mở' : 'Answers Released'}
+                                </div>
+                                <div style={{ fontSize: '0.75rem', color: '#3b82f6', marginTop: '0.1rem' }}>
+                                    {isTHCS
+                                        ? 'Phần giải thích và nhận xét chi tiết sẽ được mở sau.'
+                                        : 'AI feedback and explanations will be released by your teacher.'}
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* ── QUESTION REVIEW ── */}
                     <div>
@@ -449,11 +511,14 @@ export const TestResultsModal: React.FC<TestResultsModalProps> = ({
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
                             {result.questionResults.map((qr) => {
                                 const isExpanded = expandedQuestions.has(qr.questionNumber);
-                                const sc = qr.isCorrect
-                                    ? { bg: '#f0fdf4', border: '#bcf2d4', text: '#15803d', icon: '✓', dark: '#166534' }
-                                    : qr.score > 0
-                                        ? { bg: '#fffbeb', border: '#fde68a', text: '#b45309', icon: '⚡', dark: '#92400e' }
-                                        : { bg: '#fef2f2', border: '#fecaca', text: '#dc2626', icon: '✗', dark: '#991b1b' };
+                                // PRD-0040: In locked-review, all questions appear as neutral (no correct/incorrect indication)
+                                const sc = !visibility.showCorrectAnswers
+                                    ? { bg: '#f8fafc', border: '#e2e8f0', text: '#64748b', icon: '•', dark: '#475569' }
+                                    : qr.isCorrect
+                                        ? { bg: '#f0fdf4', border: '#bcf2d4', text: '#15803d', icon: '✓', dark: '#166534' }
+                                        : qr.score > 0
+                                            ? { bg: '#fffbeb', border: '#fde68a', text: '#b45309', icon: '⚡', dark: '#92400e' }
+                                            : { bg: '#fef2f2', border: '#fecaca', text: '#dc2626', icon: '✗', dark: '#991b1b' };
 
                                 return (
                                     <div
@@ -503,7 +568,10 @@ export const TestResultsModal: React.FC<TestResultsModalProps> = ({
                                                     Question {qr.questionNumber}
                                                 </div>
                                                 <div style={{ fontSize: '0.8125rem', color: '#64748b', fontWeight: 600, marginTop: '0.125rem' }}>
-                                                    Result: <span style={{ color: sc.text }}>{qr.score} / {qr.maxScore} points</span>
+                                                    {/* PRD-0040: In locked-review, don't show score breakdown */}
+                                                    {visibility.showCorrectAnswers
+                                                        ? <>Result: <span style={{ color: sc.text }}>{qr.score} / {qr.maxScore} points</span></>
+                                                        : <span style={{ color: '#94a3b8' }}>Tap to view your answer</span>}
                                                 </div>
                                             </div>
                                             <div style={{
@@ -542,8 +610,8 @@ export const TestResultsModal: React.FC<TestResultsModalProps> = ({
                                                         </div>
                                                     </div>
 
-                                                    {/* Correct Answer */}
-                                                    {!qr.isCorrect && (
+                                                    {/* Correct Answer — only when review is released */}
+                                                    {visibility.showCorrectAnswers && !qr.isCorrect && (
                                                         <div>
                                                             <div style={{ fontSize: '0.65rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 800, marginBottom: '0.5rem', letterSpacing: '0.05em' }}>Correct Key</div>
                                                             <div style={{
@@ -563,8 +631,8 @@ export const TestResultsModal: React.FC<TestResultsModalProps> = ({
                                                     )}
                                                 </div>
 
-                                                {/* Explainer Feedback */}
-                                                {qr.feedback && (
+                                                {/* Explainer Feedback — only when feedback is released */}
+                                                {visibility.showAIFeedback && qr.feedback && (
                                                     <div style={{
                                                         marginTop: '1rem',
                                                         padding: '1rem 1.25rem',

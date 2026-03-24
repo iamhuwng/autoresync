@@ -1,0 +1,103 @@
+﻿## Phase 2: Session/Post-Test Selective Reuse
+
+### Goal
+Restrict and govern the already-permissive session/post-test student review flows, redesign the live-session student review experience, and add teacher-controlled release without forcing session flows into the saved-result loader contract.
+
+### Scope
+- `StudentTestResultsPage`
+- `TestResultsModal`
+- `StudentWaitingRoomPage`
+- teacher monitor release controls for the current live-session test
+- any adjacent student entry point that can open the same live-session result while the session is still active
+- any saved-result route or panel entry path that can surface the same live-session result before release
+
+### Rules
+- this phase starts from currently permissive student review behavior; any reduced visibility must be an explicit release-policy change, not an accidental regression
+- session loaders stay separate
+- retry logic stays local
+- fallback scoring stays local
+- only proven-safe presentational pieces may be reused
+- teacher-monitored live sessions default to `locked-review` for students until release state changes
+- the waiting-room result surface is redesigned as a session-first student review surface; it must not remain a generic final-report modal
+- because current result payloads do not consistently contain question-stem snapshots, locked student review must use question number/status and the student's own answer only unless a later explicit data-contract change adds question snapshots
+- teacher/admin explanations and feedback stay in teacher/admin result surfaces, not in the teacher monitor page itself
+- if a common view-model contract is proposed, it must be justified by a dedicated audit inside this phase
+
+### Mandatory Deliverables
+- redesigned waiting-room student review surface replacing the current old modal experience
+- teacher monitor release controls for current-test student visibility
+- release-state enforcement across all student entry points for the same live-session result
+- restricted storage/read contract for unreleased explanations and feedback
+- explicit migration note for current permissive behavior that is being restricted by release state
+- updated tests and living docs for release behavior
+
+### Acceptance Gate
+Phase 2 is complete only when:
+- reused fragments are pure presentation
+- no saved-result loader assumptions leaked into session flows
+- while a live session remains locked, students cannot see correct answers, explanations, AI feedback, or teacher feedback from any student entry point
+- teacher/admin can still access approved explanations and feedback from teacher/admin result surfaces
+- early release and automatic end-of-session release work for the current test and all submitted students
+- release-state restrictions are documented as intentional policy, not inferred from regressions
+- session-specific behavior still passes tests and manual checks
+- living docs reflect the release-state and reuse decisions
+
+## Phase 3: Writing-Domain Architecture
+
+### Goal
+Map and formalize the full writing workflow as its own architecture track, from student drafting through monitoring, grading, and writing-result review.
+
+### Scope
+- student writing draft, edit, autosave, and submission promotion flows
+- writing monitor peek, reopen, and auto-submit flows
+- teacher grading queue, grading editor, re-open loop, and writing-result surfaces
+- RTDB draft -> Firestore submission seam and alternate/dormant grading-tool classification
+- THCS inline writing grading classification
+- Appendix A as the preserved investigation baseline for this phase
+
+### Rules
+- do not merge writing into the saved-result core
+- do not start the writing domain map from `WritingResultView` as if it were the front door
+- document the draft artifact, submission artifact, and the bridge between them as separate architecture nodes; do not collapse them into a single result abstraction
+- resolve unwired writing components immediately in this phase
+- classify each active writing surface as `draft`, `monitor`, `queue`, `editor`, `result`, or `alternate/dormant`
+- promote only lifecycle-defining constraints into the normative phase text; keep defect-level findings preserved in Appendix A until they are intentionally turned into named tasks
+- keep Appendix A intact until each preserved finding becomes a named task, an accepted current behavior, or a resolved fix
+- define active writing canonical shells and writing-specific reuse rules only after the full lifecycle map exists
+### Acceptance Gate
+Phase 3 is complete only when:
+- the active writing lifecycle from draft to result is documented
+- monitor, queue, editor, result, and THCS inline variants are classified
+- unwired or alternate writing components are removed or explicitly retained by named task
+- preserved findings from Appendix A are converted into named tasks or explicit recorded decisions
+- writing-role behaviors are documented in living docs
+
+## Phase 4: Enforcement Hardening
+
+### Goal
+Strengthen the process so documentation and architecture stay aligned across future changes.
+
+### Scope
+- review checklist hardening
+- optional automated checks after the living docs format stabilizes
+- removal of thin legacy wrappers that have passed their removal gates
+
+### Rules
+- automation is added only after the taxonomy and file conventions are stable
+- automation must fail the merge when required living-doc updates are missing
+- removal of any remaining deprecated wrapper requires tests, docs, and rollback history
+
+### Acceptance Gate
+Phase 4 is complete only when:
+- legacy wrappers scheduled for removal are either removed or have updated gates
+- enforcement process is operating consistently across result-related tasks
+
+## 10. Edge Cases and Required Preventions
+
+| Edge Case | Required Prevention |
+|----------|---------------------|
+| Same result opened in multiple shells triggers duplicate feedback generation | Central in-flight dedupe and idempotent generation contract |
+| Feedback exists in one shell but not another due to stale local state | Shared display contract plus fresh result refresh on shell open |
+| Access is revoked while the result is open | Shell immediately removes sensitive content and shows access-lost state |
+| Legacy result lacks fields needed by the shared core | Hide unsupported sections gracefully and record compatibility gap in logs/docs |
+| Fourth active saved-result shell discovered mid-implementation | Stop coding, update map/scope, then continue |

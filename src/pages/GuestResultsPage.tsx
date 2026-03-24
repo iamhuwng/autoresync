@@ -143,7 +143,7 @@ export function GuestResultsPage() {
                                 <Button
                                     variant="light"
                                     leftSection={<IconUserPlus size={18} />}
-                                    onClick={() => navigate('/register')}
+                                    onClick={() => navigate('/')}
                                 >
                                     Create Account to Claim
                                 </Button>
@@ -178,14 +178,14 @@ export function GuestResultsPage() {
                             <Button
                                 variant="light"
                                 leftSection={<IconUserPlus size={18} />}
-                                onClick={() => navigate('/register')}
+                                onClick={() => navigate('/')}
                             >
                                 Create Account
                             </Button>
                             <Button
                                 variant="subtle"
                                 leftSection={<IconLogin size={18} />}
-                                onClick={() => navigate('/login')}
+                                onClick={() => navigate('/')}
                             >
                                 Already have an account? Login
                             </Button>

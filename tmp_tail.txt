@@ -1,0 +1,6 @@
+﻿
+### Finding F-3.10a: No cross-role leakage detected — shells are architecturally isolated
+- **ResultSlidePanel**: Used ONLY in student pages (`StudentHomeworkListPage`, `StudentHomeworkDetailPage`, `AcademicRecordPage`). Contains no teacher/admin role checks or teacher-specific actions. Student-scoped by import graph.
+- **ResultDetailModal**: Used ONLY in `TeacherHomeworkDetailPage`. Not imported by any student page. Teacher-scoped by import graph.
+- **LegacyResultDetailView**: Used ONLY in `ResultDetailPage`, which redirects students away (`Navigate to /student/academic-record?result=...`) before the component renders. Teacher/super_admin scoped by route guard.
+- No shell renders controls belonging to another role. No mutation actions leak across roles. Isolation is enforced by the import graph and route guards, not by runtime role checks inside the shared core.

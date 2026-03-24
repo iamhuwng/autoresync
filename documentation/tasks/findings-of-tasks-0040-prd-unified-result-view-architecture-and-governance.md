@@ -227,3 +227,79 @@ All three stop conditions from Task 4.10 were verified:
 | US-8 confirmed | ✅ Met | `locked-review` shows score + right/wrong only. No correct answers, explanations, or feedback until release. |
 | US-9 confirmed | ✅ Met | Teacher controls release via monitor page. Monitor is operational surface, not feedback viewer (F-4.6a). |
 
+## Phase 3: Guest-Result and Claim Domain (Task 5.0)
+
+### Finding F-5.1a: Guest-result domain classification — four surfaces, one service, one RTDB node
+
+The guest-result and claim domain consists of exactly four surfaces and one service:
+
+| Surface | File | Type | Route / mount | Data path |
+|---|---|---|---|---|
+| `GuestResultsPage` | `src/pages/GuestResultsPage.tsx` | Page | `/guest-results` (public) | RTDB `guest_results/{guestName}` read |
+| `ProfileCompletionPage` | `src/pages/ProfileCompletionPage.tsx` | Page | `/profile/complete` (authenticated) | `checkClaimableResults(email)` → RTDB `guest_results` scan |
+| `ClaimResultsModal` | `src/components/guest/ClaimResultsModal.tsx` | Modal | mounted by `ProfileCompletionPage` | `claimGuestResults(guestName, userId)` → RTDB read `guest_results/{guestName}`, write `test_results/{userId}`, delete `guest_results/{guestName}` |
+| `guestResultsService` | `src/services/guestResultsService.ts` | Service | N/A | RTDB `guest_results/{guestName}` CRUD + claim-to-`test_results` transfer |
+
+**Domain boundary**: This domain is architecturally separated from the unified saved-result core (`SharedSavedResultCore`). Guest surfaces do not delegate to `SharedSavedResultCore`, do not use `ResultSlidePanel` / `ResultDetailModal` / `LegacyResultDetailView`, and do not participate in the release-state governance model. The separation is intentional and must be maintained.
+
+**Existing test coverage**: `guestResultsService.test.ts` exists (service-level tests). Zero focused tests exist for `GuestResultsPage`, `ProfileCompletionPage`, or `ClaimResultsModal`.
+
+### Finding F-5.1b: GuestResultsPage uses @mantine/core imports — Rule 15 violation
+
+`GuestResultsPage.tsx` imports `Container`, `Title`, `TextInput`, `Button`, `Stack`, `Paper`, `Text`, `Group`, `Alert`, `Loader`, `Center`, `Divider` from `@mantine/core`. This violates Integration Safety Rule 15 (No Mantine — Absolute Import Ban). However, since this page is an existing legacy surface and Task 5.0 scope is governance/classification (not UI rewrite), the Mantine dependency is **documented but not remediated in this phase**. A future cleanup task should target this.
+
+### Finding F-5.2a: Guest-result storage decision — keep current compatibility path
+
+**Decision: KEEP the current compatibility story.** Rationale:
+
+1. **Claim target is already canonical**: `claimGuestResults()` writes to `test_results/{userId}` — this IS the canonical saved-result RTDB path. The claim operation transfers data from the non-canonical `guest_results/{guestName}` node into the canonical path.
+2. **Compatibility metadata is additive**: Claimed results carry `claimedAt` and `claimedFrom` fields. These are additive metadata that do not conflict with canonical `EnhancedTestResultRecord` fields. They provide audit trail value.
+3. **Guest-specific metadata is stripped**: The claim operation explicitly destructures and removes `guestName`, `isGuestResult`, `savedAt`, and `resultId` before writing to the canonical path.
+4. **No migration needed**: Since the destination is already canonical, no schema migration or data-contract change is required. The guest-result domain is a feeder into the canonical path, not a parallel storage system.
+
+**Boundary constraint**: Guest claims must NOT be folded into `SharedSavedResultCore` or the saved-result shell architecture. The claim path is a one-time data transfer operation, not a rendering contract.
+
+### Finding F-5.3a: Stale CTA route audit — two dead navigation targets
+
+`GuestResultsPage.tsx` contains three `navigate()` calls that target non-existent routes:
+
+| Line | Target | Actual route | Status |
+|---|---|---|---|
+| L146 | `navigate('/register')` | No `/register` route exists in `App.jsx` | ❌ Dead link |
+| L181 | `navigate('/register')` | No `/register` route exists in `App.jsx` | ❌ Dead link |
+| L188 | `navigate('/login')` | Login is at `/` (root), not `/login` | ❌ Dead link |
+
+**Fix**: All three must be corrected. `/register` and `/login` should both navigate to `/` since the login page at the root handles both authentication and account creation (Google Sign-In).
+
+### Finding F-5.3b: Route/backend auth mismatch on `/guest-results`
+
+- `routeSecurity.ts` classifies `/guest-results` as `public` with `allowedRoles: ['guest']`
+- `App.jsx` mounts it as a bare `<Route>` (no `PrivateRoute` wrapper) — consistent with `public`
+- **However**: RTDB rules require `auth != null` for reading `guest_results` at the top level
+- This means: an unauthenticated guest visiting `/guest-results` can see the page UI but the `getGuestResults()` call will fail with a permission error
+
+**Disposition**: This mismatch is an existing pre-PRD-0040 condition. The page renders a search UI regardless, and the error is caught and displayed as "Failed to fetch results." This is not ideal UX but is functionally safe — no data leakage occurs. Documenting as accepted current behavior. A future UX improvement could add a pre-search auth check or informational message.
+
+### Finding F-5.3c: `checkClaimableResults()` performs full scan of `guest_results` node
+
+`guestResultsService.ts` line 216 reads the entire `guest_results` root node via `get(ref(database, 'guest_results'))` to find claimable names by email prefix. This is a full-node download, not a query. For small deployments this is acceptable, but it does not scale. Documenting as accepted current behavior for the compatibility path.
+
+### Finding F-5.6a: Stop-check verification — no stop conditions triggered
+
+All three stop conditions from Task 5.6 were verified:
+1. **Guest-result NOT folded into saved-result shared core**: `GuestResultsPage`, `ClaimResultsModal`, `ProfileCompletionPage`, and `guestResultsService` remain completely independent of `SharedSavedResultCore`, `ResultSlidePanel`, `ResultDetailModal`, and `LegacyResultDetailView`. Zero imports cross this boundary.
+2. **Guest claim writes NOT changed**: No changes were made to `claimGuestResults()` logic. The function still writes to `test_results/{userId}` with the same additive compatibility metadata (`claimedAt`, `claimedFrom`). The storage decision explicitly keeps the current path (Finding F-5.2a).
+3. **CTA mismatches are documented AND fixed**: All three stale navigation targets were corrected in Task 5.3 (`/register` → `/` x2, `/login` → `/`). The route/backend auth mismatch is documented as accepted current behavior (Finding F-5.3b).
+
+### Finding F-5.7a: Phase 3 (Task 5.0) closure gate — all criteria met
+
+| Criterion | Status | Evidence |
+|---|---|---|
+| Guest flows explicitly classified | ✅ Met | Finding F-5.1a — four surfaces + one service classified as adjacent domain |
+| CTA and route behavior resolved or documented | ✅ Met | Task 5.3 — three stale CTAs fixed. Finding F-5.3b — auth mismatch documented as accepted |
+| Tests exist for the chosen path | ✅ Met | `GuestResultsPage.test.tsx` (11 tests), `ClaimResultsModal.test.tsx` (13 tests), `guestResultsService.test.ts` (pre-existing) |
+| Living docs updated | ✅ Met | Task 5.5 — `result-view-map.md`, `result-view-permission-matrix.md`, `result-view-fr-closure-matrix.md` all updated |
+| Change record updated | ✅ Met | Findings F-5.1a through F-5.7a appended to findings file |
+| Storage decision documented | ✅ Met | Finding F-5.2a — keep current compatibility path |
+| Domain boundary constraint documented | ✅ Met | Finding F-5.1a — boundary explicitly prohibits folding into SharedSavedResultCore |
+

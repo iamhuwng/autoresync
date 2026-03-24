@@ -18,6 +18,7 @@ import type { MasterAudioState } from '../../types/audio.types';
 import type { AntiCheatConfig } from '../../types/integrity.types';
 import { autoSubmitDisconnectedStudents, identifyDisconnectedStudents, identifyUnsubmittedStudents, autoSubmitAllUnsubmittedStudents } from '../../utils/monitor';
 import { cacheSessionStudentSafeTestData } from '../../services/testStorage';
+import type { ReviewReleaseState } from '../../types/releaseState.types';
 
 /** Per-student accommodation settings */
 export interface StudentAccommodationInput {
@@ -56,6 +57,8 @@ export interface MonitorControlsResult {
   completeBaseTest: () => Promise<CompleteBaseTestResult>;
   /** PRD-0019: End full session - cleanup and redirect to results (called when all students complete) */
   endFullSession: (redirectToResults?: boolean, skipConfirmation?: boolean) => Promise<void>;
+  /** PRD-0040 Phase 2: Set the review release state for all students in this session */
+  setReviewReleaseState: (state: ReviewReleaseState) => Promise<void>;
 }
 
 /**
@@ -466,6 +469,8 @@ export function useMonitorControls(
         testStartedAt: null, // Clear test start timestamp
         lastTestCompletedAt: now, // Track when test ended for analytics
         lastTestId: currentTestId, // PRD-0019: Save last test ID for results page
+        // PRD-0040 Phase 2: Default to locked-review on session end
+        reviewReleaseState: 'locked-review' as ReviewReleaseState,
         // PRD-0019: Clear base time expiry flags
         baseTimeExpired: null,
         baseTimeExpiredAt: null,
@@ -890,6 +895,34 @@ export function useMonitorControls(
     }
   };
 
+  /**
+   * PRD-0040 Phase 2: Set the review release state for the current session.
+   * Controls what students can see in post-test review surfaces.
+   * 
+   * @param state - The desired release state:
+   *   - 'locked-review': Score + counts only (default after session end)
+   *   - 'review-released': + correct answers, scoring detail
+   *   - 'feedback-released': + AI feedback, teacher feedback (full access)
+   */
+  const setReviewReleaseState = async (state: ReviewReleaseState) => {
+    if (!sessionCode) {
+      console.error('❌ [PRD-0040] No session code provided');
+      return;
+    }
+
+    try {
+      const sessionRef = ref(database, `game_sessions/${sessionCode}`);
+      await update(sessionRef, {
+        reviewReleaseState: state,
+        reviewReleaseStateUpdatedAt: Date.now(),
+      });
+      console.log(`✅ [PRD-0040] Release state set to '${state}' for session ${sessionCode}`);
+    } catch (error) {
+      console.error('❌ [PRD-0040] Error setting release state:', error);
+      throw error;
+    }
+  };
+
   return {
     startTest,
     pauseTest,
@@ -904,5 +937,6 @@ export function useMonitorControls(
     clearStudentAccommodation,
     completeBaseTest,
     endFullSession,
+    setReviewReleaseState,
   };
 }

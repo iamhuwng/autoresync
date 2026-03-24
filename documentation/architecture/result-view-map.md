@@ -53,9 +53,9 @@ Writing lifecycle keys:
 | `StudentResultsPage` | active | session/post-test | - | `/student-results/:gameSessionId` | RTDB `game_sessions/{gameSessionId}` plus `sessionStorage.playerId` | student live session results | `StudentResultsPage.test.jsx` | - | Test is stale. |
 | `TeacherFeedbackPage` | active | session/post-test | - | `/teacher-feedback/:gameSessionId` | RTDB `game_sessions/{gameSessionId}` and feedback paths | teacher session feedback page | `TeacherFeedbackPage.test.jsx` | - | Smoke-only coverage. |
 | `StudentFeedbackPage` | active | session/post-test | - | `/student-feedback/:gameSessionId` | RTDB `game_sessions/{gameSessionId}` and `sessionStorage.playerId` | student session feedback page | none found | - | Adjacent feedback surface, not saved-result. |
-| `GuestResultsPage` | active | guest-result/claim | - | `/guest-results` | RTDB `guest_results/{guestName}` | guest lookup/list page | none found | - | Public route, but backend read still requires auth and the current CTAs point to invalid `/login` and `/register` routes. |
-| `ProfileCompletionPage` | active | guest-result/claim | - | `/profile/complete` | `checkClaimableResults(email)` | authenticated claim/recovery owner | none found | - | Opens claim modal when guest names are claimable. |
-| `ClaimResultsModal` | active | guest-result/claim | - | mounted by profile completion | `claimGuestResults(guestName, userId)` | guest claim executor | none found | - | Writes non-canonical RTDB result path. |
+| `GuestResultsPage` | active | guest-result/claim | - | `/guest-results` | RTDB `guest_results/{guestName}` | guest lookup/list page | `GuestResultsPage.test.tsx` | - | Public route; backend read requires auth (accepted mismatch per Finding F-5.3b). CTA routes corrected in Task 5.3: all navigate to `/`. Mantine dependency documented (Finding F-5.1b). |
+| `ProfileCompletionPage` | active | guest-result/claim | - | `/profile/complete` | `checkClaimableResults(email)` | authenticated claim/recovery owner | `ProfileCompletionPage.test.tsx` | - | Opens claim modal when guest names are claimable. |
+| `ClaimResultsModal` | active | guest-result/claim | - | mounted by profile completion | `claimGuestResults(guestName, userId)` | guest claim executor | `ClaimResultsModal.test.tsx` | - | Writes to canonical `test_results/{userId}` with additive compatibility metadata (`claimedAt`, `claimedFrom`). Storage decision: keep current compatibility path (Finding F-5.2a). |
 | `TeacherTestMonitorPage` | active | live-monitoring | monitor | `/teacher-test/:sessionCode` and related monitor routes | RTDB `game_sessions/{sessionId}` | live monitor owner | static audit only | - | Also owns writing monitor and release-adjacent flows. **Phase 2:** confirmed as operational control surface only — `FeedbackTab` absent (Finding F-4.6a). Owns release controls but does not display long-form feedback. |
 | `StudentDetailModal` | active | live-monitoring | - | mounted by monitor flows | RTDB session/player paths | live monitoring detail surface | static audit only | - | Not a result-view migration anchor. |
 | `WritingTestPage` | active | writing | draft | student writing test flow | RTDB `game_sessions/{sessionCode}/writing/...` | student writing draft/edit host | static audit only | - | Draft/autosave front door. |
@@ -88,9 +88,18 @@ The three-state release model (`locked-review` → `review-released` → `feedba
 
 - `ResultSlidePanel` and `AcademicRecordPage` are active saved-result surfaces, but their visible ownership enforcement is weaker than the PRD intent.
 - `TestResultsModal` and `StudentTestResultsPage` are active session/post-test surfaces and must not be collapsed into a `resultId` abstraction.
-- `GuestResultsPage` is active, but its route/public posture does not match backend read rules cleanly.
+- `GuestResultsPage` is active with corrected CTA routes. Its public route posture vs. auth-required backend read is an accepted mismatch (Finding F-5.3b).
 - `FeedbackComponentsDemo` is demo-only but reachable and operationally risky because it writes live RTDB paths.
 - `WritingGradingModal`, `StudentResultOverview`, and `StudentDetailedMarkup` are not active runtime surfaces today; they should be treated as `alternate/dormant` or `unwired`, not migration anchors.
+
+## Phase 3: Guest-Result Domain Classification (Task 5.0)
+
+The guest-result/claim domain is formally classified as an **adjacent domain**, architecturally separated from the unified saved-result core:
+- **Surfaces**: `GuestResultsPage`, `ProfileCompletionPage`, `ClaimResultsModal`, `guestResultsService`
+- **Storage**: RTDB `guest_results/{guestName}` (staging) → `test_results/{userId}` (canonical, via claim)
+- **Decision**: Keep current compatibility path. Claim writes to canonical path with additive metadata. No migration needed (Finding F-5.2a).
+- **Tests**: `GuestResultsPage.test.tsx` (11 tests), `ClaimResultsModal.test.tsx` (13 tests), `guestResultsService.test.ts` (pre-existing)
+- **Boundary**: Must NOT be folded into `SharedSavedResultCore` or saved-result shell architecture.
 
 ## Stale Producers and Config-Only References
 

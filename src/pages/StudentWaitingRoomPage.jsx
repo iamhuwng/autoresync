@@ -25,6 +25,7 @@ import { useNavigation } from '../hooks/useNavigation';
 import { useAuth } from '../hooks/useAuth';
 import { database } from '../services/firebase';
 import { sessionService } from '../services/sessionService';
+import { getEffectiveReleaseState } from '../types/releaseState.types';
 import CustomAvatar from '../components/CustomAvatar.jsx';
 import { AppShell, Title, Text, Paper, SimpleGrid, Center, Loader, Group, Divider, Button } from '@mantine/core';
 import { TestResultsModal } from '../components/test/TestResultsModal';
@@ -45,6 +46,11 @@ const StudentWaitingRoomPage = () => {
   const [showResultsModal, setShowResultsModal] = useState(false);
   const [hasRecentResults, setHasRecentResults] = useState(false);
 
+  // PRD-0040 Phase 2: Release-state governance for student result visibility
+  const [reviewReleaseState, setReviewReleaseState] = useState(
+    () => getEffectiveReleaseState(location.state?.reviewReleaseState)
+  );
+
   // PRD-0019 FIX: Track which test the student has already completed.
   // This prevents the waiting room from navigating back to the test page
   // when the session is still 'in-progress' but the student already submitted.
@@ -60,6 +66,10 @@ const StudentWaitingRoomPage = () => {
       console.log('📊 [WaitingRoom] Arrived with showResults flag, opening results modal');
       setShowResultsModal(true);
       setHasRecentResults(true);
+      // PRD-0040: Update release state from navigation state
+      if (location.state?.reviewReleaseState) {
+        setReviewReleaseState(getEffectiveReleaseState(location.state.reviewReleaseState));
+      }
       // Store the testId we know the student completed (we'll check it from session data)
       // If the location state includes a testId, use it; otherwise mark as 'unknown' to block all
       completedTestIdRef.current = location.state?.testId || 'completed';
@@ -67,6 +77,21 @@ const StudentWaitingRoomPage = () => {
       window.history.replaceState({}, document.title);
     }
   }, [location.state, gameSessionId]);
+
+  // PRD-0040 Phase 2: Live listener for release-state changes from teacher monitor
+  useEffect(() => {
+    if (!gameSessionId || !hasRecentResults) return;
+
+    const releaseRef = ref(database, `game_sessions/${gameSessionId}/reviewReleaseState`);
+    const unsubRelease = onValue(releaseRef, (snapshot) => {
+      const val = snapshot.val();
+      const effective = getEffectiveReleaseState(val);
+      console.log(`🔓 [WaitingRoom] Release state updated: ${effective}`);
+      setReviewReleaseState(effective);
+    });
+
+    return () => unsubRelease();
+  }, [gameSessionId, hasRecentResults]);
 
   useEffect(() => {
     // Check for existing session data OR authenticated user
@@ -330,6 +355,7 @@ const StudentWaitingRoomPage = () => {
           opened={showResultsModal}
           onClose={() => setShowResultsModal(false)}
           sessionCode={gameSessionId}
+          reviewReleaseState={reviewReleaseState}
         />
       </Center>
     );
@@ -459,6 +485,7 @@ const StudentWaitingRoomPage = () => {
         opened={showResultsModal}
         onClose={() => setShowResultsModal(false)}
         sessionCode={gameSessionId}
+        reviewReleaseState={reviewReleaseState}
       />
     </AppShell>
   );

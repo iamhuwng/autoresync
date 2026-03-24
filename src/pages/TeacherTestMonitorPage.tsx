@@ -14,6 +14,8 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useParams } from 'react-router-dom';
 import { Center, Loader } from '@mantine/core';
 import { notifications } from '@mantine/notifications'; // PRD-0019
+import type { ReviewReleaseState } from '../types/releaseState.types';
+import { getEffectiveReleaseState } from '../types/releaseState.types';
 import { Card, CardBody } from '../components/modern';
 import { Button } from '../components/modern';
 import { StudentProgressCard } from '../components/test/StudentProgressCard';
@@ -264,6 +266,7 @@ export const TeacherTestMonitorPage: React.FC = () => {
     clearStudentAccommodation,
     completeBaseTest, // PRD-0019: Complete base test (submit base students only)
     endFullSession, // PRD-0019: End full session (cleanup)
+    setReviewReleaseState, // PRD-0040 Phase 2: Release state control
   } = useMonitorControls(sessionCode, session, testData, fullTestData);
 
   // PRD-0036: Force-submit and reset handlers
@@ -738,6 +741,95 @@ export const TeacherTestMonitorPage: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* PRD-0040 Phase 2: Review Release Controls */}
+        {/* Show when test has submitted students (session active or ended) */}
+        {submittedCount > 0 && (() => {
+          const currentReleaseState = getEffectiveReleaseState(
+            (session as any)?.reviewReleaseState
+          );
+          const releaseStates: { key: ReviewReleaseState; label: string; icon: string; desc: string }[] = [
+            { key: 'locked-review', label: 'Locked', icon: '🔒', desc: 'Score only' },
+            { key: 'review-released', label: 'Review', icon: '📋', desc: '+ Correct answers' },
+            { key: 'feedback-released', label: 'Full', icon: '💬', desc: '+ AI & Teacher feedback' },
+          ];
+
+          return (
+            <div style={{ maxWidth: '1400px', margin: '0 auto', marginBottom: '1.5rem' }}>
+              <Card variant="glass">
+                <CardBody style={{ padding: '1rem 1.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+                    <div>
+                      <div style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>
+                        Student Review Access
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.15rem' }}>
+                        Controls what students see in their results
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      {releaseStates.map((rs) => {
+                        const isActive = currentReleaseState === rs.key;
+                        return (
+                          <button
+                            key={rs.key}
+                            onClick={async () => {
+                              if (isActive) return;
+                              try {
+                                await setReviewReleaseState(rs.key);
+                                notifications.show({
+                                  title: `Review Access: ${rs.label}`,
+                                  message: rs.desc,
+                                  color: rs.key === 'locked-review' ? 'orange' : rs.key === 'review-released' ? 'blue' : 'green',
+                                  autoClose: 3000,
+                                });
+                              } catch {
+                                notifications.show({
+                                  title: 'Failed',
+                                  message: 'Could not update review access. Try again.',
+                                  color: 'red',
+                                  autoClose: 3000,
+                                });
+                              }
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.4rem',
+                              padding: '0.5rem 1rem',
+                              borderRadius: '8px',
+                              border: isActive ? '2px solid' : '1px solid rgba(148, 163, 184, 0.3)',
+                              borderColor: isActive
+                                ? rs.key === 'locked-review' ? '#f59e0b' : rs.key === 'review-released' ? '#3b82f6' : '#10b981'
+                                : undefined,
+                              background: isActive
+                                ? rs.key === 'locked-review' ? 'rgba(245, 158, 11, 0.1)' : rs.key === 'review-released' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)'
+                                : 'rgba(255, 255, 255, 0.5)',
+                              cursor: isActive ? 'default' : 'pointer',
+                              fontFamily: 'inherit',
+                              fontSize: '0.8rem',
+                              fontWeight: isActive ? 700 : 500,
+                              color: isActive ? '#1e293b' : '#64748b',
+                              transition: 'all 0.2s ease',
+                              opacity: isActive ? 1 : 0.8,
+                            }}
+                            onMouseEnter={(e) => { if (!isActive) (e.currentTarget.style.opacity = '1'); }}
+                            onMouseLeave={(e) => { if (!isActive) (e.currentTarget.style.opacity = '0.8'); }}
+                          >
+                            <span>{rs.icon}</span>
+                            <span>{rs.label}</span>
+                            {isActive && <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>✓</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </CardBody>
+              </Card>
+            </div>
+          );
+        })()}
 
         {/* Student Grid */}
         <div style={{ maxWidth: '1400px', margin: '0 auto' }}>

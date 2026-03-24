@@ -18,6 +18,7 @@ import { ref, get } from 'firebase/database';
 // @ts-ignore - firebase.js is a JS file
 import { database } from '../../services/firebase';
 import { sessionService } from '../../services/sessionService';
+import { getEffectiveReleaseState } from '../../types/releaseState.types';
 
 interface UseTeacherEndRedirectOptions {
     sessionCode: string | undefined;
@@ -66,11 +67,23 @@ export const useTeacherEndRedirect = ({ sessionCode }: UseTeacherEndRedirectOpti
                     console.log('🔄 [TeacherEndRedirect] Student was auto-submitted, redirecting to waiting room with results modal');
                     console.log('  → hasCompletedTest:', wasCompleted, '| isSubmitted:', wasSubmitted, '| submittedBy:', playerData.submittedBy, '| recentlyEnded:', recentlyEnded);
 
+                    // PRD-0040 Phase 2: Read session-level release state for the waiting room
+                    let releaseState = 'locked-review';
+                    try {
+                        const sessionRef = ref(database, `game_sessions/${sessionCode}`);
+                        const sessionSnap = await get(sessionRef);
+                        if (sessionSnap.exists()) {
+                            releaseState = getEffectiveReleaseState(sessionSnap.val()?.reviewReleaseState);
+                        }
+                    } catch (releaseErr) {
+                        console.warn('[TeacherEndRedirect] Could not read release state, defaulting to locked-review:', releaseErr);
+                    }
+
                     // PRD-TEST-END-FLOW: Navigate to waiting room with showResults flag
-                    // The waiting room will auto-open a TestResultsModal
+                    // PRD-0040: Also pass releaseState so the modal knows what to show
                     navigate(`/student-wait/${sessionCode}`, {
                         replace: true,
-                        state: { showResults: true, sessionCode },
+                        state: { showResults: true, sessionCode, reviewReleaseState: releaseState },
                     });
                     return true;
                 }

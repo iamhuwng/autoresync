@@ -1,4 +1,4 @@
-# Task List Management
+﻿# Task List Management
 
 Guidelines for managing task lists in markdown files to track progress on completing a PRD
 
@@ -40,7 +40,6 @@ When working with task lists, the AI must:
 2. Follow the completion protocol:
    - Mark each finished **sub‑task** `[x]`.
    - Mark the **parent task** `[x]` once **all** its subtasks are `[x]`.
-3. Create a new file name `findings-of-tasks-[prd-file-name].md` (e.g., `findings-of-tasks-0001-prd-user-profile-editing.md`) to add newly discovered tasks and new findings (of irregularity, disparity or a need to branch out from the tasklist). 
-	ONLY ADD. MUST NOT EDIT, REMOVE, OR COMBINE EXISTING CONTENT UNTIL THE TASKLIST IS FINISHED.
+3. Edit to add newly discovered tasks and new findings (of irregularity, disparity or a need to branch out from the tasklist). ONLY ADD. MUST NOT EDIT, REMOVE, OR COMBINE EXISTING CONTENT UNTIL THE TASKLIST IS FINISHED.
 4. Keep "Relevant Files" accurate and up to date.
 5. Before starting work, check which sub‑task is next.
