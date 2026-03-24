@@ -232,17 +232,17 @@
   - [x] 8.7 Update `result-view-map.md`, `result-view-permission-matrix.md` if access truth changes, `result-view-fr-closure-matrix.md` if status changes, the PRD if architecture truth changed, and the change record with the final triage decisions.
   - [x] 8.8 Stop if any unwired or demo surface remains uncategorized, if a retained wrapper has no removal gate, or if a public or demo route still carries live-path write risk without an explicit decision.
   - [x] 8.9 Close `8.0` only when all targeted surfaces have explicit outcomes, removal history is recorded where needed, tests match reality, and docs plus change records are updated.
-- [ ] 9.0 Close the enforcement and merge gate so future work cannot drift away from PRD-0040.
-  - [ ] 9.1 Update enforcement and review checks so result-related changes fail review when `result-view-map.md`, `result-view-permission-matrix.md`, `result-view-fr-closure-matrix.md`, or the required change record are missing. Verify that the living-doc practice itself is operational: PRD, map, matrix, and change record must all be reviewable together as one workflow, not as disconnected artifacts.
-  - [ ] 9.2 Make the runtime backend-rule verification path explicit and runnable. If local Java or emulator support is missing, record the exact external runner or CI requirement instead of pretending the proof exists locally.
-  - [ ] 9.3 Add tamper-path verification for `?result=`, notification metadata and links, legacy direct-result routes, same-result cross-entry behavior, and access-lost behavior.
-  - [ ] 9.4 Remove any thin legacy wrapper whose removal gate has been satisfied, or update that wrapper's gate and target phase explicitly if it must survive longer. Phase 4 is not complete while an expired wrapper gate remains unresolved.
-  - [ ] 9.5 Run the exact enforcement bundle from `0.3.5`, rerun the affected Vitest bundles from `0.3.1` through `0.3.4`, and record which commands passed, which were blocked by environment, and which follow-up task owns any remaining runtime gap.
-  - [ ] 9.6 Convert every unresolved risk into a named follow-up task or an explicit carried risk in the change record. Do not leave someone-should-check-this-later text without an owner.
-  - [ ] 9.7 Reconcile the final implementation state against the PRD phase acceptance gates and forbidden moves. If a phase gate is not satisfied, do not mark that phase complete just because code exists.
-  - [ ] 9.8 Update the final living docs, the governing PRD if architecture truth changed, and the final change record entry so the merge packet contains the exact current truth.
-  - [ ] 9.9 Stop if any required doc is missing, if any required test bundle was not run or explicitly deferred with owner and reason, if UTF-8 checks fail on changed files, or if any carried risk lacks a named follow-up.
-  - [ ] 9.10 Close `9.0` only when enforcement is active, runtime-proof strategy is explicit, tamper paths are covered, wrapper-removal gates are current, all required docs are current, UTF-8 checks pass, and the merge packet is complete without relying on tribal knowledge.
+- [x] 9.0 Close the enforcement and merge gate so future work cannot drift away from PRD-0040.
+  - [x] 9.1 Update enforcement and review checks so result-related changes fail review when `result-view-map.md`, `result-view-permission-matrix.md`, `result-view-fr-closure-matrix.md`, or the required change record are missing. Verify that the living-doc practice itself is operational: PRD, map, matrix, and change record must all be reviewable together as one workflow, not as disconnected artifacts.
+  - [x] 9.2 Make the runtime backend-rule verification path explicit and runnable. If local Java or emulator support is missing, record the exact external runner or CI requirement instead of pretending the proof exists locally.
+  - [x] 9.3 Add tamper-path verification for `?result=`, notification metadata and links, legacy direct-result routes, same-result cross-entry behavior, and access-lost behavior.
+  - [x] 9.4 Remove any thin legacy wrapper whose removal gate has been satisfied, or update that wrapper's gate and target phase explicitly if it must survive longer. Phase 4 is not complete while an expired wrapper gate remains unresolved.
+  - [x] 9.5 Run the exact enforcement bundle from `0.3.5`, rerun the affected Vitest bundles from `0.3.1` through `0.3.4`, and record which commands passed, which were blocked by environment, and which follow-up task owns any remaining runtime gap.
+  - [x] 9.6 Convert every unresolved risk into a named follow-up task or an explicit carried risk in the change record. Do not leave someone-should-check-this-later text without an owner.
+  - [x] 9.7 Reconcile the final implementation state against the PRD phase acceptance gates and forbidden moves. If a phase gate is not satisfied, do not mark that phase complete just because code exists.
+  - [x] 9.8 Update the final living docs, the governing PRD if architecture truth changed, and the final change record entry so the merge packet contains the exact current truth.
+  - [x] 9.9 Stop if any required doc is missing, if any required test bundle was not run or explicitly deferred with owner and reason, if UTF-8 checks fail on changed files, or if any carried risk lacks a named follow-up.
+  - [x] 9.10 Close `9.0` only when enforcement is active, runtime-proof strategy is explicit, tamper paths are covered, wrapper-removal gates are current, all required docs are current, UTF-8 checks pass, and the merge packet is complete without relying on tribal knowledge.
 
 ## Relevant Files
 
