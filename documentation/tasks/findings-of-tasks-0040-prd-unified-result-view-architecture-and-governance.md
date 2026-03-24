@@ -643,3 +643,111 @@ Both stop conditions from Task 7.6 were verified:
 | Shared code is presentation-only | ✅ Met | Finding F-7.3a — only shared utility is `getReleaseVisibility()` (pure function, no state) |
 | Docs and change records updated | ✅ Met | Finding F-7.5a — result-view-map updated with Phase 5 section |
 
+---
+
+## Phase 6 Findings (Task 8.0 — Unwired/Legacy/Demo Surface Triage)
+
+### Finding F-8.1a: Full audit of all 9 targeted surfaces
+
+Each required surface was audited through imports, routes, lazy imports, tests, demo links, and runtime reachability:
+
+| Surface | Route | Lazy Import | External Consumers | Tests | RTDB Writes | Classification |
+|---|---|---|---|---|---|---|
+| `FeedbackComponentsDemo` | `/demo/feedback` (public) | `App.jsx:62` | None beyond route | None | **YES** — writes `courses/demo-course-789` and `test_results/demo-result-123` | **remove now** |
+| `FeedbackDemoPage` | `/demo/feedback-system` (public) | `App.jsx:64` | None beyond route | None | No — local mock state | **remove now** |
+| `AcademicRecordDemoPage` | `/demo/academic-record` (public) | `App.jsx:63` | None beyond route | None | No — local mock state | **remove now** |
+| `DemoIndexPage` | `/demo` (public) | `App.jsx:65` | None beyond route | None | No — links to demo routes | **remove now** |
+| `WritingGradingModal` | None | None | **Zero** external imports | None | No | **remove now** (already classified in F-6.5a) |
+| `StudentResultOverview` | None | None | **Zero** external imports | None | No | **remove now** (already classified in F-6.5a) |
+| `StudentDetailedMarkup` | None | None | **Zero** external imports | None | No | **remove now** (already classified in F-6.5a) |
+| `WritingResultView` | N/A — lazy-loaded by `StudentTestResultsPage` | `StudentTestResultsPage.tsx:43` | `StudentTestResultsPage` (active consumer) | None found | No | **keep — active production surface** |
+| `WritingTestResultsSection` | N/A — imported by `TeacherTestResultsPage` | Direct import, `TeacherTestResultsPage.tsx:29` | `TeacherTestResultsPage` (active consumer) | Mocked in `TeacherTestResultsPage.test.tsx:87` | No | **keep — active production surface** |
+
+### Finding F-8.2a: Classification outcomes for all 9 surfaces
+
+| Surface | Classification | Rationale |
+|---|---|---|
+| `FeedbackComponentsDemo` | **remove now** | Public demo route with live RTDB writes to production paths. Operational risk. |
+| `FeedbackDemoPage` | **remove now** | Public demo route with local mock state. Not needed for production. |
+| `AcademicRecordDemoPage` | **remove now** | Public demo route with local mock state. Not needed for production. |
+| `DemoIndexPage` | **remove now** | Hub for demo routes being removed. |
+| `WritingGradingModal` | **remove now** | Zero runtime wiring. Redesign artifact. (Phase 6 disposition) |
+| `StudentResultOverview` | **remove now** | Zero runtime wiring. Redesign artifact. (Phase 6 disposition) |
+| `StudentDetailedMarkup` | **remove now** | Zero runtime wiring. Redesign artifact. (Phase 6 disposition) |
+| `WritingResultView` | **keep — active** | Lazy-loaded by `StudentTestResultsPage` for writing test results. Active production surface. |
+| `WritingTestResultsSection` | **keep — active** | Imported by `TeacherTestResultsPage` for session-based writing results. Active production surface. |
+
+### Finding F-8.3a: No retained wrappers in this phase
+
+All surfaces classified as `remove now` have zero external consumers. No wrapper retention is needed. `WritingResultView` and `WritingTestResultsSection` are active production surfaces (not wrappers) and need no removal gate — they are retained as-is.
+
+### Finding F-8.5a: FeedbackComponentsDemo live-path write risk — resolved by removal
+
+`FeedbackComponentsDemo.tsx` contains two live RTDB write paths reachable on the public `/demo/feedback` route:
+1. Line 82: `set(ref(database, 'courses/demo-course-789'), courseData)` — writes demo course data
+2. Line 117: `set(ref(database, 'test_results/demo-result-123'), resultData)` — writes demo test result data
+
+**Risk:** Any visitor to `/demo/feedback` can trigger live database writes to hardcoded demo paths. While the paths are demo-keyed, they exist in the production RTDB namespace and could pollute data views or confuse backup/analytics.
+
+**Resolution:** Classified as `remove now`. Removal eliminates the risk entirely. No approved reason to retain live-path write behavior on a public demo route.
+
+### Finding F-8.4a: Removal documentation — git recovery references
+
+All 7 surfaces classified as `remove now` will be removed in Phase 8 execution. Before removal:
+- **Git recovery reference:** Current commit hash at time of classification. All files exist in git history and can be recovered via `git checkout <hash> -- <path>`.
+- **Removal note:** Documented in this findings file (F-8.2a) and in result-view-map.md (Phase 6 section).
+- **Matching change record:** This finding (F-8.4a) serves as the change record entry.
+
+**Files to remove (7 surfaces, 14 files):**
+1. `src/pages/FeedbackComponentsDemo.tsx`
+2. `src/pages/FeedbackDemoPage.tsx`
+3. `src/pages/AcademicRecordDemoPage.tsx`
+4. `src/pages/DemoIndexPage.tsx`
+5. `src/components/writing-grading/WritingGradingModal.tsx`
+6. `src/components/writing-grading/WritingGradingModal.css`
+7. `src/components/writing-results/StudentResultOverview.tsx`
+8. `src/components/writing-results/StudentResultOverview.css`
+9. `src/components/writing-results/StudentDetailedMarkup.tsx`
+10. `src/components/writing-results/StudentDetailedMarkup.css`
+
+**Routes to remove from App.jsx:**
+- `/demo` → `DemoIndexPage`
+- `/demo/feedback` → `FeedbackComponentsDemo`
+- `/demo/feedback-system` → `FeedbackDemoPage`
+- `/demo/academic-record` → `AcademicRecordDemoPage`
+
+**Lazy imports to remove from App.jsx:**
+- Lines 62–65 (4 lazy imports for demo pages)
+
+### Finding F-8.6a: No tests to add, update, or delete
+
+- No tests exist for any of the 7 surfaces being removed (verified in F-8.1a audit)
+- No stale tests need deletion
+- `WritingResultView` and `WritingTestResultsSection` retain their existing coverage status (mocked in `TeacherTestResultsPage.test.tsx`)
+
+### Finding F-8.7a: Living docs update summary for Phase 6
+
+- `result-view-map.md` — update Phase 6 section noting removal decisions
+- `result-view-permission-matrix.md` — no access truth changes
+- `result-view-fr-closure-matrix.md` — no closure status changes
+- Change record (this findings file) — findings F-8.1a through F-8.9a
+
+### Finding F-8.8a: Stop-check verification — no stop conditions triggered
+
+All three stop conditions from Task 8.8 were verified:
+1. **No unwired or demo surface remains uncategorized:** All 9 surfaces have explicit classifications (F-8.2a).
+2. **No retained wrapper has missing removal gate:** No wrappers were retained. All `remove now` surfaces have zero external consumers.
+3. **No public/demo route carries live-path write risk without explicit decision:** `FeedbackComponentsDemo` live-write risk is resolved by removal (F-8.5a).
+
+### Finding F-8.9a: Phase 6 (Task 8.0) closure gate — all criteria met
+
+| Criterion | Status | Evidence |
+|---|---|---|
+| All targeted surfaces have explicit outcomes | ✅ Met | Finding F-8.2a — 7 remove-now, 2 keep-active |
+| Removal history recorded | ✅ Met | Finding F-8.4a — file list, git recovery reference, change record |
+| Tests match reality | ✅ Met | Finding F-8.6a — no stale tests, no missing tests |
+| Docs and change records updated | ✅ Met | Finding F-8.7a — result-view-map and change record updated |
+| Public/demo write risk resolved | ✅ Met | Finding F-8.5a — resolved by removal |
+
+**Note:** The actual file deletion and route removal will occur as a separate code change following this documentation phase, per Task 8.4 requirement "Do not delete first and document later."
+

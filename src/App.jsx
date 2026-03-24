@@ -59,10 +59,7 @@ const AcademicRecordPage = lazyWithRetry(() => import('./pages/AcademicRecordPag
 const ResultDetailPage = lazyWithRetry(() => import('./pages/ResultDetailPage.tsx'));
 const AccessDeniedPage = lazyWithRetry(() => import('./pages/AccessDeniedPage.tsx'));
 const BlockedUserPage = lazyWithRetry(() => import('./pages/BlockedUserPage.tsx'));
-const FeedbackComponentsDemo = lazyWithRetry(() => import('./pages/FeedbackComponentsDemo.tsx'));
-const AcademicRecordDemoPage = lazyWithRetry(() => import('./pages/AcademicRecordDemoPage.tsx'));
-const FeedbackDemoPage = lazyWithRetry(() => import('./pages/FeedbackDemoPage.tsx'));
-const DemoIndexPage = lazyWithRetry(() => import('./pages/DemoIndexPage.tsx'));
+
 // PRD-0016: Solo Study & Homework System
 const StudentLibraryPage = lazyWithRetry(() => import('./pages/StudentLibraryPage.tsx'));
 // PRD-0025: Unified Solo Practice Mode
@@ -373,11 +370,7 @@ function App() {
           <Route path="/submission-complete" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<SubmissionCompletePage />, 'results')}</PrivateRoute>} />
           <Route path="/result/:resultId" element={<PrivateRoute allowedRoles={['student', 'teacher', 'super_admin']}>{withTrackedRoute(<ResultDetailPage />, 'results')}</PrivateRoute>} />
 
-          {/* Demo/Testing Routes */}
-          <Route path="/demo" element={<DemoIndexPage />} />
-          <Route path="/demo/feedback" element={<FeedbackComponentsDemo />} />
-          <Route path="/demo/feedback-system" element={<FeedbackDemoPage />} />
-          <Route path="/demo/academic-record" element={<AcademicRecordDemoPage />} />
+
         </Routes>
         <AdminLoginModal show={showAdminLogin} handleClose={() => setShowAdminLogin(false)} />
 

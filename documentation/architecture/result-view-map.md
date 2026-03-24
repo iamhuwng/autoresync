@@ -156,3 +156,22 @@ The live-monitoring domain is formally classified as an **operational control do
 - Zero imports from saved-result components (`SharedSavedResultCore`, `ResultSlidePanel`, `ResultDetailModal`, `LegacyResultDetailView`)
 - Zero shared loaders or permission logic between monitor and result domains
 - Monitor hooks (`useMonitorSession`, `useMonitorControls`) are monitor-exclusive
+
+## Phase 6: Unwired/Legacy/Demo Surface Triage (Task 8.0)
+
+### Removed surfaces (7) — git recovery: `ffb3747`
+| Surface | Former Route/Wiring | Removal Reason |
+|---|---|---|
+| `FeedbackComponentsDemo` | `/demo/feedback` (public) | Live RTDB writes on public route — production risk |
+| `FeedbackDemoPage` | `/demo/feedback-system` (public) | Unwired demo — local mock only |
+| `AcademicRecordDemoPage` | `/demo/academic-record` (public) | Unwired demo — local mock only |
+| `DemoIndexPage` | `/demo` (public) | Hub for removed demo routes |
+| `WritingGradingModal` | None (zero imports) | Dormant redesign artifact |
+| `StudentResultOverview` | None (zero imports) | Dormant redesign artifact |
+| `StudentDetailedMarkup` | None (zero imports) | Dormant redesign artifact |
+
+### Retained active surfaces (2)
+| Surface | Consumer | Reason |
+|---|---|---|
+| `WritingResultView` | `StudentTestResultsPage` (lazy-loaded) | Active student-facing writing result viewer |
+| `WritingTestResultsSection` | `TeacherTestResultsPage` (direct import) | Active teacher-facing writing session results |
