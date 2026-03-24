@@ -2,6 +2,7 @@ import { get, ref, update } from 'firebase/database';
 import { database } from './firebase';
 import { withRestoreGuard } from './restoreGuard';
 import { getResultsByStudent } from './academicRecordService';
+import { executeGeminiWithKeyRotation } from './ai/gemini-key-rotation.service';
 import type { EnhancedTestResultRecord } from '../types/results.types';
 import type { ProgressiveFeedbackRecord, ProgressiveFeedbackSnapshot } from '../types/academicRecord.types';
 
@@ -230,14 +231,6 @@ async function generateAIProgressiveNarrative(context: {
     deterministicNarrative: ProgressiveAIFeedback;
 }): Promise<{ narrative: ProgressiveAIFeedback; model: string } | null> {
     try {
-        const { GoogleGenerativeAI } = await import('@google/generative-ai');
-        const { loadAllGeminiApiKeys } = await import('../config/env.config');
-        const { benchKey, filterBenchedKeys } = await import('./key-cooldown.service');
-
-        const allKeys = await loadAllGeminiApiKeys();
-        const keys = filterBenchedKeys(allKeys, 'gemini');
-        if (keys.length === 0) return null;
-
         const prompt = {
             current: context.current,
             previous: context.previous,
@@ -247,8 +240,13 @@ async function generateAIProgressiveNarrative(context: {
             deterministicNarrative: context.deterministicNarrative,
         };
 
-        for (const key of keys) {
-            try {
+        const rotationResult = await executeGeminiWithKeyRotation<{
+            narrative: ProgressiveAIFeedback;
+            model: string;
+        }>({
+            callerName: 'ProgressiveFeedback',
+            exhaustedError: 'All Gemini keys exhausted',
+            attempt: async ({ key, GoogleGenerativeAI }) => {
                 const client = new GoogleGenerativeAI(key);
                 const model = client.getGenerativeModel({
                     model: 'gemini-2.5-flash',
@@ -278,17 +276,24 @@ Return ONLY valid JSON with keys summary, progression, regression, repetition, a
                 );
 
                 const text = result.response.text();
-                if (!text) continue;
-                const parsed = JSON.parse(text) as ProgressiveAIFeedback;
-                if (!parsed.summary || !parsed.advice) continue;
-                return { narrative: parsed, model: 'gemini-2.5-flash' };
-            } catch (error) {
-                const message = error instanceof Error ? error.message : 'Unknown error';
-                if (message.includes('429') || message.includes('rate limit') || message.includes('quota')) {
-                    benchKey(key, 'gemini', message);
-                    continue;
+                if (!text) {
+                    return { status: 'continue' };
                 }
-            }
+
+                const parsed = JSON.parse(text) as ProgressiveAIFeedback;
+                if (!parsed.summary || !parsed.advice) {
+                    return { status: 'continue' };
+                }
+
+                return {
+                    status: 'success',
+                    value: { narrative: parsed, model: 'gemini-2.5-flash' },
+                };
+            },
+        });
+
+        if (rotationResult.success && rotationResult.value) {
+            return rotationResult.value;
         }
 
         return null;

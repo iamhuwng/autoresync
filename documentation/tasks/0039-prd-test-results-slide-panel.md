@@ -313,14 +313,14 @@ Left column of the Feedback tab. Content sourced from `formativeFeedback.aiFeedb
 #### 4.4.2 Study Resource Recommendations
 
 **FR-34: Resource recommendation engine.**
-Create `src/config/studyResources.config.ts` with a static mapping:
+Create `src/config/studyResources.config.ts` with the approved 9-book catalog and topic-level mapping. Exact chapter-level overrides are optional and may be added later without blocking implementation:
 
 ```typescript
 interface StudyResource {
   bookTitle: string;
   author: string;
   publisher: string;
-  relevantChapters: string[]; // e.g., ["Chapter 8: Relative Clauses", "Unit 12"]
+  focusLabel: string; // e.g., "Grammar reference and sentence accuracy"
 }
 
 interface ResourceMapping {
@@ -351,16 +351,16 @@ export const IELTS_RESOURCES: ResourceMapping = { ... };
 
 **FR-36: AI-composed recommendations.**
 After the AI feedback loads, the Feedback tab shows a "📚 What to Study Next" section:
-1. Takes the `intentBreakdown` or `questionExplanations` from AI feedback
-2. Maps weak skills to resources from `studyResources.config.ts`
-3. AI composes a natural-language recommendation like:
-   *"Focus on relative clauses — review Chapter 8 in English Grammar in Use (5th Edition) by Raymond Murphy, pages 16-17."*
-4. If the student got 0 incorrect (perfect score), show congratulatory message with advanced-level resource suggestions
+1. Takes the `intentBreakdown`, `analysis`, or `questionExplanations` from formative feedback
+2. Maps weak skills to approved resources from `studyResources.config.ts`
+3. Composes a natural-language recommendation using the approved book titles and their known focus areas
+4. If curated chapter/section data exists later, it can enrich the recommendation copy, but chapter precision is not required to ship Phase 1
+5. If the student got 0 incorrect (perfect score), show congratulatory message with advanced-level resource suggestions
 
 **FR-37: Resource display format.**
 Each recommendation card shows:
 - 📖 Book title (bold) + author
-- Relevant chapter/section (e.g., "Chapter 8: Relative Clauses, pp. 16-17")
+- Focus area text from the approved catalog (chapter/section override optional)
 - Skill tag badge (e.g., "Grammar", "Vocabulary")
 
 #### 4.4.3 Score Trend
@@ -712,7 +712,7 @@ Use native HTML/CSS components (no Mantine). Follow existing patterns from `Resu
 
 | # | Question | Status |
 |---|----------|--------|
-| OQ-1 | Study resource config data — exact chapter-to-topic mapping for each book | TBD — populate `studyResources.config.ts` before implementation |
+| OQ-1 | Study resource config data — optional chapter-to-topic override layer for each approved book | Deferred — Phase 1 may ship with book-level recommendations from the approved catalog |
 | OQ-2 | Should attempt history group by `testId` alone or by `testId + sessionCode`? | Suggested: `testId + studentId` (cross-session grouping) |
 
 ---

@@ -12,11 +12,13 @@
 import { ref, set, get, push, update } from 'firebase/database';
 // @ts-ignore
 import { database } from './firebase';
+import { buildRoute } from '../constants/routes';
 import { TestMarkingResult } from './autoMarking.service';
 import { ReMarkEntry, ResultFilters, EnhancedTestResultRecord, PassageResult } from '../types/results.types';
 import type { ResultContext } from '../types/solo.types';
 import { saveGuestResult } from './guestResultsService';
 import type { SectionResult } from '../types/thcs-test.types';
+import type { FormativeFeedback } from '../types/thcs-test.types';
 
 /**
  * Complete test result record
@@ -27,6 +29,7 @@ export interface TestResultRecord {
   testId: string;
   studentId: string;
   studentName: string;
+  userId?: string;
 
   // Marking results
   totalScore: number;
@@ -120,6 +123,9 @@ export interface TestResultRecord {
   ieltsData?: {
     passageResults: PassageResult[];
   };
+
+  /** PRD-0039: AI formative feedback */
+  formativeFeedback?: FormativeFeedback;
 }
 
 /**
@@ -328,7 +334,7 @@ export async function saveTestResult(
           type: 'success',
           title: '✅ Test Complete',
           message: `You completed "${testMetadata.title}". Score: ${markingResult.totalScore}/${markingResult.maxScore}`,
-          link: `/student/results/${resultId}`,
+          link: buildRoute('RESULT_DETAIL', { resultId }),
           metadata: { resultId, testName: testMetadata.title, score: markingResult.totalScore, maxScore: markingResult.maxScore }
         });
         console.log(`📢 [TestResults] Feed notification sent for student ${studentId} completing test ${resultId}`);

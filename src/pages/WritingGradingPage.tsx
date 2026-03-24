@@ -28,6 +28,7 @@ import type {
     WritingGradingAudit,
 } from '../types/ielts-writing.types';
 import './WritingGradingPage.css';
+import AIMaintenanceBanner from '../components/ai/AIMaintenanceBanner';
 
 interface TaskScores {
     ta: number | null;
@@ -378,6 +379,9 @@ export default function WritingGradingPage() {
 
     return (
         <div className="wgp-page">
+            {/* AI Maintenance Banner */}
+            <AIMaintenanceBanner style={{ margin: '0 1rem' }} />
+
             {/* Header */}
             <div className="wgp-header">
                 <div className="wgp-header-left">

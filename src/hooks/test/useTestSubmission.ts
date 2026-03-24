@@ -437,6 +437,16 @@ export const useTestSubmission = ({
 
       console.log('✅ Permanent result saved with ID:', resultId);
 
+      if (isIeltsReadingOrListening && resultId) {
+        import('../../services/resultFeedbackGeneration.service')
+          .then(({ triggerFormativeFeedbackForSavedResult }) => {
+            triggerFormativeFeedbackForSavedResult(resultId);
+          })
+          .catch((feedbackErr) => {
+            console.warn('Failed to trigger IELTS formative feedback generation:', feedbackErr);
+          });
+      }
+
       // Link test result to attendance record if module context exists
       if (courseId && classId && moduleId && resultId) {
         try {

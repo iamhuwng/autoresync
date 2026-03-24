@@ -11,6 +11,7 @@ A full-featured, real-time educational platform built with **React 19**, **Fireb
 
 - [Features](#-features)
 - [Architecture](#-architecture)
+- [Result Architecture Reassessment](#result-architecture-reassessment-prd-0040)
 - [Tech Stack](#-tech-stack)
 - [Getting Started](#-getting-started)
 - [Project Structure](#-project-structure)
@@ -114,6 +115,87 @@ A full-featured, real-time educational platform built with **React 19**, **Fireb
 | Feature-sliced skills modules | `src/skills/listening/` and `src/skills/reading/` as target pattern |
 
 ---
+
+## Result Architecture Reassessment (PRD-0040)
+
+The current result-view architecture is being governed by [PRD-0040](./documentation/tasks/0040-prd-unified-result-view-architecture-and-governance.md), which was reassessed against the live codebase on 2026-03-24. This is the current source of truth for what counts as a saved-result shell, what stays outside phase-1 unification, and which working flows must be preserved instead of flattened into placeholders.
+
+Related docs that materially shape this area:
+- [PRD-0039](./documentation/tasks/0039-prd-test-results-slide-panel.md) for the student saved-result shell
+- [PRD-0016 RBAC hardening](./documentation/tasks/0016-prd-rbac-security-hardening.md) for ownership/security expectations
+- [PRD-0030 writing system](./documentation/tasks/0030-prd-ielts-writing-test-system.md) for writing-domain background
+- [PRD-0019 end flow](./documentation/tasks/0019-prd-test-duration-end-flow.md) for post-submission/session transitions
+- [PRD-0028 THCS phase 2](./documentation/tasks/0028-prd-thcs-thpt-test-system-phase2.md) for THCS grading context
+- [Result View Map](./documentation/architecture/result-view-map.md) for current surface classification
+- [Result View Permission Matrix](./documentation/architecture/result-view-permission-matrix.md) for route/app/backend access truth
+- [Result View Reuse Rule](./documentation/rules/result-view-reuse.md) for future task discipline
+- [PRD-0040 FR Closure Matrix](./documentation/architecture/result-view-fr-closure-matrix.md) for current proof status against the PRD
+
+### Verified Domain Highlights
+
+Representative highlights only. The authoritative surface inventory, domain taxonomy, coverage status, and unwired/demo triage live in [Result View Map](./documentation/architecture/result-view-map.md) and [PRD-0040 FR Closure Matrix](./documentation/architecture/result-view-fr-closure-matrix.md).
+
+| Domain | Verified current contract | Key files / routes | Representative anchors |
+|--------|---------------------------|--------------------|------------------------|
+| Saved-result | There are three active saved-result shells only: `ResultSlidePanel`, `ResultDetailModal`, and `LegacyResultDetailView`. `ResultDetailPage` is a wrapper, not a fourth shell, and existing parent-owned entry pages are part of the contract. | `src/components/results/ResultSlidePanel.tsx`, `src/components/results/ResultDetailModal.tsx`, `src/components/results/LegacyResultDetailView.tsx`, `src/pages/ResultDetailPage.tsx`, `src/pages/AcademicRecordPage.tsx`, `src/pages/StudentDashboardPage.jsx`, `src/pages/TeacherStudentHistoryPage.tsx` | `ResultDetailPage.test.tsx`, `AcademicRecordPage.test.tsx`, `TeacherStudentHistoryPage.test.tsx` |
+| Session / post-test | Session review remains distinct from saved-result work. `StudentWaitingRoomPage`, `TestResultsModal`, `StudentTestResultsPage`, `TeacherTestResultsPage`, `TeacherResultsPage`, `StudentResultsPage`, `TeacherResultsDashboard`, and feedback pages are not thin `resultId` wrappers. | `src/pages/StudentWaitingRoomPage.jsx`, `src/components/test/TestResultsModal.tsx`, `src/pages/StudentTestResultsPage.tsx`, `src/pages/TeacherTestResultsPage.tsx`, `src/pages/TeacherResultsPage.jsx`, `src/pages/TeacherResultsDashboard.jsx`, `src/pages/StudentResultsPage.jsx`, `src/pages/TeacherFeedbackPage.jsx`, `src/pages/StudentFeedbackPage.jsx` | `StudentTestResultsPage.test.tsx`, `TeacherTestResultsPage.test.tsx`, `resultsService.test.ts` |
+| Guest-result/claim | Guest lookup and claim are active but non-canonical. Public guest-result routing does not match backend read rules cleanly, claim writes through a non-canonical path, and current guest CTA buttons target invalid `/login` and `/register` routes. | `src/pages/GuestResultsPage.tsx`, `src/pages/ProfileCompletionPage.tsx`, `src/components/guest/ClaimResultsModal.tsx`, `src/services/guestResultsService.ts` | `guestResultsService.test.ts`, static audit docs |
+| Writing | Writing is a lifecycle spanning draft, monitor, queue, editor, result, and THCS inline grading. `SubmissionCompletePage` is an active bridge into result review, not a disposable confirmation screen. | `src/components/writing-student/*`, `src/components/writing-monitor/*`, `src/pages/TeacherGradingPage.tsx`, `src/pages/WritingGradingPage.tsx`, `src/pages/SubmissionCompletePage.tsx`, `src/components/writing-results/*`, `src/services/writingSubmissionService.ts`, `src/components/thcs-grading/InlineWritingGrader.tsx` | `WritingMonitorCard.test.tsx`, `thcsWritingGrading.service.test.ts`, static audit docs |
+| Live-monitoring | Teacher monitor flows remain their own domain and own release-adjacent operations, peek/reopen behavior, and THCS inline writing grading. | `src/pages/TeacherTestMonitorPage.tsx`, `src/components/writing-monitor/WritingMonitorCard.tsx`, `src/components/writing-monitor/WritingPeekModal.tsx`, `src/components/test/StudentDetailModal.tsx` | static audit docs |
+| Unwired/demo | Dormant writing redesign surfaces and public demo routes are explicitly classified rather than silently treated as active architecture. Current default triage is removal unless a named future task keeps them. | `src/components/writing-grading/WritingGradingModal.tsx`, `src/components/writing-results/StudentResultOverview.tsx`, `src/components/writing-results/StudentDetailedMarkup.tsx`, `src/pages/FeedbackComponentsDemo.tsx`, `src/pages/FeedbackDemoPage.tsx`, `src/pages/AcademicRecordDemoPage.tsx`, `src/pages/DemoIndexPage.tsx` | `result-view-map.md`, static audit docs |
+
+### Active High-Risk Findings
+
+- The student ownership path for `/result/:resultId` is not fully preserved today. The route is marked like an ownership-protected path in `src/config/routeSecurity.ts`, but student redirects and query-param openers can still bypass that intended contract if phase-1 work assumes route protection alone is sufficient.
+- `ResultSlidePanel` and `ResultDetailModal` still read `test_results/{resultId}` directly. Unlike `LegacyResultDetailView`, they do not visibly apply ownership validation themselves, so their safety currently depends on caller discipline and backend rules.
+- Live-session student review is currently more permissive than the phase-2 target. Any phase-2 restriction is a deliberate behavior change over existing `StudentTestResultsPage` / `TestResultsModal` behavior, not a brand-new capability.
+- Guest-result claim currently writes through a non-canonical storage/index path. Treat guest result recovery as an adjacent migration problem, not as part of the saved-result happy path.
+- `GuestResultsPage.tsx` currently navigates to `/login` and `/register`, but the app route evidence only mounts `/` for login and does not mount `/register`. Those guest CTAs appear invalid.
+- Writing still has active lifecycle defects and toolchain splits. Those are preserved in Appendix A of [PRD-0040](./documentation/tasks/0040-prd-unified-result-view-architecture-and-governance.md#appendix-a-preserved-writing-toolchain-findings) and should not be normalized away by generic result-view refactors.
+- Public demo feedback routes remain reachable, and `FeedbackComponentsDemo.tsx` writes to live app paths. They should be classified explicitly as demo/public risk, not ignored because they are outside the saved-result shells.
+
+### Additional Verified Deltas
+
+- The 2026-03-24 exhaustive static audit confirmed that `src/__tests__/security/routeAccess.test.ts` is a hand-maintained route model, not a trustworthy source of actual route truth. It still assumes `/login`, so passing it does not prove the live app routes are aligned.
+- `TeacherResultsDashboard.jsx` is an active teacher result dashboard at `/teacher/results`, not a dead leftover.
+- `SubmissionCompletePage.tsx` is an active writing/result-adjacent bridge at `/submission-complete`, not just a cosmetic screen.
+- `StudentResultOverview.tsx` and `StudentDetailedMarkup.tsx` are currently unwired in runtime: no imports, no routes, and no test references were found in `src`.
+- `WritingGradingModal.tsx` is not runtime-reachable today. It is better classified as an `alternate/dormant` writing toolchain than as an active grading surface.
+- `DemoIndexPage.tsx` is publicly reachable and advertises demo links such as `/demo/profile`, `/demo/attendance`, and `/demo/badges` that do not appear to exist in `App.jsx` or `routeSecurity.ts`.
+- `StudentClassDetailPage.jsx` still produces an invalid `/student/results/${classId}/${assignment.id}` deep link, and `routeSecurity.ts` still contains config-only `/student/results/history` metadata with no mounted route.
+- A focused Vitest slice passed on 2026-03-24 for `ResultDetailPage`, `TeacherStudentHistoryPage`, `StudentTestResultsPage`, `TeacherTestResultsPage`, and `routeAccess.test.ts`, which confirms several current contracts but does not replace runtime ownership verification.
+
+### Exhaustiveness Status
+
+An exhaustive static audit has now been completed across six tacks: saved-result contracts, security/ownership, session/post-test flows, guest/adjacent/demo surfaces, writing lifecycle, and dormant/unwired reachability. It is still not runtime-foolproof.
+
+What is verified:
+- the active saved-result shell set and its parent entry owners
+- the current split between advisory route security metadata and runtime ownership enforcement
+- the backend RTDB and Firestore rule reality for saved results, guest claim, session visibility, writing submissions, and demo writes
+- the session/post-test boundary and waiting-room-first post-test behavior
+- the guest/claim adjacency and public demo route risk
+- the invalid guest CTA routes and the stale hand-maintained route-access test model
+- the teacher aggregate results dashboard and submission-complete bridge classification
+- the writing lifecycle boundary, grading queue/editor/result split, and THCS inline-writing separation
+- the major dormant/demo classifications, including unreachable writing redesign files, publicly mounted demo pages, and non-`src` backup/docs-only references
+- stale route/config producers that should not be mistaken for live surface inventory
+- the producer-to-consumer chains for route links, notification metadata, query-param opens, legacy result redirects, and guest claim entry points
+- a focused regression-test slice for the highest-signal route/owner/session pages
+- a prepared emulator-backed runtime rules test at `src/__tests__/security/prd0040-security.emulator.test.ts`
+- the living-doc pack required by PRD-0040: map, permission matrix, reuse rule, and FR closure matrix
+
+What still needs explicit closure before calling this area foolproof:
+- running the prepared emulator-backed runtime verification against backend security rules on a Java-capable machine or CI runner that can host RTDB + Firestore emulators
+- targeted tampering verification for query-param, notification, and legacy direct-read entry points
+
+What is now explicit rather than implied:
+- RTDB currently allows broader teacher and authenticated access than the PRD ownership/release-state language implies.
+- `GuestResultsPage` is publicly routed but backend guest-result reads still require `auth != null`, while guest-result child writes are unrestricted.
+- `WritingGradingModal`, `StudentResultOverview`, and `StudentDetailedMarkup` are not active runtime surfaces even though they are heavily represented in `.knowns` history and design material.
+- Emulator-backed rules verification is technically prepared in the repo, but this machine currently lacks Java, so local `firebase emulators:exec` cannot start yet.
+
+When working on anything result-related, start with [PRD-0040](./documentation/tasks/0040-prd-unified-result-view-architecture-and-governance.md) and treat its domain boundaries as hard constraints.
 
 ## 🛠 Tech Stack
 

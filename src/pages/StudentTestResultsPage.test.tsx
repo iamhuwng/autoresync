@@ -24,7 +24,8 @@ vi.mock('../services/testResults.service', async () => {
     const actual = await vi.importActual('../services/testResults.service');
     return {
         ...actual,
-        getStudentSessionResult: vi.fn()
+        getStudentSessionResult: vi.fn(),
+        getTestResult: vi.fn()
     };
 });
 
@@ -182,5 +183,26 @@ describe('StudentTestResultsPage', () => {
         await waitFor(() => {
             expect(screen.getByText('1/1')).toBeInTheDocument();
         });
+    });
+
+    it('should redirect legacy student result links to the canonical result detail route', async () => {
+        (testResultsService.getTestResult as any).mockResolvedValue({
+            resultId: 'result-legacy-1',
+            studentId,
+        });
+
+        render(
+            <MemoryRouter initialEntries={['/student/results/result-legacy-1']}>
+                <Routes>
+                    <Route path="/student/results/:sessionCode" element={<StudentTestResultsPage />} />
+                    <Route path="/result/:resultId" element={<div>Canonical Result Route</div>} />
+                </Routes>
+            </MemoryRouter>
+        );
+
+        await screen.findByText('Canonical Result Route');
+
+        expect(testResultsService.getTestResult).toHaveBeenCalledWith('result-legacy-1');
+        expect(testResultsService.getStudentSessionResult).not.toHaveBeenCalled();
     });
 });

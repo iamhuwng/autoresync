@@ -41,6 +41,9 @@ const DAILY_EXHAUSTED_COOLDOWN = 3_600_000; // 1 hour
 /** Cooldown for Groq per-day rate limit */
 const GROQ_RPD_COOLDOWN = 3_600_000; // 1 hour
 
+/** Cooldown for disabled or forbidden keys */
+const KEY_DISABLED_COOLDOWN = 86_400_000; // 24 hours
+
 // ── Registry (in-memory, per session) ──────────────────────────
 
 const cooldownRegistry = new Map<string, CooldownEntry>();
@@ -50,6 +53,31 @@ const cooldownRegistry = new Map<string, CooldownEntry>();
 function makePreview(key: string): string {
     if (!key || key.length < 12) return '***';
     return `...${key.slice(-8)}`;
+}
+
+function normalizeErrorMessage(errorMessage: string): string {
+    return String(errorMessage || '').toLowerCase();
+}
+
+export function shouldBenchGeminiKeyError(errorMessage: string): boolean {
+    const normalized = normalizeErrorMessage(errorMessage);
+
+    if (!normalized) {
+        return false;
+    }
+
+    return (
+        normalized.includes('403')
+        || normalized.includes('forbidden')
+        || normalized.includes('permission denied')
+        || normalized.includes('permission_denied')
+        || normalized.includes('blocked')
+        || normalized.includes('invalid api key')
+        || normalized.includes('api key not valid')
+        || normalized.includes('429')
+        || normalized.includes('rate limit')
+        || normalized.includes('quota')
+    );
 }
 
 /**
@@ -66,13 +94,26 @@ function makePreview(key: string): string {
  */
 function parseCooldownMs(provider: 'groq' | 'gemini', errorMessage: string): number {
     const base = DEFAULT_COOLDOWN[provider] ?? 60_000;
+    const normalized = normalizeErrorMessage(errorMessage);
 
     if (!errorMessage) return base;
 
     // ── Gemini: parse retryDelay ────────────────────────────
     if (provider === 'gemini') {
+        if (
+            normalized.includes('403') ||
+            normalized.includes('forbidden') ||
+            normalized.includes('invalid api key') ||
+            normalized.includes('api key not valid') ||
+            normalized.includes('permission denied') ||
+            normalized.includes('permission_denied') ||
+            normalized.includes('blocked')
+        ) {
+            return KEY_DISABLED_COOLDOWN;
+        }
+
         // Check for daily quota exhaustion first (trumps retryDelay)
-        if (errorMessage.includes('limit: 0') || errorMessage.includes('PerDay')) {
+        if (normalized.includes('limit: 0') || normalized.includes('perday')) {
             return DAILY_EXHAUSTED_COOLDOWN;
         }
 
@@ -84,7 +125,7 @@ function parseCooldownMs(provider: 'groq' | 'gemini', errorMessage: string): num
         }
 
         // Generic quota exceeded
-        if (errorMessage.includes('quota') || errorMessage.includes('429')) {
+        if (normalized.includes('quota') || normalized.includes('429')) {
             return base;
         }
     }
@@ -92,10 +133,10 @@ function parseCooldownMs(provider: 'groq' | 'gemini', errorMessage: string): num
     // ── Groq: distinguish RPM vs RPD ────────────────────────
     if (provider === 'groq') {
         if (
-            errorMessage.includes('per day') ||
-            errorMessage.includes('per_day') ||
-            errorMessage.includes('PerDay') ||
-            errorMessage.includes('requests_per_day')
+            normalized.includes('per day') ||
+            normalized.includes('per_day') ||
+            normalized.includes('perday') ||
+            normalized.includes('requests_per_day')
         ) {
             return GROQ_RPD_COOLDOWN;
         }
@@ -136,6 +177,11 @@ export function benchKey(
     const secs = Math.round(cooldownMs / 1000);
     const unit = secs >= 3600 ? `${Math.round(secs / 60)}m` : `${secs}s`;
     console.warn(`🪑 [KeyCooldown] Benched ${provider} key ${preview} for ${unit}`);
+
+    // Invalidate AI status cache so maintenance banner updates promptly
+    try {
+        import('./ai-status.service').then(m => m.invalidateAIStatusCache()).catch(() => {});
+    } catch { /* ignore */ }
 }
 
 /**

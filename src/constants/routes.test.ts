@@ -13,6 +13,8 @@ describe('Route Constants', () => {
       expect(ROUTES.TEACHER_LOBBY).toBe('/teacher-lobby/:sessionCode');
       expect(ROUTES.STUDENT_TEST).toBe('/student-test/:sessionCode');
       expect(ROUTES.SESSIONS).toBe('/sessions');
+      expect(ROUTES.TEACHER_STUDENT_HISTORY).toBe('/teacher/student/:studentId/history');
+      expect(ROUTES.RESULT_DETAIL).toBe('/result/:resultId');
     });
 
     it('should have consistent naming convention', () => {
@@ -79,6 +81,16 @@ describe('Route Constants', () => {
         expect(path).toBe('/teacher-quiz/QUIZ_789');
       });
 
+      it('should handle resultId parameter', () => {
+        const path = buildRoute('RESULT_DETAIL', { resultId: 'result-123' });
+        expect(path).toBe('/result/result-123');
+      });
+
+      it('should handle teacher student history parameters', () => {
+        const path = buildRoute('TEACHER_STUDENT_HISTORY', { studentId: 'student-123' });
+        expect(path).toBe('/teacher/student/student-123/history');
+      });
+
       it('should ignore undefined parameter values', () => {
         const path = buildRoute('STUDENT_TEST', { sessionCode: undefined });
         expect(path).toBe('/student-test/:sessionCode');
@@ -126,6 +138,8 @@ describe('Route Constants', () => {
           'TEACHER_LOBBY',
           'STUDENT_TEST',
           'SESSIONS',
+          'TEACHER_STUDENT_HISTORY',
+          'RESULT_DETAIL',
         ];
         
         routes.forEach(route => {

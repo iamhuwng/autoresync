@@ -26,6 +26,11 @@ vi.mock('./response.validator', () => ({
   normalizeAnswer: vi.fn((answer) => answer),
 }));
 
+vi.mock('../key-cooldown.service', () => ({
+  benchKey: vi.fn(),
+  isKeyBenched: vi.fn(() => false),
+}));
+
 describe('Gemini Provider', () => {
   let provider: GeminiProvider;
   const mockChunk: Chunk = {
@@ -180,8 +185,39 @@ describe('Gemini Provider', () => {
   });
 
   describe('API Key Rotation', () => {
+    it('should skip keys that are already benched in the shared cooldown registry', async () => {
+      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const { isKeyBenched } = await import('../key-cooldown.service');
+      const firstKeyGenerate = vi.fn();
+      const secondKeyGenerate = vi.fn().mockResolvedValue({
+        response: {
+          text: () => JSON.stringify({
+            passages: [],
+            questions: [],
+            answerKey: {},
+            confidence: 90,
+          }),
+        },
+      });
+
+      vi.mocked(isKeyBenched).mockImplementation((key) => key === 'test-key-1');
+      vi.mocked(GoogleGenerativeAI).mockImplementation((apiKey: string) => ({
+        getGenerativeModel: vi.fn().mockReturnValue({
+          generateContent: apiKey === 'test-key-1' ? firstKeyGenerate : secondKeyGenerate,
+        }),
+      }) as any);
+
+      provider = new GeminiProvider();
+      const result = await provider.parseChunk(mockChunk);
+
+      expect(result.success).toBe(true);
+      expect(firstKeyGenerate).not.toHaveBeenCalled();
+      expect(secondKeyGenerate).toHaveBeenCalledTimes(1);
+    });
+
     it('should rotate keys on rate limit error', async () => {
       const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const { benchKey } = await import('../key-cooldown.service');
       let callCount = 0;
 
       const mockModel = {
@@ -212,6 +248,7 @@ describe('Gemini Provider', () => {
 
       expect(result.success).toBe(true);
       expect(callCount).toBe(2); // First attempt + retry with rotated key
+      expect(benchKey).toHaveBeenCalled();
     });
 
     it('should detect rate limit patterns', async () => {

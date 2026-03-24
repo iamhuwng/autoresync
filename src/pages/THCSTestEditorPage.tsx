@@ -36,6 +36,7 @@ import THCSAnswerKeyStep from '../components/thcs-editor/THCSAnswerKeyStep';
 import THCSReviewStep from '../components/thcs-editor/THCSReviewStep';
 
 import type { THCSTestMetadata, THCSSection, THCSTest, THCSDraft } from '../types/thcs-test.types';
+import AIMaintenanceBanner from '../components/ai/AIMaintenanceBanner';
 
 // ═══════════════════════════════════════════════════════════════
 // UTILITY
@@ -799,6 +800,9 @@ export default function THCSTestEditorPage() {
                 saveStatusText={saveStatusText}
                 footer={renderFooter()}
             >
+                {/* AI Maintenance Banner */}
+                <AIMaintenanceBanner />
+
                 {/* Responsive warning */}
                 {isMobile && (
                     <Alert color="yellow" mb="md" icon="⚠️" variant="light">

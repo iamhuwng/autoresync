@@ -24,6 +24,7 @@ export const ROUTES = {
   TEACHER_CLASS_DETAIL: '/teacher/classes/:classId',
   TEACHER_COURSES: '/teacher/courses',
   TEACHER_COURSE_DETAIL: '/teacher/courses/:courseId',
+  TEACHER_STUDENT_HISTORY: '/teacher/student/:studentId/history',
 
   // Student Routes
   STUDENT_DASHBOARD: '/student/dashboard',
@@ -90,6 +91,7 @@ export const ROUTES = {
   STUDENT_HOMEWORK_DETAIL: '/student/homework/:homeworkId',
   STUDENT_LIBRARY: '/student/library',
   STUDENT_PRACTICE: '/student/practice/:materialId',
+  RESULT_DETAIL: '/result/:resultId',
 } as const;
 
 // Type-safe route names
@@ -109,6 +111,7 @@ export interface RouteParams {
   // PRD-0016: Homework & Solo Study
   homeworkId?: string;
   materialId?: string;
+  resultId?: string;
   // PRD-0022: Draft Management
   draftId?: string;
   // PRD-0030: IELTS Writing

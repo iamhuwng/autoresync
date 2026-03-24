@@ -12,9 +12,11 @@ import { submitHomework } from '../../services/homeworkSubmissionService';
 const {
   mockNavigate,
   mockTrackAntiCheatAction,
+  mockTriggerFormativeFeedbackForSavedResult,
 } = vi.hoisted(() => ({
   mockNavigate: vi.fn(),
   mockTrackAntiCheatAction: vi.fn(),
+  mockTriggerFormativeFeedbackForSavedResult: vi.fn(),
 }));
 
 vi.mock('react-router-dom', () => ({
@@ -39,6 +41,11 @@ vi.mock('./useSoloAutoSave', () => ({
 
 vi.mock('../../services/homeworkSubmissionService', () => ({
   submitHomework: vi.fn(() => Promise.resolve()),
+}));
+
+vi.mock('../../services/resultFeedbackGeneration.service', () => ({
+  triggerFormativeFeedbackForSavedResult: (...args: any[]) =>
+    mockTriggerFormativeFeedbackForSavedResult(...args),
 }));
 
 vi.mock('../../services/antiCheatReporting', () => ({
@@ -144,6 +151,7 @@ describe('useSoloSubmission', () => {
       replace: true,
       state: { resultId: 'result-1', showResult: true },
     });
+    expect(mockTriggerFormativeFeedbackForSavedResult).toHaveBeenCalledWith('result-1');
   });
 
   it('replays option shuffling on lazy grading questions for homework or practice flows', async () => {
@@ -246,6 +254,7 @@ describe('useSoloSubmission', () => {
       }),
     );
     expect(clearSoloProgress).toHaveBeenCalledWith('test-1', 'student-1');
+    expect(mockTriggerFormativeFeedbackForSavedResult).toHaveBeenCalledWith('result-1');
   });
 
   it('tracks homework integrity persistence when the homework submission write succeeds', async () => {
@@ -325,5 +334,6 @@ describe('useSoloSubmission', () => {
       }),
     );
     expect(submitHomework).toHaveBeenCalled();
+    expect(mockTriggerFormativeFeedbackForSavedResult).toHaveBeenCalledWith('result-1');
   });
 });

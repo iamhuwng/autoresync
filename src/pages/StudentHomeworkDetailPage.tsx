@@ -68,6 +68,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigation } from '../hooks/useNavigation';
 import { getTestFromFirebase, TestData } from '../services/testStorage';
 import { Card, CardBody, Button } from '../components/modern';
+import { ResultSlidePanel } from '../components/results/ResultSlidePanel';
 
 
 // ============================================================================
@@ -150,6 +151,7 @@ export const StudentHomeworkDetailPage: React.FC = () => {
     const [showStartModal, setShowStartModal] = useState(false);
     const [isStarting, setIsStarting] = useState(false);
     const [startError, setStartError] = useState<string | null>(null);
+    const [selectedResultId, setSelectedResultId] = useState<string | null>(null);
 
     // Fetch homework data
     const {
@@ -235,8 +237,9 @@ export const StudentHomeworkDetailPage: React.FC = () => {
         }
     };
 
+    // PRD-0039 Task 9.7: Redirect to academic-record slide panel
     const handleViewResult = (resultId: string) => {
-        navigate(`/student/results/${resultId}`);
+        setSelectedResultId(resultId);
     };
 
     const handleLogout = () => {
@@ -828,6 +831,12 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                     to { opacity: 1; transform: translateY(0); }
                 }
             `}</style>
+            {selectedResultId && (
+                <ResultSlidePanel
+                    resultId={selectedResultId}
+                    onClose={() => setSelectedResultId(null)}
+                />
+            )}
         </AppShell>
     );
 };

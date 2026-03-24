@@ -4,7 +4,10 @@ import {
     IconCheck,
     IconBook,
     IconCalendar,
-    IconChevronRight
+    IconChevronRight,
+    IconTrendingUp,
+    IconTrendingDown,
+    IconMinus
 } from '@tabler/icons-react';
 import type { EnhancedTestResultRecord } from '../../types/results.types';
 
@@ -189,7 +192,7 @@ export const ResultCard: React.FC<ResultCardProps> = ({
                         </div>
                     )}
 
-                    {/* Footer: Date and Feedback Indicator */}
+                    {/* Footer: Date, Attempt Badge, Feedback Indicator */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.25rem' }}>
                         <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                             <IconCalendar size={14} style={{ color: '#64748b' }} />
@@ -199,6 +202,30 @@ export const ResultCard: React.FC<ResultCardProps> = ({
                         </div>
 
                         <div style={{ display: 'flex', gap: '0.375rem', alignItems: 'center' }}>
+                            {/* PRD-0039 Task 9.1-9.3: Attempt badge + trend icon */}
+                            {result.attemptSummary &&
+                             result.attemptSummary.totalAttempts > 1 &&
+                             result.attemptSummary.isLatestAttempt && (
+                                <span style={{
+                                    ...badgeBase,
+                                    ...badgeLightByName('violet'),
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                }}>
+                                    {result.attemptSummary.trend === 'up' && (
+                                        <IconTrendingUp size={12} style={{ color: '#059669' }} />
+                                    )}
+                                    {result.attemptSummary.trend === 'down' && (
+                                        <IconTrendingDown size={12} style={{ color: '#dc2626' }} />
+                                    )}
+                                    {result.attemptSummary.trend === 'stable' && (
+                                        <IconMinus size={12} style={{ color: '#6b7280' }} />
+                                    )}
+                                    Attempt {result.attemptSummary.attemptNumber}/{result.attemptSummary.totalAttempts}
+                                </span>
+                            )}
+
                             {hasFeedback && (
                                 <span style={{ ...badgeBase, ...badgeLightByName('green'), display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                                     <IconCheck size={12} />

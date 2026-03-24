@@ -585,13 +585,10 @@ const THCSTestLayout: React.FC<THCSTestLayoutProps> = ({ testData, sessionCode }
                 console.info(`[THCS] ${thcsData.pendingWritingCount} writing question(s) pending grading`);
             }
 
-            // Fire-and-forget: AI formative feedback generation (async, non-blocking)
-            import('../../services/formativeFeedback.service').then(({ generateFormativeFeedback }) => {
-                generateFormativeFeedback(gradingResult, testData.sections, {
-                    title: testData.metadata.title,
-                    gradeLevel: testData.metadata.gradeLevel || 9,
-                }, resultId).catch(err => console.warn('[THCS] Formative feedback failed:', err));
-            }).catch(err => console.warn('Failed to load formativeFeedback service:', err));
+            // Fire-and-forget: formative feedback generation from the saved result
+            import('../../services/resultFeedbackGeneration.service').then(({ triggerFormativeFeedbackForSavedResult }) => {
+                triggerFormativeFeedbackForSavedResult(resultId);
+            }).catch(err => console.warn('Failed to load resultFeedbackGeneration service:', err));
         } catch (error) {
             console.error('Submission failed:', error);
             alert('Failed to submit. Please try again.');

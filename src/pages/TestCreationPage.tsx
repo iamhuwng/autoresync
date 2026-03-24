@@ -38,6 +38,7 @@ import {
 import type { ParsedPassage, ParsedQuestion } from '../components/test-creation';
 import { useTestCreation } from '../hooks/useTestCreation';
 import { ROUTES } from '../constants/routes';
+import AIMaintenanceBanner from '../components/ai/AIMaintenanceBanner';
 
 // ═══════════════════════════════════════════════════════════════
 // COMPONENT
@@ -194,6 +195,9 @@ const TestCreationPage: React.FC = () => {
                             overlayProps={{ blur: 2 }}
                             loaderProps={{ type: 'dots', size: 'xl' }}
                         />
+
+                        {/* AI Maintenance Banner */}
+                        <AIMaintenanceBanner />
 
                         {/* Upload State */}
                         {state.phase === 'upload' && (

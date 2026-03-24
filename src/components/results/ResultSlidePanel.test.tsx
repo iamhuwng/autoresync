@@ -24,7 +24,7 @@ const {
   mockGetClassTestScores,
   mockUseScreenSize,
   mockUseTestAttempts,
-  mockGenerateFormativeFeedback,
+  mockGenerateFormativeFeedbackForSavedResult,
 } = vi.hoisted(() => {
   const mockOnValue = vi.fn();
   const mockGetTestResult = vi.fn();
@@ -32,7 +32,7 @@ const {
   const mockGetClassTestScores = vi.fn();
   const mockUseScreenSize = vi.fn();
   const mockUseTestAttempts = vi.fn();
-  const mockGenerateFormativeFeedback = vi.fn();
+  const mockGenerateFormativeFeedbackForSavedResult = vi.fn();
   return {
     mockOnValue,
     mockGetTestResult,
@@ -40,7 +40,7 @@ const {
     mockGetClassTestScores,
     mockUseScreenSize,
     mockUseTestAttempts,
-    mockGenerateFormativeFeedback,
+    mockGenerateFormativeFeedbackForSavedResult,
   };
 });
 
@@ -68,8 +68,9 @@ vi.mock('../../hooks/useTestAttempts', () => ({
   useTestAttempts: (...args: any[]) => mockUseTestAttempts(...args),
 }));
 
-vi.mock('../../services/formativeFeedback.service', () => ({
-  generateFormativeFeedback: (...args: any[]) => mockGenerateFormativeFeedback(...args),
+vi.mock('../../services/resultFeedbackGeneration.service', () => ({
+  generateFormativeFeedbackForSavedResult: (...args: any[]) =>
+    mockGenerateFormativeFeedbackForSavedResult(...args),
 }));
 
 // ─── Mock useScreenSize ─────────────────────────────────────────────────────
@@ -107,6 +108,15 @@ const MOCK_THCS_RESULT = {
   testTitle: 'English 6 Unit 3 Quiz',
   testType: 'practice_thcs',
   testSkill: 'grammar',
+};
+
+const MOCK_GENERIC_RESULT = {
+  ...MOCK_RESULT,
+  resultId: 'res-generic',
+  testTitle: 'Grammar Progress Check',
+  testType: 'grammar-quiz',
+  testSkill: 'grammar',
+  bandScore: undefined,
 };
 
 const MOCK_REVIEWABLE_RESULT = {
@@ -173,7 +183,11 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
     });
     mockGetHistoricalScores.mockResolvedValue([]);
     mockGetClassTestScores.mockResolvedValue([]);
-    mockGenerateFormativeFeedback.mockResolvedValue(undefined);
+    mockGenerateFormativeFeedbackForSavedResult.mockResolvedValue({
+      saved: true,
+      aiApplied: true,
+      mode: 'ai',
+    });
     // Default: onValue returns an unsubscribe fn
     mockOnValue.mockReturnValue(vi.fn());
     document.body.style.overflow = '';
@@ -442,7 +456,7 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
   });
 
   describe('Feedback generation', () => {
-    it('should auto-trigger formative feedback for IELTS results without existing feedback', async () => {
+    it('does not auto-trigger formative feedback for IELTS results without existing feedback', async () => {
       render(<ResultSlidePanel resultId="res-1" onClose={mockOnClose} />);
       simulateOnValueSuccess({
         ...MOCK_RESULT,
@@ -479,7 +493,287 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
       });
 
       await waitFor(() => {
-        expect(mockGenerateFormativeFeedback).toHaveBeenCalledTimes(1);
+        expect(screen.getByText('IELTS Reading Practice Test 3')).toBeInTheDocument();
+      });
+
+      expect(mockGenerateFormativeFeedbackForSavedResult).not.toHaveBeenCalled();
+    });
+
+    it('allows manual retry for IELTS results without stored feedback', async () => {
+      render(<ResultSlidePanel resultId="res-1" onClose={mockOnClose} />);
+      simulateOnValueSuccess({
+        ...MOCK_RESULT,
+        testId: 'test-1',
+        studentId: 'student-1',
+        timeElapsed: 1800,
+        questionResults: [
+          {
+            questionNumber: 1,
+            questionType: 'true_false_not_given',
+            isCorrect: false,
+            score: 0,
+            maxScore: 1,
+            studentAnswer: 'False',
+            correctAnswer: 'True',
+            feedback: '',
+          },
+        ],
+      });
+
+      fireEvent.click(screen.getByTestId('rsp-tab-feedback'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('fb-feedback-missing')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Retry AI Feedback'));
+
+      await waitFor(() => {
+        expect(mockGenerateFormativeFeedbackForSavedResult).toHaveBeenCalledWith('res-1', { forceAiUpgrade: true });
+      });
+    });
+
+    it('should auto-upgrade stored AI feedback when question explanations are still missing', async () => {
+      render(<ResultSlidePanel resultId="res-thcs" onClose={mockOnClose} />);
+      simulateOnValueSuccess({
+        ...MOCK_THCS_RESULT,
+        testId: 'test-thcs',
+        studentId: 'student-1',
+        timeElapsed: 900,
+        questionResults: [
+          {
+            questionNumber: 1,
+            questionType: 'mcq-grammar',
+            isCorrect: false,
+            score: 0,
+            maxScore: 1,
+            studentAnswer: 'B',
+            correctAnswer: 'C',
+            feedback: '',
+          },
+        ],
+        thcsData: {
+          scaledScore: 6.0,
+          sectionResults: [
+            {
+              sectionId: 'grammar',
+              sectionName: 'Grammar',
+              pointsEarned: 0,
+              pointsMax: 1,
+              correctCount: 0,
+              totalCount: 1,
+              percentage: 0,
+              intentBreakdown: {
+                mcq_grammar: { correct: 0, total: 1 },
+              },
+            },
+          ],
+          intentBreakdown: {
+            mcq_grammar: { correct: 0, total: 1 },
+          },
+        },
+        formativeFeedback: {
+          aiFeedback: {
+            summary: 'Old summary',
+            strengths: '',
+            revision: 'Old revision',
+            critical: 'Old critical',
+          },
+          analysis: { strengths: [], revision: [], critical: [] },
+          deterministicFeedback: 'Old feedback',
+          totalCorrect: 0,
+          totalQuestions: 1,
+          scaledScore: 6.0,
+        },
+      });
+
+      fireEvent.click(screen.getByTestId('rsp-tab-feedback'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('fb-ai-analysis')).toBeInTheDocument();
+      });
+
+      await waitFor(() => {
+        expect(mockGenerateFormativeFeedbackForSavedResult).toHaveBeenCalledWith('res-thcs', { forceAiUpgrade: true });
+      });
+    });
+
+    it('should auto-upgrade stored feedback when question explanations are weak legacy scaffolding', async () => {
+      render(<ResultSlidePanel resultId="res-thcs" onClose={mockOnClose} />);
+      simulateOnValueSuccess({
+        ...MOCK_THCS_RESULT,
+        testId: 'test-thcs',
+        studentId: 'student-1',
+        timeElapsed: 900,
+        questionResults: [
+          {
+            questionNumber: 1,
+            questionType: 'mcq-grammar',
+            isCorrect: false,
+            score: 0,
+            maxScore: 1,
+            studentAnswer: 'D',
+            correctAnswer: 'B',
+            feedback: '',
+          },
+        ],
+        thcsData: {
+          scaledScore: 6.0,
+          sectionResults: [
+            {
+              sectionId: 'grammar',
+              sectionName: 'Grammar',
+              pointsEarned: 0,
+              pointsMax: 1,
+              correctCount: 0,
+              totalCount: 1,
+              percentage: 0,
+              intentBreakdown: {
+                mcq_grammar: { correct: 0, total: 1 },
+              },
+            },
+          ],
+          intentBreakdown: {
+            mcq_grammar: { correct: 0, total: 1 },
+          },
+        },
+        formativeFeedback: {
+          aiFeedback: {
+            summary: 'Old summary',
+            strengths: '',
+            revision: 'Old revision',
+            critical: 'Old critical',
+          },
+          questionExplanations: {
+            '1': 'You chose "D", but the correct answer is "B". Review the grammar rule or vocabulary pattern behind this question and try again with similar exercises.',
+          },
+          studyRecommendations: [
+            {
+              skillTag: 'Grammar',
+              questionNumbers: [1],
+              guidance: 'Work on grammar.',
+              resources: [
+                {
+                  bookTitle: 'English Grammar in Use (5th Edition)',
+                  author: 'Raymond Murphy',
+                  sectionTitle: 'Unit 1',
+                  reason: 'Review the basics.',
+                },
+              ],
+            },
+          ],
+          analysis: { strengths: [], revision: [], critical: [] },
+          deterministicFeedback: 'Old feedback',
+          totalCorrect: 0,
+          totalQuestions: 1,
+          scaledScore: 6.0,
+        },
+      });
+
+      fireEvent.click(screen.getByTestId('rsp-tab-feedback'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('fb-ai-analysis')).toBeInTheDocument();
+      });
+
+      await waitFor(() => {
+        expect(mockGenerateFormativeFeedbackForSavedResult).toHaveBeenCalledWith('res-thcs', { forceAiUpgrade: true });
+      });
+    });
+
+    it('should keep deterministic feedback visible but expose AI upgrade for saved fallback content', async () => {
+      render(<ResultSlidePanel resultId="res-thcs" onClose={mockOnClose} />);
+      simulateOnValueSuccess({
+        ...MOCK_THCS_RESULT,
+        testId: 'test-thcs',
+        studentId: 'student-1',
+        timeElapsed: 900,
+        questionResults: [
+          {
+            questionNumber: 1,
+            questionType: 'mcq-grammar',
+            isCorrect: false,
+            score: 0,
+            maxScore: 1,
+            studentAnswer: 'D',
+            correctAnswer: 'B',
+            feedback: '',
+          },
+        ],
+        thcsData: {
+          scaledScore: 6.0,
+          sectionResults: [
+            {
+              sectionId: 'grammar',
+              sectionName: 'Grammar',
+              pointsEarned: 0,
+              pointsMax: 1,
+              correctCount: 0,
+              totalCount: 1,
+              percentage: 0,
+              intentBreakdown: {
+                mcq_grammar: { correct: 0, total: 1 },
+              },
+            },
+          ],
+          intentBreakdown: {
+            mcq_grammar: { correct: 0, total: 1 },
+          },
+        },
+        formativeFeedback: {
+          analysis: { strengths: [], revision: [], critical: [] },
+          deterministicFeedback: 'Base explanation only',
+          questionExplanations: {
+            '1': 'You chose "D", but the correct answer is "B". Review the grammar rule or vocabulary pattern behind this question and try again with similar exercises.',
+          },
+          totalCorrect: 0,
+          totalQuestions: 1,
+          scaledScore: 6.0,
+        },
+      });
+
+      fireEvent.click(screen.getByTestId('rsp-tab-feedback'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('fb-feedback-stored')).toBeInTheDocument();
+      });
+
+      expect(screen.getByText(/still needs an AI upgrade/i)).toBeInTheDocument();
+      expect(screen.getByText('Retry AI Feedback')).toBeInTheDocument();
+      await waitFor(() => {
+        expect(mockGenerateFormativeFeedbackForSavedResult).toHaveBeenCalledWith('res-thcs', { forceAiUpgrade: true });
+      });
+    });
+
+    it('should auto-upgrade weak stored feedback even for generic non-IELTS results', async () => {
+      render(<ResultSlidePanel resultId="res-generic" onClose={mockOnClose} />);
+      simulateOnValueSuccess({
+        ...MOCK_GENERIC_RESULT,
+        questionResults: [
+          { questionNumber: 1, questionType: 'mcq-grammar', isCorrect: false, score: 0, maxScore: 1, studentAnswer: '', correctAnswer: 'D' },
+        ],
+        formativeFeedback: {
+          analysis: { strengths: [], revision: [], critical: [] },
+          deterministicFeedback: 'Base explanation only',
+          questionExplanations: {
+            '1': 'You did not answer this question. The correct answer is "D". Review the grammar rule or vocabulary pattern behind this question and try again with similar exercises.',
+          },
+          totalCorrect: 0,
+          totalQuestions: 1,
+          scaledScore: 2,
+          generatedAt: Date.now(),
+          aiFeedback: {
+            summary: 'Summary exists',
+            strengths: '',
+            revision: '',
+            critical: '',
+          },
+          generationMode: 'ai',
+        },
+      });
+
+      await waitFor(() => {
+        expect(mockGenerateFormativeFeedbackForSavedResult).toHaveBeenCalledWith('res-generic', { forceAiUpgrade: true });
       });
     });
   });

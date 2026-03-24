@@ -10,7 +10,12 @@
  * Follows student-view-design standard (flat, no glass).
  */
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import {
+    getPreferredQuestionExplanation,
+    getRenderableQuestionExplanations,
+} from '../../services/formativeFeedback.service';
+import type { FormativeFeedback } from '../../types/thcs-test.types';
 
 /** Single question result from permanent record */
 export interface QuestionResultItem {
@@ -36,6 +41,9 @@ interface QuestionPillsGridProps {
     formatAnswer: (answer: any) => string;
     /** AI-generated explanations keyed by "Q{number}" or "{number}" */
     aiExplanations?: Record<string, string>;
+    formativeFeedback?: FormativeFeedback;
+    /** Whether detailed AI explanations are still being upgraded/generated */
+    aiExplanationPending?: boolean;
 }
 
 // Student-view-design colors (flat)
@@ -72,6 +80,13 @@ const getShortAnswerLabel = (answer: any, formatAnswer: (a: any) => string): str
     // Single letter answers (A, B, C, D) — most common for MCQ
     const trimmed = formatted.trim();
     if (trimmed.length <= 2) return trimmed.toUpperCase();
+    // IELTS abbreviation map (Task 7.8)
+    const lower = trimmed.toLowerCase();
+    const ieltsMap: Record<string, string> = {
+        'true': 'T', 'false': 'F', 'not given': 'NG',
+        'yes': 'Y', 'no': 'N',
+    };
+    if (ieltsMap[lower]) return ieltsMap[lower];
     // If it starts with a letter option like "A." or "a)" extract just the letter
     const letterMatch = trimmed.match(/^([A-Da-d])[.)\s]/);
     if (letterMatch) return letterMatch[1]!.toUpperCase();
@@ -80,8 +95,18 @@ const getShortAnswerLabel = (answer: any, formatAnswer: (a: any) => string): str
     return trimmed.charAt(0).toUpperCase();
 };
 
-export const QuestionPillsGrid: React.FC<QuestionPillsGridProps> = ({ questions, formatAnswer, aiExplanations }) => {
+export const QuestionPillsGrid: React.FC<QuestionPillsGridProps> = ({
+    questions,
+    formatAnswer,
+    aiExplanations,
+    formativeFeedback,
+    aiExplanationPending = false,
+}) => {
     const [expandedQ, setExpandedQ] = useState<number | null>(null);
+    const renderableExplanations = useMemo(
+        () => getRenderableQuestionExplanations(aiExplanations),
+        [aiExplanations],
+    );
 
     return (
         <div>
@@ -300,10 +325,28 @@ export const QuestionPillsGrid: React.FC<QuestionPillsGridProps> = ({ questions,
 
                         {/* AI Explanation for incorrect questions */}
                         {!q.isCorrect && (() => {
-                            if (!aiExplanations) return null;
-                            const explanation = aiExplanations[`Q${q.questionNumber}`]
-                                || aiExplanations[String(q.questionNumber)];
-                            if (!explanation) return null;
+                            const explanationEntry = getPreferredQuestionExplanation(formativeFeedback, q as any);
+                            const explanation = explanationEntry?.text || renderableExplanations[String(q.questionNumber)];
+                            if (!explanation) {
+                                if (!aiExplanationPending) return null;
+                                return (
+                                    <div style={{
+                                        padding: '0.75rem 1rem',
+                                        background: '#f8fafc',
+                                        borderRadius: '8px',
+                                        fontSize: '0.8rem',
+                                        color: COLORS.textBody,
+                                        lineHeight: 1.6,
+                                        borderLeft: `4px solid ${COLORS.accent}`,
+                                        marginBottom: q.teacherFeedback || q.gradedByName ? '0.75rem' : 0,
+                                    }}>
+                                        <div style={{ fontWeight: 800, fontSize: '0.65rem', textTransform: 'uppercase', marginBottom: '0.25rem', color: COLORS.accent }}>
+                                            Detailed Explanation Pending
+                                        </div>
+                                        A full AI explanation for this question is still being generated.
+                                    </div>
+                                );
+                            }
                             return (
                                 <div style={{
                                     padding: '0.75rem 1rem',
@@ -316,7 +359,7 @@ export const QuestionPillsGrid: React.FC<QuestionPillsGridProps> = ({ questions,
                                     marginBottom: q.teacherFeedback || q.gradedByName ? '0.75rem' : 0,
                                 }}>
                                     <div style={{ fontWeight: 800, fontSize: '0.65rem', textTransform: 'uppercase', marginBottom: '0.25rem', color: '#6366f1', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                                        <span style={{ fontSize: '0.8rem' }}>🤖</span> AI Explanation
+                                        {explanationEntry?.source === 'fallback' ? 'Explanation' : <><span style={{ fontSize: '0.8rem' }}>🤖</span> AI Explanation</>}
                                     </div>
                                     {explanation}
                                 </div>

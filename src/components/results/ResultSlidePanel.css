@@ -94,6 +94,8 @@
 /* ─── Header ─────────────────────────────────────────────────────────────── */
 
 .rsp-header {
+  position: relative;
+  z-index: 30;
   display: flex;
   align-items: flex-start;
   gap: 12px;
@@ -102,6 +104,7 @@
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(12px);
   flex-shrink: 0;
+  overflow: visible;
 }
 
 .rsp-back-btn {
@@ -163,6 +166,8 @@
 }
 
 .rsp-attempt-slot {
+  position: relative;
+  z-index: 40;
   flex: 0 1 auto;
   min-width: 0;
 }
@@ -246,11 +251,12 @@
 /* ─── Tabs ───────────────────────────────────────────────────────────────── */
 
 .rsp-tab-bar {
+  position: relative;
+  z-index: 10;
   display: flex;
   border-bottom: 1px solid #e5e7eb;
   padding: 0 24px;
   background: rgba(255, 255, 255, 0.96);
-  z-index: 10;
   flex-shrink: 0;
 }
 

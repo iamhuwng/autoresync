@@ -1,0 +1,114 @@
+/* ─── AttemptHistory — PRD-0039 Task 6.6 ──────────────────────────────────── */
+
+.ah-root {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ah-trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.ah-trigger:hover {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+.ah-chevron {
+  transition: transform 0.2s ease;
+  color: #9ca3af;
+}
+
+.ah-chevron--open {
+  transform: rotate(180deg);
+}
+
+.ah-improvement {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.ah-improvement--up {
+  color: #059669;
+}
+
+.ah-improvement--down {
+  color: #dc2626;
+}
+
+/* Dropdown */
+.ah-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 60;
+  min-width: 200px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ah-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  border: none;
+  background: none;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s ease;
+}
+
+.ah-option:hover {
+  background: #f9fafb;
+}
+
+.ah-option--active {
+  background: #eff6ff;
+}
+
+.ah-option-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ah-option-num {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.ah-option-score {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #374151;
+}
+
+.ah-option-date {
+  font-size: 0.7rem;
+  color: #9ca3af;
+}

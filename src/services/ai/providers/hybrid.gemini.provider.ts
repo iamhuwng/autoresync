@@ -1,10 +1,12 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { jsonrepair } from 'jsonrepair';
 import type { Result } from '../../../types/result.types';
+import { loadAllGeminiApiKeys } from '../../../config/env.config';
+import { shouldBenchGeminiKeyError } from '../../key-cooldown.service';
+import { executeGeminiWithKeyRotation } from '../gemini-key-rotation.service';
 
 /**
  * HYBRID MODE GEMINI PROVIDER
- * 
+ *
  * ISOLATED from production AI provider
  * Purpose: Extraction + normalization ONLY (no type classification)
  */
@@ -31,130 +33,166 @@ export interface HybridAIResponse {
 }
 
 class HybridGeminiProvider {
-  private clients: any[] = [];
+  private apiKeys: string[] = [];
   private currentKeyIndex = 0;
-  private sdkLoaded = false;
 
   /**
-   * Initialize with API keys from environment
+   * Initialize with API keys from the shared Gemini key sources.
    */
   async initialize(): Promise<void> {
-    if (this.sdkLoaded) {
-      console.log('🔄 [Hybrid Provider] Already initialized, skipping');
+    if (this.apiKeys.length > 0) {
+      console.log('[Hybrid Provider] Already initialized, skipping');
       return;
     }
 
-    console.log('🚀 [Hybrid Provider] Initializing...');
-    const keys = this.loadApiKeys();
-    
+    console.log('[Hybrid Provider] Initializing...');
+    const keys = await this.loadApiKeys();
+
     if (keys.length === 0) {
-      console.error('❌ [Hybrid Provider] No API keys found');
+      console.error('[Hybrid Provider] No API keys found');
       throw new Error('No Gemini API keys configured for hybrid mode');
     }
 
-    this.clients = keys.map(key => new GoogleGenerativeAI(key));
-    this.sdkLoaded = true;
-    
-    console.log(`✅ [Hybrid Provider] Initialized with ${keys.length} API key(s)`);
-    console.log(`📊 [Hybrid Provider] Using key index: ${this.currentKeyIndex + 1}/${keys.length}`);
+    this.apiKeys = keys;
+
+    console.log(`[Hybrid Provider] Initialized with ${keys.length} API key(s)`);
+    console.log(`[Hybrid Provider] Using key index: ${this.currentKeyIndex + 1}/${keys.length}`);
   }
 
   /**
-   * Load API keys from environment
+   * Load API keys from the shared Gemini key sources.
    */
-  private loadApiKeys(): string[] {
-    const keys: string[] = [];
-    
-    for (let i = 1; i <= 5; i++) {
-      const key = import.meta.env[`VITE_GEMINI_API_KEY_${i}`];
-      if (key && key.trim() && !key.includes('your_')) {
-        keys.push(key);
-      }
+  private async loadApiKeys(): Promise<string[]> {
+    return loadAllGeminiApiKeys();
+  }
+
+  private async extractSectionsWithKey(
+    key: string,
+    keyIndex: number,
+    documentText: string,
+    GoogleGenerativeAI: typeof import('@google/generative-ai').GoogleGenerativeAI,
+  ): Promise<Result<HybridAIResponse>> {
+    const client = new GoogleGenerativeAI(key);
+
+    console.log(`[Hybrid Provider] Using API key ${keyIndex + 1}/${this.apiKeys.length}`);
+
+    const startTime = Date.now();
+    const model = client.getGenerativeModel({
+      model: 'gemini-2.5-flash',
+      generationConfig: {
+        temperature: 0.1,
+        topP: 0.95,
+        topK: 40,
+        maxOutputTokens: 65536, // Gemini 2.5 Flash supports up to 65,536 tokens
+        responseMimeType: 'application/json',
+      },
+    });
+
+    console.log('[Hybrid Provider] Sending request to Gemini...');
+    const prompt = this.buildHybridPrompt(documentText);
+    const result = await model.generateContent(prompt);
+    const responseText = result.response.text();
+
+    const elapsed = Date.now() - startTime;
+    console.log(`[Hybrid Provider] Response received in ${elapsed}ms`);
+    console.log(`[Hybrid Provider] Response length: ${responseText.length} chars`);
+
+    if (!responseText || !responseText.trim()) {
+      console.error('[Hybrid Provider] Empty response from Gemini');
+      throw new Error('Empty response from Gemini');
     }
-    
-    return keys;
+
+    console.log('[Hybrid Provider] Extracting JSON from response...');
+    const parsed = this.extractJSON(responseText);
+
+    console.log('[Hybrid Provider] JSON extracted successfully');
+    console.log('[Hybrid Provider] Validating response structure...');
+    const validated = this.validateHybridResponse(parsed);
+
+    if (!validated.success) {
+      console.error('[Hybrid Provider] Validation failed:', validated.error);
+      return validated;
+    }
+
+    console.log('[Hybrid Provider] Validation passed');
+    console.log(
+      `[Hybrid Provider] Extracted: ${validated.data.passages.length} passages, ${validated.data.questions.length} questions`,
+    );
+
+    this.currentKeyIndex = (keyIndex + 1) % this.apiKeys.length;
+    this.detectTruncation(validated.data, documentText);
+
+    return {
+      success: true,
+      data: validated.data,
+    };
   }
 
   /**
    * Extract sections from document (hybrid mode)
    */
   async extractSections(documentText: string): Promise<Result<HybridAIResponse>> {
-    console.log('📤 [Hybrid Provider] Starting section extraction...');
-    console.log(`📊 [Hybrid Provider] Document length: ${documentText.length} chars`);
-    
-    if (!this.sdkLoaded) {
+    console.log('[Hybrid Provider] Starting section extraction...');
+    console.log(`[Hybrid Provider] Document length: ${documentText.length} chars`);
+
+    if (this.apiKeys.length === 0) {
       await this.initialize();
     }
 
-    if (this.clients.length === 0) {
-      console.error('❌ [Hybrid Provider] No clients available');
+    if (this.apiKeys.length === 0) {
+      console.error('[Hybrid Provider] No keys available');
       return {
         success: false,
-        error: 'No Gemini clients available for hybrid mode',
+        error: 'No Gemini API keys configured for hybrid mode',
       };
     }
 
-    try {
-      const startTime = Date.now();
-      const client = this.clients[this.currentKeyIndex];
-      
-      console.log(`🔑 [Hybrid Provider] Using API key ${this.currentKeyIndex + 1}/${this.clients.length}`);
-      
-      const model = client.getGenerativeModel({
-        model: 'gemini-2.5-flash',
-        generationConfig: {
-          temperature: 0.1,
-          topP: 0.95,
-          topK: 40,
-          maxOutputTokens: 65536, // Gemini 2.5 Flash supports up to 65,536 tokens
-          responseMimeType: 'application/json',
-        },
-      });
+    const rotationResult = await executeGeminiWithKeyRotation<Result<HybridAIResponse>>({
+      callerName: 'HybridGeminiProvider',
+      allKeys: this.apiKeys,
+      startIndex: this.currentKeyIndex,
+      noKeysError: 'No Gemini API keys configured for hybrid mode',
+      benchedKeysError: ({ totalConfiguredKeys }) =>
+        `All ${totalConfiguredKeys} Gemini API keys are exhausted or cooling down for hybrid mode`,
+      exhaustedError: 'All Gemini API keys exhausted or cooling down for hybrid mode',
+      attempt: async ({ key, keyIndex, GoogleGenerativeAI }) => {
+        try {
+          const result = await this.extractSectionsWithKey(key, keyIndex, documentText, GoogleGenerativeAI);
+          if (result.success) {
+            return { status: 'success', value: result };
+          }
 
-      console.log('🤖 [Hybrid Provider] Sending request to Gemini...');
-      const prompt = this.buildHybridPrompt(documentText);
-      const result = await model.generateContent(prompt);
-      const responseText = result.response.text();
-      
-      const elapsed = Date.now() - startTime;
-      console.log(`⏱️ [Hybrid Provider] Response received in ${elapsed}ms`);
-      console.log(`📏 [Hybrid Provider] Response length: ${responseText.length} chars`);
+          if (result.error && shouldBenchGeminiKeyError(result.error)) {
+            return { status: 'retry', reason: result.error };
+          }
 
-      if (!responseText || !responseText.trim()) {
-        console.error('❌ [Hybrid Provider] Empty response from Gemini');
-        throw new Error('Empty response from Gemini');
-      }
+          return {
+            status: 'fail',
+            error: result.error || 'Unknown hybrid parsing error',
+          };
+        } catch (error) {
+          console.error('[Hybrid Provider] Error during extraction:', error);
+          const message = error instanceof Error ? error.message : 'Unknown hybrid parsing error';
+          if (shouldBenchGeminiKeyError(message)) {
+            return { status: 'retry', reason: message };
+          }
 
-      console.log('🔍 [Hybrid Provider] Extracting JSON from response...');
-      const parsed = this.extractJSON(responseText);
-      
-      console.log('✅ [Hybrid Provider] JSON extracted successfully');
-      console.log('🔎 [Hybrid Provider] Validating response structure...');
-      const validated = this.validateHybridResponse(parsed);
+          return {
+            status: 'fail',
+            error: message,
+          };
+        }
+      },
+    });
 
-      if (!validated.success) {
-        console.error('❌ [Hybrid Provider] Validation failed:', validated.error);
-        return validated;
-      }
-
-      console.log('✅ [Hybrid Provider] Validation passed');
-      console.log(`📊 [Hybrid Provider] Extracted: ${validated.data.passages.length} passages, ${validated.data.questions.length} questions`);
-      
-      // Check for potential truncation
-      this.detectTruncation(validated.data, documentText);
-      
-      return {
-        success: true,
-        data: validated.data,
-      };
-
-    } catch (error) {
-      console.error('❌ [Hybrid Provider] Error during extraction:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown hybrid parsing error',
-      };
+    if (rotationResult.success && rotationResult.value) {
+      return rotationResult.value;
     }
+
+    return {
+      success: false,
+      error: rotationResult.error,
+    };
   }
 
   /**
@@ -218,7 +256,7 @@ You MUST:
 - hasBlank: true
 
 **Type 3: Summary Completion (from List)**
-- Instructions: "using the list of phrases, A–H"
+- Instructions: "using the list of phrases, A-H"
 - Format: Summary with blanks + separate list of phrases
 - Action: Extract list as options ["A", "B", "C"...], keep blank in question text
 - hasBlank: true, options: ["A", "B", "C", "D", "E", "F", "G", "H"]
@@ -262,7 +300,7 @@ You MUST:
 - options: ["YES", "NO", "NOT GIVEN"]
 
 **Type 10: Matching Headings**
-- Instructions: "Choose the correct heading for each section" + "i–viii"
+- Instructions: "Choose the correct heading for each section" + "i-viii"
 - Format: "1. Section A"
 - Action: Generate roman numeral options based on list provided
 - Prepend: "Choose the correct heading for Section X: "
@@ -284,7 +322,7 @@ You MUST:
 - options: ["A", "B", "C"] (from provided list)
 
 **Type 13: Matching Sentence Endings**
-- Instructions: "Complete each sentence with the correct ending, A–F"
+- Instructions: "Complete each sentence with the correct ending, A-F"
 - Format: "14. The introduction of species often leads to ______"
 - List: "A. soil salinity  B. biodiversity protected"
 - Action: Extract endings list as options
@@ -298,7 +336,7 @@ You MUST:
 - options: ["A. Text", "B. Text", "C. Text", "D. Text"]
 
 **Type 15: List Selection (Multiple Choice)**
-- Instructions: "Choose TWO letters, A–E"
+- Instructions: "Choose TWO letters, A-E"
 - Format: "Which TWO are mentioned as benefits?"
 - Action: Extract options, note multiple selection in question text
 - Prepend: "Choose TWO letters: "
@@ -400,10 +438,10 @@ You MUST:
    * Validate hybrid response structure
    */
   private validateHybridResponse(data: any): Result<HybridAIResponse> {
-    console.log('🔍 [Hybrid Provider] Validating response structure...');
-    
+    console.log('[Hybrid Provider] Validating response structure...');
+
     if (!data || typeof data !== 'object') {
-      console.error('❌ [Hybrid Provider] Response is not an object:', typeof data);
+      console.error('[Hybrid Provider] Response is not an object:', typeof data);
       return {
         success: false,
         error: 'Invalid response: not an object',
@@ -414,8 +452,8 @@ You MUST:
     const hasQuestions = 'questions' in data;
     const hasAnswerKey = 'answerKey' in data;
     const hasConfidence = 'confidence' in data;
-    
-    console.log('📊 [Hybrid Provider] Response fields:', {
+
+    console.log('[Hybrid Provider] Response fields:', {
       passages: hasPassages,
       questions: hasQuestions,
       answerKey: hasAnswerKey,
@@ -425,34 +463,34 @@ You MUST:
     // Hybrid mode: Both passages AND questions should be present
     // But provide defaults if AI misses them
     if (!hasPassages) {
-      console.log('⚠️ [Hybrid Provider] No passages found, using empty array');
+      console.log('[Hybrid Provider] No passages found, using empty array');
       data.passages = [];
     }
     if (!hasQuestions) {
-      console.log('⚠️ [Hybrid Provider] No questions found, using empty array');
+      console.log('[Hybrid Provider] No questions found, using empty array');
       data.questions = [];
     }
-    
+
     // Fill in defaults for optional fields
     if (!hasAnswerKey) {
-      console.log('⚠️ [Hybrid Provider] No answerKey found, using empty object');
+      console.log('[Hybrid Provider] No answerKey found, using empty object');
       data.answerKey = {};
     }
     if (!hasConfidence) {
-      console.log('⚠️ [Hybrid Provider] No confidence found, using default: 85');
+      console.log('[Hybrid Provider] No confidence found, using default: 85');
       data.confidence = 85;
     }
-    
+
     // Warn if we got NOTHING useful
     if (data.passages.length === 0 && data.questions.length === 0) {
-      console.error('❌ [Hybrid Provider] AI returned empty passages and questions');
+      console.error('[Hybrid Provider] AI returned empty passages and questions');
       return {
         success: false,
         error: 'AI returned no passages or questions - check document format',
       };
     }
 
-    console.log('✅ [Hybrid Provider] Validation successful');
+    console.log('[Hybrid Provider] Validation successful');
     return {
       success: true,
       data: data as HybridAIResponse,
@@ -465,32 +503,34 @@ You MUST:
   private detectTruncation(data: HybridAIResponse, originalText: string): void {
     const expectedQuestionCount = this.estimateQuestionCount(originalText);
     const actualQuestionCount = data.questions.length;
-    
+
     if (expectedQuestionCount > 0 && actualQuestionCount < expectedQuestionCount * 0.7) {
-      console.warn('⚠️ [Hybrid Provider] Possible truncation detected!');
-      console.warn(`⚠️ [Hybrid Provider] Expected ~${expectedQuestionCount} questions, got ${actualQuestionCount}`);
-      console.warn('⚠️ [Hybrid Provider] AI response may have been cut off due to length');
+      console.warn('[Hybrid Provider] Possible truncation detected');
+      console.warn(`[Hybrid Provider] Expected ~${expectedQuestionCount} questions, got ${actualQuestionCount}`);
+      console.warn('[Hybrid Provider] AI response may have been cut off due to length');
     }
-    
+
     // Check if answer key is suspiciously empty when we have many questions
     if (actualQuestionCount > 10 && Object.keys(data.answerKey || {}).length === 0) {
-      console.warn('⚠️ [Hybrid Provider] No answer keys extracted despite having many questions');
-      console.warn('⚠️ [Hybrid Provider] Answer key section may have been truncated');
+      console.warn('[Hybrid Provider] No answer keys extracted despite having many questions');
+      console.warn('[Hybrid Provider] Answer key section may have been truncated');
     }
-    
+
     // Check passage question ranges vs actual questions
     let totalExpectedFromPassages = 0;
-    data.passages.forEach(p => {
+    data.passages.forEach((p) => {
       const rangeSize = (p.questionEnd - p.questionStart) + 1;
       totalExpectedFromPassages += rangeSize;
     });
-    
+
     if (totalExpectedFromPassages > actualQuestionCount) {
-      console.warn('⚠️ [Hybrid Provider] Passage ranges indicate more questions than extracted');
-      console.warn(`⚠️ [Hybrid Provider] Passages expect ${totalExpectedFromPassages} questions, but only ${actualQuestionCount} extracted`);
+      console.warn('[Hybrid Provider] Passage ranges indicate more questions than extracted');
+      console.warn(
+        `[Hybrid Provider] Passages expect ${totalExpectedFromPassages} questions, but only ${actualQuestionCount} extracted`,
+      );
     }
   }
-  
+
   /**
    * Estimate question count from document text
    */
@@ -501,7 +541,7 @@ You MUST:
       /^\s*(\d+)\.\s+/gm,
       /\*\*(\d+)\*\*/g,
     ];
-    
+
     const numbers = new Set<number>();
     for (const pattern of patterns) {
       const matches = text.matchAll(pattern);
@@ -514,7 +554,7 @@ You MUST:
         }
       }
     }
-    
+
     return numbers.size;
   }
 
@@ -522,7 +562,11 @@ You MUST:
    * Rotate to next API key (for rate limiting)
    */
   rotateKey(): void {
-    this.currentKeyIndex = (this.currentKeyIndex + 1) % this.clients.length;
+    if (this.apiKeys.length === 0) {
+      return;
+    }
+
+    this.currentKeyIndex = (this.currentKeyIndex + 1) % this.apiKeys.length;
   }
 }
 

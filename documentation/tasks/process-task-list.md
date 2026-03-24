@@ -20,6 +20,7 @@ Guidelines for managing task lists in markdown files to track progress on comple
         git commit -m "feat: add payment validation logic" -m "- Validates card type and expiry" -m "- Adds unit tests for edge cases" -m "Related to T123 in PRD"
         ```
   2. Once all the subtasks are marked completed and changes have been committed, mark the **parent task** as completed.
+  3. MUST follow the order of the tasks and subtasks in the tasklist if there is no clear instruction of reordering.
 
 ## Task List Maintenance
 

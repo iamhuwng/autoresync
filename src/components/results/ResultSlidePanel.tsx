@@ -1,9 +1,13 @@
 /**
- * ResultSlidePanel — PRD-0039 Task 5.0
+ * ResultSlidePanel — PRD-0039 Task 5.0 / PRD-0040 Task 2.4
  *
  * Slide-out panel shell for viewing test result details.
  * Owns shared state (current result, active tab, attempts, etc.)
- * and delegates tab content to child components.
+ * and delegates tab content rendering to SharedSavedResultCore.
+ *
+ * Shell-owned: chrome, data loading, attempts, feedback generation,
+ *   body scroll lock, escape key, tab switching, close animation.
+ * Core-owned: score summary, answer map, question review, feedback display.
  *
  * Data-loading: RTDB onValue listener → fallback to getTestResult → inline error
  */
@@ -13,13 +17,14 @@ import { ref, onValue } from 'firebase/database';
 // @ts-ignore
 import { database } from '../../services/firebase';
 import { getTestResult, TestResultRecord } from '../../services/testResults.service';
-import { generateFormativeFeedback } from '../../services/formativeFeedback.service';
+import { generateFormativeFeedbackForSavedResult } from '../../services/resultFeedbackGeneration.service';
+import { needsAiFeedbackUpgrade } from '../../services/formativeFeedback.service';
+import type { FormativeFeedback } from '../../types/thcs-test.types';
 import { useScreenSize } from '@/core/platform';
 import { useTestAttempts } from '../../hooks/useTestAttempts';
 import { AttemptHistory } from './AttemptHistory';
-import { OverviewTab } from './OverviewTab';
-import { ReviewTab } from './ReviewTab';
-import { FeedbackTab } from './FeedbackTab';
+import { SharedSavedResultCore } from './SharedSavedResultCore';
+import type { SharedSavedResultCoreSections } from './SharedSavedResultCore';
 import './ResultSlidePanel.css';
 
 /* ─── Props ──────────────────────────────────────────────────────────────── */
@@ -100,171 +105,7 @@ function isIeltsResult(result: TestResultRecord): boolean {
   return type.includes('ielts') || skill === 'reading' || skill === 'listening';
 }
 
-function normalizeFeedbackQuestionType(questionType: string | undefined): string {
-  const raw = String(questionType || 'question').trim().toLowerCase();
-  if (!raw) return 'question';
 
-  return raw
-    .replace(/\s+/g, '_')
-    .replace(/-/g, '_');
-}
-
-function buildFeedbackPayload(result: TestResultRecord, activeResultId: string) {
-  const questionResults = Array.isArray(result.questionResults) ? result.questionResults : [];
-
-  if (questionResults.length === 0) {
-    return null;
-  }
-
-  const questionResultsRecord = Object.fromEntries(
-    questionResults.map((questionResult) => [
-      questionResult.questionNumber,
-      {
-        questionNumber: questionResult.questionNumber,
-        isCorrect: questionResult.isCorrect,
-        studentAnswer: questionResult.studentAnswer,
-        correctAnswer: questionResult.correctAnswer,
-        pointsEarned: questionResult.score,
-        pointsMax: questionResult.maxScore,
-      },
-    ]),
-  );
-
-  const buildIntentBreakdown = (items: typeof questionResults) =>
-    items.reduce<Record<string, { correct: number; total: number }>>((acc, item) => {
-      const key = normalizeFeedbackQuestionType(item.questionType);
-
-      if (!acc[key]) {
-        acc[key] = { correct: 0, total: 0 };
-      }
-
-      acc[key].total += 1;
-      if (item.isCorrect) {
-        acc[key].correct += 1;
-      }
-
-      return acc;
-    }, {});
-
-  if (result.thcsData?.sectionResults?.length) {
-    const thcsData = result.thcsData;
-    const safeSections = Array.isArray((result as any).sections)
-      ? (result as any).sections
-      : thcsData.sectionResults.map((section: any) => ({
-          id: section.sectionId || section.sectionName,
-          name: section.sectionName,
-          questions: [],
-        }));
-
-    return {
-      gradingResult: {
-        scaledScore: thcsData.scaledScore,
-        totalPoints: result.totalScore,
-        maxPoints: result.maxScore,
-        sectionResults: thcsData.sectionResults,
-        questionResults: questionResultsRecord,
-        gradingStatus: 'fully-graded',
-        gradedAt: result.submittedAt,
-        testId: result.testId,
-        studentId: result.studentId || (result as any).userId || '',
-      },
-      sections: safeSections,
-      testMetadata: {
-        title: result.testTitle || 'Test',
-        gradeLevel: (result as any).gradeLevel || 9,
-        type: result.testType,
-        skill: result.testSkill,
-        family: 'thcs',
-        timeSpent: result.timeElapsed,
-        totalQuestions: result.totalQuestions,
-      },
-      resultId: activeResultId,
-    };
-  }
-
-  if (!isIeltsResult(result)) {
-    return null;
-  }
-
-  const passageResults = result.ieltsData?.passageResults || [];
-  const derivedSections = passageResults.length > 0
-    ? passageResults.map((passage, index) => {
-        const sectionQuestions = questionResults.filter(
-          (questionResult) =>
-            questionResult.questionNumber >= passage.questionRange[0] &&
-            questionResult.questionNumber <= passage.questionRange[1],
-        );
-
-        return {
-          id: `passage-${index + 1}`,
-          name: passage.passageName || `Passage ${index + 1}`,
-          questions: sectionQuestions.map((questionResult) => ({
-            questionNumber: questionResult.questionNumber,
-            questionText: `Question ${questionResult.questionNumber}`,
-            type: normalizeFeedbackQuestionType(questionResult.questionType),
-            intent: normalizeFeedbackQuestionType(questionResult.questionType),
-          })),
-          questionItems: sectionQuestions,
-        };
-      })
-    : [
-        {
-          id: 'overall',
-          name: 'Overall Performance',
-          questions: questionResults.map((questionResult) => ({
-            questionNumber: questionResult.questionNumber,
-            questionText: `Question ${questionResult.questionNumber}`,
-            type: normalizeFeedbackQuestionType(questionResult.questionType),
-            intent: normalizeFeedbackQuestionType(questionResult.questionType),
-          })),
-          questionItems: questionResults,
-        },
-      ];
-
-  const sectionResults = derivedSections.map((section) => {
-    const items = section.questionItems;
-    const correctCount = items.filter((item) => item.isCorrect).length;
-    const totalCount = items.length;
-
-    return {
-      sectionId: section.id,
-      sectionName: section.name,
-      pointsEarned: correctCount,
-      pointsMax: totalCount,
-      correctCount,
-      totalCount,
-      percentage: totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0,
-      intentBreakdown: buildIntentBreakdown(items) as any,
-    };
-  });
-
-  return {
-    gradingResult: {
-      scaledScore: result.bandScore || Number((result.percentage / 10).toFixed(1)),
-      totalPoints: result.totalScore,
-      maxPoints: result.maxScore,
-      sectionResults,
-      questionResults: questionResultsRecord,
-      gradingStatus: 'fully-graded',
-      gradedAt: result.submittedAt,
-      testId: result.testId,
-      studentId: result.studentId || (result as any).userId || '',
-    },
-    sections: derivedSections.map(({ questionItems: _questionItems, ...section }) => section),
-    testMetadata: {
-      title: result.testTitle || 'IELTS Test',
-      gradeLevel: (result as any).gradeLevel || 9,
-      type: result.testType,
-      skill: result.testSkill,
-      family: 'ielts',
-      bandScore: result.bandScore,
-      passageResults,
-      timeSpent: result.timeElapsed,
-      totalQuestions: result.totalQuestions,
-    },
-    resultId: activeResultId,
-  };
-}
 
 /* ─── Component ──────────────────────────────────────────────────────────── */
 
@@ -277,7 +118,7 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeAttemptResultId, setActiveAttemptResultId] = useState<string>(resultId);
-  const [highlightedQuestionNumber, setHighlightedQuestionNumber] = useState<number | null>(null);
+  const [_highlightedQuestionNumber, setHighlightedQuestionNumber] = useState<number | null>(null);
   const [formativeFeedbackLoading, setFormativeFeedbackLoading] = useState(false);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
   const feedbackAttemptedRef = useRef(false);
@@ -287,6 +128,10 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
   const panelRef = useRef<HTMLDivElement>(null);
   const studentId = result?.studentId || (result as any)?.userId;
   const { attempts, loading: attemptsLoading } = useTestAttempts(studentId, result?.testId);
+  const storedFeedbackNeedsUpgrade = useMemo(() => {
+    const formativeFeedback = result?.formativeFeedback as FormativeFeedback | undefined;
+    return Boolean(formativeFeedback && needsAiFeedbackUpgrade(formativeFeedback, result?.questionResults as any));
+  }, [result?.formativeFeedback, result?.questionResults]);
 
   useEffect(() => {
     setActiveAttemptResultId(resultId);
@@ -436,22 +281,27 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
   }, [activeAttemptResultId]);
 
   // ── Auto-trigger feedback generation (Task 6.21–6.22) ────────────────────
-  const handleGenerateFormativeFeedback = useCallback(async () => {
+  const handleGenerateFormativeFeedback = useCallback(async (forceAiUpgrade = false) => {
     if (!result) return;
-    const payload = buildFeedbackPayload(result, activeAttemptResultId);
-    if (!payload) return;
 
     try {
       setFormativeFeedbackLoading(true);
       setFeedbackError(null);
 
-      await generateFormativeFeedback(
-        payload.gradingResult as any,
-        payload.sections as any,
-        payload.testMetadata,
-        payload.resultId,
+      const generationResult = await generateFormativeFeedbackForSavedResult(
+        activeAttemptResultId,
+        forceAiUpgrade ? { forceAiUpgrade: true } : undefined,
       );
-      // RTDB onValue listener will pick up the new formativeFeedback
+
+      if (generationResult && !generationResult.saved) {
+        setFeedbackError('AI feedback could not be saved for this result. Please try again.');
+      } else if (!generationResult) {
+        setFeedbackError('AI feedback is not available for this result.');
+      } else if (generationResult.upgradeAttempted && generationResult.upgradeApplied === false) {
+        setFeedbackError(generationResult.error || 'AI upgrade did not complete. The saved feedback is still being shown.');
+      } else {
+        setFeedbackError(null);
+      }
     } catch (err) {
       console.error('[ResultSlidePanel] Failed to generate formative feedback:', err);
       setFeedbackError('Failed to generate feedback.');
@@ -460,21 +310,26 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
     }
   }, [result, activeAttemptResultId]);
 
-  // Auto-trigger when result loads without feedback (THCS or IELTS)
+  // Auto-trigger generation for missing THCS feedback, and AI-upgrade weak or deterministic saved feedback.
   useEffect(() => {
     if (!result || loading) return;
 
     const hasFeedback = !!result.formativeFeedback;
     const hasThcsData = !!result.thcsData?.sectionResults;
-    const isEligible = hasThcsData || isIeltsResult(result);
 
-    if (isEligible && !hasFeedback && !formativeFeedbackLoading && !feedbackError) {
-      if (!feedbackAttemptedRef.current) {
+    if (!formativeFeedbackLoading && !feedbackError && !feedbackAttemptedRef.current) {
+      if (hasThcsData && !hasFeedback) {
         feedbackAttemptedRef.current = true;
         handleGenerateFormativeFeedback();
+        return;
+      }
+
+      if (hasFeedback && storedFeedbackNeedsUpgrade) {
+        feedbackAttemptedRef.current = true;
+        handleGenerateFormativeFeedback(true);
       }
     }
-  }, [result, loading, formativeFeedbackLoading, feedbackError, handleGenerateFormativeFeedback]);
+  }, [result, loading, formativeFeedbackLoading, feedbackError, storedFeedbackNeedsUpgrade, handleGenerateFormativeFeedback]);
 
   // Reset feedback attempt when switching results
   useEffect(() => {
@@ -482,11 +337,44 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
     setFeedbackError(null);
   }, [activeAttemptResultId]);
 
+  useEffect(() => {
+    if (result?.formativeFeedback) {
+      setFeedbackError(null);
+    }
+  }, [result?.formativeFeedback]);
+
   // ── Badge / subtitle derived values ──────────────────────────────────────
   const badge = useMemo(() => (result ? getTypeBadge(result) : null), [result]);
   const subtitle = useMemo(() => (result ? getSubtitle(result) : ''), [result]);
 
-  // ── Tab content placeholder ──────────────────────────────────────────────
+  // ── Tab → section visibility mapping (PRD-0040 Task 2.4) ────────────────
+  const tabSections: SharedSavedResultCoreSections = useMemo(() => {
+    switch (activeTab) {
+      case 'overview':
+        return { scoreSummary: true, answerMap: true, sectionBreakdown: true, questionReview: false, feedbackDisplay: false, teacherFeedback: false, writingPlaceholder: false };
+      case 'review':
+        return { scoreSummary: false, answerMap: false, sectionBreakdown: false, questionReview: true, feedbackDisplay: false, teacherFeedback: false, writingPlaceholder: false };
+      case 'feedback':
+        return { scoreSummary: false, answerMap: false, sectionBreakdown: false, questionReview: false, feedbackDisplay: true, teacherFeedback: false, writingPlaceholder: false };
+      default:
+        return { scoreSummary: false, answerMap: false, sectionBreakdown: false, questionReview: false, feedbackDisplay: false, teacherFeedback: false, writingPlaceholder: false };
+    }
+  }, [activeTab]);
+
+  // ── Question navigation: pill click → switch to review tab + highlight ──
+  const handleCoreNavigateToQuestion = useCallback((questionNumber: number) => {
+    setActiveTab('review');
+    setHighlightedQuestionNumber(questionNumber);
+  }, []);
+
+  // ── Feedback retry handler for core ──────────────────────────────────────
+  const handleFeedbackRetry = useCallback(() => {
+    feedbackAttemptedRef.current = false;
+    setFeedbackError(null);
+    handleGenerateFormativeFeedback(true);
+  }, [handleGenerateFormativeFeedback]);
+
+  // ── Tab content rendering ───────────────────────────────────────────────
   const renderTabContent = () => {
     if (loading) {
       return (
@@ -508,36 +396,23 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
       );
     }
 
-    // Tab bodies — real content
-    switch (activeTab) {
-      case 'overview':
-        return (
-          <OverviewTab
-            result={result}
-            onTabSwitch={setActiveTab}
-            onHighlightQuestion={setHighlightedQuestionNumber}
-            formativeFeedbackLoading={formativeFeedbackLoading}
-            feedbackError={feedbackError}
-            onRetryFeedback={() => {
-              feedbackAttemptedRef.current = false;
-              setFeedbackError(null);
-              handleGenerateFormativeFeedback();
-            }}
-          />
-        );
-      case 'review':
-        return (
-          <ReviewTab
-            result={result}
-            highlightedQuestionNumber={highlightedQuestionNumber}
-            onHighlightComplete={() => setHighlightedQuestionNumber(null)}
-          />
-        );
-      case 'feedback':
-        return <FeedbackTab result={result} />;
-      default:
-        return null;
-    }
+    // Delegate tab content to SharedSavedResultCore (PRD-0040 Task 2.4)
+    return (
+      <SharedSavedResultCore
+        result={result}
+        variant="slide-panel"
+        sections={tabSections}
+        feedbackState={{
+          formativeFeedback: result.formativeFeedback as FormativeFeedback | null | undefined,
+          feedbackLoading: formativeFeedbackLoading && !result.formativeFeedback,
+          feedbackError: feedbackError,
+          needsUpgrade: storedFeedbackNeedsUpgrade,
+          isEligibleForAIFeedback: Boolean(result.thcsData?.sectionResults) || isIeltsResult(result),
+          onRetryFeedback: handleFeedbackRetry,
+        }}
+        onNavigateToQuestion={handleCoreNavigateToQuestion}
+      />
+    );
   };
 
   // ── Backdrop click handler (desktop only, Task 5.6) ──────────────────────

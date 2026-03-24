@@ -14,6 +14,7 @@ import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
 import { S } from '../components/layout/studentLayoutStyles';
 import { IconCheck, IconBriefcase } from '../components/layout/StudentIcons';
+import { ResultSlidePanel } from '../components/results/ResultSlidePanel';
 import { cleanupExpiredProgress } from '../hooks/solo/useSoloAutoSave';
 import { PendingReviewsWidget } from '../components/dashboard/PendingReviewsWidget';
 
@@ -114,6 +115,7 @@ const StudentDashboardPage = () => {
     const [joinSuccessMessage, setJoinSuccessMessage] = useState('');
     const [isLoadingMore, setIsLoadingMore] = useState(false);
     const [showJoinModal, setShowJoinModal] = useState(false);
+    const [selectedResultId, setSelectedResultId] = useState(null);
 
 
     useEffect(() => {
@@ -313,9 +315,7 @@ const StudentDashboardPage = () => {
         // ── Result Link ────────────────────────────────────────────────────────
         // PRD-0025 US-11: Open inline ResultDetailModal on Academic Record page
         if (notif.metadata?.resultId) {
-            navigate('/student/academic-record', {
-                state: { resultId: notif.metadata.resultId, showResult: true },
-            });
+            setSelectedResultId(notif.metadata.resultId);
             return;
         }
 
@@ -686,6 +686,12 @@ const StudentDashboardPage = () => {
                 )}
             </StudentLayout>
             {renderJoinModal()}
+            {selectedResultId && (
+                <ResultSlidePanel
+                    resultId={selectedResultId}
+                    onClose={() => setSelectedResultId(null)}
+                />
+            )}
         </>
     );
 };

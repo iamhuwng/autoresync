@@ -14,6 +14,8 @@ import { withRestoreGuard } from './restoreGuard';
 const NOTIFICATIONS_REF = 'notifications';
 const buildStudentHomeworkLink = (homeworkId: string) =>
     buildRoute('STUDENT_HOMEWORK_DETAIL', { homeworkId });
+const buildResultDetailLink = (resultId: string) =>
+    buildRoute('RESULT_DETAIL', { resultId });
 
 export const createNotification = withRestoreGuard(
     'Notification',
@@ -321,7 +323,7 @@ export async function sendFeedbackNotification(
             type: 'feedback',
             title: 'New Feedback Available',
             message: `${teacherPrefix} provided feedback on "${testName}"`,
-            link: `/student/results/${resultId}`,
+            link: buildResultDetailLink(resultId),
             metadata: {
                 resultId,
                 testName,
@@ -375,7 +377,7 @@ export async function sendReviewedNotification(
             type: 'success',
             title: `${skillCapitalized} Test Reviewed`,
             message: `${teacherPrefix} reviewed your ${skill} test "${testName}". View your score.`,
-            link: `/student/results/${resultId}`,
+            link: buildResultDetailLink(resultId),
             metadata: {
                 resultId,
                 testName,
@@ -969,7 +971,7 @@ export async function sendThcsGradeUpdatedNotification(
                 type: 'success',
                 title: '📝 Grades Updated',
                 message: `${count} answers in "${testTitle}" have been graded.`,
-                link: `/student/results/${resultId}`,
+                link: buildResultDetailLink(resultId),
                 metadata: { testTitle, gradedCount: count, resultId, notifType: 'thcs_grade_updated' }
             });
         }, 10000); // 10s debounce window (PRD §9 EC11)
@@ -986,7 +988,7 @@ export async function sendThcsGradeUpdatedNotification(
                 type: 'success',
                 title: '📝 Grades Updated',
                 message: `${entry.count} answers in "${testTitle}" have been graded.`,
-                link: `/student/results/${resultId}`,
+                link: buildResultDetailLink(resultId),
                 metadata: { testTitle, gradedCount: entry.count, resultId, notifType: 'thcs_grade_updated' }
             });
         } else {
@@ -995,7 +997,7 @@ export async function sendThcsGradeUpdatedNotification(
                 type: 'success',
                 title: '📝 Grade Updated',
                 message: `Your answer for Q${questionNumber} in "${testTitle}" has been graded: ${score} points.`,
-                link: `/student/results/${resultId}`,
+                link: buildResultDetailLink(resultId),
                 metadata: { testTitle, questionNumber, score, resultId, notifType: 'thcs_grade_updated' }
             });
         }
@@ -1029,7 +1031,7 @@ export async function sendThcsFullyGradedNotification(
             type: 'success',
             title: '✅ Test Fully Graded',
             message: `All answers in "${testTitle}" have been graded. Your score: ${totalScore}/10.`,
-            link: `/student/results/${resultId}`,
+            link: buildResultDetailLink(resultId),
             metadata: { testTitle, totalScore, resultId, notifType: 'thcs_fully_graded' }
         });
 

@@ -263,6 +263,20 @@ export const useSoloSubmission = ({
                 } as any
             );
 
+            const isIeltsReadingOrListening =
+                String(testData.type || '').toLowerCase().includes('ielts')
+                && ['reading', 'listening'].includes(String(testData.skill || '').toLowerCase());
+
+            if (isIeltsReadingOrListening && resultId) {
+                import('../../services/resultFeedbackGeneration.service')
+                    .then(({ triggerFormativeFeedbackForSavedResult }) => {
+                        triggerFormativeFeedbackForSavedResult(resultId);
+                    })
+                    .catch((feedbackErr) => {
+                        console.warn('Failed to trigger IELTS formative feedback generation:', feedbackErr);
+                    });
+            }
+
             // Update course progress if passing score met
             if (courseContext && resolvedSettings?.minPassingScore != null && results.percentage != null) {
                 if (results.percentage >= resolvedSettings.minPassingScore) {

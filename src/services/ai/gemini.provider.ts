@@ -3,6 +3,7 @@ import type { Result } from '../../types/result.types';
 import type { IAIService, AIParseResult, ProviderStatus } from './ai.service';
 import { loadAllGeminiApiKeys } from '../../config/env.config';
 import { validateAIResponse, validatePassagesOnly, validateQuestionsAndAnswers, normalizeQuestionType, normalizeAnswer } from './response.validator';
+import { benchKey, isKeyBenched } from '../key-cooldown.service';
 import { jsonrepair } from 'jsonrepair';
 
 // Type-only import to avoid eager loading
@@ -13,24 +14,12 @@ type GoogleGenerativeAI = any;
  * Supports multi-key rotation for rate limit handling
  * Uses dynamic imports to avoid loading the large SDK until needed
  */
-/**
- * Exhausted key tracking
- */
-interface ExhaustedKey {
-  timestamp: number;
-  reason: string;
-}
-
 export class GeminiProvider implements IAIService {
   private clients: GoogleGenerativeAI[] = [];
   private currentKeyIndex = 0;
   private apiKeys: string[] = [];
   private sdkLoaded = false;
   private sdkLoadPromise: Promise<any> | null = null;
-
-  // Track exhausted keys with timestamps (24-hour reset)
-  private exhaustedKeys: Map<number, ExhaustedKey> = new Map();
-  private readonly QUOTA_RESET_HOURS = 24;
 
   // Round-robin request counter for load balancing
   private requestCount = 0;
@@ -107,9 +96,6 @@ export class GeminiProvider implements IAIService {
         error: 'Gemini clients not initialized',
       };
     }
-
-    // Clean up expired exhausted keys (older than 24 hours)
-    this.cleanupExhaustedKeys();
 
     // ✅ Round-robin key selection BEFORE request (load balancing)
     this.currentKeyIndex = this.getNextAvailableKeyRoundRobin();
@@ -1065,9 +1051,6 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
       };
     }
 
-    // Clean up expired exhausted keys (older than 24 hours)
-    this.cleanupExhaustedKeys();
-
     // ✅ Round-robin key selection BEFORE request (load balancing)
     this.currentKeyIndex = this.getNextAvailableKeyRoundRobin();
     console.log(`📤 [parsePassagesOnly] Using Gemini API key ${this.currentKeyIndex + 1}/${this.clients.length} (round-robin)`);
@@ -1239,9 +1222,6 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
       };
     }
 
-    // Clean up expired exhausted keys (older than 24 hours)
-    this.cleanupExhaustedKeys();
-
     // ✅ Round-robin key selection BEFORE request (load balancing)
     this.currentKeyIndex = this.getNextAvailableKeyRoundRobin();
     console.log(`📤 [parseQuestionsAndAnswers] Using Gemini API key ${this.currentKeyIndex + 1}/${this.clients.length} (round-robin)`);
@@ -1404,11 +1384,11 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
    * Mark an API key as exhausted
    */
   private markKeyExhausted(keyIndex: number, reason: string): void {
-    this.exhaustedKeys.set(keyIndex, {
-      timestamp: Date.now(),
-      reason,
-    });
-    const keyPreview = this.apiKeys[keyIndex]?.substring(this.apiKeys[keyIndex].length - 8) || 'unknown';
+    const key = this.apiKeys[keyIndex];
+    const keyPreview = key?.substring(key.length - 8) || 'unknown';
+    if (key) {
+      benchKey(key, 'gemini', reason);
+    }
     console.warn(`⚠️ Marked key #${keyIndex + 1} (...${keyPreview}) as exhausted: ${reason}`);
   }
 
@@ -1416,19 +1396,8 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
    * Check if a key is currently exhausted
    */
   private isKeyExhausted(keyIndex: number): boolean {
-    const exhaustedKey = this.exhaustedKeys.get(keyIndex);
-    if (!exhaustedKey) return false;
-
-    // Check if quota has reset (24 hours)
-    const hoursElapsed = (Date.now() - exhaustedKey.timestamp) / (1000 * 60 * 60);
-    if (hoursElapsed >= this.QUOTA_RESET_HOURS) {
-      // Quota should have reset, remove from exhausted list
-      this.exhaustedKeys.delete(keyIndex);
-      console.log(`✅ Key #${keyIndex + 1} quota reset after ${Math.floor(hoursElapsed)}h`);
-      return false;
-    }
-
-    return true;
+    const key = this.apiKeys[keyIndex];
+    return key ? isKeyBenched(key) : false;
   }
 
   /**
@@ -1446,8 +1415,8 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
       }
     }
 
-    // All exhausted, use round-robin anyway (quota may have reset)
-    console.warn('⚠️ All keys marked exhausted, using round-robin anyway (quota may have reset)');
+    // All keys are currently benched. Fall back to round-robin in case a cooldown expires mid-flight.
+    console.warn('⚠️ All keys are currently benched, using round-robin anyway in case a cooldown expires');
     return this.requestCount % this.clients.length;
   }
 
@@ -1462,21 +1431,6 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
       }
     }
     return -1; // All keys exhausted
-  }
-
-  /**
-   * Clean up expired exhausted keys
-   */
-  private cleanupExhaustedKeys(): void {
-    const now = Date.now();
-    const resetTimeMs = this.QUOTA_RESET_HOURS * 60 * 60 * 1000;
-
-    for (const [keyIndex, exhaustedKey] of this.exhaustedKeys.entries()) {
-      if (now - exhaustedKey.timestamp >= resetTimeMs) {
-        this.exhaustedKeys.delete(keyIndex);
-        console.log(`♻️ Removed expired exhausted status for key #${keyIndex + 1}`);
-      }
-    }
   }
 
   /**
@@ -1501,9 +1455,6 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
       };
     }
 
-    // Clean up expired exhausted keys
-    this.cleanupExhaustedKeys();
-
     // Try all keys until one works (with proper fallback)
     const triedKeys = new Set<number>();
     let lastError = '';
@@ -1517,7 +1468,7 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
           break;
         }
       }
-      // If all non-exhausted keys tried, try exhausted ones (quota may have reset)
+      // If all non-benched keys were tried, fall back to the remaining keys in case a cooldown expired.
       if (keyIndex === -1) {
         for (let i = 0; i < this.clients.length; i++) {
           if (!triedKeys.has(i)) {
@@ -1686,7 +1637,6 @@ Generate answers for ALL ${questions.length} questions listed above.`;
     if (this.clients.length === 0 && !this.sdkLoaded) await this.initialize();
     if (this.clients.length === 0) return { success: false, error: 'Gemini clients not initialized' };
 
-    this.cleanupExhaustedKeys();
     this.currentKeyIndex = this.getNextAvailableKeyRoundRobin();
 
     try {
@@ -1757,7 +1707,6 @@ Respond with JSON only:
     if (this.clients.length === 0 && !this.sdkLoaded) await this.initialize();
     if (this.clients.length === 0) return { success: false, error: 'Gemini clients not initialized' };
 
-    this.cleanupExhaustedKeys();
     this.currentKeyIndex = this.getNextAvailableKeyRoundRobin();
 
     try {

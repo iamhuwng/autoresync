@@ -12,6 +12,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams, Navigate } from 'react-router-dom';
 import { getAuth } from 'firebase/auth';
+import { buildRoute } from '../constants/routes';
 import {
     getStudentResults,
     TestResultRecord
@@ -22,7 +23,6 @@ import {
 
 // Components
 import { Card, CardBody, Button } from '../components/modern';
-import { Center, Loader } from '@mantine/core'; // Matching project style
 import { ProgressLineChart } from '../components/results/ProgressLineChart';
 import { SkillRadarChart } from '../components/results/SkillRadarChart';
 import { BandScoreProgress } from '../components/results/BandScoreProgress';
@@ -39,6 +39,7 @@ import {
 
 // Security hook (PRD-0016)
 import { useStudentDataAccessCheck } from '../hooks/useOwnershipCheck';
+import { useFeatureTracking } from '../hooks/useFeatureTracking';
 
 // Icons 
 const Icons = {
@@ -190,6 +191,7 @@ const ResultRow: React.FC<{
 export const TeacherStudentHistoryPage: React.FC = () => {
     const navigate = useNavigate();
     const { studentId } = useParams<{ studentId: string }>();
+    const { trackAction } = useFeatureTracking('results');
 
     // PRD-0016: Ownership validation
     // Check if teacher can view this student's data
@@ -331,22 +333,33 @@ export const TeacherStudentHistoryPage: React.FC = () => {
         setFilters({ scoreMin: 0 });
     };
 
+    const handleOpenResultDetail = (result: TestResultRecord) => {
+        trackAction('viewResults', {
+            source: 'teacher_student_history',
+            resultId: result.resultId,
+            studentId: result.studentId,
+            sessionCode: result.sessionCode,
+        });
+        navigate(buildRoute('RESULT_DETAIL', { resultId: result.resultId }));
+    };
+
     if (loading || ownershipLoading) {
         return (
-            <Center style={{ height: '100vh', flexDirection: 'column', gap: '1rem' }}>
-                <Loader size="xl" />
+            <div style={fullscreenStateStyle}>
+                <div style={spinnerStyle} />
                 <div style={{ color: '#64748b' }}>Loading student history...</div>
-            </Center>
+                <style>{`@keyframes teacherStudentHistorySpin { to { transform: rotate(360deg); } }`}</style>
+            </div>
         );
     }
 
     if (error) {
         return (
-            <Center style={{ height: '100vh', flexDirection: 'column' }}>
+            <div style={{ ...fullscreenStateStyle, gap: '1rem' }}>
                 <h2>⚠️ Error</h2>
                 <p>{error}</p>
-                <Button variant="primary" onClick={() => navigate('/sessions')}>Back to Sessions</Button>
-            </Center>
+                <Button variant="primary" onClick={() => navigate(buildRoute('SESSIONS'))}>Back to Sessions</Button>
+            </div>
         );
     }
 
@@ -474,7 +487,7 @@ export const TeacherStudentHistoryPage: React.FC = () => {
                                 result={result}
                                 isExpanded={expandedIds.has(result.resultId)}
                                 onToggle={() => handleToggleExpand(result.resultId)}
-                                onViewDetails={() => navigate(`/teacher-test-results/${result.sessionCode}`)}
+                                onViewDetails={() => handleOpenResultDetail(result)}
                             />
                         ))
                     )}
@@ -505,6 +518,23 @@ export const TeacherStudentHistoryPage: React.FC = () => {
             </div>
         </div>
     );
+};
+
+const fullscreenStateStyle: React.CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: '100vh',
+};
+
+const spinnerStyle: React.CSSProperties = {
+    width: 48,
+    height: 48,
+    border: '4px solid #e2e8f0',
+    borderTopColor: '#8b5cf6',
+    borderRadius: '50%',
+    animation: 'teacherStudentHistorySpin 0.8s linear infinite',
 };
 
 export default TeacherStudentHistoryPage;

@@ -8,6 +8,11 @@
 
 import React, { useEffect, useMemo } from 'react';
 import type { TestResultRecord } from '../../services/testResults.service';
+import {
+  getPreferredQuestionExplanation,
+  getRenderableQuestionExplanations,
+  needsAiFeedbackUpgrade,
+} from '../../services/formativeFeedback.service';
 import './ReviewTab.css';
 
 /* ─── Props ──────────────────────────────────────────────────────────────── */
@@ -94,7 +99,14 @@ export const ReviewTab: React.FC<ReviewTabProps> = ({
   const isPerfectScore = incorrectQuestions.length === 0;
 
   const formativeFeedback = (result as any).formativeFeedback;
-  const explanations: Record<string, string> = formativeFeedback?.questionExplanations || {};
+  const explanations = useMemo(
+    () => getRenderableQuestionExplanations(formativeFeedback?.questionExplanations),
+    [formativeFeedback?.questionExplanations],
+  );
+  const aiExplanationPending = useMemo(
+    () => Boolean(formativeFeedback && needsAiFeedbackUpgrade(formativeFeedback, result.questionResults as any)),
+    [formativeFeedback, result.questionResults],
+  );
 
   useEffect(() => {
     if (!highlightedQuestionNumber) {
@@ -154,7 +166,9 @@ export const ReviewTab: React.FC<ReviewTabProps> = ({
         {incorrectQuestions.map((q) => {
           const isSentenceRewrite = (q.questionType || '').includes('sentence-rewrite');
           const hasPendingReview = isSentenceRewrite && q.score === 0 && q.maxScore > 0 && !q.isCorrect;
-          const explanation = explanations[String(q.questionNumber)] || explanations[`Q${q.questionNumber}`];
+          const explanationEntry = getPreferredQuestionExplanation(formativeFeedback, q as any);
+          const explanation = explanationEntry?.text || explanations[String(q.questionNumber)];
+          const explanationLabel = explanationEntry?.source === 'fallback' ? 'Explanation' : 'AI Explanation';
           const questionType = getTypeLabel(q.questionType);
 
           return (
@@ -197,8 +211,12 @@ export const ReviewTab: React.FC<ReviewTabProps> = ({
 
               {explanation ? (
                 <div className="rv-explanation" data-testid={`rv-explanation-${q.questionNumber}`}>
-                  <span className="rv-explanation-label">AI Explanation</span>
+                  <span className="rv-explanation-label">{explanationLabel}</span>
                   <p className="rv-explanation-text">{renderFormattedExplanation(explanation)}</p>
+                </div>
+              ) : (!hasPendingReview && aiExplanationPending) ? (
+                <div className="rv-pending" data-testid={`rv-ai-pending-${q.questionNumber}`}>
+                  Detailed AI explanation is still being generated for this question.
                 </div>
               ) : null}
 

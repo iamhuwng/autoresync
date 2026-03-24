@@ -347,8 +347,8 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
       ) : !formativeFeedback && feedbackError ? (
         <div className="ov-feedback-error fade-in-d4" data-testid="ov-feedback-error">
           <div className="ov-error-info">
-            <div className="ov-error-title">Feedback unavailable</div>
-            <div className="ov-error-sub">AI service is temporarily busy. You can try again.</div>
+            <div className="ov-error-title">AI feedback unavailable</div>
+            <div className="ov-error-sub">{feedbackError}</div>
           </div>
           {onRetryFeedback ? (
             <button className="ov-retry-btn" onClick={onRetryFeedback}>

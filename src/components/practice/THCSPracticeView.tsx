@@ -680,13 +680,10 @@ const THCSPracticeInner: React.FC<{
                     .catch(err => console.warn('Background writing grading failed:', err));
             }
 
-            // Fire-and-forget: AI formative feedback generation (async, non-blocking)
-            import('../../services/formativeFeedback.service').then(({ generateFormativeFeedback }) => {
-                generateFormativeFeedback(gradingResult, testData.sections, {
-                    title: testData.metadata.title,
-                    gradeLevel: testData.metadata.gradeLevel || 9,
-                }, resultId).catch(err => console.warn('[THCSPractice] Formative feedback failed:', err));
-            }).catch(err => console.warn('Failed to load formativeFeedback service:', err));
+            // Fire-and-forget: formative feedback generation from the saved result
+            import('../../services/resultFeedbackGeneration.service').then(({ triggerFormativeFeedbackForSavedResult }) => {
+                triggerFormativeFeedbackForSavedResult(resultId);
+            }).catch(err => console.warn('Failed to load resultFeedbackGeneration service:', err));
 
             // Navigate after showing results briefly
             setTimeout(() => {

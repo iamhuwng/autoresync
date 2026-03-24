@@ -45,9 +45,13 @@ const resultWithExplanations: TestResultRecord = {
   ...baseResult,
   formativeFeedback: {
     questionExplanations: {
-      '2': 'You chose B but C is correct because...',
-      '4': 'The answer "world" is required here because...',
+      '2': 'This question tests verb tense. The clue "since 2020" requires the present perfect, so "has lived" is correct while "lived" wrongly places the action only in the past.',
+      '4': 'This item tests word meaning in context. "world" completes the sentence because it matches the noun phrase already introduced, while "hello" does not fit the sentence meaning.',
     },
+    aiFeedback: { summary: 'Summary', strengths: '', revision: '', critical: '' },
+    totalCorrect: 3,
+    totalQuestions: 5,
+    scaledScore: 6,
   },
 } as any;
 
@@ -55,8 +59,12 @@ const resultWithLegacyExplanationKeys: TestResultRecord = {
   ...baseResult,
   formativeFeedback: {
     questionExplanations: {
-      'Q2': 'Legacy key format still resolves correctly.',
+      'Q2': 'This question tests verb tense. The clue "since 2020" requires the present perfect, so "has lived" is correct while "lived" wrongly places the action only in the past.',
     },
+    aiFeedback: { summary: 'Summary', strengths: '', revision: '', critical: '' },
+    totalCorrect: 3,
+    totalQuestions: 5,
+    scaledScore: 6,
   },
 } as any;
 
@@ -67,6 +75,43 @@ const resultWithPendingReview: TestResultRecord = {
     { questionNumber: 5, isCorrect: false, studentAnswer: 'My sentence', correctAnswer: 'Model sentence', score: 0, maxScore: 2, questionType: 'sentence-rewrite' },
   ],
   incorrect: 3,
+} as any;
+
+const resultWithWeakSavedExplanation: TestResultRecord = {
+  ...baseResult,
+  formativeFeedback: {
+    analysis: { strengths: [], revision: [], critical: [] },
+    deterministicFeedback: 'Stored deterministic summary',
+    questionExplanations: {
+      '2': 'You did not answer this question. The correct answer is "D". Review the grammar rule or vocabulary pattern behind this question and try again with similar exercises.',
+    },
+    totalCorrect: 3,
+    totalQuestions: 5,
+    scaledScore: 6,
+  },
+} as any;
+
+const resultWithBlankAnswerMismatch: TestResultRecord = {
+  ...baseResult,
+  questionResults: [
+    { questionNumber: 1, isCorrect: true, studentAnswer: 'A', correctAnswer: 'A', score: 2, maxScore: 2, questionType: 'multiple-choice' },
+    { questionNumber: 2, isCorrect: false, studentAnswer: '—', correctAnswer: 'B', score: 0, maxScore: 2, questionType: 'multiple-choice' },
+    { questionNumber: 3, isCorrect: true, studentAnswer: 'D', correctAnswer: 'D', score: 2, maxScore: 2, questionType: 'fill-in-blank' },
+    { questionNumber: 4, isCorrect: false, studentAnswer: 'hello', correctAnswer: 'world', score: 0, maxScore: 2, questionType: 'fill-in-blank' },
+    { questionNumber: 5, isCorrect: true, studentAnswer: 'X', correctAnswer: 'X', score: 2, maxScore: 2 },
+  ],
+  formativeFeedback: {
+    questionExplanations: {
+      '2': "This tests the verb form 'challenge' vs 'challenging'. The student chose 'challenger', which is a noun and doesn't fit the sentence.",
+    },
+    fallbackQuestionExplanations: {
+      '2': 'Because you left it blank, the best starting point is to identify the controlling clue in the sentence first, then test each option against that clue.',
+    },
+    aiFeedback: { summary: 'Summary', strengths: '', revision: '', critical: '' },
+    totalCorrect: 3,
+    totalQuestions: 5,
+    scaledScore: 6,
+  },
 } as any;
 
 /* ─── Tests ──────────────────────────────────────────────────────────────── */
@@ -95,18 +140,31 @@ describe('ReviewTab', () => {
 
   it('renders AI explanation callouts when available', () => {
     render(<ReviewTab result={resultWithExplanations} />);
-    expect(screen.getByTestId('rv-explanation-2')).toHaveTextContent('You chose B but C is correct');
-    expect(screen.getByTestId('rv-explanation-4')).toHaveTextContent('The answer "world" is required');
+    expect(screen.getByTestId('rv-explanation-2')).toHaveTextContent('The clue "since 2020" requires the present perfect');
+    expect(screen.getByTestId('rv-explanation-4')).toHaveTextContent('"world" completes the sentence');
   });
 
   it('supports legacy Q-prefixed explanation keys', () => {
     render(<ReviewTab result={resultWithLegacyExplanationKeys} />);
-    expect(screen.getByTestId('rv-explanation-2')).toHaveTextContent('Legacy key format still resolves correctly.');
+    expect(screen.getByTestId('rv-explanation-2')).toHaveTextContent('The clue "since 2020" requires the present perfect');
   });
 
   it('renders pending-review notice for sentence-rewrite', () => {
     render(<ReviewTab result={resultWithPendingReview} />);
     expect(screen.getByTestId('rv-pending-5')).toHaveTextContent('Awaiting teacher review');
+  });
+
+  it('does not render weak saved fallback text as an AI explanation', () => {
+    render(<ReviewTab result={resultWithWeakSavedExplanation} />);
+    expect(screen.queryByTestId('rv-explanation-2')).not.toBeInTheDocument();
+    expect(screen.getByTestId('rv-ai-pending-2')).toHaveTextContent('Detailed AI explanation is still being generated');
+  });
+
+  it('falls back to an accurate unanswered explanation when saved AI text contradicts a blank answer', () => {
+    render(<ReviewTab result={resultWithBlankAnswerMismatch} />);
+    expect(screen.getByTestId('rv-explanation-2')).toHaveTextContent('Because you left it blank');
+    expect(screen.getByTestId('rv-explanation-2')).not.toHaveTextContent("The student chose 'challenger'");
+    expect(screen.getByText('Explanation')).toBeInTheDocument();
   });
 
   it('renders perfect-score congratulations card (Task 7.9)', () => {

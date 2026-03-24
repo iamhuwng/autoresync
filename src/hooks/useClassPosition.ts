@@ -93,7 +93,7 @@ export function useClassPosition(
     return () => {
       cancelled = true;
     };
-  }, [testId, classId]);
+  }, [testId, classId, studentPercentage]);
 
   return { average, totalStudents, position, loading, error };
 }

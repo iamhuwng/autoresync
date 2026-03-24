@@ -12,10 +12,11 @@
  */
 
 import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import { ref, get } from 'firebase/database';
 // @ts-ignore
 import { database } from '../services/firebase';
+import { buildRoute } from '../constants/routes';
 import { Center, Loader } from '@mantine/core';
 import { Card, CardBody } from '../components/modern';
 import { Button } from '../components/modern';
@@ -28,7 +29,7 @@ import {
   StudentAnswer,
 } from '../services/autoMarking.service';
 import { generateCertificatePDF, isPDFGenerationAvailable } from '../utils/pdfCertificate';
-import { TestResultRecord, getStudentSessionResult } from '../services/testResults.service';
+import { TestResultRecord, getStudentSessionResult, getTestResult } from '../services/testResults.service';
 import { WritingSpeakingPlaceholder } from '../components/test/WritingSpeakingPlaceholder';
 import { sessionService } from '../services/sessionService';
 import { getCourseAverage } from '../services/resultsService';
@@ -61,6 +62,7 @@ interface TestData {
 export const StudentTestResultsPage: React.FC = () => {
   const { sessionCode } = useParams<{ sessionCode: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -84,11 +86,39 @@ export const StudentTestResultsPage: React.FC = () => {
       return;
     }
 
-    loadResults();
+    let cancelled = false;
 
-    // Check PDF availability
-    isPDFGenerationAvailable().then(setPdfAvailable);
-  }, [sessionCode]);
+    const startLoad = async () => {
+      const isLegacyStudentResultLink = location.pathname.startsWith('/student/results/');
+
+      if (isLegacyStudentResultLink) {
+        try {
+          const directResult = await getTestResult(sessionCode);
+          if (!cancelled && directResult) {
+            navigate(buildRoute('RESULT_DETAIL', { resultId: sessionCode }), { replace: true });
+            return;
+          }
+        } catch (legacyLookupError) {
+          console.warn('[Results] Legacy result link lookup failed, falling back to session loading:', legacyLookupError);
+        }
+      }
+
+      if (!cancelled) {
+        loadResults();
+        isPDFGenerationAvailable().then((available) => {
+          if (!cancelled) {
+            setPdfAvailable(available);
+          }
+        });
+      }
+    };
+
+    startLoad();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionCode, location.pathname, navigate]);
 
   const loadResults = async (retryCount = 0) => {
     try {

@@ -39,6 +39,14 @@ export const BREADCRUMB_HIERARCHY: Record<string, BreadcrumbConfig> = {
         label: 'Students',
     },
 
+    TEACHER_STUDENT_HISTORY: {
+        parent: 'TEACHER_STUDENTS',
+        label: 'Student History',
+        labelResolver: async (params) => {
+            return `Student ${params.studentId || 'History'}`;
+        },
+    },
+
     TEACHER_CLASSES: {
         parent: 'LOBBY',
         label: 'Classes',

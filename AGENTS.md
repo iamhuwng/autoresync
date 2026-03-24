@@ -2,6 +2,22 @@
 
 When your action matches a trigger below, **STOP and READ the linked file** before writing code. Do NOT load all files — only the one that matches.
 
+## Sub-Agents (MANDATORY)
+
+These rules are obligatory and must be treated as standard operating procedure:
+- You MUST use subagents liberally to keep the main context window clean.
+- You MUST offload research, exploration, and parallel analysis to subagents whenever the work can be decomposed safely.
+- For complex, ambiguous, or multi-part problems, you MUST throw more compute at the task via subagents instead of keeping all reasoning in the main thread.
+- Each subagent MUST own exactly one tack so execution stays focused and outputs remain composable.
+
+## Text Encoding Guardrail (MANDATORY)
+
+These rules are obligatory for file creation, conversion, and editing:
+- All newly created or edited text files must be UTF-8.
+- If a text file is legacy ANSI/Windows-1252, convert it to UTF-8 before further routine editing whenever practical.
+- Prefer repo guardrails over ad hoc byte-safe editing: `.editorconfig`, `.gitattributes`, and `npm run check:utf8`.
+- Use `npm run check:utf8:staged` for staged changes, `npm run check:utf8:all` for a broader repo scan, and `npm run check:utf8 -- <paths...>` for targeted verification.
+
 | When you are... | READ this file |
 |----------------|----------------|
 | Writing `navigate()`, `<Link>`, redirect URLs, or notification links | [`rules/navigation.md`](documentation/rules/navigation.md) |

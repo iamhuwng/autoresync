@@ -7,6 +7,7 @@ import { Loader } from '@mantine/core';
 import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
 import { S } from '../components/layout/studentLayoutStyles';
+import { ResultSlidePanel } from '../components/results/ResultSlidePanel';
 
 // ─── Utility: Date Formatting & Status ──────────────────────────────────────
 const formatDate = (timestamp: number): string => {
@@ -124,6 +125,7 @@ export const StudentHomeworkListPage: React.FC = () => {
     const { user, profile } = useAuth();
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState<string>('all');
+    const [selectedResultId, setSelectedResultId] = useState<string | null>(null);
 
     const {
         homeworkItems,
@@ -152,9 +154,7 @@ export const StudentHomeworkListPage: React.FC = () => {
 
         // If already submitted / completed, go to academic record to view results
         if (status === 'submitted' && latestSubmission?.resultId) {
-            navigate('/student/academic-record', {
-                state: { resultId: latestSubmission.resultId, showResult: true },
-            });
+            setSelectedResultId(latestSubmission.resultId);
             return;
         }
 
@@ -320,9 +320,7 @@ export const StudentHomeworkListPage: React.FC = () => {
                                         if (canViewFeedback && latestSubmission.resultId) {
                                             e.stopPropagation();
                                             // PRD-0025 US-11: Open inline ResultDetailModal on Academic Record page
-                                            navigate('/student/academic-record', {
-                                                state: { resultId: latestSubmission.resultId, showResult: true },
-                                            });
+                                            setSelectedResultId(latestSubmission.resultId);
                                         }
                                     }}
                                 >
@@ -432,6 +430,12 @@ export const StudentHomeworkListPage: React.FC = () => {
             <div>
                 {renderCenterContent()}
             </div>
+            {selectedResultId && (
+                <ResultSlidePanel
+                    resultId={selectedResultId}
+                    onClose={() => setSelectedResultId(null)}
+                />
+            )}
         </StudentLayout>
     );
 };

@@ -4,6 +4,7 @@ This folder contains all the documentation for the project.
 
 ## Latest Updates
 
+*   **[March 22, 2026 - AI Feedback Trust Contract](./knowledge-extract-ai-feedback-trust-contract.md)** - Reusable contract for separating deterministic fallback content from trusted AI explanations, preserving upgrade-needed state, and keeping generic results on the same AI regeneration path.
 *   **[November 11, 2025 - Text Highlighter Bug Fix](./SOP/0031-text-highlighter-bug-fix-nov11.md)** - Fixed critical bug where highlighting text above previous highlights failed. Changed from DOM path-based to character position-based approach for reliable sorting and rendering.
 *   **[November 11, 2025 - Comprehensive Development Session](./SOP/0023-november-11-2025-comprehensive-session.md)** - Multi-draft management, Google Drive OAuth2 integration, Groq AI fallback system, workflow optimization (5→4 steps), image upload bug fixes, answer key parsing improvements, and drawing tool lifecycle
 *   **[November 7, 2025 - UI Enhancements and Quiz Creation Improvements](./SOP/0021-ui-enhancements-and-quiz-creation-improvements-nov-7-2025.md)** - Inline add question flow, passage panel fixes, toolbar redesign, and skip passages feature
@@ -114,3 +115,4 @@ This section contains documentation related to testing.
 ## Session Retrospectives
 
 > **Update Note (2025-10-20):** This section is now obsolete. Session retrospectives are now considered a part of the Standard Operating Procedures (SOPs) and are located in the `/sop` directory. Please refer to the SOP section for the latest retrospectives.
+

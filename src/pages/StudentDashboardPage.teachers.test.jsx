@@ -47,6 +47,14 @@ vi.mock('../components/dashboard/PendingReviewsWidget', () => ({
     PendingReviewsWidget: () => <div data-testid="pending-reviews-widget" />
 }));
 
+vi.mock('../components/results/ResultSlidePanel', () => ({
+    ResultSlidePanel: ({ resultId, onClose }) => (
+        <div data-testid="result-slide-panel" data-result-id={resultId}>
+            <button onClick={onClose}>Close Panel</button>
+        </div>
+    ),
+}));
+
 // Mock useMediaQuery since window.matchMedia is missing in JSDOM
 vi.mock('../hooks/useMediaQuery', () => ({
     useMediaQuery: vi.fn(() => false)
@@ -311,6 +319,37 @@ describe('StudentDashboardPage - Activity Stream', () => {
         await waitFor(() => {
             expect(screen.getByText('Live Now 🔥')).toBeInTheDocument();
             expect(screen.getAllByText('Live Quiz').length).toBeGreaterThanOrEqual(1);
+        });
+    });
+
+    it('should open the result slide panel from a feed notification', async () => {
+        notificationService.getPaginatedUserNotifications.mockResolvedValue({
+            notifications: [
+                {
+                    id: 'notif-result',
+                    type: 'success',
+                    title: 'Result Ready',
+                    message: 'Your latest score is available.',
+                    read: false,
+                    createdAt: Date.now() - 60000,
+                    metadata: {
+                        resultId: 'result-1',
+                        score: 7,
+                        maxScore: 10,
+                        testName: 'IELTS Reading'
+                    }
+                }
+            ],
+            hasMore: false,
+            lastKey: undefined
+        });
+
+        renderWithProviders(<StudentDashboardPage />);
+
+        fireEvent.click(await screen.findByText('Result Ready'));
+
+        await waitFor(() => {
+            expect(screen.getByTestId('result-slide-panel')).toHaveAttribute('data-result-id', 'result-1');
         });
     });
 });

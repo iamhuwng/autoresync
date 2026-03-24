@@ -303,8 +303,7 @@ const TeacherStudentsPage: React.FC = () => {
                             onApproveRequest={handleApproveRequest}
                             onDenyRequest={handleDenyRequest}
                             onViewAnalytics={(studentId) => {
-                                // Navigate to teacher's student history page
-                                window.location.href = `/teacher/student/${studentId}/history`;
+                                navigateTo('TEACHER_STUDENT_HISTORY', { studentId }, { reason: 'view_student_history' });
                             }}
                             onEdit={() => { }} // Teachers can't edit users
                             onAssignToTeacher={() => { }} // Teachers can't assign to other teachers

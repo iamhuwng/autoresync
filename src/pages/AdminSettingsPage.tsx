@@ -37,6 +37,7 @@ import {
 import { getEnv } from '../config/env.config';
 import { database } from '../services/firebase';
 import { reportingService } from '../services/reportingService';
+import AIMaintenanceBanner from '../components/ai/AIMaintenanceBanner';
 
 // ============================================================================
 // Types
@@ -874,6 +875,9 @@ const AdminSettingsPage: React.FC = () => {
                         Manage API keys and system configuration
                     </p>
                 </div>
+
+                {/* AI Maintenance Banner */}
+                <AIMaintenanceBanner />
 
                 <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
                     <Button

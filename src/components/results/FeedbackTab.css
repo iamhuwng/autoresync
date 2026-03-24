@@ -1,0 +1,378 @@
+/* FeedbackTab */
+
+.fb-root {
+  display: flex;
+  flex-direction: column;
+}
+
+.fb-layout {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 20px;
+}
+
+.fb-left,
+.fb-right {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.fb-analysis-card,
+.fb-no-feedback {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.fb-card-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fb-analysis-summary {
+  margin: 0 0 16px;
+  font-size: 0.85rem;
+  color: #374151;
+  line-height: 1.7;
+}
+
+.fb-analysis-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.fb-analysis-section {
+  padding-top: 2px;
+}
+
+.fb-analysis-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.fb-analysis-icon {
+  font-size: 1rem;
+}
+
+.fb-analysis-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.fb-analysis-section--strengths .fb-analysis-title,
+.fb-analysis-section--strengths .fb-analysis-bullet-icon {
+  color: #059669;
+}
+
+.fb-analysis-section--revision .fb-analysis-title,
+.fb-analysis-section--revision .fb-analysis-bullet-icon {
+  color: #d97706;
+}
+
+.fb-analysis-section--practice .fb-analysis-title,
+.fb-analysis-section--practice .fb-analysis-bullet-icon {
+  color: #4f46e5;
+}
+
+.fb-analysis-bullets {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.fb-analysis-bullet {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: #374151;
+  line-height: 1.5;
+}
+
+.fb-analysis-bullet-icon {
+  font-size: 0.7rem;
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+.fb-analysis-note {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #374151;
+  line-height: 1.55;
+}
+
+.fb-no-feedback {
+  text-align: center;
+  padding: 32px 16px;
+}
+
+.fb-no-icon {
+  font-size: 2rem;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.fb-no-text {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+.fb-recommendations-card {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.fb-recommendations-card--perfect {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+}
+
+.fb-recommendations-intro {
+  margin: 0 0 12px;
+  font-size: 0.84rem;
+  line-height: 1.55;
+  color: #1e40af;
+}
+
+.fb-recommendation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fb-recommendation-item {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(191, 219, 254, 0.9);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.fb-recommendation-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.fb-recommendation-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.fb-recommendation-questions {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #1e40af;
+}
+
+.fb-recommendation-guidance {
+  margin: 0 0 10px;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: #1e3a8a;
+}
+
+.fb-recommendation-books {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fb-book-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #dbeafe;
+  background: #fff;
+}
+
+.fb-book-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: baseline;
+}
+
+.fb-book-title {
+  font-size: 0.82rem;
+  color: #111827;
+}
+
+.fb-book-author {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.fb-book-section {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #1d4ed8;
+}
+
+.fb-book-focus {
+  font-size: 0.76rem;
+  color: #4b5563;
+  line-height: 1.5;
+}
+
+.fb-widget-card {
+  background: #f9fafb;
+  border-radius: 16px;
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+}
+
+.fb-widget-title {
+  margin: 0 0 12px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.fb-shimmer-card {
+  min-height: 100px;
+  background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
+  background-size: 200% 100%;
+  animation: fbShimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes fbShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.fb-trend-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 10px;
+  padding: 4px 10px;
+  background: #f3f4f6;
+  border-radius: 12px;
+}
+
+.fb-trend-helper {
+  font-size: 0.8rem;
+  color: #6b7280;
+  margin: 8px 0 0;
+  text-align: center;
+}
+
+.fb-bar-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  height: 100px;
+  padding-top: 8px;
+}
+
+.fb-bar-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+}
+
+.fb-bar {
+  width: 24px;
+  border-radius: 4px 4px 0 0;
+  transition: height 0.5s ease;
+}
+
+.fb-bar-value {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #9ca3af;
+}
+
+.fb-bar-value--current {
+  color: #4f46e5;
+}
+
+.fb-bar-label {
+  font-size: 0.6rem;
+  color: #6b7280;
+  text-align: center;
+}
+
+.fb-class-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fb-class-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.85rem;
+}
+
+.fb-class-key {
+  color: #6b7280;
+}
+
+.fb-class-main-score {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #4f46e5;
+}
+
+.fb-class-value {
+  font-weight: 700;
+  color: #374151;
+}
+
+.fb-class-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-top: 10px;
+}
+
+.fb-class-avg,
+.fb-class-helper {
+  font-size: 0.85rem;
+  color: #6b7280;
+  margin: 4px 0 0;
+}
+
+@media (max-width: 768px) {
+  .fb-layout {
+    grid-template-columns: 1fr;
+  }
+}

@@ -24,6 +24,7 @@ import { executeAnswerInference } from './thcs-answer-inference';
 import { createRetrySession } from './thcs-retry-manager';
 import type { RetryStep } from './thcs-retry-manager';
 import type { RepairAuditEntry } from './thcs-prompt-builder';
+import { executeGeminiWithKeyRotation } from '../ai/gemini-key-rotation.service';
 
 
 // -- Types --
@@ -981,7 +982,7 @@ async function callGroqDirectPlainText(
         const { default: Groq } = await import('groq-sdk');
         const { getEnv } = await import('../../config/env.config');
         const { getDecryptedKeys } = await import('../api-keys.service');
-        const { benchKey, filterBenchedKeys } = await import('../key-cooldown.service');
+        const { benchKey, filterBenchedKeys, shouldBenchGeminiKeyError } = await import('../key-cooldown.service');
 
         // Load Firestore (admin-managed) keys FIRST — they're more likely to be fresh
         const allKeys: string[] = [];
@@ -1051,66 +1052,47 @@ async function callGeminiDirectPlainText(
     model = 'gemini-2.5-flash',
 ): Promise<string | null> {
     try {
-        const { GoogleGenerativeAI } = await import('@google/generative-ai');
-        const { getEnv } = await import('../../config/env.config');
-        const { getDecryptedKeys } = await import('../api-keys.service');
+        const rotationResult = await executeGeminiWithKeyRotation<string>({
+            callerName: 'THCSDocumentParser',
+            benchedKeysError: ({ totalConfiguredKeys }) =>
+                `All ${totalConfiguredKeys} key(s) are benched — skipping Gemini`,
+            exhaustedError: 'All Gemini keys exhausted',
+            attempt: async ({ key, attemptNumber, totalAvailableKeys, totalConfiguredKeys, GoogleGenerativeAI }) => {
+                if (attemptNumber === 1) {
+                    console.log(
+                        `[callGeminiDirectPlainText] Trying ${totalAvailableKeys}/${totalConfiguredKeys} available key(s) with model=${model}...`,
+                    );
+                }
 
-        const { benchKey, filterBenchedKeys } = await import('../key-cooldown.service');
-
-        // Load Firestore (admin-managed) keys FIRST — they're more likely to be fresh
-        const allKeys: string[] = [];
-        try {
-            const firestoreKeys = await getDecryptedKeys('gemini');
-            for (const k of firestoreKeys) { if (k && !allKeys.includes(k)) allKeys.push(k); }
-        } catch (_) { /* ignore */ }
-        // Then fallback to .env keys
-        const env = getEnv();
-        for (let i = 1; i <= 5; i++) {
-            const key = (env as any)[`VITE_GEMINI_API_KEY_${i}`] as string | undefined;
-            if (key && key.trim().length > 0 && !key.includes('your_') && !allKeys.includes(key)) allKeys.push(key);
-        }
-
-        if (allKeys.length === 0) return null;
-
-        // Filter out keys currently cooling down from previous 429s
-        const keys = filterBenchedKeys(allKeys, 'gemini');
-        if (keys.length === 0) {
-            console.warn(`[callGeminiDirectPlainText] All ${allKeys.length} key(s) are benched — skipping Gemini`);
-            return null;
-        }
-
-        console.log(`[callGeminiDirectPlainText] Trying ${keys.length}/${allKeys.length} available key(s) with model=${model}...`);
-
-        for (let i = 0; i < keys.length; i++) {
-            try {
-                const genAI = new GoogleGenerativeAI(keys[i]!);
+                const genAI = new GoogleGenerativeAI(key);
                 const genModel = genAI.getGenerativeModel({ model, systemInstruction: systemMessage });
                 const result = await genModel.generateContent(prompt);
                 const text = result.response.text();
                 if (text && text.trim().length > 10) {
-                    console.log(`[callGeminiDirectPlainText] ✅ Key ${i + 1} succeeded (${text.length} chars)`);
-                    return text;
+                    console.log(`[callGeminiDirectPlainText] ✅ Key ${attemptNumber} succeeded (${text.length} chars)`);
+                    return { status: 'success', value: text };
                 }
-                console.warn(`[callGeminiDirectPlainText] Key ${i + 1} returned empty/short response (${text?.length ?? 0} chars)`);
-            } catch (err) {
-                const msg = err instanceof Error ? err.message : String(err);
-                if (msg.includes('403') || msg.includes('BLOCKED')) {
-                    console.warn(`[callGeminiDirectPlainText] Key ${i + 1} blocked (403)`);
-                    continue;
-                }
-                if (msg.includes('429') || msg.includes('quota')) {
-                    benchKey(keys[i]!, 'gemini', msg);
-                    continue;
-                }
-                if (msg.includes('404')) {
-                    console.warn(`[callGeminiDirectPlainText] Key ${i + 1} model not found (404)`);
-                    continue;
-                }
-                console.warn(`[callGeminiDirectPlainText] Key ${i + 1} failed:`, msg);
-                continue;
-            }
+
+                console.warn(`[callGeminiDirectPlainText] Key ${attemptNumber} returned empty/short response (${text?.length ?? 0} chars)`);
+                return { status: 'continue' };
+            },
+        });
+
+        if (rotationResult.success) {
+            return rotationResult.value ?? null;
         }
-        console.warn(`[callGeminiDirectPlainText] ❌ All ${keys.length} keys exhausted — returning null`);
+
+        if (rotationResult.error.includes('benched')) {
+            console.warn(`[callGeminiDirectPlainText] ${rotationResult.error}`);
+            return null;
+        }
+
+        if (rotationResult.allKeysExhausted) {
+            console.warn(`[callGeminiDirectPlainText] ❌ ${rotationResult.error} — returning null`);
+            return null;
+        }
+
+        console.warn(`[callGeminiDirectPlainText] Failed: ${rotationResult.error}`);
         return null;
     } catch (err) {
         console.warn('[callGeminiDirectPlainText] Failed:', err);

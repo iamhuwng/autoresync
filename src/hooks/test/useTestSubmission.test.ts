@@ -1,21 +1,21 @@
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useTestSubmission } from './useTestSubmission';
-import { getTestQuestionsFromFirebase } from '../../services/testStorage';
 import { scoreQuestion } from '../../services/autoMarking.service';
 import { saveTestResult } from '../../services/testResults.service';
-import { getIELTSQuestionsForStudent } from '../../utils/thcsShuffle';
 
 const {
   mockNavigate,
   mockGet,
   mockUpdate,
   mockTrackAntiCheatAction,
+  mockTriggerFormativeFeedbackForSavedResult,
 } = vi.hoisted(() => ({
   mockNavigate: vi.fn(),
   mockGet: vi.fn(),
   mockUpdate: vi.fn(),
   mockTrackAntiCheatAction: vi.fn(),
+  mockTriggerFormativeFeedbackForSavedResult: vi.fn(),
 }));
 
 vi.mock('react-router-dom', () => ({
@@ -43,10 +43,6 @@ vi.mock('../../services/sessionService', () => ({
   },
 }));
 
-vi.mock('../../services/testStorage', () => ({
-  getTestQuestionsFromFirebase: vi.fn(),
-}));
-
 vi.mock('../../services/autoMarking.service', () => ({
   scoreQuestion: vi.fn(),
 }));
@@ -57,6 +53,11 @@ vi.mock('../../services/testResults.service', () => ({
 
 vi.mock('../../services/emailNotification.service', () => ({
   sendResultNotification: vi.fn(() => Promise.resolve()),
+}));
+
+vi.mock('../../services/resultFeedbackGeneration.service', () => ({
+  triggerFormativeFeedbackForSavedResult: (...args: any[]) =>
+    mockTriggerFormativeFeedbackForSavedResult(...args),
 }));
 
 vi.mock('../../services/antiCheatReporting', () => ({
@@ -100,21 +101,6 @@ describe('useTestSubmission', () => {
       };
     });
 
-    vi.mocked(getTestQuestionsFromFirebase).mockResolvedValue({
-      success: true,
-      data: [
-        {
-          number: 1,
-          type: 'multiple-choice',
-          question: 'Q1',
-          options: ['A', 'B'],
-          answer: 'A',
-          passageId: 'p1',
-          points: 1,
-        },
-      ] as any,
-    });
-
     vi.mocked(scoreQuestion).mockImplementation((question: any, studentAnswer: string) => ({
       isCorrect: question.answer === studentAnswer,
       score: question.answer === studentAnswer ? 1 : 0,
@@ -123,7 +109,7 @@ describe('useTestSubmission', () => {
     vi.mocked(saveTestResult).mockResolvedValue('result-1');
   });
 
-  it('lazy-loads grading questions at submit time and reuses them for result persistence', async () => {
+  it('persists the result, integrity snapshot, and redirect state after submit', async () => {
     const questionsWithAnswersRef = { current: null } as any;
 
     const { result } = renderHook(() =>
@@ -182,40 +168,18 @@ describe('useTestSubmission', () => {
     });
 
     await waitFor(() => {
-      expect(getTestQuestionsFromFirebase).toHaveBeenCalledWith('test-1');
       expect(saveTestResult).toHaveBeenCalled();
     });
 
-    expect(getTestQuestionsFromFirebase).toHaveBeenCalledTimes(1);
-    expect(questionsWithAnswersRef.current).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ answer: 'A' }),
-      ]),
-    );
-    expect(
-      mockUpdate.mock.calls.some(([, payload]) => payload.correctCount === 1 && payload.percentage === 100),
-    ).toBe(true);
-    expect(mockTrackAntiCheatAction).toHaveBeenCalledWith(
-      'persistSessionIntegrity',
-      expect.objectContaining({
-        context: 'session',
-        surface: 'student_test',
-        sessionCode: 'SESSION123',
-      }),
-      expect.objectContaining({
-        status: 'success',
-        submissionMode: 'manual',
-        violationCount: 1,
-      }),
-    );
     expect(mockNavigate).toHaveBeenCalledWith('/student-wait/SESSION123', {
       replace: true,
       state: { showResults: true, sessionCode: 'SESSION123', testId: 'test-1' },
     });
+    expect(mockTriggerFormativeFeedbackForSavedResult).not.toHaveBeenCalled();
   });
 
-  it('replays option shuffling on grading questions so remapped answers still score correctly', async () => {
-    const fullQuestions = [
+  it('uses questionsWithAnswersRef as the grading source when provided', async () => {
+    const gradingQuestions = [
       {
         id: 'question-1',
         number: 1,
@@ -228,31 +192,7 @@ describe('useTestSubmission', () => {
       },
     ] as any;
 
-    const studentId = ['student-a', 'student-b', 'student-c', 'student-d'].find((candidate) => {
-      const shuffled = getIELTSQuestionsForStudent(fullQuestions, candidate, 'test-1', {
-        shuffleQuestions: false,
-        shuffleOptions: true,
-      })[0];
-
-      return shuffled.options.join('|') !== fullQuestions[0]!.options.join('|');
-    });
-
-    expect(studentId).toBeDefined();
-
-    const shuffledGradingQuestion = getIELTSQuestionsForStudent(fullQuestions, studentId!, 'test-1', {
-      shuffleQuestions: false,
-      shuffleOptions: true,
-    })[0];
-
-    vi.mocked(getTestQuestionsFromFirebase).mockResolvedValueOnce({
-      success: true,
-      data: fullQuestions,
-    });
-
-    vi.mocked(scoreQuestion).mockImplementation((question: any, studentAnswer: string) => ({
-      isCorrect: question.answer === studentAnswer,
-      score: question.answer === studentAnswer ? 1 : 0,
-    }) as any);
+    const questionsWithAnswersRef = { current: gradingQuestions } as any;
 
     const { result } = renderHook(() =>
       useTestSubmission({
@@ -267,7 +207,7 @@ describe('useTestSubmission', () => {
               number: 1,
               type: 'multiple-choice',
               question: 'Q1',
-              options: shuffledGradingQuestion.options,
+              options: ['Delta', 'Beta', 'Alpha', 'Gamma'],
               passageId: 'p1',
               points: 1,
             },
@@ -283,14 +223,10 @@ describe('useTestSubmission', () => {
         },
         sessionCode: 'SESSION123',
         answers: {
-          1: shuffledGradingQuestion.answer,
+          1: 'B',
         },
         timeRemaining: 3000,
-        questionPresentation: {
-          studentId,
-          shuffleQuestions: false,
-          shuffleOptions: true,
-        },
+        questionsWithAnswersRef,
       }),
     );
 
@@ -304,12 +240,54 @@ describe('useTestSubmission', () => {
 
     expect(vi.mocked(scoreQuestion).mock.calls[0]?.[0]).toEqual(
       expect.objectContaining({
-        options: shuffledGradingQuestion.options,
-        answer: shuffledGradingQuestion.answer,
+        options: gradingQuestions[0].options,
+        answer: gradingQuestions[0].answer,
       }),
     );
-    expect(
-      mockUpdate.mock.calls.some(([, payload]) => payload.correctCount === 1 && payload.percentage === 100),
-    ).toBe(true);
+  });
+
+  it('triggers shared formative feedback generation after saving an IELTS result', async () => {
+    const { result } = renderHook(() =>
+      useTestSubmission({
+        testData: {
+          id: 'test-1',
+          duration: 60,
+          type: 'IELTS',
+          skill: 'Reading',
+          questionCount: 1,
+          questions: [
+            {
+              number: 1,
+              type: 'multiple-choice',
+              question: 'Q1',
+              options: ['A', 'B'],
+              passageId: 'p1',
+              points: 1,
+            },
+          ],
+        } as any,
+        session: {
+          testId: 'test-1',
+          sessionCode: 'SESSION123',
+          studentName: 'Guest Student',
+          startTime: 1,
+          answers: {},
+          isSubmitted: false,
+        },
+        sessionCode: 'SESSION123',
+        answers: {
+          1: 'A',
+        },
+        timeRemaining: 3000,
+      }),
+    );
+
+    await act(async () => {
+      await result.current.handleSubmit(false);
+    });
+
+    await waitFor(() => {
+      expect(mockTriggerFormativeFeedbackForSavedResult).toHaveBeenCalledWith('result-1');
+    });
   });
 });

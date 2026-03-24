@@ -356,7 +356,7 @@ function App() {
           <Route path="/student-test-results/:sessionCode" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentTestResultsPage />, 'results')}</PrivateRoute>} />
           <Route path="/student-feedback/:gameSessionId" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentFeedbackPage />, 'feedback')}</PrivateRoute>} />
           <Route path="/student-results/:gameSessionId" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentResultsPage />, 'results')}</PrivateRoute>} />
-          {/* Student test results by session code (used by post-submission redirect) */}
+          {/* Legacy student result entry path: supports older links while StudentTestResultsPage redirects resultId deep-links to /result/:resultId */}
           <Route path="/student/results/:sessionCode" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentTestResultsPage />, 'results')}</PrivateRoute>} />
           {/* PRD-0016: Solo Study & Homework System */}
           <Route path="/student/library" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentLibraryPage />, 'materials')}</PrivateRoute>} />

@@ -12,6 +12,10 @@ import { S } from '../components/layout/studentLayoutStyles';
 import { IconAlertCircle } from '../components/layout/StudentIcons';
 import { getProgressiveFeedback, refreshProgressiveFeedback } from '../services/progressiveFeedback.service';
 import type { ProgressiveFeedbackRecord } from '@/types/academicRecord.types';
+import { useFeatureTracking } from '../hooks/useFeatureTracking';
+import { ResultSlidePanel } from '../components/results/ResultSlidePanel';
+import AIMaintenanceBanner from '../components/ai/AIMaintenanceBanner';
+import { useAIStatus } from '../hooks/useAIStatus';
 
 // Lazy import for Writing progress (code-split)
 const WritingProgressSection = lazy(() => import('../components/writing-practice/WritingProgressSection'));
@@ -275,6 +279,9 @@ export const AcademicRecordPage: React.FC = () => {
     const { user, profile } = useAuth();
     const location = useLocation();
     const [searchParams, setSearchParams] = useSearchParams();
+    // PRD-0039 Task 9.15: Instrumentation
+    const { trackAction } = useFeatureTracking('academicRecords');
+    const [{ maintenance: aiMaintenance, loaded: aiStatusLoaded }] = useAIStatus();
 
     // PRD-0039 Task 4.1: Query param is the single source of truth for the open panel
     const selectedResultId = searchParams.get('result');
@@ -375,31 +382,26 @@ export const AcademicRecordPage: React.FC = () => {
     // PRD-0039 Task 4.6a: Single callback for opening a result panel
     const handleOpenResult = useCallback((resultId: string) => {
         setSearchParams({ result: resultId });
-    }, [setSearchParams]);
+        // PRD-0039 Task 9.15: Track slide panel open
+        trackAction('openSlidePanel', { resultId });
+    }, [setSearchParams, trackAction]);
 
     // PRD-0039 Task 4.7: THCS history click uses full raw results array, resolves to handleOpenResult
     const handleThcsHistoryClick = useCallback((historyTestId: string) => {
-        const matchingResult = results.find(result => {
-            const candidateIds = [
-                (result as any).testId,
-                (result as any).quizId,
-                result.resultId,
-            ].filter(Boolean);
-            return candidateIds.includes(historyTestId);
-        });
-
-        if (matchingResult?.resultId) {
-            handleOpenResult(matchingResult.resultId);
-            return;
-        }
-
-        const titleMatchedResult = [...results]
-            .filter(result => result.testType === 'THCS-THPT')
+        const latestMatch = [...results]
             .sort((a, b) => b.submittedAt - a.submittedAt)
-            .find(result => ((result as any).testId || (result as any).quizId) === historyTestId);
+            .find(result => {
+                const candidateIds = [
+                    (result as any).testId,
+                    (result as any).quizId,
+                    result.resultId,
+                ].filter(Boolean);
 
-        if (titleMatchedResult?.resultId) {
-            handleOpenResult(titleMatchedResult.resultId);
+                return candidateIds.includes(historyTestId);
+            });
+
+        if (latestMatch?.resultId) {
+            handleOpenResult(latestMatch.resultId);
         }
     }, [results, handleOpenResult]);
 
@@ -413,8 +415,13 @@ export const AcademicRecordPage: React.FC = () => {
 
     const handleRefreshProgressiveFeedback = async () => {
         if (!user?.uid) return;
+        if (aiStatusLoaded && aiMaintenance) {
+            trackAction('retryAiFeedback', { source: 'academic_record', outcome: 'blocked_maintenance' });
+            return;
+        }
 
         try {
+            trackAction('retryAiFeedback', { source: 'academic_record', outcome: 'manual_refresh' });
             setProgressiveFeedbackLoading(true);
             const refreshed = await refreshProgressiveFeedback(user.uid, { manual: true, force: true });
             setProgressiveFeedback(refreshed);
@@ -427,10 +434,11 @@ export const AcademicRecordPage: React.FC = () => {
 
 
     // PRD-0039 Task 4.4: Removed ResultDetailModal inline usage. Panel will be added in Task 5.0.
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const _handleClosePanel = useCallback(() => {
+    const handleClosePanel = useCallback(() => {
         setSearchParams({}, { replace: true });
-    }, [setSearchParams]);
+        // PRD-0039 Task 9.15: Track slide panel close
+        trackAction('closeSlidePanel');
+    }, [setSearchParams, trackAction]);
 
     // ─── CENTER CONTENT ────────────────────────────────────────────────────────
     const renderContent = () => {
@@ -598,6 +606,15 @@ export const AcademicRecordPage: React.FC = () => {
         ? Math.max(...validScores.map(result => result.percentage || 0))
         : 0;
     const canManualRefresh = !!progressiveFeedback && (!progressiveFeedback.nextEligibleManualRefreshAt || Date.now() >= progressiveFeedback.nextEligibleManualRefreshAt);
+    const isProgressiveFeedbackRefreshDisabled =
+        !canManualRefresh
+        || progressiveFeedbackLoading
+        || (aiStatusLoaded && aiMaintenance);
+    const progressiveFeedbackRefreshTitle = aiStatusLoaded && aiMaintenance
+        ? 'AI system is in maintenance while all available API keys cool down.'
+        : canManualRefresh
+            ? 'Refresh progressive feedback now'
+            : 'Manual refresh becomes available 24 hours after the last manual refresh';
 
     return (
         <StudentLayout
@@ -629,6 +646,8 @@ export const AcademicRecordPage: React.FC = () => {
                     <span>{error}</span>
                 </div>
             )}
+
+            <AIMaintenanceBanner />
 
             {!selectedResultId && (
                 <div style={localStyles.feedSection}>
@@ -662,11 +681,11 @@ export const AcademicRecordPage: React.FC = () => {
                                 onClick={handleRefreshProgressiveFeedback}
                                 style={{
                                     ...localStyles.refreshButton,
-                                    ...((!canManualRefresh || progressiveFeedbackLoading) ? localStyles.refreshButtonDisabled : {}),
+                                    ...(isProgressiveFeedbackRefreshDisabled ? localStyles.refreshButtonDisabled : {}),
                                 }}
-                                disabled={!canManualRefresh || progressiveFeedbackLoading}
+                                disabled={isProgressiveFeedbackRefreshDisabled}
                                 aria-label="Refresh progressive feedback"
-                                title={canManualRefresh ? 'Refresh progressive feedback now' : 'Manual refresh becomes available 24 hours after the last manual refresh'}
+                                title={progressiveFeedbackRefreshTitle}
                             >
                                 ↻
                             </button>
@@ -699,6 +718,14 @@ export const AcademicRecordPage: React.FC = () => {
             <div style={localStyles.feedSection}>
                 {renderContent()}
             </div>
+
+            {/* PRD-0039: Slide panel integration — render when a result is selected */}
+            {selectedResultId && (
+                <ResultSlidePanel
+                    resultId={selectedResultId}
+                    onClose={handleClosePanel}
+                />
+            )}
         </StudentLayout>
     );
 };

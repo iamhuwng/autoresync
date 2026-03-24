@@ -100,6 +100,15 @@ describe('testResults.service', () => {
             // Since ref() is mocked, we need to inspect how ref was called or mock ref return values
             // A simpler way is to verify 'ref' calls
             expect(ref).toHaveBeenCalledWith(database, `test_results_by_teacher/${teacherId}/${resultId}`);
+            expect(mockCreateNotification).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    userId: studentId,
+                    link: '/result/result-123',
+                    metadata: expect.objectContaining({
+                        resultId: 'result-123',
+                    }),
+                })
+            );
         });
     });
 

@@ -14,13 +14,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
-import { calculateBandScore, generatePerformanceFeedback } from '../../services/autoMarking.service';
 import { getTestResult, TestResultRecord } from '../../services/testResults.service';
 import { generateCertificatePDF, isPDFGenerationAvailable } from '../../utils/pdfCertificate';
 import { useResultOwnershipCheck } from '../../hooks/useOwnershipCheck';
-import { FeedbackDisplay } from '../feedback/FeedbackDisplay';
-import { WritingSpeakingPlaceholder } from '../test/WritingSpeakingPlaceholder';
 import { ResultContextBadge } from './ResultContextBadge';
+import { SharedSavedResultCore } from './SharedSavedResultCore';
 
 interface LegacyResultDetailViewProps {
     resultId: string;
@@ -35,7 +33,6 @@ export const LegacyResultDetailView: React.FC<LegacyResultDetailViewProps> = ({
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [result, setResult] = useState<TestResultRecord | null>(null);
-    const [expandedQuestions, setExpandedQuestions] = useState<Set<number>>(new Set());
     const [pdfAvailable, setPdfAvailable] = useState(false);
 
     // PRD-0016: Ownership validation
@@ -78,26 +75,6 @@ export const LegacyResultDetailView: React.FC<LegacyResultDetailViewProps> = ({
         loadResult();
         isPDFGenerationAvailable().then(setPdfAvailable);
     }, [resultId]);
-
-    const toggleQuestion = (questionNumber: number) => {
-        const newExpanded = new Set(expandedQuestions);
-        if (newExpanded.has(questionNumber)) {
-            newExpanded.delete(questionNumber);
-        } else {
-            newExpanded.add(questionNumber);
-        }
-        setExpandedQuestions(newExpanded);
-    };
-
-    const formatAnswer = (answer: string | string[] | Record<string, string>): string => {
-        if (Array.isArray(answer)) {
-            return answer.join(', ');
-        }
-        if (typeof answer === 'object') {
-            return JSON.stringify(answer, null, 2);
-        }
-        return String(answer);
-    };
 
     /**
      * Loading state
@@ -150,9 +127,6 @@ export const LegacyResultDetailView: React.FC<LegacyResultDetailViewProps> = ({
             />
         );
     }
-
-    const bandScore = calculateBandScore(result.percentage);
-    const feedback = generatePerformanceFeedback(result.percentage);
 
     return (
         <div>
@@ -247,272 +221,12 @@ export const LegacyResultDetailView: React.FC<LegacyResultDetailViewProps> = ({
                 )}
             </div>
 
-            {/* Score Summary Cards */}
-            <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-                gap: '1.5rem',
-                marginBottom: '2rem'
-            }}>
-                {/* Total Score */}
-                <div style={glassCardStyle}>
-                    <div style={glassCardBodyStyle}>
-                        <div style={cardLabelStyle}>Your Score</div>
-                        <div style={{ fontSize: '3rem', fontWeight: 800, color: '#8b5cf6', marginBottom: '0.5rem' }}>
-                            {result.totalScore}/{result.maxScore}
-                        </div>
-                        <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#64748b' }}>
-                            {result.percentage.toFixed(1)}%
-                        </div>
-                    </div>
-                </div>
-
-                {/* Band Score */}
-                <div style={glassCardStyle}>
-                    <div style={glassCardBodyStyle}>
-                        <div style={cardLabelStyle}>IELTS Band Score</div>
-                        <div style={{ fontSize: '3rem', fontWeight: 800, color: '#10b981', marginBottom: '0.5rem' }}>
-                            {bandScore.toFixed(1)}
-                        </div>
-                        <div style={{ fontSize: '0.875rem', color: '#64748b' }}>
-                            Out of 9.0
-                        </div>
-                    </div>
-                </div>
-
-                {/* Questions Summary */}
-                <div style={glassCardStyle}>
-                    <div style={glassCardBodyStyle}>
-                        <div style={cardLabelStyle}>Questions</div>
-                        <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '1rem' }}>
-                            <div>
-                                <div style={{ fontSize: '2rem', fontWeight: 800, color: '#10b981' }}>
-                                    {result.correct}
-                                </div>
-                                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Correct</div>
-                            </div>
-                            <div>
-                                <div style={{ fontSize: '2rem', fontWeight: 800, color: '#f59e0b' }}>
-                                    {result.partialCredit}
-                                </div>
-                                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Partial</div>
-                            </div>
-                            <div>
-                                <div style={{ fontSize: '2rem', fontWeight: 800, color: '#ef4444' }}>
-                                    {result.incorrect}
-                                </div>
-                                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Incorrect</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Performance Feedback */}
-            <div style={{ ...glassCardStyle, marginBottom: '2rem' }}>
-                <div style={{ padding: '2rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <div style={{ fontSize: '3rem' }}>
-                            {result.percentage >= 80 ? '🎉' : result.percentage >= 60 ? '👍' : '📚'}
-                        </div>
-                        <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: '1.125rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.5rem' }}>
-                                Performance Feedback
-                            </div>
-                            <div style={{ fontSize: '1rem', color: '#64748b', lineHeight: 1.6 }}>
-                                {feedback}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Teacher Overall Feedback */}
-            {result.overallFeedback && (
-                <div style={{ ...glassCardStyle, marginBottom: '2rem' }}>
-                    <div style={{ padding: '2rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem' }}>
-                            <div style={{ fontSize: '2.5rem' }}>💬</div>
-                            <div style={{ flex: 1 }}>
-                                <div style={{ fontSize: '1.125rem', fontWeight: 700, color: '#1e293b', marginBottom: '1rem' }}>
-                                    Teacher&apos;s Feedback
-                                </div>
-                                <FeedbackDisplay
-                                    feedback={result.overallFeedback}
-                                    teacherName={result.feedbackUpdatedBy || 'Your Teacher'}
-                                    updatedAt={result.feedbackUpdatedAt || Date.now()}
-                                    isOverall={true}
-                                    variant="highlighted"
-                                />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Question-by-Question Review */}
-            <div style={{ marginBottom: '2rem' }}>
-                <h2
-                    style={{
-                        fontSize: '1.5rem',
-                        fontWeight: 700,
-                        color: '#1e293b',
-                        marginBottom: '1rem',
-                    }}
-                >
-                    Question Review
-                </h2>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {result.questionResults.map((questionResult) => {
-                        const isExpanded = expandedQuestions.has(questionResult.questionNumber);
-                        const statusColor = questionResult.isCorrect
-                            ? { bg: 'rgba(16, 185, 129, 0.1)', border: '#10b981', text: '#059669' }
-                            : questionResult.score > 0 && questionResult.score < questionResult.maxScore
-                                ? { bg: 'rgba(245, 158, 11, 0.1)', border: '#f59e0b', text: '#d97706' }
-                                : { bg: 'rgba(239, 68, 68, 0.1)', border: '#ef4444', text: '#dc2626' };
-
-                        return (
-                            <div key={questionResult.questionNumber} style={glassCardStyle}>
-                                <div style={{ padding: '1.5rem' }}>
-                                    {/* Question Header */}
-                                    <div
-                                        onClick={() => toggleQuestion(questionResult.questionNumber)}
-                                        style={{
-                                            display: 'flex',
-                                            justifyContent: 'space-between',
-                                            alignItems: 'center',
-                                            cursor: 'pointer',
-                                            marginBottom: isExpanded ? '1rem' : 0,
-                                        }}
-                                    >
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1 }}>
-                                            {/* Question Number */}
-                                            <div
-                                                style={{
-                                                    width: '3rem',
-                                                    height: '3rem',
-                                                    borderRadius: '50%',
-                                                    background: statusColor.bg,
-                                                    border: `2px solid ${statusColor.border}`,
-                                                    color: statusColor.text,
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    fontWeight: 700,
-                                                    fontSize: '1.125rem',
-                                                    flexShrink: 0,
-                                                }}
-                                            >
-                                                {questionResult.questionNumber}
-                                            </div>
-
-                                            {/* Question Info */}
-                                            <div style={{ flex: 1 }}>
-                                                <div style={{ fontSize: '1rem', fontWeight: 600, color: '#1e293b', marginBottom: '0.25rem' }}>
-                                                    Question {questionResult.questionNumber}
-                                                </div>
-                                                <div style={{ fontSize: '0.875rem', color: statusColor.text, fontWeight: 600 }}>
-                                                    {questionResult.isCorrect ? '✓ Correct' : questionResult.score > 0 ? '⚡ Partial Credit' : '✗ Incorrect'} - {questionResult.score}/{questionResult.maxScore} points
-                                                </div>
-                                            </div>
-
-                                            {/* Expand Icon */}
-                                            <div style={{ fontSize: '1.5rem', color: '#64748b', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
-                                                ▼
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Question Details (Expanded) */}
-                                    {isExpanded && (
-                                        <div style={{ paddingTop: '1rem', borderTop: '1px solid #e2e8f0' }}>
-                                            {/* Your Answer */}
-                                            <div style={{ marginBottom: '1rem' }}>
-                                                <div style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.5rem' }}>
-                                                    Your Answer
-                                                </div>
-                                                <div
-                                                    style={{
-                                                        padding: '1rem',
-                                                        background: statusColor.bg,
-                                                        border: `1px solid ${statusColor.border}`,
-                                                        borderRadius: '0.5rem',
-                                                        fontSize: '0.9375rem',
-                                                        fontWeight: 500,
-                                                        color: '#1e293b',
-                                                        fontFamily: 'monospace',
-                                                        whiteSpace: 'pre-wrap',
-                                                        wordBreak: 'break-word',
-                                                    }}
-                                                >
-                                                    {questionResult.studentAnswer ? formatAnswer(questionResult.studentAnswer) : '(No answer submitted)'}
-                                                </div>
-                                            </div>
-
-                                            {/* Correct Answer */}
-                                            {!questionResult.isCorrect && (
-                                                <div style={{ marginBottom: '1rem' }}>
-                                                    <div style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.5rem' }}>
-                                                        Correct Answer
-                                                    </div>
-                                                    <div
-                                                        style={{
-                                                            padding: '1rem',
-                                                            background: 'rgba(16, 185, 129, 0.1)',
-                                                            border: '1px solid #10b981',
-                                                            borderRadius: '0.5rem',
-                                                            fontSize: '0.9375rem',
-                                                            fontWeight: 600,
-                                                            color: '#059669',
-                                                            fontFamily: 'monospace',
-                                                            whiteSpace: 'pre-wrap',
-                                                            wordBreak: 'break-word',
-                                                        }}
-                                                    >
-                                                        {formatAnswer(questionResult.correctAnswer)}
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {/* Auto-Generated Feedback */}
-                                            <div
-                                                style={{
-                                                    padding: '0.75rem 1rem',
-                                                    background: 'rgba(248, 250, 252, 0.8)',
-                                                    borderRadius: '0.5rem',
-                                                    fontSize: '0.875rem',
-                                                    color: '#64748b',
-                                                    fontStyle: 'italic',
-                                                    marginBottom: questionResult.teacherFeedback ? '1rem' : 0,
-                                                }}
-                                            >
-                                                {questionResult.feedback}
-                                            </div>
-
-                                            {/* Teacher Feedback */}
-                                            {questionResult.teacherFeedback && (
-                                                <div style={{ marginTop: '1rem' }}>
-                                                    <div style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.5rem' }}>
-                                                        Teacher&apos;s Feedback
-                                                    </div>
-                                                    <FeedbackDisplay
-                                                        feedback={questionResult.teacherFeedback}
-                                                        teacherName={result.feedbackUpdatedBy || 'Your Teacher'}
-                                                        updatedAt={result.feedbackUpdatedAt || Date.now()}
-                                                        questionId={String(questionResult.questionNumber)}
-                                                        variant="default"
-                                                    />
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
+            {/* ── Shared Result Content Body (PRD-0040 Task 2.3) ── */}
+            <SharedSavedResultCore
+                result={result}
+                variant="full-page"
+                sections={{ teacherFeedback: true, writingPlaceholder: true }}
+            />
 
             {/* Action Buttons */}
             <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '2rem', flexWrap: 'wrap' }}>
@@ -545,16 +259,6 @@ export const LegacyResultDetailView: React.FC<LegacyResultDetailViewProps> = ({
                 </button>
             </div>
 
-            {/* Writing/Speaking Placeholder */}
-            {(result.writingSubmission || result.speakingSubmission) && (
-                <div style={{ marginTop: '2rem' }}>
-                    <WritingSpeakingPlaceholder
-                        type={result.testSkill === 'speaking' ? 'speaking' : 'writing'}
-                        submission={result.writingSubmission || result.speakingSubmission}
-                        status={result.markingStatus as 'auto-marked' | 'pending-review' | 'manually-marked' | undefined}
-                    />
-                </div>
-            )}
         </div>
     );
 };
@@ -577,27 +281,6 @@ const spinnerStyle: React.CSSProperties = {
     animation: 'legacyViewSpin 0.8s linear infinite',
 };
 
-const glassCardStyle: React.CSSProperties = {
-    background: 'rgba(255, 255, 255, 0.7)',
-    backdropFilter: 'blur(12px)',
-    WebkitBackdropFilter: 'blur(12px)',
-    border: '1px solid rgba(255, 255, 255, 0.3)',
-    borderRadius: '1rem',
-    boxShadow: '0 4px 24px rgba(0, 0, 0, 0.06)',
-};
-
-const glassCardBodyStyle: React.CSSProperties = {
-    padding: '2rem',
-    textAlign: 'center',
-};
-
-const cardLabelStyle: React.CSSProperties = {
-    fontSize: '0.875rem',
-    color: '#64748b',
-    textTransform: 'uppercase',
-    fontWeight: 600,
-    marginBottom: '0.5rem',
-};
 
 const primaryButtonStyle: React.CSSProperties = {
     display: 'inline-flex',

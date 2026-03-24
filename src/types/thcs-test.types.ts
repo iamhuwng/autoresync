@@ -453,6 +453,20 @@ export interface SkillAnalysis {
     wrongQuestionNumbers: number[];
 }
 
+export interface StudyRecommendationResource {
+    bookTitle: string;
+    author: string;
+    sectionTitle: string;
+    reason: string;
+}
+
+export interface StudyRecommendation {
+    skillTag: string;
+    questionNumbers: number[];
+    guidance: string;
+    resources: StudyRecommendationResource[];
+}
+
 /** Complete formative feedback stored at test_results/{id}/formativeFeedback */
 export interface FormativeFeedback {
     analysis: {
@@ -462,6 +476,10 @@ export interface FormativeFeedback {
     };
     deterministicFeedback: string;
     generatedAt: number;
+    /** Result ID this stored payload belongs to */
+    resultId?: string;
+    /** Whether the stored payload was finalized with AI or deterministic-only content */
+    generationMode?: 'ai' | 'deterministic';
     totalCorrect: number;
     totalQuestions: number;
     scaledScore: number;
@@ -469,6 +487,8 @@ export interface FormativeFeedback {
     questionTopics?: Record<string, { topic: string; category: string }>;
     /** AI-generated per-question explanations (optional, from AI enrichment) */
     questionExplanations?: Record<string, string>;
+    /** Deterministic backup explanations kept separate from finalized AI explanations */
+    fallbackQuestionExplanations?: Record<string, string>;
     /** AI-generated narrative feedback (optional, from AI enrichment) */
     aiFeedback?: {
         summary: string;
@@ -478,6 +498,8 @@ export interface FormativeFeedback {
     };
     /** Which AI model produced the enrichment */
     aiModel?: string;
+    /** AI-generated study recommendations tied to exact weak questions */
+    studyRecommendations?: StudyRecommendation[];
 }
 
 /**

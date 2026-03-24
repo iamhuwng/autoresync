@@ -10,7 +10,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom';
-import { render, screen, act, waitFor } from '@testing-library/react';
+import { render, screen, act, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useSearchParams, useLocation } from 'react-router-dom';
 import React from 'react';
 
@@ -87,7 +87,12 @@ vi.mock('../services/firebase', () => ({
 
 // Mock StudentLayout / StudentSidebar / layout styles
 vi.mock('../components/layout/StudentLayout', () => ({
-    StudentLayout: ({ children }: any) => <div data-testid="student-layout">{children}</div>,
+    StudentLayout: ({ children, rightPanel }: any) => (
+        <div data-testid="student-layout">
+            <div data-testid="student-layout-main">{children}</div>
+            <div data-testid="student-layout-right">{rightPanel}</div>
+        </div>
+    ),
 }));
 
 vi.mock('../components/layout/StudentSidebar', () => ({
@@ -155,6 +160,15 @@ vi.mock('@/components/academicRecord/THCSProgressTab', () => ({
 // Mock lazy-loaded WritingProgressSection
 vi.mock('../components/writing-practice/WritingProgressSection', () => ({
     default: () => <div data-testid="writing-progress">Writing Progress</div>,
+}));
+
+// Mock ResultSlidePanel — panel internals tested in their own test file
+vi.mock('../components/results/ResultSlidePanel', () => ({
+    ResultSlidePanel: ({ resultId, onClose }: any) => (
+        <div data-testid="result-slide-panel" data-result-id={resultId}>
+            <button onClick={onClose} data-testid="close-panel-btn">Close</button>
+        </div>
+    ),
 }));
 
 // ─── URL Inspector Component ────────────────────────────────────────────────
@@ -228,20 +242,35 @@ describe('AcademicRecordPage — PRD-0039 Query Param Management', () => {
 
             // Wait for results to load and render
             await waitFor(() => {
-                expect(screen.getByTestId('thcs-progress-tab')).toBeInTheDocument();
+                expect(screen.getByTestId('results-by-course')).toBeInTheDocument();
             });
 
-            // The THCS tab is always rendered (renderContent). Sub-components
-            // (course/skill/type) are rendered in sidebar. Let's click the THCS test.
-            const thcsButton = screen.getByTestId('thcs-btn');
+            const courseButton = screen.getByTestId('course-result-res-1');
             act(() => {
-                thcsButton.click();
+                fireEvent.click(courseButton);
             });
 
-            // After click, the THCS handler should attempt to resolve the testId
-            // to a resultId from the raw results array. Our mock results don't
-            // match 'thcs-test-1', so it won't set a param. This is expected —
-            // the handler only sets ?result= when a match is found.
+            await waitFor(() => {
+                const inspector = screen.getByTestId('url-inspector');
+                expect(inspector.dataset.search).toContain('result=res-1');
+            });
+
+            expect(screen.getByTestId('result-slide-panel')).toHaveAttribute('data-result-id', 'res-1');
+        });
+
+        it('should remove ?result= when the panel closes', async () => {
+            renderPage({ initialPath: '/student/academic-record?result=res-1' });
+
+            await waitFor(() => {
+                expect(screen.getByTestId('result-slide-panel')).toBeInTheDocument();
+            });
+
+            fireEvent.click(screen.getByTestId('close-panel-btn'));
+
+            await waitFor(() => {
+                const inspector = screen.getByTestId('url-inspector');
+                expect(inspector.dataset.search).not.toContain('result=');
+            });
         });
     });
 
@@ -290,13 +319,12 @@ describe('AcademicRecordPage — PRD-0039 Query Param Management', () => {
         it('should read ?result= from URL on mount', async () => {
             renderPage({ initialPath: '/student/academic-record?result=res-1' });
 
-            // The page reads searchParams.get('result') — currently it's used
-            // to determine which panel to open. Since the side panel (Task 5.0)
-            // isn't built yet, we just verify the URL is preserved.
             await waitFor(() => {
                 const inspector = screen.getByTestId('url-inspector');
                 expect(inspector.dataset.search).toContain('result=res-1');
             });
+
+            expect(screen.getByTestId('result-slide-panel')).toHaveAttribute('data-result-id', 'res-1');
         });
     });
 });
