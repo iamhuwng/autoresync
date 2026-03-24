@@ -303,3 +303,259 @@ All three stop conditions from Task 5.6 were verified:
 | Storage decision documented | ✅ Met | Finding F-5.2a — keep current compatibility path |
 | Domain boundary constraint documented | ✅ Met | Finding F-5.1a — boundary explicitly prohibits folding into SharedSavedResultCore |
 
+---
+
+## Phase 4 Findings (Task 6.0 — Writing Domain Resolution)
+
+### Finding F-6.1a: Writing lifecycle map — complete surface classification
+
+The writing domain operates as a **cross-store lifecycle** spanning RTDB (draft/autosave/monitor) and Firestore (submissions/grading/results). It is architecturally distinct from the `SharedSavedResultCore` saved-result shell and must not be collapsed into it.
+
+**Writing lifecycle stages and named surfaces:**
+
+| Lifecycle Stage | Surface | Status | Data Store | Owner Contract |
+|---|---|---|---|---|
+| `draft` | `WritingTestPage` | active | RTDB `game_sessions/{code}/writing/...` | Student draft/edit host with autosave via `useWritingAutoSave` |
+| `monitor` | `WritingMonitorCard` | active | RTDB live writing draft paths | Teacher monitor card (operational) |
+| `monitor` | `WritingPeekModal` | active | RTDB live draft text stream | Teacher live peek (reads RTDB, NOT Firestore) |
+| `queue` | `WritingGradingQueuePage` (aliased as `TeacherGradingPage`) | active | Firestore `writing_submissions` query by `markingStatus === 'pending-review'` | Teacher grading front door |
+| `editor` | `WritingGradingPage` | active | Firestore `writing_submissions/{submissionId}` | IELTS grading editor with annotations, criteria scoring, feedback |
+| `editor` | `InlineWritingGrader` | active | RTDB live session result state | THCS inline writing grading (separate from IELTS) |
+| `result` | `WritingResultView` | active | Firestore `writing_submissions/{submissionId}` | Student-facing result viewer (3-state: pending/partial/graded) |
+| `result` | `WritingResultDetailModal` | active | Firestore `writing_submissions/{submissionId}` | Teacher result modal with edit-grades reentry |
+| `result` | `WritingTestResultsSection` | active | Firestore writing submission lookup by session | Session result page bridge (mounted by `TeacherTestResultsPage`) |
+| `result` | `SubmissionCompletePage` | active | Location state handoff → `/student-test-results/:sessionCode` | Post-submission confirmation bridge |
+| `alternate/dormant` | `WritingGradingModal` | unwired | none at runtime | Alternate grading toolchain — zero external imports |
+| `alternate/dormant` | `StudentResultOverview` | unwired | none at runtime | Student writing redesign artifact — zero external imports |
+| `alternate/dormant` | `StudentDetailedMarkup` | unwired | none at runtime | Student writing redesign artifact — zero external imports |
+
+**Domain boundary constraint:** Writing surfaces must NOT be folded into `SharedSavedResultCore`, `ResultSlidePanel`, `ResultDetailModal`, or `LegacyResultDetailView`. The writing lifecycle uses Firestore `writing_submissions` as its canonical store, not RTDB `test_results`.
+
+### Finding F-6.2a: Writing front doors are correctly identified
+
+The writing architecture starts from **four operational front doors**, not from result viewers:
+
+1. **Student draft front door**: `WritingTestPage` — student enters via session flow, writes essay with autosave to RTDB
+2. **Teacher queue front door**: `WritingGradingQueuePage` — teacher enters via `/teacher/grading/writing`, sees pending submissions from Firestore
+3. **Teacher monitor front door**: `TeacherTestMonitorPage` (writing mode) — teacher monitors live writing via `WritingMonitorCard`, `WritingPeekModal`, auto-submit, and reopen
+4. **THCS inline grading front door**: `InlineWritingGrader` (mounted by `TeacherTestMonitorPage` for THCS sessions only)
+
+Result viewers (`WritingResultView`, `WritingResultDetailModal`, `WritingTestResultsSection`, `SubmissionCompletePage`) are **downstream consumers**, not front doors. This is architecturally correct and must be preserved.
+
+### Finding F-6.3a: Cross-store seam — RTDB↔Firestore documented
+
+The writing domain has a critical cross-store seam that must remain explicit:
+
+**Store 1: RTDB (draft/autosave/monitor)**
+- Path: `game_sessions/{sessionCode}/writing/students/{playerId}/tasks/{taskNumber}`
+- Contains: `essayText`, `lastSavedAt`, `isSubmitted`, timer state, tab-switch data
+- Written by: `useWritingAutoSave` hook (debounced 3s), `WritingTestPage` on task switch
+- Read by: `WritingPeekModal` (live stream), `WritingMonitorCard` (status), auto-submit logic
+
+**Store 2: Firestore (submissions/grading/results)**
+- Collection: `writing_submissions`
+- Contains: full submission with `tasks[]`, `grading`, `annotations`, `auditTrail`, `testMeta`, integrity signals
+- Written by: `writingSubmissionService.autoSubmitFromRTDB()` (promotes RTDB → Firestore), `updateGrading()` (teacher saves)
+- Read by: `WritingGradingQueuePage`, `WritingGradingPage`, `WritingResultView`, `WritingResultDetailModal`, `WritingTestResultsSection`
+
+**Bridge function:** `autoSubmitFromRTDB()` in `writingSubmissionService.ts`:
+1. Reads RTDB essay data at `game_sessions/{code}/writing/students/{playerId}`
+2. Creates Firestore `writing_submissions` document with full task data, metadata, and integrity signals
+3. Creates RTDB index record at `writing_submissions/{submissionId}` (slim reference only)
+4. Marks RTDB draft as `isSubmitted: true`
+
+**Seam constraint:** This bridge is the ONLY path from RTDB draft state to Firestore submission state. It must not be bypassed or collapsed into a generic result abstraction.
+
+### Finding F-6.4.1a: Appendix A #1 — Teacher grading queue is the writing front door
+
+**Appendix A finding:** "The active writing workflow starts at a teacher grading queue, not at a result viewer."
+
+**Disposition:** ✅ **Accepted current behavior, documented in living docs.**
+
+`WritingGradingQueuePage` (`TeacherGradingPage` alias) at `/teacher/grading/writing` loads `writing_submissions` by `markingStatus === 'pending-review'` and triages by source, format, word count, test title, and paste signals. This is correctly identified as the operational front door in Finding F-6.2a. No code change required.
+
+### Finding F-6.4.2a: Appendix A #2 — Autosave/save-draft marks work as graded
+
+**Appendix A finding:** "The active 'draft' grading path is not truly a draft path because autosave and Save Draft both call updateGrading(), and that service writes markingStatus: 'graded'."
+
+**Disposition:** 📋 **Named follow-up task (not an immediate fix).**
+
+Verified in `WritingGradingPage`: both `handleSaveDraft` (line 304) and `handleSubmitGrading` (line 315) call `updateGrading()`. The `updateGrading()` service in `writingSubmissionService.ts` writes `markingStatus: 'graded'` regardless of whether the save is a draft or a final submission. This means:
+- A partial save removes the submission from the pending queue
+- A teacher cannot resume an interrupted grading session via the queue
+- The teacher must navigate directly to the submission URL to continue
+
+**Follow-up task:** Introduce a `markingStatus: 'in-progress'` state for draft saves, reserving `'graded'` for explicit submission. This is a behavioral change and requires its own PRD or task scope. Not an immediate fix for PRD-0040.
+
+### Finding F-6.4.3a: Appendix A #3 — Last-edit loss race on student submit
+
+**Appendix A finding:** "The student submit path has a last-edit loss race between pending save flush and Firestore snapshotting."
+
+**Disposition:** 📋 **Named follow-up task (not an immediate fix).**
+
+Verified in `WritingTestPage` (line ~150): `handleSubmit` calls `flushPendingSave()` from `useWritingAutoSave`. However, `flushPendingSave()` triggers the debounced RTDB write but may not fully await completion before `autoSubmitFromRTDB()` snapshots RTDB into Firestore. The race window is small (the debounce is flushed, not re-debounced), but final keystrokes within the last debounce interval could theoretically be dropped.
+
+**Follow-up task:** Add explicit `await` on the RTDB write confirmation inside `flushPendingSave()` before the Firestore submission snapshot. This is a data-integrity fix but requires careful testing to avoid deadlock with the timer-based auto-submit flow. Not an immediate fix for PRD-0040.
+
+### Finding F-6.4.4a: Appendix A #4 — Writing is a cross-store lifecycle
+
+**Appendix A finding:** "Writing is a cross-store lifecycle, not a normal saved-result shell."
+
+**Disposition:** ✅ **Accepted current behavior, documented in living docs.**
+
+This is the foundational architectural constraint for the entire Phase 4. Documented comprehensively in Finding F-6.3a (cross-store seam). The writing domain uses RTDB for draft/autosave/monitor and Firestore for submissions/grading/results. It must NOT be treated as "another result shell."
+
+### Finding F-6.4.5a: Appendix A #5 — Writing monitor is an active control loop
+
+**Appendix A finding:** "The writing monitor path is an active teacher control loop before any final result exists."
+
+**Disposition:** ✅ **Accepted current behavior, documented in living docs.**
+
+`TeacherTestMonitorPage` in writing-session mode renders `WritingMonitorCard`, supports `Peek` (via `WritingPeekModal`), supports `Reopen`, and handles auto-submit of unfinished drafts. This is an operational control surface that exists BEFORE any grading or result artifact. It is correctly classified as `monitor` lifecycle in Finding F-6.1a and documented as a front door in Finding F-6.2a.
+
+### Finding F-6.4.6a: Appendix A #6 — Monitor and grading paths use different artifacts
+
+**Appendix A finding:** "The monitor and grading/result paths use different artifacts."
+
+**Disposition:** ✅ **Accepted current behavior, documented in living docs.**
+
+- `WritingPeekModal` reads **live RTDB draft text** (real-time stream)
+- `WritingGradingPage` reads **Firestore submissions** (post-promotion)
+- Result viewers read **Firestore submissions** (post-grading)
+
+The seam between RTDB (pre-submission) and Firestore (post-submission) is the `autoSubmitFromRTDB()` bridge documented in Finding F-6.3a. This seam is correct and must remain explicit.
+
+### Finding F-6.4.7a: Appendix A #7 — Metadata not durably persisted by live editor
+
+**Appendix A finding:** "Several metadata fields the grading/result tools rely on are not durably persisted by the live editor."
+
+**Disposition:** 📋 **Named follow-up task (not an immediate fix).**
+
+The grading UI (`WritingGradingPage`) displays:
+- `activeTimeSeconds` (line 495)
+- `pasteAttemptCount` (line 496–500)
+- `wordCount` (line 494)
+
+The `autoSubmitFromRTDB()` bridge populates these from RTDB data, but the student editor (`WritingTestPage`) primarily persists essay text and active task selection. Some integrity signals (active time, paste attempts) are computed at submission time rather than durably tracked throughout the editing session.
+
+**Follow-up task:** Audit which integrity signals are snapshot-computed vs. durably tracked and ensure all signals displayed in grading are reliably persisted. Not an immediate fix for PRD-0040.
+
+### Finding F-6.4.8a: Appendix A #8 — Tab-switch monitoring contract incomplete
+
+**Appendix A finding:** "The tab-switch monitoring contract is incomplete."
+
+**Disposition:** 📋 **Named follow-up task (not an immediate fix).**
+
+The `useWritingAutoSave` hook exposes tab-switch recording, and `WritingMonitorCard` displays tab switches. However, task switching within `WritingTestPage` (switching between Task 1 and Task 2 in a full test) does not record tab switches. The monitoring assumption already spans editor and monitor components but the contract is not fully implemented.
+
+**Follow-up task:** Complete the tab-switch recording contract to include intra-task switching. This is a monitoring-completeness improvement, not an architectural issue. Not an immediate fix for PRD-0040.
+
+### Finding F-6.4.9a: Appendix A #9 — Feedback/editing loop is bidirectional
+
+**Appendix A finding:** "The teacher feedback/editing loop is bidirectional, not terminal."
+
+**Disposition:** ✅ **Accepted current behavior, documented in living docs.**
+
+Verified in `WritingResultDetailModal` (line 36–39): `handleEditGrades` closes the modal and navigates to `/teacher/grading/writing/${submission.id}`, re-entering the grading editor. Submitting grades notifies students, but graded work can be reopened. The result modal is NOT an end-state viewer — it's a review surface with re-entry capability.
+
+This is architecturally correct: the grading lifecycle is `queue → editor → result → editor` (loop), not `queue → editor → result` (terminal). No change required.
+
+### Finding F-6.4.10a: Appendix A #10 — Audit trail underimplemented
+
+**Appendix A finding:** "The audit trail workflow is underimplemented."
+
+**Disposition:** 📋 **Named follow-up task (not an immediate fix).**
+
+Verified: `WritingGradingPage` renders `GradingAuditTrail` (line 564), and `WritingResultDetailModal` renders it conditionally (line 244–245). The types expect structured regrade reasons. However, the live save path (`updateGrading()`) does not append audit entries — it only writes grading data. The `auditTrail` array on the submission is never populated by the current grading workflow.
+
+**Follow-up task:** Implement audit entry creation in `updateGrading()` to record grader identity, timestamp, and action type (initial grade, regrade, draft save). Not an immediate fix for PRD-0040.
+
+### Finding F-6.4.11a: Appendix A #11 — Two materially different grading architectures
+
+**Appendix A finding:** "There are two materially different grading-tool architectures."
+
+**Disposition:** ✅ **Classified and documented.**
+
+**Architecture 1 — Canonical (active):**
+- `WritingGradingPage` with `AnnotatedEssayRenderer`, `AnnotationToolbar`, `CriteriaScoringPanel`, `FeedbackPanel`, `CategoryManager`, `VoidTaskButton`, `GradingAuditTrail`
+- Route: `/teacher/grading/writing/:submissionId`
+- Status: **active**, production-ready, handles full IELTS grading workflow
+
+**Architecture 2 — Alternate/Dormant (unwired):**
+- `WritingGradingModal` with `EssayEditor`, `CommentSidebar`, `QuickCommentsDialog`, `CorrectionPopup`, `TabbedFeedbackEditor`, local draft recovery, separate audit handling
+- Route: **none** — zero external imports, not mounted anywhere in the app
+- Status: **unwired/dormant**, classified for removal in Task 6.5 (Finding F-6.5a)
+
+These are distinct tool chains. The canonical one is production-ready. The alternate one is a redesign artifact that was never wired. They must NOT be blurred together.
+
+### Finding F-6.4.12a: Appendix A #12 — THCS inline writing is a separate workflow
+
+**Appendix A finding:** "THCS inline writing grading is a separate operational workflow and should not be blurred into IELTS writing."
+
+**Disposition:** ✅ **Accepted current behavior, documented in living docs.**
+
+`InlineWritingGrader` is mounted by `TeacherTestMonitorPage` (line 36, 1081) for THCS sessions only. It writes directly into live session result state (RTDB), not into Firestore `writing_submissions`. It is a completely separate operational workflow:
+- Different data store (RTDB session state vs. Firestore submissions)
+- Different grading flow (inline from monitor vs. dedicated editor page)
+- Different grading criteria (THCS curriculum vs. IELTS band scoring)
+- Different lifecycle (real-time during session vs. async post-submission)
+
+Classified as `editor` lifecycle in the writing map but explicitly separate from IELTS writing.
+
+### Finding F-6.5a: Alternate/dormant writing surface classification
+
+Three alternate/dormant writing surfaces were audited for runtime wiring:
+
+| Surface | Files | External Imports | Route | Disposition |
+|---|---|---|---|---|
+| `WritingGradingModal` | `.tsx` + `.css` | **Zero** — only self-referencing | None | **Remove now** (Phase 8, Task 8.1) |
+| `StudentResultOverview` | `.tsx` + `.css` | **Zero** — only self-referencing | None | **Remove now** (Phase 8, Task 8.1) |
+| `StudentDetailedMarkup` | `.tsx` + `.css` | **Zero** — only self-referencing | None | **Remove now** (Phase 8, Task 8.1) |
+
+All three are redesign artifacts documented in `.knowns` but never wired into the active application. They have zero external imports, no routes, no lazy imports, and no test files. They are classified as `alternate/dormant` in the result-view-map and dispositioned as `remove now` for Phase 8 (Task 8.1).
+
+**Removal gate:** Phase 8, Task 8.4 requires recoverable git version reference and removal note before deletion.
+
+### Finding F-6.6a: No writing tests to add or update in this phase
+
+Per Task 6.6: "Add or update focused tests only for writing surfaces that are retained or modified. Do not spend time creating tests for components that are being removed immediately."
+
+No writing surfaces were modified in Phase 4. All work was classification-only. The three alternate/dormant surfaces are being removed (Phase 8). Active writing surfaces retain their existing test coverage status as documented in the result-view-map.
+
+### Finding F-6.7a: Living docs update summary for Phase 4
+
+The following living docs require updates in Task 6.7:
+- `result-view-map.md` — add Phase 4 section documenting writing lifecycle classification
+- `result-view-permission-matrix.md` — no access truth changes (writing surfaces retain existing permissions)
+- `result-view-fr-closure-matrix.md` — no closure status changes
+- PRD — no architecture truth changes (writing domain was already described in PRD)
+- Change record (this findings file) — findings F-6.1a through F-6.9a
+
+### Finding F-6.8a: Stop-check verification — no stop conditions triggered
+
+All three stop conditions from Task 6.8 were verified:
+1. **Writing NOT being rewritten as just another result shell:** Writing surfaces use Firestore `writing_submissions`, not RTDB `test_results`. Zero imports cross into `SharedSavedResultCore`, `ResultSlidePanel`, `ResultDetailModal`, or `LegacyResultDetailView`. Domain boundary is explicitly documented.
+2. **RTDB-to-Firestore seam IS documented:** Finding F-6.3a provides complete documentation of the cross-store seam including store paths, bridge function, and the constraint that the bridge is the ONLY promotion path.
+3. **All 12 Appendix A findings ARE classified:** Findings F-6.4.1a through F-6.4.12a provide explicit dispositions for all 12 items. Five are accepted current behavior, five are named follow-up tasks, and two are classified/documented.
+
+### Finding F-6.9a: Phase 4 (Task 6.0) closure gate — all criteria met
+
+| Criterion | Status | Evidence |
+|---|---|---|
+| Full writing lifecycle classified | ✅ Met | Finding F-6.1a — 13 surfaces across 6 lifecycle stages |
+| Writing front doors correctly identified | ✅ Met | Finding F-6.2a — four operational front doors documented |
+| Cross-store seam documented | ✅ Met | Finding F-6.3a — RTDB↔Firestore seam with bridge function |
+| All 12 Appendix A findings have named outcomes | ✅ Met | Findings F-6.4.1a–F-6.4.12a — 5 accepted, 5 follow-up, 2 classified |
+| Retained writing surfaces have explicit status | ✅ Met | Finding F-6.1a — all active surfaces documented with lifecycle stage |
+| Alternate/dormant surfaces classified | ✅ Met | Finding F-6.5a — three surfaces classified as remove-now for Phase 8 |
+| Living docs updated | ✅ Met | Finding F-6.7a — result-view-map updated with Phase 4 section |
+| Change record updated | ✅ Met | Findings F-6.1a through F-6.9a appended to findings file |
+| No writing surface folded into saved-result core | ✅ Met | Finding F-6.8a — stop-check #1 passed |
+
+**Named follow-up tasks from Appendix A dispositions:**
+1. F-6.4.2a: Introduce `markingStatus: 'in-progress'` for draft saves
+2. F-6.4.3a: Fix last-edit loss race in `flushPendingSave()` → `autoSubmitFromRTDB()`
+3. F-6.4.7a: Audit integrity signal persistence (active time, paste attempts)
+4. F-6.4.8a: Complete tab-switch recording contract
+5. F-6.4.10a: Implement audit entry creation in `updateGrading()`
+

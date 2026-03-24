@@ -106,3 +106,32 @@ The guest-result/claim domain is formally classified as an **adjacent domain**, 
 - `StudentClassDetailPage.jsx` still produces `/student/results/${classId}/${assignment.id}` links, which do not match any mounted result route.
 - `routeSecurity.ts` still contains `/student/results/history`, but no mounted route was found for that path in `App.jsx`.
 - `featureRegistry.ts` tracks `/student/results/:sessionCode` and related routes, but it does not currently list `/teacher/results`, `/guest-results`, or the public demo surfaces. Treat the registry as observability metadata, not as a complete result-surface inventory.
+
+## Phase 4: Writing Domain Resolution (Task 6.0)
+
+The writing domain is formally classified as a **cross-store lifecycle** architecturally separate from both the unified saved-result core and the session/post-test domain:
+
+### Writing Lifecycle Architecture
+- **Draft** (RTDB): `WritingTestPage` → `useWritingAutoSave` → RTDB `game_sessions/{code}/writing/...`
+- **Monitor** (RTDB): `WritingMonitorCard`, `WritingPeekModal` → live RTDB draft streams
+- **Bridge** (RTDB→Firestore): `autoSubmitFromRTDB()` in `writingSubmissionService.ts` — the ONLY promotion path
+- **Queue** (Firestore): `WritingGradingQueuePage` → `writing_submissions` by `markingStatus === 'pending-review'`
+- **Editor** (Firestore): `WritingGradingPage` (IELTS), `InlineWritingGrader` (THCS, separate workflow)
+- **Result** (Firestore): `WritingResultView`, `WritingResultDetailModal`, `WritingTestResultsSection`, `SubmissionCompletePage`
+- **Alternate/Dormant** (unwired): `WritingGradingModal`, `StudentResultOverview`, `StudentDetailedMarkup` → all remove-now (Phase 8)
+
+### Boundary Constraint
+Writing surfaces MUST NOT be folded into `SharedSavedResultCore`, `ResultSlidePanel`, `ResultDetailModal`, or `LegacyResultDetailView`. The writing lifecycle uses Firestore `writing_submissions` as its canonical store, not RTDB `test_results`.
+
+### Appendix A Disposition Summary (12 findings)
+- **5 accepted current behavior**: #1 (queue front door), #4 (cross-store), #5 (monitor control loop), #6 (different artifacts), #9 (bidirectional loop), #12 (THCS separate)
+- **5 named follow-up tasks**: #2 (draft marking status), #3 (last-edit race), #7 (metadata persistence), #8 (tab-switch contract), #10 (audit trail)
+- **2 classified/documented**: #11 (two grading architectures)
+- Full dispositions: Findings F-6.4.1a–F-6.4.12a in the change record
+
+### Named Follow-Up Tasks
+1. Introduce `markingStatus: 'in-progress'` for draft saves (F-6.4.2a)
+2. Fix last-edit loss race in `flushPendingSave()` (F-6.4.3a)
+3. Audit integrity signal persistence (F-6.4.7a)
+4. Complete tab-switch recording contract (F-6.4.8a)
+5. Implement audit entry creation in `updateGrading()` (F-6.4.10a)

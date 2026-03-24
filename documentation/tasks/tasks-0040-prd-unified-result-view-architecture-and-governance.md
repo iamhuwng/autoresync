@@ -184,7 +184,7 @@
   - [x] 4.9 Update `result-view-map.md`, `result-view-permission-matrix.md`, `result-view-fr-closure-matrix.md`, the PRD if architecture truth changed, and the change record with the final release-state contract, migration note, release-owner workflow, manual-check results, and cross-entry behavior.
   - [x] 4.10 Stop if any session flow is being rewritten as a plain `resultId` loader, if release-state policy is being treated as an accidental regression instead of an explicit contract change, or if one student entry point can still see more than another for the same locked result.
   - [x] 4.11 Close `4.0` only when live-session release-state behavior is consistent across the named student entry files, teacher or admin exceptions remain valid, session loaders remain local, docs are updated, automated tests pass, required manual checks are recorded, and the final checks explicitly confirm the PRD's live-session user-story outcomes for US-8 and US-9.
-- [ ] 5.0 Resolve guest-result and claim behavior as an explicit adjacent domain, not as an accidental saved-result variant.
+- [x] 5.0 Resolve guest-result and claim behavior as an explicit adjacent domain, not as an accidental saved-result variant.
   - [x] 5.1 Classify `GuestResultsPage.tsx`, `ProfileCompletionPage.tsx`, `ClaimResultsModal.tsx`, and `guestResultsService.ts` together as the guest-result and claim domain in the living docs and in the implementation notes for this phase.
   - [x] 5.2 Make the guest-result storage decision explicit: either keep the current compatibility story for the non-canonical claim path or start an approved migration path. Do not silently normalize guest claims into canonical saved-result storage.
   - [x] 5.3 Fix or explicitly cover the current invalid or stale guest CTA routes and route mismatches so the public guest flow cannot point users into dead paths.
@@ -192,28 +192,28 @@
   - [x] 5.5 Update `result-view-map.md`, `result-view-permission-matrix.md`, `result-view-fr-closure-matrix.md` if closure status changes, and the change record with the final guest-domain compatibility or migration decision.
   - [x] 5.6 Stop if guest-result behavior is being folded into the saved-result shared core, if guest claim writes are changed without an explicit migration story, or if CTA mismatches remain undocumented.
   - [x] 5.7 Close `5.0` only when guest flows are explicitly classified, CTA and route behavior are resolved or documented, tests exist for the chosen path, and the living docs plus change record are updated.
-- [ ] 6.0 Resolve the writing domain as a separate lifecycle architecture with named follow-up work.
-  - [ ] 6.1 Build the writing lifecycle map explicitly in the implementation notes and living docs: `draft`, `monitor`, `queue`, `editor`, `result`, and `alternate/dormant`. Minimum named surfaces: `TeacherGradingPage`, `WritingGradingPage`, `SubmissionCompletePage`, `WritingResultDetailModal`, `WritingPeekModal`, `WritingResultView`, `WritingTestResultsSection`, monitor-owned writing behavior, THCS inline writing, and the alternate or dormant writing redesign components.
-  - [ ] 6.2 Keep the writing front doors correct. The writing architecture must start from queue, monitor, draft, and editor flows, not from result viewers only.
-  - [ ] 6.3 Document the cross-store seam explicitly: RTDB draft and autosave state, Firestore `writing_submissions`, submission promotion, and the bridge back into result review. Do not collapse those artifacts into one generic result abstraction.
-  - [ ] 6.4 Disposition Appendix A one finding at a time. For each preserved Appendix A item, record exactly one outcome: named follow-up task, accepted current behavior recorded in docs, or explicit fix in this implementation packet. Do not allow any item to remain unclassified, and do not promote every Appendix A finding into an immediate requirement by default.
-    - [ ] 6.4.1 Appendix A #1: teacher grading queue is the writing front door, not a result viewer.
-    - [ ] 6.4.2 Appendix A #2: the active grading draft path is not truly a draft path because autosave and save-draft mark work as graded.
-    - [ ] 6.4.3 Appendix A #3: the student submit path has a last-edit loss race between pending save flush and Firestore snapshotting.
-    - [ ] 6.4.4 Appendix A #4: writing is a cross-store lifecycle, not a normal saved-result shell.
-    - [ ] 6.4.5 Appendix A #5: the writing monitor path is an active teacher control loop before a final result exists.
-    - [ ] 6.4.6 Appendix A #6: monitor and grading or result paths use different artifacts and the seam must stay explicit.
-    - [ ] 6.4.7 Appendix A #7: grading and result tools depend on metadata that the live editor does not durably persist.
-    - [ ] 6.4.8 Appendix A #8: the tab-switch monitoring contract is incomplete.
-    - [ ] 6.4.9 Appendix A #9: the teacher feedback and editing loop is bidirectional rather than terminal.
-    - [ ] 6.4.10 Appendix A #10: the audit-trail workflow is underimplemented.
-    - [ ] 6.4.11 Appendix A #11: there are two materially different grading-tool architectures that must be classified separately.
-    - [ ] 6.4.12 Appendix A #12: THCS inline writing grading is a separate operational workflow and must stay distinct from IELTS writing.
-  - [ ] 6.5 Classify alternate or dormant writing tooling explicitly, including `WritingGradingModal`, `StudentResultOverview`, and `StudentDetailedMarkup`, and decide whether each one is removed now, kept for a named future task, or converted into a documented legacy wrapper with a target removal phase.
-  - [ ] 6.6 Add or update focused tests only for writing surfaces that are retained or modified. Do not spend time creating tests for components that are being removed immediately.
-  - [ ] 6.7 Update `result-view-map.md`, `result-view-permission-matrix.md` if access truth changes, `result-view-fr-closure-matrix.md` if closure status changes, the PRD if lifecycle truth changed, and the change record with the final lifecycle map and Appendix A dispositions.
-  - [ ] 6.8 Stop if writing is being rewritten as just another result shell, if the RTDB-to-Firestore seam is not documented, or if any Appendix A finding remains unclassified.
-  - [ ] 6.9 Close `6.0` only when the full writing lifecycle is classified, Appendix A findings have named outcomes, retained writing surfaces have explicit status, and docs plus change records are updated.
+- [x] 6.0 Resolve the writing domain as a separate lifecycle architecture with named follow-up work.
+  - [x] 6.1 Build the writing lifecycle map explicitly in the implementation notes and living docs: `draft`, `monitor`, `queue`, `editor`, `result`, and `alternate/dormant`. Minimum named surfaces: `TeacherGradingPage`, `WritingGradingPage`, `SubmissionCompletePage`, `WritingResultDetailModal`, `WritingPeekModal`, `WritingResultView`, `WritingTestResultsSection`, monitor-owned writing behavior, THCS inline writing, and the alternate or dormant writing redesign components.
+  - [x] 6.2 Keep the writing front doors correct. The writing architecture must start from queue, monitor, draft, and editor flows, not from result viewers only.
+  - [x] 6.3 Document the cross-store seam explicitly: RTDB draft and autosave state, Firestore `writing_submissions`, submission promotion, and the bridge back into result review. Do not collapse those artifacts into one generic result abstraction.
+  - [x] 6.4 Disposition Appendix A one finding at a time. For each preserved Appendix A item, record exactly one outcome: named follow-up task, accepted current behavior recorded in docs, or explicit fix in this implementation packet. Do not allow any item to remain unclassified, and do not promote every Appendix A finding into an immediate requirement by default.
+    - [x] 6.4.1 Appendix A #1: teacher grading queue is the writing front door, not a result viewer.
+    - [x] 6.4.2 Appendix A #2: the active grading draft path is not truly a draft path because autosave and save-draft mark work as graded.
+    - [x] 6.4.3 Appendix A #3: the student submit path has a last-edit loss race between pending save flush and Firestore snapshotting.
+    - [x] 6.4.4 Appendix A #4: writing is a cross-store lifecycle, not a normal saved-result shell.
+    - [x] 6.4.5 Appendix A #5: the writing monitor path is an active teacher control loop before a final result exists.
+    - [x] 6.4.6 Appendix A #6: monitor and grading or result paths use different artifacts and the seam must stay explicit.
+    - [x] 6.4.7 Appendix A #7: grading and result tools depend on metadata that the live editor does not durably persist.
+    - [x] 6.4.8 Appendix A #8: the tab-switch monitoring contract is incomplete.
+    - [x] 6.4.9 Appendix A #9: the teacher feedback and editing loop is bidirectional rather than terminal.
+    - [x] 6.4.10 Appendix A #10: the audit-trail workflow is underimplemented.
+    - [x] 6.4.11 Appendix A #11: there are two materially different grading-tool architectures that must be classified separately.
+    - [x] 6.4.12 Appendix A #12: THCS inline writing grading is a separate operational workflow and must stay distinct from IELTS writing.
+  - [x] 6.5 Classify alternate or dormant writing tooling explicitly, including `WritingGradingModal`, `StudentResultOverview`, and `StudentDetailedMarkup`, and decide whether each one is removed now, kept for a named future task, or converted into a documented legacy wrapper with a target removal phase.
+  - [x] 6.6 Add or update focused tests only for writing surfaces that are retained or modified. Do not spend time creating tests for components that are being removed immediately.
+  - [x] 6.7 Update `result-view-map.md`, `result-view-permission-matrix.md` if access truth changes, `result-view-fr-closure-matrix.md` if closure status changes, the PRD if lifecycle truth changed, and the change record with the final lifecycle map and Appendix A dispositions.
+  - [x] 6.8 Stop if writing is being rewritten as just another result shell, if the RTDB-to-Firestore seam is not documented, or if any Appendix A finding remains unclassified.
+  - [x] 6.9 Close `6.0` only when the full writing lifecycle is classified, Appendix A findings have named outcomes, retained writing surfaces have explicit status, and docs plus change records are updated.
 - [ ] 7.0 Preserve live-monitoring as its own operational domain with no accidental merge into result viewers.
   - [ ] 7.1 Identify every live-monitor surface touched by this program and record its operational role, data contract, and owner workflow in the living docs and implementation notes. Minimum named coverage: `TeacherTestMonitorPage`, `StudentDetailModal`, and monitor-owned writing surfaces such as `WritingPeekModal`.
   - [ ] 7.2 Keep monitor-owned actions, especially release-adjacent actions, inside monitor workflows such as `TeacherTestMonitorPage`. Long-form result viewers may consume release state, but they must not take over monitor ownership.
@@ -268,6 +268,12 @@
 | `src/components/test/TestResultsModal.tsx` | Task 4.3: Added `reviewReleaseState` prop, imports `getReleaseVisibility` and `getEffectiveReleaseState`, conditionally renders content based on release tier (locked-review hides correct answers/feedback/scoring, review-released shows answers, feedback-released shows everything) |
 | `src/pages/StudentWaitingRoomPage.jsx` | Task 4.3: Added `reviewReleaseState` state, reads initial value from navigation state, sets up live RTDB listener on `game_sessions/{code}/reviewReleaseState`, passes state to both `TestResultsModal` instances |
 | `src/pages/StudentTestResultsPage.tsx` | Task 4.4: Added release-state governance — imports visibility helpers, adds `reviewReleaseState` to `TestSession` interface, derives visibility flags from `session.reviewReleaseState`, conditionally gates performance feedback, teacher feedback, correct answers, question scoring colors/text, and per-question feedback. Adds locked-review and review-released banners. |
+| `src/pages/GuestResultsPage.tsx` | Task 5.3: Fixed three stale CTA routes (`/register` → `/` x2, `/login` → `/`). No functional change to search or result display. |
+| `src/pages/GuestResultsPage.test.tsx` | Task 5.4: New test file with 11 focused tests for GuestResultsPage — initial render, search behavior, error handling, and CTA route target verification. |
+| `src/components/guest/ClaimResultsModal.test.tsx` | Task 5.4: New test file with 13 focused tests for ClaimResultsModal — claim flow, error handling, skip flow, and domain boundary verification. |
+| `documentation/architecture/result-view-map.md` | Task 5.5: Updated guest-result rows with test coverage, storage decision, Phase 3 domain classification section. |
+| `documentation/architecture/result-view-permission-matrix.md` | Task 5.5: Updated guest-result rows with test coverage, corrected mismatch classification to accepted posture. |
+| `documentation/architecture/result-view-fr-closure-matrix.md` | Task 5.5: Updated guest claim edge case row to reflect compatibility decision. |
 
 ## Discovered Findings
 
