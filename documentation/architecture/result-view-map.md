@@ -45,8 +45,8 @@ Writing lifecycle keys:
 | `TeacherHomeworkDetailPage` | active | saved-result | - | teacher homework detail | result open -> `ResultDetailModal` | teacher homework host | `TeacherHomeworkDetailPage.test.tsx` | - | Teacher modal host. |
 | `TeacherStudentHistoryPage` | active | saved-result | - | `/teacher/student/:studentId/history` | `buildRoute('RESULT_DETAIL', { resultId })` | teacher deep-link owner | `TeacherStudentHistoryPage.test.tsx` | - | History view drives canonical permanent-result deep links. **Task 3.2 enforcement:** dual-layer — `useStudentDataAccessCheck` on this page + downstream `useResultOwnershipCheck` in `LegacyResultDetailView` (see permission-matrix.md §Task 3.2, path 6). |
 | `StudentWaitingRoomPage` | active | session/post-test | - | `/student-wait/:gameSessionId` | RTDB `game_sessions/{sessionId}` and session result handoff | waiting-room-first student post-test owner | `StudentWaitingRoomPage.test.jsx` | - | Auto-opens results modal when `showResults` is set. |
-| `TestResultsModal` | active | session/post-test | - | mounted by waiting room | RTDB `test_results_by_student`, `test_results_by_session`, `lastTestId` fallback | student live-session review surface | static audit only | - | Session-first loader; not a plain `resultId` reader. |
-| `StudentTestResultsPage` | active | session/post-test | - | `/student-test-results/:sessionCode`, `/student/results/:sessionCode` | RTDB `game_sessions/{sessionCode}` plus permanent-result fallback | rich student session review page | `StudentTestResultsPage.test.tsx` | - | Legacy direct result probe still exists on `/student/results/:sessionCode`. |
+| `TestResultsModal` | active | session/post-test | - | mounted by waiting room | RTDB `test_results_by_student`, `test_results_by_session`, `lastTestId` fallback | student live-session review surface | static audit only | - | Session-first loader; not a plain `resultId` reader. **Phase 2:** governed by `getReleaseVisibility()` release-state contract. |
+| `StudentTestResultsPage` | active | session/post-test | - | `/student-test-results/:sessionCode`, `/student/results/:sessionCode` | RTDB `game_sessions/{sessionCode}` plus permanent-result fallback | rich student session review page | `StudentTestResultsPage.test.tsx` | - | Legacy direct result probe still exists on `/student/results/:sessionCode`. **Phase 2:** governed by `getReleaseVisibility()` release-state contract. |
 | `TeacherResultsDashboard` | active | session/post-test | - | `/teacher/results` | RTDB `game_sessions` plus aggregated session-result loaders | teacher aggregate results dashboard | `resultsService.test.ts` | - | Dashboard/aggregate result surface, not a saved-result shell. |
 | `TeacherTestResultsPage` | active | session/post-test | - | `/teacher-test-results/:sessionCode` | RTDB `game_sessions/{sessionCode}` plus session result loaders | teacher session-result page | `TeacherTestResultsPage.test.tsx` | - | Includes writing result section. |
 | `TeacherResultsPage` | active | session/post-test | - | `/teacher-results/:gameSessionId` | RTDB `game_sessions/{gameSessionId}` | teacher live session results | `TeacherResultsPage.test.jsx` | - | Adjacent session surface, not a saved-result shell. |
@@ -56,7 +56,7 @@ Writing lifecycle keys:
 | `GuestResultsPage` | active | guest-result/claim | - | `/guest-results` | RTDB `guest_results/{guestName}` | guest lookup/list page | none found | - | Public route, but backend read still requires auth and the current CTAs point to invalid `/login` and `/register` routes. |
 | `ProfileCompletionPage` | active | guest-result/claim | - | `/profile/complete` | `checkClaimableResults(email)` | authenticated claim/recovery owner | none found | - | Opens claim modal when guest names are claimable. |
 | `ClaimResultsModal` | active | guest-result/claim | - | mounted by profile completion | `claimGuestResults(guestName, userId)` | guest claim executor | none found | - | Writes non-canonical RTDB result path. |
-| `TeacherTestMonitorPage` | active | live-monitoring | monitor | `/teacher-test/:sessionCode` and related monitor routes | RTDB `game_sessions/{sessionId}` | live monitor owner | static audit only | - | Also owns writing monitor and release-adjacent flows. |
+| `TeacherTestMonitorPage` | active | live-monitoring | monitor | `/teacher-test/:sessionCode` and related monitor routes | RTDB `game_sessions/{sessionId}` | live monitor owner | static audit only | - | Also owns writing monitor and release-adjacent flows. **Phase 2:** confirmed as operational control surface only — `FeedbackTab` absent (Finding F-4.6a). Owns release controls but does not display long-form feedback. |
 | `StudentDetailModal` | active | live-monitoring | - | mounted by monitor flows | RTDB session/player paths | live monitoring detail surface | static audit only | - | Not a result-view migration anchor. |
 | `WritingTestPage` | active | writing | draft | student writing test flow | RTDB `game_sessions/{sessionCode}/writing/...` | student writing draft/edit host | static audit only | - | Draft/autosave front door. |
 | `WritingMonitorCard` | active | writing | monitor | mounted by teacher monitor | RTDB live writing draft paths | teacher monitor card | `WritingMonitorCard.test.tsx` | - | Monitor-time operational surface. |
@@ -75,6 +75,14 @@ Writing lifecycle keys:
 | `FeedbackDemoPage` | demo-only | unwired/demo | - | `/demo/feedback-system` | local mock state | public demo route | none found | remove now | Reachable public demo. |
 | `AcademicRecordDemoPage` | demo-only | unwired/demo | - | `/demo/academic-record` | local mock state | public demo route | none found | remove now | Reachable public demo. |
 | `DemoIndexPage` | demo-only | unwired/demo | - | `/demo` | public demo hub | public demo route | none found | remove now | Links to demo routes, including some missing ones. |
+
+## Phase 2: Release-State Governance (Tasks 4.1–4.8)
+
+The three-state release model (`locked-review` → `review-released` → `feedback-released`) is verified and functional:
+- **Enforcement**: UI-layer via `getReleaseVisibility()` in `releaseStateConfig.ts`. Teachers/admins always see everything.
+- **Data-layer**: RTDB does not support field-level restriction. `correctAnswer` is readable on the result record from submission time. Feedback uses delayed-generation contract — not written until student opens saved-result shell.
+- **Session vs saved-result**: Session surfaces are governed by release state. Saved-result shells are NOT — they display full content.
+- **Monitor boundary**: `TeacherTestMonitorPage` owns release controls but does not render `FeedbackTab`.
 
 ## Current High-Risk Classifications
 

@@ -143,6 +143,33 @@ Raw identifiers from query params (`?result=`), notification metadata, and paren
 - `ResultDetailModal.tsx`: RTDB error handler + access-lost UI state
 - `ResultSlidePanel.test.tsx`: 3 FR-035 regression tests (initial PERMISSION_DENIED, mid-session revocation, non-permission errors)
 
+## Task 4.x: Phase 2 Release-State Governance Contract
+
+The live-session review model uses a three-state release policy: `locked-review`, `review-released`, and `feedback-released`. This section documents the verified enforcement architecture.
+
+### Release-State Visibility Contract
+
+| State | Score | Correct Answers | Explanations | Feedback |
+|---|---|---|---|---|
+| `locked-review` | ✅ | ❌ | ❌ | ❌ |
+| `review-released` | ✅ | ✅ | ✅ | ❌ |
+| `feedback-released` | ✅ | ✅ | ✅ | ✅ |
+
+### Enforcement Layers
+
+| Layer | Enforced? | Mechanism | Notes |
+|---|---|---|---|
+| **UI-layer** (primary) | ✅ Yes | `getReleaseVisibility()` in `releaseStateConfig.ts` returns visibility flags consumed by session-scoped surfaces | Teacher/admin exception: always returns all `true` |
+| **RTDB field-level** | ❌ No | RTDB does not support field-level restriction | Accepted posture (Finding F-4.7a) |
+| **Delayed-generation** | ✅ Yes | Feedback is only written to `test_results/{resultId}/formativeFeedback` when a student opens a saved-result shell via `useFeedbackAutoTrigger` | Prevents leakage during `locked-review` or `review-released` states (Finding F-4.7b) |
+| **correctAnswer exposure** | ⚠️ Accepted | `correctAnswer` is written to the result record at submission time; readable via RTDB tools regardless of release state | UI hides via `showCorrectAnswers` flag. Data-layer restriction requires schema redesign (Finding F-4.7c) |
+
+### Scope Boundaries
+
+- **Session-scoped surfaces** (`TestResultsModal`, `StudentTestResultsPage`): governed by release state
+- **Saved-result shells** (`ResultSlidePanel`, `ResultDetailModal`, `LegacyResultDetailView`): NOT governed by release state — they display full content to the result owner
+- **Monitor page** (`TeacherTestMonitorPage`): operational control surface — owns release controls but does NOT display feedback (`FeedbackTab` absent per Finding F-4.6a)
+
 ## Review Gate
 
 Any result-related change should be blocked if it assumes:
@@ -152,4 +179,6 @@ Any result-related change should be blocked if it assumes:
 - guest-result storage already matches canonical saved-result indexing
 - demo/public routes are harmless because they are "just demos"
 - a student shell-level ownership check exists (it does not — RTDB backend is the enforcer for student paths)
+- release-state visibility is enforced at the data layer (it is UI-layer only — accepted posture per Phase 2 findings)
+- feedback is available on session-scoped surfaces before `feedback-released` state (it is not generated until saved-result shell is opened)
 

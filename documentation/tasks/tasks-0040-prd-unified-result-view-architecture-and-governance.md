@@ -172,18 +172,18 @@
   - [x] 3.12 Update `result-view-permission-matrix.md`, `result-view-fr-closure-matrix.md`, the governing PRD if architecture truth changed, and the change record with the final ownership decision, responsible enforcement layers, access-lost behavior, feedback-parity scope, admin-tool scope, saved-result contract, and any carried security risks.
   - [x] 3.13 Stop if any ownership claim is being justified by `routeAccess.test.ts` alone, if any shell still trusts raw query or notification data, if access-lost behavior is tested but not implemented, if stale feedback drift can still happen after reopening a shell, or if the work broadened data access or normalized a non-canonical path without explicit approval.
   - [x] 3.14 Close Phase 1 only when extraction, approved feedback generation parity, intact permission boundaries, explicit `/result/:resultId` disposition, tests, living docs, manual checks, and change records satisfy the PRD's phase-1 acceptance gate.
-- [ ] 4.0 Implement the phase-2 live-session release model without flattening session loaders into saved-result architecture.
-  - [ ] 4.1 Define the persisted release-state contract exactly as `locked-review`, `review-released`, and `feedback-released`, naming where the state is stored, who can change it, and how current permissive student review behavior is being migrated.
-  - [ ] 4.2 Update `TeacherTestMonitorPage.tsx`, `useTeacherEndRedirect.ts`, and any related monitor-owned release controls so the teacher monitor workflow owns early release and end-of-session release for the current test and all submitted students. When review is auto-released at session end, feedback may still be pending. Students must receive the released review state even if feedback generation has not finished yet.
-  - [ ] 4.3 Redesign `StudentWaitingRoomPage.jsx` and `TestResultsModal.tsx` for `locked-review`. Allowed student-visible content is limited to score, counts, status indicators, and the student's own answer where available. Correct answers, AI explanations, teacher feedback, and feedback-generation controls must remain hidden. Do not render question stems or question text in `locked-review`. Current result payloads do not consistently store question-snapshot data, so any question text that happens to appear in some payloads must be ignored until a later explicit data-contract change approves question snapshots.
-  - [ ] 4.4 Lock the cross-entry release scope to exact files, not broad concepts. Minimum required student entry files: `StudentWaitingRoomPage.jsx`, `StudentTestResultsPage.tsx`, `AcademicRecordPage.tsx`, `StudentDashboardPage.jsx`, `StudentHomeworkListPage.tsx`, and `StudentHomeworkDetailPage.tsx` wherever they can surface the same live-session result before release.
-  - [ ] 4.5 Keep session and post-test loading local. `testResults.service.ts`, retry logic, latest-result lookup, fallback scoring, and session-specific lookup behavior stay separate from saved-result loading. If a shared presentational fragment is proposed, document and audit it separately before reuse.
-  - [ ] 4.6 Keep teacher and admin explanations plus feedback on teacher and admin result surfaces rather than moving them into the monitor page. The monitor page remains an operational control surface, not the canonical long-form feedback viewer.
-  - [ ] 4.7 Move unreleased explanations, AI feedback, and teacher feedback behind the approved restricted storage or delayed-generation contract so they are not written into student-readable paths before release.
-  - [ ] 4.8 Run `0.3.3`, the relevant parts of `0.3.4`, and `0.3.5`, then perform the manual checks named in `0.5` for locked-review, released review, teacher-admin exception paths, and same-result cross-entry behavior. Add missing tests for `TestResultsModal`, `TeacherTestMonitorPage`, or adjacent session-result pages if release-state behavior changes there.
-  - [ ] 4.9 Update `result-view-map.md`, `result-view-permission-matrix.md`, `result-view-fr-closure-matrix.md`, the PRD if architecture truth changed, and the change record with the final release-state contract, migration note, release-owner workflow, manual-check results, and cross-entry behavior.
-  - [ ] 4.10 Stop if any session flow is being rewritten as a plain `resultId` loader, if release-state policy is being treated as an accidental regression instead of an explicit contract change, or if one student entry point can still see more than another for the same locked result.
-  - [ ] 4.11 Close `4.0` only when live-session release-state behavior is consistent across the named student entry files, teacher or admin exceptions remain valid, session loaders remain local, docs are updated, automated tests pass, required manual checks are recorded, and the final checks explicitly confirm the PRD's live-session user-story outcomes for US-8 and US-9.
+- [x] 4.0 Implement the phase-2 live-session release model without flattening session loaders into saved-result architecture.
+  - [x] 4.1 Define the persisted release-state contract exactly as `locked-review`, `review-released`, and `feedback-released`, naming where the state is stored, who can change it, and how current permissive student review behavior is being migrated.
+  - [x] 4.2 Update `TeacherTestMonitorPage.tsx`, `useTeacherEndRedirect.ts`, and any related monitor-owned release controls so the teacher monitor workflow owns early release and end-of-session release for the current test and all submitted students. When review is auto-released at session end, feedback may still be pending. Students must receive the released review state even if feedback generation has not finished yet.
+  - [x] 4.3 Redesign `StudentWaitingRoomPage.jsx` and `TestResultsModal.tsx` for `locked-review`. Allowed student-visible content is limited to score, counts, status indicators, and the student's own answer where available. Correct answers, AI explanations, teacher feedback, and feedback-generation controls must remain hidden. Do not render question stems or question text in `locked-review`. Current result payloads do not consistently store question-snapshot data, so any question text that happens to appear in some payloads must be ignored until a later explicit data-contract change approves question snapshots.
+  - [x] 4.4 Lock the cross-entry release scope to exact files, not broad concepts. Minimum required student entry files: `StudentWaitingRoomPage.jsx`, `StudentTestResultsPage.tsx`, `AcademicRecordPage.tsx`, `StudentDashboardPage.jsx`, `StudentHomeworkListPage.tsx`, and `StudentHomeworkDetailPage.tsx` wherever they can surface the same live-session result before release.
+  - [x] 4.5 Keep session and post-test loading local. `testResults.service.ts`, retry logic, latest-result lookup, fallback scoring, and session-specific lookup behavior stay separate from saved-result loading. If a shared presentational fragment is proposed, document and audit it separately before reuse.
+  - [x] 4.6 Keep teacher and admin explanations plus feedback on teacher and admin result surfaces rather than moving them into the monitor page. The monitor page remains an operational control surface, not the canonical long-form feedback viewer.
+  - [x] 4.7 Move unreleased explanations, AI feedback, and teacher feedback behind the approved restricted storage or delayed-generation contract so they are not written into student-readable paths before release.
+  - [x] 4.8 Run `0.3.3`, the relevant parts of `0.3.4`, and `0.3.5`, then perform the manual checks named in `0.5` for locked-review, released review, teacher-admin exception paths, and same-result cross-entry behavior. Add missing tests for `TestResultsModal`, `TeacherTestMonitorPage`, or adjacent session-result pages if release-state behavior changes there.
+  - [x] 4.9 Update `result-view-map.md`, `result-view-permission-matrix.md`, `result-view-fr-closure-matrix.md`, the PRD if architecture truth changed, and the change record with the final release-state contract, migration note, release-owner workflow, manual-check results, and cross-entry behavior.
+  - [x] 4.10 Stop if any session flow is being rewritten as a plain `resultId` loader, if release-state policy is being treated as an accidental regression instead of an explicit contract change, or if one student entry point can still see more than another for the same locked result.
+  - [x] 4.11 Close `4.0` only when live-session release-state behavior is consistent across the named student entry files, teacher or admin exceptions remain valid, session loaders remain local, docs are updated, automated tests pass, required manual checks are recorded, and the final checks explicitly confirm the PRD's live-session user-story outcomes for US-8 and US-9.
 - [ ] 5.0 Resolve guest-result and claim behavior as an explicit adjacent domain, not as an accidental saved-result variant.
   - [ ] 5.1 Classify `GuestResultsPage.tsx`, `ProfileCompletionPage.tsx`, `ClaimResultsModal.tsx`, and `guestResultsService.ts` together as the guest-result and claim domain in the living docs and in the implementation notes for this phase.
   - [ ] 5.2 Make the guest-result storage decision explicit: either keep the current compatibility story for the non-canonical claim path or start an approved migration path. Do not silently normalize guest claims into canonical saved-result storage.
@@ -249,6 +249,7 @@
 | File | Purpose |
 |---|---|
 | `src/utils/rtdbAccessLost.ts` | Task 3.3: Shared utility for detecting RTDB `PERMISSION_DENIED` errors and defining access-lost state types |
+| `src/types/releaseState.types.ts` | Task 4.1: TypeScript type definitions for the three-state release model (locked-review, review-released, feedback-released), with utility functions for state validation, comparison, and visibility flag derivation |
 | `src/components/results/ResultSlidePanel.tsx` | Task 3.3: Added PERMISSION_DENIED detection in RTDB `onValue` error handler and fallback; renders access-lost UI when triggered |
 | `src/components/results/ResultDetailModal.tsx` | Task 3.3: Added PERMISSION_DENIED detection in RTDB `onValue` error handler; renders access-lost UI when triggered |
 | `src/components/results/ResultSlidePanel.test.tsx` | Task 3.3: Added 3 FR-035 regression tests (initial PERMISSION_DENIED, mid-session revocation, non-permission error distinction) |
@@ -261,65 +262,14 @@
 | `src/services/resultFeedbackGeneration.service.ts` | Task 3.6: Added in-flight dedupe map to prevent duplicate concurrent generation calls for the same resultId |
 | `src/components/results/ResultSlidePanel.tsx` | Task 3.6: Replaced inline feedback logic with `useFeedbackAutoTrigger` hook |
 | `src/components/results/ResultDetailModal.tsx` | Task 3.6: Replaced inline feedback logic with `useFeedbackAutoTrigger` hook |
+| `src/hooks/monitor/useMonitorControls.ts` | Task 4.2: Added `setReviewReleaseState()` function, imports `ReviewReleaseState` type, writes `reviewReleaseState: 'locked-review'` during `endFullSession()` |
+| `src/pages/TeacherTestMonitorPage.tsx` | Task 4.2: Destructures `setReviewReleaseState`, renders Review Release Control Bar with three-state toggle (Locked/Review/Full) |
+| `src/hooks/test/useTeacherEndRedirect.ts` | Task 4.2: Reads session `reviewReleaseState` and passes it through to waiting room navigation state |
+| `src/components/test/TestResultsModal.tsx` | Task 4.3: Added `reviewReleaseState` prop, imports `getReleaseVisibility` and `getEffectiveReleaseState`, conditionally renders content based on release tier (locked-review hides correct answers/feedback/scoring, review-released shows answers, feedback-released shows everything) |
+| `src/pages/StudentWaitingRoomPage.jsx` | Task 4.3: Added `reviewReleaseState` state, reads initial value from navigation state, sets up live RTDB listener on `game_sessions/{code}/reviewReleaseState`, passes state to both `TestResultsModal` instances |
+| `src/pages/StudentTestResultsPage.tsx` | Task 4.4: Added release-state governance — imports visibility helpers, adds `reviewReleaseState` to `TestSession` interface, derives visibility flags from `session.reviewReleaseState`, conditionally gates performance feedback, teacher feedback, correct answers, question scoring colors/text, and per-question feedback. Adds locked-review and review-released banners. |
 
 ## Discovered Findings
 
-### Finding F-3.3a: `LegacyResultDetailView` uses one-shot fetch, not real-time listener
-`LegacyResultDetailView` uses `getTestResult()` (one-shot `get()`) rather than `onValue()` listener. Real-time access revocation during view is not possible with one-shot fetch. However, it has `useResultOwnershipCheck` which prevents initial load for unauthorized users. This is an accepted Phase 1 posture — the teacher/admin shell cannot detect mid-session revocation, but ownership is validated before first render.
-**Resolution (Task 3.5):** Converted to `onValue` real-time listener. All three shells now use consistent RTDB listener pattern.
-
-### Finding F-3.4a: All data paths flow through authenticated RTDB reads
-Audit confirmed no shell bypasses the RTDB-authenticated read pipeline. `onValue()` and `getTestResult()` both use `ref(database, 'test_results/{id}')` which is subject to backend security rules. No shell uses local cache, stale data, or unauthenticated reads. Raw identifiers from query params, notifications, and parent props are used only as RTDB read keys — the backend rules are the actual enforcer.
-
-### Finding F-3.4b: `ResultSlidePanel` fallback path also needs PERMISSION_DENIED check
-The `getTestResult` fallback in `ResultSlidePanel` (triggered when the RTDB `onValue` listener fails before first snapshot) also needed PERMISSION_DENIED detection. This was addressed in Task 3.3 implementation — both the listener error and the fallback catch now check for permission denied.
-
-### Finding F-3.5a: Stale-state drift risk in `LegacyResultDetailView`
-Before Task 3.5, `LegacyResultDetailView` loaded result data via a one-shot `getTestResult()` call. If AI feedback was generated after the page loaded (e.g., auto-triggered by a student opening the same result in `ResultSlidePanel`), the teacher full-page view would not reflect the new feedback until page refresh. This was the exact "stale local state" risk described in Task 3.5.
-
-### Finding F-3.5b: Feedback generation parity is intentionally asymmetric
-`ResultSlidePanel` (student) and `ResultDetailModal` (teacher homework context) both auto-trigger feedback generation for THCS results and AI upgrades. `LegacyResultDetailView` (teacher/admin full-page) does NOT auto-trigger — this is intentional per FR-022 (existing workflow restrictions may not be silently overwritten). The teacher shell displays feedback if it exists (via shared `FeedbackTab`), but does not initiate generation. This asymmetry is by design, not a gap.
-
-### Finding F-3.5c: All three shells now use consistent RTDB listener pattern
-After Task 3.5, all three active saved-result shells (`ResultSlidePanel`, `ResultDetailModal`, `LegacyResultDetailView`) use `onValue` real-time listeners. This means: (1) feedback generated by any shell is automatically reflected in all open shells, (2) PERMISSION_DENIED access-lost detection works across all shells, (3) no stale-state drift is possible.
-
-### Finding F-3.6a: Exact duplication across ResultSlidePanel and ResultDetailModal
-Before Task 3.6, both `ResultSlidePanel` and `ResultDetailModal` contained identical: (1) `handleGenerateFormativeFeedback` callback (~30 lines), (2) auto-trigger `useEffect` (~20 lines), (3) `feedbackAttemptedRef` reset logic, (4) `storedFeedbackNeedsUpgrade` memoization. Total ~80 lines of duplicated code was extracted into `useFeedbackAutoTrigger` hook.
-
-### Finding F-3.6b: In-flight dedupe prevents cross-shell duplicate generation
-The PRD §10 edge case "Same result opened in multiple shells triggers duplicate feedback generation" is now prevented by the `inFlightGenerations` Map in `resultFeedbackGeneration.service.ts`. If a student opens a result in `ResultSlidePanel` while a teacher has the same result open in `ResultDetailModal`, and both auto-trigger generation, the second call returns the first call's promise instead of starting a duplicate.
-
-### Finding F-3.7a: `super_admin` reuses the teacher full-page shell — confirmed
-`ResultDetailPage.tsx` routes both `teacher` and `super_admin` to the same `LegacyResultDetailView` component. There is no separate admin shell, no conditional admin-only chrome, and no admin-specific rendering path. The `super_admin` sees the exact same result detail view as a teacher. The only difference is in ownership validation: `useResultOwnershipCheck` uses `useTeacherAccess` which grants `super_admin` access to all students' results without needing to be the class teacher.
-
-### Finding F-3.7b: No Admin Tools diagnostics exist yet — deferred to Phase 2+
-The PRD mentions "Admin Tools" diagnostics but the current implementation has no admin-specific diagnostic UI in any result shell. The `LegacyResultDetailView` has: (1) score summary via `SharedSavedResultCore`, (2) question review, (3) feedback display, (4) PDF certificate download. None of these are admin-specific — they are the same teacher view. Admin diagnostic tools (e.g., data integrity checks, feedback generation audit trail, RTDB path inspection) are not in scope for Phase 1 hardening and should be a separate follow-up task.
-
-### Finding F-3.7c: Admin feedback trigger actions — same as teacher (none in LegacyResultDetailView)
-The `LegacyResultDetailView` (teacher/admin full-page shell) does NOT auto-trigger feedback generation (Finding F-3.5b). It also provides no manual "Generate Feedback" or "Retry Feedback" button. The admin receives the same read-only feedback display as the teacher. This is by design: the full-page shell is a display-only view.
-
-### Finding F-3.7d: Admin mutation prohibitions — confirmed no mutation surface exists
-The `LegacyResultDetailView` has NO mutation actions: no score editing, no answer modification, no metadata editing, no result deletion, no ownership transfer, and no payload manipulation. The only interactive action is PDF certificate download (read-only) and the "Return" navigation button. This satisfies the PRD requirement to "explicitly prohibit ownership, metadata, score, answer, and payload editing" for the admin shell.
-
-### Finding F-3.8a: Saved-Result Contract — Shared-Core Data Fields
-All three shells consume these fields from `TestResultRecord` via `SharedSavedResultCore`: `resultId`, `totalScore`, `maxScore`, `percentage`, `bandScore`, `correct`, `incorrect`, `partialCredit`, `totalQuestions`, `questionResults[]`, `testTitle`, `testType`, `testSkill`, `submittedAt`, `timeElapsed`, `thcsData` (including `scaledScore`, `sectionResults`, `intentBreakdown`), `ieltsData` (including `passageResults`), `formativeFeedback`, `context` (including `type`, `configApplied`).
-
-### Finding F-3.8b: Saved-Result Contract — Optional/Extension Fields
-These fields are present in `TestResultRecord` but not consumed by all shells: `writingSubmission` (Writing skill only), `speakingSubmission` (Speaking skill only), `rubricScores` (Writing/Speaking only), `overallFeedback`/`hasFeedback` (teacher feedback — only `LegacyResultDetailView` full-page), `reMarkHistory`/`lastReMarkedAt`/`lastReMarkedBy` (re-marking — only session-context results), `markingStatus` (review workflow), `courseId`/`courseName`/`classId`/`className`/`moduleId`/`moduleName` (academic context metadata).
-
-### Finding F-3.8c: Saved-Result Contract — Legacy Compatibility Fields
-`userId` (alias for `studentId` in older records), `studentName` (may be stale if student profile changed after test), `teacherId` (optional, present on session-context results only), `isGuest` (guest student flag from session-based tests). These fields are tolerated but not required by `SharedSavedResultCore`.
-
-### Finding F-3.8d: Saved-Result Contract — Shell-Specific Chrome & Actions
-- **ResultSlidePanel** (student): Tab navigation (overview/review/feedback), attempt history/switching, close animation, backdrop click, escape key close, mobile vs desktop layout, feedback auto-trigger via `useFeedbackAutoTrigger`.
-- **ResultDetailModal** (teacher homework): Back button, `ResultContextBadge`, `feedbackTiming` from homework config, feedback auto-trigger via `useFeedbackAutoTrigger`, inline vs modal sizing.
-- **LegacyResultDetailView** (teacher/admin full-page): PDF certificate download, return navigation, ownership validation via `useResultOwnershipCheck`, NO feedback generation (display-only), RTDB listener with access-lost detection.
-
-### Finding F-3.9a: No new database paths introduced
-Audit confirmed all Phase 3 changes use the same canonical `test_results/{resultId}` RTDB path. The `useFeedbackAutoTrigger` hook contains no database imports — it delegates to `resultFeedbackGeneration.service.ts` which reads via `getTestResult()` (same `test_results/{resultId}` path). No new Firestore collections, RTDB nodes, or rule dependencies were added. No guest-claim storage or non-canonical paths were introduced or normalized.
-
-### Finding F-3.10a: No cross-role leakage detected — shells are architecturally isolated
-- **ResultSlidePanel**: Used ONLY in student pages (`StudentHomeworkListPage`, `StudentHomeworkDetailPage`, `AcademicRecordPage`). Contains no teacher/admin role checks or teacher-specific actions. Student-scoped by import graph.
-- **ResultDetailModal**: Used ONLY in `TeacherHomeworkDetailPage`. Not imported by any student page. Teacher-scoped by import graph.
-- **LegacyResultDetailView**: Used ONLY in `ResultDetailPage`, which redirects students away (`Navigate to /student/academic-record?result=...`) before the component renders. Teacher/super_admin scoped by route guard.
-- No shell renders controls belonging to another role. No mutation actions leak across roles. Isolation is enforced by the import graph and route guards, not by runtime role checks inside the shared core.
+> **All findings have been moved to [`findings-of-tasks-0040-prd-unified-result-view-architecture-and-governance.md`](findings-of-tasks-0040-prd-unified-result-view-architecture-and-governance.md)**
+> per `process-task-list.md` guidelines. New findings are appended to that file.

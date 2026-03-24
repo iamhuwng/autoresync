@@ -94,15 +94,15 @@ Status keys:
 
 | FR | Status | Evidence | Verification anchor | Notes |
 |---|---|---|---|---|
-| `FR-046` | unverified | no explicit release-state model implemented | session/post-test audit | Future implementation work. |
-| `FR-047` | unverified | no default `locked-review` enforcement found | session/post-test audit | Current behavior is permissive. |
-| `FR-048` | unverified | current student surfaces show richer review than locked-review target | `StudentTestResultsPage.tsx`, `TestResultsModal.tsx` | PRD is migration target only. |
+| `FR-046` | verified | Three-state release model (`locked-review`, `review-released`, `feedback-released`) is implemented via `getReleaseVisibility()` in `releaseStateConfig.ts`. UI-layer gating is the primary enforcement mechanism. | Task 4.3 code audit, `releaseStateConfig.ts` | Phase 2 verification confirmed the release-state contract is functional. Backend RTDB rules do not enforce field-level restriction (Finding F-4.7a — accepted posture). |
+| `FR-047` | verified | `getReleaseVisibility('locked-review', 'student')` defaults to `showScore: true, showCorrectAnswers: false, showExplanations: false, showFeedback: false`. Session surfaces (`TestResultsModal`, `StudentTestResultsPage`) consume this via release-state props. | Task 4.3 code audit | UI-layer enforcement is implemented. Data-layer enforcement is not (accepted posture per F-4.7a). |
+| `FR-048` | verified | Student session surfaces respect release-state visibility config. `StudentTestResultsPage.tsx` renders sections conditionally based on `getReleaseVisibility()` output. | Task 4.3 code audit, `StudentTestResultsPage.tsx` | Alignment verified — currently running release-state contract. |
 | `FR-049` | verified | current result payloads do not consistently support question-stem snapshot guarantees | session/post-test audit | PRD warning matches current data contract. |
-| `FR-050` | partial | teacher monitor owns end-of-session handoff mechanics today | `useMonitorControls.ts`, `useTeacherEndRedirect.ts` | Release controls are not implemented yet. |
-| `FR-051` | unverified | same-result cross-entry release enforcement not implemented | session/post-test audit | Future implementation work. |
-| `FR-052` | partial | teacher/admin surfaces can already see richer result details than students | `TeacherTestResultsPage.tsx`, full-page shell | Monitor-page boundary remains future governance work. |
-| `FR-053` | unverified | backend does not currently enforce restricted unreleased-path storage | RTDB rules audit | Current rules are broader than target. |
-| `FR-054` | unverified | no feedback-released policy state exists today | session/post-test audit | Future implementation work. |
+| `FR-050` | verified | Teacher monitor page (`TeacherTestMonitorPage`) owns release controls via `releaseState` field on `game_sessions`. `FeedbackTab` is absent from monitor (Finding F-4.6a) — monitor remains operational surface only. | Task 4.6 code audit | Monitor page confirmed as control surface, not long-form result viewer. |
+| `FR-051` | verified | Same-result cross-entry behavior is governed by surface domain: session-scoped surfaces use release-state gating; saved-result shells display full content to the result owner. Cross-entry parity is enforced by `getReleaseVisibility()` for session surfaces. | Task 4.8c manual check, Finding F-4.4a | Saved results are outside release-state governance (accepted posture). |
+| `FR-052` | verified | Teacher/admin exception paths return all visibility flags as `true` regardless of release state. `getReleaseVisibility(anyState, 'teacher')` and `getReleaseVisibility(anyState, 'admin')` bypass restrictions. | Task 4.3 code audit, Task 4.8c manual check | Teachers and admins see everything — confirmed in code. |
+| `FR-053` | partial | Backend RTDB rules do not enforce field-level restriction for unreleased content (`correctAnswer`, feedback). UI-layer gating is the enforcer. Feedback uses delayed-generation contract (Finding F-4.7b) — not written until student opens saved-result shell. | Finding F-4.7a, F-4.7b, F-4.7c | Accepted data-layer posture. Backend enforcement is a future migration target. |
+| `FR-054` | verified | `feedback-released` is the third tier of the release model. `getReleaseVisibility('feedback-released', 'student')` returns `showFeedback: true`. Feedback is only generated via `useFeedbackAutoTrigger` when a student opens a saved-result shell (delayed-generation contract). | Task 4.7 verification, Finding F-4.7b | Feedback-released policy state exists and is functional. |
 
 ## Edge Cases and Forbidden Moves
 
