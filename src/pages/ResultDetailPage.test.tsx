@@ -12,7 +12,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { ResultDetailPage } from './ResultDetailPage';
 
 // ─── Mocks ───────────────────────────────────────────────────────────────────
@@ -64,12 +64,26 @@ const renderPage = (resultId?: string) => {
                 {/* Catch the redirect target so it renders */}
                 <Route
                     path="/student/academic-record"
-                    element={<div data-testid="academic-record-redirect">Redirected</div>}
+                    element={<LocationReader />}
                 />
             </Routes>
         </MemoryRouter>
     );
 };
+
+/**
+ * Helper component that renders the current location for assertion.
+ * Used to verify redirect query params, not just the path.
+ */
+function LocationReader() {
+    const location = useLocation();
+    return (
+        <div data-testid="academic-record-redirect">
+            <span data-testid="redirect-search">{location.search}</span>
+            Redirected
+        </div>
+    );
+}
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
@@ -88,6 +102,8 @@ describe('ResultDetailPage', () => {
             // The redirect target route renders "Redirected"
             expect(screen.getByTestId('academic-record-redirect')).toBeInTheDocument();
             expect(screen.getByText('Redirected')).toBeInTheDocument();
+            // Verify the query parameter carries the resultId
+            expect(screen.getByTestId('redirect-search')).toHaveTextContent('?result=abc123');
         });
 
         it('should not render LegacyResultDetailView for students', () => {
@@ -95,6 +111,33 @@ describe('ResultDetailPage', () => {
             renderPage('abc123');
 
             expect(screen.queryByTestId('legacy-result-detail-view')).not.toBeInTheDocument();
+        });
+    });
+
+    /**
+     * PRD-0040 Task 3.1 — Regression test for ownership carry decision.
+     * Decision 1 from prd0040-preflight-ledger.md §Blocking Architectural Decisions:
+     * Phase 1 carries the current student redirect behavior. Students hitting
+     * /result/:resultId are redirected to /student/academic-record?result={resultId}.
+     * This test ensures the redirect safety net cannot regress.
+     */
+    describe('Student Ownership Carry Decision (PRD-0040 Task 3.1)', () => {
+        it('should redirect student to academic-record with exact resultId in query param', () => {
+            mockProfile = { role: 'student' };
+            renderPage('ownership-test-id-789');
+
+            expect(screen.getByTestId('academic-record-redirect')).toBeInTheDocument();
+            expect(screen.getByTestId('redirect-search')).toHaveTextContent('?result=ownership-test-id-789');
+            // Students must never see the full-page legacy view
+            expect(screen.queryByTestId('legacy-result-detail-view')).not.toBeInTheDocument();
+        });
+
+        it('teacher should NOT be redirected — sees LegacyResultDetailView', () => {
+            mockProfile = { role: 'teacher' };
+            renderPage('ownership-test-id-789');
+
+            expect(screen.getByTestId('legacy-result-detail-view')).toBeInTheDocument();
+            expect(screen.queryByTestId('academic-record-redirect')).not.toBeInTheDocument();
         });
     });
 

@@ -777,4 +777,54 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
       });
     });
   });
+
+  describe('FR-035 Access-Lost Behavior (Task 3.3)', () => {
+    it('shows access-lost state when RTDB returns PERMISSION_DENIED on initial load', async () => {
+      render(<ResultSlidePanel resultId="res-1" onClose={mockOnClose} />);
+
+      // Simulate PERMISSION_DENIED error from RTDB
+      simulateOnValueError(new Error('PERMISSION_DENIED: Permission denied'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('rsp-access-lost')).toBeInTheDocument();
+      });
+
+      expect(screen.getByText('Access Revoked')).toBeInTheDocument();
+      expect(screen.getByText(/no longer have access/i)).toBeInTheDocument();
+    });
+
+    it('clears result data on PERMISSION_DENIED after initial load', async () => {
+      render(<ResultSlidePanel resultId="res-1" onClose={mockOnClose} />);
+
+      // First: load successfully
+      simulateOnValueSuccess(MOCK_RESULT);
+
+      await waitFor(() => {
+        expect(screen.getByText('IELTS Reading Practice Test 3')).toBeInTheDocument();
+      });
+
+      // Then: simulate a PERMISSION_DENIED (access revoked while viewing)
+      simulateOnValueError(new Error('PERMISSION_DENIED'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('rsp-access-lost')).toBeInTheDocument();
+      });
+
+      // Result data should be cleared — test title should not be visible
+      expect(screen.queryByText('IELTS Reading Practice Test 3')).not.toBeInTheDocument();
+    });
+
+    it('does NOT show access-lost for non-permission errors', async () => {
+      render(<ResultSlidePanel resultId="res-1" onClose={mockOnClose} />);
+
+      // Simulate a generic network error (not permission denied)
+      mockGetTestResult.mockRejectedValue(new Error('Network error'));
+      simulateOnValueError(new Error('client_offline'));
+
+      await waitFor(() => {
+        // Should show regular error, not access-lost
+        expect(screen.queryByTestId('rsp-access-lost')).not.toBeInTheDocument();
+      });
+    });
+  });
 });

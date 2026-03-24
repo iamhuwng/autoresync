@@ -34,9 +34,9 @@ Status keys:
 | `FR-015` | verified | student entry owners preserved; `ResultSlidePanel` delegates to shared core while keeping panel chrome and attempt switching | `ResultSlidePanel.test.tsx`, `AcademicRecordPage.test.tsx`, dashboard/homework tests | Preservation documented and verified post-migration. |
 | `FR-016` | verified | teacher modal + homework host behavior preserved; `ResultDetailModal` delegates to shared core while keeping modal chrome, data loading, and auto-trigger | `TeacherHomeworkDetailPage.test.tsx`, `ResultDetailModal.test.tsx` | Behavior preserved and verified post-migration. |
 | `FR-017` | verified | teacher/admin full-page route remains canonical non-student deep link | `ResultDetailPage.test.tsx` | Students are redirected out. |
-| `FR-018` | partial | route hierarchy admits `super_admin`; full-page shell is reused for teacher/admin | `App.jsx`, `PrivateRoute.jsx`, `ResultDetailPage.tsx` | Super-admin runtime path is present but not extensively tested. |
-| `FR-019` | partial | current admin behavior is additive via role hierarchy, not separate body | `App.jsx`, `ResultDetailPage.tsx` | Diagnostics contract is a PRD target more than current code artifact. |
-| `FR-020` | verified | no risky admin mutation result screen found in active saved-result shells | static audit | PRD out-of-scope boundary matches repo reality. |
+| `FR-018` | verified | `ResultDetailPage.tsx` routes both `teacher` and `super_admin` to the same `LegacyResultDetailView`. No separate admin shell exists. `useResultOwnershipCheck` grants `super_admin` broader access via `useTeacherAccess`. | `ResultDetailPage.test.tsx` (super_admin test), Task 3.7 findings | Confirmed in Task 3.7a: shell reuse is complete. |
+| `FR-019` | partial | No admin-specific diagnostic UI exists in any result shell. Admin Tools are deferred to Phase 2+. | Task 3.7b finding | PRD target, not current code artifact. Explicitly deferred. |
+| `FR-020` | verified | `LegacyResultDetailView` has zero mutation actions: no score editing, no answer modification, no metadata editing, no result deletion. Only PDF download (read-only) and return navigation. | Task 3.7d finding, static audit | PRD out-of-scope boundary matches repo reality. |
 
 ## 5.3 Feedback Parity for Saved-Result Shells
 
@@ -44,10 +44,10 @@ Status keys:
 |---|---|---|---|---|
 | `FR-021` | verified | all 3 shells show identical feedback rendering via `FeedbackTab` inside `SharedSavedResultCore` | shell tests, `FeedbackTab.test.tsx`, `SharedSavedResultCore.test.tsx` | Feedback parity achieved through shared core. |
 | `FR-022` | verified | current tests encode non-identical feedback/generation behavior | `ResultSlidePanel.test.tsx`, `ResultDetailModal.test.tsx` | Prevents silent parity claims. |
-| `FR-023` | partial | feedback generation services exist, but cross-shell dedupe is not fully proven | feedback generation service tests | No end-to-end cross-shell proof. |
-| `FR-024` | verified | PRD and current shells both preserve shell-specific chrome/actions | shell implementations | Current architecture supports this statement. |
-| `FR-025` | verified | no separate admin feedback editing workflow found | static audit | Boundary matches repo. |
-| `FR-026` | partial | audit services exist, but admin-capable feedback trigger auditing was not fully traced | audit service + feedback services | Needs runtime confirmation if implemented later. |
+| `FR-023` | verified | `useFeedbackAutoTrigger` hook centralizes per-shell dedupe via `feedbackAttemptedRef`; `inFlightGenerations` Map in `resultFeedbackGeneration.service.ts` prevents cross-shell concurrent duplicates. | `resultFeedbackGeneration.service.test.ts`, Task 3.6 findings | Task 3.6: ~80 lines of duplicated code extracted into shared hook. |
+| `FR-024` | verified | PRD and current shells both preserve shell-specific chrome/actions. Saved-result contract documented in Task 3.8d. | shell implementations, Task 3.8d finding | Current architecture supports this statement. |
+| `FR-025` | verified | no separate admin feedback editing workflow found; admin receives same read-only feedback display as teacher | Task 3.7c finding, static audit | Boundary matches repo. |
+| `FR-026` | partial | `LegacyResultDetailView` (admin shell) has NO feedback trigger or retry actions. Admin feedback auditing is moot because no generation occurs in the admin path. Student/teacher shells use `useFeedbackAutoTrigger` with console logging. | Task 3.7c finding | Auditing capability deferred until admin Tools are implemented. |
 
 ## 5.4 Utility and Presentation Reuse
 
@@ -61,12 +61,12 @@ Status keys:
 
 | FR | Status | Evidence | Verification anchor | Notes |
 |---|---|---|---|---|
-| `FR-030` | partial | route/shell/data-hook boundaries exist, but not uniformly | `PrivateRoute.jsx`, `LegacyResultDetailView.tsx`, service loaders | Some paths are stronger than others. |
+| `FR-030` | verified | Task 3.2 named the enforcement layer for all 6 saved-result entry paths and documented wiring status in `result-view-permission-matrix.md` §Task 3.2 | `result-view-permission-matrix.md`, `result-view-map.md`, `ResultDetailPage.test.tsx`, `LegacyResultDetailView.test.tsx` | Route/shell/data-hook boundaries are now explicitly named per path. Student paths rely on RTDB backend rules (documented). Teacher full-page paths use `useResultOwnershipCheck`. |
 | `FR-031` | verified | shared presentation is not the access authority where checks exist | `PrivateRoute.jsx`, `useOwnershipCheck.ts` | Matches current structure. |
-| `FR-032` | partial | route config says ownership-sensitive, runtime student path does not fully enforce it | `routeSecurity.ts`, `ResultDetailPage.tsx`, `AcademicRecordPage.tsx` | Known live mismatch. |
-| `FR-033` | partial | student-only controls appear segregated today | shell implementations | Full leakage audit not exhaustive. |
-| `FR-034` | partial | teacher/admin-only controls appear segregated today | shell implementations | Full leakage audit not exhaustive. |
-| `FR-035` | unverified | no targeted access-lost mid-session/result test was run | static audit only | No strong proof. |
+| `FR-032` | verified | Student redirect to `/student/academic-record?result={resultId}` confirmed working; ownership gap explicitly carried as documented risk per Task 0.5 Decision 1 | `ResultDetailPage.test.tsx` (redirect tests), `prd0040-preflight-ledger.md` §Decision 1 | PRD requires explicit disposition, not immediate fix. Carry decision is explicit. Teacher/admin path guarded by `useResultOwnershipCheck`. Backend RTDB rule mismatch remains a separate tracked risk. |
+| `FR-033` | verified | Task 3.10 audit confirmed `ResultSlidePanel` is used ONLY in student pages (StudentHomeworkListPage, StudentHomeworkDetailPage, AcademicRecordPage). Contains no teacher/admin role checks or teacher-specific actions. | Task 3.10a finding, import graph audit | Isolation is enforced by import graph formation. |
+| `FR-034` | verified | Task 3.10 audit confirmed `ResultDetailModal` is used ONLY in TeacherHomeworkDetailPage. `LegacyResultDetailView` is used ONLY in `ResultDetailPage` which redirects students away before rendering. | Task 3.10a finding, import graph audit | Isolation is enforced by import graph and route guards. |
+| `FR-035` | verified | Task 3.3 implemented PERMISSION_DENIED detection in `ResultSlidePanel` and `ResultDetailModal` RTDB listeners. Access-lost state clears sensitive data and shows lock icon UI. | `ResultSlidePanel.test.tsx` (3 FR-035 tests), `ResultDetailModal.test.tsx`, `rtdbAccessLost.ts` | Both real-time shells now detect access revocation and immediately remove sensitive content. `LegacyResultDetailView` uses one-shot fetch with `useResultOwnershipCheck` for initial denial. |
 | `FR-036` | verified | guest claim and demo/public paths are now explicitly documented as non-canonical risks | `result-view-permission-matrix.md`, `result-view-map.md` | Consolidation warning is grounded in concrete code and rules. |
 
 ## 5.6 Unwired, Legacy, and Demo Resolution

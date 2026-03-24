@@ -40,6 +40,6 @@ When working with task lists, the AI must:
 2. Follow the completion protocol:
    - Mark each finished **sub‑task** `[x]`.
    - Mark the **parent task** `[x]` once **all** its subtasks are `[x]`.
-3. Add newly discovered tasks.
+3. Edit to add newly discovered tasks, new findings (of irregularity, disparity or a need to branch out from the tasklist) and adjustment. ONLY ADD. MUST NOT EDIT, REMOVE, OR COMBINE EXISTING CONTENT UNTIL THE TASKLIST IS FINISHED.
 4. Keep "Relevant Files" accurate and up to date.
 5. Before starting work, check which sub‑task is next.

@@ -14,9 +14,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
-import { getTestResult, TestResultRecord } from '../../services/testResults.service';
+import { ref, onValue } from 'firebase/database';
+import { database } from '../../services/firebase';
+import { TestResultRecord } from '../../services/testResults.service';
 import { generateCertificatePDF, isPDFGenerationAvailable } from '../../utils/pdfCertificate';
 import { useResultOwnershipCheck } from '../../hooks/useOwnershipCheck';
+import { isPermissionDeniedError } from '../../utils/rtdbAccessLost';
 import { ResultContextBadge } from './ResultContextBadge';
 import { SharedSavedResultCore } from './SharedSavedResultCore';
 
@@ -34,6 +37,7 @@ export const LegacyResultDetailView: React.FC<LegacyResultDetailViewProps> = ({
     const [error, setError] = useState<string | null>(null);
     const [result, setResult] = useState<TestResultRecord | null>(null);
     const [pdfAvailable, setPdfAvailable] = useState(false);
+    const [accessLost, setAccessLost] = useState(false);
 
     // PRD-0016: Ownership validation
     const {
@@ -43,7 +47,9 @@ export const LegacyResultDetailView: React.FC<LegacyResultDetailViewProps> = ({
     } = useResultOwnershipCheck(result?.studentId);
 
     /**
-     * Load result by ID (independent from session)
+     * Load result via RTDB real-time listener (PRD-0040 Task 3.5 parity).
+     * Converts from one-shot getTestResult to onValue so that feedback
+     * generated after page load is reflected without manual refresh.
      */
     useEffect(() => {
         if (!resultId) {
@@ -52,28 +58,42 @@ export const LegacyResultDetailView: React.FC<LegacyResultDetailViewProps> = ({
             return;
         }
 
-        const loadResult = async () => {
-            try {
-                console.log(`📊 [LegacyResultDetailView] Loading result: ${resultId}`);
-                const resultData = await getTestResult(resultId);
+        setLoading(true);
+        setError(null);
+        setAccessLost(false);
 
-                if (!resultData) {
+        const resultRef = ref(database, `test_results/${resultId}`);
+
+        const unsubscribe = onValue(
+            resultRef,
+            (snapshot) => {
+                if (!snapshot.exists()) {
+                    setResult(null);
                     setError('Result not found');
                     setLoading(false);
                     return;
                 }
 
-                setResult(resultData);
+                const data = snapshot.val();
+                setResult({ id: resultId, ...data } as TestResultRecord);
                 setLoading(false);
-            } catch (err) {
-                console.error('Error loading result:', err);
+            },
+            (err) => {
+                console.error('[LegacyResultDetailView] RTDB listener error:', err);
+                if (isPermissionDeniedError(err)) {
+                    setResult(null);
+                    setAccessLost(true);
+                    setLoading(false);
+                    return;
+                }
                 setError('Failed to load result');
                 setLoading(false);
-            }
-        };
+            },
+        );
 
-        loadResult();
         isPDFGenerationAvailable().then(setPdfAvailable);
+
+        return () => unsubscribe();
     }, [resultId]);
 
     /**
@@ -84,6 +104,32 @@ export const LegacyResultDetailView: React.FC<LegacyResultDetailViewProps> = ({
             <div style={centeredContainerStyle}>
                 <div style={spinnerStyle} />
                 <style>{`@keyframes legacyViewSpin { to { transform: rotate(360deg); } }`}</style>
+            </div>
+        );
+    }
+
+    /**
+     * Access-lost state (FR-035 parity — Task 3.3/3.5)
+     */
+    if (accessLost) {
+        return (
+            <div style={{ ...centeredContainerStyle, flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ fontSize: '3rem' }}>🔒</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 600, color: '#64748b' }}>
+                    Access Revoked
+                </div>
+                <div style={{ fontSize: '0.875rem', color: '#94a3b8', textAlign: 'center', maxWidth: '24rem' }}>
+                    Your access to this result has been revoked. The content has been cleared for security.
+                </div>
+                {onReturn && (
+                    <button
+                        type="button"
+                        onClick={onReturn}
+                        style={primaryButtonStyle}
+                    >
+                        Return to Dashboard
+                    </button>
+                )}
             </div>
         );
     }

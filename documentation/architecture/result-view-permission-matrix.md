@@ -16,7 +16,7 @@ Status keys:
 
 | Surface / path | App-visible roles | App gate | Primary read path | Backend rule reality | Coverage anchor | Status | Notes |
 |---|---|---|---|---|---|---|---|
-| `/result/:resultId` via `ResultDetailPage` | `student`, `teacher`, `super_admin` | `PrivateRoute` auth + hierarchical role check | RTDB `test_results/{resultId}` through route wrapper | RTDB allows owning student, matching teacherId, any `teacher`, any `super_admin` | `ResultDetailPage.test.tsx`, `PrivateRoute.test.tsx` | mismatch | Route config says ownership-sensitive, but route wrapper does not enforce ownership. |
+| `/result/:resultId` via `ResultDetailPage` | `student`, `teacher`, `super_admin` | `PrivateRoute` auth + hierarchical role check | RTDB `test_results/{resultId}` through route wrapper | RTDB allows owning student, matching teacherId, any `teacher`, any `super_admin` | `ResultDetailPage.test.tsx`, `PrivateRoute.test.tsx` | mismatch | Route config says ownership-sensitive, but route wrapper does not enforce ownership. **Phase 1 carry decision (Task 0.5 Decision 1):** Students are redirected to `/student/academic-record?result={resultId}`. Teacher/admin path is guarded by `useResultOwnershipCheck` in `LegacyResultDetailView`. Backend RTDB rule mismatch (any teacher can read any result) remains a separate tracked risk. |
 | `LegacyResultDetailView` | teacher, super_admin | in-page `useOwnershipCheck()` | RTDB `test_results/{resultId}` | backend still allows any teacher read | `LegacyResultDetailView.test.tsx` | weaker-backend | Delegates rendering to `SharedSavedResultCore`. Shell-level ownership is stricter than RTDB teacher reads. |
 | `AcademicRecordPage` -> `ResultSlidePanel` | student | student route + query param host | RTDB `test_results/{resultId}` | backend allows owning student; any teacher could also read same path | `AcademicRecordPage.test.tsx`, `ResultSlidePanel.test.tsx` | weaker-app | Delegates rendering to `SharedSavedResultCore`. Query param open path has no visible shell-level ownership check. |
 | `StudentDashboardPage` inline result open | student | student route + notification metadata | RTDB `test_results/{resultId}` | same as above | `StudentDashboardPage.teachers.test.jsx` | weaker-app | Trusts `notif.metadata.resultId` to open the panel. |
@@ -45,6 +45,104 @@ Status keys:
 - RTDB `guest_results/{guestName}` is writable without auth at the child node.
 - Firestore `writing_submissions/{submissionId}` has better read scoping than RTDB saved results, but create and update remain open to any authenticated user.
 
+## Task 3.2: Named Enforcement Layers for Saved-Result Entry Paths
+
+Each saved-result entry path has a **named responsible enforcement layer**. "Responsible" means: this is the layer that must block unauthorized access before result data is rendered. Route gating alone is necessary but not sufficient.
+
+### 1. `/result/:resultId` via `ResultDetailPage`
+
+| Attribute | Value |
+|---|---|
+| **Named enforcement layer** | `useResultOwnershipCheck` in `LegacyResultDetailView` (teacher/admin path) + student redirect safety net |
+| **Current wiring** | ✅ Wired. Teacher/admin: `LegacyResultDetailView` calls `useResultOwnershipCheck(result?.studentId)` and denies render on failure. Student: `ResultDetailPage` detects student role and redirects to `/student/academic-record?result={resultId}` before any result data is loaded. |
+| **Residual risk** | Backend RTDB allows any `teacher` to read any result. The app is stricter than the backend. Tracked separately (Task 0.5 Decision 1). |
+| **Regression test** | `ResultDetailPage.test.tsx`: verifies student redirect with exact query param; `LegacyResultDetailView.test.tsx`: verifies ownership denial rendering. |
+
+### 2. `AcademicRecordPage` → `?result=` query param → `ResultSlidePanel`
+
+| Attribute | Value |
+|---|---|
+| **Named enforcement layer** | Student route gate (`PrivateRoute` student-only) + RTDB backend read rule (owning student can read own results) |
+| **Current wiring** | ⚠️ Partially wired. The route is student-only. The `ResultSlidePanel` reads `test_results/{resultId}` via RTDB — backend rules restrict student reads to the owning student. However, there is no **shell-level** ownership check verifying the query param `resultId` belongs to the logged-in user before attempting the read. The backend is the actual enforcer. |
+| **Residual risk** | A student could craft a `?result=<otherId>` query param. The RTDB read would fail at the backend for non-owned results, but the panel would show a loading/error state rather than an explicit "not your result" message. This is acceptable for Phase 1 but not ideal. |
+| **Regression test** | `AcademicRecordPage.test.tsx`, `ResultSlidePanel.test.tsx`. No explicit test for crafted foreign `resultId` (backend enforcement is the safety net). |
+
+### 3. `StudentDashboardPage` → notification metadata `resultId` → `ResultSlidePanel`
+
+| Attribute | Value |
+|---|---|
+| **Named enforcement layer** | Student route gate + notification ownership (notifications are per-user) + RTDB backend read rule |
+| **Current wiring** | ⚠️ Partially wired. Notifications are fetched per-user (`getPaginatedUserNotifications(user.uid, ...)`), so `notif.metadata.resultId` is expected to reference a result belonging to the logged-in student. However, no shell-level check validates that the `resultId` embedded in the notification metadata actually belongs to the current user before opening the panel. RTDB backend rules are the actual enforcer. |
+| **Residual risk** | If a notification is somehow sent with a foreign `resultId`, the panel would attempt to read it. Backend would block the read for non-owned results. Notification creation is server-side, limiting practical attack surface. |
+| **Regression test** | `StudentDashboardPage.teachers.test.jsx`. No explicit test for poisoned notification metadata. |
+
+### 4. `StudentHomeworkListPage` / `StudentHomeworkDetailPage` → homework-owned `resultId` → `ResultSlidePanel`
+
+| Attribute | Value |
+|---|---|
+| **Named enforcement layer** | Student route gate + homework submission ownership (results are derived from own submissions) + RTDB backend read rule |
+| **Current wiring** | ⚠️ Partially wired. The homework pages derive `resultId` from the student's own submission records. The `setSelectedResultId(resultId)` call trusts the submission-derived identifier. No shell-level ownership check exists in `ResultSlidePanel`. RTDB backend rules are the actual enforcer. |
+| **Residual risk** | Submission data is read from paths scoped to the logged-in student, so the `resultId` should always be the student's own. Attack surface is minimal but not zero-trust at the shell level. |
+| **Regression test** | Homework page tests. No explicit test for foreign `resultId` injection. |
+
+### 5. `TeacherHomeworkDetailPage` → `ResultDetailModal`
+
+| Attribute | Value |
+|---|---|
+| **Named enforcement layer** | Teacher route gate (hierarchical role check) + homework page context (teacher views their assigned homework's submissions) + RTDB backend read rule (any teacher can read any result) |
+| **Current wiring** | ⚠️ Partially wired. The route is teacher-only. The homework detail page shows submissions for a specific homework assignment. The `ResultDetailModal` shell has no explicit ownership check — it trusts the `selectedResultId` from the parent page. Backend RTDB allows any teacher read, so this is functionally permissive. |
+| **Residual risk** | Any authenticated teacher can read any result via RTDB. The app scopes display to homework-specific submissions, but the shell does not independently verify. This is a known backend-weaker pattern. |
+| **Regression test** | `TeacherHomeworkDetailPage.test.tsx`, `ResultDetailModal.test.tsx`. |
+
+### 6. `TeacherStudentHistoryPage` → `buildRoute('RESULT_DETAIL', { resultId })` → `/result/:resultId`
+
+| Attribute | Value |
+|---|---|
+| **Named enforcement layer** | Teacher route gate + `useStudentDataAccessCheck(studentId)` on the history page + downstream `useResultOwnershipCheck` in `LegacyResultDetailView` |
+| **Current wiring** | ✅ Wired (dual-layer). History page blocks access if the teacher is not assigned to the student. Navigation to `/result/:resultId` then hits the `ResultDetailPage` → `LegacyResultDetailView` → `useResultOwnershipCheck` pipeline. Two independent enforcement points. |
+| **Residual risk** | Same as entry path #1: backend RTDB allows any teacher to read. The app is stricter. |
+| **Regression test** | `TeacherStudentHistoryPage.test.tsx`, `ResultDetailPage.test.tsx`, `LegacyResultDetailView.test.tsx`. |
+
+### Summary Matrix
+
+| Entry path | Enforcement layer | Wired? | Backend enforcer? | Shell-level check? |
+|---|---|---|---|---|
+| `/result/:resultId` (teacher/admin) | `useResultOwnershipCheck` | ✅ Yes | ✅ RTDB rules | ✅ `LegacyResultDetailView` |
+| `/result/:resultId` (student redirect) | redirect safety net | ✅ Yes | N/A (no data load) | ✅ redirect before render |
+| `AcademicRecordPage ?result=` | RTDB backend rules | ⚠️ Partial | ✅ RTDB rules | ❌ No shell-level check |
+| `StudentDashboardPage` notification | RTDB backend rules + notification scope | ⚠️ Partial | ✅ RTDB rules | ❌ No shell-level check |
+| Homework pages (student) | RTDB backend rules + submission scope | ⚠️ Partial | ✅ RTDB rules | ❌ No shell-level check |
+| `TeacherHomeworkDetailPage` | Teacher route + homework context | ⚠️ Partial | ✅ RTDB rules (broad) | ❌ No shell-level check |
+| `TeacherStudentHistoryPage` | `useStudentDataAccessCheck` + `useResultOwnershipCheck` | ✅ Yes | ✅ RTDB rules | ✅ Dual-layer |
+
+**Key finding:** Student entry paths (2, 3, 4) rely on RTDB backend rules as the actual enforcer, with no shell-level ownership check in `ResultSlidePanel`. This is explicitly documented as a Phase 1 accepted posture. The teacher full-page path (1, 6) is the only path with explicit shell-level ownership enforcement.
+
+## Task 3.3/3.4: Approved Ownership-Aware Data Path & Access-Lost Defense
+
+All saved-result data paths flow through the RTDB-authenticated read pipeline. No shell bypasses this with local cache, stale data, or unauthenticated reads.
+
+### Data Path Audit
+
+| Shell | Primary data path | Fallback data path | PERMISSION_DENIED handled? | Data cleared on revocation? |
+|---|---|---|---|---|
+| `ResultSlidePanel` | `onValue(ref(database, 'test_results/{id}'))` | `getTestResult(id)` via `get(ref(...))` | ✅ Task 3.3 | ✅ `setResult(null)` + access-lost UI |
+| `ResultDetailModal` | `onValue(ref(database, 'test_results/{id}'))` | `getTestResult(id)` via `get(ref(...))` | ✅ Task 3.3 | ✅ `setResult(null)` + access-lost UI |
+| `LegacyResultDetailView` | `onValue(ref(database, 'test_results/{id}'))` (Task 3.5 upgrade) | N/A | ✅ Task 3.5 (PERMISSION_DENIED detection) | ✅ `setResult(null)` + access-lost UI + `useResultOwnershipCheck` (pre-render) |
+
+### Identifier Trust Model
+
+Raw identifiers from query params (`?result=`), notification metadata, and parent-provided props are **never trusted beyond using them as RTDB read keys**. The RTDB backend rules are the ownership enforcer:
+- Student reads: `auth.uid === data.child('studentId').val()` — backend blocks foreign result reads
+- Teacher reads: `auth.token.role === 'teacher'` — backend allows (known broad-teacher risk)
+- If the RTDB read fails with `PERMISSION_DENIED`, shells now clear data and show access-lost state (Task 3.3, FR-035)
+
+### Implementation Files
+
+- `src/utils/rtdbAccessLost.ts`: Shared `isPermissionDeniedError()` detection utility
+- `ResultSlidePanel.tsx`: RTDB error handler + fallback error handler + access-lost UI state
+- `ResultDetailModal.tsx`: RTDB error handler + access-lost UI state
+- `ResultSlidePanel.test.tsx`: 3 FR-035 regression tests (initial PERMISSION_DENIED, mid-session revocation, non-permission errors)
+
 ## Review Gate
 
 Any result-related change should be blocked if it assumes:
@@ -53,3 +151,5 @@ Any result-related change should be blocked if it assumes:
 - session result visibility is protected by backend release-state rules
 - guest-result storage already matches canonical saved-result indexing
 - demo/public routes are harmless because they are "just demos"
+- a student shell-level ownership check exists (it does not — RTDB backend is the enforcer for student paths)
+

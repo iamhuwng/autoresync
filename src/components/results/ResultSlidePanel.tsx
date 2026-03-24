@@ -17,14 +17,14 @@ import { ref, onValue } from 'firebase/database';
 // @ts-ignore
 import { database } from '../../services/firebase';
 import { getTestResult, TestResultRecord } from '../../services/testResults.service';
-import { generateFormativeFeedbackForSavedResult } from '../../services/resultFeedbackGeneration.service';
-import { needsAiFeedbackUpgrade } from '../../services/formativeFeedback.service';
 import type { FormativeFeedback } from '../../types/thcs-test.types';
+import { useFeedbackAutoTrigger } from '../../hooks/useFeedbackAutoTrigger';
 import { useScreenSize } from '@/core/platform';
 import { useTestAttempts } from '../../hooks/useTestAttempts';
 import { AttemptHistory } from './AttemptHistory';
 import { SharedSavedResultCore } from './SharedSavedResultCore';
 import type { SharedSavedResultCoreSections } from './SharedSavedResultCore';
+import { isPermissionDeniedError, AccessLostState, ACCESS_LOST_INITIAL } from '../../utils/rtdbAccessLost';
 import './ResultSlidePanel.css';
 
 /* ─── Props ──────────────────────────────────────────────────────────────── */
@@ -119,19 +119,28 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
   const [error, setError] = useState<string | null>(null);
   const [activeAttemptResultId, setActiveAttemptResultId] = useState<string>(resultId);
   const [_highlightedQuestionNumber, setHighlightedQuestionNumber] = useState<number | null>(null);
-  const [formativeFeedbackLoading, setFormativeFeedbackLoading] = useState(false);
-  const [feedbackError, setFeedbackError] = useState<string | null>(null);
-  const feedbackAttemptedRef = useRef(false);
+  // ── FR-035: Access-lost state (Task 3.3) ────────────────────────────────
+  const [accessLost, setAccessLost] = useState<AccessLostState>(ACCESS_LOST_INITIAL);
 
   // ── Closing animation ────────────────────────────────────────────────────
   const [isClosing, setIsClosing] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const studentId = result?.studentId || (result as any)?.userId;
   const { attempts, loading: attemptsLoading } = useTestAttempts(studentId, result?.testId);
-  const storedFeedbackNeedsUpgrade = useMemo(() => {
-    const formativeFeedback = result?.formativeFeedback as FormativeFeedback | undefined;
-    return Boolean(formativeFeedback && needsAiFeedbackUpgrade(formativeFeedback, result?.questionResults as any));
-  }, [result?.formativeFeedback, result?.questionResults]);
+
+  // ── Centralized feedback auto-trigger (PRD-0040 Task 3.6) ───────────────
+  const {
+    feedbackLoading: formativeFeedbackLoading,
+    feedbackError,
+    storedFeedbackNeedsUpgrade,
+    handleGenerateFeedback: handleGenerateFormativeFeedback,
+  } = useFeedbackAutoTrigger({
+    resultId: activeAttemptResultId,
+    result,
+    loading,
+    autoTriggerEnabled: true,
+    shellName: 'ResultSlidePanel',
+  });
 
   useEffect(() => {
     setActiveAttemptResultId(resultId);
@@ -140,8 +149,7 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
     setLoading(true);
     setError(null);
     setHighlightedQuestionNumber(null);
-    setFeedbackError(null);
-    feedbackAttemptedRef.current = false;
+    setAccessLost(ACCESS_LOST_INITIAL);
   }, [resultId]);
 
   const handleClose = useCallback(() => {
@@ -205,6 +213,17 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
       async (err) => {
         if (cancelled) return;
 
+        // FR-035 (Task 3.3): If error is PERMISSION_DENIED, access was revoked
+        // Immediately clear sensitive content and show access-lost state
+        if (isPermissionDeniedError(err)) {
+          console.warn('[ResultSlidePanel] Access revoked (PERMISSION_DENIED). Clearing data.', err);
+          setResult(null);
+          setLoading(false);
+          setError(null);
+          setAccessLost({ isAccessLost: true, reason: 'permission_denied' });
+          return;
+        }
+
         // If we already have data (connection dropped after load), keep it visible
         if (hasReceivedFirstSnapshot) {
           console.warn('[ResultSlidePanel] RTDB connection lost, keeping loaded data.', err);
@@ -227,6 +246,16 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
           }
         } catch (fallbackErr) {
           if (cancelled) return;
+
+          // FR-035: Check fallback error too
+          if (isPermissionDeniedError(fallbackErr)) {
+            setResult(null);
+            setLoading(false);
+            setError(null);
+            setAccessLost({ isAccessLost: true, reason: 'permission_denied' });
+            return;
+          }
+
           console.error('[ResultSlidePanel] Both RTDB and fallback failed:', fallbackErr);
           setLoading(false);
           setError('Could not load result. Please try again.');
@@ -280,68 +309,8 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
     setError(null);
   }, [activeAttemptResultId]);
 
-  // ── Auto-trigger feedback generation (Task 6.21–6.22) ────────────────────
-  const handleGenerateFormativeFeedback = useCallback(async (forceAiUpgrade = false) => {
-    if (!result) return;
-
-    try {
-      setFormativeFeedbackLoading(true);
-      setFeedbackError(null);
-
-      const generationResult = await generateFormativeFeedbackForSavedResult(
-        activeAttemptResultId,
-        forceAiUpgrade ? { forceAiUpgrade: true } : undefined,
-      );
-
-      if (generationResult && !generationResult.saved) {
-        setFeedbackError('AI feedback could not be saved for this result. Please try again.');
-      } else if (!generationResult) {
-        setFeedbackError('AI feedback is not available for this result.');
-      } else if (generationResult.upgradeAttempted && generationResult.upgradeApplied === false) {
-        setFeedbackError(generationResult.error || 'AI upgrade did not complete. The saved feedback is still being shown.');
-      } else {
-        setFeedbackError(null);
-      }
-    } catch (err) {
-      console.error('[ResultSlidePanel] Failed to generate formative feedback:', err);
-      setFeedbackError('Failed to generate feedback.');
-    } finally {
-      setFormativeFeedbackLoading(false);
-    }
-  }, [result, activeAttemptResultId]);
-
-  // Auto-trigger generation for missing THCS feedback, and AI-upgrade weak or deterministic saved feedback.
-  useEffect(() => {
-    if (!result || loading) return;
-
-    const hasFeedback = !!result.formativeFeedback;
-    const hasThcsData = !!result.thcsData?.sectionResults;
-
-    if (!formativeFeedbackLoading && !feedbackError && !feedbackAttemptedRef.current) {
-      if (hasThcsData && !hasFeedback) {
-        feedbackAttemptedRef.current = true;
-        handleGenerateFormativeFeedback();
-        return;
-      }
-
-      if (hasFeedback && storedFeedbackNeedsUpgrade) {
-        feedbackAttemptedRef.current = true;
-        handleGenerateFormativeFeedback(true);
-      }
-    }
-  }, [result, loading, formativeFeedbackLoading, feedbackError, storedFeedbackNeedsUpgrade, handleGenerateFormativeFeedback]);
-
-  // Reset feedback attempt when switching results
-  useEffect(() => {
-    feedbackAttemptedRef.current = false;
-    setFeedbackError(null);
-  }, [activeAttemptResultId]);
-
-  useEffect(() => {
-    if (result?.formativeFeedback) {
-      setFeedbackError(null);
-    }
-  }, [result?.formativeFeedback]);
+  // Feedback generation, auto-trigger, and dedupe are now centralized
+  // in useFeedbackAutoTrigger (PRD-0040 Task 3.6)
 
   // ── Badge / subtitle derived values ──────────────────────────────────────
   const badge = useMemo(() => (result ? getTypeBadge(result) : null), [result]);
@@ -369,13 +338,29 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
 
   // ── Feedback retry handler for core ──────────────────────────────────────
   const handleFeedbackRetry = useCallback(() => {
-    feedbackAttemptedRef.current = false;
-    setFeedbackError(null);
     handleGenerateFormativeFeedback(true);
   }, [handleGenerateFormativeFeedback]);
 
   // ── Tab content rendering ───────────────────────────────────────────────
   const renderTabContent = () => {
+    // FR-035 (Task 3.3): Access-lost state takes precedence over all other states
+    if (accessLost.isAccessLost) {
+      return (
+        <div className="rsp-error-card" data-testid="rsp-access-lost">
+          <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🔒</div>
+          <p style={{ fontWeight: 600, fontSize: '1rem', color: '#1e293b', marginBottom: '0.5rem' }}>
+            Access Revoked
+          </p>
+          <p style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '1rem' }}>
+            You no longer have access to this result. This may happen if your permissions were changed.
+          </p>
+          <button className="rsp-retry-btn" onClick={handleClose}>
+            Close
+          </button>
+        </div>
+      );
+    }
+
     if (loading) {
       return (
         <div className="rsp-loading">

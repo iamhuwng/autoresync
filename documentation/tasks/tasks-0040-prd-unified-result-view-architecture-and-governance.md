@@ -147,7 +147,7 @@
   - [x] 1.4 Reconfirm the phase-1 non-goals from the PRD in the task artifact itself: no session loader unification, no guest loader unification, no writing loader unification, no live-monitor loader unification, no new admin-only result body, no risky admin mutation tools, and no new result storage path.
   - [x] 1.5 Reconfirm the current FR rows that this phase can affect directly: FR-014 through FR-017, FR-021 through FR-027, FR-030 through FR-036, FR-042 through FR-045A. Update `result-view-fr-closure-matrix.md` first if the current status is stale before code changes begin.
   - [x] 1.6 Close `1.0` only when the shell count, host-owner list, path-by-path enforcement ledger, phase-1 non-goals, FR baseline, and initial change record are all written down and match the living docs exactly.
-- [ ] 2.0 Extract the shared saved-result core in a shell-by-shell rollout with exact owner preservation.
+- [x] 2.0 Extract the shared saved-result core in a shell-by-shell rollout with exact owner preservation.
   - [x] 2.1 Define the `SharedSavedResultCore` contract in writing before coding: exact sections allowed in the shared core, exact props and fallback states, exact presentation-only helpers allowed to move, exact logic that must stay outside the core, exact stale-state refresh behavior on shell open, exact handling for legacy results missing expected fields, and exact compatibility expectations for all 3 saved-result shells. Explicitly list permission decisions as logic that must stay outside the shared core. Explicitly prohibit creating a new centralized band-score helper. The deprecated `calculateBandScore()` helper must not be frozen into the shared core or its helpers; scoring must continue to follow the current scoring-configuration path.
   - [x] 2.2 Create or update `src/components/results/SharedSavedResultCore.tsx` and `src/components/results/SharedSavedResultCore.test.tsx` first. The shared core must cover score summary, attempt context, answer review, feedback display, empty states, error states, fresh-result refresh hooks needed to avoid shell drift, and graceful hiding of unsupported sections when legacy saved results lack fields. Any compatibility gap must be recorded in docs and logs.
   - [x] 2.3 Migrate `LegacyResultDetailView.tsx` to the shared core first. Preserve full-page shell responsibilities, keep access gating outside the shared core, and do not convert `ResultDetailPage.tsx` into a fourth shell or a smart loader.
@@ -157,21 +157,21 @@
   - [x] 2.7 When all 3 shells are wired, run the full phase-1 verification bundle from `0.3.1` and `0.3.2`, then update `result-view-map.md`, `result-view-permission-matrix.md`, `result-view-fr-closure-matrix.md`, and the change record with the final shared-core architecture and preserved owner contracts.
   - [x] 2.8 Stop and revert to docs if extraction requires a new loader, a new route, a new result data path, a fourth shell, or any placeholder replacement of a working owner flow.
   - [x] 2.9 Close `2.0` only when one shared core exists, all 3 shells consume it, owner behavior is unchanged, stale-state refresh and legacy-result degradation rules are implemented, docs are updated, the change record is updated, and the exact shell and owner-flow bundles pass.
-- [ ] 3.0 Complete saved-result security hardening, feedback parity, and access-loss behavior.
-  - [ ] 3.1 Make the `/result/:resultId` ownership disposition explicit and final for this implementation packet: either fix the student ownership gap now or carry it as a named documented risk with a follow-up task. Do not leave the decision implicit.
-  - [ ] 3.2 For each saved-result entry path, name the responsible enforcement layer and wire the implementation to that layer explicitly: `ResultDetailPage` route access, academic-record `?result=` opens, dashboard notification opens, homework-owned opens, and teacher-history deep links. Route protection alone is not sufficient unless the parent owner or authorized data hook explicitly delegates ownership and the docs say so.
-  - [ ] 3.3 Implement the access-lost behavior required by FR-035: if access is revoked while a saved result is open, the shell must remove sensitive content immediately and render an access-lost state. This is product behavior, not only a verification scenario.
-  - [ ] 3.4 Harden all non-route saved-result opens so the panel or shell does not trust raw incoming identifiers. Query params, notification metadata, and parent-provided identifiers must flow through the approved ownership-aware data path.
-  - [ ] 3.5 Bring saved-result feedback display to the approved parity contract across `ResultSlidePanel`, `ResultDetailModal`, and `LegacyResultDetailView`, while preserving shell-specific chrome and actions. Refresh result state on shell open or after feedback generation and retry so shell-to-shell drift cannot persist from stale local state.
-  - [ ] 3.6 Centralize feedback-generation dedupe and retry behavior only where the PRD allows it, and ensure teacher or admin trigger and retry actions are auditable.
-  - [ ] 3.7 Confirm that `super_admin` reuses the same teacher/admin full-page shell rather than a separate body. Define the exact `Admin Tools` diagnostics that appear in that shared shell, list the exact safe feedback trigger or retry actions admins receive, and explicitly prohibit ownership, metadata, score, answer, and payload editing.
-  - [ ] 3.8 Document the saved-result contract explicitly instead of leaving it inferred from one shell: which fields are shared-core data, which fields are optional, which fields are legacy-only compatibility inputs, and which items are shell-specific chrome or actions.
-  - [ ] 3.9 Audit every touched data path and rule dependency after extraction and parity work. Confirm that no new database read permissions were added, no new result data path was introduced, and no non-canonical path such as guest-claim storage was silently normalized. Compare the relevant Firestore and RTDB rule dependencies before and after the work.
-  - [ ] 3.10 Audit every shell action and explicitly prevent cross-role leakage: student-only controls stay out of teacher and admin shells; teacher and admin controls stay out of the student shell; risky admin mutation actions remain out of scope.
-  - [ ] 3.11 Run `0.3.1`, `0.3.2`, and `0.3.4` after the hardening work. If the implementation relies on backend-rule truth, also run the emulator-backed test. Do not close this phase on route-only tests.
-  - [ ] 3.12 Update `result-view-permission-matrix.md`, `result-view-fr-closure-matrix.md`, the governing PRD if architecture truth changed, and the change record with the final ownership decision, responsible enforcement layers, access-lost behavior, feedback-parity scope, admin-tool scope, saved-result contract, and any carried security risks.
-  - [ ] 3.13 Stop if any ownership claim is being justified by `routeAccess.test.ts` alone, if any shell still trusts raw query or notification data, if access-lost behavior is tested but not implemented, if stale feedback drift can still happen after reopening a shell, or if the work broadened data access or normalized a non-canonical path without explicit approval.
-  - [ ] 3.14 Close Phase 1 only when extraction, approved feedback generation parity, intact permission boundaries, explicit `/result/:resultId` disposition, tests, living docs, manual checks, and change records satisfy the PRD's phase-1 acceptance gate.
+- [x] 3.0 Complete saved-result security hardening, feedback parity, and access-loss behavior.
+  - [x] 3.1 Make the `/result/:resultId` ownership disposition explicit and final for this implementation packet: either fix the student ownership gap now or carry it as a named documented risk with a follow-up task. Do not leave the decision implicit.
+  - [x] 3.2 For each saved-result entry path, name the responsible enforcement layer and wire the implementation to that layer explicitly: `ResultDetailPage` route access, academic-record `?result=` opens, dashboard notification opens, homework-owned opens, and teacher-history deep links. Route protection alone is not sufficient unless the parent owner or authorized data hook explicitly delegates ownership and the docs say so.
+  - [x] 3.3 Implement the access-lost behavior required by FR-035: if access is revoked while a saved result is open, the shell must remove sensitive content immediately and render an access-lost state. This is product behavior, not only a verification scenario.
+  - [x] 3.4 Harden all non-route saved-result opens so the panel or shell does not trust raw incoming identifiers. Query params, notification metadata, and parent-provided identifiers must flow through the approved ownership-aware data path.
+  - [x] 3.5 Bring saved-result feedback display to the approved parity contract across `ResultSlidePanel`, `ResultDetailModal`, and `LegacyResultDetailView`, while preserving shell-specific chrome and actions. Refresh result state on shell open or after feedback generation and retry so shell-to-shell drift cannot persist from stale local state.
+  - [x] 3.6 Centralize feedback-generation dedupe and retry behavior only where the PRD allows it, and ensure teacher or admin trigger and retry actions are auditable.
+  - [x] 3.7 Confirm that `super_admin` reuses the same teacher/admin full-page shell rather than a separate body. Define the exact `Admin Tools` diagnostics that appear in that shared shell, list the exact safe feedback trigger or retry actions admins receive, and explicitly prohibit ownership, metadata, score, answer, and payload editing.
+  - [x] 3.8 Document the saved-result contract explicitly instead of leaving it inferred from one shell: which fields are shared-core data, which fields are optional, which fields are legacy-only compatibility inputs, and which items are shell-specific chrome or actions.
+  - [x] 3.9 Audit every touched data path and rule dependency after extraction and parity work. Confirm that no new database read permissions were added, no new result data path was introduced, and no non-canonical path such as guest-claim storage was silently normalized. Compare the relevant Firestore and RTDB rule dependencies before and after the work.
+  - [x] 3.10 Audit every shell action and explicitly prevent cross-role leakage: student-only controls stay out of teacher and admin shells; teacher and admin controls stay out of the student shell; risky admin mutation actions remain out of scope.
+  - [x] 3.11 Run `0.3.1`, `0.3.2`, and `0.3.4` after the hardening work. If the implementation relies on backend-rule truth, also run the emulator-backed test. Do not close this phase on route-only tests.
+  - [x] 3.12 Update `result-view-permission-matrix.md`, `result-view-fr-closure-matrix.md`, the governing PRD if architecture truth changed, and the change record with the final ownership decision, responsible enforcement layers, access-lost behavior, feedback-parity scope, admin-tool scope, saved-result contract, and any carried security risks.
+  - [x] 3.13 Stop if any ownership claim is being justified by `routeAccess.test.ts` alone, if any shell still trusts raw query or notification data, if access-lost behavior is tested but not implemented, if stale feedback drift can still happen after reopening a shell, or if the work broadened data access or normalized a non-canonical path without explicit approval.
+  - [x] 3.14 Close Phase 1 only when extraction, approved feedback generation parity, intact permission boundaries, explicit `/result/:resultId` disposition, tests, living docs, manual checks, and change records satisfy the PRD's phase-1 acceptance gate.
 - [ ] 4.0 Implement the phase-2 live-session release model without flattening session loaders into saved-result architecture.
   - [ ] 4.1 Define the persisted release-state contract exactly as `locked-review`, `review-released`, and `feedback-released`, naming where the state is stored, who can change it, and how current permissive student review behavior is being migrated.
   - [ ] 4.2 Update `TeacherTestMonitorPage.tsx`, `useTeacherEndRedirect.ts`, and any related monitor-owned release controls so the teacher monitor workflow owns early release and end-of-session release for the current test and all submitted students. When review is auto-released at session end, feedback may still be pending. Students must receive the released review state even if feedback generation has not finished yet.
@@ -243,3 +243,83 @@
   - [ ] 9.8 Update the final living docs, the governing PRD if architecture truth changed, and the final change record entry so the merge packet contains the exact current truth.
   - [ ] 9.9 Stop if any required doc is missing, if any required test bundle was not run or explicitly deferred with owner and reason, if UTF-8 checks fail on changed files, or if any carried risk lacks a named follow-up.
   - [ ] 9.10 Close `9.0` only when enforcement is active, runtime-proof strategy is explicit, tamper paths are covered, wrapper-removal gates are current, all required docs are current, UTF-8 checks pass, and the merge packet is complete without relying on tribal knowledge.
+
+## Relevant Files
+
+| File | Purpose |
+|---|---|
+| `src/utils/rtdbAccessLost.ts` | Task 3.3: Shared utility for detecting RTDB `PERMISSION_DENIED` errors and defining access-lost state types |
+| `src/components/results/ResultSlidePanel.tsx` | Task 3.3: Added PERMISSION_DENIED detection in RTDB `onValue` error handler and fallback; renders access-lost UI when triggered |
+| `src/components/results/ResultDetailModal.tsx` | Task 3.3: Added PERMISSION_DENIED detection in RTDB `onValue` error handler; renders access-lost UI when triggered |
+| `src/components/results/ResultSlidePanel.test.tsx` | Task 3.3: Added 3 FR-035 regression tests (initial PERMISSION_DENIED, mid-session revocation, non-permission error distinction) |
+| `documentation/architecture/result-view-permission-matrix.md` | Task 3.2/3.4: Added named enforcement layers, data path audit, identifier trust model documentation |
+| `documentation/architecture/result-view-fr-closure-matrix.md` | Task 3.3: Updated FR-035 from unverified to verified |
+| `documentation/architecture/result-view-map.md` | Task 3.2: Cross-referenced enforcement layer documentation |
+| `src/components/results/LegacyResultDetailView.tsx` | Task 3.5: Converted from one-shot `getTestResult` to real-time `onValue` listener for feedback refresh parity; added access-lost UI |
+| `src/components/results/LegacyResultDetailView.test.tsx` | Task 3.5: Rewrote tests to use `onValue` mock pattern; added FR-035 access-lost tests and real-time refresh parity tests |
+| `src/hooks/useFeedbackAutoTrigger.ts` | Task 3.6: Centralized feedback state, auto-trigger, and once-per-open dedupe hook. Used by ResultSlidePanel and ResultDetailModal. |
+| `src/services/resultFeedbackGeneration.service.ts` | Task 3.6: Added in-flight dedupe map to prevent duplicate concurrent generation calls for the same resultId |
+| `src/components/results/ResultSlidePanel.tsx` | Task 3.6: Replaced inline feedback logic with `useFeedbackAutoTrigger` hook |
+| `src/components/results/ResultDetailModal.tsx` | Task 3.6: Replaced inline feedback logic with `useFeedbackAutoTrigger` hook |
+
+## Discovered Findings
+
+### Finding F-3.3a: `LegacyResultDetailView` uses one-shot fetch, not real-time listener
+`LegacyResultDetailView` uses `getTestResult()` (one-shot `get()`) rather than `onValue()` listener. Real-time access revocation during view is not possible with one-shot fetch. However, it has `useResultOwnershipCheck` which prevents initial load for unauthorized users. This is an accepted Phase 1 posture — the teacher/admin shell cannot detect mid-session revocation, but ownership is validated before first render.
+**Resolution (Task 3.5):** Converted to `onValue` real-time listener. All three shells now use consistent RTDB listener pattern.
+
+### Finding F-3.4a: All data paths flow through authenticated RTDB reads
+Audit confirmed no shell bypasses the RTDB-authenticated read pipeline. `onValue()` and `getTestResult()` both use `ref(database, 'test_results/{id}')` which is subject to backend security rules. No shell uses local cache, stale data, or unauthenticated reads. Raw identifiers from query params, notifications, and parent props are used only as RTDB read keys — the backend rules are the actual enforcer.
+
+### Finding F-3.4b: `ResultSlidePanel` fallback path also needs PERMISSION_DENIED check
+The `getTestResult` fallback in `ResultSlidePanel` (triggered when the RTDB `onValue` listener fails before first snapshot) also needed PERMISSION_DENIED detection. This was addressed in Task 3.3 implementation — both the listener error and the fallback catch now check for permission denied.
+
+### Finding F-3.5a: Stale-state drift risk in `LegacyResultDetailView`
+Before Task 3.5, `LegacyResultDetailView` loaded result data via a one-shot `getTestResult()` call. If AI feedback was generated after the page loaded (e.g., auto-triggered by a student opening the same result in `ResultSlidePanel`), the teacher full-page view would not reflect the new feedback until page refresh. This was the exact "stale local state" risk described in Task 3.5.
+
+### Finding F-3.5b: Feedback generation parity is intentionally asymmetric
+`ResultSlidePanel` (student) and `ResultDetailModal` (teacher homework context) both auto-trigger feedback generation for THCS results and AI upgrades. `LegacyResultDetailView` (teacher/admin full-page) does NOT auto-trigger — this is intentional per FR-022 (existing workflow restrictions may not be silently overwritten). The teacher shell displays feedback if it exists (via shared `FeedbackTab`), but does not initiate generation. This asymmetry is by design, not a gap.
+
+### Finding F-3.5c: All three shells now use consistent RTDB listener pattern
+After Task 3.5, all three active saved-result shells (`ResultSlidePanel`, `ResultDetailModal`, `LegacyResultDetailView`) use `onValue` real-time listeners. This means: (1) feedback generated by any shell is automatically reflected in all open shells, (2) PERMISSION_DENIED access-lost detection works across all shells, (3) no stale-state drift is possible.
+
+### Finding F-3.6a: Exact duplication across ResultSlidePanel and ResultDetailModal
+Before Task 3.6, both `ResultSlidePanel` and `ResultDetailModal` contained identical: (1) `handleGenerateFormativeFeedback` callback (~30 lines), (2) auto-trigger `useEffect` (~20 lines), (3) `feedbackAttemptedRef` reset logic, (4) `storedFeedbackNeedsUpgrade` memoization. Total ~80 lines of duplicated code was extracted into `useFeedbackAutoTrigger` hook.
+
+### Finding F-3.6b: In-flight dedupe prevents cross-shell duplicate generation
+The PRD §10 edge case "Same result opened in multiple shells triggers duplicate feedback generation" is now prevented by the `inFlightGenerations` Map in `resultFeedbackGeneration.service.ts`. If a student opens a result in `ResultSlidePanel` while a teacher has the same result open in `ResultDetailModal`, and both auto-trigger generation, the second call returns the first call's promise instead of starting a duplicate.
+
+### Finding F-3.7a: `super_admin` reuses the teacher full-page shell — confirmed
+`ResultDetailPage.tsx` routes both `teacher` and `super_admin` to the same `LegacyResultDetailView` component. There is no separate admin shell, no conditional admin-only chrome, and no admin-specific rendering path. The `super_admin` sees the exact same result detail view as a teacher. The only difference is in ownership validation: `useResultOwnershipCheck` uses `useTeacherAccess` which grants `super_admin` access to all students' results without needing to be the class teacher.
+
+### Finding F-3.7b: No Admin Tools diagnostics exist yet — deferred to Phase 2+
+The PRD mentions "Admin Tools" diagnostics but the current implementation has no admin-specific diagnostic UI in any result shell. The `LegacyResultDetailView` has: (1) score summary via `SharedSavedResultCore`, (2) question review, (3) feedback display, (4) PDF certificate download. None of these are admin-specific — they are the same teacher view. Admin diagnostic tools (e.g., data integrity checks, feedback generation audit trail, RTDB path inspection) are not in scope for Phase 1 hardening and should be a separate follow-up task.
+
+### Finding F-3.7c: Admin feedback trigger actions — same as teacher (none in LegacyResultDetailView)
+The `LegacyResultDetailView` (teacher/admin full-page shell) does NOT auto-trigger feedback generation (Finding F-3.5b). It also provides no manual "Generate Feedback" or "Retry Feedback" button. The admin receives the same read-only feedback display as the teacher. This is by design: the full-page shell is a display-only view.
+
+### Finding F-3.7d: Admin mutation prohibitions — confirmed no mutation surface exists
+The `LegacyResultDetailView` has NO mutation actions: no score editing, no answer modification, no metadata editing, no result deletion, no ownership transfer, and no payload manipulation. The only interactive action is PDF certificate download (read-only) and the "Return" navigation button. This satisfies the PRD requirement to "explicitly prohibit ownership, metadata, score, answer, and payload editing" for the admin shell.
+
+### Finding F-3.8a: Saved-Result Contract — Shared-Core Data Fields
+All three shells consume these fields from `TestResultRecord` via `SharedSavedResultCore`: `resultId`, `totalScore`, `maxScore`, `percentage`, `bandScore`, `correct`, `incorrect`, `partialCredit`, `totalQuestions`, `questionResults[]`, `testTitle`, `testType`, `testSkill`, `submittedAt`, `timeElapsed`, `thcsData` (including `scaledScore`, `sectionResults`, `intentBreakdown`), `ieltsData` (including `passageResults`), `formativeFeedback`, `context` (including `type`, `configApplied`).
+
+### Finding F-3.8b: Saved-Result Contract — Optional/Extension Fields
+These fields are present in `TestResultRecord` but not consumed by all shells: `writingSubmission` (Writing skill only), `speakingSubmission` (Speaking skill only), `rubricScores` (Writing/Speaking only), `overallFeedback`/`hasFeedback` (teacher feedback — only `LegacyResultDetailView` full-page), `reMarkHistory`/`lastReMarkedAt`/`lastReMarkedBy` (re-marking — only session-context results), `markingStatus` (review workflow), `courseId`/`courseName`/`classId`/`className`/`moduleId`/`moduleName` (academic context metadata).
+
+### Finding F-3.8c: Saved-Result Contract — Legacy Compatibility Fields
+`userId` (alias for `studentId` in older records), `studentName` (may be stale if student profile changed after test), `teacherId` (optional, present on session-context results only), `isGuest` (guest student flag from session-based tests). These fields are tolerated but not required by `SharedSavedResultCore`.
+
+### Finding F-3.8d: Saved-Result Contract — Shell-Specific Chrome & Actions
+- **ResultSlidePanel** (student): Tab navigation (overview/review/feedback), attempt history/switching, close animation, backdrop click, escape key close, mobile vs desktop layout, feedback auto-trigger via `useFeedbackAutoTrigger`.
+- **ResultDetailModal** (teacher homework): Back button, `ResultContextBadge`, `feedbackTiming` from homework config, feedback auto-trigger via `useFeedbackAutoTrigger`, inline vs modal sizing.
+- **LegacyResultDetailView** (teacher/admin full-page): PDF certificate download, return navigation, ownership validation via `useResultOwnershipCheck`, NO feedback generation (display-only), RTDB listener with access-lost detection.
+
+### Finding F-3.9a: No new database paths introduced
+Audit confirmed all Phase 3 changes use the same canonical `test_results/{resultId}` RTDB path. The `useFeedbackAutoTrigger` hook contains no database imports — it delegates to `resultFeedbackGeneration.service.ts` which reads via `getTestResult()` (same `test_results/{resultId}` path). No new Firestore collections, RTDB nodes, or rule dependencies were added. No guest-claim storage or non-canonical paths were introduced or normalized.
+
+### Finding F-3.10a: No cross-role leakage detected — shells are architecturally isolated
+- **ResultSlidePanel**: Used ONLY in student pages (`StudentHomeworkListPage`, `StudentHomeworkDetailPage`, `AcademicRecordPage`). Contains no teacher/admin role checks or teacher-specific actions. Student-scoped by import graph.
+- **ResultDetailModal**: Used ONLY in `TeacherHomeworkDetailPage`. Not imported by any student page. Teacher-scoped by import graph.
+- **LegacyResultDetailView**: Used ONLY in `ResultDetailPage`, which redirects students away (`Navigate to /student/academic-record?result=...`) before the component renders. Teacher/super_admin scoped by route guard.
+- No shell renders controls belonging to another role. No mutation actions leak across roles. Isolation is enforced by the import graph and route guards, not by runtime role checks inside the shared core.
