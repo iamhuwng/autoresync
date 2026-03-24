@@ -559,3 +559,87 @@ All three stop conditions from Task 6.8 were verified:
 4. F-6.4.8a: Complete tab-switch recording contract
 5. F-6.4.10a: Implement audit entry creation in `updateGrading()`
 
+---
+
+## Phase 5 Findings (Task 7.0 — Live-Monitoring Domain Preservation)
+
+### Finding F-7.1a: Live-monitoring surface classification — complete inventory
+
+The live-monitoring domain is an **operational control domain** that exists independently of both saved-result shells and session result viewers. It manages real-time test supervision, not post-test result display.
+
+**Live-monitoring surfaces and operational roles:**
+
+| Surface | Status | Domain | Operational Role | Data Contract | Owner Workflow |
+|---|---|---|---|---|---|
+| `TeacherTestMonitorPage` | active | live-monitoring | Real-time student supervision, session controls, release-state ownership, auto-submit coordination | RTDB `game_sessions/{sessionCode}` (players, status, timer, settings, results) | Teacher monitor — owns start, pause, end, extend, accommodations, audio, release-state |
+| `StudentDetailModal` | active | live-monitoring | Per-student live detail during session | RTDB session/player paths (answers, status, time elapsed) | Student drill-down from monitor — presentation-only consumption |
+| `StudentProgressCard` | active | live-monitoring | Standard student card in monitor grid | RTDB player state (progress, status, connection) | Monitor grid child — presentation-only |
+| `THCSStudentProgressCard` | active | live-monitoring | THCS-specific student card with part breakdowns | RTDB player state with THCS section data | Monitor grid child (THCS mode) — presentation-only |
+| `WritingMonitorCard` | active | live-monitoring + writing | Writing student card during session | RTDB live writing draft paths | Monitor grid child (writing mode) — already classified in Phase 4 as `monitor` lifecycle |
+| `WritingPeekModal` | active | live-monitoring + writing | Teacher peek at live RTDB draft text | RTDB live draft text stream | Monitor peek child — already classified in Phase 4 as `monitor` lifecycle |
+| `InlineWritingGrader` | active | live-monitoring + writing | THCS inline grading from monitor | RTDB live session result state | Monitor-integrated grading — already classified in Phase 4 as `editor` lifecycle |
+| `TeacherTestControlBar` | active | live-monitoring | Session control bar (start/pause/end/extend) | Monitor control actions | Monitor action bar — presentation + action dispatch |
+| `AudioProgressPanel` | active | live-monitoring | Audio playback control for listening tests | RTDB audio section state | Monitor audio child — operational control |
+| `HeadphoneRequestPanel` | active | live-monitoring | Headphone permission management (offline mode) | RTDB headphone request paths | Monitor permission child — operational control |
+| `AccommodationStatusBar` | active | live-monitoring | Accommodated student time tracking | Computed from player accommodation data | Monitor accommodation child — presentation-only |
+| `CountdownWarningModal` | active | live-monitoring | Timer expiry countdown warning | Timer state from `useTimerExpiry` hook | Monitor timer child — action dispatch |
+
+### Finding F-7.2a: Release-state ownership remains exclusively in monitor workflows
+
+**Write path (ownership):**
+- `setReviewReleaseState()` is defined in `useMonitorControls.ts` (line 907)
+- Called exclusively from `TeacherTestMonitorPage` (line 780)
+- Writes to RTDB `game_sessions/{sessionCode}/reviewReleaseState`
+- Default state `'locked-review'` is set during session creation in `useMonitorControls.ts` (line 473)
+
+**Read path (consumption only):**
+- `StudentTestResultsPage` reads `session?.reviewReleaseState` (line 501) — consumer, NOT owner
+- `TestResultsModal` receives `reviewReleaseState` as prop (line 32, 43) — consumer, NOT owner
+- `useTeacherEndRedirect` reads release state during redirect (line 76, 86) — consumer, NOT owner
+
+**Verification result:** Release-state ownership is exclusively within monitor workflows. No result viewer writes release state. No result viewer imports `setReviewReleaseState`. This boundary is architecturally correct and must be preserved.
+
+### Finding F-7.3a: No shared presentational fragments between monitor and result surfaces
+
+Audited cross-domain import paths:
+
+| Check | Result |
+|---|---|
+| `TeacherTestMonitorPage` imports from saved-result components? | **ZERO** — no imports of `SharedSavedResultCore`, `ResultSlidePanel`, `ResultDetailModal`, `LegacyResultDetailView` |
+| `StudentDetailModal` imports from saved-result components? | **ZERO** — self-contained with monitor-only data contracts |
+| Monitor components used by result viewers? | **ZERO** — `StudentProgressCard`, `THCSStudentProgressCard`, `TeacherTestControlBar`, `AudioProgressPanel` are monitor-only |
+| Shared loader or permission logic? | **ZERO** — monitor uses `useMonitorSession`/`useMonitorControls` hooks; result viewers use `useResultOwnershipCheck`, `useStudentDataAccessCheck`, or no ownership check |
+
+The only cross-domain reference is `getReleaseVisibility()` from `releaseStateConfig.ts`, which is a shared utility function consumed by both monitor (write) and result viewers (read). This is a pure utility with no state, no side effects, and no cross-domain coupling. It is presentation-only and correctly shared.
+
+### Finding F-7.4a: No monitor tests to add or update in this phase
+
+Monitor behavior was not changed in Phase 5 (Task 7.0). All work was classification-only. Existing test coverage:
+- `StudentDetailModal.test.tsx` — comprehensive (30+ test cases)
+- `THCSStudentProgressCard.test.tsx` — existing
+- `WritingMonitorCard.test.tsx` — existing
+- Other monitor components — static audit only (no tests, but no behavioral changes)
+
+### Finding F-7.5a: Living docs update summary for Phase 5
+
+The following living docs require updates in Task 7.5:
+- `result-view-map.md` — add Phase 5 section documenting live-monitoring domain classification
+- `result-view-permission-matrix.md` — no access truth changes (monitor permissions unchanged)
+- `result-view-fr-closure-matrix.md` — no closure status changes
+- Change record (this findings file) — findings F-7.1a through F-7.7a
+
+### Finding F-7.6a: Stop-check verification — no stop conditions triggered
+
+Both stop conditions from Task 7.6 were verified:
+1. **Monitor workflows NOT treated as disposable wrappers:** `TeacherTestMonitorPage`, `StudentDetailModal`, and all monitor child components are classified as operational control surfaces, not result viewer wrappers. They maintain their own hooks (`useMonitorSession`, `useMonitorControls`, `usePagination`), their own data contracts (RTDB session state), and their own action ownership (release state, pause, end, accommodations).
+2. **Release ownership NOT drifting out of monitor:** `setReviewReleaseState` is exclusively in `useMonitorControls` (written from `TeacherTestMonitorPage`). No result viewer imports or calls this function. Downstream consumers only read release state via `getEffectiveReleaseState()`.
+
+### Finding F-7.7a: Phase 5 (Task 7.0) closure gate — all criteria met
+
+| Criterion | Status | Evidence |
+|---|---|---|
+| Monitor surfaces classified | ✅ Met | Finding F-7.1a — 12 monitor surfaces with operational roles, data contracts, and owner workflows |
+| Release ownership remains in monitor | ✅ Met | Finding F-7.2a — write path exclusively in `useMonitorControls`/`TeacherTestMonitorPage` |
+| Shared code is presentation-only | ✅ Met | Finding F-7.3a — only shared utility is `getReleaseVisibility()` (pure function, no state) |
+| Docs and change records updated | ✅ Met | Finding F-7.5a — result-view-map updated with Phase 5 section |
+

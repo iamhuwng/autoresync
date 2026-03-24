@@ -135,3 +135,24 @@ Writing surfaces MUST NOT be folded into `SharedSavedResultCore`, `ResultSlidePa
 3. Audit integrity signal persistence (F-6.4.7a)
 4. Complete tab-switch recording contract (F-6.4.8a)
 5. Implement audit entry creation in `updateGrading()` (F-6.4.10a)
+
+## Phase 5: Live-Monitoring Domain Preservation (Task 7.0)
+
+The live-monitoring domain is formally classified as an **operational control domain**, architecturally independent from both saved-result shells and session result viewers:
+
+### Monitor Surface Inventory (12 surfaces)
+- **Core**: `TeacherTestMonitorPage` (owner of session controls, release state, accommodations, auto-submit)
+- **Student detail**: `StudentDetailModal` (per-student drill-down, presentation-only)
+- **Grid cards**: `StudentProgressCard`, `THCSStudentProgressCard`, `WritingMonitorCard` (presentation-only)
+- **Control surfaces**: `TeacherTestControlBar`, `AudioProgressPanel`, `HeadphoneRequestPanel`, `AccommodationStatusBar`, `CountdownWarningModal`
+- **Writing integration**: `WritingPeekModal` (RTDB live draft), `InlineWritingGrader` (THCS inline grading)
+
+### Release-State Ownership
+- **Write (ownership)**: Exclusively `TeacherTestMonitorPage` → `useMonitorControls.setReviewReleaseState()`
+- **Read (consumption)**: `StudentTestResultsPage`, `TestResultsModal`, `useTeacherEndRedirect`
+- **Boundary**: No result viewer writes release state. The shared `getReleaseVisibility()` is a pure function with no state or side effects.
+
+### Cross-Domain Verification
+- Zero imports from saved-result components (`SharedSavedResultCore`, `ResultSlidePanel`, `ResultDetailModal`, `LegacyResultDetailView`)
+- Zero shared loaders or permission logic between monitor and result domains
+- Monitor hooks (`useMonitorSession`, `useMonitorControls`) are monitor-exclusive
