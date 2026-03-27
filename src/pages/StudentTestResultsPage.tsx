@@ -13,7 +13,7 @@
 
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
-import { ref, get } from 'firebase/database';
+import { ref, get, onValue } from 'firebase/database';
 // @ts-ignore
 import { database } from '../services/firebase';
 import { buildRoute } from '../constants/routes';
@@ -36,7 +36,7 @@ import { getCourseAverage } from '../services/resultsService';
 import { FeedbackDisplay } from '../components/feedback/FeedbackDisplay';
 import { getSubmissionsBySession } from '../services/writingSubmissionService';
 import type { WritingSubmission } from '../types/ielts-writing.types';
-import { getEffectiveReleaseState, getReleaseVisibility } from '../types/releaseState.types';
+import { deriveSessionReleaseState, getReleaseVisibility } from '../types/releaseState.types';
 
 
 // PRD-0030 Task 6.1.1: Lazy-load WritingResultView for Writing tests
@@ -78,6 +78,29 @@ export const StudentTestResultsPage: React.FC = () => {
   const [pdfAvailable, setPdfAvailable] = useState(false);
   // PRD-0030 Task 6.1.1: Writing submission for WritingResultView
   const [writingSubmission, setWritingSubmission] = useState<WritingSubmission | null>(null);
+
+  /**
+   * Keep the live session snapshot fresh so release-state changes update
+   * while the page stays open.
+   */
+  useEffect(() => {
+    if (!sessionCode) {
+      return;
+    }
+
+    const sessionRef = ref(database, `game_sessions/${sessionCode}`);
+    const unsubscribe = onValue(
+      sessionRef,
+      (snapshot) => {
+        setSession(snapshot.exists() ? snapshot.val() : null);
+      },
+      (listenerError) => {
+        console.warn('[Results] Live session listener failed:', listenerError);
+      },
+    );
+
+    return () => unsubscribe();
+  }, [sessionCode]);
 
   /**
    * Load session and calculate results
@@ -498,7 +521,7 @@ export const StudentTestResultsPage: React.FC = () => {
   const feedback = generatePerformanceFeedback(safeResults.percentage);
 
   // PRD-0040 Task 4.4: Release-state governance for session-scoped results
-  const effectiveReleaseState = getEffectiveReleaseState(session?.reviewReleaseState);
+  const effectiveReleaseState = deriveSessionReleaseState(session);
   const visibility = getReleaseVisibility(effectiveReleaseState);
 
   return (

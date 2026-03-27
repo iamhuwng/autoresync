@@ -18,6 +18,7 @@ import type { ReviewReleaseState } from '../types/releaseState.types';
 import { getEffectiveReleaseState } from '../types/releaseState.types';
 import { Card, CardBody } from '../components/modern';
 import { Button } from '../components/modern';
+import { IntegrityDetailPanel } from '../components/test/IntegrityDetailPanel';
 import { StudentProgressCard } from '../components/test/StudentProgressCard';
 import { TeacherTestControlBar } from '../components/test/TeacherTestControlBar';
 import { StudentDetailModal } from '../components/test/StudentDetailModal';
@@ -50,7 +51,26 @@ import { ref, get, set, update } from 'firebase/database';
 // @ts-ignore — JS service file
 import { database } from '../services/firebase';
 import type { WritingTestFormat, IELTSWritingTest } from '../types/ielts-writing.types';
-import { computeRiskLevel } from '../utils/integrityUtils'; // PRD-0036
+import type { IntegrityViewData } from '../utils/integrityUtils';
+import { getIntegritySummary, normalizeHomeworkIntegrity, normalizeIntegrityReport } from '../utils/integrityUtils'; // PRD-0036
+
+const RISK_LABELS: Record<'low' | 'medium' | 'high', string> = {
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+};
+
+const RISK_COLORS: Record<'low' | 'medium' | 'high', { bg: string; border: string; text: string }> = {
+  low: { bg: '#ecfdf5', border: '#a7f3d0', text: '#047857' },
+  medium: { bg: '#fffbeb', border: '#fcd34d', text: '#b45309' },
+  high: { bg: '#fef2f2', border: '#fca5a5', text: '#b91c1c' },
+};
+
+const RISK_ORDER: Record<'low' | 'medium' | 'high', number> = {
+  high: 0,
+  medium: 1,
+  low: 2,
+};
 
 // Types imported from hooks (StudentProgress used internally by useMonitorSession)
 
@@ -60,6 +80,10 @@ export const TeacherTestMonitorPage: React.FC = () => {
 
   // State for student detail modal - only store the ID, get current data from students array
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [selectedIntegrity, setSelectedIntegrity] = useState<{
+    report: IntegrityViewData;
+    studentName: string;
+  } | null>(null);
 
   // State for tracking current audio section (for listening tests)
   const [currentAudioSection, setCurrentAudioSection] = useState(1);
@@ -75,6 +99,8 @@ export const TeacherTestMonitorPage: React.FC = () => {
   const [peekStudentUid, setPeekStudentUid] = useState<string | null>(null);
   const [isRefreshingLogs, setIsRefreshingLogs] = useState(false);
   const writingEndSubmitRef = useRef(false);
+  const hasInitializedIntegrityAlertsRef = useRef(false);
+  const previousIntegrityCountsRef = useRef<Record<string, number>>({});
 
   // Use extracted hooks for session monitoring
   const { session, students, testData, fullTestData, loading, error } = useMonitorSession(sessionCode);
@@ -100,6 +126,116 @@ export const TeacherTestMonitorPage: React.FC = () => {
     if (!isWritingSession || !fullTestData) return 'full-test';
     return (fullTestData as any).metadata?.format || 'full-test';
   }, [isWritingSession, fullTestData]);
+
+  const getIntegrityViewData = useCallback((studentId: string): IntegrityViewData | null => {
+    const rawIntegrity = session?.players?.[studentId]?.integrity;
+    return normalizeIntegrityReport(rawIntegrity) ?? normalizeHomeworkIntegrity(rawIntegrity);
+  }, [session?.players]);
+
+  const integrityAlerts = useMemo(() => {
+    return students
+      .map((student) => {
+        const report = getIntegrityViewData(student.studentId);
+        if (!report || report.violationCount <= 0) {
+          return null;
+        }
+
+        return {
+          studentId: student.studentId,
+          studentName: student.name,
+          report,
+        };
+      })
+      .filter((alert): alert is { studentId: string; studentName: string; report: IntegrityViewData } => Boolean(alert))
+      .sort((left, right) => {
+        const riskDelta = RISK_ORDER[left.report.riskLevel] - RISK_ORDER[right.report.riskLevel];
+        if (riskDelta !== 0) {
+          return riskDelta;
+        }
+
+        return right.report.violationCount - left.report.violationCount;
+      });
+  }, [getIntegrityViewData, students]);
+
+  const integrityStats = useMemo(() => {
+    return integrityAlerts.reduce(
+      (summary, alert) => {
+        summary.flaggedStudents += 1;
+        summary.totalViolations += alert.report.violationCount;
+        summary[alert.report.riskLevel] += 1;
+        return summary;
+      },
+      {
+        flaggedStudents: 0,
+        totalViolations: 0,
+        low: 0,
+        medium: 0,
+        high: 0,
+      },
+    );
+  }, [integrityAlerts]);
+
+  const monitoringPresetLabel = useMemo(() => {
+    const preset = session?.antiCheatConfig?.preset;
+    if (!preset || typeof preset !== 'string') {
+      return 'Custom';
+    }
+
+    return `${preset.charAt(0).toUpperCase()}${preset.slice(1)}`;
+  }, [session?.antiCheatConfig?.preset]);
+
+  const openIntegrityDetails = useCallback((studentId: string, studentName: string) => {
+    const report = getIntegrityViewData(studentId);
+    if (!report) {
+      return;
+    }
+
+    reportingService.trackAction('liveSessions', 'viewIntegrityDetails', {
+      sessionCode,
+      studentId,
+      studentName,
+      violationCount: report.violationCount,
+      riskLevel: report.riskLevel,
+    });
+
+    setSelectedIntegrity({ report, studentName });
+  }, [getIntegrityViewData, sessionCode]);
+
+  useEffect(() => {
+    const nextCounts = Object.fromEntries(
+      students.map((student) => [
+        student.studentId,
+        getIntegrityViewData(student.studentId)?.violationCount || 0,
+      ]),
+    );
+
+    if (!hasInitializedIntegrityAlertsRef.current) {
+      previousIntegrityCountsRef.current = nextCounts;
+      hasInitializedIntegrityAlertsRef.current = true;
+      return;
+    }
+
+    students.forEach((student) => {
+      const report = getIntegrityViewData(student.studentId);
+      if (!report || report.violationCount <= 0) {
+        return;
+      }
+
+      const previousCount = previousIntegrityCountsRef.current[student.studentId] || 0;
+      if (report.violationCount <= previousCount) {
+        return;
+      }
+
+      notifications.show({
+        title: report.riskLevel === 'high' ? 'High-Risk Integrity Alert' : 'Integrity Alert',
+        message: `${student.name}: ${getIntegritySummary(report)}. Counted violations: ${report.violationCount}.`,
+        color: report.riskLevel === 'high' ? 'red' : 'orange',
+        autoClose: 5000,
+      });
+    });
+
+    previousIntegrityCountsRef.current = nextCounts;
+  }, [getIntegrityViewData, students]);
 
   // PRD-0030: Handle Reopen — teacher reopens a submitted student's writing test
   const handleWritingReopen = useCallback(async (studentUid: string) => {
@@ -831,6 +967,158 @@ export const TeacherTestMonitorPage: React.FC = () => {
           );
         })()}
 
+        {session?.antiCheatConfig && (
+          <div style={{ maxWidth: '1400px', margin: '0 auto 1.5rem' }}>
+            <Card variant="glass">
+              <CardBody style={{ padding: '1.25rem 1.5rem', display: 'grid', gap: '1rem' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-start',
+                    gap: '1rem',
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <div style={{ display: 'grid', gap: '0.35rem' }}>
+                    <div
+                      style={{
+                        fontSize: '0.75rem',
+                        color: '#64748b',
+                        textTransform: 'uppercase',
+                        fontWeight: 700,
+                        letterSpacing: '0.06em',
+                      }}
+                    >
+                      Session Integrity
+                    </div>
+                    <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>
+                      Monitoring active: {monitoringPresetLabel} preset
+                    </div>
+                    <div style={{ fontSize: '0.875rem', color: '#475569', maxWidth: '720px' }}>
+                      Live sessions record integrity violations for teacher review. Use the alerts below or click a card badge to inspect a student.
+                    </div>
+                  </div>
+
+                  <Button
+                    variant="glass"
+                    size="sm"
+                    onClick={handleRefreshLogs}
+                    disabled={isRefreshingLogs}
+                  >
+                    {isRefreshingLogs ? 'Refreshing…' : 'Refresh Logs'}
+                  </Button>
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  <div
+                    style={{
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '0.85rem',
+                      background: 'rgba(59,130,246,0.08)',
+                      border: '1px solid rgba(59,130,246,0.18)',
+                      minWidth: '140px',
+                    }}
+                  >
+                    <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#1d4ed8' }}>
+                      {integrityStats.flaggedStudents}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>
+                      Flagged Students
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '0.85rem',
+                      background: 'rgba(239,68,68,0.08)',
+                      border: '1px solid rgba(239,68,68,0.18)',
+                      minWidth: '140px',
+                    }}
+                  >
+                    <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#dc2626' }}>
+                      {integrityStats.high}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>
+                      High Risk
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '0.85rem',
+                      background: 'rgba(245,158,11,0.08)',
+                      border: '1px solid rgba(245,158,11,0.18)',
+                      minWidth: '140px',
+                    }}
+                  >
+                    <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#d97706' }}>
+                      {integrityStats.totalViolations}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>
+                      Counted Violations
+                    </div>
+                  </div>
+                </div>
+
+                {integrityAlerts.length === 0 ? (
+                  <div
+                    style={{
+                      padding: '0.9rem 1rem',
+                      borderRadius: '1rem',
+                      background: 'rgba(16,185,129,0.08)',
+                      border: '1px solid rgba(16,185,129,0.18)',
+                      color: '#047857',
+                      fontSize: '0.9rem',
+                      fontWeight: 600,
+                    }}
+                  >
+                    No integrity violations recorded yet for active students.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    {integrityAlerts.map((alert) => {
+                      const colors = RISK_COLORS[alert.report.riskLevel];
+                      return (
+                        <button
+                          key={alert.studentId}
+                          type="button"
+                          onClick={() => openIntegrityDetails(alert.studentId, alert.studentName)}
+                          style={{
+                            border: `1px solid ${colors.border}`,
+                            background: colors.bg,
+                            color: colors.text,
+                            borderRadius: '1rem',
+                            padding: '0.85rem 1rem',
+                            minWidth: '240px',
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            display: 'grid',
+                            gap: '0.2rem',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
+                            <span style={{ fontWeight: 800, color: '#0f172a' }}>{alert.studentName}</span>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: colors.text }}>
+                              {RISK_LABELS[alert.report.riskLevel]}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '0.8rem', color: '#475569' }}>
+                            {getIntegritySummary(alert.report)}
+                          </div>
+                          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: colors.text }}>
+                            Counted violations: {alert.report.violationCount}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardBody>
+            </Card>
+          </div>
+        )}
+
         {/* Student Grid */}
         <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
           {students.length === 0 ? (
@@ -869,11 +1157,7 @@ export const TeacherTestMonitorPage: React.FC = () => {
 
                 // PRD-0030: Render Writing monitor card
                 if (isWritingSession) {
-                  // PRD-0036: Read integrity data for writing students
-                  const wPlayerData = session?.players?.[student.studentId];
-                  const wViolationCount = wPlayerData?.integrity?.violationCount || 0;
-                  const wForceSubmitted = wPlayerData?.integrity?.forceSubmitted || false;
-                  const wRisk = computeRiskLevel(wViolationCount, wForceSubmitted);
+                  const wIntegrity = getIntegrityViewData(student.studentId);
                   return (
                     <WritingMonitorCard
                       key={student.studentId}
@@ -884,7 +1168,19 @@ export const TeacherTestMonitorPage: React.FC = () => {
                       testFormat={writingTestFormat}
                       onPeek={(uid) => setPeekStudentUid(uid)}
                       onReopen={handleWritingReopen}
-                      integrityData={{ violationCount: wViolationCount, riskLevel: wRisk }}
+                      integrityData={
+                        wIntegrity
+                          ? {
+                              violationCount: wIntegrity.violationCount,
+                              riskLevel: wIntegrity.riskLevel,
+                            }
+                          : undefined
+                      }
+                      onIntegrityClick={
+                        wIntegrity
+                          ? () => openIntegrityDetails(student.studentId, student.name)
+                          : undefined
+                      }
                     />
                   );
                 }
@@ -894,10 +1190,7 @@ export const TeacherTestMonitorPage: React.FC = () => {
                   const playerData = session?.players?.[student.studentId];
                   const partBreakdown = getStudentPartBreakdownRef.current(playerData);
                   const writingInfo = getStudentWritingInfoRef.current(playerData);
-                  // PRD-0036: Integrity data
-                  const tViolationCount = playerData?.integrity?.violationCount || 0;
-                  const tForceSubmitted = playerData?.integrity?.forceSubmitted || false;
-                  const tRisk = computeRiskLevel(tViolationCount, tForceSubmitted);
+                  const tIntegrity = getIntegrityViewData(student.studentId);
                   return (
                     <THCSStudentProgressCard
                       key={student.studentId}
@@ -920,16 +1213,25 @@ export const TeacherTestMonitorPage: React.FC = () => {
                         student.studentId,
                         playerData?.latestResultId ?? null,
                       )}
-                      integrityData={{ violationCount: tViolationCount, riskLevel: tRisk }}
+                      integrityData={
+                        tIntegrity
+                          ? {
+                              violationCount: tIntegrity.violationCount,
+                              riskLevel: tIntegrity.riskLevel,
+                            }
+                          : undefined
+                      }
+                      onIntegrityClick={
+                        tIntegrity
+                          ? () => openIntegrityDetails(student.studentId, student.name)
+                          : undefined
+                      }
                     />
                   );
                 }
 
-                // PRD-0036: Integrity data for IELTS/regular cards
                 const iPlayerData = session?.players?.[student.studentId];
-                const iViolationCount = iPlayerData?.integrity?.violationCount || 0;
-                const iForceSubmitted = iPlayerData?.integrity?.forceSubmitted || false;
-                const iRisk = computeRiskLevel(iViolationCount, iForceSubmitted);
+                const iIntegrity = getIntegrityViewData(student.studentId);
 
                 return (
                   <StudentProgressCard
@@ -947,7 +1249,19 @@ export const TeacherTestMonitorPage: React.FC = () => {
                     accommodations={studentAccommodation || null}
                     baseTimeExpired={session?.baseTimeExpired || false}
                     extraTimeRemaining={hasExtraTime ? extraTimeRemaining : undefined}
-                    integrityData={{ violationCount: iViolationCount, riskLevel: iRisk }}
+                    integrityData={
+                      iIntegrity
+                        ? {
+                            violationCount: iIntegrity.violationCount,
+                            riskLevel: iIntegrity.riskLevel,
+                          }
+                        : undefined
+                    }
+                    onIntegrityClick={
+                      iIntegrity
+                        ? () => openIntegrityDetails(student.studentId, student.name)
+                        : undefined
+                    }
                     onForceSubmit={() => handleForceSubmit(student.studentId)}
                     onResetSubmit={() => handleResetSubmit(
                       student.studentId,
@@ -1099,6 +1413,15 @@ export const TeacherTestMonitorPage: React.FC = () => {
           studentUid={peekStudentUid}
           studentName={students.find(s => s.studentId === peekStudentUid)?.name || 'Student'}
           testFormat={writingTestFormat}
+        />
+      )}
+
+      {selectedIntegrity && (
+        <IntegrityDetailPanel
+          report={selectedIntegrity.report}
+          studentName={selectedIntegrity.studentName}
+          isOpen={true}
+          onClose={() => setSelectedIntegrity(null)}
         />
       )}
     </div>
