@@ -47,6 +47,7 @@ import {
     publishWritingTest,
 } from '../../services/writingTestService';
 import type { WritingTask, WritingTestMetadata } from '../../types/ielts-writing.types';
+import { canonicalizeReadingQuestion } from '../../utils/readingQuestionContract';
 
 // ═══════════════════════════════════════════════════════════════
 // TYPES
@@ -613,21 +614,40 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                     }))
                     : []);
 
-            const questions = validation?.mergedQuestions?.map(q => ({
-                id: `q-${q.questionNumber}`,
-                number: q.questionNumber,
-                questionNumber: q.questionNumber,
-                questionText: q.questionText || '',
-                question: q.questionText || '',
-                type: q.type,
-                options: q.options || [],
-                answer: q.answer || '',
-                answerSource: 'ai-suggestion' as const,
-                passageId: q.passageId || passages[0]?.id || 'default',
-                confidence: q.confidence || 80,
-                points: 1,
-                wordLimit: q.wordLimit?.max,
-            })) || [];
+            const questions = validation?.mergedQuestions?.map(q => {
+                const canonicalQuestion = canonicalizeReadingQuestion({
+                    questionNumber: q.questionNumber,
+                    type: q.type,
+                    questionText: q.questionText || '',
+                    options: q.labeledOptions || q.options || [],
+                    labeledOptions: q.labeledOptions,
+                    optionLabelFormat: (q as any).optionLabelFormat,
+                    sectionReferences: (q as any).sectionReferences,
+                });
+
+                if (canonicalQuestion.issues.length > 0) {
+                    throw new Error(canonicalQuestion.issues[0]!.message);
+                }
+
+                return {
+                    id: `q-${q.questionNumber}`,
+                    number: q.questionNumber,
+                    questionNumber: q.questionNumber,
+                    questionText: canonicalQuestion.questionText,
+                    question: canonicalQuestion.question,
+                    type: q.type,
+                    options: canonicalQuestion.options || [],
+                    labeledOptions: canonicalQuestion.labeledOptions,
+                    optionLabelFormat: canonicalQuestion.optionLabelFormat,
+                    sectionReferences: canonicalQuestion.sectionReferences,
+                    answer: q.answer || '',
+                    answerSource: 'ai-suggestion' as const,
+                    passageId: q.passageId || passages[0]?.id || 'default',
+                    confidence: q.confidence || 80,
+                    points: 1,
+                    wordLimit: q.wordLimit?.max,
+                };
+            }) || [];
 
             const sectionInstructions: Record<string, string> = {};
 

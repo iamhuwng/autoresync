@@ -65,6 +65,13 @@ import { ROUTES } from '../constants/routes';
 import type { DraftDocument } from '../types/draft.types';
 import { useDraftAutoSave } from '../hooks/useDraftAutoSave';
 import auditService from '../services/auditService';
+import type { ReadingLabeledOption, ReadingSectionReference } from '../types/document.types';
+import {
+    canonicalizeReadingQuestion,
+    createDefaultReadingOptions,
+    isCanonicalReadingOptionType,
+    isMatchingInformationType,
+} from '../utils/readingQuestionContract';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -76,6 +83,94 @@ interface PageState {
     accessDenied: boolean;
     draft: DraftDocument | null;
 }
+
+const toReviewOptions = (question: {
+    questionNumber?: number;
+    type?: string;
+    questionText?: string;
+    question?: string;
+    options?: Array<string | ReadingLabeledOption> | null;
+    labeledOptions?: ReadingLabeledOption[] | null;
+    optionLabelFormat?: 'letter' | 'roman' | 'number' | null;
+    sectionReferences?: ReadingSectionReference[] | null;
+}): Array<ReadingLabeledOption | string> | null => {
+    const result = canonicalizeReadingQuestion({
+        questionNumber: question.questionNumber,
+        type: question.type,
+        questionText: question.questionText ?? question.question,
+        options: question.options,
+        labeledOptions: question.labeledOptions,
+        optionLabelFormat: question.optionLabelFormat,
+        sectionReferences: question.sectionReferences,
+    });
+
+    if (isMatchingInformationType(question.type)) {
+        return null;
+    }
+
+    if (!isCanonicalReadingOptionType(question.type)) {
+        return question.options || null;
+    }
+
+    return result.labeledOptions || null;
+};
+
+const toReviewSectionReferences = (question: {
+    questionNumber?: number;
+    type?: string;
+    questionText?: string;
+    question?: string;
+    options?: Array<string | ReadingLabeledOption> | null;
+    labeledOptions?: ReadingLabeledOption[] | null;
+    optionLabelFormat?: 'letter' | 'roman' | 'number' | null;
+    sectionReferences?: ReadingSectionReference[] | null;
+}): ReadingSectionReference[] | null => {
+    const result = canonicalizeReadingQuestion({
+        questionNumber: question.questionNumber,
+        type: question.type,
+        questionText: question.questionText ?? question.question,
+        options: question.options,
+        labeledOptions: question.labeledOptions,
+        optionLabelFormat: question.optionLabelFormat,
+        sectionReferences: question.sectionReferences,
+    });
+
+    return result.sectionReferences || null;
+};
+
+const serializeDraftQuestions = (
+    questions: ReviewParsedQuestion[],
+    fallbackPassageId?: string,
+): StorageQuestion[] => questions.map((question) => {
+    const canonicalQuestion = canonicalizeReadingQuestion({
+        questionNumber: question.questionNumber,
+        type: question.type,
+        questionText: question.questionText,
+        options: question.options || [],
+        optionLabelFormat: question.optionLabelFormat,
+        sectionReferences: question.sectionReferences,
+    });
+
+    return {
+        id: `q-${question.questionNumber}`,
+        number: question.questionNumber,
+        questionNumber: question.questionNumber,
+        questionText: canonicalQuestion.questionText,
+        question: canonicalQuestion.question,
+        type: question.type,
+        options: canonicalQuestion.options || [],
+        labeledOptions: canonicalQuestion.labeledOptions,
+        optionLabelFormat: canonicalQuestion.optionLabelFormat,
+        sectionReferences: canonicalQuestion.sectionReferences,
+        answer: question.answer || '',
+        answerSource: 'ai-suggestion',
+        passageId: question.passageId || fallbackPassageId || 'default',
+        confidence: question.confidence || 80,
+        points: 1,
+        wordLimit: question.wordLimit,
+        sectionInstructionId: question.sectionInstructionId,
+    };
+});
 
 // ═══════════════════════════════════════════════════════════════════════════
 // HELPER COMPONENTS
@@ -369,9 +464,31 @@ const TestReviewPage: React.FC = () => {
 
                 return {
                     questionNumber: q.questionNumber,
-                    questionText: q.questionText || q.question || '',
+                    questionText: canonicalizeReadingQuestion({
+                        questionNumber: q.questionNumber,
+                        type: mappedType,
+                        questionText: q.questionText || q.question || '',
+                    }).questionText,
                     type: mappedType as ReviewParsedQuestion['type'],
-                    options: q.options || null,
+                    options: toReviewOptions({
+                        questionNumber: q.questionNumber,
+                        type: mappedType,
+                        questionText: q.questionText || q.question || '',
+                        options: q.options,
+                        labeledOptions: q.labeledOptions,
+                        optionLabelFormat: q.optionLabelFormat || null,
+                        sectionReferences: q.sectionReferences || null,
+                    }),
+                    sectionReferences: toReviewSectionReferences({
+                        questionNumber: q.questionNumber,
+                        type: mappedType,
+                        questionText: q.questionText || q.question || '',
+                        options: q.options,
+                        labeledOptions: q.labeledOptions,
+                        optionLabelFormat: q.optionLabelFormat || null,
+                        sectionReferences: q.sectionReferences || null,
+                    }),
+                    optionLabelFormat: q.optionLabelFormat,
                     answer: q.answer,
                     passageId: q.passageId,
                     sectionInstructionId: q.sectionInstructionId,
@@ -431,11 +548,11 @@ const TestReviewPage: React.FC = () => {
         setLocalQuestions(prev => {
             const updated = prev.map(q => (q.questionNumber === questionNumber ? { ...q, ...updates } : q));
             // Trigger auto-save with updated questions (cast to any for partial update)
-            triggerSave({ questions: updated as any });
+            triggerSave({ questions: serializeDraftQuestions(updated, localPassages[0]?.id) as any });
             return updated;
         });
         setHasUnsavedChanges(true);
-    }, [triggerSave]);
+    }, [triggerSave, localPassages]);
 
     const handleSectionInstructionChange = useCallback((instructionId: string, updates: Partial<{ text: string; wordLimit?: number; allowReuse?: boolean }>) => {
         setLocalSectionInstructions(prev => {
@@ -446,21 +563,21 @@ const TestReviewPage: React.FC = () => {
         if (updates.wordLimit !== undefined) {
             setLocalQuestions(prev => {
                 const updated = prev.map(q => q.sectionInstructionId === instructionId || q.passageId === instructionId ? { ...q, wordLimit: updates.wordLimit } : q);
-                triggerSave({ questions: updated as any });
+                triggerSave({ questions: serializeDraftQuestions(updated, localPassages[0]?.id) as any });
                 return updated;
             });
         }
         setHasUnsavedChanges(true);
-    }, [triggerSave]);
+    }, [triggerSave, localPassages]);
 
     const handleQuestionDelete = useCallback((questionNumber: number) => {
         setLocalQuestions(prev => {
             const updated = prev.filter(q => q.questionNumber !== questionNumber);
-            triggerSave({ questions: updated as any });
+            triggerSave({ questions: serializeDraftQuestions(updated, localPassages[0]?.id) as any });
             return updated;
         });
         setHasUnsavedChanges(true);
-    }, [triggerSave]);
+    }, [triggerSave, localPassages]);
 
     const handleQuestionAdd = useCallback((passageId?: string) => {
         setLocalQuestions(prev => {
@@ -469,14 +586,15 @@ const TestReviewPage: React.FC = () => {
                 questionNumber: maxNum + 1,
                 questionText: '',
                 type: 'multiple-choice',
-                options: ['A', 'B', 'C', 'D'],
+                options: createDefaultReadingOptions(4, 'letter'),
+                optionLabelFormat: 'letter',
                 answer: undefined,
                 passageId: passageId || localPassages[0]?.id || 'default',
                 confidence: 100,
                 uncertain: false,
             };
             const updated = [...prev, newQuestion];
-            triggerSave({ questions: updated as any });
+            triggerSave({ questions: serializeDraftQuestions(updated, localPassages[0]?.id) as any });
             setHighlightedQuestion(newQuestion.questionNumber);
             return updated;
         });
@@ -509,7 +627,7 @@ const TestReviewPage: React.FC = () => {
     }, []);
 
     const handleSaveDraft = useCallback(() => {
-        triggerSave({ questions: localQuestions as any, passages: localPassages as any });
+        triggerSave({ questions: serializeDraftQuestions(localQuestions, localPassages[0]?.id) as any, passages: localPassages as any });
     }, [triggerSave, localQuestions, localPassages]);
 
     // Role-aware navigation: teachers -> lobby, super_admin -> admin materials
@@ -533,6 +651,21 @@ const TestReviewPage: React.FC = () => {
             !q.answer || (typeof q.answer === 'string' ? q.answer.trim() === '' : Array.isArray(q.answer) && q.answer.length === 0)
         );
         if (missingAnswers.length > 0) {
+            return;
+        }
+
+        const currentReadingContractIssues = localQuestions.flatMap((question) =>
+            canonicalizeReadingQuestion({
+                questionNumber: question.questionNumber,
+                type: question.type,
+                questionText: question.questionText,
+                options: question.options || [],
+                optionLabelFormat: question.optionLabelFormat,
+                sectionReferences: question.sectionReferences,
+            }).issues,
+        );
+
+        if (currentReadingContractIssues.length > 0) {
             return;
         }
 
@@ -584,21 +717,35 @@ const TestReviewPage: React.FC = () => {
             });
 
             // 3. Transform questions to storage format
-            const storageQuestions: StorageQuestion[] = localQuestions.map((q) => ({
-                id: `q-${q.questionNumber}`,
-                number: q.questionNumber,
-                questionNumber: q.questionNumber,
-                questionText: q.questionText || '',
-                question: q.questionText || '',
-                type: q.type,
-                options: q.options || [],
-                answer: q.answer || '',
-                answerSource: 'ai-suggestion' as const,
-                passageId: q.passageId || storagePassages[0]?.id || 'default',
-                confidence: q.confidence || 80,
-                points: 1,
-                wordLimit: q.wordLimit,
-            }));
+            const storageQuestions: StorageQuestion[] = localQuestions.map((q) => {
+                const canonicalQuestion = canonicalizeReadingQuestion({
+                    questionNumber: q.questionNumber,
+                    type: q.type,
+                    questionText: q.questionText || '',
+                    options: q.options || [],
+                    optionLabelFormat: q.optionLabelFormat,
+                    sectionReferences: q.sectionReferences,
+                });
+
+                return {
+                    id: `q-${q.questionNumber}`,
+                    number: q.questionNumber,
+                    questionNumber: q.questionNumber,
+                    questionText: canonicalQuestion.questionText,
+                    question: canonicalQuestion.question,
+                    type: q.type,
+                    options: canonicalQuestion.options || [],
+                    labeledOptions: canonicalQuestion.labeledOptions,
+                    optionLabelFormat: canonicalQuestion.optionLabelFormat,
+                    sectionReferences: canonicalQuestion.sectionReferences,
+                    answer: q.answer || '',
+                    answerSource: 'ai-suggestion' as const,
+                    passageId: q.passageId || storagePassages[0]?.id || 'default',
+                    confidence: q.confidence || 80,
+                    points: 1,
+                    wordLimit: q.wordLimit,
+                };
+            });
 
             // 4. Save test to Firebase
             console.log('📤 [TestReviewPage] Publishing draft as test...', {
@@ -726,6 +873,19 @@ const TestReviewPage: React.FC = () => {
         return items.filter(i => !dismissedItemIds.has(i.id));
     }, [localQuestions, resolvedItemIds, dismissedItemIds]);
 
+    const readingContractIssues = useMemo(() => {
+        return localQuestions.flatMap((question) =>
+            canonicalizeReadingQuestion({
+                questionNumber: question.questionNumber,
+                type: question.type,
+                questionText: question.questionText,
+                options: question.options || [],
+                optionLabelFormat: question.optionLabelFormat,
+                sectionReferences: question.sectionReferences,
+            }).issues,
+        );
+    }, [localQuestions]);
+
     // Completeness checks (ported from useTestCreation)
     const completenessChecks: CompletenessCheck[] = useMemo(() => {
         const totalQuestions = localQuestions.length;
@@ -790,8 +950,19 @@ const TestReviewPage: React.FC = () => {
             });
         }
 
+        if (readingContractIssues.length > 0) {
+            checks.push({
+                id: 'reading-contract',
+                label: 'Reading Labels',
+                description: 'Canonical Reading labels must be complete and structurally valid',
+                status: 'incomplete',
+                count: { current: 0, required: readingContractIssues.length },
+                details: readingContractIssues.slice(0, 5).map((issue) => issue.message),
+            });
+        }
+
         return checks;
-    }, [localQuestions, localPassages, uncertainItems]);
+    }, [localQuestions, localPassages, uncertainItems, readingContractIssues]);
 
     const completenessPercent = useMemo(() => {
         if (completenessChecks.length === 0) return 100;
@@ -802,8 +973,9 @@ const TestReviewPage: React.FC = () => {
     const canPublish = useMemo(() => {
         return completenessChecks.every(c => c.status === 'complete' || c.status === 'warning') &&
             localPassages.length > 0 &&
-            localQuestions.length > 0;
-    }, [completenessChecks, localPassages.length, localQuestions.length]);
+            localQuestions.length > 0 &&
+            readingContractIssues.length === 0;
+    }, [completenessChecks, localPassages.length, localQuestions.length, readingContractIssues.length]);
 
     // ─────────────────────────────────────────────────────────────────────────
     // Render

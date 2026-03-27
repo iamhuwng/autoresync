@@ -11,6 +11,10 @@
 
 import seedrandom from 'seedrandom';
 import type { THCSTest, THCSSection, THCSQuestion } from '../types/thcs-test.types';
+import {
+    splitReadingOptionLabel,
+    type ReadingOptionDisplayValue,
+} from './readingOptionDisplay';
 
 // ── Fisher-Yates Shuffle ──
 // Standard in-place shuffle using a seeded RNG
@@ -118,7 +122,10 @@ export default shuffleTest;
 export interface IELTSShuffleOptions {
     shuffleQuestions: boolean;
     shuffleOptions: boolean;
+    preserveCanonicalLabels?: boolean;
 }
+
+type IELTSOptionLike = ReadingOptionDisplayValue;
 
 interface IELTSQuestionLike {
     id?: string | number;
@@ -126,11 +133,37 @@ interface IELTSQuestionLike {
     type?: string;
     passageId?: string | null;
     summaryGroupId?: string | null;
-    options?: string[];
+    options?: IELTSOptionLike[];
+    labeledOptions?: IELTSOptionLike[];
+    sectionReferences?: Array<{ label?: string; title?: string; paragraph?: string }>;
     answer?: unknown;
 }
 
 const IELTS_NO_PASSAGE_ID = '__no_passage__';
+
+const CANONICAL_LETTER_LABEL_PATTERN = /^\s*(?:\([A-Ha-h]\)|[A-Ha-h])(?:[.)]|\s+)\s*\S/;
+const CANONICAL_ROMAN_LABEL_PATTERN = /^\s*(?:\((?:xiii|xii|xi|x|ix|viii|vii|vi|iv|iii|ii|i)\)|(?:xiii|xii|xi|x|ix|viii|vii|vi|iv|iii|ii|i))(?:[.)]|\s+)\s*\S/i;
+const CANONICAL_NUMBER_LABEL_PATTERN = /^\s*(?:\(\d+\)|\d+)(?:[.)]|\s+)\s*\S/;
+
+function hasCanonicalOptionLabel(option: IELTSOptionLike): boolean {
+    if (typeof option !== 'string') {
+        return Boolean(option.label?.trim());
+    }
+
+    const trimmed = option.trim();
+    return CANONICAL_LETTER_LABEL_PATTERN.test(trimmed)
+        || CANONICAL_ROMAN_LABEL_PATTERN.test(trimmed)
+        || CANONICAL_NUMBER_LABEL_PATTERN.test(trimmed);
+}
+
+function hasCanonicalLabeledOptions(options?: IELTSOptionLike[]): boolean {
+    return Boolean(options?.length && options.every(hasCanonicalOptionLabel));
+}
+
+function optionToComparableText(option: IELTSOptionLike): string {
+    const split = splitReadingOptionLabel(option);
+    return split.text || split.label || '';
+}
 
 function buildIELTSGroupKey(question: IELTSQuestionLike): string {
     return `${question.type ?? ''}::${question.summaryGroupId ?? ''}`;
@@ -229,12 +262,25 @@ export function shuffleIELTSTest(
     // 2. Shuffle MCQ options per question
     if (options.shuffleOptions) {
         result = result.map(q => {
+            if (
+                options.preserveCanonicalLabels !== false
+                && (
+                    (Array.isArray(q.sectionReferences) && q.sectionReferences.length > 0)
+                    || q.type === 'matching-information'
+                    || hasCanonicalLabeledOptions(q.labeledOptions)
+                    || (Array.isArray(q.labeledOptions) && q.labeledOptions.length > 0)
+                    || hasCanonicalLabeledOptions(q.options)
+                )
+            ) {
+                return q;
+            }
+
             // Only shuffle if the question has MCQ-style options
             if (!q.options || !Array.isArray(q.options) || q.options.length <= 1) return q;
 
-            const originalOptions = [...q.options];
+            const originalOptions = q.options.map(optionToComparableText);
             const shuffledOptions = shuffleArray<string>(
-                q.options as string[],
+                q.options.map(optionToComparableText),
                 `${studentUid}_${testId}_opt_${q.number ?? q.id ?? 'unknown'}`
             );
 
@@ -272,6 +318,7 @@ export function getIELTSQuestionsForStudent(
     const normalizedOptions: IELTSShuffleOptions = {
         shuffleQuestions: Boolean(options?.shuffleQuestions),
         shuffleOptions: Boolean(options?.shuffleOptions),
+        preserveCanonicalLabels: options?.preserveCanonicalLabels !== false,
     };
 
     if (!studentUid || (!normalizedOptions.shuffleQuestions && !normalizedOptions.shuffleOptions)) {

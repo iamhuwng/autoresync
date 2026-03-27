@@ -15,6 +15,8 @@ import '@testing-library/jest-dom';
 import { render, screen, act, waitFor, fireEvent } from '@testing-library/react';
 import React from 'react';
 
+const listenerRegistry = new Map<string, { success?: (snapshot: any) => void; error?: (error: any) => void }>();
+
 // ─── Hoisted mocks ──────────────────────────────────────────────────────────
 
 const {
@@ -87,6 +89,9 @@ import { ResultSlidePanel } from './ResultSlidePanel';
 
 const MOCK_RESULT = {
   resultId: 'res-1',
+  sessionCode: 'hw-session-1',
+  testId: 'test-1',
+  studentId: 'student-1',
   testTitle: 'IELTS Reading Practice Test 3',
   testType: 'reading',
   testSkill: 'reading',
@@ -100,6 +105,15 @@ const MOCK_RESULT = {
   totalQuestions: 20,
   bandScore: 7.0,
   questionResults: [],
+  context: {
+    type: 'homework',
+    source: { type: 'homework', id: 'hw-1', name: 'Homework 1' },
+    configApplied: {
+      timerMinutes: 30,
+      feedbackTiming: 'after_completion',
+      source: 'teacher_override',
+    },
+  },
 };
 
 const MOCK_THCS_RESULT = {
@@ -119,9 +133,24 @@ const MOCK_GENERIC_RESULT = {
   bandScore: undefined,
 };
 
+const MOCK_LEGACY_CONTEXT_RESULT = {
+  ...MOCK_GENERIC_RESULT,
+  resultId: 'res-legacy-context',
+  sessionCode: 'legacy-session',
+  context: {
+    source: { type: 'class', id: 'class-legacy', name: 'Legacy Class' },
+    configApplied: {
+      timerMinutes: 20,
+      feedbackTiming: 'after_completion',
+      source: 'teacher_override',
+    },
+  },
+};
+
 const MOCK_REVIEWABLE_RESULT = {
   ...MOCK_THCS_RESULT,
   resultId: 'res-review',
+  sessionCode: 'hw-session-review',
   totalQuestions: 5,
   correct: 3,
   incorrect: 2,
@@ -135,11 +164,53 @@ const MOCK_REVIEWABLE_RESULT = {
   ],
 };
 
+const MOCK_LIVE_SESSION_RESULT = {
+  ...MOCK_REVIEWABLE_RESULT,
+  resultId: 'res-live',
+  sessionCode: 'live-session-1',
+  context: {
+    type: 'class_session',
+    source: { type: 'class', id: 'class-1', name: 'Class 1' },
+    configApplied: {
+      timerMinutes: 45,
+      feedbackTiming: 'after_completion',
+      source: 'teacher_override',
+    },
+  },
+};
+
+const MOCK_LIVE_SESSION_THCS_RESULT = {
+  ...MOCK_LIVE_SESSION_RESULT,
+  testId: 'test-live',
+  studentId: 'student-1',
+  timeElapsed: 900,
+  thcsData: {
+    scaledScore: 6.0,
+    sectionResults: [
+      {
+        sectionId: 'grammar',
+        sectionName: 'Grammar',
+        pointsEarned: 3,
+        pointsMax: 5,
+        correctCount: 3,
+        totalCount: 5,
+        percentage: 60,
+        intentBreakdown: {
+          mcq_grammar: { correct: 3, total: 5 },
+        },
+      },
+    ],
+    intentBreakdown: {
+      mcq_grammar: { correct: 3, total: 5 },
+    },
+  },
+};
+
 /**
  * Helper to simulate onValue calling the success callback
  */
-function simulateOnValueSuccess(data: any) {
-  const successCb = mockOnValue.mock.calls[0]?.[1];
+function emitSnapshot(path: string, data: any) {
+  const successCb = listenerRegistry.get(path)?.success;
   if (successCb) {
     act(() => {
       successCb({
@@ -153,13 +224,29 @@ function simulateOnValueSuccess(data: any) {
 /**
  * Helper to simulate onValue calling the error callback
  */
-function simulateOnValueError(error: any) {
-  const errorCb = mockOnValue.mock.calls[0]?.[2];
+function emitError(path: string, error: any) {
+  const errorCb = listenerRegistry.get(path)?.error;
   if (errorCb) {
     act(() => {
       errorCb(error);
     });
   }
+}
+
+function emitResultSnapshot(resultId: string, data: any) {
+  emitSnapshot(`test_results/${resultId}`, data);
+}
+
+function emitResultError(resultId: string, error: any) {
+  emitError(`test_results/${resultId}`, error);
+}
+
+function emitSessionSnapshot(sessionCode: string, data: any) {
+  emitSnapshot(`game_sessions/${sessionCode}`, data);
+}
+
+function emitSessionError(sessionCode: string, error: any) {
+  emitError(`game_sessions/${sessionCode}`, error);
 }
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
@@ -169,6 +256,7 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    listenerRegistry.clear();
     mockUseScreenSize.mockReturnValue({
       isMobile: false,
       isTablet: false,
@@ -188,8 +276,12 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
       aiApplied: true,
       mode: 'ai',
     });
-    // Default: onValue returns an unsubscribe fn
-    mockOnValue.mockReturnValue(vi.fn());
+    mockOnValue.mockImplementation((reference: { path: string }, success: (snapshot: any) => void, error?: (err: any) => void) => {
+      listenerRegistry.set(reference.path, { success, error });
+      return vi.fn(() => {
+        listenerRegistry.delete(reference.path);
+      });
+    });
     document.body.style.overflow = '';
   });
 
@@ -223,7 +315,7 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
 
     it('should display result data when loaded', () => {
       render(<ResultSlidePanel resultId="res-1" onClose={mockOnClose} />);
-      simulateOnValueSuccess(MOCK_RESULT);
+      emitResultSnapshot('res-1', MOCK_RESULT);
 
       expect(screen.getByText('IELTS Reading Practice Test 3')).toBeInTheDocument();
       expect(screen.getByText('IELTS Reading')).toBeInTheDocument();
@@ -246,7 +338,7 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
       });
 
       render(<ResultSlidePanel resultId="res-1" onClose={mockOnClose} />);
-      simulateOnValueSuccess(MOCK_RESULT);
+      emitResultSnapshot('res-1', MOCK_RESULT);
 
       expect(screen.getByTestId('rsp-header-attempt')).toHaveTextContent('Attempt 2 of 2');
       expect(screen.getByTestId('rsp-header-attempt')).toHaveTextContent('+13% improvement');
@@ -254,7 +346,7 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
 
     it('should display THCS badge for THCS test types', () => {
       render(<ResultSlidePanel resultId="res-thcs" onClose={mockOnClose} />);
-      simulateOnValueSuccess(MOCK_THCS_RESULT);
+      emitResultSnapshot('res-thcs', MOCK_THCS_RESULT);
 
       expect(screen.getByText('THCS')).toBeInTheDocument();
     });
@@ -282,7 +374,7 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
 
     it('should reload when the incoming resultId prop changes', () => {
       const { rerender } = render(<ResultSlidePanel resultId="res-1" onClose={mockOnClose} />);
-      simulateOnValueSuccess(MOCK_RESULT);
+      emitResultSnapshot('res-1', MOCK_RESULT);
 
       rerender(<ResultSlidePanel resultId="res-2" onClose={mockOnClose} />);
 
@@ -294,7 +386,7 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
   describe('Tab switch (Task 5.11c)', () => {
     it('should default to Overview tab', () => {
       render(<ResultSlidePanel resultId="res-1" onClose={mockOnClose} />);
-      simulateOnValueSuccess(MOCK_RESULT);
+      emitResultSnapshot('res-1', MOCK_RESULT);
 
       const overviewTab = screen.getByTestId('rsp-tab-overview');
       expect(overviewTab.className).toContain('rsp-tab--active');
@@ -302,7 +394,7 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
 
     it('should switch to Review Mistakes tab when clicked', () => {
       render(<ResultSlidePanel resultId="res-1" onClose={mockOnClose} />);
-      simulateOnValueSuccess(MOCK_RESULT);
+      emitResultSnapshot('res-1', MOCK_RESULT);
 
       fireEvent.click(screen.getByTestId('rsp-tab-review'));
 
@@ -310,13 +402,24 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
       expect(screen.getByTestId('rsp-tab-overview').className).not.toContain('rsp-tab--active');
     });
 
-    it('should switch to Feedback tab when clicked', () => {
-      render(<ResultSlidePanel resultId="res-1" onClose={mockOnClose} />);
-      simulateOnValueSuccess(MOCK_RESULT);
+    it('should switch to Feedback tab when clicked', async () => {
+      vi.useFakeTimers();
 
-      fireEvent.click(screen.getByTestId('rsp-tab-feedback'));
+      try {
+        render(<ResultSlidePanel resultId="res-1" onClose={mockOnClose} />);
+        emitResultSnapshot('res-1', MOCK_RESULT);
 
-      expect(screen.getByTestId('rsp-tab-feedback').className).toContain('rsp-tab--active');
+        fireEvent.click(screen.getByTestId('rsp-tab-feedback'));
+
+        await act(async () => {
+          await Promise.resolve();
+          vi.runOnlyPendingTimers();
+        });
+
+        expect(screen.getByTestId('rsp-tab-feedback').className).toContain('rsp-tab--active');
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('should jump from an incorrect overview pill to the matching review card', async () => {
@@ -327,7 +430,7 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
       });
 
       render(<ResultSlidePanel resultId="res-review" onClose={mockOnClose} />);
-      simulateOnValueSuccess(MOCK_REVIEWABLE_RESULT);
+      emitResultSnapshot('res-review', MOCK_REVIEWABLE_RESULT);
 
       fireEvent.click(screen.getByTestId('ov-pill-3'));
 
@@ -394,7 +497,7 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
       render(<ResultSlidePanel resultId="res-1" onClose={mockOnClose} />);
 
       // Simulate onValue error (before first snapshot)
-      simulateOnValueError(new Error('RTDB listener error'));
+      emitResultError('res-1', new Error('RTDB listener error'));
 
       await waitFor(() => {
         expect(screen.getByText('Could not load result. Please try again.')).toBeInTheDocument();
@@ -406,7 +509,7 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
 
     it('should show error when result is null', () => {
       render(<ResultSlidePanel resultId="res-1" onClose={mockOnClose} />);
-      simulateOnValueSuccess(null);
+      emitResultSnapshot('res-1', null);
 
       expect(screen.getByText('Result not found.')).toBeInTheDocument();
     });
@@ -415,7 +518,7 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
       mockGetTestResult.mockResolvedValueOnce(MOCK_RESULT);
 
       render(<ResultSlidePanel resultId="res-1" onClose={mockOnClose} />);
-      simulateOnValueSuccess(null); // triggers "not found" error
+      emitResultSnapshot('res-1', null); // triggers "not found" error
 
       fireEvent.click(screen.getByText('Retry'));
 
@@ -458,7 +561,7 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
   describe('Feedback generation', () => {
     it('does not auto-trigger formative feedback for IELTS results without existing feedback', async () => {
       render(<ResultSlidePanel resultId="res-1" onClose={mockOnClose} />);
-      simulateOnValueSuccess({
+      emitResultSnapshot('res-1', {
         ...MOCK_RESULT,
         testId: 'test-1',
         studentId: 'student-1',
@@ -501,7 +604,7 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
 
     it('allows manual retry for IELTS results without stored feedback', async () => {
       render(<ResultSlidePanel resultId="res-1" onClose={mockOnClose} />);
-      simulateOnValueSuccess({
+      emitResultSnapshot('res-1', {
         ...MOCK_RESULT,
         testId: 'test-1',
         studentId: 'student-1',
@@ -535,7 +638,7 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
 
     it('should auto-upgrade stored AI feedback when question explanations are still missing', async () => {
       render(<ResultSlidePanel resultId="res-thcs" onClose={mockOnClose} />);
-      simulateOnValueSuccess({
+      emitResultSnapshot('res-thcs', {
         ...MOCK_THCS_RESULT,
         testId: 'test-thcs',
         studentId: 'student-1',
@@ -600,7 +703,7 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
 
     it('should auto-upgrade stored feedback when question explanations are weak legacy scaffolding', async () => {
       render(<ResultSlidePanel resultId="res-thcs" onClose={mockOnClose} />);
-      simulateOnValueSuccess({
+      emitResultSnapshot('res-thcs', {
         ...MOCK_THCS_RESULT,
         testId: 'test-thcs',
         studentId: 'student-1',
@@ -683,7 +786,7 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
 
     it('should keep deterministic feedback visible but expose AI upgrade for saved fallback content', async () => {
       render(<ResultSlidePanel resultId="res-thcs" onClose={mockOnClose} />);
-      simulateOnValueSuccess({
+      emitResultSnapshot('res-thcs', {
         ...MOCK_THCS_RESULT,
         testId: 'test-thcs',
         studentId: 'student-1',
@@ -747,7 +850,7 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
 
     it('should auto-upgrade weak stored feedback even for generic non-IELTS results', async () => {
       render(<ResultSlidePanel resultId="res-generic" onClose={mockOnClose} />);
-      simulateOnValueSuccess({
+      emitResultSnapshot('res-generic', {
         ...MOCK_GENERIC_RESULT,
         questionResults: [
           { questionNumber: 1, questionType: 'mcq-grammar', isCorrect: false, score: 0, maxScore: 1, studentAnswer: '', correctAnswer: 'D' },
@@ -778,12 +881,141 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
     });
   });
 
+  describe('Live-session release governance', () => {
+    it('keeps waiting live-session results locked until the session has ending markers', async () => {
+      render(<ResultSlidePanel resultId="res-live" onClose={mockOnClose} />);
+      emitResultSnapshot('res-live', MOCK_LIVE_SESSION_THCS_RESULT);
+
+      await waitFor(() => {
+        expect(listenerRegistry.has('game_sessions/live-session-1')).toBe(true);
+      });
+
+      emitSessionSnapshot('live-session-1', {
+        status: 'waiting',
+        players: {
+          'student-1': {
+            name: 'Student 1',
+          },
+        },
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('rsp-release-notice-locked-review')).toBeInTheDocument();
+      });
+
+      expect(screen.queryByTestId('rsp-tab-review')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('rsp-tab-feedback')).not.toBeInTheDocument();
+    });
+
+    it('locks live-session saved results to the overview tab until review is released', async () => {
+      render(<ResultSlidePanel resultId="res-live" onClose={mockOnClose} />);
+      emitResultSnapshot('res-live', MOCK_LIVE_SESSION_THCS_RESULT);
+
+      await waitFor(() => {
+        expect(listenerRegistry.has('game_sessions/live-session-1')).toBe(true);
+      });
+
+      emitSessionSnapshot('live-session-1', {
+        status: 'in-progress',
+        reviewReleaseState: 'locked-review',
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('rsp-release-notice-locked-review')).toBeInTheDocument();
+      });
+
+      expect(screen.getByTestId('rsp-tab-overview')).toBeInTheDocument();
+      expect(screen.queryByTestId('rsp-tab-review')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('rsp-tab-feedback')).not.toBeInTheDocument();
+      expect(mockGenerateFormativeFeedbackForSavedResult).not.toHaveBeenCalled();
+    });
+
+    it('shows answer review but still withholds feedback for review-released live-session results', async () => {
+      render(<ResultSlidePanel resultId="res-live" onClose={mockOnClose} />);
+      emitResultSnapshot('res-live', MOCK_LIVE_SESSION_THCS_RESULT);
+
+      await waitFor(() => {
+        expect(listenerRegistry.has('game_sessions/live-session-1')).toBe(true);
+      });
+
+      emitSessionSnapshot('live-session-1', {
+        status: 'waiting',
+        reviewReleaseState: 'review-released',
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('rsp-release-notice-review-released')).toBeInTheDocument();
+      });
+
+      expect(screen.getByTestId('rsp-tab-review')).toBeInTheDocument();
+      expect(screen.queryByTestId('rsp-tab-feedback')).not.toBeInTheDocument();
+      expect(mockGenerateFormativeFeedbackForSavedResult).not.toHaveBeenCalled();
+    });
+
+    it('enables feedback generation only after the live-session reaches feedback release', async () => {
+      render(<ResultSlidePanel resultId="res-live" onClose={mockOnClose} />);
+      emitResultSnapshot('res-live', MOCK_LIVE_SESSION_THCS_RESULT);
+
+      await waitFor(() => {
+        expect(listenerRegistry.has('game_sessions/live-session-1')).toBe(true);
+      });
+
+      emitSessionSnapshot('live-session-1', {
+        status: 'waiting',
+        reviewReleaseState: 'feedback-released',
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('rsp-tab-feedback')).toBeInTheDocument();
+      });
+
+      await waitFor(() => {
+        expect(mockGenerateFormativeFeedbackForSavedResult).toHaveBeenCalled();
+      });
+    });
+
+    it('fails closed when the live-session release state cannot be loaded', async () => {
+      render(<ResultSlidePanel resultId="res-live" onClose={mockOnClose} />);
+      emitResultSnapshot('res-live', MOCK_LIVE_SESSION_THCS_RESULT);
+
+      await waitFor(() => {
+        expect(listenerRegistry.has('game_sessions/live-session-1')).toBe(true);
+      });
+
+      emitSessionError('live-session-1', new Error('Permission denied'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('rsp-release-notice-locked-review')).toBeInTheDocument();
+      });
+
+      expect(screen.queryByTestId('rsp-tab-review')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('rsp-tab-feedback')).not.toBeInTheDocument();
+      expect(mockGenerateFormativeFeedbackForSavedResult).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Legacy saved-result context handling', () => {
+    it('does not treat a saved result with missing context.type as live-session governed', async () => {
+      render(<ResultSlidePanel resultId="res-legacy-context" onClose={mockOnClose} />);
+      emitResultSnapshot('res-legacy-context', MOCK_LEGACY_CONTEXT_RESULT);
+
+      await waitFor(() => {
+        expect(screen.getByText('Grammar Progress Check')).toBeInTheDocument();
+      });
+
+      expect(listenerRegistry.has('game_sessions/legacy-session')).toBe(false);
+      expect(screen.queryByTestId('rsp-release-notice-locked-review')).not.toBeInTheDocument();
+      expect(screen.getByTestId('rsp-tab-review')).toBeInTheDocument();
+      expect(screen.getByTestId('rsp-tab-feedback')).toBeInTheDocument();
+    });
+  });
+
   describe('FR-035 Access-Lost Behavior (Task 3.3)', () => {
     it('shows access-lost state when RTDB returns PERMISSION_DENIED on initial load', async () => {
       render(<ResultSlidePanel resultId="res-1" onClose={mockOnClose} />);
 
       // Simulate PERMISSION_DENIED error from RTDB
-      simulateOnValueError(new Error('PERMISSION_DENIED: Permission denied'));
+      emitResultError('res-1', new Error('PERMISSION_DENIED: Permission denied'));
 
       await waitFor(() => {
         expect(screen.getByTestId('rsp-access-lost')).toBeInTheDocument();
@@ -797,14 +1029,14 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
       render(<ResultSlidePanel resultId="res-1" onClose={mockOnClose} />);
 
       // First: load successfully
-      simulateOnValueSuccess(MOCK_RESULT);
+      emitResultSnapshot('res-1', MOCK_RESULT);
 
       await waitFor(() => {
         expect(screen.getByText('IELTS Reading Practice Test 3')).toBeInTheDocument();
       });
 
       // Then: simulate a PERMISSION_DENIED (access revoked while viewing)
-      simulateOnValueError(new Error('PERMISSION_DENIED'));
+      emitResultError('res-1', new Error('PERMISSION_DENIED'));
 
       await waitFor(() => {
         expect(screen.getByTestId('rsp-access-lost')).toBeInTheDocument();
@@ -819,7 +1051,7 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
 
       // Simulate a generic network error (not permission denied)
       mockGetTestResult.mockRejectedValue(new Error('Network error'));
-      simulateOnValueError(new Error('client_offline'));
+      emitResultError('res-1', new Error('client_offline'));
 
       await waitFor(() => {
         // Should show regular error, not access-lost

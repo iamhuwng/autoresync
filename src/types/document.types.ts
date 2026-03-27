@@ -63,6 +63,22 @@ export type QuestionType =
   | 'completion'  // Legacy fallback
   | 'matching';   // Legacy fallback
 
+/** Canonical label formats used by Reading option lists */
+export type ReadingOptionLabelFormat = 'letter' | 'roman' | 'number';
+
+/** Structured option used by canonical Reading questions */
+export interface ReadingLabeledOption {
+  label: string;
+  text: string;
+}
+
+/** Section reference used by matching-information questions */
+export interface ReadingSectionReference {
+  label: string;
+  title?: string;
+  paragraph?: string;
+}
+
 /**
  * Answer source tracking for parity
  */
@@ -79,6 +95,9 @@ export interface ParsedQuestion {
   question: string;
   type: QuestionType;
   options?: string[];
+  labeledOptions?: ReadingLabeledOption[];
+  optionLabelFormat?: ReadingOptionLabelFormat;
+  sectionReferences?: ReadingSectionReference[];
   answer: string | string[];
   answerSource: AnswerSource;
   originalAIAnswer?: string | string[];
@@ -101,7 +120,6 @@ export interface ParsedQuestion {
   // Matching question formats (both individual and grouped)
   items?: any[];        // For grouped matching (items to match)
   answers?: any;        // For grouped matching (item-to-option mappings)
-  optionLabelFormat?: 'letter' | 'roman';  // Label format for matching options (A,B,C or i,ii,iii)
 
   // Diagram labeling
   imageUrl?: string;    // Image URL for diagram questions

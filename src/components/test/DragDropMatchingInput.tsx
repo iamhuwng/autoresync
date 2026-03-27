@@ -16,13 +16,21 @@ import {
 import {
     sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
-import { hasExistingLabel, toRoman, indexToLetter } from '../../utils/labelDetection';
+import {
+    buildFallbackReadingLabel,
+    getReadingQuestionOptions,
+    splitReadingOptionLabel,
+    type ReadingOptionDisplayValue,
+} from '../../utils/readingOptionDisplay';
+
+type QuestionOption = ReadingOptionDisplayValue;
 
 interface Question {
     number: number;
     type: string;
     question: string;
-    options?: string[];
+    options?: QuestionOption[];
+    labeledOptions?: QuestionOption[];
     answer: string | string[] | Record<string, string>;
     passageId: string;
     items?: Array<{ id: string; text: string }>;
@@ -38,6 +46,8 @@ interface DragDropMatchingInputProps {
 }
 
 const primaryBlue = 'rgb(65, 142, 200)';
+
+const getQuestionOptions = (question?: Question): QuestionOption[] => getReadingQuestionOptions(question);
 
 // ─── Helper: Force dnd-kit to re-measure droppable zones after layout shift ──
 // When the heading box collapses, drop zones shift UP. dnd-kit's ResizeObserver
@@ -218,13 +228,18 @@ export const DragDropMatchingInput: React.FC<DragDropMatchingInputProps> = ({
         })
     );
 
-    const options = questions[0]?.options || [];
-
-    const optionLabels = options.map((opt, i) => {
-        if (hasExistingLabel(opt, i)) return opt;
-        const prefix = labelType === 'roman' ? `${toRoman(i + 1)}.` : `${indexToLetter(i)}.`;
-        return `${prefix} ${opt}`;
-    });
+    const options = getQuestionOptions(questions[0]);
+    const optionEntries = useMemo(
+        () => options.map((option, index) => {
+            const split = splitReadingOptionLabel(option);
+            const label = split.label || buildFallbackReadingLabel(index, labelType);
+            return {
+                value: label,
+                display: split.text ? `${label}. ${split.text}` : label,
+            };
+        }),
+        [labelType, options]
+    );
 
     const usedHeadings = Object.values(answers);
 
@@ -244,8 +259,7 @@ export const DragDropMatchingInput: React.FC<DragDropMatchingInputProps> = ({
         const id = event.active.id as string;
         console.log(`🟢 [DragDrop] DragStart: "${id}"`);
         setActiveId(id);
-        const idx = options.indexOf(id);
-        setActiveText(idx >= 0 ? (optionLabels[idx] ?? id) : id);
+        setActiveText(optionEntries.find((entry) => entry.value === id)?.display ?? id);
     };
 
     const handleDragEnd = (event: DragEndEvent) => {
@@ -337,12 +351,12 @@ export const DragDropMatchingInput: React.FC<DragDropMatchingInputProps> = ({
                             ? 'none'
                             : 'max-height 0.15s ease, opacity 0.12s ease',
                     }}>
-                        {options.map((opt, i) => (
+                        {optionEntries.map((entry) => (
                             <DraggableHeading
-                                key={opt}
-                                id={opt}
-                                text={optionLabels[i] ?? opt}
-                                isUsed={usedHeadings.includes(opt)}
+                                key={entry.value}
+                                id={entry.value}
+                                text={entry.display}
+                                isUsed={usedHeadings.includes(entry.value)}
                                 disabled={disabled}
                             />
                         ))}

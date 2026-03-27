@@ -155,6 +155,8 @@ export interface WritingSubmission {
         assigningTeacherId?: string;   // Homework: auto-assigned teacher
         selectedTeacherId?: string;    // Solo: student-chosen teacher
         studentNote?: string;          // Solo: optional message to teacher
+        classId?: string;
+        className?: string;
         courseId?: string;
         courseName?: string;
         moduleId?: string;

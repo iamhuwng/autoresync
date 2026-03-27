@@ -9,13 +9,22 @@
  */
 
 import React from 'react';
-import { hasExistingLabel, indexToLetter } from '../../utils/labelDetection';
+import {
+    getReadingOptionLabel,
+    getReadingOptionText,
+    getReadingQuestionOptions,
+    type ReadingOptionDisplayValue,
+} from '../../utils/readingOptionDisplay';
+
+type QuestionOption = ReadingOptionDisplayValue;
 
 interface Question {
     number: number;
     type: string;
     question: string;
-    options?: string[];
+    options?: QuestionOption[];
+    labeledOptions?: QuestionOption[];
+    optionLabelFormat?: 'letter' | 'roman' | 'number';
     answer: string | string[] | Record<string, string>;
     passageId: string;
     items?: Array<{ id: string; text: string }>;
@@ -30,6 +39,8 @@ interface MatchingFeaturesInputProps {
 
 const primaryBlue = 'rgb(65, 142, 200)';
 
+const getQuestionOptions = (question?: Question): QuestionOption[] => getReadingQuestionOptions(question);
+
 export const MatchingFeaturesInput: React.FC<MatchingFeaturesInputProps> = ({
     questions,
     answers,
@@ -37,7 +48,8 @@ export const MatchingFeaturesInput: React.FC<MatchingFeaturesInputProps> = ({
     disabled = false
 }) => {
     // Use the first question to get the list of options (they should be identical for the group)
-    const options = questions[0]?.options || [];
+    const options = getQuestionOptions(questions[0]);
+    const optionLabelFormat = questions[0]?.optionLabelFormat || 'letter';
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
@@ -63,7 +75,8 @@ export const MatchingFeaturesInput: React.FC<MatchingFeaturesInputProps> = ({
                     gap: '0.5rem'
                 }}>
                     {options.map((opt, i) => {
-                        const letter = indexToLetter(i);
+                        const label = getReadingOptionLabel(opt, i, optionLabelFormat);
+                        const text = getReadingOptionText(opt);
                         return (
                             <div
                                 key={`opt-${i}`}
@@ -76,22 +89,16 @@ export const MatchingFeaturesInput: React.FC<MatchingFeaturesInputProps> = ({
                                     fontFamily: 'Arial, sans-serif'
                                 }}
                             >
-                                {hasExistingLabel(opt, i) ? (
-                                    <div style={{ flex: 1 }}>{opt}</div>
-                                ) : (
-                                    <>
-                                        <div style={{
-                                            fontWeight: 700,
-                                            minWidth: '24px',
-                                            color: '#000'
-                                        }}>
-                                            {letter}
-                                        </div>
-                                        <div style={{ flex: 1 }}>
-                                            {opt}
-                                        </div>
-                                    </>
-                                )}
+                                <div style={{
+                                    fontWeight: 700,
+                                    minWidth: '24px',
+                                    color: '#000'
+                                }}>
+                                    {label}
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                    {text || ''}
+                                </div>
                             </div>
                         );
                     })}
@@ -145,16 +152,16 @@ export const MatchingFeaturesInput: React.FC<MatchingFeaturesInputProps> = ({
                                 gap: '0',
                                 marginLeft: '36px',
                             }}>
-                                {options.map((_, i) => {
-                                    const letter = indexToLetter(i);
-                                    const isSelected = currentAnswer === letter;
+                                {options.map((option, i) => {
+                                    const label = getReadingOptionLabel(option, i, optionLabelFormat);
+                                    const isSelected = currentAnswer === label;
                                     const isLast = i === options.length - 1;
                                     return (
                                         <button
-                                            key={letter}
+                                            key={label}
                                             onClick={() => {
                                                 if (disabled) return;
-                                                onAnswerChange(q.number, isSelected ? '' : letter);
+                                                onAnswerChange(q.number, isSelected ? '' : label);
                                             }}
                                             disabled={disabled}
                                             style={{
@@ -177,7 +184,7 @@ export const MatchingFeaturesInput: React.FC<MatchingFeaturesInputProps> = ({
                                                 padding: 0,
                                             }}
                                         >
-                                            {letter}
+                                            {label}
                                         </button>
                                     );
                                 })}

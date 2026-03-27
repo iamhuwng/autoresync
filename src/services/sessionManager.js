@@ -21,6 +21,7 @@ import {
   isOldFormat,
   getStudentAssignment as getStudentAssignmentHelper
 } from './sessionHelpers';
+import { getSessionEndReleaseState } from '../types/releaseState.types';
 
 // Session expiration time (24 hours in milliseconds)
 const SESSION_EXPIRATION_MS = 24 * 60 * 60 * 1000;
@@ -460,10 +461,26 @@ export async function endSession(sessionCode, finalData = {}) {
 
     const sessionData = snapshot.val();
     const updates = {};
+    const now = Date.now();
+    const currentTestId = sessionData.testId || null;
 
     // Update session status
     updates[`game_sessions/${sessionCode}/status`] = SessionStatus.COMPLETED;
-    updates[`game_sessions/${sessionCode}/completedAt`] = Date.now();
+    updates[`game_sessions/${sessionCode}/completedAt`] = now;
+    updates[`game_sessions/${sessionCode}/lastTestCompletedAt`] = now;
+    updates[`game_sessions/${sessionCode}/lastTestId`] = currentTestId;
+    updates[`game_sessions/${sessionCode}/reviewReleaseState`] = getSessionEndReleaseState(
+      sessionData.reviewReleaseState
+    );
+    updates[`game_sessions/${sessionCode}/reviewReleaseStateUpdatedAt`] = now;
+
+    if (currentTestId && sessionData.players) {
+      Object.keys(sessionData.players).forEach((playerId) => {
+        updates[`game_sessions/${sessionCode}/players/${playerId}/lastTestId`] = currentTestId;
+        updates[`game_sessions/${sessionCode}/players/${playerId}/lastTestSessionCode`] = sessionCode;
+        updates[`game_sessions/${sessionCode}/players/${playerId}/lastTestEndedAt`] = now;
+      });
+    }
 
     // Merge final data
     Object.keys(finalData).forEach(key => {
