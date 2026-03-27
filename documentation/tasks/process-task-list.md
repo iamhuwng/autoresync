@@ -6,7 +6,7 @@ Guidelines for managing task lists in markdown files to track progress on comple
 - **Completion protocol:**  
 
   1. If **all** subtasks underneath a parent task are now `[x]`, follow this sequence:
-    - **First**: Run the full test suite (`pytest`, `npm test`, `bin/rails test`, etc.)
+    - **First**: Run a proper related test suite (`pytest`, `npm test`, `bin/rails test`, etc.)
     - **Only if all tests pass**: Stage changes (`git add .`)
     - **Clean up**: Remove any temporary files and temporary code before committing
     - **Commit**: Use a descriptive commit message that:
@@ -41,6 +41,6 @@ When working with task lists, the AI must:
    - Mark each finished **sub‑task** `[x]`.
    - Mark the **parent task** `[x]` once **all** its subtasks are `[x]`.
 3. Create a new file name `findings-of-tasks-[prd-file-name].md` (e.g., `findings-of-tasks-0001-prd-user-profile-editing.md`) to add newly discovered tasks and new findings (of irregularity, disparity or a need to branch out from the tasklist). 
-	ONLY ADD. MUST NOT EDIT, REMOVE, OR COMBINE EXISTING CONTENT UNTIL THE TASKLIST IS FINISHED.
+	ONLY ADD after each subtask completion. MUST NOT EDIT, REMOVE, OR COMBINE EXISTING CONTENT UNTIL THE TASKLIST IS FINISHED.
 4. Keep "Relevant Files" accurate and up to date.
 5. Before starting work, check which sub‑task is next.

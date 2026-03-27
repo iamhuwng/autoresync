@@ -1,11 +1,8 @@
 ---
 title: Test System Architecture
+description: 'Complete test lifecycle architecture: IELTS + THCS creation, editing, session management, test-taking, grading, results. The single entry point for understanding the test system.'
 createdAt: '2026-02-27T16:15:16.855Z'
-updatedAt: '2026-02-27T16:15:25.953Z'
-description: >-
-  Complete test lifecycle architecture: IELTS + THCS creation, editing, session
-  management, test-taking, grading, results. The single entry point for
-  understanding the test system.
+updatedAt: '2026-03-25T18:08:12.003Z'
 tags:
   - architecture
   - test
@@ -13,6 +10,7 @@ tags:
   - thcs
   - core
 ---
+
 # Test System Architecture
 
 ## Overview
@@ -99,7 +97,7 @@ The test system is the core feature of the platform. It supports two test types 
 │  Teacher can end test early → autoSubmitAllUnsubmitted()        │
 │                                                                  │
 │  IELTS: Auto-graded (answer key matching + band calculation)    │
-│  THCS: Auto-graded for MC/fill-in, manual for writing          │
+│  THCS: Auto-graded for MC/fill-in, manual for writing           │
 │                                                                  │
 │  Results saved to: /test_results/{resultId}                     │
 │  Indexes: /test_results_by_session/, /test_results_by_student/  │
@@ -134,7 +132,7 @@ The test system is the core feature of the platform. It supports two test types 
 | `THCSTestEditorPage.tsx` | THCS test creation (wizard) |
 | `TestPageRouter.tsx` | Routes to correct test-taking UI |
 | `StudentTestPage.tsx` | IELTS test-taking interface |
-| `TeacherTestMonitorPage.tsx` | Teacher live session monitor |
+| `TeacherTestMonitorPage.tsx` | Teacher live session monitor, integrity alerts, and investigation entry point |
 | `TestReviewPage.tsx` | Post-test answer review |
 
 ### Components
@@ -168,13 +166,14 @@ The test system is the core feature of the platform. It supports two test types 
 ## Data Flow — RTDB Paths
 
 ```
-/tests/{testId}                          — Test definition (questions, passages, metadata)
-/sessions/{sessionId}                    — Active session state
-/sessions/{sessionId}/participants/      — Connected students
-/test_results/{resultId}                 — Individual result records
-/test_results_by_session/{sessionId}/    — Session → results index
-/test_results_by_student/{studentId}/    — Student → results index
-/guest_results/{resultId}               — Guest user results (separate bucket)
+/tests/{testId}                                      — Test definition (questions, passages, metadata)
+/sessions/{sessionId}                                — Active session state
+/sessions/{sessionId}/participants/                  — Connected students
+/game_sessions/{sessionCode}/players/{studentId}/integrity — Live integrity summary / timeline for teacher monitoring
+/test_results/{resultId}                             — Individual result records
+/test_results_by_session/{sessionId}/                — Session → results index
+/test_results_by_student/{studentId}/                — Student → results index
+/guest_results/{resultId}                            — Guest user results (separate bucket)
 ```
 
 ## Known Patterns & Gotchas
@@ -191,12 +190,24 @@ The test system is the core feature of the platform. It supports two test types 
 - ⚠️ Guest detection: ONLY use `startsWith('guest_')`, never pattern-match on UID format
 - See @doc/sop/test-end-flow-debug-retrospective
 
-### Test Creation Pipeline (IELTS)
-- Upload → TypeClassifier (confidence scoring) → AI Extractor if <70% → Validation → Review
-- AI uses Gemini primary, Groq fallback
-- Checkpoint/resume for long documents
-- See @doc/system/project-structure-test-creation
+### Live Integrity Monitoring
+- The teacher live monitor should surface suspicious behavior in three layers: per-student badge, session summary, and on-demand detail panel.
+- Normalize both full-report and aggregate-only integrity payloads before rendering monitor UI.
+- Incremental alerts should compare current `violationCount` against the previous observed count; do not replay old incidents on first load.
+- Manual refresh is a recovery path when live integrity state may be stale.
+- Opening integrity details from the live monitor is a tracked teacher action, not an incidental UI affordance.
+- See @doc/architecture/session-test-modes and @doc/patterns/pattern-live-session-integrity-visibility
 
+### Test Creation Pipeline (IELTS)
+- Upload -> TypeClassifier (confidence scoring) -> AI Extractor if `<70%` -> Validation -> Review -> Draft save -> Publish.
+- AI uses Gemini primary, Groq fallback.
+- Checkpoint/resume is supported for long documents.
+- Reading questions now pass through a canonical contract before they are considered draft-safe or publish-safe.
+- The canonicalizer strips only the matching leading question number, preserves authoritative extracted labels, and normalizes option-bearing tasks into explicit fields.
+- Generic Reading label-bearing tasks use structured `{ label, text }` options plus `optionLabelFormat`.
+- `matching-information` is not treated as a generic text-option task. It uses explicit `sectionReferences` and is validated separately from `matching-features` and `matching-headings`.
+- Review and publish both re-run the canonicalizer so malformed label groups cannot be silently persisted.
+- See @doc/system/project-structure-test-creation and @doc/migration/ielts-types-migration-reference.
 ## Related PRDs
 - @doc/prd/prd-thcs-phase-1 — THCS test system foundation
 - @doc/prd/prd-thcs-phase-2 — THCS live session & monitoring
@@ -210,3 +221,45 @@ The test system is the core feature of the platform. It supports two test types 
 - @doc/sop/test-end-flow-debug-retrospective — End flow debugging journey
 - @doc/sop/timer-bug-fix-retrospective — Timer bug investigation
 - @doc/sop/tfynng-implementation — True/False/Yes/No/Not Given question type
+
+
+## Student-Safe Payload Preflight (2026-03-25)
+
+Live session start has a preflight step before the session status changes: the teacher path builds `session_test_payloads/{sessionCode}` from the full test document and only then marks the session as started.
+
+This means student-safe payload generation is part of the start-path contract, not a background optimization. If the sanitizer fails, the session never reaches `in-progress`.
+
+### Shape Contract
+- IELTS and legacy tests use a flat `questions[]` container.
+- THCS tests use `sections[].questions`.
+- The sanitizer must preserve the student-facing document shape while stripping answer-bearing fields from the question containers that actually exist.
+
+### Anti-Cheat Boundary
+`antiCheatConfig` is stored separately on the session record and consumed later by student clients. It affects runtime behavior such as fullscreen enforcement and shuffling, but it does not change the schema of the cached student-safe payload.
+
+### Regression Lesson
+A March 25, 2026 bug assumed every live-startable test exposed `testData.questions`. THCS sessions failed to start because their questions live under `sections[].questions`. The fix was to make the payload builder shape-aware and cover both shapes with regression tests.
+
+See also @doc/architecture/session-test-modes and @doc/patterns/pattern-shape-aware-student-safe-test-payloads.
+
+## Reading Canonical Label Contract (2026-03-26)
+
+The IELTS Reading pipeline now treats extracted labels as source content instead of display-only chrome.
+
+### Root Cause Addressed
+- AI and review data could carry labels inside free text such as `A proof`, `ii. The spread of cities`, or `27. The burial site was found...`.
+- The student runtime also generated labels from order or array index.
+- That produced duplicate-label failures such as `v. v. ...`, `A A`, and doubled question numbers.
+
+### Canonical Contract
+- `questionNumber` is the authoritative numbering field.
+- `questionText` stores prompt-only content and strips a leading number only when it matches `questionNumber`.
+- Generic label-bearing Reading task types store `labeledOptions: { label, text }[]` plus `optionLabelFormat`.
+- `matching-information` stores `sectionReferences: string[]` instead of text-bearing labeled options.
+
+### Ownership Boundary
+- Extraction may still begin from flat strings, but canonicalization runs before draft save and before publish.
+- Review surfaces canonical Reading fields and blocks publish on mixed, duplicate, or malformed labels.
+- Student runtime consumes canonical fields directly and no longer regenerates labels for canonical Reading questions.
+
+See also: @doc/system/project-structure-test-creation, @doc/patterns/pattern-ai-flat-text-to-structured-field-decomposition, @doc/patterns/pattern-shape-aware-student-safe-test-payloads.

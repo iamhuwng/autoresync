@@ -1,124 +1,54 @@
-# PRD-0040 FR Closure Matrix
+﻿# Result View FR Closure Matrix
 
-This matrix records current closure status for PRD-0040 against the live repo. Status reflects what is proven today, not the intended future architecture.
+Unified result-view closure mapping for the PRD-0040 architecture baseline and the currently active PRD-0041 Phase 1 visibility policy.
+
+Scope note:
+- PRD-0040 owns the cross-surface result-view architecture, shell boundaries, and reuse law.
+- PRD-0041 currently supplies the teacher-visibility and unresolved-reporting policy tracked in this matrix.
+- Closure updates must preserve both layers rather than replacing the broader PRD-0040 governance pack with phase-local wording.
+
+Companion docs:
+- `documentation/tasks/0041-prd-result-visibility-ownership-governance.md`
+- `documentation/tasks/tasks-0041-prd-result-visibility-ownership-governance.md`
+- `documentation/architecture/result-visibility-ownership-governance.md`
 
 Status keys:
+- `planned`
+- `in-progress`
 - `verified`
-- `partial`
-- `unverified`
 
-## 5.1 Governance and Living Documentation
-
-| FR | Status | Evidence | Verification anchor | Notes |
+| FR IDs | Phase 1 contract | Primary code targets | Primary test anchors | Status |
 |---|---|---|---|---|
-| `FR-001` | verified | `documentation/architecture/result-view-map.md` exists | this doc pack | Living result-view map is now published. |
-| `FR-002` | verified | `documentation/architecture/result-view-permission-matrix.md` exists | this doc pack | Living permission matrix is now published. |
-| `FR-003` | verified | `documentation/rules/result-view-reuse.md` exists | this doc pack | Reuse-before-new-view rule is now published. |
-| `FR-004` | verified | result-view map classifies active, unwired, and demo-only surfaces | `result-view-map.md` | Classification exists as a living doc now. |
-| `FR-005` | verified | result-view map records domain type per surface | `result-view-map.md` | Domain taxonomy is published. |
-| `FR-005A` | verified | writing surfaces are classified by lifecycle role | `result-view-map.md` | Includes `draft`, `monitor`, `queue`, `editor`, `result`, `alternate/dormant`. |
-| `FR-006` | verified | map and matrix exist as paired deliverables | this doc pack | Future changes must update both. |
-| `FR-007` | partial | PRD and `documentation/conversation_2026-03-21_log.md` show documented change tracking; `.knowns` history also exists | PRD, conversation log, `.knowns` | Existing habit is visible, but future task discipline is still procedural. |
-| `FR-008` | verified | reuse rule now says reviewers block merge when required artifacts are missing | `result-view-reuse.md` | Review guidance is now explicit. |
-| `FR-009` | verified | reuse rule requires canonical surface, roles, entry owners, data paths, tests, and non-goals | `result-view-reuse.md` | Closure artifact now exists. |
-| `FR-010` | verified | reuse rule requires usage/import/route/test audit before migration scope | `result-view-reuse.md` | Explicitly documented. |
+| `FR-001` to `FR-010` | One shared visibility policy, outer assignment gate only, unresolved excluded from teacher-owned surfaces | `src/services/resultOwnershipResolver.ts`, `src/services/resultVisibility.service.ts`, `src/services/securityMiddleware.ts`, `src/services/testResults.service.ts` | `src/services/resultOwnershipResolver.test.ts`, `src/services/resultVisibility.service.test.ts`, `src/services/securityMiddleware.test.ts`, `src/__tests__/security/ownership.test.ts` | verified |
+| `FR-011` to `FR-016` | Canonical precedence: homework -> class session -> class-linked course material -> standalone course material -> solo practice | `src/services/resultOwnershipResolver.ts` | `src/services/resultOwnershipResolver.test.ts` | verified |
+| `FR-017` to `FR-022` | Authoritative source rules, including writing linkage and ban on weak teacher fields | `src/services/resultOwnershipResolver.ts`, `src/services/writingSubmissionService.ts`, `src/types/session.types.ts`, `src/types/ielts-writing.types.ts` | `src/services/resultOwnershipResolver.test.ts`, `src/services/writingSubmissionService.test.ts` | verified |
+| `FR-023` to `FR-031` | Submission-time snapshot drives history, deleted-source behavior, and teacher list/detail labeling | `src/types/results.types.ts`, `src/services/resultVisibility.service.ts`, `src/pages/TeacherStudentHistoryPage.tsx`, `src/components/results/LegacyResultDetailView.tsx` | `src/services/resultVisibility.service.test.ts`, `src/pages/TeacherStudentHistoryPage.test.tsx`, `src/components/results/LegacyResultDetailView.test.tsx` | verified |
+| `FR-032` to `FR-037` | Solo practice visible after outer gate, tagged, view-only, excluded from analytics | `src/services/resultVisibility.service.ts`, `src/services/testResults.service.ts`, `src/pages/TeacherStudentHistoryPage.tsx`, `src/components/results/LegacyResultDetailView.tsx` | `src/services/resultVisibility.service.test.ts`, `src/services/testResults.service.test.ts`, `src/pages/TeacherStudentHistoryPage.test.tsx`, `src/components/results/LegacyResultDetailView.test.tsx` | verified |
+| `FR-038` to `FR-041` | Immediate access revocation and reassignment restoration | `src/components/access/AccessControlWrapper.tsx`, `src/hooks/useOwnershipCheck.ts`, `src/services/securityMiddleware.ts`, `src/pages/TeacherStudentHistoryPage.tsx`, `src/pages/ResultDetailPage.tsx` | `src/components/access/AccessControlWrapper.test.tsx`, `src/hooks/useOwnershipCheck.test.ts`, `src/services/securityMiddleware.test.ts`, `src/pages/TeacherStudentHistoryPage.test.tsx`, `src/pages/ResultDetailPage.test.tsx` | verified |
+| `FR-042` to `FR-052` | New-write normalization contract across canonical writers | `src/types/results.types.ts`, `src/services/testResults.service.ts`, `src/hooks/test/useTestSubmission.ts`, `src/hooks/solo/useSoloSubmission.ts`, `src/components/practice/THCSPracticeView.tsx`, `src/components/thcs-student/THCSTestLayout.tsx`, `src/services/writingSubmissionService.ts`, `src/components/writing-practice/WritingPracticeView.tsx` | `src/services/testResults.service.test.ts`, `src/hooks/test/useTestSubmission.test.ts`, `src/hooks/solo/useSoloSubmission.test.ts`, `src/services/writingSubmissionService.test.ts` | verified |
+| `FR-053` to `FR-059` | Shared read-time enrichment and safe legacy handling | `src/services/testResults.service.ts`, `src/services/resultsService.ts`, `src/services/guestResultsService.ts`, `src/services/resultVisibilityReindex.service.ts` | `src/services/testResults.service.test.ts`, `src/services/resultsService.test.ts`, `src/services/guestResultsService.test.ts`, `src/services/resultVisibilityReindex.service.test.ts` | verified |
+| `FR-060` to `FR-063` | Admin-only unresolved reconciliation and reporting | `src/services/resultVisibilityReporting.service.ts`, `src/services/reportingService.ts`, `src/pages/AdminReportsPage.tsx`, `database.rules.json` | `src/services/resultVisibilityReporting.service.test.ts`, `src/services/reportingService.test.ts`, `src/pages/AdminReportsPage.test.tsx`, `src/__tests__/security/firebaseRules.test.ts` | verified |
+| `FR-064` to `FR-067` | Live quiz canonical persistence and teacher-history completeness | `src/pages/StudentQuizPageNew.jsx`, `src/services/testResults.service.ts`, `src/services/resultOwnershipResolver.ts` | `src/pages/StudentQuizPageNew.test.jsx`, `src/services/testResults.service.test.ts`, `src/services/resultOwnershipResolver.test.ts` | verified |
+| `FR-068` to `FR-074` | Shared consumer adoption, teacher shell, result-detail shell, filter derivation, and solo-practice analytics exclusion | `src/pages/TeacherStudentHistoryPage.tsx`, `src/pages/ResultDetailPage.tsx`, `src/components/results/LegacyResultDetailView.tsx`, `src/components/results/ResultFilters.tsx`, `src/pages/TeacherStudentsPage.tsx` | `src/pages/TeacherStudentHistoryPage.test.tsx`, `src/pages/ResultDetailPage.test.tsx`, `src/components/results/LegacyResultDetailView.test.tsx`, `src/components/results/ResultFilters.test.tsx` | verified |
+| `FR-075` to `FR-080` | Governance deliverables and review law | `documentation/architecture/result-visibility-ownership-governance.md`, `documentation/result-visibility-producer-consumer-contract.md`, `documentation/rules/result-visibility-review-checklist.md`, `documentation/architecture/result-view-permission-matrix.md` | doc review plus task-list completion | verified |
 
-## 5.2 Shared Saved-Result Architecture
+## Locked Test Matrix
 
-| FR | Status | Evidence | Verification anchor | Notes |
-|---|---|---|---|---|
-| `FR-011` | verified | all 3 active shells delegate content to `SharedSavedResultCore` | `SharedSavedResultCore.test.tsx`, shell tests | Task 2.0 complete: shared core extracts common presentation. |
-| `FR-012` | verified | access checks remain in shells and route wrappers, not in `SharedSavedResultCore` | `SharedSavedResultCore.tsx` (presentation-only), `LegacyResultDetailView.tsx`, `PrivateRoute.jsx` | Core is explicitly contract-bound to never decide access. |
-| `FR-013` | verified | `SharedSavedResultCore` renders score summary, answer map, section breakdown, question review, feedback display via `OverviewTab`, `ReviewTab`, `FeedbackTab` | `SharedSavedResultCore.test.tsx` | Common concern set is now a unified contract. |
-| `FR-014` | verified | exactly three active saved-result shells remain | result shell tests, `ResultDetailPage.test.tsx` | No fourth active shell found. |
-| `FR-015` | verified | student entry owners preserved; `ResultSlidePanel` delegates to shared core while keeping panel chrome and attempt switching | `ResultSlidePanel.test.tsx`, `AcademicRecordPage.test.tsx`, dashboard/homework tests | Preservation documented and verified post-migration. |
-| `FR-016` | verified | teacher modal + homework host behavior preserved; `ResultDetailModal` delegates to shared core while keeping modal chrome, data loading, and auto-trigger | `TeacherHomeworkDetailPage.test.tsx`, `ResultDetailModal.test.tsx` | Behavior preserved and verified post-migration. |
-| `FR-017` | verified | teacher/admin full-page route remains canonical non-student deep link | `ResultDetailPage.test.tsx` | Students are redirected out. |
-| `FR-018` | verified | `ResultDetailPage.tsx` routes both `teacher` and `super_admin` to the same `LegacyResultDetailView`. No separate admin shell exists. `useResultOwnershipCheck` grants `super_admin` broader access via `useTeacherAccess`. | `ResultDetailPage.test.tsx` (super_admin test), Task 3.7 findings | Confirmed in Task 3.7a: shell reuse is complete. |
-| `FR-019` | partial | No admin-specific diagnostic UI exists in any result shell. Admin Tools are deferred to Phase 2+. | Task 3.7b finding | PRD target, not current code artifact. Explicitly deferred. |
-| `FR-020` | verified | `LegacyResultDetailView` has zero mutation actions: no score editing, no answer modification, no metadata editing, no result deletion. Only PDF download (read-only) and return navigation. | Task 3.7d finding, static audit | PRD out-of-scope boundary matches repo reality. |
+Later-phase policy-surface changes must update this matrix in the same change set as the governance doc, permission matrix, producer-consumer contract, and reviewer checklist.
 
-## 5.3 Feedback Parity for Saved-Result Shells
+| Scenario | Service tests | Writer-flow tests | Page/component tests | Security/rules tests | Analytics tests | Route-entry / navigation anchors | Current status |
+|---|---|---|---|---|---|---|---|
+| Homework ownership and history visibility | `src/services/resultOwnershipResolver.test.ts`, `src/services/testResults.service.test.ts`, `src/services/resultVisibility.service.test.ts` | `src/hooks/solo/useSoloSubmission.test.ts`, `src/services/writingSubmissionService.test.ts` | `src/pages/TeacherStudentHistoryPage.test.tsx`, `src/components/results/LegacyResultDetailView.test.tsx` | `src/services/securityMiddleware.test.ts`, `src/__tests__/security/ownership.test.ts` | `src/pages/TeacherStudentHistoryPage.test.tsx` | `src/pages/ResultDetailPage.test.tsx` | passing |
+| Class-session ownership and live-session teacher visibility | `src/services/resultOwnershipResolver.test.ts`, `src/services/testResults.service.test.ts`, `src/services/resultVisibility.service.test.ts` | `src/hooks/test/useTestSubmission.test.ts`, `src/components/thcs-student/THCSTestLayout.test.tsx`, `src/hooks/monitor/useMonitorControls.test.ts` | `src/pages/TeacherTestResultsPage.test.tsx`, `src/pages/TeacherStudentHistoryPage.test.tsx` | `src/__tests__/security/firebaseRules.test.ts`, `src/services/securityMiddleware.test.ts` | `src/pages/TeacherResultsDashboard.test.jsx`, `src/pages/TeacherTestResultsPage.test.tsx` | `src/pages/TeacherResultsDashboard.test.jsx`, `src/pages/TeacherTestResultsPage.test.tsx` | passing |
+| Class-linked course-material ownership | `src/services/resultOwnershipResolver.test.ts`, `src/services/testResults.service.test.ts`, `src/services/resultVisibilityReindex.service.test.ts` | `src/hooks/solo/useSoloSubmission.test.ts`, `src/components/practice/THCSPracticeView.test.tsx` | `src/pages/TeacherStudentHistoryPage.test.tsx`, `src/components/results/LegacyResultDetailView.test.tsx` | `src/__tests__/security/ownership.test.ts` | `src/pages/TeacherTestResultsPage.test.tsx`, `src/services/resultsService.test.ts` | `src/pages/TeacherTestResultsPage.test.tsx` | passing |
+| Standalone course-material ownership | `src/services/resultOwnershipResolver.test.ts`, `src/services/testResults.service.test.ts`, `src/services/resultVisibilityReindex.service.test.ts` | `src/hooks/solo/useSoloSubmission.test.ts`, `src/components/practice/THCSPracticeView.test.tsx` | `src/pages/TeacherStudentHistoryPage.test.tsx`, `src/components/results/LegacyResultDetailView.test.tsx` | `src/__tests__/security/ownership.test.ts` | `src/pages/TeacherResultsDashboard.test.jsx`, `src/services/resultsService.test.ts` | `src/pages/TeacherResultsDashboard.test.jsx` | passing |
+| Writing linked-source ownership and grading surfaces | `src/services/resultOwnershipResolver.test.ts`, `src/services/writingSubmissionService.test.ts`, `src/services/resultVisibility.service.test.ts` | `src/services/writingSubmissionService.test.ts`, `src/components/writing-practice/WritingPracticeView.test.tsx` | `src/components/writing-results/WritingTestResultsSection.test.tsx`, `src/components/results/LegacyResultDetailView.test.tsx` | `src/__tests__/security/ownership.test.ts` | `src/components/writing-results/WritingTestResultsSection.test.tsx`, `src/pages/TeacherTestResultsPage.test.tsx` | `src/pages/TeacherTestResultsPage.test.tsx`, `src/config/featureRegistry.test.ts` | passing |
+| Solo-practice read-time visibility, tags, and view-only detail | `src/services/resultVisibility.service.test.ts`, `src/services/testResults.service.test.ts` | `src/hooks/solo/useSoloSubmission.test.ts`, `src/components/practice/THCSPracticeView.test.tsx` | `src/pages/TeacherStudentHistoryPage.test.tsx`, `src/components/results/LegacyResultDetailView.test.tsx`, `src/pages/ResultDetailPage.test.tsx` | `src/services/securityMiddleware.test.ts`, `src/components/access/AccessControlWrapper.test.tsx` | `src/pages/TeacherStudentHistoryPage.test.tsx`, `src/pages/TeacherResultsDashboard.test.jsx`, `src/pages/TeacherTestResultsPage.test.tsx` | `src/pages/ResultDetailPage.test.tsx` | passing |
+| Unresolved exclusion, reporting, and admin diagnostics | `src/services/resultVisibility.service.test.ts`, `src/services/resultVisibilityReporting.service.test.ts`, `src/services/testResults.service.test.ts` | `src/hooks/monitor/useMonitorControls.test.ts` | `src/pages/AdminReportsPage.test.tsx`, `src/pages/TeacherStudentHistoryPage.test.tsx`, `src/components/results/LegacyResultDetailView.test.tsx` | `src/__tests__/security/firebaseRules.test.ts`, `src/__tests__/security/ownership.test.ts` | `src/pages/TeacherResultsDashboard.test.jsx`, `src/pages/TeacherTestResultsPage.test.tsx` | `src/pages/AdminReportsPage.test.tsx` | passing |
+| Deleted-source historical display and hidden unresolved rows | `src/services/resultVisibility.service.test.ts` | none beyond canonical result writers | `src/components/results/LegacyResultDetailView.test.tsx`, `src/pages/TeacherStudentHistoryPage.test.tsx`, `src/pages/ResultDetailPage.test.tsx` | `src/__tests__/security/ownership.test.ts` | `src/pages/TeacherResultsDashboard.test.jsx` | `src/pages/ResultDetailPage.test.tsx` | passing |
+| Access revocation and reassignment restoration | `src/services/resultVisibility.service.test.ts`, `src/services/securityMiddleware.test.ts` | none | `src/pages/TeacherStudentHistoryPage.test.tsx`, `src/pages/ResultDetailPage.test.tsx`, `src/components/access/AccessControlWrapper.test.tsx` | `src/hooks/useOwnershipCheck.test.ts`, `src/__tests__/security/firebaseRules.test.ts` | `src/pages/TeacherStudentHistoryPage.test.tsx` | `src/pages/ResultDetailPage.test.tsx` | passing |
+| Canonical writer normalization across quiz, test, THCS, writing, and monitor auto-submit | `src/services/testResults.service.test.ts`, `src/services/writingSubmissionService.test.ts` | `src/hooks/test/useTestSubmission.test.ts`, `src/hooks/solo/useSoloSubmission.test.ts`, `src/components/practice/THCSPracticeView.test.tsx`, `src/components/thcs-student/THCSTestLayout.test.tsx`, `src/components/writing-practice/WritingPracticeView.test.tsx`, `src/pages/StudentQuizPageNew.test.jsx`, `src/hooks/monitor/useMonitorControls.test.ts` | teacher-facing consumers covered by the route/page anchors above | `src/__tests__/security/ownership.test.ts` | analytics exclusion verified downstream in teacher surfaces | `src/pages/TeacherResultsDashboard.test.jsx`, `src/pages/TeacherTestResultsPage.test.tsx` | passing |
+| Legacy enrichment, safe backfill, and stale index repair | `src/services/testResults.service.test.ts`, `src/services/resultsService.test.ts`, `src/services/guestResultsService.test.ts`, `src/services/resultVisibilityReindex.service.test.ts`, `src/services/academicRecordService.test.ts`, `src/services/materialDiscoveryService.test.ts`, `src/services/badgeService.test.ts` | none | admin and teacher surfaces consume the repaired indexes through `src/pages/TeacherStudentHistoryPage.test.tsx` and `src/pages/TeacherTestResultsPage.test.tsx` | `src/__tests__/security/firebaseRules.test.ts` | `src/services/resultsService.test.ts`, `src/pages/TeacherResultsDashboard.test.jsx` | `src/pages/TeacherResultsDashboard.test.jsx`, `src/pages/TeacherTestResultsPage.test.tsx` | passing |
+| Route-entry parity and teacher-surface navigation | service ownership covered by the rows above | `src/hooks/monitor/useMonitorControls.test.ts` for monitor-triggered result routes | `src/pages/ResultDetailPage.test.tsx`, `src/pages/TeacherResultsDashboard.test.jsx`, `src/pages/TeacherTestResultsPage.test.tsx`, `src/components/writing-results/WritingTestResultsSection.test.tsx` | route permissions enforced by `src/__tests__/security/firebaseRules.test.ts` | analytics-bearing route surfaces covered by `src/pages/TeacherResultsDashboard.test.jsx` and `src/pages/TeacherTestResultsPage.test.tsx` | `src/config/featureRegistry.test.ts`, `src/pages/TeacherResultsDashboard.test.jsx`, `src/pages/TeacherTestResultsPage.test.tsx`, `src/pages/ResultDetailPage.test.tsx` | passing |
 
-| FR | Status | Evidence | Verification anchor | Notes |
-|---|---|---|---|---|
-| `FR-021` | verified | all 3 shells show identical feedback rendering via `FeedbackTab` inside `SharedSavedResultCore` | shell tests, `FeedbackTab.test.tsx`, `SharedSavedResultCore.test.tsx` | Feedback parity achieved through shared core. |
-| `FR-022` | verified | current tests encode non-identical feedback/generation behavior | `ResultSlidePanel.test.tsx`, `ResultDetailModal.test.tsx` | Prevents silent parity claims. |
-| `FR-023` | verified | `useFeedbackAutoTrigger` hook centralizes per-shell dedupe via `feedbackAttemptedRef`; `inFlightGenerations` Map in `resultFeedbackGeneration.service.ts` prevents cross-shell concurrent duplicates. | `resultFeedbackGeneration.service.test.ts`, Task 3.6 findings | Task 3.6: ~80 lines of duplicated code extracted into shared hook. |
-| `FR-024` | verified | PRD and current shells both preserve shell-specific chrome/actions. Saved-result contract documented in Task 3.8d. | shell implementations, Task 3.8d finding | Current architecture supports this statement. |
-| `FR-025` | verified | no separate admin feedback editing workflow found; admin receives same read-only feedback display as teacher | Task 3.7c finding, static audit | Boundary matches repo. |
-| `FR-026` | partial | `LegacyResultDetailView` (admin shell) has NO feedback trigger or retry actions. Admin feedback auditing is moot because no generation occurs in the admin path. Student/teacher shells use `useFeedbackAutoTrigger` with console logging. | Task 3.7c finding | Auditing capability deferred until admin Tools are implemented. |
 
-## 5.4 Utility and Presentation Reuse
-
-| FR | Status | Evidence | Verification anchor | Notes |
-|---|---|---|---|---|
-| `FR-027` | verified | `SharedSavedResultCore` extracts `OverviewTab`, `ReviewTab`, `FeedbackTab`, `StudyRecommendations`, and presentation helpers into shared components | `SharedSavedResultCore.tsx`, shared component files | Duplicate helpers consolidated into shared core. |
-| `FR-028` | verified | scoring config path exists; `calculateBandScore()` is deprecated | static audit of scoring files | PRD wording matches code reality. |
-| `FR-029` | verified | session-only, guest-only, and writing-only logic remain separate today | domain audit docs | Existing code strongly supports this boundary. |
-
-## 5.5 Security and Permission Boundaries
-
-| FR | Status | Evidence | Verification anchor | Notes |
-|---|---|---|---|---|
-| `FR-030` | verified | Task 3.2 named the enforcement layer for all 6 saved-result entry paths and documented wiring status in `result-view-permission-matrix.md` §Task 3.2 | `result-view-permission-matrix.md`, `result-view-map.md`, `ResultDetailPage.test.tsx`, `LegacyResultDetailView.test.tsx` | Route/shell/data-hook boundaries are now explicitly named per path. Student paths rely on RTDB backend rules (documented). Teacher full-page paths use `useResultOwnershipCheck`. |
-| `FR-031` | verified | shared presentation is not the access authority where checks exist | `PrivateRoute.jsx`, `useOwnershipCheck.ts` | Matches current structure. |
-| `FR-032` | verified | Student redirect to `/student/academic-record?result={resultId}` confirmed working; ownership gap explicitly carried as documented risk per Task 0.5 Decision 1 | `ResultDetailPage.test.tsx` (redirect tests), `prd0040-preflight-ledger.md` §Decision 1 | PRD requires explicit disposition, not immediate fix. Carry decision is explicit. Teacher/admin path guarded by `useResultOwnershipCheck`. Backend RTDB rule mismatch remains a separate tracked risk. |
-| `FR-033` | verified | Task 3.10 audit confirmed `ResultSlidePanel` is used ONLY in student pages (StudentHomeworkListPage, StudentHomeworkDetailPage, AcademicRecordPage). Contains no teacher/admin role checks or teacher-specific actions. | Task 3.10a finding, import graph audit | Isolation is enforced by import graph formation. |
-| `FR-034` | verified | Task 3.10 audit confirmed `ResultDetailModal` is used ONLY in TeacherHomeworkDetailPage. `LegacyResultDetailView` is used ONLY in `ResultDetailPage` which redirects students away before rendering. | Task 3.10a finding, import graph audit | Isolation is enforced by import graph and route guards. |
-| `FR-035` | verified | Task 3.3 implemented PERMISSION_DENIED detection in `ResultSlidePanel` and `ResultDetailModal` RTDB listeners. Access-lost state clears sensitive data and shows lock icon UI. | `ResultSlidePanel.test.tsx` (3 FR-035 tests), `ResultDetailModal.test.tsx`, `rtdbAccessLost.ts` | Both real-time shells now detect access revocation and immediately remove sensitive content. `LegacyResultDetailView` uses one-shot fetch with `useResultOwnershipCheck` for initial denial. |
-| `FR-036` | verified | guest claim and demo/public paths are now explicitly documented as non-canonical risks | `result-view-permission-matrix.md`, `result-view-map.md` | Consolidation warning is grounded in concrete code and rules. |
-
-## 5.6 Unwired, Legacy, and Demo Resolution
-
-| FR | Status | Evidence | Verification anchor | Notes |
-|---|---|---|---|---|
-| `FR-037` | verified | import/route/test/demo relevance audit completed and documented, including `TeacherResultsDashboard` and `SubmissionCompletePage` | `result-view-map.md` | Major surfaces classified. |
-| `FR-038` | verified | each known unwired/demo surface now has an explicit resolution disposition in the map | `result-view-map.md` | Includes `remove now`, `keep for named future task`, or `convert to documented legacy wrapper`. |
-| `FR-039` | verified | default-removal rule is explicitly documented in the reuse rule and current unwired/demo rows are triaged | `result-view-reuse.md`, `result-view-map.md` | Governance closure is documented even though code cleanup remains future work. |
-| `FR-040` | verified | reuse rule now requires recoverable git reference plus removal note and change record before deletion | `result-view-reuse.md` | Procedural rule is now explicit. |
-| `FR-041` | partial | alternate/dormant writing surfaces are classified, but no removal gate is yet tracked in code | `result-view-map.md` | Classification exists; lifecycle gate remains future work. |
-
-## 5.7 Permanent Practice Requirements
-
-| FR | Status | Evidence | Verification anchor | Notes |
-|---|---|---|---|---|
-| `FR-042` | verified | map and permission matrix now exist | doc pack | Deliverables published. |
-| `FR-043` | verified | reuse rule now makes map/matrix/change-record updates review-critical and merge-blocking | `result-view-reuse.md` | Rule captured. |
-| `FR-044` | verified | reuse rule requires files, tests, docs, and forbidden moves | `result-view-reuse.md` | Explicit task discipline documented. |
-| `FR-045` | verified | reuse rule requires canonical surface naming before coding | `result-view-reuse.md` | Explicit. |
-| `FR-045A` | verified | entry owners/workflow owners are now explicit in PRD and rule doc | PRD, `result-view-reuse.md` | Closed at doc level. |
-| `FR-045B` | verified | PRD main body vs Appendix A split is preserved | PRD | Current structure matches rule. |
-
-## 5.8 Live-Session Review Release Model
-
-| FR | Status | Evidence | Verification anchor | Notes |
-|---|---|---|---|---|
-| `FR-046` | verified | Three-state release model (`locked-review`, `review-released`, `feedback-released`) is implemented via `getReleaseVisibility()` in `releaseStateConfig.ts`. UI-layer gating is the primary enforcement mechanism. | Task 4.3 code audit, `releaseStateConfig.ts` | Phase 2 verification confirmed the release-state contract is functional. Backend RTDB rules do not enforce field-level restriction (Finding F-4.7a — accepted posture). |
-| `FR-047` | verified | `getReleaseVisibility('locked-review', 'student')` defaults to `showScore: true, showCorrectAnswers: false, showExplanations: false, showFeedback: false`. Session surfaces (`TestResultsModal`, `StudentTestResultsPage`) consume this via release-state props. | Task 4.3 code audit | UI-layer enforcement is implemented. Data-layer enforcement is not (accepted posture per F-4.7a). |
-| `FR-048` | verified | Student session surfaces respect release-state visibility config. `StudentTestResultsPage.tsx` renders sections conditionally based on `getReleaseVisibility()` output. | Task 4.3 code audit, `StudentTestResultsPage.tsx` | Alignment verified — currently running release-state contract. |
-| `FR-049` | verified | current result payloads do not consistently support question-stem snapshot guarantees | session/post-test audit | PRD warning matches current data contract. |
-| `FR-050` | verified | Teacher monitor page (`TeacherTestMonitorPage`) owns release controls via `releaseState` field on `game_sessions`. `FeedbackTab` is absent from monitor (Finding F-4.6a) — monitor remains operational surface only. | Task 4.6 code audit | Monitor page confirmed as control surface, not long-form result viewer. |
-| `FR-051` | verified | Same-result cross-entry behavior is governed by surface domain: session-scoped surfaces use release-state gating; saved-result shells display full content to the result owner. Cross-entry parity is enforced by `getReleaseVisibility()` for session surfaces. | Task 4.8c manual check, Finding F-4.4a | Saved results are outside release-state governance (accepted posture). |
-| `FR-052` | verified | Teacher/admin exception paths return all visibility flags as `true` regardless of release state. `getReleaseVisibility(anyState, 'teacher')` and `getReleaseVisibility(anyState, 'admin')` bypass restrictions. | Task 4.3 code audit, Task 4.8c manual check | Teachers and admins see everything — confirmed in code. |
-| `FR-053` | partial | Backend RTDB rules do not enforce field-level restriction for unreleased content (`correctAnswer`, feedback). UI-layer gating is the enforcer. Feedback uses delayed-generation contract (Finding F-4.7b) — not written until student opens saved-result shell. | Finding F-4.7a, F-4.7b, F-4.7c | Accepted data-layer posture. Backend enforcement is a future migration target. |
-| `FR-054` | verified | `feedback-released` is the third tier of the release model. `getReleaseVisibility('feedback-released', 'student')` returns `showFeedback: true`. Feedback is only generated via `useFeedbackAutoTrigger` when a student opens a saved-result shell (delayed-generation contract). | Task 4.7 verification, Finding F-4.7b | Feedback-released policy state exists and is functional. |
-
-## Edge Cases and Forbidden Moves
-
-| Item | Status | Evidence | Verification anchor | Notes |
-|---|---|---|---|---|
-| Query-param owner bypass | partial | `/student/academic-record?result=` opens panel directly | `AcademicRecordPage.test.tsx` | Routing proven, ownership not runtime-proven. |
-| Notification metadata bypass | partial | dashboard opens result panel from `metadata.resultId` | `StudentDashboardPage.teachers.test.jsx` | No tamper-proof test. |
-| Guest claim writes to canonical path with compatibility metadata | verified | `guestResultsService.ts` writes `test_results/{userId}` with additive `claimedAt`/`claimedFrom` | `guestResultsService.test.ts`, `ClaimResultsModal.test.tsx`, Finding F-5.2a | Storage decision: keep current compatibility path. Claim destination IS canonical (Finding F-5.2a). |
-| Session/post-test flattened into `resultId` loader | verified | current loaders remain session-first and fallback-heavy | `StudentTestResultsPage.test.tsx`, `TeacherTestResultsPage.test.tsx` | Strongly disproven by current code. |
-| Writing simplified into single result-view flow | verified | draft/monitor/queue/editor/result/THCS inline all exist | static audit docs | Strongly disproven by current code. |
-| Parent-owned entry pages treated as wrappers | verified | academic record, dashboard, homework, history all have real behavior | page tests | PRD warning grounded in code. |
-| Demo/public surfaces ignored | verified | demo pages are reachable and classified | `result-view-map.md` | Public risk is concrete. |
-| Stale route/config producers treated as surface truth | verified | invalid student class deep link, config-only route, and incomplete feature registry are all documented | `result-view-map.md` | Route config and observability metadata are not authoritative inventories. |
-
-## Remaining Non-Doc Closure Work
-
-- Run `src/__tests__/security/prd0040-security.emulator.test.ts` through RTDB + Firestore emulators once Java is available locally or on an external Java-capable runner/CI host.
-- Add tamper-path tests for `?result=`, notification metadata/link, and legacy `/student/results/:sessionCode`.
-- Decide whether to align backend rules with PRD ownership intent or weaken the PRD intentionally.

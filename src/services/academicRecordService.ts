@@ -8,11 +8,12 @@
  * Part of PRD-0015: Academic Record & Enhanced Profile System - Phase 3
  */
 
-import { ref, get, runTransaction } from 'firebase/database';
+import { ref, runTransaction } from 'firebase/database';
 // @ts-ignore
 import { database } from './firebase';
 import { EnhancedTestResultRecord } from '../types/results.types';
 import type { SectionResult as THCSSectionResult } from '../types/thcs-test.types';
+import { getStudentResults as getCanonicalStudentResults } from './testResults.service';
 import {
     AcademicSummary,
     CourseProgress,
@@ -58,31 +59,11 @@ export async function getResultsByStudent(
     studentId: string
 ): Promise<EnhancedTestResultRecord[]> {
     try {
-        const indexRef = ref(database, `test_results_by_student/${studentId}`);
-        const indexSnapshot = await get(indexRef);
+        const results = await getCanonicalStudentResults(studentId);
+        return results as EnhancedTestResultRecord[];
 
-        if (!indexSnapshot.exists()) {
-            return [];
-        }
-
-        const resultIds = Object.keys(indexSnapshot.val());
 
         // Fetch all results — gracefully skip any that throw Permission denied
-        const results = await Promise.all(
-            resultIds.map(async (resultId) => {
-                try {
-                    const resultRef = ref(database, `test_results/${resultId}`);
-                    const snapshot = await get(resultRef);
-                    return snapshot.exists() ? (snapshot.val() as EnhancedTestResultRecord) : null;
-                } catch {
-                    // Individual result may be inaccessible (e.g., missing studentId field)
-                    console.warn(`[AcademicRecord] Skipping inaccessible result: ${resultId}`);
-                    return null;
-                }
-            })
-        );
-
-        return results.filter((r): r is EnhancedTestResultRecord => r !== null);
     } catch (error) {
         console.error('Error fetching student results:', error);
         throw new Error('Failed to fetch student results');

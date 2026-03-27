@@ -10,7 +10,9 @@ import {
     getUnreadNotifications,
     markNotificationAsRead,
     markAllNotificationsAsRead,
-    getPaginatedUserNotifications
+    getPaginatedUserNotifications,
+    sendSessionOpenedNotifications,
+    sendTestStartedNotifications,
 } from './notificationService';
 import type { Notification } from '../types/notification.types';
 
@@ -182,6 +184,40 @@ describe('notificationService', () => {
 
             expect(result.notifications).toHaveLength(2);
             expect(result.hasMore).toBe(false);
+        });
+    });
+
+    describe('live session links', () => {
+        it('routes session-opened notifications through the waiting room', async () => {
+            mockGet.mockResolvedValueOnce({
+                exists: () => true,
+                val: () => ({
+                    'student-1': true,
+                    'student-2': true
+                })
+            });
+            mockUpdate.mockResolvedValueOnce(undefined);
+
+            await sendSessionOpenedNotifications('class-1', 'LIVE123', 'test', 'IELTS Class');
+
+            const [, updates] = mockUpdate.mock.calls[0];
+            expect(updates['notifications/student-1/mock-notif-id'].link).toBe('/student-wait/LIVE123');
+            expect(updates['notifications/student-2/mock-notif-id'].link).toBe('/student-wait/LIVE123');
+        });
+
+        it('routes test-started notifications through the waiting room', async () => {
+            mockGet.mockResolvedValueOnce({
+                exists: () => true,
+                val: () => ({
+                    'student-1': true
+                })
+            });
+            mockUpdate.mockResolvedValueOnce(undefined);
+
+            await sendTestStartedNotifications('class-1', 'LIVE456', 'IELTS Reading');
+
+            const [, updates] = mockUpdate.mock.calls[0];
+            expect(updates['notifications/student-1/mock-notif-id'].link).toBe('/student-wait/LIVE456');
         });
     });
 });

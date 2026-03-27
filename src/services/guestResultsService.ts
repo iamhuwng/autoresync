@@ -5,9 +5,213 @@
  * Guest results are stored separately and can be claimed when a user registers.
  */
 
-import { ref, push, get, set, remove, query, orderByChild, equalTo } from 'firebase/database';
+import { ref, push, get, set, remove, update } from 'firebase/database';
 import { database } from './firebase';
 import type { EnhancedTestResultRecord } from '../types/results.types';
+import type { ResultContext } from '../types/solo.types';
+import type { ResultVisibilityContextType } from '../types/results.types';
+import { resolveResultOwnership } from './resultOwnershipResolver';
+import { buildUnresolvedResultVisibilityReportEntry } from './resultVisibilityReporting.service';
+import {
+    getCanonicalClassIndexId,
+    getCanonicalCourseIndexId,
+    isScopedIndexBackfillEligible,
+} from './resultVisibilityReindex.service';
+
+type ResultStorageRecord = EnhancedTestResultRecord & Record<string, any>;
+
+function isPlainObject(value: unknown): value is Record<string, any> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function looksLikeCanonicalResult(value: unknown): value is ResultStorageRecord {
+    return isPlainObject(value)
+        && (typeof value.resultId === 'string'
+            || typeof value.studentId === 'string'
+            || typeof value.sessionCode === 'string'
+            || typeof value.submittedAt === 'number');
+}
+
+function looksLikeLegacyClaimBucket(value: unknown): value is Record<string, ResultStorageRecord> {
+    if (!isPlainObject(value) || looksLikeCanonicalResult(value)) {
+        return false;
+    }
+
+    const entries = Object.entries(value);
+    return entries.length > 0 && entries.every(([, childValue]) => looksLikeCanonicalResult(childValue));
+}
+
+function omitUndefined<T extends Record<string, any>>(value: T): Partial<T> {
+    return Object.fromEntries(
+        Object.entries(value).filter(([, entryValue]) => entryValue !== undefined),
+    ) as Partial<T>;
+}
+
+function inferVisibilityContextType(
+    context?: ResultContext,
+    hints?: {
+        homeworkId?: string | null;
+        classId?: string | null;
+        courseId?: string | null;
+        sessionCode?: string | null;
+    },
+): ResultVisibilityContextType | undefined {
+    if (context?.type === 'homework') return 'homework';
+    if (context?.type === 'class_session') return 'class_session';
+    if (context?.type === 'course_material') return 'course_material';
+    if (context?.type === 'self_study') return 'solo_practice';
+    if (hints?.homeworkId) return 'homework';
+    if (hints?.classId || hints?.courseId) return 'course_material';
+    if (hints?.sessionCode) return 'class_session';
+    return undefined;
+}
+
+function getTeacherIndexOwnerId(result: EnhancedTestResultRecord): string | null {
+    if (!result.visibility?.ownershipResolved) {
+        return null;
+    }
+    if (result.visibility.contextType === 'solo_practice') {
+        return null;
+    }
+    return result.visibility.visibilityOwnerTeacherId ?? null;
+}
+
+async function buildCanonicalClaimFanout(
+    result: ResultStorageRecord,
+    userId: string,
+    claimMeta: { claimedAt: number; claimedFrom: string },
+): Promise<{ resultId: string; updates: Record<string, any> }> {
+    const { guestName: _guestName, isGuestResult: _isGuestResult, savedAt: _savedAt, resultId, ...rest } = result;
+
+    const canonicalResultId = resultId;
+    const canonicalResult = omitUndefined({
+        ...rest,
+        resultId: canonicalResultId,
+        studentId: userId,
+        claimedAt: claimMeta.claimedAt,
+        claimedFrom: claimMeta.claimedFrom,
+    }) as EnhancedTestResultRecord;
+
+    const submittedAt = typeof canonicalResult.submittedAt === 'number' ? canonicalResult.submittedAt : claimMeta.claimedAt;
+    const percentage = typeof canonicalResult.percentage === 'number' ? canonicalResult.percentage : undefined;
+    const sessionCode = typeof canonicalResult.sessionCode === 'string' ? canonicalResult.sessionCode : undefined;
+    const courseId = typeof canonicalResult.courseId === 'string' && canonicalResult.courseId.trim() !== ''
+        ? canonicalResult.courseId
+        : undefined;
+    const classId = typeof canonicalResult.classId === 'string' && canonicalResult.classId.trim() !== ''
+        ? canonicalResult.classId
+        : undefined;
+    const moduleId = typeof canonicalResult.moduleId === 'string' && canonicalResult.moduleId.trim() !== ''
+        ? canonicalResult.moduleId
+        : null;
+    const studentName = typeof canonicalResult.studentName === 'string' ? canonicalResult.studentName : undefined;
+    const bandScore = typeof canonicalResult.bandScore === 'number' ? canonicalResult.bandScore : undefined;
+    const testTitle = typeof canonicalResult.testTitle === 'string' ? canonicalResult.testTitle : undefined;
+    const testSkill = typeof canonicalResult.testSkill === 'string' ? canonicalResult.testSkill : undefined;
+    const testId = typeof canonicalResult.testId === 'string' ? canonicalResult.testId : undefined;
+    const visibilityResult = await resolveResultOwnership({
+        result: canonicalResult,
+        contextType: inferVisibilityContextType(canonicalResult.context, {
+            homeworkId: canonicalResult.context?.assignment?.homeworkId ?? null,
+            classId: canonicalResult.classId ?? null,
+            courseId: canonicalResult.courseId ?? null,
+            sessionCode: canonicalResult.sessionCode ?? null,
+        }),
+        homeworkId: canonicalResult.context?.assignment?.homeworkId ?? null,
+        sessionCode: canonicalResult.sessionCode ?? null,
+        classId: canonicalResult.classId ?? null,
+        courseId: canonicalResult.courseId ?? null,
+        sourceNameSnapshot:
+            canonicalResult.context?.source?.name
+            ?? canonicalResult.className
+            ?? canonicalResult.courseName
+            ?? canonicalResult.testTitle
+            ?? null,
+    });
+
+    canonicalResult.visibility = visibilityResult.visibility;
+
+    const updates: Record<string, any> = {
+        [`test_results/${canonicalResultId}`]: canonicalResult,
+        [`test_results_by_student/${userId}/${canonicalResultId}`]: omitUndefined({
+            resultId: canonicalResultId,
+            sessionCode,
+            testId,
+            percentage,
+            submittedAt,
+        }),
+    };
+
+    if (sessionCode) {
+        updates[`test_results_by_session/${sessionCode}/${canonicalResultId}`] = omitUndefined({
+            resultId: canonicalResultId,
+            studentId: userId,
+            studentName,
+            percentage,
+            submittedAt,
+        });
+    }
+
+    const teacherIndexOwnerId = getTeacherIndexOwnerId(canonicalResult);
+    if (teacherIndexOwnerId) {
+        updates[`test_results_by_teacher/${teacherIndexOwnerId}/${canonicalResultId}`] = omitUndefined({
+            resultId: canonicalResultId,
+            sessionCode,
+            studentId: userId,
+            studentName,
+            percentage,
+            submittedAt,
+            isGuest: canonicalResult.isGuest,
+        });
+    }
+
+    if (canonicalResult.visibility.ownershipResolved) {
+        updates[`reports/result_visibility/unresolved/${canonicalResultId}`] = null;
+    } else {
+        updates[`reports/result_visibility/unresolved/${canonicalResultId}`] =
+            buildUnresolvedResultVisibilityReportEntry({
+                resultId: canonicalResultId,
+                studentId: userId,
+                visibility: canonicalResult.visibility,
+                sourceLookupAttempted: visibilityResult.sourceLookupAttempted,
+                strongestKnownSourceClue: visibilityResult.strongestKnownSourceClue,
+            });
+    }
+
+    const canWriteScopedIndexes = isScopedIndexBackfillEligible(canonicalResult);
+    const canonicalCourseId = getCanonicalCourseIndexId(canonicalResult);
+    const canonicalClassId = getCanonicalClassIndexId(canonicalResult);
+
+    if (canWriteScopedIndexes && canonicalCourseId) {
+        updates[`test_results_by_course/${canonicalCourseId}/${userId}/${canonicalResultId}`] = omitUndefined({
+            resultId: canonicalResultId,
+            studentId: userId,
+            studentName,
+            percentage,
+            bandScore,
+            testTitle,
+            testSkill,
+            submittedAt,
+            moduleId,
+        });
+    }
+
+    if (canWriteScopedIndexes && canonicalClassId) {
+        updates[`test_results_by_class/${canonicalClassId}/${userId}/${canonicalResultId}`] = omitUndefined({
+            resultId: canonicalResultId,
+            studentId: userId,
+            studentName,
+            percentage,
+            bandScore,
+            testTitle,
+            testSkill,
+            submittedAt,
+            courseId: courseId || null,
+        });
+    }
+
+    return { resultId: canonicalResultId, updates };
+}
 
 /**
  * Save a guest result to Firebase
@@ -140,7 +344,7 @@ export async function generateUniqueGuestName(baseName: string): Promise<string>
 
 /**
  * Claim all guest results and transfer them to a registered user
- * Moves results from guest_results/{guestName} to test_results/{userId}
+ * Promotes results from guest_results/{guestName}/{resultId} into canonical result storage
  * Deletes the guest results after successful transfer
  * 
  * @param guestName - Guest name to claim results from
@@ -163,24 +367,21 @@ export async function claimGuestResults(
             return 0;
         }
 
-        // Transfer each result to the user's test_results
-        const userResultsRef = ref(database, `test_results/${userId}`);
-
+        const claimTimestamp = Date.now();
+        const updates: Record<string, any> = {};
         for (const result of results) {
-            const newResultRef = push(userResultsRef);
-
-            // Remove guest-specific metadata
-            const { guestName: _, isGuestResult, savedAt, resultId, ...cleanResult } = result;
-
-            // Add user-specific metadata
-            const userResult = {
-                ...cleanResult,
-                claimedAt: Date.now(),
-                claimedFrom: guestName
-            };
-
-            await set(newResultRef, userResult);
+            const { updates: resultUpdates } = await buildCanonicalClaimFanout(
+                result as ResultStorageRecord,
+                userId,
+                {
+                    claimedAt: claimTimestamp,
+                    claimedFrom: guestName,
+                },
+            );
+            Object.assign(updates, resultUpdates);
         }
+
+        await update(ref(database), updates);
 
         // Delete guest results after successful transfer
         const guestResultsRef = ref(database, `guest_results/${guestName}`);
@@ -190,6 +391,70 @@ export async function claimGuestResults(
         return results.length;
     } catch (error) {
         console.error('Error claiming guest results:', error);
+        throw error;
+    }
+}
+
+/**
+ * Privileged maintenance helper that promotes legacy claimed rows stored under
+ * test_results/{userId}/{resultId} into canonical result storage with the
+ * expected fan-out indexes.
+ *
+ * Returns the number of migrated result rows.
+ */
+export async function migrateLegacyClaimedGuestResults(): Promise<number> {
+    try {
+        const snapshot = await get(ref(database, 'test_results'));
+
+        if (!snapshot.exists()) {
+            return 0;
+        }
+
+        const storedResults = snapshot.val();
+        if (!isPlainObject(storedResults)) {
+            return 0;
+        }
+
+        const updates: Record<string, any> = {};
+        let migratedCount = 0;
+
+        for (const [bucketUserId, bucketValue] of Object.entries(storedResults)) {
+            if (!looksLikeLegacyClaimBucket(bucketValue)) {
+                continue;
+            }
+
+            for (const [resultId, legacyResult] of Object.entries(bucketValue)) {
+                if (!looksLikeCanonicalResult(legacyResult)) {
+                    continue;
+                }
+
+                const { updates: resultUpdates } = await buildCanonicalClaimFanout(
+                    {
+                        ...(legacyResult as ResultStorageRecord),
+                        resultId,
+                    },
+                    bucketUserId,
+                    {
+                        claimedAt: typeof legacyResult.claimedAt === 'number' ? legacyResult.claimedAt : Date.now(),
+                        claimedFrom: typeof legacyResult.claimedFrom === 'string' ? legacyResult.claimedFrom : 'guest',
+                    },
+                );
+                Object.assign(updates, resultUpdates);
+                migratedCount += 1;
+            }
+
+            updates[`test_results/${bucketUserId}`] = null;
+        }
+
+        if (migratedCount === 0) {
+            return 0;
+        }
+
+        await update(ref(database), updates);
+        console.log(`Migrated ${migratedCount} legacy claimed guest result(s)`);
+        return migratedCount;
+    } catch (error) {
+        console.error('Error migrating legacy claimed guest results:', error);
         throw error;
     }
 }

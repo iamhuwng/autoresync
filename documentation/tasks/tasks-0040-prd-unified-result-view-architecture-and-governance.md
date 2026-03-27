@@ -1,4 +1,4 @@
-## Relevant Files
+﻿## Relevant Files
 
 - `documentation/tasks/0040-prd-unified-result-view-architecture-and-governance.md` - Governing PRD and final source of phase scope, acceptance gates, forbidden moves, and open questions.
 - `tasks/tasks-0040-prd-unified-result-view-architecture-and-governance.md` - Generator-compliant task-list location for PRD-0040.
@@ -64,14 +64,19 @@
 - `src/hooks/test/useTestSubmission.test.ts` - Regression coverage for submission-to-review handoff behavior.
 - `src/services/testResults.service.ts` - Session and post-test loader plus fallback logic that must stay separate from saved-result loading.
 - `src/services/testResults.service.test.ts` - Regression coverage for session and post-test loading behavior.
-- `src/pages/GuestResultsPage.tsx` - Public guest-result lookup surface that currently has CTA and route-consistency risk.
+- `src/pages/GuestResultsPage.tsx` - Public guest-result lookup surface with an accepted public-route/auth-read mismatch and tracked result-surface observability.
 - `src/pages/GuestResultsPage.test.tsx` - Add or update guest-result page coverage if this surface changes.
 - `src/pages/ProfileCompletionPage.tsx` - Guest-result claim and recovery flow entry point.
-- `src/pages/ProfileCompletionPage.test.tsx` - Add or update focused claim and recovery coverage if this surface changes.
 - `src/components/guest/ClaimResultsModal.tsx` - Guest-result claim modal that must stay explicit in the guest domain.
 - `src/components/guest/ClaimResultsModal.test.tsx` - Add or update claim-modal coverage if this surface changes.
-- `src/services/guestResultsService.ts` - Non-canonical guest-result claim storage path and claim behavior.
+- `src/services/guestResultsService.ts` - Guest-result claim canonicalization, saved-result index rebuilds, and legacy migration helper.
 - `src/services/guestResultsService.test.ts` - Regression coverage for guest-result claim behavior.
+- `src/config/featureRegistry.ts` - Result-surface observability inventory that must stay aligned with active result routes.
+- `src/config/featureRegistry.test.ts` - Coverage for result-surface route resolution.
+- `src/App.jsx` - Runtime route mounting and result-surface tracking wrappers.
+- `src/types/class.types.ts` - Student class-assignment progress shape, including persisted `resultId`.
+- `src/pages/StudentClassDetailPage.jsx` - Student class detail host that must only deep-link to canonical saved results when a real `resultId` exists.
+- `src/pages/StudentClassDetailPage.test.jsx` - Regression coverage for canonical class-result routing and fail-closed behavior.
 - `src/pages/TeacherGradingPage.tsx` - Writing grading queue front door.
 - `src/pages/TeacherGradingPage.test.tsx` - Add or update queue coverage if writing triage behavior changes.
 - `src/pages/WritingGradingPage.tsx` - Active writing grading editor.
@@ -250,9 +255,9 @@
 |---|---|
 | `src/utils/rtdbAccessLost.ts` | Task 3.3: Shared utility for detecting RTDB `PERMISSION_DENIED` errors and defining access-lost state types |
 | `src/types/releaseState.types.ts` | Task 4.1: TypeScript type definitions for the three-state release model (locked-review, review-released, feedback-released), with utility functions for state validation, comparison, and visibility flag derivation |
-| `src/components/results/ResultSlidePanel.tsx` | Task 3.3: Added PERMISSION_DENIED detection in RTDB `onValue` error handler and fallback; renders access-lost UI when triggered |
+| `src/components/results/ResultSlidePanel.tsx` | Task 3.3 / reassessment 2026-03-25: Added PERMISSION_DENIED detection in RTDB `onValue` error handler and fallback; panel now also enforces live-session release state for `class_session` saved results by reading `game_sessions/{sessionCode}` and fails closed to `locked-review` if the session release read errors |
 | `src/components/results/ResultDetailModal.tsx` | Task 3.3: Added PERMISSION_DENIED detection in RTDB `onValue` error handler; renders access-lost UI when triggered |
-| `src/components/results/ResultSlidePanel.test.tsx` | Task 3.3: Added 3 FR-035 regression tests (initial PERMISSION_DENIED, mid-session revocation, non-permission error distinction) |
+| `src/components/results/ResultSlidePanel.test.tsx` | Task 3.3 / reassessment 2026-03-25: Added 3 FR-035 regression tests (initial PERMISSION_DENIED, mid-session revocation, non-permission error distinction) plus live-session release-governance coverage for locked, review, feedback, and session-read-error paths |
 | `documentation/architecture/result-view-permission-matrix.md` | Task 3.2/3.4: Added named enforcement layers, data path audit, identifier trust model documentation |
 | `documentation/architecture/result-view-fr-closure-matrix.md` | Task 3.3: Updated FR-035 from unverified to verified |
 | `documentation/architecture/result-view-map.md` | Task 3.2: Cross-referenced enforcement layer documentation |
@@ -262,20 +267,48 @@
 | `src/services/resultFeedbackGeneration.service.ts` | Task 3.6: Added in-flight dedupe map to prevent duplicate concurrent generation calls for the same resultId |
 | `src/components/results/ResultSlidePanel.tsx` | Task 3.6: Replaced inline feedback logic with `useFeedbackAutoTrigger` hook |
 | `src/components/results/ResultDetailModal.tsx` | Task 3.6: Replaced inline feedback logic with `useFeedbackAutoTrigger` hook |
-| `src/hooks/monitor/useMonitorControls.ts` | Task 4.2: Added `setReviewReleaseState()` function, imports `ReviewReleaseState` type, writes `reviewReleaseState: 'locked-review'` during `endFullSession()` |
+| `src/hooks/monitor/useMonitorControls.ts` | Task 4.2 / reassessment 2026-03-25: Added `setReviewReleaseState()` function, imports `ReviewReleaseState` type, and now auto-promotes `endFullSession()` to `review-released` while preserving `feedback-released` if already granted |
 | `src/pages/TeacherTestMonitorPage.tsx` | Task 4.2: Destructures `setReviewReleaseState`, renders Review Release Control Bar with three-state toggle (Locked/Review/Full) |
+| `src/pages/TeacherTestMonitorPage.test.tsx` | Reassessment 2026-03-25: Added focused monitor release-control tests for render gating, active-state reflection, inactive-state mutation, and active-state no-op behavior |
+| `src/hooks/monitor/useMonitorControls.test.ts` | Reassessment 2026-03-25: Added hook-level proof that `endFullSession()` writes `review-released` by default and preserves `feedback-released` when already granted |
 | `src/hooks/test/useTeacherEndRedirect.ts` | Task 4.2: Reads session `reviewReleaseState` and passes it through to waiting room navigation state |
-| `src/components/test/TestResultsModal.tsx` | Task 4.3: Added `reviewReleaseState` prop, imports `getReleaseVisibility` and `getEffectiveReleaseState`, conditionally renders content based on release tier (locked-review hides correct answers/feedback/scoring, review-released shows answers, feedback-released shows everything) |
-| `src/pages/StudentWaitingRoomPage.jsx` | Task 4.3: Added `reviewReleaseState` state, reads initial value from navigation state, sets up live RTDB listener on `game_sessions/{code}/reviewReleaseState`, passes state to both `TestResultsModal` instances |
-| `src/pages/StudentTestResultsPage.tsx` | Task 4.4: Added release-state governance — imports visibility helpers, adds `reviewReleaseState` to `TestSession` interface, derives visibility flags from `session.reviewReleaseState`, conditionally gates performance feedback, teacher feedback, correct answers, question scoring colors/text, and per-question feedback. Adds locked-review and review-released banners. |
-| `src/pages/GuestResultsPage.tsx` | Task 5.3: Fixed three stale CTA routes (`/register` → `/` x2, `/login` → `/`). No functional change to search or result display. |
-| `src/pages/GuestResultsPage.test.tsx` | Task 5.4: New test file with 11 focused tests for GuestResultsPage — initial render, search behavior, error handling, and CTA route target verification. |
-| `src/components/guest/ClaimResultsModal.test.tsx` | Task 5.4: New test file with 13 focused tests for ClaimResultsModal — claim flow, error handling, skip flow, and domain boundary verification. |
+| `src/components/test/TestResultsModal.tsx` | Task 4.3 / continuation 2026-03-27: Added `reviewReleaseState` prop, imports `getReleaseVisibility` and `getEffectiveReleaseState`, conditionally renders content based on release tier (locked-review hides correct answers/feedback/scoring, review-released shows answers, feedback-released shows everything), and now clears retry timers on close/unmount so background reloads do not leak across modal opens |
+| `src/components/test/TestResultsModal.test.tsx` | Reassessment 2026-03-25: Added focused release-state coverage for default locked review, review release, and feedback release behavior |
+| `src/pages/StudentWaitingRoomPage.jsx` | Task 4.3 / reassessment 2026-03-25: Added `reviewReleaseState` state, reads initial value from navigation state, sets up live RTDB listener on `game_sessions/{code}/reviewReleaseState`, passes state to both `TestResultsModal` instances, and now fails closed to `locked-review` if the release-state listener errors |
+| `src/pages/StudentWaitingRoomPage.test.jsx` | Reassessment 2026-03-25: Added waiting-room release-state handoff tests for navigation-state seed, live RTDB updates, and fail-closed behavior on listener errors |
+| `src/pages/StudentTestResultsPage.tsx` | Task 4.4 / continuation 2026-03-27: Added release-state governance â€” imports visibility helpers, adds `reviewReleaseState` to `TestSession` interface, derives visibility flags from `session.reviewReleaseState`, conditionally gates performance feedback, teacher feedback, correct answers, question scoring colors/text, and per-question feedback, adds locked-review and review-released banners, and now live-subscribes to `game_sessions/{sessionCode}` so release-state changes propagate without refresh. |
+| `src/pages/GuestResultsPage.tsx` | Task 5.3: Fixed three stale CTA routes (`/register` â†’ `/` x2, `/login` â†’ `/`). No functional change to search or result display. |
+| `src/pages/GuestResultsPage.test.tsx` | Task 5.4: New test file with 11 focused tests for GuestResultsPage â€” initial render, search behavior, error handling, and CTA route target verification. |
+| `src/components/guest/ClaimResultsModal.tsx` | Continuation 2026-03-27: Moved claim-count loading into `useEffect`, replacing the earlier render-time async initialization while keeping the claim flow unchanged |
+| `src/components/guest/ClaimResultsModal.test.tsx` | Task 5.4 / continuation 2026-03-27: New test file with 13 focused tests for ClaimResultsModal â€” claim flow, error handling, skip flow, domain boundary verification, and the follow-up count-loading lifecycle fix. |
 | `documentation/architecture/result-view-map.md` | Task 5.5: Updated guest-result rows with test coverage, storage decision, Phase 3 domain classification section. |
 | `documentation/architecture/result-view-permission-matrix.md` | Task 5.5: Updated guest-result rows with test coverage, corrected mismatch classification to accepted posture. |
-| `documentation/architecture/result-view-fr-closure-matrix.md` | Task 5.5: Updated guest claim edge case row to reflect compatibility decision. |
+| `documentation/architecture/result-view-fr-closure-matrix.md` | Task 5.5 / reassessment 2026-03-25: Tracks guest-claim canonicalization, stale-route reconciliations, and the remaining migration-only guest-data risk. |
+| `src/config/routeSecurity.ts` | Reassessment 2026-03-25: Removed stale `/demo*` route-security entries for already-removed demo surfaces and deleted the config-only `/student/results/history` residue with no mounted route |
+| `src/scripts/setupFeedbackDemo.js` | Reassessment 2026-03-25: Removed stale public demo-data writer tied to deleted `/demo/feedback` flow |
+| `src/scripts/setupFeedbackDemo.ts` | Reassessment 2026-03-25: Removed unused demo-only mock generator |
+| `src/scripts/mockFeedbackData.ts` | Reassessment 2026-03-25: Removed unused demo-only feedback mock generator |
+| `scripts/pre-commit-enforcement.js` | Reassessment 2026-03-25 / continuation 2026-03-27: Added PRD-0040 governance enforcement and widened the matcher so saved-result, session/post-test, guest-result, dashboard, writing-result, and class-result producer surfaces (including `StudentClassDetailPage`, `useTestSubmission`, and `class.types`) fail when the map, permission matrix, FR matrix, or change record are missing |
+| `.github/workflows/result-view-governance.yml` | Reassessment 2026-03-25: Added CI enforcement workflow that runs the PRD-0040 governance gate on pull requests and main-branch pushes |
+| `src/services/guestResultsService.ts` | Reassessment 2026-03-25 / continuation 2026-03-27: Canonicalized guest-result claims into `test_results/{resultId}`, rebuilt the standard saved-result indexes, and kept `migrateLegacyClaimedGuestResults()` as a privileged maintenance helper for historical nested claim rows rather than auto-running it in the normal client claim flow |
+| `src/services/guestResultsService.test.ts` | Reassessment 2026-03-25: Added canonical-claim and legacy-migration regression coverage |
+| `src/config/featureRegistry.ts` | Reassessment 2026-03-25 / continuation 2026-03-27: Added `/guest-results`, `/teacher/results`, `/submission-complete`, and `/profile/complete` to the `results` feature inventory |
+| `src/config/featureRegistry.test.ts` | Reassessment 2026-03-25: Added route-resolution coverage for the widened results inventory |
+| `src/App.jsx` | Reassessment 2026-03-25 / continuation 2026-03-27: Wrapped `/guest-results` with `withTrackedRoute(..., 'results')` so public guest lookup participates in the result-surface observability contract, and now also tracks `/profile/complete` under the `results` feature |
+| `src/types/class.types.ts` | Reassessment 2026-03-25: Extended `StudentAssignment` progress shape with persisted `resultId` support |
+| `src/hooks/test/useTestSubmission.ts` | Reassessment 2026-03-25: Writes class-assignment `resultId` and related submission metadata back onto assignment progress after canonical result save |
+| `src/hooks/test/useTestSubmission.test.ts` | Reassessment 2026-03-25: Added regression coverage for class-assignment `resultId` persistence during submission |
+| `src/pages/StudentClassDetailPage.jsx` | Reassessment 2026-03-25 / continuation 2026-03-27: Replaced invalid class-result deep links with canonical `RESULT_DETAIL` navigation, added background repair for missing class-assignment `resultId` values from existing student results, and kept fail-closed pending-state behavior until a canonical id is available |
+| `src/pages/StudentClassDetailPage.test.jsx` | Reassessment 2026-03-25 / continuation 2026-03-27: Added focused coverage for canonical class-result navigation, non-clickable pending states, and the follow-up background repair path |
+| `documentation/architecture/prd0040-preflight-ledger.md` | Reassessment 2026-03-25 / continuation 2026-03-27: Corrected guest-claim decision, carried risks, guest-domain verification notes, stale-producer inventory after canonical claim + class-result routing fixes, and the follow-up live-sync / repair / observability clarifications |
+| `documentation/architecture/result-view-map.md` | Reassessment 2026-03-25: Updated guest-domain storage/coverage, removed false `ProfileCompletionPage` test attribution, and reconciled stale-producer / observability notes |
+| `documentation/architecture/result-view-permission-matrix.md` | Reassessment 2026-03-25: Updated `/profile/complete` guest-claim row to canonical writes plus historical migration posture |
+| `documentation/architecture/result-view-fr-closure-matrix.md` | Reassessment 2026-03-25: Promoted guest-claim closure to verified and cleared the stale-producer gap after class-detail / feature-registry fixes |
+| `documentation/tasks/tasks-0040-prd-unified-result-view-architecture-and-governance.md` | Reassessment 2026-03-25: Refreshed relevant-file inventory and change record for canonical guest claims, result-surface observability, and class-detail result routing |
+| `documentation/tasks/findings-of-tasks-0040-prd-unified-result-view-architecture-and-governance.md` | Reassessment 2026-03-25: Added superseding findings for canonical guest claims, class-detail `resultId` persistence, and widened result-surface observability inventory |
 
 ## Discovered Findings
 
 > **All findings have been moved to [`findings-of-tasks-0040-prd-unified-result-view-architecture-and-governance.md`](findings-of-tasks-0040-prd-unified-result-view-architecture-and-governance.md)**
 > per `process-task-list.md` guidelines. New findings are appended to that file.
+

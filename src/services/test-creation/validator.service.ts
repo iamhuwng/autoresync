@@ -14,6 +14,12 @@
  */
 
 import type { QuestionType } from '../../types/QuestionSchema';
+import type {
+    ReadingLabeledOption,
+    ReadingOptionLabelFormat,
+    ReadingSectionReference,
+} from '../../types/document.types';
+import { canonicalizeReadingQuestion } from '../../utils/readingQuestionContract';
 
 // ═══════════════════════════════════════════════════════════════
 // TYPES
@@ -26,10 +32,13 @@ export interface AIQuestionResult {
     questionNumber: number;
     questionText: string;
     type: QuestionType | string;
-    options?: string[] | null;
+    options?: Array<string | ReadingLabeledOption> | null;
+    labeledOptions?: ReadingLabeledOption[] | null;
     answer?: string | string[];
     passageId?: string;
     confidence: number;
+    optionLabelFormat?: ReadingOptionLabelFormat;
+    sectionReferences?: ReadingSectionReference[] | null;
 }
 
 /**
@@ -44,7 +53,7 @@ export interface RulesQuestionResult {
         max: number;
         includesNumber?: boolean;
     };
-    optionLabelFormat?: 'letter' | 'roman' | 'number';
+    optionLabelFormat?: ReadingOptionLabelFormat;
     reuseLettersAllowed?: boolean;
 }
 
@@ -84,6 +93,8 @@ export interface MergedQuestion {
     questionText: string;
     type: QuestionType;
     options?: string[] | null;
+    labeledOptions?: ReadingLabeledOption[] | null;
+    sectionReferences?: ReadingSectionReference[] | null;
     answer?: string | string[];
     passageId?: string;
     /** Weighted confidence (rules 50%, AI 50%) */
@@ -96,7 +107,7 @@ export interface MergedQuestion {
         max: number;
         includesNumber?: boolean;
     };
-    optionLabelFormat?: 'letter' | 'roman' | 'number';
+    optionLabelFormat?: ReadingOptionLabelFormat;
     reuseLettersAllowed?: boolean;
     /** Flagged for teacher review */
     uncertain: boolean;
@@ -324,8 +335,12 @@ class ValidatorService {
                 : this.normalizeType(aiQ.type);
         }
 
+        const aiOptionTexts = (aiQ.labeledOptions || aiQ.options || [])
+            .map(option => typeof option === 'string' ? option : option.text)
+            .filter((option): option is string => Boolean(option));
+
         // Determine uncertainty
-        const uncertain = weightedConfidence < UNCERTAINTY_THRESHOLD || !typesMatch;
+        let uncertain = weightedConfidence < UNCERTAINTY_THRESHOLD || !typesMatch;
         let uncertainReason: string | undefined;
 
         if (!typesMatch) {
@@ -335,7 +350,7 @@ class ValidatorService {
         }
 
         // Post-processing: auto-correct obvious type misclassifications based on options
-        const correctedType = this.correctTypeFromOptions(finalType, aiQ.options || [], aiQ.questionText);
+        const correctedType = this.correctTypeFromOptions(finalType, aiOptionTexts, aiQ.questionText);
         if (correctedType !== finalType) {
             finalType = correctedType;
             typeSource = 'rules'; // Options-based correction is deterministic
@@ -345,17 +360,36 @@ class ValidatorService {
             }
         }
 
+        const canonicalQuestion = canonicalizeReadingQuestion({
+            questionNumber: aiQ.questionNumber,
+            type: finalType,
+            questionText: aiQ.questionText,
+            options: aiQ.options || [],
+            labeledOptions: aiQ.labeledOptions,
+            optionLabelFormat: aiQ.optionLabelFormat || rulesQ?.optionLabelFormat,
+            sectionReferences: aiQ.sectionReferences || undefined,
+        });
+
+        if (canonicalQuestion.issues.length > 0) {
+            uncertain = true;
+            uncertainReason = uncertainReason
+                ? `${uncertainReason}; ${canonicalQuestion.issues[0]!.message}`
+                : canonicalQuestion.issues[0]!.message;
+        }
+
         return {
             questionNumber: aiQ.questionNumber,
-            questionText: aiQ.questionText,
+            questionText: canonicalQuestion.questionText,
             type: finalType,
-            options: aiQ.options,
+            options: canonicalQuestion.options,
+            labeledOptions: canonicalQuestion.labeledOptions,
+            sectionReferences: canonicalQuestion.sectionReferences,
             answer: aiQ.answer,
             passageId: aiQ.passageId,
             confidence: weightedConfidence,
             typeSource,
             wordLimit: rulesQ?.wordLimit,
-            optionLabelFormat: rulesQ?.optionLabelFormat,
+            optionLabelFormat: canonicalQuestion.optionLabelFormat || rulesQ?.optionLabelFormat,
             reuseLettersAllowed: rulesQ?.reuseLettersAllowed,
             uncertain,
             uncertainReason,

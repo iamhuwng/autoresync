@@ -214,7 +214,7 @@ describe('validateOwnership', () => {
         });
     });
 
-    describe('Result ownership', () => {
+    describe('Result outer gate', () => {
         it('should allow student to view own result', async () => {
             const ctx = createAuthContext('student', { userId: 'student-123' });
             const result = await validateOwnership(ctx, 'result', 'student-123');
@@ -261,6 +261,60 @@ describe('validateOwnership', () => {
             const result = await validateOwnership(ctx, 'result', 'student-123');
             expect(result.allowed).toBe(false);
             expect(result.reason).toBe('ownership');
+        });
+
+        it('should not treat raw teacherId values as result ownership authority', async () => {
+            const mockedCheck = vi.mocked(isStudentAssignedToTeacher);
+            mockedCheck.mockResolvedValue(false);
+
+            const ctx = createAuthContext('teacher', {
+                userId: 'teacher-456',
+                assignedStudentIds: [],
+            });
+
+            // Passing teacher id as "owner" must not create an allow path.
+            const result = await validateOwnership(ctx, 'result', 'teacher-456');
+            expect(result.allowed).toBe(false);
+            expect(result.reason).toBe('ownership');
+        });
+
+        it('should deny teacher result access when extra visibility details are present but assignment lookup fails', async () => {
+            const mockedCheck = vi.mocked(isStudentAssignedToTeacher);
+            mockedCheck.mockResolvedValue(false);
+
+            const ctx = createAuthContext('teacher', {
+                userId: 'teacher-456',
+                assignedStudentIds: [],
+            });
+
+            const result = await validateOwnership(
+                ctx,
+                'result',
+                'student-123',
+                {
+                    visibilityOwnerTeacherId: 'teacher-999',
+                    ownershipResolved: false,
+                    unresolvedReason: 'owner_not_resolved',
+                },
+            );
+
+            expect(result.allowed).toBe(false);
+            expect(result.reason).toBe('ownership');
+        });
+
+        it('should keep result and student_data checks in parity for the same student gate', async () => {
+            const mockedCheck = vi.mocked(isStudentAssignedToTeacher);
+            mockedCheck.mockResolvedValue(true);
+
+            const ctx = createAuthContext('teacher', {
+                userId: 'teacher-456',
+                assignedStudentIds: [],
+            });
+
+            const resultGate = await validateOwnership(ctx, 'result', 'student-123');
+            const studentDataGate = await validateOwnership(ctx, 'student_data', 'student-123');
+
+            expect(resultGate).toEqual(studentDataGate);
         });
     });
 

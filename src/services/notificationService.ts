@@ -763,8 +763,9 @@ export async function sendSessionOpenedNotifications(
             type: 'info',
             title: '📚 New Session Available',
             message: `${displayName} has a new ${modeLabel} session ready. Join with code ${sessionCode}.`,
-            // Use real routes so navigation works directly in the dashboard
-            link: sessionMode === 'test' ? `/student-test/${sessionCode}` : `/student-wait/${sessionCode}`,
+            // Live sessions should enter via the waiting room so the session
+            // lifecycle controls when students move onto the test surface.
+            link: buildRoute('STUDENT_WAITING', { gameSessionId: sessionCode }),
             metadata: { classId, sessionCode, sessionMode },
         });
 
@@ -796,7 +797,7 @@ export async function sendTestStartedNotifications(
             type: 'info',
             title: '📝 Test Started',
             message: `"${testName}" has started in your class. Join now if you haven't already.`,
-            link: `/student-test/${sessionCode}`,
+            link: buildRoute('STUDENT_WAITING', { gameSessionId: sessionCode }),
             metadata: { classId, sessionCode, testName, sessionMode: 'test' },
         });
 

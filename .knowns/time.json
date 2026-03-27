@@ -1,3 +1,11 @@
 {
-  "active": []
+  "active": [
+    {
+      "taskId": "llafmx",
+      "taskTitle": "Fix teacher student history completeness and teacher-page layout consistency",
+      "startedAt": "2026-03-27T00:51:05.323Z",
+      "pausedAt": null,
+      "totalPausedMs": 0
+    }
+  ]
 }

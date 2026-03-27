@@ -1,4 +1,4 @@
-import type { Chunk } from '../../types/document.types';
+import type { Chunk, ReadingLabeledOption } from '../../types/document.types';
 import type { Result } from '../../types/result.types';
 import type { IAIService, AIParseResult, ProviderStatus } from './ai.service';
 import { geminiProvider } from './gemini.provider';
@@ -99,7 +99,13 @@ class AIRouterService implements IAIService {
    */
   async generateAnswersFromContent(
     passagesText: string,
-    questions: Array<{ number: number; questionText: string; type?: string; options?: string[] }>
+    questions: Array<{
+      number: number;
+      questionText: string;
+      type?: string;
+      options?: Array<string | ReadingLabeledOption>;
+      labeledOptions?: ReadingLabeledOption[];
+    }>
   ): Promise<Result<{ answerKey: Record<number, string>; confidence: number }>> {
     const providerOrder = this.getProviderOrder();
 
@@ -397,13 +403,13 @@ class AIRouterService implements IAIService {
     const anySuccess = results.some(r => r.success);
 
     if (allSuccess) {
-      return { success: true, data: 'All providers connected' };
+      return { success: true, data: undefined };
     }
 
     if (anySuccess) {
       return {
         success: true,
-        data: 'At least one provider connected (fallback available)'
+        data: undefined,
       };
     }
 

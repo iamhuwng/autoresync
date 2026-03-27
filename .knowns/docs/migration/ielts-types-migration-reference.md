@@ -1,14 +1,15 @@
 ---
 title: IELTS Types Migration Reference
-createdAt: '2026-02-27T15:26:02.032Z'
-updatedAt: '2026-02-27T15:26:03.383Z'
 description: Reference for IELTS type definitions during migration process
+createdAt: '2026-02-27T15:26:02.032Z'
+updatedAt: '2026-03-25T18:08:29.657Z'
 tags:
   - migration
   - ielts
   - types
   - reference
 ---
+
 # IELTS Types Migration Reference
 
 > **Source File**: `src/services/parser/types/ielts.types.ts`  
@@ -238,46 +239,24 @@ export const WORD_LIMIT_PATTERNS = [
 
 ## 4. Interfaces to Migrate
 
-### 4.1 IELTSWordLimit
-```typescript
-export interface IELTSWordLimit {
-  maxWords: number;
-  numbersCountAsWords: boolean;
-  hyphenatedAsOne: boolean;
-  instruction: string;
-}
-```
-**Migration Note**: Include in `QuestionSchema.ts` as `wordLimit` property.
+Reading label-aware canonicalization adds a second migration axis beyond scalar IELTS helper types.
 
----
+### Reading Question Contract
+- Reading questions must keep `number` as the authoritative question number.
+- Prompt text should be stored as canonical `questionText` with no duplicated leading question number.
+- A leading number may be stripped only when it matches the authoritative `number` field.
 
-### 4.2 IELTSQuestionMetadata
-```typescript
-export interface IELTSQuestionMetadata {
-  taskType: IELTSTaskType;
-  wordLimit?: IELTSWordLimit;
-  sectionNumber?: number;      // For Listening
-  passageNumber?: number;      // For Reading
-  hasOptionsBox?: boolean;
-  optionsBox?: string[];
-}
-```
-**Migration Note**: Merge into base `Question` interface in new schema.
+### Reading Option-Bearing Task Types
+- Persist label-bearing Reading options as `labeledOptions?: Array<{ label: string; text: string }>`.
+- `optionLabelFormat?: 'letter' | 'roman' | 'number' | 'none'` remains descriptive metadata. It should not be used to regenerate labels when explicit labels already exist.
+- Raw `options?: string[]` remains an extraction input shape, not the canonical persisted shape for label-bearing Reading tasks.
 
----
+### Matching Information
+- `matching-information` should migrate to `sectionReferences?: string[]`.
+- Section references are structural answer choices and should not reuse generic text-bearing option contracts.
 
-### 4.3 IELTSAnswer
-```typescript
-export interface IELTSAnswer {
-  primary: string;
-  alternatives?: string[];
-  caseSensitive?: boolean;
-  allowSpellingVariations?: boolean;
-}
-```
-**Migration Note**: This is valuable for answer validation. Keep in new schema.
-
----
+### Validation Surface
+- Validation and review types should expose contract errors for mixed labeled/unlabeled groups, duplicate labels, malformed label-text pairs, empty option text, and empty section references.
 
 ## 5. Migration Checklist
 

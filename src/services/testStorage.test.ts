@@ -9,7 +9,8 @@ import {
   saveTestToFirebase,
   getTestFromFirebase,
   getAllTestsFromFirebase,
-  deleteTestFromFirebase
+  deleteTestFromFirebase,
+  buildStudentSafeTestData,
 } from './testStorage';
 import type { TestMetadata } from './testStorage';
 
@@ -25,6 +26,73 @@ vi.mock('./firebase', () => ({
 }));
 
 describe('testStorage', () => {
+  describe('buildStudentSafeTestData', () => {
+    it('strips answer keys from flat IELTS-style question arrays', () => {
+      const safeTest = buildStudentSafeTestData({
+        id: 'test-1',
+        title: 'Reading Test',
+        questions: [
+          {
+            number: 1,
+            question: 'Q1',
+            answer: 'A',
+            correctAnswer: 'B',
+            options: ['A', 'B'],
+          },
+        ],
+      });
+
+      expect(safeTest.questions).toEqual([
+        {
+          number: 1,
+          question: 'Q1',
+          options: ['A', 'B'],
+        },
+      ]);
+    });
+
+    it('strips answer keys from THCS section questions without throwing', () => {
+      const safeTest = buildStudentSafeTestData({
+        id: 'thcs-test-1',
+        testType: 'THCS-THPT',
+        metadata: {
+          title: 'THCS Test',
+          duration: 45,
+        },
+        sections: [
+          {
+            id: 'section-1',
+            name: 'Part A',
+            questions: [
+              {
+                id: 'q-1',
+                questionNumber: 1,
+                questionText: 'Choose the correct answer',
+                correctAnswer: 'A',
+                options: ['A', 'B', 'C', 'D'],
+              },
+            ],
+          },
+        ],
+      });
+
+      expect(safeTest.sections).toEqual([
+        {
+          id: 'section-1',
+          name: 'Part A',
+          questions: [
+            {
+              id: 'q-1',
+              questionNumber: 1,
+              questionText: 'Choose the correct answer',
+              options: ['A', 'B', 'C', 'D'],
+            },
+          ],
+        },
+      ]);
+    });
+  });
+
   describe('generateTestId', () => {
     it('should generate unique test IDs', () => {
       const id1 = generateTestId();

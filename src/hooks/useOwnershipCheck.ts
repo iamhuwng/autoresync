@@ -13,6 +13,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSecureService } from './useSecureService';
 import { validateOwnership, ValidationResult } from '../services/securityMiddleware';
+import { subscribeToAssignments } from '../services/assignmentManager';
 import { OwnershipResourceType } from '../types/security.types';
 
 /**
@@ -71,6 +72,18 @@ export const useOwnershipCheck = (
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [checkId, setCheckId] = useState(0);
+    const [liveAssignmentAllowed, setLiveAssignmentAllowed] = useState<boolean | null>(null);
+
+    const shouldMonitorLiveAssignments = Boolean(
+        authContext?.userRole === 'teacher'
+        && resourceOwnerId
+        && !options?.skip
+        && (
+            resourceType === 'result'
+            || resourceType === 'test_result'
+            || resourceType === 'student_data'
+        )
+    );
 
     // Function to perform the check
     const performCheck = useCallback(async () => {
@@ -92,6 +105,20 @@ export const useOwnershipCheck = (
                 allowed: false,
                 reason: 'session',
                 message: 'Authentication required',
+            });
+            setLoading(false);
+            return;
+        }
+
+        if (shouldMonitorLiveAssignments && liveAssignmentAllowed === null) {
+            return;
+        }
+
+        if (shouldMonitorLiveAssignments && liveAssignmentAllowed === false) {
+            setCheckResult({
+                allowed: false,
+                reason: 'ownership',
+                message: 'You are not assigned to this student',
             });
             setLoading(false);
             return;
@@ -119,7 +146,41 @@ export const useOwnershipCheck = (
         } finally {
             setLoading(false);
         }
-    }, [authContext, authLoading, resourceType, resourceOwnerId, options?.skip, options?.resourceDetails, checkId]);
+    }, [
+        authContext,
+        authLoading,
+        resourceType,
+        resourceOwnerId,
+        options?.skip,
+        options?.resourceDetails,
+        checkId,
+        shouldMonitorLiveAssignments,
+        liveAssignmentAllowed,
+    ]);
+
+    useEffect(() => {
+        if (!shouldMonitorLiveAssignments || !authContext?.userId || !resourceOwnerId) {
+            setLiveAssignmentAllowed(null);
+            return;
+        }
+
+        setLiveAssignmentAllowed(null);
+
+        const unsubscribe = subscribeToAssignments(authContext.userId, (assignments) => {
+            const hasActiveAssignment = assignments.some(
+                (assignment) =>
+                    assignment.studentId === resourceOwnerId
+                    && assignment.status === 'active'
+            );
+            setLiveAssignmentAllowed(hasActiveAssignment);
+        });
+
+        return () => {
+            if (typeof unsubscribe === 'function') {
+                unsubscribe();
+            }
+        };
+    }, [authContext?.userId, resourceOwnerId, shouldMonitorLiveAssignments]);
 
     // Run the check when dependencies change
     useEffect(() => {

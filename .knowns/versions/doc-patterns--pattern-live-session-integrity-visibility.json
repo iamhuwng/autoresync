@@ -1,0 +1,139 @@
+{
+  "docPath": "patterns/pattern-live-session-integrity-visibility",
+  "currentVersion": 4,
+  "versions": [
+    {
+      "id": "v1",
+      "docPath": "patterns/pattern-live-session-integrity-visibility",
+      "version": 1,
+      "timestamp": "2026-03-24T22:58:55.9868166Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "Pattern: Live Session Integrity Visibility"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "How live-session anti-cheat data is surfaced to teachers through monitor summaries, badge entry points, refreshable detail views, and incremental alerts even when only aggregate integrity data is available."
+        },
+        {
+          "field": "tags",
+          "oldValue": null,
+          "newValue": [
+            "pattern",
+            "integrity",
+            "anti-cheat",
+            "live-session",
+            "teacher-monitor"
+          ]
+        }
+      ],
+      "snapshot": {
+        "description": "How live-session anti-cheat data is surfaced to teachers through monitor summaries, badge entry points, refreshable detail views, and incremental alerts even when only aggregate integrity data is available.",
+        "tags": [
+          "pattern",
+          "integrity",
+          "anti-cheat",
+          "live-session",
+          "teacher-monitor"
+        ],
+        "title": "Pattern: Live Session Integrity Visibility"
+      }
+    },
+    {
+      "id": "v2",
+      "docPath": "patterns/pattern-live-session-integrity-visibility",
+      "version": 2,
+      "timestamp": "2026-03-24T22:59:12.4281311Z",
+      "changes": [
+        {
+          "field": "content",
+          "oldValue": null,
+          "newValue": "# Pattern: Live Session Integrity Visibility\n\n## Problem\n\nLive anti-cheat can be working correctly while teachers still believe it is broken if the monitor only exposes raw counts or delayed post-test reports. In live sessions, the teacher needs immediate confidence that integrity monitoring is active, a fast way to see who is currently flagged, and a path to inspect deeper detail without waiting for the full test to end.\n\n## Solution\n\nSurface integrity in three layers inside the live monitor:\n\n1. A session-level summary block that confirms monitoring is active for the current preset and shows flagged-student count, high-risk count, and total counted violations.\n2. Student-level entry points on every monitor card via clickable integrity badges.\n3. A detail panel that can open from either the summary alerts or the card badge and render whatever integrity data is currently available.\n\nThis keeps the teacher informed even when the student client has only persisted aggregate integrity data so far.\n\n## Live Data Contract\n\nLive-session integrity data should be readable from the same RTDB record already used by the teacher monitor:\n\n```text\n/game_sessions/{sessionCode}/players/{studentId}/integrity\n```\n\nThe monitor must accept two shapes:\n\n- Full integrity report with chronological `events`\n- Aggregate-only integrity summary with counts and risk level\n\nUse aggregate normalization first-class, not as an error case. The live monitor often receives counts before a full event timeline is flushed.\n\n## Teacher UX Contract\n\nA healthy live integrity UX has four behaviors:\n\n- Show a visible monitor summary section, not just a tiny badge on each card.\n- Raise an in-page alert when a student's violation count increases after the monitor is already open.\n- Allow teachers to click either the session-level alert chip or the per-student badge to inspect the same detail view.\n- Provide an explicit refresh action that requests students to flush richer integrity logs when deeper review is needed.\n\n## Important Constraints\n\n- In live `session` context, strict anti-cheat still detects and records violations, but session defaults disable student warnings and automatic force-submit. Teacher-side visibility is therefore mandatory.\n- Initial monitor load should not toast historical backlog as new alerts. Only show incremental alerts when violation counts increase after the monitor is mounted.\n- Detail views must degrade gracefully when only aggregate data is available. Missing event timelines should show a summary instead of looking broken.\n\n## Example Flow\n\n```text\nStudent switches tabs repeatedly\n  -\u003e student client updates /game_sessions/{sessionCode}/players/{studentId}/integrity\n  -\u003e teacher monitor recalculates flagged students and risk buckets\n  -\u003e monitor shows summary chip + badge count\n  -\u003e if count increased after mount, teacher sees in-page alert\n  -\u003e teacher clicks alert or badge\n  -\u003e detail panel shows timeline if present, otherwise aggregate summary\n  -\u003e teacher can request a refresh to ask students for a richer flush\n```\n\n## Related Docs\n\n- @doc/architecture/session-test-modes\n- @doc/architecture/test-system-architecture\n- @doc/patterns/test-taking-flow-pattern\n- @doc/sop/test-end-flow-debug-retrospective"
+        }
+      ],
+      "snapshot": {
+        "content": "# Pattern: Live Session Integrity Visibility\n\n## Problem\n\nLive anti-cheat can be working correctly while teachers still believe it is broken if the monitor only exposes raw counts or delayed post-test reports. In live sessions, the teacher needs immediate confidence that integrity monitoring is active, a fast way to see who is currently flagged, and a path to inspect deeper detail without waiting for the full test to end.\n\n## Solution\n\nSurface integrity in three layers inside the live monitor:\n\n1. A session-level summary block that confirms monitoring is active for the current preset and shows flagged-student count, high-risk count, and total counted violations.\n2. Student-level entry points on every monitor card via clickable integrity badges.\n3. A detail panel that can open from either the summary alerts or the card badge and render whatever integrity data is currently available.\n\nThis keeps the teacher informed even when the student client has only persisted aggregate integrity data so far.\n\n## Live Data Contract\n\nLive-session integrity data should be readable from the same RTDB record already used by the teacher monitor:\n\n```text\n/game_sessions/{sessionCode}/players/{studentId}/integrity\n```\n\nThe monitor must accept two shapes:\n\n- Full integrity report with chronological `events`\n- Aggregate-only integrity summary with counts and risk level\n\nUse aggregate normalization first-class, not as an error case. The live monitor often receives counts before a full event timeline is flushed.\n\n## Teacher UX Contract\n\nA healthy live integrity UX has four behaviors:\n\n- Show a visible monitor summary section, not just a tiny badge on each card.\n- Raise an in-page alert when a student's violation count increases after the monitor is already open.\n- Allow teachers to click either the session-level alert chip or the per-student badge to inspect the same detail view.\n- Provide an explicit refresh action that requests students to flush richer integrity logs when deeper review is needed.\n\n## Important Constraints\n\n- In live `session` context, strict anti-cheat still detects and records violations, but session defaults disable student warnings and automatic force-submit. Teacher-side visibility is therefore mandatory.\n- Initial monitor load should not toast historical backlog as new alerts. Only show incremental alerts when violation counts increase after the monitor is mounted.\n- Detail views must degrade gracefully when only aggregate data is available. Missing event timelines should show a summary instead of looking broken.\n\n## Example Flow\n\n```text\nStudent switches tabs repeatedly\n  -\u003e student client updates /game_sessions/{sessionCode}/players/{studentId}/integrity\n  -\u003e teacher monitor recalculates flagged students and risk buckets\n  -\u003e monitor shows summary chip + badge count\n  -\u003e if count increased after mount, teacher sees in-page alert\n  -\u003e teacher clicks alert or badge\n  -\u003e detail panel shows timeline if present, otherwise aggregate summary\n  -\u003e teacher can request a refresh to ask students for a richer flush\n```\n\n## Related Docs\n\n- @doc/architecture/session-test-modes\n- @doc/architecture/test-system-architecture\n- @doc/patterns/test-taking-flow-pattern\n- @doc/sop/test-end-flow-debug-retrospective",
+        "description": "How live-session anti-cheat data is surfaced to teachers through monitor summaries, badge entry points, refreshable detail views, and incremental alerts even when only aggregate integrity data is available.",
+        "tags": [
+          "pattern",
+          "integrity",
+          "anti-cheat",
+          "live-session",
+          "teacher-monitor"
+        ],
+        "title": "Pattern: Live Session Integrity Visibility"
+      }
+    },
+    {
+      "id": "v3",
+      "docPath": "patterns/pattern-live-session-integrity-visibility",
+      "version": 3,
+      "timestamp": "2026-03-24T23:00:39.0354322Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "Pattern: Live Session Integrity Visibility"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "Reusable pattern for surfacing live-session integrity signals to teachers through badges, summary alerts, and on-demand detail panels."
+        },
+        {
+          "field": "tags",
+          "oldValue": null,
+          "newValue": [
+            "pattern",
+            "live-session",
+            "integrity",
+            "teacher",
+            "monitor",
+            "alerts"
+          ]
+        }
+      ],
+      "snapshot": {
+        "description": "Reusable pattern for surfacing live-session integrity signals to teachers through badges, summary alerts, and on-demand detail panels.",
+        "tags": [
+          "pattern",
+          "live-session",
+          "integrity",
+          "teacher",
+          "monitor",
+          "alerts"
+        ],
+        "title": "Pattern: Live Session Integrity Visibility"
+      }
+    },
+    {
+      "id": "v4",
+      "docPath": "patterns/pattern-live-session-integrity-visibility",
+      "version": 4,
+      "timestamp": "2026-03-24T23:01:29.1301992Z",
+      "changes": [
+        {
+          "field": "content",
+          "oldValue": null,
+          "newValue": "# Pattern: Live Session Integrity Visibility\n\n## Problem\n\nStudent-side anti-cheat can be working while teachers still see nothing actionable if the live monitor only exposes passive counters or hides integrity review behind a separate workflow. Live-session monitoring needs immediate visibility without replaying old alerts as if they were new incidents.\n\n## Solution\n\nSurface integrity in three layers:\n\n1. Passive status on each student card.\n2. Aggregated session-level summary with flagged counts and high-risk alert chips.\n3. On-demand detail panel for investigation.\n\nThe teacher UI must normalize and render both payload shapes that can appear in live monitoring:\n\n- A full integrity report with an `events` timeline.\n- A summary-only payload with aggregate counts and risk metadata.\n\n## Alerting Rules\n\n- Do not replay historical alerts on initial page load.\n- Emit teacher toasts only when `violationCount` increases after the monitor subscription is active.\n- Treat opening integrity details as a first-class teacher action worth tracking.\n\n## Manual Recovery\n\n- Provide a teacher-triggered refresh control that asks student clients to flush current integrity state.\n- Use this when the teacher suspects reconnect lag or stale monitor data.\n\n## Constraints\n\n- In live sessions, a `strict` preset can still mean aggressive detection for teacher review without enabling student warnings or auto-submit.\n- Risk messaging should emphasize both severity (`low` / `medium` / `high`) and counted violations.\n- Detail UI should degrade gracefully when only an aggregate summary is available.\n\n## Example\n\n```typescript\nconst report = normalizeIntegrityReport(rawIntegrity)\n  ?? normalizeHomeworkIntegrity(rawIntegrity);\n\nconst flaggedStudents = students\n  .map((student) =\u003e ({\n    student,\n    report: getIntegrityViewData(student.studentId),\n  }))\n  .filter((entry) =\u003e entry.report \u0026\u0026 entry.report.violationCount \u003e 0);\n\nconst shouldToast = nextViolationCount \u003e previousViolationCount;\n```\n\n## Moving Forward Standard\n\n- Any live teacher monitor that surfaces suspicious behavior should implement all three layers.\n- Summary UI must work even when no event timeline is present.\n- Detail entry should be reusable from both summary alerts and per-student cards.\n- Manual refresh should exist wherever live integrity state depends on client flush timing.\n\n## Related Docs\n\n- @doc/architecture/session-test-modes\n- @doc/architecture/test-system-architecture"
+        }
+      ],
+      "snapshot": {
+        "content": "# Pattern: Live Session Integrity Visibility\n\n## Problem\n\nStudent-side anti-cheat can be working while teachers still see nothing actionable if the live monitor only exposes passive counters or hides integrity review behind a separate workflow. Live-session monitoring needs immediate visibility without replaying old alerts as if they were new incidents.\n\n## Solution\n\nSurface integrity in three layers:\n\n1. Passive status on each student card.\n2. Aggregated session-level summary with flagged counts and high-risk alert chips.\n3. On-demand detail panel for investigation.\n\nThe teacher UI must normalize and render both payload shapes that can appear in live monitoring:\n\n- A full integrity report with an `events` timeline.\n- A summary-only payload with aggregate counts and risk metadata.\n\n## Alerting Rules\n\n- Do not replay historical alerts on initial page load.\n- Emit teacher toasts only when `violationCount` increases after the monitor subscription is active.\n- Treat opening integrity details as a first-class teacher action worth tracking.\n\n## Manual Recovery\n\n- Provide a teacher-triggered refresh control that asks student clients to flush current integrity state.\n- Use this when the teacher suspects reconnect lag or stale monitor data.\n\n## Constraints\n\n- In live sessions, a `strict` preset can still mean aggressive detection for teacher review without enabling student warnings or auto-submit.\n- Risk messaging should emphasize both severity (`low` / `medium` / `high`) and counted violations.\n- Detail UI should degrade gracefully when only an aggregate summary is available.\n\n## Example\n\n```typescript\nconst report = normalizeIntegrityReport(rawIntegrity)\n  ?? normalizeHomeworkIntegrity(rawIntegrity);\n\nconst flaggedStudents = students\n  .map((student) =\u003e ({\n    student,\n    report: getIntegrityViewData(student.studentId),\n  }))\n  .filter((entry) =\u003e entry.report \u0026\u0026 entry.report.violationCount \u003e 0);\n\nconst shouldToast = nextViolationCount \u003e previousViolationCount;\n```\n\n## Moving Forward Standard\n\n- Any live teacher monitor that surfaces suspicious behavior should implement all three layers.\n- Summary UI must work even when no event timeline is present.\n- Detail entry should be reusable from both summary alerts and per-student cards.\n- Manual refresh should exist wherever live integrity state depends on client flush timing.\n\n## Related Docs\n\n- @doc/architecture/session-test-modes\n- @doc/architecture/test-system-architecture",
+        "description": "Reusable pattern for surfacing live-session integrity signals to teachers through badges, summary alerts, and on-demand detail panels.",
+        "tags": [
+          "pattern",
+          "live-session",
+          "integrity",
+          "teacher",
+          "monitor",
+          "alerts"
+        ],
+        "title": "Pattern: Live Session Integrity Visibility"
+      }
+    }
+  ]
+}

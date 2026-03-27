@@ -154,6 +154,8 @@ export interface StudentAssignment {
   percentage?: number;
   /** Band score for IELTS-style tests */
   bandScore?: number;
+  /** Canonical saved-result record for result drill-down */
+  resultId?: string;
 
   /** Per-question results (after grading) */
   questionResults?: Record<string, {

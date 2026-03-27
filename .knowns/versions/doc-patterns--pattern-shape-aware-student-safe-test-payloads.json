@@ -1,0 +1,100 @@
+{
+  "docPath": "patterns/pattern-shape-aware-student-safe-test-payloads",
+  "currentVersion": 3,
+  "versions": [
+    {
+      "id": "v1",
+      "docPath": "patterns/pattern-shape-aware-student-safe-test-payloads",
+      "version": 1,
+      "timestamp": "2026-03-24T23:04:08.5106428Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "Pattern: Shape-Aware Student-Safe Test Payloads"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "Reusable pattern for building student-safe live-session payloads across heterogeneous test document shapes without leaking answer keys or breaking session start."
+        },
+        {
+          "field": "tags",
+          "oldValue": null,
+          "newValue": [
+            "pattern",
+            "live-session",
+            "test-system",
+            "thcs",
+            "data-contract",
+            "bug-prevention"
+          ]
+        }
+      ],
+      "snapshot": {
+        "description": "Reusable pattern for building student-safe live-session payloads across heterogeneous test document shapes without leaking answer keys or breaking session start.",
+        "tags": [
+          "pattern",
+          "live-session",
+          "test-system",
+          "thcs",
+          "data-contract",
+          "bug-prevention"
+        ],
+        "title": "Pattern: Shape-Aware Student-Safe Test Payloads"
+      }
+    },
+    {
+      "id": "v2",
+      "docPath": "patterns/pattern-shape-aware-student-safe-test-payloads",
+      "version": 2,
+      "timestamp": "2026-03-24T23:04:19.7115803Z",
+      "changes": [
+        {
+          "field": "content",
+          "oldValue": null,
+          "newValue": "# Pattern: Shape-Aware Student-Safe Test Payloads\n\n## Problem\n\nLive-session start often needs a student-safe copy of the full test before the session flips to `in-progress`. The failure mode is assuming every test document uses the same question container.\n\nIn this codebase:\n- IELTS and legacy tests use a flat root `questions[]` array.\n- THCS tests use `sections[].questions`.\n\nA sanitizer that blindly calls `stripAnswerKeys(testData.questions)` will either crash on THCS tests or miss the real question containers.\n\n## Solution\n\nTreat student-safe payload generation as a shape-preserving transform:\n1. Clone the full test document.\n2. Detect every question container that can exist for a live-startable test type.\n3. Strip answer-bearing fields only inside those containers.\n4. Preserve the outer document shape expected by the student surface.\n5. Keep session metadata such as `antiCheatConfig` separate from payload sanitization.\n\n## Why This Matters\n\nSession start is a producer-consumer contract:\n- The teacher start path produces `session_test_payloads/{sessionCode}`.\n- Student routes and hooks consume a shape-specific test document.\n\nIf the producer normalizes to the wrong shape, the session can fail before start or the student surface can receive a document it does not understand.\n\n## Example\n\n```ts\nconst buildStudentSafeTestData = \u003cT extends Record\u003cstring, any\u003e\u003e(testData: T): T =\u003e {\n  const safe = { ...testData } as T \u0026 {\n    questions?: Array\u003cRecord\u003cstring, any\u003e\u003e;\n    sections?: Array\u003cRecord\u003cstring, any\u003e \u0026 { questions?: Array\u003cRecord\u003cstring, any\u003e\u003e }\u003e;\n  };\n\n  if (Array.isArray(safe.questions)) {\n    safe.questions = stripAnswerKeys(safe.questions);\n  }\n\n  if (Array.isArray(safe.sections)) {\n    safe.sections = safe.sections.map((section) =\u003e ({\n      ...section,\n      questions: Array.isArray(section.questions)\n        ? stripAnswerKeys(section.questions)\n        : section.questions,\n    }));\n  }\n\n  return safe;\n};\n```\n\n## Rules\n\n- Do not assume one canonical question path across all test types.\n- Preserve the student-facing document shape while sanitizing answer-bearing fields.\n- Do not couple `antiCheatConfig` to payload shape; it is runtime session metadata.\n- When a new live-startable test type is introduced, update sanitizer logic and tests in the same change.\n\n## Verification\n\nAdd regression coverage for each supported shape:\n- Flat `questions[]` fixture\n- THCS `sections[].questions` fixture\n- Session-start path that caches the payload for a THCS test ID\n\n## Related Docs\n\n- @doc/architecture/session-test-modes\n- @doc/architecture/test-system-architecture\n- @doc/integration-safety-rules\n\n## Source\n\nDerived from the March 25, 2026 session-start bug fix in:\n- `src/hooks/monitor/useMonitorControls.ts`\n- `src/services/testStorage.ts`\n- `src/services/testStorage.test.ts`\n"
+        }
+      ],
+      "snapshot": {
+        "content": "# Pattern: Shape-Aware Student-Safe Test Payloads\n\n## Problem\n\nLive-session start often needs a student-safe copy of the full test before the session flips to `in-progress`. The failure mode is assuming every test document uses the same question container.\n\nIn this codebase:\n- IELTS and legacy tests use a flat root `questions[]` array.\n- THCS tests use `sections[].questions`.\n\nA sanitizer that blindly calls `stripAnswerKeys(testData.questions)` will either crash on THCS tests or miss the real question containers.\n\n## Solution\n\nTreat student-safe payload generation as a shape-preserving transform:\n1. Clone the full test document.\n2. Detect every question container that can exist for a live-startable test type.\n3. Strip answer-bearing fields only inside those containers.\n4. Preserve the outer document shape expected by the student surface.\n5. Keep session metadata such as `antiCheatConfig` separate from payload sanitization.\n\n## Why This Matters\n\nSession start is a producer-consumer contract:\n- The teacher start path produces `session_test_payloads/{sessionCode}`.\n- Student routes and hooks consume a shape-specific test document.\n\nIf the producer normalizes to the wrong shape, the session can fail before start or the student surface can receive a document it does not understand.\n\n## Example\n\n```ts\nconst buildStudentSafeTestData = \u003cT extends Record\u003cstring, any\u003e\u003e(testData: T): T =\u003e {\n  const safe = { ...testData } as T \u0026 {\n    questions?: Array\u003cRecord\u003cstring, any\u003e\u003e;\n    sections?: Array\u003cRecord\u003cstring, any\u003e \u0026 { questions?: Array\u003cRecord\u003cstring, any\u003e\u003e }\u003e;\n  };\n\n  if (Array.isArray(safe.questions)) {\n    safe.questions = stripAnswerKeys(safe.questions);\n  }\n\n  if (Array.isArray(safe.sections)) {\n    safe.sections = safe.sections.map((section) =\u003e ({\n      ...section,\n      questions: Array.isArray(section.questions)\n        ? stripAnswerKeys(section.questions)\n        : section.questions,\n    }));\n  }\n\n  return safe;\n};\n```\n\n## Rules\n\n- Do not assume one canonical question path across all test types.\n- Preserve the student-facing document shape while sanitizing answer-bearing fields.\n- Do not couple `antiCheatConfig` to payload shape; it is runtime session metadata.\n- When a new live-startable test type is introduced, update sanitizer logic and tests in the same change.\n\n## Verification\n\nAdd regression coverage for each supported shape:\n- Flat `questions[]` fixture\n- THCS `sections[].questions` fixture\n- Session-start path that caches the payload for a THCS test ID\n\n## Related Docs\n\n- @doc/architecture/session-test-modes\n- @doc/architecture/test-system-architecture\n- @doc/integration-safety-rules\n\n## Source\n\nDerived from the March 25, 2026 session-start bug fix in:\n- `src/hooks/monitor/useMonitorControls.ts`\n- `src/services/testStorage.ts`\n- `src/services/testStorage.test.ts`\n",
+        "description": "Reusable pattern for building student-safe live-session payloads across heterogeneous test document shapes without leaking answer keys or breaking session start.",
+        "tags": [
+          "pattern",
+          "live-session",
+          "test-system",
+          "thcs",
+          "data-contract",
+          "bug-prevention"
+        ],
+        "title": "Pattern: Shape-Aware Student-Safe Test Payloads"
+      }
+    },
+    {
+      "id": "v3",
+      "docPath": "patterns/pattern-shape-aware-student-safe-test-payloads",
+      "version": 3,
+      "timestamp": "2026-03-25T18:08:29.7590025Z",
+      "changes": [
+        {
+          "field": "content",
+          "oldValue": "# Pattern: Shape-Aware Student-Safe Test Payloads\n\n## Problem\n\nLive-session start often needs a student-safe copy of the full test before the session flips to `in-progress`. The failure mode is assuming every test document uses the same question container.\n\nIn this codebase:\n- IELTS and legacy tests use a flat root `questions[]` array.\n- THCS tests use `sections[].questions`.\n\nA sanitizer that blindly calls `stripAnswerKeys(testData.questions)` will either crash on THCS tests or miss the real question containers.\n\n## Solution\n\nTreat student-safe payload generation as a shape-preserving transform:\n1. Clone the full test document.\n2. Detect every question container that can exist for a live-startable test type.\n3. Strip answer-bearing fields only inside those containers.\n4. Preserve the outer document shape expected by the student surface.\n5. Keep session metadata such as `antiCheatConfig` separate from payload sanitization.\n\n## Why This Matters\n\nSession start is a producer-consumer contract:\n- The teacher start path produces `session_test_payloads/{sessionCode}`.\n- Student routes and hooks consume a shape-specific test document.\n\nIf the producer normalizes to the wrong shape, the session can fail before start or the student surface can receive a document it does not understand.\n\n## Example\n\n```ts\nconst buildStudentSafeTestData = \u003cT extends Record\u003cstring, any\u003e\u003e(testData: T): T =\u003e {\n  const safe = { ...testData } as T \u0026 {\n    questions?: Array\u003cRecord\u003cstring, any\u003e\u003e;\n    sections?: Array\u003cRecord\u003cstring, any\u003e \u0026 { questions?: Array\u003cRecord\u003cstring, any\u003e\u003e }\u003e;\n  };\n\n  if (Array.isArray(safe.questions)) {\n    safe.questions = stripAnswerKeys(safe.questions);\n  }\n\n  if (Array.isArray(safe.sections)) {\n    safe.sections = safe.sections.map((section) =\u003e ({\n      ...section,\n      questions: Array.isArray(section.questions)\n        ? stripAnswerKeys(section.questions)\n        : section.questions,\n    }));\n  }\n\n  return safe;\n};\n```\n\n## Rules\n\n- Do not assume one canonical question path across all test types.\n- Preserve the student-facing document shape while sanitizing answer-bearing fields.\n- Do not couple `antiCheatConfig` to payload shape; it is runtime session metadata.\n- When a new live-startable test type is introduced, update sanitizer logic and tests in the same change.\n\n## Verification\n\nAdd regression coverage for each supported shape:\n- Flat `questions[]` fixture\n- THCS `sections[].questions` fixture\n- Session-start path that caches the payload for a THCS test ID\n\n## Related Docs\n\n- @doc/architecture/session-test-modes\n- @doc/architecture/test-system-architecture\n- @doc/integration-safety-rules\n\n## Source\n\nDerived from the March 25, 2026 session-start bug fix in:\n- `src/hooks/monitor/useMonitorControls.ts`\n- `src/services/testStorage.ts`\n- `src/services/testStorage.test.ts`",
+          "newValue": "# Pattern: Shape-Aware Student-Safe Test Payloads\n\n## Problem\n\nLive-session start often needs a student-safe copy of the full test before the session flips to `in-progress`. The failure mode is assuming every test document uses the same question container.\n\nIn this codebase:\n- IELTS and legacy tests use a flat root `questions[]` array.\n- THCS tests use `sections[].questions`.\n\nA sanitizer that blindly calls `stripAnswerKeys(testData.questions)` will either crash on THCS tests or miss the real question containers.\n\n## Solution\n\nTreat student-safe payload generation as a shape-preserving transform:\n1. Clone the full test document.\n2. Detect every question container that can exist for a live-startable test type.\n3. Strip answer-bearing fields only inside those containers.\n4. Preserve the outer document shape expected by the student surface.\n5. Keep session metadata such as `antiCheatConfig` separate from payload sanitization.\n\n## Why This Matters\n\nSession start is a producer-consumer contract:\n- The teacher start path produces `session_test_payloads/{sessionCode}`.\n- Student routes and hooks consume a shape-specific test document.\n\nIf the producer normalizes to the wrong shape, the session can fail before start or the student surface can receive a document it does not understand.\n\n## Example\n\n```ts\nconst buildStudentSafeTestData = \u003cT extends Record\u003cstring, any\u003e\u003e(testData: T): T =\u003e {\n  const safe = { ...testData } as T \u0026 {\n    questions?: Array\u003cRecord\u003cstring, any\u003e\u003e;\n    sections?: Array\u003cRecord\u003cstring, any\u003e \u0026 { questions?: Array\u003cRecord\u003cstring, any\u003e\u003e }\u003e;\n  };\n\n  if (Array.isArray(safe.questions)) {\n    safe.questions = stripAnswerKeys(safe.questions);\n  }\n\n  if (Array.isArray(safe.sections)) {\n    safe.sections = safe.sections.map((section) =\u003e ({\n      ...section,\n      questions: Array.isArray(section.questions)\n        ? stripAnswerKeys(section.questions)\n        : section.questions,\n    }));\n  }\n\n  return safe;\n};\n```\n\n## Rules\n\n- Do not assume one canonical question path across all test types.\n- Preserve the student-facing document shape while sanitizing answer-bearing fields.\n- Do not couple `antiCheatConfig` to payload shape; it is runtime session metadata.\n- When a new live-startable test type is introduced, update sanitizer logic and tests in the same change.\n\n## Verification\n\nAdd regression coverage for each supported shape:\n- Flat `questions[]` fixture\n- THCS `sections[].questions` fixture\n- Session-start path that caches the payload for a THCS test ID\n\n## Related Docs\n\n- @doc/architecture/session-test-modes\n- @doc/architecture/test-system-architecture\n- @doc/integration-safety-rules\n\n## Source\n\nDerived from the March 25, 2026 session-start bug fix in:\n- `src/hooks/monitor/useMonitorControls.ts`\n- `src/services/testStorage.ts`\n- `src/services/testStorage.test.ts`\n\n## Reading Canonical Display Contract (2026-03-26)\n\nStudent-safe payload logic must also be label-shape-aware for IELTS Reading.\n\n- If a Reading question contains `labeledOptions`, render stored `label` and `text` once. Do not prepend labels from array index and do not rely on `text || label` fallbacks.\n- If a Reading question contains `sectionReferences`, route it to a section-reference renderer instead of a generic labeled-option renderer.\n- Canonical labeled option groups and `matching-information` section references must not be reshuffled or remapped, because the stored labels are authored source content.\n- Shape-aware preflight should fail closed on malformed canonical Reading groups rather than silently coerce them into another renderer path.\n\nSee also @doc/architecture/test-system-architecture and @doc/patterns/pattern-ai-flat-text-to-structured-field-decomposition.\n"
+        }
+      ],
+      "snapshot": {
+        "content": "# Pattern: Shape-Aware Student-Safe Test Payloads\n\n## Problem\n\nLive-session start often needs a student-safe copy of the full test before the session flips to `in-progress`. The failure mode is assuming every test document uses the same question container.\n\nIn this codebase:\n- IELTS and legacy tests use a flat root `questions[]` array.\n- THCS tests use `sections[].questions`.\n\nA sanitizer that blindly calls `stripAnswerKeys(testData.questions)` will either crash on THCS tests or miss the real question containers.\n\n## Solution\n\nTreat student-safe payload generation as a shape-preserving transform:\n1. Clone the full test document.\n2. Detect every question container that can exist for a live-startable test type.\n3. Strip answer-bearing fields only inside those containers.\n4. Preserve the outer document shape expected by the student surface.\n5. Keep session metadata such as `antiCheatConfig` separate from payload sanitization.\n\n## Why This Matters\n\nSession start is a producer-consumer contract:\n- The teacher start path produces `session_test_payloads/{sessionCode}`.\n- Student routes and hooks consume a shape-specific test document.\n\nIf the producer normalizes to the wrong shape, the session can fail before start or the student surface can receive a document it does not understand.\n\n## Example\n\n```ts\nconst buildStudentSafeTestData = \u003cT extends Record\u003cstring, any\u003e\u003e(testData: T): T =\u003e {\n  const safe = { ...testData } as T \u0026 {\n    questions?: Array\u003cRecord\u003cstring, any\u003e\u003e;\n    sections?: Array\u003cRecord\u003cstring, any\u003e \u0026 { questions?: Array\u003cRecord\u003cstring, any\u003e\u003e }\u003e;\n  };\n\n  if (Array.isArray(safe.questions)) {\n    safe.questions = stripAnswerKeys(safe.questions);\n  }\n\n  if (Array.isArray(safe.sections)) {\n    safe.sections = safe.sections.map((section) =\u003e ({\n      ...section,\n      questions: Array.isArray(section.questions)\n        ? stripAnswerKeys(section.questions)\n        : section.questions,\n    }));\n  }\n\n  return safe;\n};\n```\n\n## Rules\n\n- Do not assume one canonical question path across all test types.\n- Preserve the student-facing document shape while sanitizing answer-bearing fields.\n- Do not couple `antiCheatConfig` to payload shape; it is runtime session metadata.\n- When a new live-startable test type is introduced, update sanitizer logic and tests in the same change.\n\n## Verification\n\nAdd regression coverage for each supported shape:\n- Flat `questions[]` fixture\n- THCS `sections[].questions` fixture\n- Session-start path that caches the payload for a THCS test ID\n\n## Related Docs\n\n- @doc/architecture/session-test-modes\n- @doc/architecture/test-system-architecture\n- @doc/integration-safety-rules\n\n## Source\n\nDerived from the March 25, 2026 session-start bug fix in:\n- `src/hooks/monitor/useMonitorControls.ts`\n- `src/services/testStorage.ts`\n- `src/services/testStorage.test.ts`\n\n## Reading Canonical Display Contract (2026-03-26)\n\nStudent-safe payload logic must also be label-shape-aware for IELTS Reading.\n\n- If a Reading question contains `labeledOptions`, render stored `label` and `text` once. Do not prepend labels from array index and do not rely on `text || label` fallbacks.\n- If a Reading question contains `sectionReferences`, route it to a section-reference renderer instead of a generic labeled-option renderer.\n- Canonical labeled option groups and `matching-information` section references must not be reshuffled or remapped, because the stored labels are authored source content.\n- Shape-aware preflight should fail closed on malformed canonical Reading groups rather than silently coerce them into another renderer path.\n\nSee also @doc/architecture/test-system-architecture and @doc/patterns/pattern-ai-flat-text-to-structured-field-decomposition.\n",
+        "description": "Reusable pattern for building student-safe live-session payloads across heterogeneous test document shapes without leaking answer keys or breaking session start.",
+        "tags": [
+          "pattern",
+          "live-session",
+          "test-system",
+          "thcs",
+          "data-contract",
+          "bug-prevention"
+        ],
+        "title": "Pattern: Shape-Aware Student-Safe Test Payloads"
+      }
+    }
+  ]
+}

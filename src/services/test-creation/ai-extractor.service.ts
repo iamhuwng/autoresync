@@ -15,7 +15,13 @@
  */
 
 import type { Result } from '../../types/result.types';
+import type {
+    ReadingLabeledOption,
+    ReadingOptionLabelFormat,
+    ReadingSectionReference,
+} from '../../types/document.types';
 import { aiService } from '../ai/router.service';
+import { canonicalizeReadingQuestion } from '../../utils/readingQuestionContract';
 
 // ═══════════════════════════════════════════════════════════════
 // TYPES
@@ -42,7 +48,10 @@ export interface ExtractedQuestion {
     number: number;
     text: string;
     instructions?: string;
-    options?: string[];
+    options?: Array<string | ReadingLabeledOption>;
+    labeledOptions?: ReadingLabeledOption[];
+    optionLabelFormat?: ReadingOptionLabelFormat;
+    sectionReferences?: ReadingSectionReference[];
     suggestedAnswer?: string | string[];
     suggestedType?: string;
     passageId?: string;
@@ -306,7 +315,25 @@ class AIExtractorService {
             // `options` is unused for table-completion (fill-in-the-blank, not multiple-choice)
             // and it's the ONLY field that naturally survives the entire pipeline:
             // ExtractedQuestion → AIQuestionResult → mergedQuestion → draft → published test → student view
-            let options = q.options || undefined;
+            let labeledOptions = q.labeledOptions || undefined;
+            let options = Array.isArray(q.options)
+                ? q.options
+                    .map((option) => {
+                        if (typeof option === 'string') {
+                            return option.trim();
+                        }
+
+                        const label = option.label?.trim() || '';
+                        const text = (option.text || '').trim();
+                        return { label, text };
+                    })
+                    .filter((option) => typeof option === 'string'
+                        ? Boolean(option)
+                        : Boolean(option.label || option.text))
+                : labeledOptions?.map((option) => ({
+                    label: option.label.trim(),
+                    text: option.text.trim(),
+                })).filter((option) => option.label || option.text);
 
             if (q.type === 'table-completion' && q.sectionInstruction) {
                 const headerMatch = q.sectionInstruction.match(/TABLE_HEADERS:\s*(.+?)(?:\.|$)/);
@@ -315,6 +342,7 @@ class AIExtractorService {
                     if (parsedHeaders.length >= 2) {
                         // Use TABLE_HEADERS as options — display component reads these as column headers
                         options = parsedHeaders;
+                        labeledOptions = undefined;
                     }
                 }
             }
@@ -328,11 +356,24 @@ class AIExtractorService {
                 ? answerFromKey
                 : q.answer;
 
+            const canonicalQuestion = canonicalizeReadingQuestion({
+                questionNumber: q.questionNumber,
+                type: q.type,
+                questionText: q.questionText,
+                options,
+                labeledOptions,
+                optionLabelFormat: q.optionLabelFormat,
+                sectionReferences: q.sectionReferences || undefined,
+            });
+
             return {
                 number: q.questionNumber,
-                text: q.questionText,
+                text: canonicalQuestion.questionText,
                 instructions: q.sectionInstruction || undefined,
-                options,
+                options: canonicalQuestion.options,
+                labeledOptions: canonicalQuestion.labeledOptions,
+                optionLabelFormat: canonicalQuestion.optionLabelFormat,
+                sectionReferences: canonicalQuestion.sectionReferences,
                 suggestedAnswer: resolvedAnswer,
                 suggestedType: q.type || undefined,
                 passageId: q.passageId || undefined,

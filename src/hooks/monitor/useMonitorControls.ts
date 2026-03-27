@@ -9,7 +9,7 @@
  * @module hooks/monitor/useMonitorControls
  */
 
-import { ref, update } from 'firebase/database';
+import { get, ref, update } from 'firebase/database';
 // @ts-ignore - firebase.js is a JS file without type declarations
 import { database } from '../../services/firebase';
 import { useNavigation } from '../useNavigation';
@@ -19,6 +19,41 @@ import type { AntiCheatConfig } from '../../types/integrity.types';
 import { autoSubmitDisconnectedStudents, identifyDisconnectedStudents, identifyUnsubmittedStudents, autoSubmitAllUnsubmittedStudents } from '../../utils/monitor';
 import { cacheSessionStudentSafeTestData } from '../../services/testStorage';
 import type { ReviewReleaseState } from '../../types/releaseState.types';
+
+function resolveCanonicalSessionTeacherId(session: TestSession | null): string | undefined {
+  const createdByUserId = typeof (session as any)?.createdByUserId === 'string'
+    ? (session as any).createdByUserId.trim()
+    : '';
+  if (createdByUserId) {
+    return createdByUserId;
+  }
+
+  const createdBy = typeof (session as any)?.createdBy === 'string'
+    ? (session as any).createdBy.trim()
+    : '';
+  if (createdBy) {
+    return createdBy;
+  }
+
+  return undefined;
+}
+
+function extractMonitorTestQuestions(testRecord: any): any[] | null {
+  if (!testRecord) {
+    return null;
+  }
+
+  if (Array.isArray(testRecord.questions) && testRecord.questions.length > 0) {
+    return testRecord.questions;
+  }
+
+  if (Array.isArray(testRecord.sections) && testRecord.sections.length > 0) {
+    const sectionQuestions = testRecord.sections.flatMap((section: any) => section?.questions || []);
+    return sectionQuestions.length > 0 ? sectionQuestions : null;
+  }
+
+  return null;
+}
 
 /** Per-student accommodation settings */
 export interface StudentAccommodationInput {
@@ -99,6 +134,24 @@ export function useMonitorControls(
   fullTestData?: any | null // BUG-FIX: Full test data with questions for auto-submission marking
 ): MonitorControlsResult {
   const { navigateTo } = useNavigation('teacher');
+
+  const loadQuestionsForAutoSubmit = async (): Promise<any[] | null> => {
+    const inMemoryQuestions = extractMonitorTestQuestions(fullTestData);
+    if (inMemoryQuestions) {
+      return inMemoryQuestions;
+    }
+
+    if (!session?.testId) {
+      return null;
+    }
+
+    const snapshot = await get(ref(database, `tests/${session.testId}`));
+    if (!snapshot.exists()) {
+      return null;
+    }
+
+    return extractMonitorTestQuestions(snapshot.val());
+  };
 
   /**
    * Starts the test by updating session status and setting start time.
@@ -257,14 +310,31 @@ export function useMonitorControls(
             }
           });
 
-          // Pass total question count for completeness check
-          const totalQuestions = testData?.questionCount || 0;
-          await autoSubmitDisconnectedStudents(
-            sessionCode,
-            session.testId,
-            identifyDisconnectedStudents(disconnectedPlayers),
-            totalQuestions // PRD-0019
-          );
+          const disconnectedStudents = identifyDisconnectedStudents(disconnectedPlayers);
+          const disconnectedUnsubmittedStudents = identifyUnsubmittedStudents(disconnectedPlayers);
+          const testQuestions = testData ? await loadQuestionsForAutoSubmit() : null;
+
+          if (testQuestions && testData && disconnectedUnsubmittedStudents.length > 0) {
+            await autoSubmitAllUnsubmittedStudents(
+              sessionCode,
+              session.testId,
+              disconnectedUnsubmittedStudents,
+              testQuestions,
+              { title: testData.title, type: testData.type, skill: testData.skill, duration: testData.duration },
+              resolveCanonicalSessionTeacherId(session) || '',
+              session.startTime || null,
+              (session as any).academicContext || undefined
+            );
+          } else if (disconnectedStudents.length > 0) {
+            // Emergency fallback preserves the submission instead of dropping it entirely.
+            const totalQuestions = testData?.questionCount || 0;
+            await autoSubmitDisconnectedStudents(
+              sessionCode,
+              session.testId,
+              disconnectedStudents,
+              totalQuestions
+            );
+          }
         }
       }
 
@@ -336,11 +406,11 @@ export function useMonitorControls(
       // BUG-FIX: Auto-submit ALL unsubmitted students when teacher ends test
       // Previously only handled disconnected students, missing connected but unsubmitted ones
       if (session?.players && session?.testId) {
-        // Get teacherId from session data
-        const teacherId = (session as any).teacherId || (session as any).createdBy || '';
+        const teacherId = resolveCanonicalSessionTeacherId(session) || '';
 
         // Get academic context from session data if available
         const academicContext = (session as any).academicContext || undefined;
+        const testQuestions = testData ? await loadQuestionsForAutoSubmit() : null;
 
         if (isBaseTimeExpired) {
           // Base time expired: submit remaining accommodated students who haven't completed
@@ -359,14 +429,6 @@ export function useMonitorControls(
               playerUpdates[`players/${playerId}/submittedBy`] = 'teacher-end';
             });
             await update(sessionRef, playerUpdates);
-
-            // Also save proper test results for these students
-            // PRD-0028: THCS tests have sections[].questions, not root questions
-            const isTHCSTest = fullTestData?.testType === 'THCS-THPT';
-            const testQuestions = fullTestData?.questions ||
-              (isTHCSTest && fullTestData?.sections
-                ? fullTestData.sections.flatMap((s: any) => s.questions || [])
-                : null);
 
             if (testQuestions && testData) {
               const unsubmittedData = identifyUnsubmittedStudents(
@@ -394,20 +456,13 @@ export function useMonitorControls(
           if (unsubmittedStudents.length > 0) {
             console.log(`🔄 [BUG-FIX] Found ${unsubmittedStudents.length} unsubmitted students - saving results...`);
 
-            // PRD-0028: THCS tests have sections[].questions, not root questions
-            const isTHCSTest2 = fullTestData?.testType === 'THCS-THPT';
-            const testQuestions2 = fullTestData?.questions ||
-              (isTHCSTest2 && fullTestData?.sections
-                ? fullTestData.sections.flatMap((s: any) => s.questions || [])
-                : null);
-
-            if (testQuestions2 && testData) {
+            if (testQuestions && testData) {
               // Use proper auto-submit with marking and full Firebase indexes
               await autoSubmitAllUnsubmittedStudents(
                 sessionCode,
                 session.testId,
                 unsubmittedStudents,
-                testQuestions2,
+                testQuestions,
                 { title: testData.title, type: testData.type, skill: testData.skill, duration: testData.duration },
                 teacherId,
                 session.startTime || null,
@@ -469,8 +524,11 @@ export function useMonitorControls(
         testStartedAt: null, // Clear test start timestamp
         lastTestCompletedAt: now, // Track when test ended for analytics
         lastTestId: currentTestId, // PRD-0019: Save last test ID for results page
-        // PRD-0040 Phase 2: Default to locked-review on session end
-        reviewReleaseState: 'locked-review' as ReviewReleaseState,
+        // PRD-0040: Session end auto-releases review while preserving any
+        // already-more-permissive feedback release set by the teacher.
+        reviewReleaseState: (session?.reviewReleaseState === 'feedback-released'
+          ? 'feedback-released'
+          : 'review-released') as ReviewReleaseState,
         // PRD-0019: Clear base time expiry flags
         baseTimeExpired: null,
         baseTimeExpiredAt: null,
@@ -900,8 +958,9 @@ export function useMonitorControls(
    * Controls what students can see in post-test review surfaces.
    * 
    * @param state - The desired release state:
-   *   - 'locked-review': Score + counts only (default after session end)
+   *   - 'locked-review': Score + counts only
    *   - 'review-released': + correct answers, scoring detail
+   *     This is the default state after the teacher ends a session.
    *   - 'feedback-released': + AI feedback, teacher feedback (full access)
    */
   const setReviewReleaseState = async (state: ReviewReleaseState) => {

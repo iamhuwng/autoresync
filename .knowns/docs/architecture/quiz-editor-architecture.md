@@ -1,16 +1,15 @@
 ---
 title: Quiz Editor Architecture
+description: 'IELTS + THCS quiz editors: two-modal pattern, wizard pattern, question types, adaptive layout, AI extraction.'
 createdAt: '2026-02-27T16:33:51.435Z'
-updatedAt: '2026-02-27T16:34:11.236Z'
-description: >-
-  IELTS + THCS quiz editors: two-modal pattern, wizard pattern, question types,
-  adaptive layout, AI extraction.
+updatedAt: '2026-03-25T18:08:12.087Z'
 tags:
   - architecture
   - quiz
   - editor
   - question-types
 ---
+
 # Quiz Editor Architecture
 
 ## Overview
@@ -111,3 +110,19 @@ Upload document → TypeClassifierService (confidence scoring)
 - @doc/prd/prd-multi-group-summary-completion — Multi-group summary PRD
 - @doc/prd/prd-ai-quiz-creation-wizard — AI quiz wizard PRD
 - @doc/architecture/test-system-architecture — Test system (parent doc)
+
+## Reading Review Contract (2026-03-26)
+
+The Reading review/editor flow now distinguishes between two families of answer choices:
+- label-bearing option tasks such as `matching-headings` and `summary-completion-list`, edited as `labeledOptions`
+- section-reference tasks such as `matching-information`, edited as `sectionReferences`
+
+### Review Behavior
+- Review exposes label and text separately so source labels such as `ii`, `iv`, and `ix` are preserved as authored content.
+- Publish is blocked when a Reading group mixes labeled and unlabeled entries, repeats labels, or leaves canonical fields empty.
+- Preview semantics match the student runtime: question numbers come from `number`, labels come from stored fields, and the editor does not rely on `text || label` fallbacks.
+
+### Feature State
+- `matching-information` no longer shares the generic labeled-option renderer path.
+- Canonical Reading labels are displayed once in review and once in the student runtime.
+- The intended contract targets newly created and newly reviewed Reading tests on this branch.

@@ -6,12 +6,14 @@ import { saveTestResult } from '../../services/testResults.service';
 
 const {
   mockNavigate,
+  mockUseLocation,
   mockGet,
   mockUpdate,
   mockTrackAntiCheatAction,
   mockTriggerFormativeFeedbackForSavedResult,
 } = vi.hoisted(() => ({
   mockNavigate: vi.fn(),
+  mockUseLocation: vi.fn(),
   mockGet: vi.fn(),
   mockUpdate: vi.fn(),
   mockTrackAntiCheatAction: vi.fn(),
@@ -20,6 +22,7 @@ const {
 
 vi.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
+  useLocation: () => mockUseLocation(),
 }));
 
 vi.mock('firebase/database', () => ({
@@ -76,6 +79,7 @@ vi.mock('../../services/antiCheatReporting', () => ({
 describe('useTestSubmission', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseLocation.mockReturnValue({ state: null });
 
     mockUpdate.mockResolvedValue(undefined);
     mockGet.mockImplementation(async (path: string) => {
@@ -90,7 +94,9 @@ describe('useTestSubmission', () => {
         return {
           exists: () => true,
           val: () => ({
-            createdBy: 'teacher-1',
+            createdByUserId: 'teacher-auth',
+            createdBy: 'teacher-legacy',
+            teacherId: 'teacher-synthetic',
           }),
         };
       }
@@ -170,6 +176,20 @@ describe('useTestSubmission', () => {
     await waitFor(() => {
       expect(saveTestResult).toHaveBeenCalled();
     });
+
+    const saveCall = vi.mocked(saveTestResult).mock.calls[0];
+    expect(saveCall?.[7]).toBeUndefined();
+    expect(saveCall?.[11]).toEqual(
+      expect.objectContaining({
+        type: 'class_session',
+        sessionCode: 'SESSION123',
+        source: expect.objectContaining({
+          id: 'SESSION123',
+          name: 'SESSION123 Test',
+          sessionCode: 'SESSION123',
+        }),
+      }),
+    );
 
     expect(mockNavigate).toHaveBeenCalledWith('/student-wait/SESSION123', {
       replace: true,
@@ -289,5 +309,110 @@ describe('useTestSubmission', () => {
     await waitFor(() => {
       expect(mockTriggerFormativeFeedbackForSavedResult).toHaveBeenCalledWith('result-1');
     });
+  });
+
+  it('links the saved result back to class assignment progress when class navigation state is present', async () => {
+    mockUseLocation.mockReturnValue({
+      state: {
+        classId: 'class-1',
+        assignmentId: 'assignment-1',
+      },
+    });
+
+    mockGet.mockImplementation(async (path: string) => {
+      if (path.includes('/players/guest_1')) {
+        return {
+          exists: () => false,
+          val: () => null,
+        };
+      }
+
+      if (path === 'game_sessions/SESSION123') {
+        return {
+          exists: () => true,
+          val: () => ({
+            createdBy: 'teacher-1',
+            linkedClassId: 'class-1',
+          }),
+        };
+      }
+
+      if (path === 'classes/class-1/students/guest_1/assignments/assignment-1') {
+        return {
+          exists: () => true,
+          val: () => ({
+            testAssignmentId: 'assignment-1',
+            attemptNumber: 2,
+            status: 'in_progress',
+          }),
+        };
+      }
+
+      return {
+        exists: () => false,
+        val: () => null,
+      };
+    });
+
+    const { result } = renderHook(() =>
+      useTestSubmission({
+        testData: {
+          id: 'test-1',
+          duration: 60,
+          skill: 'Reading',
+          questionCount: 1,
+          questions: [
+            {
+              number: 1,
+              type: 'multiple-choice',
+              question: 'Q1',
+              options: ['A', 'B'],
+              answer: 'A',
+              points: 1,
+            },
+          ],
+        } as any,
+        session: {
+          testId: 'test-1',
+          sessionCode: 'SESSION123',
+          studentName: 'Guest Student',
+          startTime: 1,
+          answers: {},
+          isSubmitted: false,
+        },
+        sessionCode: 'SESSION123',
+        answers: {
+          1: 'A',
+        },
+        timeRemaining: 3000,
+      }),
+    );
+
+    await act(async () => {
+      await result.current.handleSubmit(false);
+    });
+
+    await waitFor(() => {
+      expect(mockUpdate).toHaveBeenCalledWith(
+        'classes/class-1/students/guest_1/assignments/assignment-1',
+        expect.objectContaining({
+          testAssignmentId: 'assignment-1',
+          attemptNumber: 2,
+          status: 'submitted',
+          resultId: 'result-1',
+          score: 1,
+          maxScore: 1,
+          percentage: 100,
+        }),
+      );
+    });
+
+    const saveCall = vi.mocked(saveTestResult).mock.calls[0];
+    expect(saveCall?.[11]).toEqual(
+      expect.objectContaining({
+        classId: 'class-1',
+        assignmentId: 'assignment-1',
+      }),
+    );
   });
 });

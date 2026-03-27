@@ -1,0 +1,14 @@
+﻿gemini-api-dev
+kn-commit
+kn-doc
+kn-extract
+kn-implement
+kn-init
+kn-plan
+kn-research
+kn-spec
+kn-template
+kn-verify
+mantine-vitest-testing
+react-async-state-patterns
+student-view-design

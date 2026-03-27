@@ -11,7 +11,17 @@
 import React, { useRef, useEffect } from 'react';
 import { AuthenticAnswerInput } from './AuthenticAnswerInput';
 import { DragDropMatchingInput } from './DragDropMatchingInput';
+import { MatchingInformationInput } from './MatchingInformationInput';
 import { MatchingFeaturesInput } from './MatchingFeaturesInput';
+import type { ReadingSectionReference } from '../../types/document.types';
+import {
+  getReadingOptionDisplayText,
+  getReadingOptionText,
+  getReadingQuestionOptions,
+  getReadingOptionSelectionValue,
+  type ReadingOptionDisplayValue,
+  type ReadingOptionDisplayFormat,
+} from '../../utils/readingOptionDisplay';
 
 interface StudentAnswers {
   [questionNumber: number]: string | string[] | Record<string, string>;
@@ -21,14 +31,16 @@ interface Question {
   number: number;
   type: string;
   question: string;
-  options?: string[];
+  options?: ReadingOptionDisplayValue[];
+  labeledOptions?: ReadingOptionDisplayValue[];
+  sectionReferences?: ReadingSectionReference[];
   answer: string | string[] | Record<string, string>;
   passageId: string;
   points: number;
   imageUrl?: string;
   context?: any;
   items?: Array<{ id: string; text: string }>;
-  optionLabelFormat?: 'letter' | 'roman'; // Format for matching question options (A,B,C or i,ii,iii)
+  optionLabelFormat?: ReadingOptionDisplayFormat; // Format for matching question options (A,B,C / i,ii,iii / 1,2,3)
   wordLimit?: number;
   summaryGroupId?: string; // unique ID for multi-group summary exercises (e.g. "sc-1", "sc-2")
 }
@@ -53,6 +65,26 @@ interface QuestionGroup {
   questions: Question[];
   instructions: string;
 }
+
+type OptionLike = ReadingOptionDisplayValue;
+type OptionLabelFormat = NonNullable<Question['optionLabelFormat']>;
+
+const getQuestionOptions = (question: Question): OptionLike[] => getReadingQuestionOptions(question);
+
+const getOptionSelectionValue = (
+  option: OptionLike,
+  index: number,
+  labelFormat: OptionLabelFormat = 'letter',
+): string => getReadingOptionSelectionValue(option, index, labelFormat, true);
+
+const getOptionDisplayText = (
+  option: OptionLike,
+  index: number,
+  labelFormat: OptionLabelFormat = 'letter',
+  includeFallbackLabel = true,
+): string => getReadingOptionDisplayText(option, index, labelFormat, includeFallbackLabel);
+
+const getOptionContentText = (option: OptionLike): string => getReadingOptionText(option);
 
 /**
  * Get instructions for each question type (authentic IELTS wording)
@@ -227,7 +259,7 @@ export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
   activeQuestionNumber,
   testSubmitted = false,
   questionResults,
-  partIndex,
+  partIndex: _partIndex,
   skill,
 }) => {
   const questionRefs = useRef<Record<number, HTMLDivElement | null>>({});
@@ -463,7 +495,7 @@ export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
                   );
                 }
 
-                // Matching Information uses chip selection (letters can be reused, so drag-drop is wrong)
+                // Matching Information uses reusable section labels, not text-bearing feature options.
                 if (group.type === 'matching-information') {
                   const groupAnswers: Record<number, string> = {};
                   group.questions.forEach(q => {
@@ -477,7 +509,7 @@ export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
                       background: 'white',
                       padding: '1.25rem 0',
                     }}>
-                      <MatchingFeaturesInput
+                      <MatchingInformationInput
                         questions={group.questions}
                         answers={groupAnswers}
                         onAnswerChange={(num: number, ans: string) => onAnswerChange(num, ans)}
@@ -568,7 +600,7 @@ export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
                         answers={groupAnswers}
                         onAnswerChange={(num: number, ans: string) => onAnswerChange(num, ans)}
                         disabled={testSubmitted}
-                        labelType={labelFormat}
+                        labelType={labelFormat === 'roman' ? 'roman' : 'letter'}
                         listTitle={listTitle}
                       />
                     </div>
@@ -586,28 +618,11 @@ export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
                   });
 
                   // Get options from first question (shared across the group)
-                  const options = group.questions[0]?.options || [];
-
-                  // Strip existing label prefix from option text to prevent double-labeling
-                  // AI sometimes generates options like "A proof", "B plantation" — we need just "proof", "plantation"
-                  const stripOptionLabel = (text: string, index: number): string => {
-                    const trimmed = text.trim();
-                    const expected = String.fromCharCode(65 + index);
-                    const lower = expected.toLowerCase();
-                    // Check patterns: "A. text", "A text", "A) text", "(A) text", "A.text"
-                    for (const letter of [expected, lower]) {
-                      if (trimmed.startsWith(letter + '. ')) return trimmed.slice(letter.length + 2);
-                      if (trimmed.startsWith(letter + '.') && trimmed.length > letter.length + 1) return trimmed.slice(letter.length + 1);
-                      if (trimmed.startsWith(letter + ' ')) return trimmed.slice(letter.length + 1);
-                      if (trimmed.startsWith(letter + ') ')) return trimmed.slice(letter.length + 2);
-                      if (trimmed.startsWith('(' + letter + ') ')) return trimmed.slice(letter.length + 3);
-                    }
-                    return trimmed;
-                  };
+                  const optionLabelFormat = group.questions[0]?.optionLabelFormat || 'letter';
+                  const options = (group.questions[0] ? getQuestionOptions(group.questions[0]) : []) ?? [];
 
                   // Helper to check if option is available in dropdown
-                  const isOptionAvailable = (letterIndex: number, currentValue: string) => {
-                    const letter = String.fromCharCode(65 + letterIndex);
+                  const isOptionAvailable = (letter: string, currentValue: string) => {
                     if (letter === currentValue) return true; // Keep own selection visible
                     return !usedLetters.includes(letter);
                   };
@@ -655,8 +670,8 @@ export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
                       padding: '1.25rem 0',
                     }}>
                       {/* Summary container card — flowing paragraph */}
-                      <div
-                        ref={(el) => {
+                        <div
+                          ref={(el) => {
                           // Register all question refs for scroll-to
                           if (el) {
                             group.questions.forEach(q => {
@@ -717,8 +732,8 @@ export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
                               >
                                 <option value="">Select...</option>
                                 {options.map((opt, i) => {
-                                  const letter = String.fromCharCode(65 + i);
-                                  const available = isOptionAvailable(i, currentVal);
+                                  const letter = getOptionSelectionValue(opt, i, optionLabelFormat);
+                                  const available = isOptionAvailable(letter, currentVal);
                                   return (
                                     <option
                                       key={i}
@@ -726,7 +741,7 @@ export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
                                       disabled={!available}
                                       style={{ color: available ? '#000' : '#94a3b8' }}
                                     >
-                                      {letter}. {stripOptionLabel(opt, i)}{!available ? ' (used)' : ''}
+                                      {getOptionDisplayText(opt, i, optionLabelFormat)}{!available ? ' (used)' : ''}
                                     </option>
                                   );
                                 })}
@@ -760,7 +775,8 @@ export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
                             gap: '0.5rem 1.5rem',
                           }}>
                             {options.map((opt, i) => {
-                              const letter = String.fromCharCode(65 + i);
+                              const letter = getOptionSelectionValue(opt, i, optionLabelFormat);
+                              const text = getOptionContentText(opt);
                               const isUsed = usedLetters.includes(letter);
                               return (
                                 <div key={i} style={{
@@ -771,7 +787,8 @@ export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
                                   fontFamily: 'Arial, sans-serif',
                                   padding: '0.25rem 0',
                                 }}>
-                                  <strong style={{ color: isUsed ? '#94a3b8' : '#000' }}>{letter}</strong>{'  '}{stripOptionLabel(opt, i)}
+                                  <strong style={{ color: isUsed ? '#94a3b8' : '#000' }}>{letter}</strong>
+                                  {text ? <>  {text}</> : null}
                                 </div>
                               );
                             })}
@@ -819,7 +836,7 @@ export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
                     // For table-completion, options carry column header names since they're otherwise unused
                     const firstQ = group.questions[0];
                     if (firstQ?.options && firstQ.options.length >= 2) {
-                      headers = firstQ.options;
+                      headers = firstQ.options.map((option, index) => getOptionDisplayText(option, index));
                     }
                     // Priority 2: Check if first row looks like a header (no blanks, short text)
                     else {
@@ -1068,13 +1085,14 @@ export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
 
                   // Determine column headers — use options from extractor if available
                   const formatCDFirstQ = group.questions[0];
-                  const hasOptionsHeaders = formatCDFirstQ?.options && formatCDFirstQ.options.length >= 2;
+                  const formatCHeaders = formatCDFirstQ?.options?.map((option, index) => getOptionDisplayText(option, index)) || [];
+                  const hasOptionsHeaders = formatCHeaders.length >= 2;
                   const col1Header = hasColonFormat
-                    ? (hasOptionsHeaders ? formatCDFirstQ.options![0] : 'Name')
+                    ? (hasOptionsHeaders ? formatCHeaders[0] || 'Name' : 'Name')
                     : '';
                   const col2Header = hasColonFormat
-                    ? (hasOptionsHeaders ? formatCDFirstQ.options![1] : 'Feature / Detail')
-                    : (hasOptionsHeaders ? formatCDFirstQ.options![0] : 'Description');
+                    ? (hasOptionsHeaders ? formatCHeaders[1] || 'Feature / Detail' : 'Feature / Detail')
+                    : (hasOptionsHeaders ? formatCHeaders[0] || 'Description' : 'Description');
 
                   return (
                     <div style={{ background: 'white', padding: '1.25rem 0' }}>
@@ -1383,6 +1401,7 @@ export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
                           answer={answers[question.number] || ''}
                           onChange={(answer) => onAnswerChange(question.number, answer)}
                           disabled={testSubmitted}
+                          skill={skill}
                         />
                       </div>
                     </div>

@@ -301,7 +301,13 @@ class TestCreationService {
             // Run rules independently using section instructions from AI extraction
             if (aiResult && aiResult.questions) {
                 rulesResult = aiResult.questions.map(q =>
-                    this.typeClassifier.detectFromSectionContext(q.instructions || '', q.text, q.options || [])
+                    this.typeClassifier.detectFromSectionContext(
+                        q.instructions || '',
+                        q.text,
+                        (q.options || [])
+                            .map((option) => typeof option === 'string' ? option : option.text)
+                            .filter((option): option is string => Boolean(option))
+                    )
                 );
             }
 
@@ -334,9 +340,12 @@ class TestCreationService {
                     questionText: q.text,
                     type: q.suggestedType || 'multiple-choice',
                     options: q.options || null,
+                    labeledOptions: q.labeledOptions || null,
                     answer: q.suggestedAnswer,
                     passageId: q.passageId,
                     confidence: q.confidence,
+                    optionLabelFormat: q.optionLabelFormat,
+                    sectionReferences: q.sectionReferences || null,
                 }))
                 : [];
 
@@ -352,7 +361,12 @@ class TestCreationService {
                         includesNumber: r.wordLimit.allowNumber,
                     },
                 } : {}),
-                optionLabelFormat: r.optionLabelFormat === 'roman' ? 'roman' as const : 'letter' as const,
+                optionLabelFormat:
+                    r.optionLabelFormat === 'roman'
+                        ? 'roman' as const
+                        : r.optionLabelFormat === 'number'
+                            ? 'number' as const
+                            : 'letter' as const,
             }));
 
             // Run validation

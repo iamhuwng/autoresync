@@ -12,6 +12,11 @@ import * as classManager from '../services/classManager';
 import * as resultsService from '../services/resultsService';
 import * as homeworkHooks from '../hooks/useHomeworkSubmission';
 import * as notificationService from '../services/notificationService';
+import * as sessionManager from '../services/sessionManager';
+
+const { mockNavigateTo } = vi.hoisted(() => ({
+    mockNavigateTo: vi.fn(),
+}));
 
 const renderWithProviders = (ui) => render(
     <MantineProvider>
@@ -35,7 +40,7 @@ vi.mock('../hooks/useAuth', () => ({
 
 vi.mock('../hooks/useNavigation', () => ({
     useNavigation: () => ({
-        navigateTo: vi.fn()
+        navigateTo: mockNavigateTo
     })
 }));
 
@@ -62,6 +67,9 @@ vi.mock('../hooks/useMediaQuery', () => ({
 
 // Mock services
 vi.mock('../services/classManager');
+vi.mock('../services/sessionManager', () => ({
+    getSession: vi.fn(),
+}));
 vi.mock('../services/resultsService');
 vi.mock('../hooks/useHomeworkSubmission', () => ({
     useStudentHomeworkList: vi.fn()
@@ -88,6 +96,7 @@ describe('StudentDashboardPage - Activity Stream', () => {
         // Default mocks — empty states
         vi.spyOn(classManager, 'getStudentClasses').mockResolvedValue([]);
         vi.spyOn(classManager, 'subscribeToActiveSessions').mockImplementation(() => () => { });
+        vi.mocked(sessionManager.getSession).mockResolvedValue(null);
         vi.spyOn(resultsService, 'getStudentHistory').mockResolvedValue([]);
         vi.spyOn(resultsService, 'getAvailablePublicSessions').mockResolvedValue([]);
         homeworkHooks.useStudentHomeworkList.mockReturnValue({
@@ -350,6 +359,72 @@ describe('StudentDashboardPage - Activity Stream', () => {
 
         await waitFor(() => {
             expect(screen.getByTestId('result-slide-panel')).toHaveAttribute('data-result-id', 'result-1');
+        });
+    });
+
+    it('routes test session notifications through the waiting room', async () => {
+        notificationService.getPaginatedUserNotifications.mockResolvedValue({
+            notifications: [
+                {
+                    id: 'notif-session',
+                    type: 'info',
+                    title: '📝 Test Started',
+                    message: 'Join your live session.',
+                    read: false,
+                    createdAt: Date.now() - 60000,
+                    link: '/student-test/LIVE123',
+                    metadata: {
+                        sessionCode: 'LIVE123',
+                        sessionMode: 'test',
+                    }
+                }
+            ],
+            hasMore: false,
+            lastKey: undefined
+        });
+
+        renderWithProviders(<StudentDashboardPage />);
+
+        fireEvent.click(await screen.findByText('📝 Test Started'));
+
+        await waitFor(() => {
+            expect(mockNavigateTo).toHaveBeenCalledWith(
+                'STUDENT_WAITING',
+                { gameSessionId: 'LIVE123' },
+                { reason: 'dashboard_session_notification' }
+            );
+        });
+    });
+
+    it('routes live class sessions through the waiting room', async () => {
+        vi.spyOn(classManager, 'getStudentClasses').mockResolvedValue([
+            { id: 'cls-1', name: 'IELTS Class', classCode: 'ABC123' }
+        ]);
+        vi.spyOn(classManager, 'subscribeToActiveSessions').mockImplementation((_classId, callback) => {
+            callback({ LIVE123: true });
+            return () => { };
+        });
+        vi.mocked(sessionManager.getSession).mockResolvedValue({
+            status: 'waiting',
+            mode: 'test',
+            testTitle: 'Live IELTS Reading',
+        });
+
+        renderWithProviders(<StudentDashboardPage />);
+
+        await waitFor(() => {
+            expect(screen.getByText('Live Now')).toBeInTheDocument();
+            expect(screen.getByText('Live IELTS Reading')).toBeInTheDocument();
+        });
+
+        fireEvent.click(screen.getByText('Join Now →'));
+
+        await waitFor(() => {
+            expect(mockNavigateTo).toHaveBeenCalledWith(
+                'STUDENT_WAITING',
+                { gameSessionId: 'LIVE123' },
+                { reason: 'dashboard_live_session_join' }
+            );
         });
     });
 });

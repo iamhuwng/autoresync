@@ -1,11 +1,11 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { StudentTestResultsPage } from './StudentTestResultsPage';
 // @ts-ignore
 import { database } from '../services/firebase';
-import { get, ref } from 'firebase/database';
+import { get, onValue, ref } from 'firebase/database';
 import * as testResultsService from '../services/testResults.service';
 import * as sessionService from '../services/sessionService';
 
@@ -15,8 +15,9 @@ vi.mock('../services/firebase', () => ({
 }));
 
 vi.mock('firebase/database', () => ({
-    ref: vi.fn(),
-    get: vi.fn()
+    ref: vi.fn((_database: any, path: string) => path),
+    get: vi.fn(),
+    onValue: vi.fn()
 }));
 
 // Mock services
@@ -57,25 +58,50 @@ vi.mock('../components/modern', () => ({
 describe('StudentTestResultsPage', () => {
     const sessionCode = 'SESSION123';
     const studentId = 'student1';
+    const sessionListeners = new Map<string, { success: (snapshot: any) => void; error?: (error: any) => void }>();
 
     beforeEach(() => {
         vi.clearAllMocks();
+        sessionListeners.clear();
 
         // Default mocks
         (sessionService.sessionService.getPlayerId as any).mockReturnValue(studentId);
 
+        (onValue as any).mockImplementation((refObj: any, success: (snapshot: any) => void, error?: (err: any) => void) => {
+            sessionListeners.set(refObj, { success, error });
+            return vi.fn(() => {
+                sessionListeners.delete(refObj);
+            });
+        });
+
         // Mock Session Fetch
         (get as any).mockImplementation((refObj: any) => {
-            // Very naive mock based on ref logic
-            // In real app we might check ref path string.
-            // For now, let's assume we return successful snapshots.
+            if (typeof refObj === 'string' && refObj.includes('game_sessions/')) {
+                return Promise.resolve({
+                    exists: () => true,
+                    val: () => ({
+                        testId: 'TEST1',
+                        status: 'in-progress',
+                        players: {
+                            [studentId]: { name: 'Student Name', answers: {} }
+                        }
+                    })
+                });
+            }
+
             return Promise.resolve({
                 exists: () => true,
                 val: () => ({
-                    testId: 'TEST1',
-                    players: {
-                        [studentId]: { name: 'Student Name', answers: {} }
-                    }
+                    title: 'Test Title',
+                    type: 'reading',
+                    questions: [
+                        {
+                            number: 1,
+                            type: 'multiple-choice',
+                            answer: 'A',
+                            points: 1
+                        }
+                    ]
                 })
             });
         });
@@ -204,5 +230,59 @@ describe('StudentTestResultsPage', () => {
 
         expect(testResultsService.getTestResult).toHaveBeenCalledWith('result-legacy-1');
         expect(testResultsService.getStudentSessionResult).not.toHaveBeenCalled();
+    });
+
+    it('should update the release banner when the live session state changes', async () => {
+        (testResultsService.getStudentSessionResult as any).mockResolvedValue({
+            resultId: 'res-live',
+            totalScore: 9,
+            maxScore: 10,
+            percentage: 90,
+            questionResults: [],
+            correct: 9,
+            incorrect: 1,
+            partialCredit: 0,
+            totalQuestions: 10,
+            submittedAt: Date.now(),
+            testTitle: 'Test Title',
+            testType: 'reading',
+            testSkill: 'Reading',
+        });
+
+        render(
+            <MemoryRouter initialEntries={[`/results/${sessionCode}`]}>
+                <Routes>
+                    <Route path="/results/:sessionCode" element={<StudentTestResultsPage />} />
+                </Routes>
+            </MemoryRouter>
+        );
+
+        await waitFor(() => {
+            expect(sessionListeners.has(`game_sessions/${sessionCode}`)).toBe(true);
+        });
+
+        await waitFor(() => {
+            expect(screen.getByText('Detailed Review Locked')).toBeInTheDocument();
+        });
+
+        const listener = sessionListeners.get(`game_sessions/${sessionCode}`);
+        expect(listener).toBeTruthy();
+
+        await act(async () => {
+            listener?.success({
+                exists: () => true,
+                val: () => ({
+                    status: 'waiting',
+                    lastTestCompletedAt: Date.now(),
+                    players: {
+                        [studentId]: { name: 'Student Name', answers: {} }
+                    }
+                }),
+            });
+        });
+
+        await waitFor(() => {
+            expect(screen.getByText('Answers Released')).toBeInTheDocument();
+        });
     });
 });

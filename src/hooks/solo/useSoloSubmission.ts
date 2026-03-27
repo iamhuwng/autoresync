@@ -1,4 +1,4 @@
-// File: src/hooks/solo/useSoloSubmission.ts
+﻿// File: src/hooks/solo/useSoloSubmission.ts
 import { useState } from 'react';
 import type { MutableRefObject } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -10,6 +10,7 @@ import { getIELTSQuestionsForStudent } from '../../utils/thcsShuffle';
 import { clearSoloProgress } from './useSoloAutoSave';
 import type { ResolvedPracticeSettings } from '../../types/practice.types';
 import type { HomeworkIntegrity } from '../../types/integrity.types';
+import type { ResultContext, ResultSourceType } from '../../types/solo.types';
 import {
     summarizeError,
     summarizeIntegritySnapshot,
@@ -48,17 +49,28 @@ interface UseSoloSubmissionOptions {
     timeRemaining: number;
     resolvedSettings: ResolvedPracticeSettings | null;
     context: {
-        type: 'course_material' | 'self_study' | 'homework';
-        source: { type: string; id: string; name: string };
+        type: ResultContext['type'];
+        source: {
+            type: string;
+            id?: string;
+            name?: string;
+            sessionCode?: string;
+            classId?: string;
+            courseId?: string;
+            submissionId?: string;
+        };
+        classId?: string;
+        courseId?: string;
+        assignmentId?: string;
     };
     /** Course context for progress update */
     courseContext?: {
         courseId: string;
         moduleId: string;
     };
-    /** Homework context — when set, also updates homework_submissions */
+    /** Homework context â€” when set, also updates homework_submissions */
     homeworkId?: string;
-    /** Homework submission ID — required for homework mode */
+    /** Homework submission ID â€” required for homework mode */
     submissionId?: string;
     questionsWithAnswersRef?: MutableRefObject<TestData['questions'] | null>;
     questionPresentation?: {
@@ -105,6 +117,63 @@ export const useSoloSubmission = ({
     const [testSubmitted, setTestSubmitted] = useState(false);
     const [testResults, setTestResults] = useState<TestResults | null>(null);
     const [isLocked, setIsLocked] = useState(false);
+
+    const buildCanonicalResultContext = (): ResultContext => {
+        const normalizedCourseId = courseContext?.courseId || context.courseId || context.source.courseId;
+        const normalizedClassId = context.classId || context.source.classId;
+        const normalizedSourceId =
+            context.type === 'homework'
+                ? homeworkId || context.source.id || materialId
+                : context.type === 'course_material'
+                    ? normalizedCourseId || context.source.id || materialId
+                    : context.source.id || materialId;
+        const normalizedSourceName =
+            context.source.name && context.source.name.trim().length > 0 && context.source.name !== 'Self Study'
+                ? context.source.name
+                : testData?.title || context.source.name || 'Practice Test';
+        const normalizedSourceType = (() => {
+            const sourceType = context.source.type as ResultSourceType;
+            if (['class', 'homework', 'course', 'library', 'direct_link'].includes(sourceType)) {
+                return sourceType;
+            }
+
+            if (context.type === 'homework') {
+                return 'homework';
+            }
+            if (context.type === 'course_material') {
+                return 'course';
+            }
+            return 'library';
+        })();
+
+        return {
+            type: context.type,
+            source: {
+                type: normalizedSourceType,
+                id: normalizedSourceId,
+                name: normalizedSourceName,
+                sessionCode: context.source.sessionCode,
+                classId: normalizedClassId,
+                courseId: normalizedCourseId,
+                submissionId: submissionId || context.source.submissionId,
+            },
+            classId: normalizedClassId,
+            courseId: normalizedCourseId,
+            assignment: homeworkId
+                ? {
+                    homeworkId,
+                    assignmentId: context.assignmentId,
+                    attemptNumber: 1,
+                }
+                : undefined,
+            assignmentId: context.assignmentId,
+            configApplied: {
+                timerMinutes: resolvedSettings?.timerMinutes ?? testData?.duration ?? null,
+                feedbackTiming: resolvedSettings?.feedbackTiming ?? 'after_completion',
+                source: resolvedSettings ? 'teacher_override' : 'material_default',
+            },
+        };
+    };
 
     const loadGradingQuestions = async (): Promise<NonNullable<TestData['questions']>> => {
         if (questionsWithAnswersRef?.current && questionsWithAnswersRef.current.length > 0) {
@@ -170,7 +239,7 @@ export const useSoloSubmission = ({
     const handleSubmit = async (isAutoSubmit = false): Promise<void> => {
         if (isSubmitting || !testData || testSubmitted || !materialId || !studentId) return;
 
-        // M5: Server-side maxAttempts guard — check before allowing submission
+        // M5: Server-side maxAttempts guard â€” check before allowing submission
         if (resolvedSettings?.maxAttempts != null && resolvedSettings.maxAttempts > 0) {
             try {
                 const { getStudentResultCount } = await import('../../services/testResults.service');
@@ -181,7 +250,7 @@ export const useSoloSubmission = ({
                 }
             } catch (err) {
                 console.warn('Failed to check attempt count, allowing submission:', err);
-                // Fail open — allow the submit if we can't check
+                // Fail open â€” allow the submit if we can't check
             }
         }
 
@@ -231,9 +300,11 @@ export const useSoloSubmission = ({
                 completedAt: Date.now(),
             };
 
-            // Save to test_results/ — NO sessionCode (use materialId as testId)
+            const canonicalContext = buildCanonicalResultContext();
+
+            // Save to test_results/ using canonical practice/homework context identifiers
             const resultId = await saveTestResult(
-                `solo_${materialId}_${Date.now()}`, // sessionCode substitute
+                `solo_${materialId}_${Date.now()}`,
                 materialId,
                 studentId,
                 studentName,
@@ -245,22 +316,14 @@ export const useSoloSubmission = ({
                     duration: testData.duration,
                 },
                 (testData.duration * 60) - (isFinite(timeRemaining) ? timeRemaining : 0),
-                '', // teacherId — empty for solo
-                false, // isGuest — solo requires auth
-                undefined, // submissionContent
+                undefined,
+                false,
+                undefined,
                 courseContext ? {
                     courseId: courseContext.courseId,
                     moduleId: courseContext.moduleId,
                 } : undefined,
-                {
-                    type: context.type,
-                    source: context.source,
-                    configApplied: {
-                        timerMinutes: resolvedSettings?.timerMinutes ?? testData.duration,
-                        feedbackTiming: resolvedSettings?.feedbackTiming ?? 'after_completion',
-                        source: 'practice_settings',
-                    },
-                } as any
+                canonicalContext
             );
 
             const isIeltsReadingOrListening =
@@ -289,7 +352,7 @@ export const useSoloSubmission = ({
                             materialId,
                             { completed: true, score: results.percentage, resultId }
                         );
-                        console.log('✅ Course progress updated');
+                        console.log('âœ… Course progress updated');
                     } catch (err) {
                         console.warn('Failed to update course progress:', err);
                     }
@@ -330,7 +393,7 @@ export const useSoloSubmission = ({
                             },
                         );
                     }
-                    console.log('✅ Homework submission updated:', submissionId);
+                    console.log('âœ… Homework submission updated:', submissionId);
                 } catch (err) {
                     if (integrity) {
                         trackAntiCheatAction(
@@ -352,7 +415,7 @@ export const useSoloSubmission = ({
                         );
                     }
                     console.warn('Failed to update homework submission:', err);
-                    // Don't block — the test result is already saved
+                    // Don't block â€” the test result is already saved
                 }
             }
 
@@ -397,3 +460,4 @@ export const useSoloSubmission = ({
         lockInputs,
     };
 };
+

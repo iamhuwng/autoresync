@@ -1,4 +1,4 @@
-import type { Chunk } from '../../types/document.types';
+import type { Chunk, ReadingLabeledOption } from '../../types/document.types';
 import type { Result } from '../../types/result.types';
 import type { IAIService, AIParseResult, ProviderStatus } from './ai.service';
 import { loadAllGeminiApiKeys } from '../../config/env.config';
@@ -367,6 +367,14 @@ ${chunk.text}
 3. For matching-features: Extract from "List of People/Names" (A. xxx, B. xxx...)
 4. For matching-sentence-endings: Extract from "List of Endings"
 
+**STRUCTURED LABEL CONTRACT:**
+- For any label-bearing option list, preserve the source labels as structured objects in "labeledOptions"
+- Each labeled option must be shaped like { "label": "ii", "text": "The spread of cities" }
+- Set "optionLabelFormat" to "roman", "letter", or "number" when labels exist
+- If you also include "options", it must contain text only with no embedded labels
+- Never duplicate the label inside the option text
+- For unlabeled questions, return "labeledOptions": null and "optionLabelFormat": null
+
 **OUTPUT (JSON object only, no markdown):**
 {
   "passages": [],
@@ -374,8 +382,14 @@ ${chunk.text}
     {
       "questionNumber": 1,
       "questionText": "Question text here?",
-      "type": "true-false-not-given",
+      "type": "matching-headings",
       "options": null,
+      "labeledOptions": [
+        { "label": "ii", "text": "The spread of cities" },
+        { "label": "iv", "text": "The dead" },
+        { "label": "ix", "text": "The cities" }
+      ],
+      "optionLabelFormat": "roman",
       "answer": "",
       "confidence": 95,
       "context": null
@@ -461,8 +475,13 @@ ${chunk.text}
     {
       "questionNumber": 1,
       "questionText": "Question text",
-      "type": "yes-no-not-given",
+      "type": "multiple-choice",
       "options": null,
+      "labeledOptions": [
+        { "label": "A", "text": "first option text" },
+        { "label": "B", "text": "second option text" }
+      ],
+      "optionLabelFormat": "letter",
       "answer": "",
       "passageId": "passage-1",
       "confidence": 95,
@@ -1441,7 +1460,13 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
    */
   async generateAnswersFromContent(
     passagesText: string,
-    questions: Array<{ number: number; questionText: string; type?: string; options?: string[] }>
+    questions: Array<{
+      number: number;
+      questionText: string;
+      type?: string;
+      options?: Array<string | ReadingLabeledOption>;
+      labeledOptions?: ReadingLabeledOption[];
+    }>
   ): Promise<Result<{ answerKey: Record<number, string>; confidence: number }>> {
     // Lazy initialize on first use
     if (this.clients.length === 0 && !this.sdkLoaded) {
@@ -1581,13 +1606,34 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
    */
   private buildAnswerGenerationPrompt(
     passagesText: string,
-    questions: Array<{ number: number; questionText: string; type?: string; options?: string[] }>
+    questions: Array<{
+      number: number;
+      questionText: string;
+      type?: string;
+      options?: Array<string | ReadingLabeledOption>;
+      labeledOptions?: ReadingLabeledOption[];
+    }>
   ): string {
     const questionsFormatted = questions.map(q => {
       let text = `Q${q.number}: ${q.questionText}`;
       if (q.type) text += ` [Type: ${q.type}]`;
-      if (q.options && q.options.length > 0) {
-        text += `\n   Options: ${q.options.join(' | ')}`;
+      const rawOptions = (q.labeledOptions && q.labeledOptions.length > 0)
+        ? q.labeledOptions
+        : q.options || [];
+      const formattedOptions = rawOptions
+        .map((option, index) => {
+          if (typeof option === 'string') {
+            return option;
+          }
+
+          const label = option.label?.trim() || String.fromCharCode(65 + index);
+          const optionText = option.text?.trim() || '';
+          return optionText ? `${label}. ${optionText}` : label;
+        })
+        .filter(Boolean);
+
+      if (formattedOptions.length > 0) {
+        text += `\n   Options: ${formattedOptions.join(' | ')}`;
       }
       return text;
     }).join('\n\n');

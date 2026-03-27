@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import type { MutableRefObject } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { sessionService } from '../../services/sessionService';
 import { calculateIELTSReadingBandScore } from '../../config/scoring.config';
 // @ts-ignore - Firebase is a .js file
@@ -59,6 +59,11 @@ interface TestSession {
   isSubmitted: boolean;
 }
 
+interface ClassAssignmentLocationState {
+  classId?: string;
+  assignmentId?: string;
+}
+
 interface UseTestSubmissionOptions {
   testData: TestData | null;
   session: TestSession | null;
@@ -97,12 +102,14 @@ export const useTestSubmission = ({
   questionsWithAnswersRef,
 }: UseTestSubmissionOptions): UseTestSubmissionReturn => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [testSubmitted, setTestSubmitted] = useState(false);
   const [testResults, setTestResults] = useState<TestResults | null>(null);
   const [loadedAnswers, setLoadedAnswers] = useState<StudentAnswers | null>(null);
   const [isLocked, setIsLocked] = useState(false); // PRD-0019: Input locking during grace period
   const hasCheckedExistingSubmission = useRef(false);
+  const classAssignmentState = ((location.state || null) as ClassAssignmentLocationState | null) || null;
 
   /**
    * Transform answers from Firebase format to UI format
@@ -318,20 +325,20 @@ export const useTestSubmission = ({
       const testSkill = (testData as any).skill || 'reading';
 
       // 3. Fetch session metadata (teacherId, courseId, moduleId, classId)
-      let teacherId = '';
       let courseId: string | null = null;
       let moduleId: string | null = null;
       let classId: string | null = null;
+      const assignmentId = classAssignmentState?.assignmentId || null;
+      const fallbackClassId = classAssignmentState?.classId || null;
 
       try {
         const sessionRef = ref(database, `game_sessions/${sessionCode}`);
         const sessionSnapshot = await get(sessionRef);
         if (sessionSnapshot.exists()) {
           const sessionData = sessionSnapshot.val();
-          teacherId = sessionData.createdBy || sessionData.teacherId || '';
           courseId = sessionData.courseId || null;
           moduleId = sessionData.moduleId || null;
-          classId = sessionData.linkedClassId || null;
+          classId = sessionData.linkedClassId || fallbackClassId || null;
 
           // Record attendance if this session has module context
           if (courseId && classId && moduleId) {
@@ -358,6 +365,31 @@ export const useTestSubmission = ({
       } catch (err) {
         console.warn('Could not fetch session metadata', err);
       }
+
+      if (!classId && fallbackClassId) {
+        classId = fallbackClassId;
+      }
+
+      const resultContext = {
+        type: 'class_session' as const,
+        source: {
+          type: 'class' as const,
+          id: sessionCode,
+          name: testTitle,
+          sessionCode,
+          classId: classId || undefined,
+          courseId: courseId || undefined,
+        },
+        sessionCode,
+        classId: classId || undefined,
+        courseId: courseId || undefined,
+        assignmentId: assignmentId || undefined,
+        configApplied: {
+          timerMinutes: testData.duration,
+          feedbackTiming: 'after_completion' as const,
+          source: 'material_default' as const,
+        },
+      };
 
       // 4. Determine if guest
       const isGuest = !auth.currentUser && playerId.startsWith('guest_');
@@ -408,7 +440,7 @@ export const useTestSubmission = ({
           duration: testData.duration
         },
         (testData.duration * 60) - timeRemaining,
-        teacherId,
+        undefined,
         isGuest,
         undefined, // submissionContent (not applicable for auto-marked tests)
         // Pass academic context
@@ -417,20 +449,8 @@ export const useTestSubmission = ({
           classId: classId || undefined,
           moduleId: moduleId || undefined
         } : undefined,
-        // PRD-0016: Pass class_session context for live sessions
-        {
-          type: 'class_session',
-          source: {
-            type: 'class',
-            id: sessionCode,
-            name: testTitle
-          },
-          configApplied: {
-            timerMinutes: testData.duration,
-            feedbackTiming: 'after_completion',
-            source: 'material_default'
-          }
-        },
+        // PRD-0041: Pass canonical class-session identifiers only; ownership resolves downstream
+        resultContext,
         undefined, // thcsData (not applicable for session-based tests)
         ieltsData // PRD-0039: IELTS passage results
       );
@@ -455,6 +475,46 @@ export const useTestSubmission = ({
           console.log('✅ Test result linked to attendance record');
         } catch (linkErr) {
           console.warn('Failed to link test result to attendance:', linkErr);
+        }
+      }
+
+      if (classId && assignmentId && resultId) {
+        try {
+          const progressRef = ref(
+            database,
+            `classes/${classId}/students/${playerId}/assignments/${assignmentId}`,
+          );
+          const progressSnapshot = await get(progressRef);
+          const existingProgress =
+            progressSnapshot.exists() && progressSnapshot.val()
+              ? (progressSnapshot.val() as Record<string, any>)
+              : {};
+          const elapsedSeconds = Math.max((testData.duration * 60) - timeRemaining, 0);
+          const assignmentResultUpdate: Record<string, any> = {
+            testAssignmentId: existingProgress.testAssignmentId || assignmentId,
+            attemptNumber: existingProgress.attemptNumber || 1,
+            status: existingProgress.status === 'graded' ? 'graded' : 'submitted',
+            submittedAt: existingProgress.submittedAt || markingResult.completedAt,
+            resultId,
+            score: markingResult.totalScore,
+            maxScore: markingResult.maxScore,
+            percentage: markingResult.percentage,
+          };
+
+          if (existingProgress.timeSpent !== undefined) {
+            assignmentResultUpdate.timeSpent = existingProgress.timeSpent;
+          } else {
+            assignmentResultUpdate.timeSpent = elapsedSeconds;
+          }
+
+          if (results.bandScore !== undefined) {
+            assignmentResultUpdate.bandScore = results.bandScore;
+          }
+
+          await update(progressRef, assignmentResultUpdate);
+          console.log(`✅ Result ${resultId} linked to class assignment ${assignmentId}`);
+        } catch (assignmentLinkErr) {
+          console.warn('Failed to link test result to class assignment:', assignmentLinkErr);
         }
       }
 

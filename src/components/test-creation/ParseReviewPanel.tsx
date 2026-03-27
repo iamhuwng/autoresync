@@ -84,6 +84,20 @@ import {
     IconClipboardText,
 } from '@tabler/icons-react';
 import type { QuestionType } from '../../types/QuestionSchema';
+import type {
+    ReadingLabeledOption,
+    ReadingOptionLabelFormat,
+    ReadingSectionReference,
+} from '../../types/document.types';
+import {
+    canonicalizeReadingQuestion,
+    createDefaultReadingSectionReferences,
+    createDefaultReadingOptions,
+    formatReadingOption,
+    formatReadingSectionReference,
+    isCanonicalReadingOptionType,
+    isMatchingInformationType,
+} from '../../utils/readingQuestionContract';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -108,7 +122,9 @@ export interface ParsedQuestion {
     questionNumber: number;
     questionText: string;
     type: QuestionType;
-    options?: string[] | null;
+    options?: Array<ReadingLabeledOption | string> | null;
+    sectionReferences?: ReadingSectionReference[] | null;
+    optionLabelFormat?: ReadingOptionLabelFormat;
     answer?: string | string[];
     passageId?: string;
     sectionInstructionId?: string;
@@ -128,6 +144,33 @@ export interface ParsedQuestion {
     tableData?: { headers: string[]; rows: (string | null)[][] };
     flowchartData?: { steps: { label: string; content: string; hasBlank: boolean }[] };
 }
+
+const getOptionValue = (option: ReadingLabeledOption, index: number): string =>
+    option.label || String.fromCharCode(65 + index);
+
+const getDisplayOptions = (question: ParsedQuestion): ReadingLabeledOption[] => {
+    if (!question.options || question.options.length === 0) {
+        return [];
+    }
+
+    return canonicalizeReadingQuestion({
+        questionNumber: question.questionNumber,
+        type: question.type,
+        questionText: question.questionText,
+        options: question.options,
+        optionLabelFormat: question.optionLabelFormat,
+    }).labeledOptions || [];
+};
+
+const getSectionReferences = (question: ParsedQuestion): ReadingSectionReference[] =>
+    canonicalizeReadingQuestion({
+        questionNumber: question.questionNumber,
+        type: question.type,
+        questionText: question.questionText,
+        options: question.options,
+        optionLabelFormat: question.optionLabelFormat,
+        sectionReferences: question.sectionReferences,
+    }).sectionReferences || [];
 
 export interface ParseReviewPanelProps {
     /** Parsed passages */
@@ -486,7 +529,8 @@ interface QuestionPreviewProps {
 }
 
 const QuestionPreview: React.FC<QuestionPreviewProps> = ({ question, isPreviewMode }) => {
-    const { type, questionText, options, answer } = question;
+    const { type, questionText, answer } = question;
+    const displayOptions = getDisplayOptions(question);
 
     // Render based on question type
     switch (type) {
@@ -517,8 +561,37 @@ const QuestionPreview: React.FC<QuestionPreviewProps> = ({ question, isPreviewMo
                 </Stack>
             );
 
+        case 'matching-information': {
+            const sectionReferences = getSectionReferences(question);
+            return (
+                <Stack gap="xs" onClick={e => e.stopPropagation()}>
+                    <Text size="sm" c="gray.7" style={{ lineHeight: 1.6 }}>
+                        {questionText}
+                    </Text>
+                    {sectionReferences.length > 0 ? (
+                        <Chip.Group value={isPreviewMode ? undefined : (answer as string)} onChange={() => { }}>
+                            <Group gap="xs" wrap="wrap">
+                                {sectionReferences.map((section, i) => (
+                                    <Chip
+                                        key={i}
+                                        value={section.label}
+                                        size="xs"
+                                        variant="light"
+                                        readOnly
+                                    >
+                                        {formatReadingSectionReference(section)}
+                                    </Chip>
+                                ))}
+                            </Group>
+                        </Chip.Group>
+                    ) : (
+                        <Text size="xs" c="dimmed" fs="italic">No section references available</Text>
+                    )}
+                </Stack>
+            );
+        }
+
         case 'matching-headings':
-        case 'matching-information':
         case 'matching-features':
         case 'matching-sentence-endings':
             return (
@@ -526,19 +599,19 @@ const QuestionPreview: React.FC<QuestionPreviewProps> = ({ question, isPreviewMo
                     <Text size="sm" c="gray.7" style={{ lineHeight: 1.6 }}>
                         {questionText}
                     </Text>
-                    {options && Array.isArray(options) && options.length > 0 ? (
-                        options.length <= 8 ? (
+                    {displayOptions.length > 0 ? (
+                        displayOptions.length <= 8 ? (
                             <Chip.Group value={isPreviewMode ? undefined : (answer as string)} onChange={() => { }}>
                                 <Group gap="xs" wrap="wrap">
-                                    {options.filter(Boolean).map((opt, i) => (
+                                    {displayOptions.map((opt, i) => (
                                         <Chip
                                             key={i}
-                                            value={String.fromCharCode(65 + i)}
+                                            value={getOptionValue(opt, i)}
                                             size="xs"
                                             variant="light"
                                             readOnly
                                         >
-                                            {String.fromCharCode(65 + i)}. {opt}
+                                            {formatReadingOption(opt)}
                                         </Chip>
                                     ))}
                                 </Group>
@@ -546,9 +619,9 @@ const QuestionPreview: React.FC<QuestionPreviewProps> = ({ question, isPreviewMo
                         ) : (
                             <Select
                                 placeholder="Select option"
-                                data={options.filter(Boolean).map((opt, i) => ({
-                                    value: String.fromCharCode(65 + i),
-                                    label: `${String.fromCharCode(65 + i)}. ${opt}`,
+                                data={displayOptions.map((opt, i) => ({
+                                    value: getOptionValue(opt, i),
+                                    label: formatReadingOption(opt),
                                 })) || []}
                                 value={isPreviewMode ? null : (answer as string) || null}
                                 onChange={() => { }}
@@ -615,12 +688,12 @@ const QuestionPreview: React.FC<QuestionPreviewProps> = ({ question, isPreviewMo
                             {questionText}
                         </Text>
                     </Paper>
-                    {options && Array.isArray(options) && options.length > 0 ? (
+                    {displayOptions.length > 0 ? (
                         <Select
                             placeholder="Select from list"
-                            data={options.filter(Boolean).map((opt, i) => ({
-                                value: String.fromCharCode(65 + i),
-                                label: `${String.fromCharCode(65 + i)}. ${opt}`,
+                            data={displayOptions.map((opt, i) => ({
+                                value: getOptionValue(opt, i),
+                                label: formatReadingOption(opt),
                             })) || []}
                             value={isPreviewMode ? null : (answer as string) || null}
                             onChange={() => { }}
@@ -641,11 +714,11 @@ const QuestionPreview: React.FC<QuestionPreviewProps> = ({ question, isPreviewMo
                     </Text>
                     <Radio.Group value={isPreviewMode ? undefined : (answer as string)} onChange={() => { }}>
                         <Stack gap="xs">
-                            {(options || []).filter(Boolean).map((opt, i) => (
+                            {displayOptions.map((opt, i) => (
                                 <Radio
                                     key={i}
-                                    value={String.fromCharCode(65 + i)}
-                                    label={`${String.fromCharCode(65 + i)}. ${opt}`}
+                                    value={getOptionValue(opt, i)}
+                                    label={formatReadingOption(opt)}
                                     size="xs"
                                     readOnly
                                 />
@@ -663,15 +736,15 @@ const QuestionPreview: React.FC<QuestionPreviewProps> = ({ question, isPreviewMo
                     </Text>
                     <Chip.Group multiple value={isPreviewMode ? [] : (Array.isArray(answer) ? answer : [])} onChange={() => { }}>
                         <Group gap="xs" wrap="wrap">
-                            {(options || []).filter(Boolean).map((opt, i) => (
+                            {displayOptions.map((opt, i) => (
                                 <Chip
                                     key={i}
-                                    value={String.fromCharCode(65 + i)}
+                                    value={getOptionValue(opt, i)}
                                     size="xs"
                                     variant="light"
                                     readOnly
                                 >
-                                    {String.fromCharCode(65 + i)}. {opt}
+                                    {formatReadingOption(opt)}
                                 </Chip>
                             ))}
                         </Group>
@@ -969,10 +1042,33 @@ export const ParseReviewPanel: React.FC<ParseReviewPanelProps> = ({
                                     label="Question Type"
                                     data={TYPE_SELECT_DATA}
                                     value={question.type || null}
-                                    onChange={(value) => value && onQuestionChange(question.questionNumber, {
-                                        type: value as QuestionType,
-                                        diagramRequired: value === 'diagram-labeling',
-                                    })}
+                                    onChange={(value) => {
+                                        if (!value) return;
+                                        const nextType = value as QuestionType;
+                                        const isMatchingInformation = isMatchingInformationType(nextType);
+                                        const usesCanonicalOptions = isCanonicalReadingOptionType(nextType);
+                                        const nextLabelFormat = nextType === 'matching-headings' ? 'roman' : 'letter';
+                                        onQuestionChange(question.questionNumber, {
+                                            type: nextType,
+                                            diagramRequired: value === 'diagram-labeling',
+                                            options: usesCanonicalOptions
+                                                ? (question.options && question.options.length > 0
+                                                    ? question.options
+                                                    : createDefaultReadingOptions(
+                                                        nextType === 'matching-headings' ? 6 : 4,
+                                                        nextLabelFormat,
+                                                    ))
+                                                : undefined,
+                                            sectionReferences: isMatchingInformation
+                                                ? (question.sectionReferences && question.sectionReferences.length > 0
+                                                    ? question.sectionReferences
+                                                    : createDefaultReadingSectionReferences(6, 'letter'))
+                                                : undefined,
+                                            optionLabelFormat: (usesCanonicalOptions || isMatchingInformation)
+                                                ? nextLabelFormat
+                                                : undefined,
+                                        });
+                                    }}
                                     styles={{ input: { borderRadius: '8px' } }}
                                 />
                                 <Select
@@ -994,16 +1090,150 @@ export const ParseReviewPanel: React.FC<ParseReviewPanelProps> = ({
                                 onChange={(e) => onQuestionChange(question.questionNumber, { answer: e.target.value })}
                                 styles={{ input: { borderRadius: '8px' } }}
                             />
-                            {question.options && Array.isArray(question.options) && question.options.length > 0 && (
-                                <Textarea
-                                    label="Options (one per line)"
-                                    value={question.options.filter(Boolean).join('\n')}
-                                    onChange={(e) => onQuestionChange(question.questionNumber, {
-                                        options: e.target.value.split('\n').filter(Boolean)
-                                    })}
-                                    minRows={3}
-                                    styles={{ input: { borderRadius: '8px' } }}
-                                />
+                            {isCanonicalReadingOptionType(question.type) && (
+                                <Stack gap="xs">
+                                    <Group justify="space-between" align="center">
+                                        <Text size="sm" fw={600}>Options</Text>
+                                        <MantineButton
+                                            size="xs"
+                                            variant="light"
+                                            leftSection={<IconPlus size={14} />}
+                                            onClick={() => {
+                                                const labelFormat = question.optionLabelFormat
+                                                    || (question.type === 'matching-headings' ? 'roman' : 'letter');
+                                                const nextGeneratedOption = createDefaultReadingOptions(
+                                                    (question.options?.length || 0) + 1,
+                                                    labelFormat,
+                                                ).slice(-1)[0] || { label: '', text: '' };
+                                                const nextOptions = question.options && question.options.length > 0
+                                                    ? [...question.options, { label: nextGeneratedOption.label, text: '' }]
+                                                    : createDefaultReadingOptions(4, labelFormat);
+                                                onQuestionChange(question.questionNumber, {
+                                                    options: nextOptions,
+                                                    optionLabelFormat: labelFormat,
+                                                });
+                                            }}
+                                        >
+                                            Add option
+                                        </MantineButton>
+                                    </Group>
+                                    {((question.options || []) as ReadingLabeledOption[]).map((option, optionIndex) => (
+                                        <Group key={`${question.questionNumber}-option-${optionIndex}`} align="flex-end" wrap="nowrap">
+                                            <TextInput
+                                                label="Label"
+                                                value={option.label}
+                                                onChange={(e) => {
+                                                    const nextOptions = [...((question.options || []) as ReadingLabeledOption[])];
+                                                    nextOptions[optionIndex] = { ...option, label: e.target.value };
+                                                    onQuestionChange(question.questionNumber, { options: nextOptions });
+                                                }}
+                                                styles={{ input: { borderRadius: '8px' } }}
+                                                w={110}
+                                            />
+                                            <TextInput
+                                                label="Text"
+                                                value={option.text}
+                                                onChange={(e) => {
+                                                    const nextOptions = [...((question.options || []) as ReadingLabeledOption[])];
+                                                    nextOptions[optionIndex] = { ...option, text: e.target.value };
+                                                    onQuestionChange(question.questionNumber, { options: nextOptions });
+                                                }}
+                                                styles={{ input: { borderRadius: '8px' } }}
+                                                style={{ flex: 1 }}
+                                            />
+                                            <ActionIcon
+                                                color="red"
+                                                variant="light"
+                                                mb={2}
+                                                onClick={() => {
+                                                    const nextOptions = (question.options || []).filter((_, currentIndex) => currentIndex !== optionIndex);
+                                                    onQuestionChange(question.questionNumber, { options: nextOptions });
+                                                }}
+                                                aria-label={`Remove option ${optionIndex + 1}`}
+                                            >
+                                                <IconTrash size={16} />
+                                            </ActionIcon>
+                                        </Group>
+                                    ))}
+                                </Stack>
+                            )}
+
+                            {isMatchingInformationType(question.type) && (
+                                <Stack gap="xs">
+                                    <Group justify="space-between" align="center">
+                                        <Text size="sm" fw={600}>Section References</Text>
+                                        <MantineButton
+                                            size="xs"
+                                            variant="light"
+                                            leftSection={<IconPlus size={14} />}
+                                            onClick={() => {
+                                                const nextGeneratedSection = createDefaultReadingSectionReferences(
+                                                    (question.sectionReferences?.length || 0) + 1,
+                                                    question.optionLabelFormat || 'letter',
+                                                ).slice(-1)[0] || { label: '', title: '', paragraph: '' };
+                                                const nextSections = question.sectionReferences && question.sectionReferences.length > 0
+                                                    ? [...question.sectionReferences, nextGeneratedSection]
+                                                    : createDefaultReadingSectionReferences(6, question.optionLabelFormat || 'letter');
+                                                onQuestionChange(question.questionNumber, {
+                                                    sectionReferences: nextSections,
+                                                    optionLabelFormat: question.optionLabelFormat || 'letter',
+                                                });
+                                            }}
+                                        >
+                                            Add section
+                                        </MantineButton>
+                                    </Group>
+                                    {(question.sectionReferences || []).map((section, sectionIndex) => (
+                                        <Stack key={`${question.questionNumber}-section-${sectionIndex}`} gap="xs">
+                                            <Group align="flex-end" wrap="nowrap">
+                                                <TextInput
+                                                    label="Label"
+                                                    value={section.label}
+                                                    onChange={(e) => {
+                                                        const nextSections = [...(question.sectionReferences || [])];
+                                                        nextSections[sectionIndex] = { ...section, label: e.target.value };
+                                                        onQuestionChange(question.questionNumber, { sectionReferences: nextSections });
+                                                    }}
+                                                    styles={{ input: { borderRadius: '8px' } }}
+                                                    w={110}
+                                                />
+                                                <TextInput
+                                                    label="Title (optional)"
+                                                    value={section.title || ''}
+                                                    onChange={(e) => {
+                                                        const nextSections = [...(question.sectionReferences || [])];
+                                                        nextSections[sectionIndex] = { ...section, title: e.target.value };
+                                                        onQuestionChange(question.questionNumber, { sectionReferences: nextSections });
+                                                    }}
+                                                    styles={{ input: { borderRadius: '8px' } }}
+                                                    style={{ flex: 1 }}
+                                                />
+                                                <ActionIcon
+                                                    color="red"
+                                                    variant="light"
+                                                    mb={2}
+                                                    onClick={() => {
+                                                        const nextSections = (question.sectionReferences || []).filter((_, currentIndex) => currentIndex !== sectionIndex);
+                                                        onQuestionChange(question.questionNumber, { sectionReferences: nextSections });
+                                                    }}
+                                                    aria-label={`Remove section reference ${sectionIndex + 1}`}
+                                                >
+                                                    <IconTrash size={16} />
+                                                </ActionIcon>
+                                            </Group>
+                                            <TextInput
+                                                label="Paragraph / note (optional)"
+                                                value={section.paragraph || ''}
+                                                onChange={(e) => {
+                                                    const nextSections = [...(question.sectionReferences || [])];
+                                                    nextSections[sectionIndex] = { ...section, paragraph: e.target.value };
+                                                    onQuestionChange(question.questionNumber, { sectionReferences: nextSections });
+                                                }}
+                                                styles={{ input: { borderRadius: '8px' } }}
+                                            />
+                                        </Stack>
+                                    ))}
+                                </Stack>
                             )}
 
                             {/* Diagram Upload for diagram-labeling type */}

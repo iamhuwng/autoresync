@@ -1,0 +1,39 @@
+name: Result View Governance
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'documentation/**'
+      - 'scripts/pre-commit-enforcement.js'
+      - '.github/workflows/result-view-governance.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'documentation/**'
+      - 'scripts/pre-commit-enforcement.js'
+      - '.github/workflows/result-view-governance.yml'
+
+jobs:
+  enforce:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Fetch PR base
+        if: github.event_name == 'pull_request'
+        run: git fetch origin "${{ github.base_ref }}" --depth=1
+
+      - name: Enforce PRD-0040 governance
+        run: node scripts/pre-commit-enforcement.js --check

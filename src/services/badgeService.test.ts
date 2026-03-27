@@ -18,6 +18,7 @@ import {
 } from './badgeService';
 import { BadgeType, BadgeEarningContext } from '../types/badge.types';
 import { ref, get, set } from 'firebase/database';
+import { getStudentResults as getCanonicalStudentResults } from './testResults.service';
 
 // Mock Firebase
 vi.mock('firebase/database', () => ({
@@ -28,6 +29,10 @@ vi.mock('firebase/database', () => ({
 
 vi.mock('./firebase', () => ({
     database: {},
+}));
+
+vi.mock('./testResults.service', () => ({
+    getStudentResults: vi.fn(),
 }));
 
 describe('BadgeService', () => {
@@ -126,11 +131,9 @@ describe('BadgeService', () => {
                 val: () => null,
             } as any);
 
-            // Mock: Only one result exists
-            vi.mocked(get).mockResolvedValueOnce({
-                exists: () => true,
-                val: () => ({ 'result-1': {} }),
-            } as any);
+            vi.mocked(getCanonicalStudentResults).mockResolvedValueOnce([
+                { resultId: 'result-1' } as any,
+            ]);
 
             const result = await checkFirstTest(context);
             expect(result.earned).toBe(true);
@@ -174,14 +177,10 @@ describe('BadgeService', () => {
                 val: () => null,
             } as any);
 
-            // Mock: Multiple results exist
-            vi.mocked(get).mockResolvedValueOnce({
-                exists: () => true,
-                val: () => ({
-                    'result-1': {},
-                    'result-2': {},
-                }),
-            } as any);
+            vi.mocked(getCanonicalStudentResults).mockResolvedValueOnce([
+                { resultId: 'result-1' } as any,
+                { resultId: 'result-2' } as any,
+            ]);
 
             const result = await checkFirstTest(context);
             expect(result.earned).toBe(false);
@@ -261,21 +260,18 @@ describe('BadgeService', () => {
                 val: () => null,
             } as any);
 
-            // Mock: 5 consecutive days of results
             const baseDate = new Date('2024-01-01');
-            const results: any = {};
+            const results: any[] = [];
             for (let i = 0; i < 5; i++) {
                 const date = new Date(baseDate);
                 date.setDate(date.getDate() + i);
-                results[`result-${i}`] = {
+                results.push({
+                    resultId: `result-${i}`,
                     submittedAt: date.getTime(),
-                };
+                });
             }
 
-            vi.mocked(get).mockResolvedValueOnce({
-                exists: () => true,
-                val: () => results,
-            } as any);
+            vi.mocked(getCanonicalStudentResults).mockResolvedValueOnce(results as any);
 
             const result = await checkOnFire(context);
             expect(result.earned).toBe(true);
@@ -296,21 +292,18 @@ describe('BadgeService', () => {
                 val: () => null,
             } as any);
 
-            // Mock: Only 3 consecutive days
             const baseDate = new Date('2024-01-01');
-            const results: any = {};
+            const results: any[] = [];
             for (let i = 0; i < 3; i++) {
                 const date = new Date(baseDate);
                 date.setDate(date.getDate() + i);
-                results[`result-${i}`] = {
+                results.push({
+                    resultId: `result-${i}`,
                     submittedAt: date.getTime(),
-                };
+                });
             }
 
-            vi.mocked(get).mockResolvedValueOnce({
-                exists: () => true,
-                val: () => results,
-            } as any);
+            vi.mocked(getCanonicalStudentResults).mockResolvedValueOnce(results as any);
 
             const result = await checkOnFire(context);
             expect(result.earned).toBe(false);
@@ -359,15 +352,11 @@ describe('BadgeService', () => {
                 }),
             } as any);
 
-            // Mock: Student has completed all 3 tests
-            vi.mocked(get).mockResolvedValueOnce({
-                exists: () => true,
-                val: () => ({
-                    'result-1': { courseId: 'course-1', moduleId: 'module-1', testId: 'test-1' },
-                    'result-2': { courseId: 'course-1', moduleId: 'module-1', testId: 'test-2' },
-                    'result-3': { courseId: 'course-1', moduleId: 'module-1', testId: 'test-3' },
-                }),
-            } as any);
+            vi.mocked(getCanonicalStudentResults).mockResolvedValueOnce([
+                { courseId: 'course-1', moduleId: 'module-1', testId: 'test-1' },
+                { courseId: 'course-1', moduleId: 'module-1', testId: 'test-2' },
+                { courseId: 'course-1', moduleId: 'module-1', testId: 'test-3' },
+            ] as any);
 
             // Mock: No badge for this module yet
             vi.mocked(get).mockResolvedValueOnce({
@@ -401,14 +390,10 @@ describe('BadgeService', () => {
                 }),
             } as any);
 
-            // Mock: Student has completed only 2 tests
-            vi.mocked(get).mockResolvedValueOnce({
-                exists: () => true,
-                val: () => ({
-                    'result-1': { courseId: 'course-1', moduleId: 'module-1', testId: 'test-1' },
-                    'result-2': { courseId: 'course-1', moduleId: 'module-1', testId: 'test-2' },
-                }),
-            } as any);
+            vi.mocked(getCanonicalStudentResults).mockResolvedValueOnce([
+                { courseId: 'course-1', moduleId: 'module-1', testId: 'test-1' },
+                { courseId: 'course-1', moduleId: 'module-1', testId: 'test-2' },
+            ] as any);
 
             const result = await checkModuleMaster(context);
             expect(result.earned).toBe(false);
@@ -461,18 +446,14 @@ describe('BadgeService', () => {
                 }),
             } as any);
 
-            // Mock: Student has completed all tests
-            vi.mocked(get).mockResolvedValueOnce({
-                exists: () => true,
-                val: () => ({
-                    'r1': { courseId: 'course-1', testId: 'test-1' },
-                    'r2': { courseId: 'course-1', testId: 'test-2' },
-                    'r3': { courseId: 'course-1', testId: 'test-3' },
-                    'r4': { courseId: 'course-1', testId: 'test-4' },
-                    'r5': { courseId: 'course-1', testId: 'test-5' },
-                    'r6': { courseId: 'course-1', testId: 'test-6' },
-                }),
-            } as any);
+            vi.mocked(getCanonicalStudentResults).mockResolvedValueOnce([
+                { courseId: 'course-1', testId: 'test-1' },
+                { courseId: 'course-1', testId: 'test-2' },
+                { courseId: 'course-1', testId: 'test-3' },
+                { courseId: 'course-1', testId: 'test-4' },
+                { courseId: 'course-1', testId: 'test-5' },
+                { courseId: 'course-1', testId: 'test-6' },
+            ] as any);
 
             // Mock: No badge for this course yet
             vi.mocked(get).mockResolvedValueOnce({
@@ -512,15 +493,11 @@ describe('BadgeService', () => {
                 }),
             } as any);
 
-            // Mock: Student has completed only 3 tests
-            vi.mocked(get).mockResolvedValueOnce({
-                exists: () => true,
-                val: () => ({
-                    'r1': { courseId: 'course-1', testId: 'test-1' },
-                    'r2': { courseId: 'course-1', testId: 'test-2' },
-                    'r3': { courseId: 'course-1', testId: 'test-3' },
-                }),
-            } as any);
+            vi.mocked(getCanonicalStudentResults).mockResolvedValueOnce([
+                { courseId: 'course-1', testId: 'test-1' },
+                { courseId: 'course-1', testId: 'test-2' },
+                { courseId: 'course-1', testId: 'test-3' },
+            ] as any);
 
             const result = await checkCourseChampion(context);
             expect(result.earned).toBe(false);
@@ -551,22 +528,20 @@ describe('BadgeService', () => {
                 submittedAt: 2000,
             };
 
-            // Mock: No badge exists
-            vi.mocked(get).mockResolvedValueOnce({
-                exists: () => true,
-                val: () => ({
-                    'result-1': {
-                        testId: 'test-1',
-                        score: 65,
-                        submittedAt: 1000,
-                    },
-                    'result-2': {
-                        testId: 'test-1',
-                        score: 90,
-                        submittedAt: 2000,
-                    },
-                }),
-            } as any);
+            vi.mocked(getCanonicalStudentResults).mockResolvedValueOnce([
+                {
+                    resultId: 'result-1',
+                    testId: 'test-1',
+                    percentage: 65,
+                    submittedAt: 1000,
+                },
+                {
+                    resultId: 'result-2',
+                    testId: 'test-1',
+                    percentage: 90,
+                    submittedAt: 2000,
+                },
+            ] as any);
 
             vi.mocked(get).mockResolvedValueOnce({
                 exists: () => false,
@@ -587,21 +562,20 @@ describe('BadgeService', () => {
                 submittedAt: 2000,
             };
 
-            vi.mocked(get).mockResolvedValueOnce({
-                exists: () => true,
-                val: () => ({
-                    'result-1': {
-                        testId: 'test-1',
-                        score: 70,
-                        submittedAt: 1000,
-                    },
-                    'result-2': {
-                        testId: 'test-1',
-                        score: 80,
-                        submittedAt: 2000,
-                    },
-                }),
-            } as any);
+            vi.mocked(getCanonicalStudentResults).mockResolvedValueOnce([
+                {
+                    resultId: 'result-1',
+                    testId: 'test-1',
+                    percentage: 70,
+                    submittedAt: 1000,
+                },
+                {
+                    resultId: 'result-2',
+                    testId: 'test-1',
+                    percentage: 80,
+                    submittedAt: 2000,
+                },
+            ] as any);
 
             const result = await checkImprovementStar(context);
             expect(result.earned).toBe(false);
@@ -617,16 +591,14 @@ describe('BadgeService', () => {
                 submittedAt: 1000,
             };
 
-            vi.mocked(get).mockResolvedValueOnce({
-                exists: () => true,
-                val: () => ({
-                    'result-1': {
-                        testId: 'test-1',
-                        score: 90,
-                        submittedAt: 1000,
-                    },
-                }),
-            } as any);
+            vi.mocked(getCanonicalStudentResults).mockResolvedValueOnce([
+                {
+                    resultId: 'result-1',
+                    testId: 'test-1',
+                    percentage: 90,
+                    submittedAt: 1000,
+                },
+            ] as any);
 
             const result = await checkImprovementStar(context);
             expect(result.earned).toBe(false);
@@ -651,21 +623,14 @@ describe('BadgeService', () => {
                 val: () => null,
             } as any);
 
-            // checkFirstTest: Only one result
-            vi.mocked(get).mockResolvedValueOnce({
-                exists: () => false,
-                val: () => null,
-            } as any);
-            vi.mocked(get).mockResolvedValueOnce({
-                exists: () => true,
-                val: () => ({ 'result-1': {} }),
-            } as any);
-
-            // checkPerfectScore
-            vi.mocked(get).mockResolvedValueOnce({
-                exists: () => false,
-                val: () => null,
-            } as any);
+            vi.mocked(getCanonicalStudentResults).mockResolvedValue([
+                {
+                    resultId: 'result-1',
+                    testId: 'test-1',
+                    percentage: 100,
+                    submittedAt: context.submittedAt,
+                },
+            ] as any);
 
             // Mock save operations
             vi.mocked(set).mockResolvedValue(undefined);

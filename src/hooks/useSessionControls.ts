@@ -10,8 +10,9 @@
 
 import { useCallback } from 'react';
 import { database } from '../services/firebase';
-import { ref, update, remove, set } from 'firebase/database';
+import { ref, update, remove, set, get } from 'firebase/database';
 import { useNavigation } from './useNavigation';
+import { getSessionEndReleaseState } from '../types/releaseState.types';
 
 export interface SessionPlayer {
   name: string;
@@ -93,12 +94,16 @@ export const useSessionControls = ({
   /**
    * End the session and return to lobby
    */
-  const handleEndSession = useCallback(() => {
+  const handleEndSession = useCallback(async () => {
     if (!window.confirm('Are you sure you want to end this session? This will return all players to the waiting room.')) {
       return;
     }
 
     const gameSessionRef = ref(database, `game_sessions/${sessionId}`);
+    const sessionSnapshot = await get(gameSessionRef);
+    const sessionData = sessionSnapshot.exists() ? sessionSnapshot.val() : {};
+    const now = Date.now();
+    const currentTestId = sessionData.testId || null;
     
     // Keep players but reset their scores and answers
     const resetPlayers: Record<string, SessionPlayer> = {};
@@ -107,24 +112,38 @@ export const useSessionControls = ({
         const player = players[playerId];
         if (player) {
           resetPlayers[playerId] = {
+            ...player,
             name: player.name,
             ip: player.ip || 'unknown',
             score: 0,
-            answers: {}
+            answers: {},
+            lastTestId: currentTestId,
+            lastTestSessionCode: sessionId,
+            lastTestEndedAt: now,
           };
         }
       });
     }
+
     
-    update(gameSessionRef, {
-      status: 'waiting',
-      players: resetPlayers,
-      currentQuestionIndex: 0,
-      timer: null
-    }).then(() => {
+    try {
+      await update(gameSessionRef, {
+        status: 'waiting',
+        players: resetPlayers,
+        currentQuestionIndex: 0,
+        timer: null,
+        completedAt: now,
+        lastTestCompletedAt: now,
+        lastTestId: currentTestId,
+        reviewReleaseState: getSessionEndReleaseState(sessionData.reviewReleaseState),
+        reviewReleaseStateUpdatedAt: now,
+      });
       onSessionEnd?.();
       navigateTo('TEACHER_LOBBY', { sessionCode: sessionId }, { reason: 'teacher_end_session' });
-    });
+    } catch (error) {
+      console.error('Failed to end session:', error);
+      alert('Failed to end session. Please try again.');
+    }
   }, [sessionId, players, navigateTo, onSessionEnd]);
 
   /**

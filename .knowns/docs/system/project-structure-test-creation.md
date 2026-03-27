@@ -1,13 +1,14 @@
 ---
 title: Project Structure Test Creation
-createdAt: '2026-02-27T15:25:51.308Z'
-updatedAt: '2026-02-27T15:25:52.603Z'
 description: Project structure and patterns for the test creation system
+createdAt: '2026-02-27T15:25:51.308Z'
+updatedAt: '2026-03-25T18:08:12.139Z'
 tags:
   - project-structure
   - test-creation
   - architecture
 ---
+
 # Project Structure - Test Creation Module
 
 > Last Updated: 2026-02-06
@@ -134,84 +135,16 @@ src/
 
 ## Service Responsibilities
 
-### TypeClassifierService (`type-classifier.service.ts`)
-
-**Purpose:** Rule-based detection of test types and question types.
-
-**Key Methods:**
-- `detectTestType(text)` - Returns IELTS/TOEFL/Cambridge with confidence
-- `analyzeQuestionTypes(text)` - Detects question type distribution
-- `shouldTriggerAI(confidence)` - Determines if AI fallback is needed
-
-**Design Decisions:**
-- Uses regex patterns for instant classification
-- Returns confidence scores (0-100)
-- AI fallback threshold: 70%
-
----
-
-### AIExtractorService (`ai-extractor.service.ts`)
-
-**Purpose:** AI-powered extraction when rule-based parsing has low confidence.
-
-**Key Methods:**
-- `extractReadingTest(text, options)` - Full extraction with checkpoints
-- `resumeFromCheckpoint(checkpointId)` - Resume interrupted parsing
-- `getActiveCheckpoints()` - List available checkpoints
-
-**Features:**
-- Checkpoint/resume capability for long documents
-- localStorage persistence for browser refresh recovery
-- Dual-provider support (Gemini primary, Groq fallback)
-- Progress callbacks for UI updates
-- Timeout handling (30s default)
-
----
-
-### ValidationService (`validator.service.ts`)
-
-**Purpose:** Validate parsed content against IELTS standards.
-
-**Key Methods:**
-- `validatePassages(passages)` - Check word count, structure
-- `validateQuestions(questions)` - Check answer keys, types
-- `validateFullTest(test)` - Complete validation with scoring
-
-**Validation Rules:**
-- Passages: 750+ words, proper structure
-- Questions: 40 total for IELTS, valid answer keys
-- Confidence: Weighted scoring across all fields
-
----
+- `TypeClassifierService`: Detects IELTS task types, question ranges, and section boundaries. It does not invent display labels.
+- `AIExtractorService`: Extracts raw question content from uploaded material. It may still return flat Reading strings from source content, but those strings are not the persisted Reading contract.
+- `ValidationService`: Enforces the canonical Reading contract before draft save and publish. It strips only matching leading question numbers, decomposes labeled option strings into `{ label, text }`, routes `matching-information` into `sectionReferences`, and rejects mixed, duplicate, or malformed groups.
+- `readingQuestionContract` utilities are the shared boundary between extraction, review, storage, and runtime. New Reading option-bearing task types should plug into this contract instead of adding renderer-side label heuristics.
 
 ## Hook Responsibilities
 
-### useTestCreation (`useTestCreation.ts`)
-
-**Purpose:** Central state management for test creation flow.
-
-**State:**
-- Current step (upload, parsing, review, complete)
-- Parsed data (passages, questions, metadata)
-- Validation status
-
-**Actions:**
-- `startParsing(file)` - Begin parsing pipeline
-- `updateQuestion(id, data)` - Edit parsed question
-- `saveTest()` - Persist to Firestore
-
----
-
-### useParsingProgress (`useParsingProgress.ts`)
-
-**Purpose:** Track parsing progress with visualization support.
-
-**Features:**
-- Stage-based progress (extract, classify, validate)
-- Error/warning tracking
-- Estimated time remaining
-
----
+- `useTestCreation`: Owns orchestration from upload through classification, extraction, review preparation, draft save, and publish. For Reading drafts it now passes merged questions through the canonical Reading contract so storage and review receive structured fields instead of raw display strings.
+- `useParsingProgress`: Reports pipeline progress only. It must remain presentation-only and must not mutate question content or infer label formats.
+- Review state managed by `TestReviewPage` and `ParseReviewPanel` is expected to edit canonical Reading fields such as `questionText`, `labeledOptions`, and `sectionReferences` rather than newline-packed raw option strings.
 
 ## Deprecated Components
 

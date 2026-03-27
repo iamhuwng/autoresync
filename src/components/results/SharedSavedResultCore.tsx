@@ -58,6 +58,9 @@ export interface SharedSavedResultCoreProps {
 
   /** feedbackTiming from homework context — controls question breakdown visibility */
   feedbackTiming?: 'after_completion' | 'after_deadline' | 'never';
+
+  /** Whether overview answer-map pills may navigate into the review surface */
+  canNavigateToReview?: boolean;
 }
 
 /* ─── Constants ──────────────────────────────────────────────────────────── */
@@ -133,6 +136,7 @@ export const SharedSavedResultCore: React.FC<SharedSavedResultCoreProps> = ({
   feedbackState,
   onNavigateToQuestion,
   feedbackTiming = 'after_completion',
+  canNavigateToReview = true,
 }) => {
   const sections = useMemo(
     () => ({ ...DEFAULT_SECTIONS, ...sectionsProp }),
@@ -189,6 +193,8 @@ export const SharedSavedResultCore: React.FC<SharedSavedResultCoreProps> = ({
           formativeFeedbackLoading={feedbackLoading}
           feedbackError={feedbackError}
           onRetryFeedback={onRetryFeedback}
+          showSectionBreakdown={sections.sectionBreakdown}
+          reviewNavigationEnabled={canNavigateToReview}
         />
       )}
 

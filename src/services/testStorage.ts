@@ -7,9 +7,16 @@
 import { ref, set, get, update } from 'firebase/database';
 // @ts-ignore - firebase.js doesn't have type declarations
 import { database } from './firebase';
-import type { Passage, ParsedQuestion } from '../types/document.types';
+import type {
+  Passage,
+  ParsedQuestion,
+  ReadingLabeledOption,
+  ReadingOptionLabelFormat,
+  ReadingSectionReference,
+} from '../types/document.types';
 import type { MaterialSoloConfig } from '../types/solo.types';
 import { stripAnswerKeys } from '../utils/answerKeyHelper';
+import { canonicalizeReadingQuestion } from '../utils/readingQuestionContract';
 
 /** Link to source material (legacy - Materials feature removed) */
 export interface MaterialLink {
@@ -129,7 +136,11 @@ export interface TestData {
     number: number;
     type: string;
     question: string;
+    questionText?: string;
     options?: string[];
+    labeledOptions?: ReadingLabeledOption[];
+    optionLabelFormat?: ReadingOptionLabelFormat;
+    sectionReferences?: ReadingSectionReference[];
     answer: string | string[] | Record<string, string>;
     passageId: string;
     resourceId?: string; // New unified link
@@ -248,18 +259,43 @@ export const saveTestToFirebase = async (
 
     // Format questions
     const formattedQuestions = questions.map((question, index) => {
+      const canonicalQuestion = canonicalizeReadingQuestion({
+        questionNumber: question.questionNumber || question.number,
+        type: question.type,
+        questionText: (question as any).questionText || question.question || '',
+        question: question.question,
+        options: question.labeledOptions || question.options || [],
+        labeledOptions: question.labeledOptions,
+        optionLabelFormat: question.optionLabelFormat,
+        sectionReferences: question.sectionReferences,
+      });
+
+      if (canonicalQuestion.issues.length > 0) {
+        throw new Error(canonicalQuestion.issues[0]!.message);
+      }
+
       const formatted: any = {
         number: question.number || index + 1,
         type: question.type,
-        question: question.question,
+        question: canonicalQuestion.question,
+        questionText: canonicalQuestion.questionText,
         answer: question.answer,
         passageId: question.passageId || (passages[0]?.id || 'default'),
         points: question.points || 1,
       };
 
       // Only include optional fields if they have values (Firebase doesn't allow undefined)
-      if (question.options && question.options.length > 0) {
-        formatted.options = question.options;
+      if (canonicalQuestion.options && canonicalQuestion.options.length > 0) {
+        formatted.options = canonicalQuestion.options;
+      }
+      if (canonicalQuestion.labeledOptions && canonicalQuestion.labeledOptions.length > 0) {
+        formatted.labeledOptions = canonicalQuestion.labeledOptions;
+      }
+      if (canonicalQuestion.optionLabelFormat) {
+        formatted.optionLabelFormat = canonicalQuestion.optionLabelFormat;
+      }
+      if (canonicalQuestion.sectionReferences && canonicalQuestion.sectionReferences.length > 0) {
+        formatted.sectionReferences = canonicalQuestion.sectionReferences;
       }
       if ((question as any).explanation) {
         formatted.explanation = (question as any).explanation;
@@ -267,7 +303,7 @@ export const saveTestToFirebase = async (
 
       // Pre-compile acceptable answers variants at storage step matching student UI structures
       const existingVariants = (question as any).acceptableAnswers || [];
-      const generatedVariants = compileAcceptableAnswers((question as any).questionText || question.question || '', question.answer);
+      const generatedVariants = compileAcceptableAnswers(canonicalQuestion.questionText, question.answer);
       const combinedVariants = Array.from(new Set([...existingVariants, ...generatedVariants]));
 
       if (combinedVariants.length > 0) {
@@ -421,14 +457,38 @@ export const getTestFromFirebase = async (testId: string): Promise<{ success: bo
   }
 };
 
+type QuestionContainer = Record<string, any> & {
+  questions?: Array<Record<string, any>>;
+};
+
+const sanitizeSectionQuestions = <T extends QuestionContainer>(sections: T[]): T[] =>
+  sections.map((section) => ({
+    ...section,
+    questions: Array.isArray(section.questions)
+      ? stripAnswerKeys(section.questions)
+      : section.questions,
+  })) as T[];
+
 /**
  * Create a student-safe test payload for live delivery.
  * This keeps the rendered question state separate from grading data.
  */
-export const buildStudentSafeTestData = (testData: TestData): TestData => ({
-  ...testData,
-  questions: stripAnswerKeys(testData.questions),
-});
+export const buildStudentSafeTestData = <T extends Record<string, any>>(testData: T): T => {
+  const studentSafeTestData = { ...testData } as T & {
+    questions?: Array<Record<string, any>>;
+    sections?: QuestionContainer[];
+  };
+
+  if (Array.isArray(studentSafeTestData.questions)) {
+    studentSafeTestData.questions = stripAnswerKeys(studentSafeTestData.questions);
+  }
+
+  if (Array.isArray(studentSafeTestData.sections)) {
+    studentSafeTestData.sections = sanitizeSectionQuestions(studentSafeTestData.sections);
+  }
+
+  return studentSafeTestData;
+};
 
 const writeStudentSafeTestData = async (
   testId: string,

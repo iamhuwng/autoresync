@@ -61,12 +61,11 @@
         "test_results": {
             ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
             "$resultId": {
-                ".read": "data.child('studentId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || data.child('teacherId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'teacher'",
+                ".read": "data.child('studentId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && data.child('visibility').child('ownershipResolved').val() === true && data.child('visibility').child('visibilityOwnerTeacherId').val() === auth.uid)",
                 ".write": "auth != null"
             },
             ".indexOn": [
                 "studentId",
-                "teacherId",
                 "sessionCode",
                 "courseId",
                 "classId",
@@ -87,8 +86,8 @@
         "test_results_by_student": {
             ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
             "$studentId": {
-                ".read": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('users').child(auth.uid).child('role').val() === 'teacher'",
-                ".write": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                ".read": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                ".write": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
                 ".indexOn": [
                     "submittedAt"
                 ]
@@ -97,8 +96,8 @@
         "test_results_by_session": {
             ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
             "$sessionCode": {
-                ".read": "auth != null",
-                ".write": "auth != null",
+                ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' || data.child('studentId').val() === auth.uid || newData.child('studentId').val() === auth.uid",
                 ".indexOn": [
                     "submittedAt"
                 ]
@@ -109,8 +108,8 @@
             "$courseId": {
                 ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('courses').child($courseId).child('ownerId').val() === auth.uid",
                 "$studentId": {
-                    ".read": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
-                    ".write": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                    ".read": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('courses').child($courseId).child('ownerId').val() === auth.uid",
+                    ".write": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('courses').child($courseId).child('ownerId').val() === auth.uid",
                     ".indexOn": [
                         "submittedAt"
                     ]
@@ -122,8 +121,8 @@
             "$classId": {
                 ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('classes').child($classId).child('createdBy').val() === auth.uid",
                 "$studentId": {
-                    ".read": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
-                    ".write": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                    ".read": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('classes').child($classId).child('createdBy').val() === auth.uid",
+                    ".write": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('classes').child($classId).child('createdBy').val() === auth.uid",
                     ".indexOn": [
                         "submittedAt"
                     ]
@@ -461,6 +460,15 @@
                 "$date": {
                     ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
                     ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() !== 'guest'"
+                }
+            },
+            "result_visibility": {
+                "unresolved": {
+                    "$resultId": {
+                        ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() !== 'guest'",
+                        ".validate": "!newData.exists() || ((root.child('test_results').child($resultId).exists() || newData.root.child('test_results').child($resultId).exists()) && newData.hasChildren(['resultId', 'studentId', 'contextType', 'unresolvedReason', 'sourceLookupAttempted', 'ownershipResolved', 'createdAt', 'updatedAt', 'reportVersion']) && newData.child('resultId').val() === $resultId && newData.child('ownershipResolved').val() === false && newData.child('studentId').val() === (newData.root.child('test_results').child($resultId).child('studentId').val() || root.child('test_results').child($resultId).child('studentId').val()))"
+                    }
                 }
             },
             "config": {

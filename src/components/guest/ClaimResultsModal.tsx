@@ -5,7 +5,7 @@
  * Allows users to claim guest results created with their email prefix.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
     Modal,
     Stack,
@@ -45,20 +45,38 @@ export function ClaimResultsModal({
     const [currentClaiming, setCurrentClaiming] = useState<string | null>(null);
     const [resultCounts, setResultCounts] = useState<Record<string, number>>({});
 
-    // Load result counts on mount
-    useState(() => {
+    useEffect(() => {
+        let cancelled = false;
+
         const loadCounts = async () => {
             const counts: Record<string, number> = {};
+
+            if (!opened || claimableGuestNames.length === 0) {
+                if (!cancelled) {
+                    setResultCounts({});
+                }
+                return;
+            }
+
             for (const guestName of claimableGuestNames) {
+                if (cancelled) {
+                    return;
+                }
                 const count = await getGuestResultCount(guestName);
                 counts[guestName] = count;
             }
-            setResultCounts(counts);
+
+            if (!cancelled) {
+                setResultCounts(counts);
+            }
         };
-        if (opened && claimableGuestNames.length > 0) {
-            loadCounts();
-        }
-    });
+
+        void loadCounts();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [claimableGuestNames, opened]);
 
     const handleClaim = async () => {
         setClaiming(true);

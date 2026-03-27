@@ -1,17 +1,15 @@
 ---
 title: 'Pattern: AI Flat-Text to Structured Field Decomposition'
+description: How to decompose AI-returned flat text (e.g., sentence-rewrite format, fill-in templates) into typed structured fields in a converter layer, rather than requiring the AI to output perfect structured JSON for complex types.
 createdAt: '2026-03-05T08:38:54.766Z'
-updatedAt: '2026-03-05T08:39:51.599Z'
-description: >-
-  How to decompose AI-returned flat text (e.g., sentence-rewrite format, fill-in
-  templates) into typed structured fields in a converter layer, rather than
-  requiring the AI to output perfect structured JSON for complex types.
+updatedAt: '2026-03-25T18:08:29.745Z'
 tags:
   - pattern
   - ai
   - parsing
   - converter
 ---
+
 # Pattern: AI Flat-Text to Structured Field Decomposition
 
 ## Problem
@@ -127,3 +125,20 @@ Don't use this when:
 
 - @doc/patterns/pattern-rule-vs-ai-decision-boundary — When to use rules vs AI for classification
 - @doc/patterns/pattern-thcs-hybrid-parser-reconciliation-pipeline — The broader pipeline this converter is part of
+
+## Reading Label-Aware Decomposition (2026-03-26)
+
+When Reading source material includes labels, extraction should promote those labels into structured fields instead of leaving them embedded in free text.
+
+### Example Decompositions
+- `A proof` -> `{ label: 'A', text: 'proof' }`
+- `**ii** The spread of cities` -> `{ label: 'ii', text: 'The spread of cities' }`
+- `27. The burial site was found...` with `questionNumber = 27` -> `questionText = 'The burial site was found...'`
+
+### Rules
+- Strip a leading question number only when it matches the authoritative question number for that item.
+- Preserve non-sequential source labels exactly. Do not renumber `ii`, `iv`, `ix` to `i`, `ii`, `iii`.
+- Reject mixed groups such as `['A proof', 'plantation', 'C burial site']` instead of guessing.
+- Downstream renderers should consume the structured result and must not reconstruct labels from array index once labels exist.
+
+This is the converter-layer fix for duplicated labels such as `A A`, `v. v. ...`, and doubled question numbers.

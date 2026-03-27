@@ -25,7 +25,7 @@ import { useNavigation } from '../hooks/useNavigation';
 import { useAuth } from '../hooks/useAuth';
 import { database } from '../services/firebase';
 import { sessionService } from '../services/sessionService';
-import { getEffectiveReleaseState } from '../types/releaseState.types';
+import { deriveSessionReleaseState, getEffectiveReleaseState } from '../types/releaseState.types';
 import CustomAvatar from '../components/CustomAvatar.jsx';
 import { AppShell, Title, Text, Paper, SimpleGrid, Center, Loader, Group, Divider, Button } from '@mantine/core';
 import { TestResultsModal } from '../components/test/TestResultsModal';
@@ -59,6 +59,7 @@ const StudentWaitingRoomPage = () => {
   // We store the testId so that if the teacher starts a NEW test, the student can join it.
   const completedTestIdRef = React.useRef(null);
   const lastSubmissionResetAtRef = React.useRef(0);
+  const recentResultsAutoOpenedRef = React.useRef(false);
 
   // PRD-TEST-END-FLOW: Auto-open results modal when arriving from teacher-end redirect
   useEffect(() => {
@@ -66,6 +67,7 @@ const StudentWaitingRoomPage = () => {
       console.log('📊 [WaitingRoom] Arrived with showResults flag, opening results modal');
       setShowResultsModal(true);
       setHasRecentResults(true);
+      recentResultsAutoOpenedRef.current = true;
       // PRD-0040: Update release state from navigation state
       if (location.state?.reviewReleaseState) {
         setReviewReleaseState(getEffectiveReleaseState(location.state.reviewReleaseState));
@@ -82,13 +84,19 @@ const StudentWaitingRoomPage = () => {
   useEffect(() => {
     if (!gameSessionId || !hasRecentResults) return;
 
-    const releaseRef = ref(database, `game_sessions/${gameSessionId}/reviewReleaseState`);
-    const unsubRelease = onValue(releaseRef, (snapshot) => {
-      const val = snapshot.val();
-      const effective = getEffectiveReleaseState(val);
-      console.log(`🔓 [WaitingRoom] Release state updated: ${effective}`);
-      setReviewReleaseState(effective);
-    });
+    const releaseRef = ref(database, `game_sessions/${gameSessionId}`);
+    const unsubRelease = onValue(
+      releaseRef,
+      (snapshot) => {
+        const effective = deriveSessionReleaseState(snapshot.val());
+        console.log(`🔓 [WaitingRoom] Release state updated: ${effective}`);
+        setReviewReleaseState(effective);
+      },
+      (error) => {
+        console.warn('[WaitingRoom] Could not load release state, falling back to locked review.', error);
+        setReviewReleaseState(getEffectiveReleaseState('locked-review'));
+      }
+    );
 
     return () => unsubRelease();
   }, [gameSessionId, hasRecentResults]);
@@ -169,6 +177,7 @@ const StudentWaitingRoomPage = () => {
         completedTestIdRef.current = null;
         setHasRecentResults(false);
         setShowResultsModal(false);
+        recentResultsAutoOpenedRef.current = false;
 
         if (
           sessionData.mode === 'test' &&
@@ -199,6 +208,31 @@ const StudentWaitingRoomPage = () => {
         }
       }
 
+      const hasPersistentResultTrail = Boolean(
+        currentPlayerData?.lastTestId &&
+        (!currentPlayerData?.lastTestSessionCode || currentPlayerData.lastTestSessionCode === gameSessionId)
+      );
+      const canShowPersistentResults = sessionData.status === 'waiting'
+        && !sessionData.testId
+        && !sessionData.quizId
+        && hasPersistentResultTrail;
+
+      if (canShowPersistentResults) {
+        if (!hasRecentResults) {
+          console.log('📚 [WaitingRoom] Restoring recent-results entry from persistent player breadcrumbs');
+          setHasRecentResults(true);
+        }
+
+        setReviewReleaseState(deriveSessionReleaseState(sessionData));
+
+        const lastEndedAt = currentPlayerData?.lastTestEndedAt;
+        const endedRecently = typeof lastEndedAt === 'number' && (Date.now() - lastEndedAt) < 30000;
+        if (endedRecently && !recentResultsAutoOpenedRef.current) {
+          recentResultsAutoOpenedRef.current = true;
+          setShowResultsModal(true);
+        }
+      }
+
       // Navigate to test/quiz page when content is selected AND status is 'in-progress'
       // CRITICAL: Only navigate when status === 'in-progress' to prevent A→B→A loops
       // StudentTestPage navigates here when status === 'waiting'
@@ -221,6 +255,7 @@ const StudentWaitingRoomPage = () => {
         // PRD-TEST-END-FLOW: Clear results state when new test starts
         setHasRecentResults(false);
         setShowResultsModal(false);
+        recentResultsAutoOpenedRef.current = false;
 
         navigateTo('STUDENT_TEST',
           { sessionCode: gameSessionId },
@@ -256,7 +291,7 @@ const StudentWaitingRoomPage = () => {
     }
 
     return () => unsubscribe();
-  }, [gameSessionId, navigateTo, user]);
+  }, [gameSessionId, hasRecentResults, navigateTo, user]);
 
   useEffect(() => {
     if (gameSession) {
