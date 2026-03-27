@@ -98,6 +98,9 @@ interface StudentProgressCardProps {
   /** PRD-0036: Integrity data for badge display */
   integrityData?: { violationCount: number; riskLevel: 'low' | 'medium' | 'high' };
 
+  /** PRD-0036: Open integrity detail panel */
+  onIntegrityClick?: () => void;
+
   /** PRD-0036: Force-submit this student (teacher action) */
   onForceSubmit?: () => void;
 
@@ -121,6 +124,7 @@ export const StudentProgressCard: React.FC<StudentProgressCardProps> = ({
   baseTimeExpired, // PRD-0019
   extraTimeRemaining, // PRD-0019
   integrityData, // PRD-0036
+  onIntegrityClick,
   onForceSubmit, // PRD-0036
   onResetSubmit, // PRD-0036
 }) => {
@@ -285,6 +289,14 @@ export const StudentProgressCard: React.FC<StudentProgressCardProps> = ({
                 <IntegrityBadge
                   violationCount={integrityData.violationCount}
                   riskLevel={integrityData.riskLevel}
+                  onClick={
+                    onIntegrityClick
+                      ? (event) => {
+                          event.stopPropagation();
+                          onIntegrityClick();
+                        }
+                      : undefined
+                  }
                 />
               )}
             </div>

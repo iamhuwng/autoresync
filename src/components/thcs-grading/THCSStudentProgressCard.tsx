@@ -30,6 +30,8 @@ interface THCSStudentCardProps {
     onGradeWriting?: () => void;
     /** PRD-0036: Integrity data for badge display */
     integrityData?: { violationCount: number; riskLevel: 'low' | 'medium' | 'high' };
+    /** PRD-0036: Open integrity detail panel */
+    onIntegrityClick?: () => void;
     /** PRD-0036: Force-submit this student (teacher action) */
     onForceSubmit?: () => void;
     /** PRD-0036: Reset this student's submission (teacher action) */
@@ -52,6 +54,7 @@ export const THCSStudentProgressCard: React.FC<THCSStudentCardProps> = ({
     onClick,
     onGradeWriting,
     integrityData, // PRD-0036
+    onIntegrityClick,
     onForceSubmit,
     onResetSubmit,
 }) => {
@@ -124,6 +127,14 @@ export const THCSStudentProgressCard: React.FC<THCSStudentCardProps> = ({
                                 <IntegrityBadge
                                     violationCount={integrityData.violationCount}
                                     riskLevel={integrityData.riskLevel}
+                                    onClick={
+                                        onIntegrityClick
+                                            ? (event) => {
+                                                event.stopPropagation();
+                                                onIntegrityClick();
+                                            }
+                                            : undefined
+                                    }
                                 />
                             )}
                         </div>

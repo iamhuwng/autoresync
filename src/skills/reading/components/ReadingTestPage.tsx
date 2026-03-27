@@ -52,7 +52,7 @@ const ReadingTestPageContent: React.FC = () => {
   const { navigateTo, handleSessionChange } = useNavigation('student');
   const { checkAndRedirect } = useTeacherEndRedirect({ sessionCode }); // BUG-FIX: Redirect to results on teacher-end
   const submitTestRef = useRef<
-    ((submitMode?: boolean | 'teacher') => Promise<void>) | null
+    ((isAutoSubmit?: boolean) => Promise<void>) | null
   >(null);
   const flushIntegrityRef = useRef<(() => Promise<void>) | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -82,7 +82,7 @@ const ReadingTestPageContent: React.FC = () => {
       if (flushIntegrityRef.current) {
         await flushIntegrityRef.current();
       }
-      await submitTestRef.current('teacher');
+      await submitTestRef.current(true);
     },
   });
 
@@ -249,7 +249,7 @@ const ReadingTestPageContent: React.FC = () => {
     loadedAnswers,
     handleSubmit: submitTest,
     isLocked, // PRD-0019: Input locking during grace period
-    lockInputs, // PRD-0019: Function to lock inputs
+    lockInputs: _lockInputs, // PRD-0019: Function to lock inputs
   } = useTestSubmission({
     testData,
     session,
@@ -258,12 +258,6 @@ const ReadingTestPageContent: React.FC = () => {
     timeRemaining,
     integrityReport: antiCheatConfig ? getIntegrityReport() : null,
     questionsWithAnswersRef,
-    questionPresentation: {
-      studentId: sessionService.getPlayerId() || 'anon',
-      shuffleQuestions: antiCheatConfig?.shuffleQuestions || false,
-      shuffleOptions: antiCheatConfig?.shuffleOptions || false,
-    },
-    telemetrySurface: 'reading_test',
   });
 
   // Store submit function ref for timer callback
@@ -284,11 +278,10 @@ const ReadingTestPageContent: React.FC = () => {
       testData.id,
       {
         shuffleQuestions: antiCheatConfig?.shuffleQuestions || false,
-        shuffleOptions: antiCheatConfig?.shuffleOptions || false,
+        shuffleOptions: false,
       },
     );
   }, [
-    antiCheatConfig?.shuffleOptions,
     antiCheatConfig?.shuffleQuestions,
     testData,
   ]);

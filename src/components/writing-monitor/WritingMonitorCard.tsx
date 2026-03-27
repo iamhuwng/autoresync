@@ -23,6 +23,8 @@ interface WritingMonitorCardProps {
     onReopen?: (studentUid: string) => void;
     /** PRD-0036: Integrity data for badge display */
     integrityData?: { violationCount: number; riskLevel: 'low' | 'medium' | 'high' };
+    /** PRD-0036: Open integrity detail panel */
+    onIntegrityClick?: () => void;
 }
 
 interface WritingStudentData {
@@ -42,6 +44,7 @@ export default function WritingMonitorCard({
     onPeek,
     onReopen,
     integrityData, // PRD-0036
+    onIntegrityClick,
 }: WritingMonitorCardProps) {
     const [data, setData] = useState<WritingStudentData | null>(null);
 
@@ -147,6 +150,14 @@ export default function WritingMonitorCard({
                         <IntegrityBadge
                             violationCount={integrityData.violationCount}
                             riskLevel={integrityData.riskLevel}
+                            onClick={
+                                onIntegrityClick
+                                    ? (event) => {
+                                        event.stopPropagation();
+                                        onIntegrityClick();
+                                    }
+                                    : undefined
+                            }
                         />
                     )}
                 </div>
