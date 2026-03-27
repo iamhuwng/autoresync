@@ -16,12 +16,23 @@
 import React from 'react';
 import { useParams, useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { TeacherHeader } from '../components/navigation';
 import { LegacyResultDetailView } from '../components/results/LegacyResultDetailView';
 
 export const ResultDetailPage: React.FC = () => {
     const { resultId } = useParams<{ resultId: string }>();
     const navigate = useNavigate();
-    const { profile, loading: authLoading } = useAuth();
+    const { user, profile, loading: authLoading, logout } = useAuth();
+
+    const handleLogout = React.useCallback(async () => {
+        try {
+            await logout();
+            sessionStorage.removeItem('isAdmin');
+            navigate('/', { replace: true });
+        } catch (error) {
+            console.error('[ResultDetailPage] Logout failed:', error);
+        }
+    }, [logout, navigate]);
 
     /**
      * Wait for auth to resolve before deciding route behavior
@@ -76,17 +87,25 @@ export const ResultDetailPage: React.FC = () => {
      */
     return (
         <div
-            style={{
-                minHeight: '100vh',
-                background: 'linear-gradient(135deg, rgba(250, 245, 255, 0.95) 0%, rgba(240, 249, 255, 0.95) 50%, rgba(240, 253, 250, 0.95) 100%)',
-                padding: '2rem',
-            }}
+            data-testid="result-detail-teacher-shell"
+            style={teacherShellStyle}
         >
-            <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-                <LegacyResultDetailView
-                    resultId={resultId}
-                    onReturn={() => navigate(-1)}
-                />
+            <TeacherHeader
+                pageTitle="Result Detail"
+                userId={user?.uid}
+                userRole={profile?.role === 'super_admin' ? 'super_admin' : 'teacher'}
+                userDisplayName={profile?.displayName || user?.displayName || user?.email}
+                userEmail={profile?.email || user?.email}
+                userAvatarUrl={profile?.avatarUrl || profile?.photoURL || user?.photoURL}
+                onLogout={handleLogout}
+            />
+            <div style={teacherShellContentStyle}>
+                <div style={teacherShellPanelStyle}>
+                    <LegacyResultDetailView
+                        resultId={resultId}
+                        onReturn={() => navigate(-1)}
+                    />
+                </div>
             </div>
         </div>
     );
@@ -123,6 +142,21 @@ const primaryNavButtonStyle: React.CSSProperties = {
     borderRadius: '0.75rem',
     cursor: 'pointer',
     boxShadow: '0 4px 14px rgba(139, 92, 246, 0.3)',
+};
+
+const teacherShellStyle: React.CSSProperties = {
+    minHeight: '100vh',
+    background: 'linear-gradient(135deg, #f8fafc 0%, #eff6ff 50%, #f0fdfa 100%)',
+};
+
+const teacherShellContentStyle: React.CSSProperties = {
+    minHeight: 'calc(100vh - 110px)',
+    padding: '2rem 1rem 3rem',
+};
+
+const teacherShellPanelStyle: React.CSSProperties = {
+    maxWidth: '1200px',
+    margin: '0 auto',
 };
 
 export default ResultDetailPage;

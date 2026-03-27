@@ -67,6 +67,7 @@ import { gradeWritingQuestions } from '../../services/thcsWritingGrading.service
 import { saveTestResult } from '../../services/testResults.service';
 import { sendThcsFullyGradedNotification } from '../../services/notificationService';
 import { Button } from '../modern';
+import { buildThcsSessionResultContext } from './thcsSessionResultContext';
 
 import type { THCSTest } from '../../types/thcs-test.types';
 import { shuffleTest } from '../../utils/thcsShuffle';
@@ -481,6 +482,12 @@ const THCSTestLayout: React.FC<THCSTestLayoutProps> = ({ testData, sessionCode }
                 pendingWritingCount: thcsData.pendingWritingCount,
             });
 
+            const resultContext = buildThcsSessionResultContext({
+                sessionCode,
+                title: testData.metadata.title,
+                duration: testData.metadata.duration,
+            });
+
             // Save result
             const resultId = await saveTestResult(
                 sessionCode,
@@ -495,11 +502,11 @@ const THCSTestLayout: React.FC<THCSTestLayoutProps> = ({ testData, sessionCode }
                     duration: testData.metadata.duration,
                 },
                 timeElapsed,
-                testData.createdBy,
+                undefined,
                 false,
                 undefined,
                 undefined,
-                undefined,
+                resultContext,
                 thcsData
             );
 

@@ -23,6 +23,13 @@ describe('featureRegistry', () => {
       expect(resolveFeatureFromRoute('/admin/dashboard')).toBe('adminPanel');
     });
 
+    it('maps result routes without params to results', () => {
+      expect(resolveFeatureFromRoute('/guest-results')).toBe('results');
+      expect(resolveFeatureFromRoute('/teacher/results')).toBe('results');
+      expect(resolveFeatureFromRoute('/submission-complete')).toBe('results');
+      expect(resolveFeatureFromRoute('/profile/complete')).toBe('results');
+    });
+
     it('returns null for unknown routes', () => {
       expect(resolveFeatureFromRoute('/unknown/page')).toBeNull();
     });
@@ -54,10 +61,12 @@ describe('featureRegistry', () => {
 
     it('registers integrity detail actions for homework and results workflows', () => {
       const homework = FEATURE_REGISTRY.find((feature) => feature.id === 'homework');
+      const liveSessions = FEATURE_REGISTRY.find((feature) => feature.id === 'liveSessions');
       const results = FEATURE_REGISTRY.find((feature) => feature.id === 'results');
       const antiCheat = FEATURE_REGISTRY.find((feature) => feature.id === 'antiCheat');
 
       expect(homework?.actions).toContain('viewIntegrityDetails');
+      expect(liveSessions?.actions).toContain('viewIntegrityDetails');
       expect(results?.actions).toContain('viewIntegrityDetails');
       expect(antiCheat?.actions).toEqual(
         expect.arrayContaining([
@@ -68,6 +77,14 @@ describe('featureRegistry', () => {
           'persistHomeworkIntegrity',
         ]),
       );
+    });
+
+    it('tracks guest claim completion under results rather than profile', () => {
+      const profile = FEATURE_REGISTRY.find((feature) => feature.id === 'profile');
+      const results = FEATURE_REGISTRY.find((feature) => feature.id === 'results');
+
+      expect(profile?.routes).not.toContain('/profile/complete');
+      expect(results?.routes).toContain('/profile/complete');
     });
   });
 });

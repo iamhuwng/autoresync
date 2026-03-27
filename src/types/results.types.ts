@@ -2,6 +2,115 @@ import type { ResultContext } from './solo.types';
 import type { FormativeFeedback } from './thcs-test.types';
 import type { SectionResult } from './thcs-test.types';
 
+export type ResultVisibilityContextType =
+    | 'homework'
+    | 'class_session'
+    | 'course_material'
+    | 'solo_practice'
+    | 'unresolved';
+
+export type ResultVisibilitySourceType =
+    | 'homework'
+    | 'session'
+    | 'class'
+    | 'course'
+    | 'writing_submission'
+    | 'solo_practice'
+    | 'unknown';
+
+export type ResultOwnerResolutionSource =
+    | 'homework.createdBy'
+    | 'session.createdByUserId'
+    | 'session.createdBy'
+    | 'class.createdBy'
+    | 'course.ownerId'
+    | 'solo_practice'
+    | 'unresolved';
+
+export type ResultVisibilityUnresolvedReason =
+    | 'missing_context'
+    | 'missing_homework_id'
+    | 'missing_session_code'
+    | 'missing_class_id'
+    | 'missing_course_id'
+    | 'missing_writing_submission_id'
+    | 'missing_writing_linked_source'
+    | 'homework_not_found'
+    | 'session_not_found'
+    | 'class_not_found'
+    | 'course_not_found'
+    | 'writing_submission_not_found'
+    | 'owner_not_resolved'
+    | 'unsupported_context';
+
+export interface ResultVisibilitySnapshot {
+    contextType: ResultVisibilityContextType;
+    sourceType: ResultVisibilitySourceType;
+    sourceId: string | null;
+    sourceNameSnapshot: string | null;
+    visibilityOwnerTeacherId: string | null;
+    ownerResolutionSource: ResultOwnerResolutionSource;
+    ownershipResolved: boolean;
+    unresolvedReason: ResultVisibilityUnresolvedReason | null;
+    homeworkId: string | null;
+    sessionCode: string | null;
+    courseId: string | null;
+    classId: string | null;
+    assignmentId: string | null;
+    sourceDeleted?: boolean;
+    sourceArchived?: boolean;
+    currentSourceName?: string | null;
+}
+
+export interface DeletedSourceDisplayMetadata {
+    sourceType: ResultVisibilitySourceType;
+    sourceId: string | null;
+    snapshotName: string | null;
+    currentName: string | null;
+    isDeleted: boolean;
+    isArchived: boolean;
+}
+
+export interface SoloPracticeVisibilityClassification {
+    isSoloPractice: boolean;
+    teacherCanView: boolean;
+    teacherActionsAllowed: boolean;
+    tagLabel: 'Solo Practice' | null;
+    excludeFromAnalytics: boolean;
+}
+
+export interface ResolvedResultVisibilityVerdict {
+    isVisibleToTeacher: boolean;
+    isTeacherOwned: boolean;
+    shouldDisplayInTeacherHistory: boolean;
+    shouldDisplayInTeacherDetail: boolean;
+    shouldAllowTeacherActions: boolean;
+    excludeFromAnalytics: boolean;
+    isUnresolved: boolean;
+    exclusionReason:
+        | 'assignment_gate_denied'
+        | 'missing_visibility'
+        | 'unresolved'
+        | 'teacher_not_owner'
+        | 'visible';
+    visibilityOwnerTeacherId: string | null;
+    deletedSource: DeletedSourceDisplayMetadata | null;
+    soloPractice: SoloPracticeVisibilityClassification;
+}
+
+export interface UnresolvedResultVisibilityReportEntry {
+    resultId: string;
+    studentId: string;
+    contextType: ResultVisibilityContextType;
+    unresolvedReason: ResultVisibilityUnresolvedReason;
+    sourceLookupAttempted: boolean;
+    strongestKnownSourceClue: string | null;
+    ownershipResolved: boolean;
+    reportVersion: number;
+    createdAt: number;
+    updatedAt: number;
+}
+
 export interface EnhancedTestResultRecord {
     resultId: string;
     sessionCode: string;
@@ -117,6 +226,9 @@ export interface EnhancedTestResultRecord {
     // - self_study: Student-initiated practice
     // - course_material: Course material practice
     context?: ResultContext;
+
+    // PRD-0041: Canonical ownership and teacher-visibility snapshot
+    visibility?: ResultVisibilitySnapshot;
 }
 
 /** PRD-0039: IELTS passage-level result */

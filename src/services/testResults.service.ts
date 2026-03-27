@@ -14,11 +14,32 @@ import { ref, set, get, push, update } from 'firebase/database';
 import { database } from './firebase';
 import { buildRoute } from '../constants/routes';
 import { TestMarkingResult } from './autoMarking.service';
-import { ReMarkEntry, ResultFilters, EnhancedTestResultRecord, PassageResult } from '../types/results.types';
+import {
+  ReMarkEntry,
+  ResultFilters,
+  EnhancedTestResultRecord,
+  PassageResult,
+  ResultVisibilityContextType,
+  ResultVisibilitySnapshot,
+} from '../types/results.types';
 import type { ResultContext } from '../types/solo.types';
 import { saveGuestResult } from './guestResultsService';
 import type { SectionResult } from '../types/thcs-test.types';
 import type { FormativeFeedback } from '../types/thcs-test.types';
+import { resolveResultOwnership } from './resultOwnershipResolver';
+import {
+  clearUnresolvedResultVisibilityReport,
+  upsertUnresolvedResultVisibilityReport,
+} from './resultVisibilityReporting.service';
+import {
+  applyTeacherResultReindexPlan,
+  buildTeacherResultReindexPlan,
+  getCanonicalClassIndexId,
+  getCanonicalCourseIndexId,
+  isScopedIndexBackfillEligible,
+  type ScopedIndexLocation,
+  type TeacherIndexReindexPlan,
+} from './resultVisibilityReindex.service';
 
 /**
  * Complete test result record
@@ -126,6 +147,215 @@ export interface TestResultRecord {
 
   /** PRD-0039: AI formative feedback */
   formativeFeedback?: FormativeFeedback;
+
+  /** PRD-0041: Canonical teacher visibility snapshot */
+  visibility?: ResultVisibilitySnapshot;
+}
+
+function inferVisibilityContextType(
+  context?: ResultContext,
+  hints?: {
+    homeworkId?: string | null;
+    classId?: string | null;
+    courseId?: string | null;
+    sessionCode?: string | null;
+  }
+): ResultVisibilityContextType | undefined {
+  if (context?.type === 'homework') return 'homework';
+  if (context?.type === 'class_session') return 'class_session';
+  if (context?.type === 'course_material') return 'course_material';
+  if (context?.type === 'self_study') return 'solo_practice';
+  if (hints?.homeworkId) return 'homework';
+  if (hints?.classId || hints?.courseId) return 'course_material';
+  if (hints?.sessionCode) return 'class_session';
+  return undefined;
+}
+
+function buildSourceNameSnapshot(result: Partial<TestResultRecord>): string | null {
+  return (
+    result.visibility?.sourceNameSnapshot
+    ?? result.context?.source?.name
+    ?? result.className
+    ?? result.courseName
+    ?? result.testTitle
+    ?? null
+  );
+}
+
+function buildStrongestKnownSourceClue(
+  result: Partial<TestResultRecord>,
+  fallbackSourceId?: string | null
+): string | null {
+  const sourceType = result.visibility?.sourceType;
+  const sourceId = result.visibility?.sourceId ?? fallbackSourceId ?? null;
+
+  if (!sourceType || !sourceId) {
+    return null;
+  }
+
+  return `${sourceType}:${sourceId}`;
+}
+
+function getTeacherIndexOwnerId(result: Partial<TestResultRecord>): string | null {
+  if (!result.visibility?.ownershipResolved) {
+    return null;
+  }
+  if (result.visibility.contextType === 'solo_practice') {
+    return null;
+  }
+  return result.visibility.visibilityOwnerTeacherId ?? null;
+}
+
+function isStoredResultRecord(value: unknown): value is TestResultRecord {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+
+  const record = value as Partial<TestResultRecord>;
+  return (
+    typeof record.resultId === 'string'
+    && typeof record.studentId === 'string'
+    && typeof record.sessionCode === 'string'
+  );
+}
+
+function buildExistingTeacherIdsByResultId(
+  teacherIndexTree: unknown
+): Record<string, string[]> {
+  if (!teacherIndexTree || typeof teacherIndexTree !== 'object' || Array.isArray(teacherIndexTree)) {
+    return {};
+  }
+
+  const mapping: Record<string, string[]> = {};
+
+  for (const [teacherId, resultBucket] of Object.entries(teacherIndexTree as Record<string, unknown>)) {
+    if (!resultBucket || typeof resultBucket !== 'object' || Array.isArray(resultBucket)) {
+      continue;
+    }
+
+    for (const resultId of Object.keys(resultBucket as Record<string, unknown>)) {
+      if (!mapping[resultId]) {
+        mapping[resultId] = [];
+      }
+      mapping[resultId].push(teacherId);
+    }
+  }
+
+  return mapping;
+}
+
+function buildExistingScopedLocationsByResultId(
+  scopedIndexTree: unknown
+): Record<string, ScopedIndexLocation[]> {
+  if (!scopedIndexTree || typeof scopedIndexTree !== 'object' || Array.isArray(scopedIndexTree)) {
+    return {};
+  }
+
+  const mapping: Record<string, ScopedIndexLocation[]> = {};
+
+  for (const [scopeId, studentBuckets] of Object.entries(scopedIndexTree as Record<string, unknown>)) {
+    if (!studentBuckets || typeof studentBuckets !== 'object' || Array.isArray(studentBuckets)) {
+      continue;
+    }
+
+    for (const [studentId, resultBucket] of Object.entries(studentBuckets as Record<string, unknown>)) {
+      if (!resultBucket || typeof resultBucket !== 'object' || Array.isArray(resultBucket)) {
+        continue;
+      }
+
+      for (const resultId of Object.keys(resultBucket as Record<string, unknown>)) {
+        if (!mapping[resultId]) {
+          mapping[resultId] = [];
+        }
+
+        mapping[resultId].push({ scopeId, studentId });
+      }
+    }
+  }
+
+  return mapping;
+}
+
+async function syncUnresolvedVisibilityReport(
+  result: TestResultRecord,
+  options?: {
+    sourceLookupAttempted?: boolean;
+    strongestKnownSourceClue?: string | null;
+  }
+): Promise<void> {
+  if (result.visibility?.ownershipResolved) {
+    await clearUnresolvedResultVisibilityReport(result.resultId);
+    return;
+  }
+
+  await upsertUnresolvedResultVisibilityReport({
+    resultId: result.resultId,
+    studentId: result.studentId,
+    visibility: result.visibility ?? null,
+    sourceLookupAttempted: options?.sourceLookupAttempted ?? Boolean(result.visibility),
+    strongestKnownSourceClue:
+      options?.strongestKnownSourceClue
+      ?? buildStrongestKnownSourceClue(result),
+  });
+}
+
+async function resolveVisibilityForResult(
+  result: TestResultRecord
+) {
+  return resolveResultOwnership({
+    result,
+    contextType: inferVisibilityContextType(result.context, {
+      homeworkId: result.context?.assignment?.homeworkId ?? null,
+      classId: result.classId ?? null,
+      courseId: result.courseId ?? null,
+      sessionCode: result.sessionCode ?? null,
+    }),
+    homeworkId: result.context?.assignment?.homeworkId ?? null,
+    sessionCode: result.sessionCode ?? null,
+    classId: result.classId ?? null,
+    courseId: result.courseId ?? null,
+    sourceNameSnapshot: buildSourceNameSnapshot(result),
+  });
+}
+
+async function ensureResultVisibility(
+  result: TestResultRecord
+): Promise<TestResultRecord> {
+  if (result.visibility) {
+    await syncUnresolvedVisibilityReport(result);
+    return result;
+  }
+
+  const visibilityResult = await resolveVisibilityForResult(result);
+
+  const enrichedResult: TestResultRecord = {
+    ...result,
+    visibility: visibilityResult.visibility,
+  };
+
+  await update(ref(database, `test_results/${result.resultId}`), {
+    visibility: visibilityResult.visibility,
+  });
+  await syncUnresolvedVisibilityReport(enrichedResult, {
+    sourceLookupAttempted: visibilityResult.sourceLookupAttempted,
+    strongestKnownSourceClue: visibilityResult.strongestKnownSourceClue,
+  });
+
+  return enrichedResult;
+}
+
+function isCanonicalTeacherOwnedResult(
+  result: Pick<TestResultRecord, 'visibility'>,
+  teacherId: string
+): boolean {
+  const visibility = result.visibility;
+
+  return Boolean(
+    visibility
+    && visibility.ownershipResolved
+    && visibility.visibilityOwnerTeacherId === teacherId
+    && visibility.contextType !== 'solo_practice'
+  );
 }
 
 /**
@@ -253,8 +483,16 @@ export async function saveTestResult(
     if (thcsData) (resultRecord as any).thcsData = thcsData;
     if (ieltsData) resultRecord.ieltsData = ieltsData; // PRD-0039
 
+    const normalizedResultRecord = resultRecord as TestResultRecord;
+    const visibilityResult = await resolveVisibilityForResult(normalizedResultRecord);
+    normalizedResultRecord.visibility = visibilityResult.visibility;
+
     // Save to test_results/{resultId}
-    await set(resultRef, resultRecord);
+    await set(resultRef, normalizedResultRecord);
+    await syncUnresolvedVisibilityReport(normalizedResultRecord, {
+      sourceLookupAttempted: visibilityResult.sourceLookupAttempted,
+      strongestKnownSourceClue: visibilityResult.strongestKnownSourceClue,
+    });
 
     // Create indexes for efficient querying
     // Index by session
@@ -277,9 +515,9 @@ export async function saveTestResult(
       submittedAt: markingResult.completedAt,
     });
 
-    // Index by teacher (if teacherId is present)
-    if (teacherId) {
-      const teacherIndexRef = ref(database, `test_results_by_teacher/${teacherId}/${resultId}`);
+    const teacherIndexOwnerId = getTeacherIndexOwnerId(normalizedResultRecord);
+    if (teacherIndexOwnerId) {
+      const teacherIndexRef = ref(database, `test_results_by_teacher/${teacherIndexOwnerId}/${resultId}`);
       await set(teacherIndexRef, {
         resultId,
         sessionCode,
@@ -291,9 +529,13 @@ export async function saveTestResult(
       });
     }
 
-    // Index by course (if courseId is present) - PRD-0015: Phase 3
-    if (academicContext?.courseId) {
-      const courseIndexRef = ref(database, `test_results_by_course/${academicContext.courseId}/${studentId}/${resultId}`);
+    const canWriteScopedIndexes = isScopedIndexBackfillEligible(normalizedResultRecord);
+    const canonicalCourseId = getCanonicalCourseIndexId(normalizedResultRecord);
+    const canonicalClassId = getCanonicalClassIndexId(normalizedResultRecord);
+
+    // Index by course (if ownership is resolved and the result is not solo practice)
+    if (canWriteScopedIndexes && canonicalCourseId) {
+      const courseIndexRef = ref(database, `test_results_by_course/${canonicalCourseId}/${studentId}/${resultId}`);
       await set(courseIndexRef, {
         resultId,
         studentId,
@@ -307,9 +549,9 @@ export async function saveTestResult(
       });
     }
 
-    // Index by class (if classId is present) - PRD-0015: Phase 3
-    if (academicContext?.classId) {
-      const classIndexRef = ref(database, `test_results_by_class/${academicContext.classId}/${studentId}/${resultId}`);
+    // Index by class (if ownership is resolved and the result is not solo practice)
+    if (canWriteScopedIndexes && canonicalClassId) {
+      const classIndexRef = ref(database, `test_results_by_class/${canonicalClassId}/${studentId}/${resultId}`);
       await set(classIndexRef, {
         resultId,
         studentId,
@@ -359,7 +601,7 @@ export async function getTestResult(resultId: string): Promise<TestResultRecord 
     const snapshot = await get(resultRef);
 
     if (snapshot.exists()) {
-      return snapshot.val() as TestResultRecord;
+      return ensureResultVisibility(snapshot.val() as TestResultRecord);
     }
 
     return null;
@@ -444,6 +686,7 @@ export async function getTeacherResults(
     );
 
     let validResults = results.filter((r): r is TestResultRecord => r !== null);
+    validResults = validResults.filter((result) => isCanonicalTeacherOwnedResult(result, teacherId));
 
     // Apply filters if provided
     if (filters) {
@@ -452,11 +695,7 @@ export async function getTeacherResults(
       }
 
       if (filters.classId) {
-        // Assuming sessionCode might contain classId or we need another way to link
-        // For now, this filter might need external class data, so skipping straightforward 
-        // implementation unless classId is stored on result. 
-        // If needed, we can matching against a list of session codes for that class.
-        // Doing basic filtering for now.
+        validResults = validResults.filter(r => r.classId === filters.classId);
       }
 
       if (filters.dateFrom) {
@@ -576,11 +815,27 @@ export async function updateResultScore(
       percentage: result.percentage
     });
 
-    // Teacher index (if exists)
-    if (result.teacherId) {
-      const teacherIndexRef = ref(database, `test_results_by_teacher/${result.teacherId}/${resultId}`);
+    const teacherIndexOwnerId = getTeacherIndexOwnerId(result);
+    if (teacherIndexOwnerId) {
+      const teacherIndexRef = ref(database, `test_results_by_teacher/${teacherIndexOwnerId}/${resultId}`);
       await update(teacherIndexRef, {
         percentage: result.percentage
+      });
+    }
+
+    if (result.courseId) {
+      const courseIndexRef = ref(database, `test_results_by_course/${result.courseId}/${result.studentId}/${resultId}`);
+      await update(courseIndexRef, {
+        percentage: result.percentage,
+        bandScore: result.bandScore,
+      });
+    }
+
+    if (result.classId) {
+      const classIndexRef = ref(database, `test_results_by_class/${result.classId}/${result.studentId}/${resultId}`);
+      await update(classIndexRef, {
+        percentage: result.percentage,
+        bandScore: result.bandScore,
       });
     }
 
@@ -770,6 +1025,24 @@ export async function deleteTestResult(resultId: string): Promise<void> {
     // Delete student index
     const studentIndexRef = ref(database, `test_results_by_student/${result.studentId}/${resultId}`);
     await set(studentIndexRef, null);
+
+    const teacherIndexOwnerId = getTeacherIndexOwnerId(result);
+    if (teacherIndexOwnerId) {
+      const teacherIndexRef = ref(database, `test_results_by_teacher/${teacherIndexOwnerId}/${resultId}`);
+      await set(teacherIndexRef, null);
+    }
+
+    if (result.courseId) {
+      const courseIndexRef = ref(database, `test_results_by_course/${result.courseId}/${result.studentId}/${resultId}`);
+      await set(courseIndexRef, null);
+    }
+
+    if (result.classId) {
+      const classIndexRef = ref(database, `test_results_by_class/${result.classId}/${result.studentId}/${resultId}`);
+      await set(classIndexRef, null);
+    }
+
+    await clearUnresolvedResultVisibilityReport(resultId);
 
     console.log(`🗑️ Test result deleted: ${resultId}`);
   } catch (error) {
@@ -988,9 +1261,7 @@ export async function getStudentTestAttempts(
     const results = await Promise.all(
       resultIds.map(async (resultId) => {
         try {
-          const resultRef = ref(database, `test_results/${resultId}`);
-          const snapshot = await get(resultRef);
-          return snapshot.exists() ? (snapshot.val() as TestResultRecord) : null;
+          return getTestResult(resultId);
         } catch {
           return null;
         }
@@ -1037,9 +1308,7 @@ export async function getHistoricalScores(
     const allResults = await Promise.all(
       resultIds.map(async (resultId) => {
         try {
-          const resultRef = ref(database, `test_results/${resultId}`);
-          const snapshot = await get(resultRef);
-          return snapshot.exists() ? (snapshot.val() as TestResultRecord) : null;
+          return getTestResult(resultId);
         } catch {
           return null;
         }
@@ -1135,9 +1404,7 @@ export async function getClassTestScores(
     const results = await Promise.all(
       resultIds.map(async (resultId) => {
         try {
-          const resultRef = ref(database, `test_results/${resultId}`);
-          const snapshot = await get(resultRef);
-          return snapshot.exists() ? (snapshot.val() as TestResultRecord) : null;
+          return getTestResult(resultId);
         } catch {
           return null;
         }
@@ -1151,5 +1418,52 @@ export async function getClassTestScores(
   } catch (error) {
     console.error('[TestResults] Error fetching class test scores:', error);
     throw new Error('Failed to fetch class test scores');
+  }
+}
+
+export async function rebuildTeacherResultIndexes(): Promise<TeacherIndexReindexPlan> {
+  try {
+    const resultsSnapshot = await get(ref(database, 'test_results'));
+    if (!resultsSnapshot.exists()) {
+      const emptyPlan = buildTeacherResultReindexPlan({ results: [] });
+      console.log('[ResultVisibilityReindex] No canonical results found to rebuild teacher indexes');
+      return emptyPlan;
+    }
+
+    const storedResults = resultsSnapshot.val() as Record<string, unknown>;
+    const canonicalResults = Object.values(storedResults).filter(isStoredResultRecord);
+    const normalizedResults = await Promise.all(
+      canonicalResults.map((result) => ensureResultVisibility(result))
+    );
+
+    const teacherIndexSnapshot = await get(ref(database, 'test_results_by_teacher'));
+    const courseIndexSnapshot = await get(ref(database, 'test_results_by_course'));
+    const classIndexSnapshot = await get(ref(database, 'test_results_by_class'));
+    const existingTeacherIdsByResultId = buildExistingTeacherIdsByResultId(
+      teacherIndexSnapshot.exists() ? teacherIndexSnapshot.val() : null
+    );
+    const existingCourseLocationsByResultId = buildExistingScopedLocationsByResultId(
+      courseIndexSnapshot.exists() ? courseIndexSnapshot.val() : null
+    );
+    const existingClassLocationsByResultId = buildExistingScopedLocationsByResultId(
+      classIndexSnapshot.exists() ? classIndexSnapshot.val() : null
+    );
+
+    const plan = buildTeacherResultReindexPlan({
+      results: normalizedResults,
+      existingTeacherIdsByResultId,
+      existingCourseLocationsByResultId,
+      existingClassLocationsByResultId,
+    });
+
+    const appliedPlan = await applyTeacherResultReindexPlan(plan);
+    console.log(
+      `[ResultVisibilityReindex] rebuilt=${appliedPlan.rebuiltCount} deleted=${appliedPlan.deletedCount} skipped=${appliedPlan.skippedCount} unresolved=${appliedPlan.unresolvedCount} rebuiltCourse=${appliedPlan.rebuiltCourseCount} deletedCourse=${appliedPlan.deletedCourseCount} rebuiltClass=${appliedPlan.rebuiltClassCount} deletedClass=${appliedPlan.deletedClassCount}`
+    );
+
+    return appliedPlan;
+  } catch (error) {
+    console.error('Error rebuilding teacher result indexes:', error);
+    throw error;
   }
 }

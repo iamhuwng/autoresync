@@ -1,0 +1,234 @@
+﻿## Relevant Files
+
+- `documentation/tasks/0041-prd-result-visibility-ownership-governance.md` - Source PRD; every task below must satisfy its functional requirements and phase gates.
+- `documentation/architecture/results-academic-record.md` - Existing results architecture doc that must be updated to point to the canonical visibility standard.
+- `documentation/architecture/homework-solo-practice-architecture.md` - Existing homework and solo-practice architecture doc that must align with the same ownership semantics.
+- `documentation/architecture/course-class-management.md` - Existing course and class ownership doc that must stay consistent with the visibility contract.
+- `documentation/architecture/ui-design-standards.md` - Teacher full-page shell standard that history and result detail must follow.
+- `documentation/architecture/result-visibility-ownership-governance.md` - Dedicated architecture doc to create for this policy; this is the primary technical source of truth.
+- `documentation/architecture/result-view-permission-matrix.md` - Matrix doc that must be updated to reflect the canonical teacher visibility policy.
+- `documentation/architecture/result-view-fr-closure-matrix.md` - Closure matrix doc that must be updated so every PRD requirement maps to implementation and tests.
+- `documentation/result-visibility-producer-consumer-contract.md` - Dedicated producer and consumer contract doc to create; lock required fields, lookup rules, and banned shortcuts here.
+- `documentation/rules/result-visibility-review-checklist.md` - Dedicated reviewer checklist to create; use it to block local filters, raw `teacherId` authority, and missing reconciliation coverage.
+- `documentation/tasks/findings-of-tasks-0041-prd-result-visibility-ownership-governance.md` - Running log of newly discovered scope, repo mismatches, and follow-up risks discovered during implementation.
+- `src/types/results.types.ts` - Exact home for the normalized `ResultVisibilitySnapshot` contract and related visibility types.
+- `src/types/solo.types.ts` - Must carry the exact solo, homework, and course-material context identifiers consumed by the shared contract.
+- `src/types/session.types.ts` - Must carry the exact session identifiers and owner fields consumed by the shared contract.
+- `src/types/homework.types.ts` - Must carry the exact homework identifiers and owner fields consumed by the shared contract.
+- `src/types/assignment.types.ts` - Must continue to represent assignment as an outer access gate only.
+- `src/types/ielts-writing.types.ts` - Must expose the writing-submission linkage needed for authoritative owner resolution.
+- `src/services/resultOwnershipResolver.ts` - New shared service for authoritative lookup, precedence resolution, snapshot construction, and unresolved classification.
+- `src/services/resultOwnershipResolver.test.ts` - Service tests for every precedence branch and unresolved branch.
+- `src/services/resultVisibility.service.ts` - New shared read-side service for teacher visibility verdicts, solo-practice tagging, deleted-source labeling, and analytics exclusion.
+- `src/services/resultVisibility.service.test.ts` - Service tests for read-side visibility behavior.
+- `src/services/resultVisibilityReporting.service.ts` - New shared service for unresolved-result reporting into the admin reporting workspace.
+- `src/services/resultVisibilityReporting.service.test.ts` - Service tests for unresolved report entry creation and updates.
+- `src/services/resultVisibilityReindex.service.ts` - New shared service for stale teacher-index detection, rebuild, and safe backfill eligibility.
+- `src/services/resultVisibilityReindex.service.test.ts` - Service tests for reindex and safe-backfill behavior.
+- `src/services/testResults.service.ts` - Canonical result persistence and result-loading service; must become the single normalized read/write entry point for scoped flows.
+- `src/services/testResults.service.test.ts` - Canonical result service tests; must prove normalized saves, legacy enrichment, unresolved reporting, and normalized teacher indexes.
+- `src/services/resultsService.ts` - Existing teacher results utility path; must not remain a second local ownership path after Phase 1.
+- `src/services/resultsService.test.ts` - Tests for any shared results utility changes made during migration.
+- `src/services/guestResultsService.ts` - Existing result-loading utility that must be audited so it does not bypass the shared visibility pipeline.
+- `src/services/guestResultsService.test.ts` - Tests for any guest/shared result-loading changes made during migration.
+- `src/services/academicRecordService.ts` - Academic-record reader that must consume canonical student-complete result enrichment instead of hand-loading raw student indexes.
+- `src/services/academicRecordService.test.ts` - Regression coverage for canonical academic-record student result reads and downstream filters/summaries.
+- `src/services/materialDiscoveryService.ts` - Solo material discovery reader that must reuse canonical student result enrichment for self-study history.
+- `src/services/materialDiscoveryService.test.ts` - Regression coverage for canonical material-history enrichment from student-complete results.
+- `src/services/badgeService.ts` - Badge award logic that must derive result history from canonical student results rather than raw student index snapshots.
+- `src/services/badgeService.test.ts` - Regression coverage for canonical badge history reads across first-test, streak, completion, and improvement checks.
+- `src/services/homeworkManager.ts` - Authoritative homework source record path; use its actual ownership fields when defining homework lookup rules.
+- `src/services/sessionManager.js` - Authoritative session source record path; use its real owner fields when defining session lookup precedence.
+- `src/services/classManager.ts` - Authoritative class source record path for class-linked course-material ownership.
+- `src/services/courseManager.ts` - Authoritative course source record path for standalone course-material ownership.
+- `src/services/reportingService.ts` - Existing admin reporting integration; unresolved result reporting must flow through the same reporting workspace instead of inventing a second admin destination.
+- `src/services/reportingService.test.ts` - Tests for reporting integration changes if unresolved-result reporting is routed through the existing reporting system.
+- `database.rules.json` - RTDB rules must be tightened in Phase 1 so unresolved reports stay super-admin-only and broad teacher-wide result reads do not bypass the shared visibility policy.
+- `src/services/securityMiddleware.ts` - Current ownership-validation enforcement path behind `useOwnershipCheck`; must remain the outer student access gate, not the per-result visibility resolver.
+- `src/services/securityMiddleware.test.ts` - Tests to update so assignment-only access never becomes result-level visibility.
+- `src/services/assignmentManager.ts` - Active teacher-student assignment lookup path; use it only as the outer access gate and for solo-practice read-time visibility, never as result ownership.
+- `src/hooks/test/useTestSubmission.ts` - Session-based writer that must stop relying on weak session owner precedence.
+- `src/hooks/test/useTestSubmission.test.ts` - Writer-flow tests proving class-session result context includes normalized assignment metadata and no raw owner shortcuts.
+- `src/hooks/solo/useSoloSubmission.ts` - Solo, homework, and course-material writer that must emit the exact normalized visibility snapshot fields.
+- `src/hooks/solo/useSoloSubmission.test.ts` - Writer-flow tests proving canonical homework/course/self-study context emission and source-id fallback behavior.
+- `src/components/practice/THCSPracticeView.tsx` - THCS writer that currently leaks original test authorship into result ownership.
+- `src/components/practice/THCSPracticeView.test.tsx` - Writer-flow tests proving canonical self-study/homework/course context writes and rejection of `testData.createdBy` ownership shortcuts.
+- `src/components/thcs-student/THCSTestLayout.tsx` - THCS live-session writer that currently persists the wrong owner signal.
+- `src/components/thcs-student/THCSTestLayout.test.tsx` - Writer-flow tests proving canonical class-session writes and rejection of `testData.createdBy` as ownership authority.
+- `src/services/writingSubmissionService.ts` - Writing result persistence path that must use writing-submission plus linked-source precedence.
+- `src/services/writingSubmissionService.test.ts` - Focused service tests for writing ownership normalization, unresolved reporting, and canonical teacher-index writes.
+- `src/components/writing-results/WritingTestResultsSection.tsx` - Writing-session teacher results surface; must now derive row eligibility from canonical result visibility before loading submission detail.
+- `src/components/writing-results/WritingResultDetailModal.tsx` - Writing result detail modal; must keep grade navigation on the shared navigation abstraction.
+- `src/components/writing-results/WritingTestResultsSection.test.tsx` - Regression coverage for canonical writing-session visibility filtering and grading navigation.
+- `src/components/writing-practice/WritingPracticeView.tsx` - Writing flow that must stop doing ad hoc RTDB ownership writes.
+- `src/components/writing-practice/WritingPracticeView.test.tsx` - Writer submit-path test proving canonical service delegation instead of ad hoc RTDB writes.
+- `src/pages/StudentQuizPageNew.jsx` - Live quiz flow that must write canonical normalized results in addition to session player-state data.
+- `src/pages/StudentQuizPageNew.test.jsx` - Quiz writer tests proving completion-only canonical persistence and duplicate-write prevention on terminal snapshot re-emits.
+- `src/pages/TeacherStudentHistoryPage.tsx` - First teacher-facing consumer to migrate; must stop local `teacherId` filtering and adopt the teacher shell.
+- `src/pages/TeacherStudentHistoryPage.test.tsx` - Page tests for teacher history inclusion, exclusion, tagging, access loss, and shell behavior.
+- `src/pages/TeacherStudentsPage.tsx` - Existing teacher-shell reference for the history page rebuild.
+- `src/hooks/useOwnershipCheck.ts` - Current hook path for teacher-student assignment validation; must remain an outer gate only.
+- `src/components/results/ResultFilters.tsx` - Shared filter UI that must stop hardcoding stale result types and skills.
+- `src/components/results/ResultFilters.test.tsx` - Filter tests to create for dynamic canonical filter options.
+- `src/pages/ResultDetailPage.tsx` - Teacher/admin full-page result route that must stay inside the teacher shell while preserving student redirect behavior.
+- `src/pages/ResultDetailPage.test.tsx` - Route tests for teacher shell rendering and unchanged student redirect behavior.
+- `src/components/results/LegacyResultDetailView.tsx` - Full-page result detail body that must switch from student-only ownership checks to shared result visibility verdicts.
+- `src/components/results/LegacyResultDetailView.test.tsx` - Detail-view tests for source metadata, solo-practice view-only mode, and deleted-source rendering.
+- `src/pages/AdminReportsPage.tsx` - Existing admin reporting workspace that must gain unresolved-result diagnostics in Phase 1.
+- `src/pages/AdminReportsPage.test.tsx` - Admin reporting tests to create for unresolved-result diagnostics.
+- `src/__tests__/security/ownership.test.ts` - Security baseline that must stop encoding raw `teacherId` and assignment-only visibility assumptions.
+- `src/__tests__/security/firebaseRules.test.ts` - Security/rules baseline that must enforce the tightened teacher visibility policy.
+- `src/hooks/useOwnershipCheck.test.ts` - Must stay aligned with outer access-gate-only semantics and immediate access revocation.
+- `src/components/access/AccessControlWrapper.tsx` - Existing access gate wrapper; history and result detail must continue to use it as outer gate only.
+- `src/components/access/AccessControlWrapper.test.tsx` - Must keep immediate access-loss coverage aligned with the PRD.
+- `src/utils/monitor/autoSubmitDisconnected.ts` - Legacy monitor auto-submit utility; teacher-monitor flows must prefer canonical result persistence before any emergency raw-answer fallback.
+- `src/hooks/monitor/useMonitorControls.ts` - Teacher monitor control hook; must fetch missing test payloads on demand so auto-submit branches can stay on the canonical result pipeline.
+- `src/hooks/monitor/useMonitorControls.test.ts` - Regression tests for base-time disconnected auto-submit and fetched-payload end-session auto-submit.
+- `src/pages/TeacherResultsDashboard.jsx` - Later-phase teacher analytics dashboard now rebuilt onto the native teacher shell with canonical result-detail/history navigation and shared analytics exclusion.
+- `src/pages/TeacherResultsDashboard.test.jsx` - Regression tests for dashboard analytics exclusion, export filtering, and canonical navigation actions.
+- `src/pages/TeacherTestResultsPage.tsx` - Later-phase teacher analytics surface that must adopt the shared policy and analytics exclusion rules.
+- `src/pages/TeacherTestResultsPage.test.tsx` - Existing tests to extend during later-phase migration.
+- `src/App.jsx` - Route registration and teacher entry points into history and result detail; later phases must unify every route on the same shared-policy path.
+- `src/config/featureRegistry.ts` - Feature registry entry for results routes and action tracking; must stay aligned with later-phase dashboard/history/detail interactions.
+
+### Notes
+
+- Later-phase implementation was explicitly reopened by the user on `2026-03-27` after `6.6` passed. Tasks `7.0` through `11.x` are now executable, but only in order and only while the guardrails in `7.1` through `7.5` remain true.
+- Execute parent tasks in order. Hard prerequisites: finish `1.x`, then `2.x`, then `3.x`, then `4.x`, then `5.x`, then `6.x`. Later phases start only after the Phase 1 completion gate in `6.6` passes.
+- Once `src/services/resultOwnershipResolver.ts` and `src/services/resultVisibility.service.ts` exist, no page, component, hook, or secondary service may implement ownership resolution, read-time enrichment, or page-level teacher filtering locally.
+- Lock the normalized visibility snapshot to these required fields in `src/types/results.types.ts`: `contextType`, `sourceType`, `sourceId`, `sourceNameSnapshot`, `visibilityOwnerTeacherId`, `ownerResolutionSource`, `ownershipResolved`, `unresolvedReason`, `homeworkId`, `sessionCode`, `courseId`, `classId`, and `assignmentId`. If deleted-source display needs extra fields, define them in the same type file before using them anywhere else.
+- Lock unresolved-result reporting to RTDB path `/reports/result_visibility/unresolved/{resultId}`. Phase 1 must surface this data through `src/pages/AdminReportsPage.tsx`; do not create a second admin destination.
+- Rebuild `test_results_by_teacher/*` from normalized visibility data before declaring teacher history fixed. Old raw `teacherId` index rows must not remain authoritative.
+- If any required field, source path, helper API, migration behavior, or test placement is still undefined, stop and resolve it in docs and types first. Do not let the implementer invent it locally.
+- In current session records, `createdByUserId` is the authoritative teacher UID. `createdBy` may be used only as a proven legacy fallback when present and when it stores a real Firebase Auth UID. `session.teacherId` is synthetic tracking data in current records and must never be used for ownership resolution, teacher visibility, or teacher-index writes.
+- Persist normalized visibility only under `result.visibility`. In RTDB, the canonical path is `test_results/{resultId}/visibility/*`; do not flatten visibility fields onto the root result record or teacher-index rows.
+- Solo-practice rows are never written to `test_results_by_teacher/*`. They are resolved only at read time after the teacher passes the outer assignment gate. `test_results_by_teacher/*` contains teacher-owned rows only.
+- `getStudentResults(studentId)` remains student-complete. It may enrich rows with `result.visibility` and deleted-source metadata, but teacher-specific filtering belongs only in teacher-scoped service methods.
+
+## Tasks
+
+- [ ] 1.0 Lock Phase 1 scope, sequencing, and governance artifacts before changing runtime code.
+  - [x] 1.1 Keep the explicit execution gate at the top of this task list: only `1.x` through `6.x` belong to the current implementation slice; do not start later-phase tasks until `6.6` passes and scope is re-approved.
+  - [x] 1.2 Keep the explicit prerequisite order in this task list: finish `1.x`, then `2.x`, then `3.x`, then `4.x`, then `5.x`, then `6.x`; no consumer migration may start before schema and shared-service tasks are complete.
+  - [x] 1.3 Create `documentation/architecture/result-visibility-ownership-governance.md` as the dedicated architecture doc for this policy; make it the primary technical source of truth.
+  - [x] 1.4 Update `documentation/architecture/results-academic-record.md`, `documentation/architecture/homework-solo-practice-architecture.md`, and `documentation/architecture/course-class-management.md` so they all point back to the same canonical visibility contract instead of redefining ownership locally.
+  - [x] 1.5 Update `documentation/architecture/result-view-permission-matrix.md` so it records the exact teacher visibility rules, the outer access gate rule, the solo-practice rule, and the ban on original test authorship as a visibility signal.
+  - [x] 1.6 Update `documentation/architecture/result-view-fr-closure-matrix.md` so every Phase 1 PRD requirement is mapped to code files and tests.
+  - [x] 1.7 Create `documentation/result-visibility-producer-consumer-contract.md` and lock the exact required fields, authoritative-source lookups, reporting path, and banned shortcuts there.
+  - [x] 1.8 Create `documentation/rules/result-visibility-review-checklist.md` and lock explicit reject conditions there: local page filters, raw `teacherId` authority, assignment-context promotion, missing unresolved reporting, and missing reindex handling.
+  - [x] 1.9 Record the exact authoritative-source decision matrix in the docs: `homework`, `class_session`, `class-linked course_material`, `standalone course_material`, `writing_submission` linkage, and `solo_practice`, including the exact owner-field precedence for each, and derive those rules from the current source-of-truth files `src/services/homeworkManager.ts`, `src/services/sessionManager.js`, `src/services/classManager.ts`, `src/services/courseManager.ts`, and `src/services/writingSubmissionService.ts`.
+  - [x] 1.10 Record the exact normalized visibility snapshot contract in the docs before code changes: required fields, nested `result.visibility` placement, solo-practice read-time visibility model, unresolved-row rules, deleted-source rules, reassignment behavior, report schema, and the stop rule that undefined behavior must be resolved in docs and types first.
+  - [x] 1.11 Do not start `2.0` until every artifact in `1.3` through `1.10` exists and cross-links to the other governance artifacts.
+
+- [ ] 2.0 Define the canonical visibility schema and helper APIs before touching writers or pages.
+  - [x] 2.1 Extend `src/types/results.types.ts` with an exact `ResultVisibilitySnapshot` shape and lock its placement under `result.visibility` only. In RTDB, persist it at `test_results/{resultId}/visibility/*`; do not spread visibility fields flat on the root result record or teacher-index rows.
+  - [x] 2.2 Add exact helper output types in `src/types/results.types.ts` for resolved visibility verdict, unresolved-result report entry, deleted-source display metadata, and solo-practice classification.
+  - [x] 2.3 Update `src/types/solo.types.ts`, `src/types/session.types.ts`, `src/types/homework.types.ts`, `src/types/assignment.types.ts`, and `src/types/ielts-writing.types.ts` only where required to carry the exact source identifiers and snapshots consumed by the shared contract.
+  - [x] 2.4 Create `src/services/resultOwnershipResolver.ts` as the only async write-side ownership normalizer. Its responsibilities are limited to authoritative-source lookup, precedence resolution, snapshot construction, unresolved classification, and returning a normalized visibility result to service callers. It must not perform page filtering, routing, rendering, or teacher-specific read aggregation.
+  - [x] 2.5 In `src/services/resultOwnershipResolver.ts`, lock the exact authoritative lookup helpers needed by Phase 1: homework lookup from `src/services/homeworkManager.ts`; session lookup from `src/services/sessionManager.js` using `createdByUserId` as the authoritative owner and `createdBy` only as a proven legacy fallback when it exists and stores a real Firebase Auth UID; never use `session.teacherId` because it is synthetic tracking data, not ownership; class-linked course-material lookup from `src/services/classManager.ts`; standalone course-material lookup from `src/services/courseManager.ts`; writing-submission-linked lookup from `src/services/writingSubmissionService.ts` plus its linked source; and solo-practice classification with no teacher-owner lookup at all.
+  - [x] 2.6 Create `src/services/resultVisibility.service.ts` as the only read-side visibility classifier for teacher-facing consumers. Its responsibilities are limited to taking a saved or enriched result plus outer assignment-gate state and returning the teacher visibility verdict, solo-practice tagging state, deleted-source display metadata, unresolved exclusion state, and analytics-exclusion state. It must not perform authoritative source lookups already owned by the write-side resolver, and pages/components must not implement their own visibility logic once this service exists.
+  - [x] 2.7 Create `src/services/resultVisibilityReporting.service.ts` with an exact unresolved-report contract that writes to `/reports/result_visibility/unresolved/{resultId}` and stores at minimum: `resultId`, `studentId`, `contextType`, `unresolvedReason`, `sourceLookupAttempted`, `strongestKnownSourceClue`, `ownershipResolved`, and timestamp metadata.
+  - [x] 2.8 Create `src/services/resultVisibilityReindex.service.ts` with explicit responsibilities for stale teacher-index detection, normalized index rebuild, and safe-backfill eligibility checks; this service must never copy old raw `teacherId` semantics forward.
+  - [x] 2.9 Add a hard rule in this task list and in the reviewer checklist: once `2.4` and `2.6` exist, no page, component, hook, or secondary service may implement ownership resolution or legacy enrichment locally.
+  - [x] 2.10 Add unit tests in `src/services/resultOwnershipResolver.test.ts`, `src/services/resultVisibility.service.test.ts`, `src/services/resultVisibilityReporting.service.test.ts`, and `src/services/resultVisibilityReindex.service.test.ts` for every precedence branch, unresolved branch, deleted-source branch, reassignment branch, solo-practice branch, and reindex eligibility branch before any consumer migration begins.
+  - [x] 2.11 Do not start `3.0` until the schema, helper APIs, reporting contract, and tests in `2.10` are complete and passing.
+
+- [ ] 3.0 Refactor canonical read/write services, legacy enrichment, unresolved reporting, and teacher indexes.
+  - [x] 3.1 Update `src/services/testResults.service.ts` so every canonical save path calls `resultOwnershipResolver` before any result row, `result.visibility` payload, unresolved-report row, or teacher index row is written. The resolver integration boundary is service-layer only: callers provide raw source/context identifiers, the service receives a normalized visibility result back, and callers must not build visibility snapshots locally.
+  - [x] 3.2 Remove direct raw-`teacherId` teacher-index writes from canonical persistence; build `test_results_by_teacher/{visibilityOwnerTeacherId}/{resultId}` only for teacher-owned rows with `result.visibility.ownershipResolved === true` and a non-null `visibilityOwnerTeacherId`. Never create teacher-index entries for solo-practice or unresolved rows.
+  - [x] 3.3 Keep `getStudentResults()` in `src/services/testResults.service.ts` student-complete. It may enrich rows with `result.visibility` and deleted-source metadata, but it must never apply teacher-specific visibility filtering or remove rows needed by student history. Teacher filtering belongs only in teacher-specific service methods that call `resultVisibility.service` after the full student result set is available.
+  - [x] 3.4 Refactor `getTeacherResults()` in `src/services/testResults.service.ts` to use normalized teacher-owned indexes plus the shared visibility service for teacher-owned rows, and resolve solo-practice visibility separately at read time after the outer assignment gate. Do not materialize solo-practice rows into `test_results_by_teacher/*`, and do not trust old raw `teacherId` index semantics.
+  - [x] 3.5 Neutralize the legacy teacher-visibility paths in `src/services/resultsService.ts` and `src/services/guestResultsService.ts` during Phase 1. At minimum, `getTeacherResults()`, `getResultsForTeacher()`, `getResultsForAssignedStudents()`, and any teacher-filtering branch inside `getStudentAllResults()` must stop making ownership decisions from `session.teacherId`, `session.createdBy`, `result.teacherId`, blank-`teacherId` fallthrough, or assignment-only access. Redirect them to canonical shared services, or hard-stop/deprecate them if they are not part of the approved Phase 1 consumer slice. Keep student history reads student-complete.
+  - [x] 3.6 Implement shared read-time enrichment for legacy rows in the service layer only. Treat a legacy row as any result missing `result.visibility` or missing a resolved ownership verdict after normalization. This enrichment must run before a row is classified as unresolved and must never live inside pages or components.
+  - [x] 3.7 Add unresolved-row reporting in Phase 1, not later: create or update unresolved report entries from the shared service layer for newly unresolved writes and for legacy rows that remain unresolved after enrichment.
+  - [x] 3.8 Add an idempotent reindex routine for stale `test_results_by_teacher/*` rows built from old raw `teacherId` semantics. It must scan canonical results, rebuild teacher-owned index entries only from `result.visibility.visibilityOwnerTeacherId`, skip solo-practice and unresolved rows, delete or replace stale rows that no longer match normalized ownership, update affected teacher/course/class index cleanup rules where the normalized write path changes, log rebuilt/deleted/skipped/unresolved counts, and complete before Phase 1 history is declared fixed.
+  - [x] 3.9 Add service-level tests in `src/services/testResults.service.test.ts`, `src/services/resultsService.test.ts`, and `src/services/guestResultsService.test.ts` proving old raw `teacherId` rows no longer control teacher visibility, student reads remain unfiltered, solo-practice never creates teacher-index rows, legacy enrichment runs before exclusion, unresolved rows generate admin-report entries, and rebuilt teacher indexes reflect normalized ownership only while stale rows are removed.
+  - [x] 3.10 Do not start `4.0` until `3.1` through `3.9` are complete and passing.
+
+- [ ] 4.0 Normalize every in-scope Phase 1 writer onto the exact contract.
+  - [x] 4.1 Update `src/hooks/test/useTestSubmission.ts` to pass only the exact class-session source identifiers and snapshots needed by the canonical service. Do not resolve ownership in the hook. The downstream service must derive session ownership from `createdByUserId`, with `createdBy` allowed only as a proven legacy fallback; never pass `session.teacherId` forward as an ownership signal.
+  - [x] 4.2 Update `src/hooks/solo/useSoloSubmission.ts` to always persist exact homework, course, class, and self-study source identifiers plus the normalized visibility snapshot fields required by the shared resolver, without reintroducing raw `teacherId` as a shortcut.
+  - [x] 4.3 Refactor `src/components/practice/THCSPracticeView.tsx` so public-library authorship never becomes result ownership; the writer must pass authoritative homework, session, course, or class source metadata instead.
+  - [x] 4.4 Refactor `src/components/thcs-student/THCSTestLayout.tsx` so live-session THCS results write normalized class-session context and stop persisting `testData.createdBy` as teacher ownership.
+  - [x] 4.5 Update `src/services/writingSubmissionService.ts` so writing flows resolve ownership through writing-submission plus linked authoritative source, stop using weak fallback precedence, and replace any raw `teacherId` writes to `test_results_by_teacher/*` with the normalized ownership result returned by the canonical service layer.
+  - [x] 4.6 Refactor `src/components/writing-practice/WritingPracticeView.tsx` away from ad hoc RTDB ownership writes; writing results must go through the same canonical normalized path as other result types while preserving any separate writing-submission record.
+  - [x] 4.7 Canonicalize `src/pages/StudentQuizPageNew.jsx` so one normalized canonical result write occurs exactly when a quiz attempt becomes complete and final for that student, using the same final score, percentage, and question totals already computed for the completion state shown to the user. Persist the canonical row once per completed attempt, after final scoring is available, in addition to session player-state data; do not write canonical partial-attempt rows during question-by-question progress.
+  - [x] 4.8 Add writer-specific tests proving each in-scope writer emits the exact normalized snapshot contract and never relies on raw `teacherId`, original test authorship, selected reviewer, or missing context.
+  - [x] 4.9 Do not start `5.0` until all in-scope writers in `4.1` through `4.8` are migrated and their tests are passing.
+
+- [ ] 5.0 Migrate the first teacher-facing consumer slice with locked UI, access behavior, and admin diagnostics.
+  - [x] 5.1 Replace local row filtering in `src/pages/TeacherStudentHistoryPage.tsx` with calls to the shared visibility service only; remove page-level `teacherId` filtering entirely.
+  - [x] 5.2 Keep `useStudentDataAccessCheck`, `useOwnershipCheck`, `validateOwnership` in `src/services/securityMiddleware.ts`, and `AccessControlWrapper` as the outer assignment gate only; do not let assignment status alone grant per-result visibility.
+  - [x] 5.3 Rebuild `src/pages/TeacherStudentHistoryPage.tsx` under the teacher full-page shell using the established `TeacherHeader` and `AppShell` pattern from `src/pages/TeacherStudentsPage.tsx`; remove standalone gradient-page behavior.
+  - [x] 5.4 Update `src/components/results/ResultFilters.tsx` so filter options are derived from the normalized and classified result set returned to the teacher-facing consumer after shared visibility processing. Do not keep stale hardcoded `test` and `quiz` assumptions, fixed skill lists detached from real data, or a second static canonical type map in Phase 1.
+  - [x] 5.5 Update `src/pages/ResultDetailPage.tsx` so the teacher/admin branch stays inside the teacher shell while the student branch keeps the current redirect behavior unchanged.
+  - [x] 5.6 Refactor `src/components/results/LegacyResultDetailView.tsx` so teacher/admin access is decided by the shared result-visibility verdict, not by student-only ownership checks.
+  - [x] 5.7 Enforce solo-practice restrictions in detail view explicitly: visible to teachers, labeled as student-owned, full source metadata shown, but all teacher-owned actions and ownership-style affordances removed or disabled.
+  - [x] 5.8 Enforce deleted-source behavior explicitly: display submission-time snapshot metadata as the primary historical label, show current source names only as supplemental metadata when available, render archived/deleted-source state, and keep unresolved rows from rendering in teacher history or teacher result detail.
+  - [x] 5.9 Enforce immediate access-loss behavior explicitly in both history and result detail; sensitive result data must clear immediately when assignment access is revoked mid-view.
+  - [x] 5.10 Add unresolved-result diagnostics to `src/pages/AdminReportsPage.tsx` using `/reports/result_visibility/unresolved/{resultId}`. This Phase 1 section must be read-only and show at minimum: `resultId`, `studentId`, `contextType`, `unresolvedReason`, `sourceLookupAttempted`, `strongestKnownSourceClue`, and timestamps.
+  - [x] 5.11 Add or update page and component tests in `src/pages/TeacherStudentHistoryPage.test.tsx`, `src/pages/ResultDetailPage.test.tsx`, `src/components/results/LegacyResultDetailView.test.tsx`, `src/components/results/ResultFilters.test.tsx`, and `src/pages/AdminReportsPage.test.tsx` to cover the exact Phase 1 UI and access rules.
+  - [x] 5.12 Do not start `6.0` until every scoped consumer in `5.1` through `5.11` is using the shared visibility path and no local ownership logic remains.
+
+- [x] 6.0 Execute the Phase 1 verification matrix and stop only at the exact acceptance gate.
+  - [x] 6.1 Add service-layer tests for: public-library test assigned by Teacher A but authored by Teacher C, teacher-owned session, teacher-owned homework, class-linked course material, standalone course material, solo practice, unresolved-row exclusion, deleted-source visibility, access revocation, reassignment restoration, and student history retention for unresolved legacy rows.
+  - [x] 6.2 Add writer-flow tests for: `useTestSubmission`, `useSoloSubmission`, `THCSPracticeView`, `THCSTestLayout`, `writingSubmissionService`, `WritingPracticeView`, and `StudentQuizPageNew`.
+  - [x] 6.3 Add page tests for: teacher history inclusion and exclusion, `Solo Practice` tag rendering, absence of generic `teacher-owned` and `legacy/unverified` badges in teacher list rows, deleted-source display, unresolved-row absence, access-loss state, and teacher-shell rendering in `TeacherStudentHistoryPage.test.tsx` and `ResultDetailPage.test.tsx`.
+  - [x] 6.4 Add result-detail tests proving solo practice is view-only, teacher-owned actions do not appear on solo-practice rows, and full source metadata is rendered when the row is teacher-visible.
+  - [x] 6.5 Update `database.rules.json` and rewrite `src/__tests__/security/ownership.test.ts`, `src/__tests__/security/firebaseRules.test.ts`, `src/hooks/useOwnershipCheck.test.ts`, `src/services/securityMiddleware.test.ts`, and `src/components/access/AccessControlWrapper.test.tsx` so they no longer encode raw `teacherId`, blanket teacher-wide result reads, or active-assignment-only visibility assumptions. `/reports/result_visibility/unresolved/*` must be super-admin-only.
+  - [x] 6.6 Add a final Phase 1 completion checklist to this task list itself and do not mark Phase 1 complete until all of the following are true: the shared resolver is the only ownership authority in the scoped files, stale teacher indexes are handled, unresolved rows appear in admin reporting, live quiz canonical writes exist, solo-practice rows are read-time visible but not teacher-indexed, required governance docs are updated in the same change set, and all tests in `6.1` through `6.5` pass.
+    - [x] Final gate check: shared resolver remains the only ownership authority in scoped Phase 1 files.
+    - [x] Final gate check: stale teacher indexes are handled through normalized reindex/rebuild logic.
+    - [x] Final gate check: unresolved rows are surfaced in admin diagnostics via `/reports/result_visibility/unresolved/{resultId}`.
+    - [x] Final gate check: live quiz canonical writes exist and are completion-only.
+    - [x] Final gate check: solo-practice rows remain read-time visible and are not written to `test_results_by_teacher/*`.
+    - [x] Final gate check: required governance docs remain updated within the same implementation slice.
+    - [x] Final gate check: all scoped test files in `6.1` through `6.5` pass in the combined verification run.
+
+- [ ] 7.0 Lock later-phase execution boundaries and prerequisites.
+  - [x] 7.1 Keep Tasks `7.0` through `11.x` designated as future mandatory phases; do not execute them until the user explicitly re-opens later-phase implementation.
+  - [x] 7.2 Require `6.6` to pass before any later-phase consumer rollout starts.
+  - [x] 7.3 Require the shared resolver and normalized snapshot contract to be the only source of truth before rewriting additional security tests or migrating additional consumers.
+  - [x] 7.4 Require stale teacher-result indexes to be identified and a reindex or backfill plan approved before any later-phase consumer is declared complete.
+  - [x] 7.5 Keep later-phase forbidden moves explicit: no local page filters, no raw `teacherId` ownership checks, no assignment-context promotion, and no partial solo-practice analytics inclusion.
+
+- [ ] 8.0 Roll the shared visibility policy across the remaining teacher-facing consumer inventory.
+  - [x] 8.1 Lock the exact consumer inventory for later migration: `src/pages/TeacherResultsDashboard.jsx`, `src/pages/TeacherTestResultsPage.tsx`, `src/pages/TeacherStudentHistoryPage.tsx`, `src/pages/ResultDetailPage.tsx`, `src/components/results/LegacyResultDetailView.tsx`, `src/components/results/ResultFilters.tsx`, `src/services/resultsService.ts`, and route registrations in `src/App.jsx`. Treat legacy quiz leaderboard route `/teacher-results/:gameSessionId` as explicitly outside this PRD-0041 inventory unless a later subtask pulls it in.
+  - [x] 8.2 For `src/pages/TeacherResultsDashboard.jsx`, replace any local ownership filtering, local route assumptions, and local analytics inclusion logic with shared visibility helpers.
+  - [x] 8.3 For `src/pages/TeacherTestResultsPage.tsx`, replace any local ownership filtering, local route assumptions, and local analytics inclusion logic with shared visibility helpers.
+  - [x] 8.4 For `src/pages/ResultDetailPage.tsx` and `src/components/results/LegacyResultDetailView.tsx`, keep removing any remaining student-only ownership checks as the final teacher authority and require the shared result-visibility contract plus full source-metadata rendering everywhere.
+  - [x] 8.5 For `src/components/results/ResultFilters.tsx`, keep filter options resolver-backed and aligned with the canonical visibility model across every migrated consumer.
+  - [x] 8.6 For `src/App.jsx`, audit every teacher-facing route and entry point into history or result detail to ensure all paths land on the same shared-policy implementation and no hardcoded alternate-route bypass remains.
+  - [x] 8.7 Add dedicated regression tests for each migrated teacher-facing surface and each route entry point, not just the history and detail pages.
+  - [x] 8.8 Do not mark later consumer rollout complete until every inventoried surface is either migrated or explicitly deferred in writing.
+
+- [ ] 9.0 Standardize analytics exclusion and teacher-surface reporting.
+  - [x] 9.1 Create an explicit analytics inventory covering every teacher-facing count, chart, ranking, summary widget, export, and dashboard surface that reads result history.
+  - [x] 9.2 For each inventoried analytics surface, exclude solo-practice rows by default and prove unresolved rows are excluded.
+  - [x] 9.3 Verify that no analytics surface silently falls back to raw `teacherId` indexes or assignment-only visibility.
+  - [x] 9.4 Add regression tests for solo-practice exclusion at the analytics layer, separate from history and detail page tests.
+  - [x] 9.5 Do not mark analytics migration complete until every inventoried analytics surface has been migrated or explicitly deferred in writing.
+
+- [ ] 10.0 Extend admin reconciliation, shared read-time enrichment, reindex, and safe legacy handling beyond Phase 1.
+  - [x] 10.1 Extend shared read-time enrichment to remaining legacy result consumers only in the service layer; do not reintroduce page-level enrichment anywhere.
+  - [x] 10.1a Reduce the legacy teacher-monitor writer gap in `src/hooks/monitor/useMonitorControls.ts` by fetching missing `tests/{testId}` payloads on demand and preferring `autoSubmitAllUnsubmittedStudents(...)` for disconnected/base-time and teacher-end auto-submit branches before any emergency fallback path is considered.
+  - [x] 10.2 Keep the unresolved-result report schema explicit and versioned: `resultId`, `studentId`, `contextType`, `unresolvedReason`, `sourceLookupAttempted`, `strongestKnownSourceClue`, `ownershipResolved`, `reportVersion`, and timestamps.
+  - [x] 10.3 Keep `src/pages/AdminReportsPage.tsx` as the admin diagnostic surface for unresolved rows unless the PRD is amended; do not fork unresolved reporting into multiple admin destinations.
+  - [x] 10.4 Identify stale teacher-owned indexes beyond `test_results_by_teacher/*` and rebuild them only from normalized visibility data.
+  - [x] 10.5 Execute safe reindex and backfill only for provable rows; unresolved rows remain excluded until ownership is proven.
+  - [x] 10.6 Add verification proving deleted-source snapshots remain visible when ownership was proven and remain hidden when ownership was never proven.
+  - [x] 10.7 Do not mark legacy handling complete until read-time enrichment, unresolved reporting, reindex, and safe-backfill rules all match the PRD.
+
+- [ ] 11.0 Harden later-phase governance artifacts and the full verification matrix so future work cannot drift.
+  - [x] 11.1 Keep `documentation/architecture/result-visibility-ownership-governance.md` updated whenever the policy surface changes.
+  - [x] 11.2 Keep `documentation/architecture/result-view-permission-matrix.md` updated with one row per context type, exact lookup, owner field, fallback, include rule, exclude rule, and archived-source behavior.
+  - [x] 11.3 Keep `documentation/result-visibility-producer-consumer-contract.md` updated with required normalized fields, write-time lookup rules, report schema, and banned shortcuts.
+  - [x] 11.4 Keep `documentation/rules/result-visibility-review-checklist.md` updated with explicit reject conditions for local filters, raw `teacherId` authority, assignment-context promotion, missing reconciliation coverage, and missing reindex handling.
+  - [x] 11.5 Require the architecture doc, permission matrix, contract doc, and reviewer checklist to be updated together in every later-phase change set that touches the policy surface.
+  - [x] 11.6 Convert the full PRD scenario matrix into a locked test matrix by layer: service tests, writer-flow tests, page and component tests, security and rules tests, analytics tests, and route-entry regression tests.
+  - [x] 11.7 Do not mark later phases complete until every PRD scenario is assigned to a specific test file and passing.
+
+
+
+
+

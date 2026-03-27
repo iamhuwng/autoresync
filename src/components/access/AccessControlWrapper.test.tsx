@@ -50,6 +50,10 @@ const TestWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
     </MantineProvider>
 );
 
+const ResultVisibilityGate: React.FC<{ canViewResult: boolean }> = ({ canViewResult }) => (
+    <div>{canViewResult ? 'Visible Result' : 'Result visibility denied'}</div>
+);
+
 const renderWithProviders = (component: React.ReactNode) => {
     return render(<TestWrapper>{component}</TestWrapper>);
 };
@@ -623,6 +627,25 @@ describe('Access Control Security Scenarios (PRD-0016 Task 6.8)', () => {
             expect(mockIsStudentAssignedToTeacher).toHaveBeenCalledWith('student-b', 'teacher-1');
             expect(mockIsStudentAssignedToTeacher).toHaveBeenCalledWith('student-c', 'teacher-1');
         });
+    });
+
+    it('should keep assignment access separate from result visibility verdicts', async () => {
+        mockIsStudentAssignedToTeacher.mockResolvedValue(true);
+
+        renderWithProviders(
+            <AccessControlWrapper
+                teacherId="teacher-1"
+                studentIds="student-1"
+            >
+                <ResultVisibilityGate canViewResult={false} />
+            </AccessControlWrapper>
+        );
+
+        await waitFor(() => {
+            expect(screen.getByText('Result visibility denied')).toBeInTheDocument();
+        });
+
+        expect(screen.queryByText('Visible Result')).not.toBeInTheDocument();
     });
 
     it('should handle rapid assignment/unassignment changes', async () => {

@@ -51,6 +51,18 @@ export interface ResultSource {
 
     /** Display name of the source */
     name?: string;
+
+    /** Exact session code for live-session sourced results */
+    sessionCode?: string;
+
+    /** Exact class id for class-linked results */
+    classId?: string;
+
+    /** Exact course id for course-linked results */
+    courseId?: string;
+
+    /** Exact writing submission identifier when available */
+    submissionId?: string;
 }
 
 /**
@@ -59,6 +71,9 @@ export interface ResultSource {
 export interface ResultAssignmentMeta {
     /** Homework assignment ID (if applicable) */
     homeworkId?: string;
+
+    /** Secondary assignment identifier for class/course orchestration */
+    assignmentId?: string;
 
     /** Homework title */
     homeworkTitle?: string;
@@ -101,11 +116,32 @@ export interface ResultContext {
     /** Source information */
     source: ResultSource;
 
+    /** Exact session identifier used for ownership lookup */
+    sessionCode?: string;
+
+    /** Exact class identifier used for ownership lookup */
+    classId?: string;
+
+    /** Exact course identifier used for ownership lookup */
+    courseId?: string;
+
     /** Assignment metadata (for homework/course_material) */
     assignment?: ResultAssignmentMeta;
 
     /** Configuration that was applied */
     configApplied: AppliedConfig;
+
+    /** Exact session code when context is tied to a live session */
+    sessionCode?: string;
+
+    /** Exact class id when context is tied to a class-owned source */
+    classId?: string;
+
+    /** Exact course id when context is tied to a course-owned source */
+    courseId?: string;
+
+    /** Secondary assignment identifier for reporting/debugging only */
+    assignmentId?: string;
 }
 
 // ============================================================================

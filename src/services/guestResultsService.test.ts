@@ -3,16 +3,21 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ref, push, get, set, remove } from 'firebase/database';
+import { ref, push, get, set, remove, update } from 'firebase/database';
 import {
     saveGuestResult,
     getGuestResults,
     generateUniqueGuestName,
     claimGuestResults,
+    migrateLegacyClaimedGuestResults,
     checkClaimableResults,
     deleteGuestResults,
     getGuestResultCount
 } from './guestResultsService';
+
+const { mockResolveResultOwnership } = vi.hoisted(() => ({
+    mockResolveResultOwnership: vi.fn(),
+}));
 
 // Mock Firebase
 vi.mock('./firebase', () => ({
@@ -20,19 +25,41 @@ vi.mock('./firebase', () => ({
 }));
 
 vi.mock('firebase/database', () => ({
-    ref: vi.fn(),
+    ref: vi.fn((_: unknown, path?: string) => path ?? '__root__'),
     push: vi.fn(),
     get: vi.fn(),
     set: vi.fn(),
     remove: vi.fn(),
-    query: vi.fn(),
-    orderByChild: vi.fn(),
-    equalTo: vi.fn()
+    update: vi.fn(),
+}));
+
+vi.mock('./resultOwnershipResolver', () => ({
+    resolveResultOwnership: mockResolveResultOwnership,
 }));
 
 describe('guestResultsService', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        (update as any).mockResolvedValue(undefined);
+        mockResolveResultOwnership.mockImplementation(async ({ result }: any) => ({
+            visibility: {
+                contextType: 'class_session',
+                sourceType: 'session',
+                sourceId: result?.sessionCode ?? 'session-1',
+                sourceNameSnapshot: result?.testTitle ?? 'Claimed Result',
+                visibilityOwnerTeacherId: 'teacher-1',
+                ownerResolutionSource: 'session.createdByUserId',
+                ownershipResolved: true,
+                unresolvedReason: null,
+                homeworkId: null,
+                sessionCode: result?.sessionCode ?? 'session-1',
+                courseId: result?.courseId ?? null,
+                classId: result?.classId ?? null,
+                assignmentId: null,
+            },
+            sourceLookupAttempted: true,
+            strongestKnownSourceClue: `session:${result?.sessionCode ?? 'session-1'}`,
+        }));
     });
 
     // ========================================
@@ -246,18 +273,32 @@ describe('guestResultsService', () => {
             const mockGuestResults = [
                 {
                     testId: 'test-1',
-                    score: 80,
+                    sessionCode: 'session-1',
+                    studentId: 'guest_1',
+                    studentName: 'John',
+                    percentage: 80,
+                    testTitle: 'Reading 1',
+                    testSkill: 'reading',
+                    teacherId: 'teacher-1',
                     guestName: 'John',
                     isGuestResult: true,
+                    isGuest: true,
                     savedAt: 1000,
                     resultId: 'result-1',
                     submittedAt: 1000
                 },
                 {
                     testId: 'test-2',
-                    score: 90,
+                    sessionCode: 'session-2',
+                    studentId: 'guest_1',
+                    studentName: 'John',
+                    percentage: 90,
+                    testTitle: 'Reading 2',
+                    testSkill: 'reading',
+                    teacherId: 'teacher-1',
                     guestName: 'John',
                     isGuestResult: true,
+                    isGuest: true,
                     savedAt: 2000,
                     resultId: 'result-2',
                     submittedAt: 2000
@@ -278,34 +319,49 @@ describe('guestResultsService', () => {
             };
 
             (get as any).mockResolvedValue(mockSnapshot);
-
-            const mockUserResultRef1 = { key: 'new-result-1' };
-            const mockUserResultRef2 = { key: 'new-result-2' };
-            (push as any)
-                .mockReturnValueOnce(mockUserResultRef1)
-                .mockReturnValueOnce(mockUserResultRef2);
-
-            (set as any).mockResolvedValue(undefined);
             (remove as any).mockResolvedValue(undefined);
 
             const count = await claimGuestResults('John', 'user-123');
 
             expect(count).toBe(2);
-            expect(set).toHaveBeenCalledTimes(2);
+            expect(update).toHaveBeenCalledTimes(1);
             expect(remove).toHaveBeenCalled();
 
-            // Verify that set was called with correct data - check key properties
-            // Note: Results are sorted by submittedAt desc, so test-2 (2000) comes before test-1 (1000)
-            const firstCallData = (set as any).mock.calls[0][1];
-            const secondCallData = (set as any).mock.calls[1][1];
+            const claimUpdates = (update as any).mock.calls[0][1];
+            const firstCallData = claimUpdates['test_results/result-2'];
+            const secondCallData = claimUpdates['test_results/result-1'];
 
             expect(firstCallData.testId).toBe('test-2'); // Newest first
-            expect(firstCallData.score).toBe(90);
+            expect(firstCallData.percentage).toBe(90);
+            expect(firstCallData.studentId).toBe('user-123');
             expect(firstCallData.claimedFrom).toBe('John');
             expect(firstCallData.claimedAt).toBeTypeOf('number');
+            expect(firstCallData.visibility).toEqual(
+                expect.objectContaining({
+                    visibilityOwnerTeacherId: 'teacher-1',
+                    ownershipResolved: true,
+                }),
+            );
+            expect(claimUpdates['test_results_by_student/user-123/result-2']).toEqual(
+                expect.objectContaining({
+                    resultId: 'result-2',
+                    sessionCode: 'session-2',
+                    testId: 'test-2',
+                    percentage: 90,
+                    submittedAt: 2000,
+                }),
+            );
+            expect(claimUpdates['test_results_by_teacher/teacher-1/result-2']).toEqual(
+                expect.objectContaining({
+                    resultId: 'result-2',
+                    studentId: 'user-123',
+                }),
+            );
+            expect(claimUpdates['reports/result_visibility/unresolved/result-2']).toBeNull();
 
             expect(secondCallData.testId).toBe('test-1'); // Oldest second
-            expect(secondCallData.score).toBe(80);
+            expect(secondCallData.percentage).toBe(80);
+            expect(secondCallData.studentId).toBe('user-123');
             expect(secondCallData.claimedFrom).toBe('John');
             expect(secondCallData.claimedAt).toBeTypeOf('number');
         });
@@ -320,7 +376,7 @@ describe('guestResultsService', () => {
             const count = await claimGuestResults('John', 'user-123');
 
             expect(count).toBe(0);
-            expect(set).not.toHaveBeenCalled();
+            expect(update).not.toHaveBeenCalled();
             expect(remove).not.toHaveBeenCalled();
         });
 
@@ -332,7 +388,11 @@ describe('guestResultsService', () => {
         it('should remove guest-specific metadata when claiming', async () => {
             const mockGuestResult = {
                 testId: 'test-1',
-                score: 80,
+                sessionCode: 'session-1',
+                studentId: 'guest_1',
+                studentName: 'John',
+                percentage: 80,
+                isGuest: true,
                 guestName: 'John',
                 isGuestResult: true,
                 savedAt: 1000,
@@ -348,19 +408,288 @@ describe('guestResultsService', () => {
             };
 
             (get as any).mockResolvedValue(mockSnapshot);
-            (push as any).mockReturnValue({ key: 'new-result' });
-            (set as any).mockResolvedValue(undefined);
             (remove as any).mockResolvedValue(undefined);
 
             await claimGuestResults('John', 'user-123');
 
-            const setCall = (set as any).mock.calls[0][1];
+            const setCall = (update as any).mock.calls[0][1]['test_results/result-1'];
             expect(setCall).not.toHaveProperty('guestName');
             expect(setCall).not.toHaveProperty('isGuestResult');
             expect(setCall).not.toHaveProperty('savedAt');
-            expect(setCall).not.toHaveProperty('resultId');
+            expect(setCall).toHaveProperty('resultId', 'result-1');
+            expect(setCall).toHaveProperty('studentId', 'user-123');
             expect(setCall).toHaveProperty('claimedAt');
             expect(setCall).toHaveProperty('claimedFrom', 'John');
+        });
+
+        it('should keep unresolved claimed rows out of teacher indexes and report them', async () => {
+            mockResolveResultOwnership.mockResolvedValueOnce({
+                visibility: {
+                    contextType: 'course_material',
+                    sourceType: 'course',
+                    sourceId: 'course-1',
+                    sourceNameSnapshot: 'Course 1',
+                    visibilityOwnerTeacherId: null,
+                    ownerResolutionSource: 'unresolved',
+                    ownershipResolved: false,
+                    unresolvedReason: 'owner_not_resolved',
+                    homeworkId: null,
+                    sessionCode: 'session-1',
+                    courseId: 'course-1',
+                    classId: null,
+                    assignmentId: null,
+                },
+                sourceLookupAttempted: true,
+                strongestKnownSourceClue: 'course:course-1',
+            });
+
+            const mockSnapshot = {
+                exists: () => true,
+                forEach: (callback: any) => {
+                    callback({
+                        key: 'result-1',
+                        val: () => ({
+                            testId: 'test-1',
+                            sessionCode: 'session-1',
+                            studentId: 'guest_1',
+                            studentName: 'John',
+                            percentage: 80,
+                            testTitle: 'Reading 1',
+                            testSkill: 'reading',
+                            teacherId: 'teacher-1',
+                            guestName: 'John',
+                            isGuestResult: true,
+                            isGuest: true,
+                            savedAt: 1000,
+                            resultId: 'result-1',
+                            submittedAt: 1000,
+                            courseId: 'course-1',
+                        }),
+                    });
+                }
+            };
+
+            (get as any).mockResolvedValue(mockSnapshot);
+            (remove as any).mockResolvedValue(undefined);
+
+            await claimGuestResults('John', 'user-123');
+
+            const claimUpdates = (update as any).mock.calls[0][1];
+            expect(claimUpdates['test_results_by_teacher/teacher-1/result-1']).toBeUndefined();
+            expect(claimUpdates['test_results_by_course/course-1/user-123/result-1']).toBeUndefined();
+            expect(claimUpdates['reports/result_visibility/unresolved/result-1']).toEqual(
+                expect.objectContaining({
+                    resultId: 'result-1',
+                    studentId: 'user-123',
+                    unresolvedReason: 'owner_not_resolved',
+                    strongestKnownSourceClue: 'course:course-1',
+                }),
+            );
+        });
+
+        it('should skip teacher index creation for solo-practice claims even when raw teacherId exists', async () => {
+            mockResolveResultOwnership.mockResolvedValueOnce({
+                visibility: {
+                    contextType: 'solo_practice',
+                    sourceType: 'solo_practice',
+                    sourceId: 'material-1',
+                    sourceNameSnapshot: 'Solo Practice',
+                    visibilityOwnerTeacherId: null,
+                    ownerResolutionSource: 'solo_practice',
+                    ownershipResolved: true,
+                    unresolvedReason: null,
+                    homeworkId: null,
+                    sessionCode: 'solo-session',
+                    courseId: null,
+                    classId: null,
+                    assignmentId: null,
+                },
+                sourceLookupAttempted: false,
+                strongestKnownSourceClue: 'solo_practice:material-1',
+            });
+
+            const mockSnapshot = {
+                exists: () => true,
+                forEach: (callback: any) => {
+                    callback({
+                        key: 'result-solo',
+                        val: () => ({
+                            testId: 'test-solo',
+                            sessionCode: 'solo-session',
+                            studentId: 'guest_1',
+                            studentName: 'John',
+                            percentage: 80,
+                            testTitle: 'Solo Practice',
+                            testSkill: 'reading',
+                            teacherId: 'teacher-1',
+                            guestName: 'John',
+                            isGuestResult: true,
+                            isGuest: true,
+                            savedAt: 1000,
+                            resultId: 'result-solo',
+                            submittedAt: 1000,
+                        }),
+                    });
+                }
+            };
+
+            (get as any).mockResolvedValue(mockSnapshot);
+            (remove as any).mockResolvedValue(undefined);
+
+            await claimGuestResults('John', 'user-123');
+
+            const claimUpdates = (update as any).mock.calls[0][1];
+            expect(claimUpdates['test_results_by_teacher/teacher-1/result-solo']).toBeUndefined();
+            expect(claimUpdates['reports/result_visibility/unresolved/result-solo']).toBeNull();
+        });
+
+        it('should rebuild guest claim teacher index from normalized owner instead of raw teacherId', async () => {
+            mockResolveResultOwnership.mockResolvedValueOnce({
+                visibility: {
+                    contextType: 'class_session',
+                    sourceType: 'session',
+                    sourceId: 'session-1',
+                    sourceNameSnapshot: 'Reading 1',
+                    visibilityOwnerTeacherId: 'teacher-2',
+                    ownerResolutionSource: 'session.createdByUserId',
+                    ownershipResolved: true,
+                    unresolvedReason: null,
+                    homeworkId: null,
+                    sessionCode: 'session-1',
+                    courseId: null,
+                    classId: null,
+                    assignmentId: null,
+                },
+                sourceLookupAttempted: true,
+                strongestKnownSourceClue: 'session:session-1',
+            });
+
+            const mockSnapshot = {
+                exists: () => true,
+                forEach: (callback: any) => {
+                    callback({
+                        key: 'result-mismatch',
+                        val: () => ({
+                            testId: 'test-1',
+                            sessionCode: 'session-1',
+                            studentId: 'guest_1',
+                            studentName: 'John',
+                            percentage: 80,
+                            testTitle: 'Reading 1',
+                            testSkill: 'reading',
+                            teacherId: 'teacher-1',
+                            guestName: 'John',
+                            isGuestResult: true,
+                            isGuest: true,
+                            savedAt: 1000,
+                            resultId: 'result-mismatch',
+                            submittedAt: 1000,
+                        }),
+                    });
+                }
+            };
+
+            (get as any).mockResolvedValue(mockSnapshot);
+            (remove as any).mockResolvedValue(undefined);
+
+            await claimGuestResults('John', 'user-123');
+
+            const claimUpdates = (update as any).mock.calls[0][1];
+            expect(claimUpdates['test_results_by_teacher/teacher-1/result-mismatch']).toBeUndefined();
+            expect(claimUpdates['test_results_by_teacher/teacher-2/result-mismatch']).toEqual(
+                expect.objectContaining({
+                    resultId: 'result-mismatch',
+                    studentId: 'user-123',
+                }),
+            );
+        });
+    });
+
+    describe('migrateLegacyClaimedGuestResults', () => {
+        it('should migrate legacy claimed rows into canonical result storage', async () => {
+            (get as any).mockResolvedValue({
+                exists: () => true,
+                val: () => ({
+                    'user-123': {
+                        'result-1': {
+                            resultId: 'result-1',
+                            testId: 'test-1',
+                            sessionCode: 'session-1',
+                            studentId: 'guest_1',
+                            studentName: 'John',
+                            percentage: 88,
+                            submittedAt: 1234,
+                            teacherId: 'teacher-1',
+                            isGuest: true,
+                            claimedAt: 1500,
+                            claimedFrom: 'John',
+                        },
+                    },
+                    'result-live': {
+                        resultId: 'result-live',
+                        testId: 'live-test',
+                        studentId: 'student-live',
+                        sessionCode: 'live-session',
+                        submittedAt: 9999,
+                    },
+                }),
+            });
+
+            const migrated = await migrateLegacyClaimedGuestResults();
+
+            expect(migrated).toBe(1);
+            expect(update).toHaveBeenCalledTimes(1);
+
+            const migrationUpdates = (update as any).mock.calls[0][1];
+            expect(migrationUpdates['test_results/result-1']).toEqual(
+                expect.objectContaining({
+                    resultId: 'result-1',
+                    studentId: 'user-123',
+                    claimedFrom: 'John',
+                    claimedAt: 1500,
+                    visibility: expect.objectContaining({
+                        visibilityOwnerTeacherId: 'teacher-1',
+                        ownershipResolved: true,
+                    }),
+                }),
+            );
+            expect(migrationUpdates['test_results_by_student/user-123/result-1']).toEqual(
+                expect.objectContaining({
+                    resultId: 'result-1',
+                    sessionCode: 'session-1',
+                    testId: 'test-1',
+                    percentage: 88,
+                    submittedAt: 1234,
+                }),
+            );
+            expect(migrationUpdates['test_results_by_teacher/teacher-1/result-1']).toEqual(
+                expect.objectContaining({
+                    resultId: 'result-1',
+                    studentId: 'user-123',
+                }),
+            );
+            expect(migrationUpdates['reports/result_visibility/unresolved/result-1']).toBeNull();
+            expect(migrationUpdates['test_results/user-123']).toBeNull();
+        });
+
+        it('should ignore already-canonical result rows', async () => {
+            (get as any).mockResolvedValue({
+                exists: () => true,
+                val: () => ({
+                    'result-1': {
+                        resultId: 'result-1',
+                        testId: 'test-1',
+                        studentId: 'student-1',
+                        sessionCode: 'session-1',
+                        submittedAt: 1234,
+                    },
+                }),
+            });
+
+            const migrated = await migrateLegacyClaimedGuestResults();
+
+            expect(migrated).toBe(0);
+            expect(update).not.toHaveBeenCalled();
         });
     });
 

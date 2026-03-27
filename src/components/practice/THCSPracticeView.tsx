@@ -55,6 +55,7 @@ import {
     summarizeIntegritySnapshot,
     trackAntiCheatAction,
 } from '../../services/antiCheatReporting';
+import { buildThcsPracticePersistenceContext } from './thcsPracticeResultContext';
 
 import type { THCSTest } from '../../types/thcs-test.types';
 import type { PracticeContext } from './IELTSPracticeView';
@@ -555,6 +556,13 @@ const THCSPracticeInner: React.FC<{
                 pendingWritingCount: thcsData.pendingWritingCount,
             });
 
+            const { academicContext, resultContext } = buildThcsPracticePersistenceContext({
+                materialId,
+                practiceContext,
+                title: testData.metadata.title,
+                duration: testData.metadata.duration,
+            });
+
             // Save result
             const resultId = await saveTestResult(
                 `practice_${materialId}_${Date.now()}`,
@@ -569,19 +577,11 @@ const THCSPracticeInner: React.FC<{
                     duration: testData.metadata.duration,
                 },
                 timeElapsed,
-                testData.createdBy || '',
+                undefined,
                 false,
                 undefined,
-                practiceContext.courseId && practiceContext.moduleId ? {
-                    courseId: practiceContext.courseId,
-                    moduleId: practiceContext.moduleId,
-                } : undefined,
-                {
-                    type: practiceContext.type,
-                    source: isHomework
-                        ? { type: 'homework', id: practiceContext.homeworkId || '', name: '' }
-                        : { type: 'library', id: '', name: 'Self Study' },
-                } as any,
+                academicContext,
+                resultContext,
                 thcsData
             );
 

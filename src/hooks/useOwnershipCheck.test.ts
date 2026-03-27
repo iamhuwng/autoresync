@@ -38,6 +38,11 @@ vi.mock('../services/securityMiddleware', () => ({
     validateOwnership: (...args: unknown[]) => mockValidateOwnership(...args),
 }));
 
+const mockSubscribeToAssignments = vi.fn();
+vi.mock('../services/assignmentManager', () => ({
+    subscribeToAssignments: (...args: unknown[]) => mockSubscribeToAssignments(...args),
+}));
+
 // =============================================================================
 // TEST HELPERS
 // =============================================================================
@@ -76,6 +81,13 @@ describe('useOwnershipCheck', () => {
         vi.clearAllMocks();
         // Default: validation passes
         mockValidateOwnership.mockResolvedValue({ allowed: true });
+        mockSubscribeToAssignments.mockImplementation((_teacherId: string, callback: (assignments: Array<{ studentId: string; status: string }>) => void) => {
+            callback([
+                { studentId: 'student-123', status: 'active' },
+                { studentId: 'student-456', status: 'active' },
+            ]);
+            return () => {};
+        });
     });
 
     // =========================================================================
@@ -324,6 +336,47 @@ describe('useOwnershipCheck', () => {
             expect(result.current.allowed).toBe(false);
             expect(result.current.denialReason).toBe('session');
         });
+
+        it('should deny result access when normalized visibility is unresolved or mismatched', async () => {
+            const authContext = createMockAuthContext('teacher', 'teacher-456', {
+                assignedStudentIds: ['student-123'],
+            });
+            mockUseSecureService.mockReturnValue(
+                createMockSecureServiceResult(authContext, false)
+            );
+            mockValidateOwnership.mockResolvedValue({
+                allowed: false,
+                reason: 'ownership',
+                message: 'Result visibility denied',
+            });
+
+            const { result } = renderHook(() =>
+                useOwnershipCheck('result', 'student-123', {
+                    resourceDetails: {
+                        visibilityOwnerTeacherId: 'teacher-999',
+                        ownershipResolved: false,
+                        unresolvedReason: 'owner_not_resolved',
+                    },
+                })
+            );
+
+            await waitFor(() => {
+                expect(result.current.loading).toBe(false);
+            });
+
+            expect(mockValidateOwnership).toHaveBeenCalledWith(
+                authContext,
+                'result',
+                'student-123',
+                expect.objectContaining({
+                    visibilityOwnerTeacherId: 'teacher-999',
+                    ownershipResolved: false,
+                    unresolvedReason: 'owner_not_resolved',
+                })
+            );
+            expect(result.current.allowed).toBe(false);
+            expect(result.current.denialReason).toBe('not_owner');
+        });
     });
 
     // =========================================================================
@@ -435,6 +488,81 @@ describe('useOwnershipCheck', () => {
             expect(result.current.allowed).toBe(true);
         });
 
+        it('denies immediately when realtime assignment access is revoked', async () => {
+            const authContext = createMockAuthContext('teacher', 'teacher-123', {
+                assignedStudentIds: ['student-456'],
+            });
+            let emitAssignments: ((assignments: Array<{ studentId: string; status: string }>) => void) | null = null;
+
+            mockUseSecureService.mockReturnValue(
+                createMockSecureServiceResult(authContext, false)
+            );
+            mockSubscribeToAssignments.mockImplementation((_teacherId: string, callback: (assignments: Array<{ studentId: string; status: string }>) => void) => {
+                emitAssignments = callback;
+                callback([{ studentId: 'student-456', status: 'active' }]);
+                return () => {};
+            });
+            mockValidateOwnership.mockResolvedValue({ allowed: true });
+
+            const { result } = renderHook(() =>
+                useOwnershipCheck('student_data', 'student-456')
+            );
+
+            await waitFor(() => {
+                expect(result.current.loading).toBe(false);
+            });
+
+            expect(result.current.allowed).toBe(true);
+
+            act(() => {
+                emitAssignments?.([]);
+            });
+
+            await waitFor(() => {
+                expect(result.current.loading).toBe(false);
+                expect(result.current.allowed).toBe(false);
+            });
+
+            expect(result.current.denialReason).toBe('not_owner');
+        });
+
+        it('revalidates when realtime assignment access is restored', async () => {
+            const authContext = createMockAuthContext('teacher', 'teacher-123', {
+                assignedStudentIds: ['student-456'],
+            });
+            let emitAssignments: ((assignments: Array<{ studentId: string; status: string }>) => void) | null = null;
+
+            mockUseSecureService.mockReturnValue(
+                createMockSecureServiceResult(authContext, false)
+            );
+            mockSubscribeToAssignments.mockImplementation((_teacherId: string, callback: (assignments: Array<{ studentId: string; status: string }>) => void) => {
+                emitAssignments = callback;
+                callback([]);
+                return () => {};
+            });
+            mockValidateOwnership.mockResolvedValue({ allowed: true });
+
+            const { result } = renderHook(() =>
+                useOwnershipCheck('student_data', 'student-456')
+            );
+
+            await waitFor(() => {
+                expect(result.current.loading).toBe(false);
+                expect(result.current.allowed).toBe(false);
+            });
+
+            act(() => {
+                emitAssignments?.([{ studentId: 'student-456', status: 'active' }]);
+            });
+
+            await waitFor(() => {
+                expect(result.current.loading).toBe(false);
+                expect(result.current.allowed).toBe(true);
+            });
+
+            expect(mockValidateOwnership).toHaveBeenCalledTimes(1);
+        });
+
         it('should validate course resource type', async () => {
             const authContext = createMockAuthContext('teacher', 'teacher-123');
             mockUseSecureService.mockReturnValue(
@@ -456,6 +584,33 @@ describe('useOwnershipCheck', () => {
                 'course-789',
                 undefined
             );
+        });
+
+        it('cleans up the realtime assignment subscription', async () => {
+            const authContext = createMockAuthContext('teacher', 'teacher-123', {
+                assignedStudentIds: ['student-456'],
+            });
+            const unsubscribe = vi.fn();
+
+            mockUseSecureService.mockReturnValue(
+                createMockSecureServiceResult(authContext, false)
+            );
+            mockSubscribeToAssignments.mockImplementation((_teacherId: string, callback: (assignments: Array<{ studentId: string; status: string }>) => void) => {
+                callback([{ studentId: 'student-456', status: 'active' }]);
+                return unsubscribe;
+            });
+
+            const { unmount } = renderHook(() =>
+                useOwnershipCheck('student_data', 'student-456')
+            );
+
+            await waitFor(() => {
+                expect(mockValidateOwnership).toHaveBeenCalled();
+            });
+
+            unmount();
+
+            expect(unsubscribe).toHaveBeenCalledTimes(1);
         });
     });
 });

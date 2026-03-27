@@ -18,18 +18,26 @@ import { ResultDetailPage } from './ResultDetailPage';
 // ─── Mocks ───────────────────────────────────────────────────────────────────
 
 // Mock useAuth
-let mockProfile: { role: string } | null = { role: 'student' };
+let mockProfile: { role: string; displayName?: string; email?: string; avatarUrl?: string } | null = { role: 'student' };
+let mockUser: { uid?: string; displayName?: string; email?: string; photoURL?: string } | null = {
+    uid: 'user-1',
+    email: 'user@example.com',
+};
 let mockAuthLoading = false;
+const mockLogout = vi.fn();
 
 vi.mock('../hooks/useAuth', () => ({
     useAuth: () => ({
+        user: mockUser,
         profile: mockProfile,
         loading: mockAuthLoading,
+        logout: mockLogout,
     }),
 }));
 
 // Mock useNavigate
 const mockNavigate = vi.fn();
+let legacyDetailVariant: 'default' | 'access-lost' = 'default';
 vi.mock('react-router-dom', async () => {
     const actual = await vi.importActual('react-router-dom');
     return {
@@ -42,9 +50,19 @@ vi.mock('react-router-dom', async () => {
 vi.mock('../components/results/LegacyResultDetailView', () => ({
     LegacyResultDetailView: ({ resultId, onReturn }: { resultId: string; onReturn?: () => void }) => (
         <div data-testid="legacy-result-detail-view">
-            <span data-testid="result-id">{resultId}</span>
+            {legacyDetailVariant === 'access-lost' ? (
+                <span data-testid="legacy-access-lost">Access to this result has been revoked.</span>
+            ) : (
+                <span data-testid="result-id">{resultId}</span>
+            )}
             {onReturn && <button data-testid="return-btn" onClick={onReturn}>Return</button>}
         </div>
+    ),
+}));
+
+vi.mock('../components/navigation', () => ({
+    TeacherHeader: ({ pageTitle, userRole }: { pageTitle: string; userRole: string }) => (
+        <div data-testid="teacher-header">{`${pageTitle}:${userRole}`}</div>
     ),
 }));
 
@@ -91,7 +109,9 @@ describe('ResultDetailPage', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mockProfile = { role: 'student' };
+        mockUser = { uid: 'user-1', email: 'user@example.com' };
         mockAuthLoading = false;
+        legacyDetailVariant = 'default';
     });
 
     describe('Student Redirect (PRD-0039 Task 4.9)', () => {
@@ -138,6 +158,8 @@ describe('ResultDetailPage', () => {
 
             expect(screen.getByTestId('legacy-result-detail-view')).toBeInTheDocument();
             expect(screen.queryByTestId('academic-record-redirect')).not.toBeInTheDocument();
+            expect(screen.getByTestId('result-detail-teacher-shell')).toBeInTheDocument();
+            expect(screen.getByTestId('teacher-header')).toHaveTextContent('Result Detail:teacher');
         });
     });
 
@@ -146,6 +168,8 @@ describe('ResultDetailPage', () => {
             mockProfile = { role: 'teacher' };
             renderPage('result-xyz');
 
+            expect(screen.getByTestId('result-detail-teacher-shell')).toBeInTheDocument();
+            expect(screen.getByTestId('teacher-header')).toHaveTextContent('Result Detail:teacher');
             expect(screen.getByTestId('legacy-result-detail-view')).toBeInTheDocument();
             expect(screen.getByTestId('result-id')).toHaveTextContent('result-xyz');
         });
@@ -154,6 +178,8 @@ describe('ResultDetailPage', () => {
             mockProfile = { role: 'super_admin' };
             renderPage('result-admin-1');
 
+            expect(screen.getByTestId('result-detail-teacher-shell')).toBeInTheDocument();
+            expect(screen.getByTestId('teacher-header')).toHaveTextContent('Result Detail:super_admin');
             expect(screen.getByTestId('legacy-result-detail-view')).toBeInTheDocument();
             expect(screen.getByTestId('result-id')).toHaveTextContent('result-admin-1');
         });
@@ -166,6 +192,17 @@ describe('ResultDetailPage', () => {
             returnBtn.click();
 
             expect(mockNavigate).toHaveBeenCalledWith(-1);
+        });
+
+        it('keeps the teacher shell visible when detail view enters access-lost state', () => {
+            mockProfile = { role: 'teacher' };
+            legacyDetailVariant = 'access-lost';
+
+            renderPage('result-xyz');
+
+            expect(screen.getByTestId('result-detail-teacher-shell')).toBeInTheDocument();
+            expect(screen.getByTestId('teacher-header')).toHaveTextContent('Result Detail:teacher');
+            expect(screen.getByTestId('legacy-access-lost')).toHaveTextContent('Access to this result has been revoked.');
         });
     });
 

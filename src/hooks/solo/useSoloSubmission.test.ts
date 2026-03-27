@@ -140,6 +140,18 @@ describe('useSoloSubmission', () => {
       expect(saveTestResult).toHaveBeenCalled();
     });
 
+    const saveCall = vi.mocked(saveTestResult).mock.calls[0];
+    expect(saveCall?.[7]).toBeUndefined();
+    expect(saveCall?.[11]).toEqual(
+      expect.objectContaining({
+        type: 'self_study',
+        source: expect.objectContaining({
+          id: 'test-1',
+          name: 'Practice Test',
+        }),
+      }),
+    );
+
     expect(getTestQuestionsFromFirebase).toHaveBeenCalledTimes(1);
     expect(questionsWithAnswersRef.current).toEqual(
       expect.arrayContaining([
@@ -257,6 +269,132 @@ describe('useSoloSubmission', () => {
     expect(mockTriggerFormativeFeedbackForSavedResult).toHaveBeenCalledWith('result-1');
   });
 
+  it('persists canonical course-material identifiers without a teacher shortcut', async () => {
+    const { result } = renderHook(() =>
+      useSoloSubmission({
+        testData: {
+          id: 'test-1',
+          duration: 60,
+          questionCount: 1,
+          title: 'Course Test',
+          type: 'IELTS',
+          skill: 'Reading',
+          questions: [
+            {
+              number: 1,
+              type: 'multiple-choice',
+              question: 'Q1',
+              options: ['A', 'B'],
+              passageId: 'p1',
+              points: 1,
+            },
+          ],
+        } as any,
+        answers: { 1: 'A' },
+        materialId: 'test-1',
+        studentId: 'student-1',
+        studentName: 'Student One',
+        timeRemaining: 1200,
+        resolvedSettings: null,
+        context: {
+          type: 'course_material',
+          source: {
+            type: 'course',
+            id: 'course-1',
+            name: 'Course One',
+          },
+        },
+        courseContext: {
+          courseId: 'course-1',
+          moduleId: 'module-1',
+        },
+      }),
+    );
+
+    await act(async () => {
+      await result.current.handleSubmit(false);
+    });
+
+    await waitFor(() => {
+      expect(saveTestResult).toHaveBeenCalled();
+    });
+
+    const saveCall = vi.mocked(saveTestResult).mock.calls[0];
+    expect(saveCall?.[7]).toBeUndefined();
+    expect(saveCall?.[10]).toEqual(
+      expect.objectContaining({
+        courseId: 'course-1',
+        moduleId: 'module-1',
+      }),
+    );
+    expect(saveCall?.[11]).toEqual(
+      expect.objectContaining({
+        type: 'course_material',
+        courseId: 'course-1',
+        source: expect.objectContaining({
+          id: 'course-1',
+          name: 'Course One',
+          courseId: 'course-1',
+        }),
+      }),
+    );
+  });
+
+  it('falls back to materialId and test title when context source id/name are missing', async () => {
+    const { result } = renderHook(() =>
+      useSoloSubmission({
+        testData: {
+          id: 'test-1',
+          duration: 60,
+          questionCount: 1,
+          title: 'Fallback Title',
+          type: 'IELTS',
+          skill: 'Reading',
+          questions: [
+            {
+              number: 1,
+              type: 'multiple-choice',
+              question: 'Q1',
+              options: ['A', 'B'],
+              passageId: 'p1',
+              points: 1,
+            },
+          ],
+        } as any,
+        answers: { 1: 'A' },
+        materialId: 'material-1',
+        studentId: 'student-1',
+        studentName: 'Student One',
+        timeRemaining: 1200,
+        resolvedSettings: null,
+        context: {
+          type: 'self_study',
+          source: {
+            type: 'material',
+          },
+        },
+      }),
+    );
+
+    await act(async () => {
+      await result.current.handleSubmit(false);
+    });
+
+    await waitFor(() => {
+      expect(saveTestResult).toHaveBeenCalled();
+    });
+
+    const saveCall = vi.mocked(saveTestResult).mock.calls[0];
+    expect(saveCall?.[11]).toEqual(
+      expect.objectContaining({
+        source: expect.objectContaining({
+          id: 'material-1',
+          name: 'Fallback Title',
+        }),
+      }),
+    );
+  });
+
   it('tracks homework integrity persistence when the homework submission write succeeds', async () => {
     const integrity: HomeworkIntegrity = {
       violationCount: 2,
@@ -319,6 +457,22 @@ describe('useSoloSubmission', () => {
     await act(async () => {
       await result.current.handleSubmit(false);
     });
+
+    const saveCall = vi.mocked(saveTestResult).mock.calls[0];
+    expect(saveCall?.[7]).toBeUndefined();
+    expect(saveCall?.[11]).toEqual(
+      expect.objectContaining({
+        type: 'homework',
+        assignment: expect.objectContaining({
+          homeworkId: 'hw-1',
+          attemptNumber: 1,
+        }),
+        source: expect.objectContaining({
+          id: 'hw-1',
+          name: 'Homework Test',
+        }),
+      }),
+    );
 
     expect(mockTrackAntiCheatAction).toHaveBeenCalledWith(
       'persistHomeworkIntegrity',
