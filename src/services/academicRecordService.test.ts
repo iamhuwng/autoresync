@@ -19,6 +19,7 @@ import {
     getResultPreviews
 } from './academicRecordService';
 import { EnhancedTestResultRecord } from '../types/results.types';
+import { getStudentResults as getCanonicalStudentResults } from './testResults.service';
 
 // Mock Firebase
 vi.mock('firebase/database', () => ({
@@ -30,9 +31,18 @@ vi.mock('./firebase', () => ({
     database: {}
 }));
 
+vi.mock('./testResults.service', () => ({
+    getStudentResults: vi.fn(),
+}));
+
 describe('AcademicRecordService', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        vi.mocked(getCanonicalStudentResults).mockResolvedValue([
+            mockResult1,
+            mockResult2,
+            mockResult3,
+        ]);
     });
 
     afterEach(() => {
@@ -114,64 +124,25 @@ describe('AcademicRecordService', () => {
 
     describe('getResultsByStudent', () => {
         it('should fetch all results for a student', async () => {
-            const mockIndexSnapshot = {
-                exists: () => true,
-                val: () => ({
-                    result1: true,
-                    result2: true,
-                    result3: true
-                })
-            };
-
-            const mockResultSnapshots = [
-                { exists: () => true, val: () => mockResult1 },
-                { exists: () => true, val: () => mockResult2 },
-                { exists: () => true, val: () => mockResult3 }
-            ];
-
-            vi.mocked(ref).mockReturnValue({} as any);
-            vi.mocked(get)
-                .mockResolvedValueOnce(mockIndexSnapshot as any)
-                .mockResolvedValueOnce(mockResultSnapshots[0] as any)
-                .mockResolvedValueOnce(mockResultSnapshots[1] as any)
-                .mockResolvedValueOnce(mockResultSnapshots[2] as any);
-
             const results = await getResultsByStudent('student1');
 
             expect(results).toHaveLength(3);
             expect(results[0].resultId).toBe('result1');
             expect(results[1].resultId).toBe('result2');
             expect(results[2].resultId).toBe('result3');
+            expect(getCanonicalStudentResults).toHaveBeenCalledWith('student1');
         });
 
         it('should return empty array when no results exist', async () => {
-            const mockIndexSnapshot = {
-                exists: () => false,
-                val: () => null
-            };
-
-            vi.mocked(ref).mockReturnValue({} as any);
-            vi.mocked(get).mockResolvedValue(mockIndexSnapshot as any);
+            vi.mocked(getCanonicalStudentResults).mockResolvedValueOnce([]);
 
             const results = await getResultsByStudent('student1');
 
             expect(results).toEqual([]);
         });
 
-        it('should filter out null results', async () => {
-            const mockIndexSnapshot = {
-                exists: () => true,
-                val: () => ({
-                    result1: true,
-                    result2: true
-                })
-            };
-
-            vi.mocked(ref).mockReturnValue({} as any);
-            vi.mocked(get)
-                .mockResolvedValueOnce(mockIndexSnapshot as any)
-                .mockResolvedValueOnce({ exists: () => true, val: () => mockResult1 } as any)
-                .mockResolvedValueOnce({ exists: () => false, val: () => null } as any);
+        it('should return the canonical student result set without local enrichment', async () => {
+            vi.mocked(getCanonicalStudentResults).mockResolvedValueOnce([mockResult1]);
 
             const results = await getResultsByStudent('student1');
 
@@ -180,8 +151,7 @@ describe('AcademicRecordService', () => {
         });
 
         it('should throw error on Firebase failure', async () => {
-            vi.mocked(ref).mockReturnValue({} as any);
-            vi.mocked(get).mockRejectedValue(new Error('Firebase error'));
+            vi.mocked(getCanonicalStudentResults).mockRejectedValueOnce(new Error('Firebase error'));
 
             await expect(getResultsByStudent('student1')).rejects.toThrow('Failed to fetch student results');
         });
@@ -212,15 +182,7 @@ describe('AcademicRecordService', () => {
         });
 
         it('should return empty array when no course results exist', async () => {
-            const mockIndexSnapshot = {
-                exists: () => true,
-                val: () => ({ result3: true })
-            };
-
-            vi.mocked(ref).mockReturnValue({} as any);
-            vi.mocked(get)
-                .mockResolvedValueOnce(mockIndexSnapshot as any)
-                .mockResolvedValueOnce({ exists: () => true, val: () => mockResult3 } as any);
+            vi.mocked(getCanonicalStudentResults).mockResolvedValueOnce([mockResult3]);
 
             const results = await getResultsByCourse('course1', 'student1');
 
@@ -259,20 +221,9 @@ describe('AcademicRecordService', () => {
 
     describe('getResultsByClass', () => {
         it('should filter results by class ID', async () => {
-            const mockIndexSnapshot = {
-                exists: () => true,
-                val: () => ({ result1: true, result2: true })
-            };
-
-            vi.mocked(ref).mockReturnValue({} as any);
-            vi.mocked(get)
-                .mockResolvedValueOnce(mockIndexSnapshot as any)
-                .mockResolvedValueOnce({ exists: () => true, val: () => mockResult1 } as any)
-                .mockResolvedValueOnce({ exists: () => true, val: () => mockResult2 } as any);
-
             const results = await getResultsByClass('class1', 'student1');
 
-            expect(results).toHaveLength(2);
+            expect(results).toHaveLength(3);
             expect(results.every(r => r.classId === 'class1')).toBe(true);
         });
     });
@@ -378,13 +329,7 @@ describe('AcademicRecordService', () => {
         });
 
         it('should return empty summary when no results exist', async () => {
-            const mockIndexSnapshot = {
-                exists: () => false,
-                val: () => null
-            };
-
-            vi.mocked(ref).mockReturnValue({} as any);
-            vi.mocked(get).mockResolvedValue(mockIndexSnapshot as any);
+            vi.mocked(getCanonicalStudentResults).mockResolvedValueOnce([]);
 
             const summary = await getAcademicSummary('student1');
 
@@ -441,13 +386,7 @@ describe('AcademicRecordService', () => {
         });
 
         it('should return 0 when no results exist', async () => {
-            const mockIndexSnapshot = {
-                exists: () => false,
-                val: () => null
-            };
-
-            vi.mocked(ref).mockReturnValue({} as any);
-            vi.mocked(get).mockResolvedValue(mockIndexSnapshot as any);
+            vi.mocked(getCanonicalStudentResults).mockResolvedValueOnce([]);
 
             const progress = await calculateCourseProgress('course1', 'student1');
 
@@ -456,15 +395,7 @@ describe('AcademicRecordService', () => {
 
         it('should return 100 when course has results but no modules', async () => {
             const resultWithoutModule = { ...mockResult1, moduleId: null };
-            const mockIndexSnapshot = {
-                exists: () => true,
-                val: () => ({ result1: true })
-            };
-
-            vi.mocked(ref).mockReturnValue({} as any);
-            vi.mocked(get)
-                .mockResolvedValueOnce(mockIndexSnapshot as any)
-                .mockResolvedValueOnce({ exists: () => true, val: () => resultWithoutModule } as any);
+            vi.mocked(getCanonicalStudentResults).mockResolvedValueOnce([resultWithoutModule as any]);
 
             const progress = await calculateCourseProgress('course1', 'student1');
 
@@ -520,16 +451,7 @@ describe('AcademicRecordService', () => {
 
     describe('getResultPreviews', () => {
         it('should get previews for all student results', async () => {
-            const mockIndexSnapshot = {
-                exists: () => true,
-                val: () => ({ result1: true, result2: true })
-            };
-
-            vi.mocked(ref).mockReturnValue({} as any);
-            vi.mocked(get)
-                .mockResolvedValueOnce(mockIndexSnapshot as any)
-                .mockResolvedValueOnce({ exists: () => true, val: () => mockResult1 } as any)
-                .mockResolvedValueOnce({ exists: () => true, val: () => mockResult2 } as any);
+            vi.mocked(getCanonicalStudentResults).mockResolvedValueOnce([mockResult1, mockResult2]);
 
             const previews = await getResultPreviews('student1');
 

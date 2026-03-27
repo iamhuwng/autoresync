@@ -9,6 +9,7 @@ import { ref, get, set, query, orderByChild } from 'firebase/database';
 import { database } from './firebase';
 import { Badge, BadgeType, BadgeEarningContext, BadgeCheckResult } from '../types/badge.types';
 import { withRestoreGuard } from './restoreGuard';
+import { getStudentResults as getCanonicalStudentResults } from './testResults.service';
 
 export const checkAndAwardBadges = withRestoreGuard(
     'Badge',
@@ -125,6 +126,30 @@ async function saveBadge(studentId: string, badge: Badge): Promise<boolean> {
     }
 }
 
+async function getStudentResultHistory(studentId: string) {
+    return getCanonicalStudentResults(studentId);
+}
+
+function getHistoricalPercentage(result: {
+    percentage?: number;
+    totalScore?: number;
+    score?: number;
+}): number {
+    if (typeof result.percentage === 'number') {
+        return result.percentage;
+    }
+
+    if (typeof result.score === 'number') {
+        return result.score;
+    }
+
+    if (typeof result.totalScore === 'number') {
+        return result.totalScore;
+    }
+
+    return 0;
+}
+
 /**
  * Check First Test Badge
  * 
@@ -146,14 +171,11 @@ export async function checkFirstTest(
         }
 
         // Check if this is their first result
-        const resultsRef = ref(database, `test_results_by_student/${studentId}`);
-        const snapshot = await get(resultsRef);
+        const results = await getStudentResultHistory(studentId);
 
-        if (!snapshot.exists()) {
+        if (results.length === 0) {
             return { earned: false, reason: 'No results found' };
         }
-
-        const results = Object.keys(snapshot.val());
 
         // Award badge if this is the first result
         if (results.length === 1) {
@@ -234,15 +256,13 @@ export async function checkOnFire(
         }
 
         // Get all results
-        const resultsRef = ref(database, `test_results_by_student/${studentId}`);
-        const snapshot = await get(resultsRef);
+        const results = await getStudentResultHistory(studentId);
 
-        if (!snapshot.exists()) {
+        if (results.length === 0) {
             return { earned: false, reason: 'No results found' };
         }
 
         // Get submission dates (as YYYY-MM-DD strings)
-        const results = Object.values(snapshot.val()) as any[];
         const dates = results.map((r) => {
             const date = new Date(r.submittedAt);
             return date.toISOString().split('T')[0]; // YYYY-MM-DD
@@ -322,14 +342,11 @@ export async function checkModuleMaster(
         }
 
         // Get student's results for this module
-        const resultsRef = ref(database, `test_results_by_student/${studentId}`);
-        const resultsSnapshot = await get(resultsRef);
+        const results = await getStudentResultHistory(studentId);
 
-        if (!resultsSnapshot.exists()) {
+        if (results.length === 0) {
             return { earned: false, reason: 'No results found' };
         }
-
-        const results = Object.values(resultsSnapshot.val()) as any[];
         const moduleResults = results.filter(
             (r) => r.courseId === courseId && r.moduleId === moduleId
         );
@@ -422,14 +439,11 @@ export async function checkCourseChampion(
         }
 
         // Get student's results for this course
-        const resultsRef = ref(database, `test_results_by_student/${studentId}`);
-        const resultsSnapshot = await get(resultsRef);
+        const results = await getStudentResultHistory(studentId);
 
-        if (!resultsSnapshot.exists()) {
+        if (results.length === 0) {
             return { earned: false, reason: 'No results found' };
         }
-
-        const results = Object.values(resultsSnapshot.val()) as any[];
         const courseResults = results.filter((r) => r.courseId === courseId);
 
         // Check if all tests are completed
@@ -489,15 +503,13 @@ export async function checkImprovementStar(
         }
 
         // Get all results for this student
-        const resultsRef = ref(database, `test_results_by_student/${studentId}`);
-        const snapshot = await get(resultsRef);
+        const results = await getStudentResultHistory(studentId);
 
-        if (!snapshot.exists()) {
+        if (results.length === 0) {
             return { earned: false, reason: 'No results found' };
         }
 
         // Find previous attempts on same test
-        const results = Object.values(snapshot.val()) as any[];
         const sameTestResults = results
             .filter((r) => r.testId === testId)
             .sort((a, b) => a.submittedAt - b.submittedAt);
@@ -508,7 +520,7 @@ export async function checkImprovementStar(
 
         // Get second-to-last result (previous attempt)
         const previousAttempt = sameTestResults[sameTestResults.length - 2];
-        const improvement = score - previousAttempt.score;
+        const improvement = score - getHistoricalPercentage(previousAttempt);
 
         if (improvement >= 20) {
             // Check if already has this badge

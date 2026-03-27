@@ -1,0 +1,248 @@
+import { act, renderHook } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { useMonitorControls } from './useMonitorControls';
+
+const {
+  mockNavigateTo,
+  getMock,
+  updateMock,
+  autoSubmitAllUnsubmittedStudentsMock,
+  autoSubmitDisconnectedStudentsMock,
+  identifyDisconnectedStudentsMock,
+  identifyUnsubmittedStudentsMock,
+} = vi.hoisted(() => ({
+  mockNavigateTo: vi.fn(),
+  getMock: vi.fn(),
+  updateMock: vi.fn(),
+  autoSubmitAllUnsubmittedStudentsMock: vi.fn(),
+  autoSubmitDisconnectedStudentsMock: vi.fn(),
+  identifyDisconnectedStudentsMock: vi.fn(),
+  identifyUnsubmittedStudentsMock: vi.fn(),
+}));
+
+vi.mock('../useNavigation', () => ({
+  useNavigation: () => ({
+    navigateTo: mockNavigateTo,
+  }),
+}));
+
+vi.mock('../../services/firebase', () => ({
+  database: {},
+}));
+
+vi.mock('firebase/database', () => ({
+  ref: vi.fn((_database: any, path: string) => ({ path })),
+  get: (...args: any[]) => getMock(...args),
+  update: (...args: any[]) => updateMock(...args),
+}));
+
+vi.mock('../../utils/monitor', () => ({
+  autoSubmitAllUnsubmittedStudents: (...args: any[]) => autoSubmitAllUnsubmittedStudentsMock(...args),
+  autoSubmitDisconnectedStudents: (...args: any[]) => autoSubmitDisconnectedStudentsMock(...args),
+  identifyDisconnectedStudents: (...args: any[]) => identifyDisconnectedStudentsMock(...args),
+  identifyUnsubmittedStudents: (...args: any[]) => identifyUnsubmittedStudentsMock(...args),
+}));
+
+const TEST_DATA = {
+  title: 'Canonical Test',
+  type: 'quiz',
+  skill: 'Reading',
+  duration: 45,
+  questionCount: 3,
+};
+
+describe('useMonitorControls', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getMock.mockResolvedValue({
+      exists: () => false,
+      val: () => null,
+    });
+    updateMock.mockResolvedValue(undefined);
+    autoSubmitAllUnsubmittedStudentsMock.mockResolvedValue([]);
+    autoSubmitDisconnectedStudentsMock.mockResolvedValue([]);
+    identifyDisconnectedStudentsMock.mockReturnValue([]);
+    identifyUnsubmittedStudentsMock.mockReturnValue([]);
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('writes review-released by default when ending a session', async () => {
+    const { result } = renderHook(() =>
+      useMonitorControls('SESSION123', null, null, null)
+    );
+
+    await act(async () => {
+      await result.current.endFullSession(false, true);
+    });
+
+    expect(updateMock).toHaveBeenCalledWith(
+      { path: 'game_sessions/SESSION123' },
+      expect.objectContaining({
+        reviewReleaseState: 'review-released',
+      })
+    );
+  });
+
+  it('preserves feedback-released when the session is already fully released', async () => {
+    const { result } = renderHook(() =>
+      useMonitorControls(
+        'SESSION456',
+        {
+          reviewReleaseState: 'feedback-released',
+          players: {},
+          testId: 'test-1',
+          baseTimeExpired: false,
+        } as any,
+        null,
+        null
+      )
+    );
+
+    await act(async () => {
+      await result.current.endFullSession(false, true);
+    });
+
+    expect(updateMock).toHaveBeenCalledWith(
+      { path: 'game_sessions/SESSION456' },
+      expect.objectContaining({
+        reviewReleaseState: 'feedback-released',
+      })
+    );
+  });
+
+  it('routes disconnected base-student auto-submit through canonical result saving after fetching test data', async () => {
+    getMock.mockResolvedValue({
+      exists: () => true,
+      val: () => ({ questions: [{ id: 'q1' }] }),
+    });
+    identifyDisconnectedStudentsMock.mockImplementation((players: Record<string, any>) => (
+      players['student-1']
+        ? [{
+            studentId: 'student-1',
+            name: 'Student One',
+            answers: { 1: { answer: 'A' } },
+            lastActivity: 1,
+            disconnectedAt: 2,
+          }]
+        : []
+    ));
+    identifyUnsubmittedStudentsMock.mockImplementation((players: Record<string, any>) => (
+      players['student-1']
+        ? [{
+            studentId: 'student-1',
+            name: 'Student One',
+            answers: { 1: { answer: 'A' } },
+            isConnected: false,
+            lastActivity: 1,
+          }]
+        : []
+    ));
+
+    const session = {
+      testId: 'test-1',
+      startTime: 1234,
+      createdByUserId: 'teacher-canonical',
+      teacherId: 'teacher-synthetic',
+      academicContext: { classId: 'class-1', className: 'Class 1' },
+      players: {
+        'student-1': {
+          name: 'Student One',
+          answers: { 1: { answer: 'A' } },
+          lastActivity: 1,
+        },
+      },
+    } as any;
+
+    const { result } = renderHook(() =>
+      useMonitorControls('SESSION789', session, TEST_DATA as any, null)
+    );
+
+    await act(async () => {
+      await result.current.completeBaseTest();
+    });
+
+    expect(getMock).toHaveBeenCalledWith({ path: 'tests/test-1' });
+    expect(autoSubmitAllUnsubmittedStudentsMock).toHaveBeenCalledWith(
+      'SESSION789',
+      'test-1',
+      expect.arrayContaining([
+        expect.objectContaining({ studentId: 'student-1' }),
+      ]),
+      [{ id: 'q1' }],
+      {
+        title: 'Canonical Test',
+        type: 'quiz',
+        skill: 'Reading',
+        duration: 45,
+      },
+      'teacher-canonical',
+      1234,
+      { classId: 'class-1', className: 'Class 1' }
+    );
+    expect(autoSubmitDisconnectedStudentsMock).not.toHaveBeenCalled();
+  });
+
+  it('fetches missing test payloads before end-session auto-submit instead of falling back to legacy disconnected writes', async () => {
+    getMock.mockResolvedValue({
+      exists: () => true,
+      val: () => ({ questions: [{ id: 'q1' }, { id: 'q2' }] }),
+    });
+    identifyUnsubmittedStudentsMock.mockImplementation((players: Record<string, any>) => (
+      players['student-1']
+        ? [{
+            studentId: 'student-1',
+            name: 'Student One',
+            answers: { 1: { answer: 'A' } },
+            isConnected: true,
+            lastActivity: 10,
+          }]
+        : []
+    ));
+
+    const session = {
+      testId: 'test-2',
+      startTime: 2222,
+      createdByUserId: 'teacher-canonical',
+      teacherId: 'teacher-synthetic',
+      reviewReleaseState: 'locked-review',
+      players: {
+        'student-1': {
+          name: 'Student One',
+          answers: { 1: { answer: 'A' } },
+          lastActivity: 10,
+        },
+      },
+    } as any;
+
+    const { result } = renderHook(() =>
+      useMonitorControls('SESSION999', session, TEST_DATA as any, null)
+    );
+
+    await act(async () => {
+      await result.current.endFullSession(false, true);
+    });
+
+    expect(getMock).toHaveBeenCalledWith({ path: 'tests/test-2' });
+    expect(autoSubmitAllUnsubmittedStudentsMock).toHaveBeenCalledWith(
+      'SESSION999',
+      'test-2',
+      expect.arrayContaining([
+        expect.objectContaining({ studentId: 'student-1' }),
+      ]),
+      [{ id: 'q1' }, { id: 'q2' }],
+      {
+        title: 'Canonical Test',
+        type: 'quiz',
+        skill: 'Reading',
+        duration: 45,
+      },
+      'teacher-canonical',
+      2222,
+      undefined
+    );
+    expect(autoSubmitDisconnectedStudentsMock).not.toHaveBeenCalled();
+  });
+});

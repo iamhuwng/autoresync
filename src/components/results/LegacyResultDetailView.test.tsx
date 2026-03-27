@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -17,6 +17,14 @@ const {
   mockOnValue: vi.fn(),
   mockRef: vi.fn((_db: any, path: string) => ({ path })),
 }));
+
+let mockAuthUser: { uid: string; email?: string } | null = { uid: 'teacher-1', email: 'teacher@example.com' };
+let mockAuthProfile: { role: string } | null = { role: 'teacher' };
+let mockOwnershipState: { allowed: boolean; loading: boolean; denialReason: string | null } = {
+  allowed: true,
+  loading: false,
+  denialReason: null,
+};
 
 vi.mock('firebase/database', () => ({
   ref: mockRef,
@@ -41,6 +49,13 @@ vi.mock('../../utils/pdfCertificate', () => ({
 
 vi.mock('../../hooks/useOwnershipCheck', () => ({
   useResultOwnershipCheck: (...args: unknown[]) => useResultOwnershipCheckMock(...args),
+}));
+
+vi.mock('../../hooks/useAuth', () => ({
+  useAuth: () => ({
+    user: mockAuthUser,
+    profile: mockAuthProfile,
+  }),
 }));
 
 vi.mock('../test/WritingSpeakingPlaceholder', () => ({
@@ -76,7 +91,7 @@ vi.mock('./ResultContextBadge', () => ({
 
 const printMock = vi.fn();
 
-function makeResult() {
+function makeResult(overrides: Record<string, any> = {}) {
   return {
     resultId: 'res-1',
     studentId: 'student-1',
@@ -107,6 +122,23 @@ function makeResult() {
     context: { type: 'homework' },
     courseName: 'IELTS Prep',
     className: 'Class A',
+    visibility: {
+      contextType: 'homework',
+      sourceType: 'homework',
+      sourceId: 'homework-1',
+      sourceNameSnapshot: 'Homework 1',
+      visibilityOwnerTeacherId: 'teacher-1',
+      ownerResolutionSource: 'homework.createdBy',
+      ownershipResolved: true,
+      unresolvedReason: null,
+      homeworkId: 'homework-1',
+      sessionCode: null,
+      courseId: 'course-1',
+      classId: 'class-1',
+      assignmentId: null,
+      currentSourceName: 'Homework 1',
+    },
+    ...overrides,
   };
 }
 
@@ -137,8 +169,8 @@ function simulateOnValueError(error: any) {
   }
 }
 
-function renderView(props: { resultId?: string; onReturn?: () => void } = {}) {
-  return render(
+function createViewElement(props: { resultId?: string; onReturn?: () => void } = {}) {
+  return (
     <MemoryRouter initialEntries={['/result/res-1']}>
       <Routes>
         <Route
@@ -152,19 +184,26 @@ function renderView(props: { resultId?: string; onReturn?: () => void } = {}) {
         />
         <Route path="/access-denied" element={<div>Access denied page</div>} />
       </Routes>
-    </MemoryRouter>,
+    </MemoryRouter>
   );
+}
+
+function renderView(props: { resultId?: string; onReturn?: () => void } = {}) {
+  return render(createViewElement(props));
 }
 
 describe('LegacyResultDetailView', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    isPDFGenerationAvailableMock.mockResolvedValue(true);
-    useResultOwnershipCheckMock.mockReturnValue({
+    mockAuthUser = { uid: 'teacher-1', email: 'teacher@example.com' };
+    mockAuthProfile = { role: 'teacher' };
+    mockOwnershipState = {
       allowed: true,
       loading: false,
       denialReason: null,
-    });
+    };
+    isPDFGenerationAvailableMock.mockReturnValue(new Promise<boolean>(() => {}));
+    useResultOwnershipCheckMock.mockImplementation(() => mockOwnershipState);
     // Default: onValue returns an unsubscribe fn
     mockOnValue.mockReturnValue(vi.fn());
     Object.defineProperty(window, 'print', {
@@ -183,6 +222,7 @@ describe('LegacyResultDetailView', () => {
     // Teacher feedback rendered by TeacherFeedbackCard in SharedSavedResultCore
     expect(screen.getByText('Teacher overall feedback')).toBeInTheDocument();
     expect(screen.getByText('Context: homework')).toBeInTheDocument();
+    expect(screen.getByTestId('result-source-primary-label')).toHaveTextContent('Homework 1');
     // SharedSavedResultCore renders via OverviewTab — score header is present
     expect(screen.getByTestId('ov-score-header')).toBeInTheDocument();
   });
@@ -198,30 +238,174 @@ describe('LegacyResultDetailView', () => {
     expect(onReturn).toHaveBeenCalled();
   });
 
-  it('redirects to access denied when the ownership check fails', async () => {
-    useResultOwnershipCheckMock.mockReturnValue({
-      allowed: false,
-      loading: false,
-      denialReason: 'ownership',
-    });
-
+  it('redirects to access denied when the shared visibility verdict rejects the row', async () => {
     renderView();
-    simulateOnValueSuccess(makeResult());
+    simulateOnValueSuccess(
+      makeResult({
+        visibility: {
+          ...makeResult().visibility,
+          visibilityOwnerTeacherId: 'teacher-2',
+        },
+      }),
+    );
 
     expect(await screen.findByText('Access denied page')).toBeInTheDocument();
   });
 
   it('supports certificate download and print actions', async () => {
+    isPDFGenerationAvailableMock.mockResolvedValue(true);
     renderView();
     simulateOnValueSuccess(makeResult());
 
     await screen.findByText('Reading Test 1');
+    await waitFor(() => {
+      expect(screen.getByText(/Download Certificate/)).toBeInTheDocument();
+    });
 
     fireEvent.click(screen.getByText(/Download Certificate/));
     expect(generateCertificatePDFMock).toHaveBeenCalledWith(expect.objectContaining({ resultId: 'res-1' }));
 
     fireEvent.click(screen.getByText(/Print Results/));
     expect(printMock).toHaveBeenCalled();
+  });
+
+  it('renders solo-practice rows as student-owned and view-only', async () => {
+    renderView();
+    simulateOnValueSuccess(
+      makeResult({
+        context: { type: 'self_study' },
+        visibility: {
+          ...makeResult().visibility,
+          contextType: 'solo_practice',
+          sourceType: 'solo_practice',
+          sourceId: 'solo-1',
+          sourceNameSnapshot: 'Solo Practice Session',
+          visibilityOwnerTeacherId: null,
+          ownerResolutionSource: 'solo_practice',
+          homeworkId: null,
+          courseId: null,
+          classId: null,
+          currentSourceName: 'Solo Practice Session',
+        },
+      }),
+    );
+
+    expect(await screen.findByTestId('solo-practice-view-only')).toHaveTextContent('Student-owned');
+    expect(screen.getByTestId('solo-practice-view-only')).toHaveTextContent('View only');
+    expect(screen.queryByText('Teacher overall feedback')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Download Certificate/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Print Results/i)).not.toBeInTheDocument();
+    expect(screen.getByTestId('result-source-metadata')).toBeInTheDocument();
+    expect(screen.getByTestId('result-source-primary-label')).toHaveTextContent('Solo Practice Session');
+  });
+
+  it('renders full source metadata for teacher-visible rows', async () => {
+    renderView();
+    simulateOnValueSuccess(
+      makeResult({
+        visibility: {
+          ...makeResult().visibility,
+          sourceNameSnapshot: 'Homework Snapshot Name',
+          currentSourceName: 'Homework Current Name',
+        },
+      }),
+    );
+
+    expect(await screen.findByTestId('result-source-metadata')).toBeInTheDocument();
+    expect(screen.getByTestId('result-source-primary-label')).toHaveTextContent('Homework Snapshot Name');
+    expect(screen.getByTestId('result-source-current-label')).toHaveTextContent('Homework Current Name');
+    expect(screen.getByTestId('result-source-context')).toHaveTextContent('Homework');
+    expect(screen.getByTestId('result-source-id')).toHaveTextContent('homework-1');
+    expect(screen.getByTestId('result-source-resolution')).toHaveTextContent('Homework -> CreatedBy');
+    expect(screen.getByTestId('result-source-visibility')).toHaveTextContent('Teacher-owned teaching context');
+  });
+
+  it('keeps source metadata visible when only normalized visibility fields exist', async () => {
+    renderView();
+    simulateOnValueSuccess(
+      makeResult({
+        courseName: null,
+        className: null,
+        moduleName: null,
+        visibility: {
+          ...makeResult().visibility,
+          contextType: 'class_session',
+          sourceType: 'session',
+          sourceId: 'session-42',
+          sourceNameSnapshot: null,
+          ownerResolutionSource: 'session.createdByUserId',
+          currentSourceName: null,
+        },
+      }),
+    );
+
+    expect(await screen.findByTestId('result-source-metadata')).toBeInTheDocument();
+    expect(screen.getByTestId('result-source-primary-label')).toHaveTextContent('Snapshot unavailable');
+    expect(screen.getByTestId('result-source-context')).toHaveTextContent('Class Session');
+    expect(screen.getByTestId('result-source-id')).toHaveTextContent('session-42');
+    expect(screen.getByTestId('result-source-resolution')).toHaveTextContent('Session -> CreatedByUserId');
+  });
+
+  it('does not promote course or class names into the source snapshot label', async () => {
+    renderView();
+    simulateOnValueSuccess(
+      makeResult({
+        courseName: 'Course Context Only',
+        className: 'Class Context Only',
+        moduleName: 'Module Context Only',
+        visibility: {
+          ...makeResult().visibility,
+          contextType: 'class_session',
+          sourceType: 'session',
+          sourceId: 'session-77',
+          sourceNameSnapshot: null,
+          currentSourceName: null,
+          ownerResolutionSource: 'session.createdByUserId',
+        },
+      }),
+    );
+
+    expect(await screen.findByTestId('result-source-primary-label')).toHaveTextContent('Snapshot unavailable');
+    expect(screen.getByTestId('result-source-primary-label')).not.toHaveTextContent('Course Context Only');
+    expect(screen.getByTestId('result-source-primary-label')).not.toHaveTextContent('Class Context Only');
+    expect(screen.getByTestId('result-source-primary-label')).not.toHaveTextContent('Module Context Only');
+    expect(screen.getByTestId('result-source-id')).toHaveTextContent('session-77');
+  });
+
+  it('shows submission snapshot metadata first for deleted sources', async () => {
+    renderView();
+    simulateOnValueSuccess(
+      makeResult({
+        visibility: {
+          ...makeResult().visibility,
+          sourceNameSnapshot: 'Homework Name At Submission',
+          currentSourceName: 'Homework Renamed Later',
+          sourceDeleted: true,
+        },
+      }),
+    );
+
+    expect(await screen.findByTestId('result-source-primary-label')).toHaveTextContent('Homework Name At Submission');
+    expect(screen.getByTestId('result-source-current-label')).toHaveTextContent('Homework Renamed Later');
+    expect(screen.getByTestId('result-source-status')).toHaveTextContent('Deleted source');
+  });
+
+  it('redirects unresolved rows away from teacher detail', async () => {
+    renderView();
+    simulateOnValueSuccess(
+      makeResult({
+        visibility: {
+          ...makeResult().visibility,
+          ownershipResolved: false,
+          ownerResolutionSource: 'unresolved',
+          unresolvedReason: 'owner_not_resolved',
+          visibilityOwnerTeacherId: null,
+        },
+      }),
+    );
+
+    expect(await screen.findByText('Access denied page')).toBeInTheDocument();
+    expect(screen.queryByText('Reading Test 1')).not.toBeInTheDocument();
   });
 
   // ─── FR-035 parity: access-lost tests (Task 3.5) ────────────────────────
@@ -250,6 +434,26 @@ describe('LegacyResultDetailView', () => {
 
       expect(screen.getByText('Failed to load result')).toBeInTheDocument();
       expect(screen.queryByText('Access Revoked')).not.toBeInTheDocument();
+    });
+
+    it('should clear sensitive result data immediately when assignment access is lost mid-view', async () => {
+      const view = renderView();
+      simulateOnValueSuccess(makeResult());
+
+      expect(await screen.findByText('Reading Test 1')).toBeInTheDocument();
+
+      mockOwnershipState = {
+        allowed: false,
+        loading: false,
+        denialReason: 'ownership',
+      };
+
+      view.rerender(createViewElement());
+
+      await waitFor(() => {
+        expect(screen.getByText('Access Revoked')).toBeInTheDocument();
+      });
+      expect(screen.queryByText('Reading Test 1')).not.toBeInTheDocument();
     });
   });
 

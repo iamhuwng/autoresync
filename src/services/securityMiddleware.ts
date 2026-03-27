@@ -116,17 +116,17 @@ export const validateTeacherAccess = (
 // =============================================================================
 
 /**
- * Validate ownership of a resource.
+ * Validate the outer access gate for a resource.
  * 
  * @param authContext - The security context from useSecureService
  * @param resourceType - Type of resource being accessed
- * @param resourceOwnerId - The ID of the resource owner (e.g., studentId for a result)
+ * @param resourceOwnerId - The scoped owner ID used for the outer gate (e.g., studentId for a result)
  * @param resourceDetails - Optional additional details for complex checks
  * @returns Promise<ValidationResult>
  * 
  * @example
  * ```ts
- * // Check if user can view a test result
+ * // Check if user passes the outer gate for a test result
  * const result = await validateOwnership(authContext, 'result', resultOwnerId);
  * if (!result.allowed) {
  *   throw new AccessDeniedError(result.message);
@@ -166,10 +166,8 @@ export const validateOwnership = async (
     switch (resourceType) {
         case 'result':
         case 'test_result':
-            return validateResultOwnership(authContext, resourceOwnerId);
-
         case 'student_data':
-            return validateStudentDataAccess(authContext, resourceOwnerId);
+            return validateStudentScopedAccess(authContext, resourceOwnerId);
 
         case 'course':
             return validateCourseAccess(authContext, resourceOwnerId, resourceDetails);
@@ -192,72 +190,24 @@ export const validateOwnership = async (
 };
 
 /**
- * Validate access to a test result.
- * Allowed if: owner OR teacher with assignment to student OR super_admin
+ * Validate student-scoped outer-gate access.
+ * Used for result and student-data surfaces before per-result visibility is applied.
  */
-const validateResultOwnership = async (
-    authContext: SecurityAuthContext,
-    resultOwnerId: string
-): Promise<ValidationResult> => {
-    // Student can view their own results
-    if (authContext.userRole === 'student') {
-        if (authContext.userId === resultOwnerId) {
-            return { allowed: true };
-        }
-        return {
-            allowed: false,
-            reason: 'ownership',
-            message: 'You can only view your own results',
-        };
-    }
-
-    // Teacher can view results of assigned students
-    if (authContext.userRole === 'teacher') {
-        // Check if teacher has assignment to this student
-        const hasAssignment = authContext.assignedStudentIds?.includes(resultOwnerId);
-
-        if (hasAssignment) {
-            return { allowed: true };
-        }
-
-        // Fallback: check database for assignment
-        try {
-            const isAssigned = await isStudentAssignedToTeacher(resultOwnerId, authContext.userId);
-            if (isAssigned) {
-                return { allowed: true };
-            }
-        } catch (err) {
-            console.error('[Security] Assignment check failed:', err);
-        }
-
-        return {
-            allowed: false,
-            reason: 'ownership',
-            message: 'You can only view results of your assigned students',
-        };
-    }
-
-    return {
-        allowed: false,
-        reason: 'role',
-        message: 'Invalid role for accessing results',
-    };
-};
-
-/**
- * Validate access to student data (e.g., history page).
- * Allowed if: student viewing own data OR teacher with assignment OR super_admin
- */
-const validateStudentDataAccess = async (
+const validateStudentScopedAccess = async (
     authContext: SecurityAuthContext,
     studentId: string
 ): Promise<ValidationResult> => {
-    // Student can view their own data
-    if (authContext.userRole === 'student' && authContext.userId === studentId) {
-        return { allowed: true };
+    if (authContext.userRole === 'student') {
+        if (authContext.userId === studentId) {
+            return { allowed: true };
+        }
+        return {
+            allowed: false,
+            reason: 'ownership',
+            message: 'You can only view your own student-scoped data',
+        };
     }
 
-    // Teacher can view assigned students' data
     if (authContext.userRole === 'teacher') {
         const hasAssignment = authContext.assignedStudentIds?.includes(studentId);
 
@@ -265,7 +215,6 @@ const validateStudentDataAccess = async (
             return { allowed: true };
         }
 
-        // Fallback: check database
         try {
             const isAssigned = await isStudentAssignedToTeacher(studentId, authContext.userId);
             if (isAssigned) {
@@ -284,8 +233,8 @@ const validateStudentDataAccess = async (
 
     return {
         allowed: false,
-        reason: 'ownership',
-        message: 'Access denied to student data',
+        reason: 'role',
+        message: 'Invalid role for accessing student-scoped data',
     };
 };
 

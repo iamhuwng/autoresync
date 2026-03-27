@@ -333,12 +333,6 @@ export const ROUTE_SECURITY_CONFIG: Record<string, RouteSecurityConfig> = {
         allowedRoles: ['student'],
         description: 'Student class detail'
     },
-    '/student/results/history': {
-        path: '/student/results/history',
-        accessLevel: 'role-restricted',
-        allowedRoles: ['student'],
-        description: 'Student results history'
-    },
     '/student/academic-record': {
         path: '/student/academic-record',
         accessLevel: 'role-restricted',
@@ -479,34 +473,6 @@ export const ROUTE_SECURITY_CONFIG: Record<string, RouteSecurityConfig> = {
         requiresOwnership: true,
         ownershipField: 'resultId',
         description: 'Result detail (needs ownership check)'
-    },
-
-    // =========================================================================
-    // DEMO ROUTES - ⚠️ SHOULD BE PROTECTED OR REMOVED IN PRODUCTION
-    // =========================================================================
-    '/demo': {
-        path: '/demo',
-        accessLevel: 'public', // ⚠️ RISK
-        allowedRoles: ['guest', 'student', 'teacher', 'super_admin'],
-        description: '⚠️ PUBLIC: Demo index'
-    },
-    '/demo/feedback': {
-        path: '/demo/feedback',
-        accessLevel: 'public', // ⚠️ RISK
-        allowedRoles: ['guest', 'student', 'teacher', 'super_admin'],
-        description: '⚠️ PUBLIC: Feedback components demo'
-    },
-    '/demo/feedback-system': {
-        path: '/demo/feedback-system',
-        accessLevel: 'public', // ⚠️ RISK
-        allowedRoles: ['guest', 'student', 'teacher', 'super_admin'],
-        description: '⚠️ PUBLIC: Feedback system demo'
-    },
-    '/demo/academic-record': {
-        path: '/demo/academic-record',
-        accessLevel: 'public', // ⚠️ RISK
-        allowedRoles: ['guest', 'student', 'teacher', 'super_admin'],
-        description: '⚠️ PUBLIC: Academic record demo'
     }
 };
 

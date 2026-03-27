@@ -24,6 +24,8 @@ import { useNavigation } from '../hooks/useNavigation';
 import { database } from '../services/firebase';
 import { ref, onValue, update, get } from 'firebase/database';
 import { calculateScore } from '../utils/scoring';
+import { markTest } from '../services/autoMarking.service';
+import { saveTestResult } from '../services/testResults.service';
 // import { useLog } from '../context/LogContext'; // DISABLED FOR TESTING
 import SemicircleTimer from '../components/SemicircleTimer';
 import StudentAnswerInput from '../components/StudentAnswerInput';
@@ -40,6 +42,156 @@ import { toast } from '../components/modern/ToastNotification'; // PRD-0036
  * Supports: multiple-choice, multiple-select, matching, completion, diagram-labeling
  */
 
+const FINAL_QUIZ_STATUSES = new Set(['waiting', 'completed', 'feedback', 'results']);
+
+function getQuizQuestions(quiz) {
+  return Array.isArray(quiz?.questions)
+    ? quiz.questions
+    : Object.keys(quiz?.questions || {})
+        .sort((a, b) => Number(a) - Number(b))
+        .map(key => quiz.questions[key]);
+}
+
+function getQuizTitle(quiz, gameSession) {
+  return (
+    quiz?.title
+    || quiz?.metadata?.title
+    || gameSession?.quizTitle
+    || gameSession?.testTitle
+    || gameSession?.quizId
+    || 'Quiz'
+  );
+}
+
+function getQuizType(quiz, gameSession) {
+  return (
+    quiz?.type
+    || quiz?.metadata?.type
+    || gameSession?.quizType
+    || 'quiz'
+  );
+}
+
+function getQuizSkill(quiz, gameSession) {
+  return (
+    quiz?.skill
+    || quiz?.metadata?.skill
+    || gameSession?.quizSkill
+    || 'General'
+  );
+}
+
+function getQuizDuration(quiz, gameSession) {
+  return (
+    quiz?.duration
+    || quiz?.metadata?.duration
+    || gameSession?.duration
+    || gameSession?.timer?.duration
+    || 0
+  );
+}
+
+function getQuizTimeElapsed(gameSession, quiz, player) {
+  const completedAt = player?.completedAt || player?.submittedAt || Date.now();
+  const startedAt =
+    gameSession?.startTime
+    || gameSession?.startedAt
+    || gameSession?.quizStartedAt
+    || null;
+
+  if (
+    typeof startedAt === 'number'
+    && startedAt > 0
+    && typeof completedAt === 'number'
+    && completedAt >= startedAt
+  ) {
+    return Math.max(0, Math.round((completedAt - startedAt) / 1000));
+  }
+
+  const fallbackDuration = getQuizDuration(quiz, gameSession);
+  return Math.max(0, Number(fallbackDuration) * 60);
+}
+
+function extractAnswerValue(answerEntry) {
+  if (answerEntry && typeof answerEntry === 'object' && 'answer' in answerEntry) {
+    return answerEntry.answer;
+  }
+
+  return answerEntry;
+}
+
+function buildStudentAnswersForMarking(questions, savedAnswers, pendingQuestionIndex, pendingAnswer) {
+  const studentAnswers = {};
+
+  questions.forEach((question, index) => {
+    const questionNumber = typeof question?.number === 'number' ? question.number : index + 1;
+    const rawAnswer =
+      savedAnswers?.[index]
+      ?? savedAnswers?.[questionNumber]
+      ?? savedAnswers?.[String(index)]
+      ?? savedAnswers?.[String(questionNumber)];
+
+    const answer = extractAnswerValue(rawAnswer);
+    if (answer !== null && answer !== undefined && answer !== '') {
+      studentAnswers[questionNumber] = {
+        questionId: String(question?.id || `q${questionNumber}`),
+        questionNumber,
+        answer,
+        timeSpent: rawAnswer?.timeSpent,
+        timestamp: rawAnswer?.timestamp,
+      };
+    }
+  });
+
+  if (
+    pendingQuestionIndex !== null
+    && pendingQuestionIndex !== undefined
+    && pendingAnswer !== null
+    && pendingAnswer !== undefined
+    && pendingAnswer !== ''
+  ) {
+    const pendingQuestion = questions[pendingQuestionIndex];
+    if (pendingQuestion) {
+      const questionNumber = typeof pendingQuestion?.number === 'number'
+        ? pendingQuestion.number
+        : pendingQuestionIndex + 1;
+      studentAnswers[questionNumber] = {
+        questionId: String(pendingQuestion?.id || `q${questionNumber}`),
+        questionNumber,
+        answer: pendingAnswer,
+      };
+    }
+  }
+
+  return studentAnswers;
+}
+
+function buildQuizResultContext(gameSessionId, gameSession, testTitle, duration) {
+  const classId = gameSession?.linkedClassId || gameSession?.classId || null;
+  const courseId = gameSession?.courseId || null;
+
+  return {
+    type: 'class_session',
+    source: {
+      type: 'class',
+      id: classId || gameSession?.quizId || gameSessionId,
+      name: testTitle,
+      sessionCode: gameSessionId,
+      classId,
+      courseId,
+      submissionId: gameSessionId,
+    },
+    sessionCode: gameSessionId,
+    classId,
+    courseId,
+    configApplied: {
+      timerMinutes: duration,
+      feedbackTiming: 'after_completion',
+      source: 'material_default',
+    },
+  };
+}
+
 const StudentQuizPageNew = () => {
   const { gameSessionId } = useParams();
   const { navigateTo, handleSessionChange } = useNavigation('student');
@@ -53,6 +205,11 @@ const StudentQuizPageNew = () => {
   const currentQuestionIndexRef = useRef(null);
   const containerRef = useRef(null); // PRD-0036: Anti-cheat scope
   const flushIntegrityRef = useRef(null);
+  const canonicalResultGuardRef = useRef({
+    inFlight: false,
+    resultId: null,
+  });
+  const terminalStatusHandledRef = useRef(false);
 
   // PRD-0036 Task 10.2: Warn student before closing/refreshing during active quiz
   useBeforeUnloadWarning({ enabled: gameSession?.status === 'in-progress' });
@@ -70,16 +227,6 @@ const StudentQuizPageNew = () => {
     });
     return () => unsubscribe();
   }, [gameSessionId, navigateTo]);
-
-  // Handle navigation based on status - use centralized handler
-  useEffect(() => {
-    if (!gameSession) return;
-    
-    // Use centralized session change handler for proper navigation
-    if (gameSession.status && gameSession.status !== 'in-progress') {
-      handleSessionChange(gameSession.status, gameSessionId);
-    }
-  }, [gameSession, handleSessionChange, gameSessionId]);
 
   // Load quiz
   useEffect(() => {
@@ -101,6 +248,145 @@ const StudentQuizPageNew = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameSession, quiz]);
+
+  const materializeCanonicalQuizResult = useCallback(async () => {
+    if (!gameSessionId || !gameSession || !quiz) {
+      return null;
+    }
+
+    const playerId = typeof window !== 'undefined' ? sessionStorage.getItem('playerId') : null;
+    if (!playerId) {
+      return null;
+    }
+
+    if (canonicalResultGuardRef.current.resultId) {
+      return canonicalResultGuardRef.current.resultId;
+    }
+
+    if (canonicalResultGuardRef.current.inFlight) {
+      return null;
+    }
+
+    const player = gameSession.players?.[playerId];
+    if (!player) {
+      return null;
+    }
+
+    canonicalResultGuardRef.current.inFlight = true;
+
+    try {
+      const testId = gameSession.quizId || '';
+      const latestResultId = player.latestResultId || null;
+
+      if (latestResultId) {
+        const latestResultSnap = await get(ref(database, `test_results/${latestResultId}`));
+        if (latestResultSnap.exists()) {
+          const latestResult = latestResultSnap.val();
+          if (
+            latestResult?.studentId === playerId
+            && latestResult?.sessionCode === gameSessionId
+            && latestResult?.testId === testId
+          ) {
+            canonicalResultGuardRef.current.resultId = latestResultId;
+            return latestResultId;
+          }
+        }
+      }
+
+      const studentResultsSnap = await get(ref(database, `test_results_by_student/${playerId}`));
+      if (studentResultsSnap.exists()) {
+        const studentResults = studentResultsSnap.val() || {};
+        const existingResultEntry = Object.entries(studentResults).find(([, entry]) => (
+          entry
+          && entry.sessionCode === gameSessionId
+          && entry.testId === testId
+        ));
+
+        if (existingResultEntry) {
+          const [existingResultId] = existingResultEntry;
+          canonicalResultGuardRef.current.resultId = existingResultId;
+          if (!player.latestResultId) {
+            await update(ref(database, `game_sessions/${gameSessionId}/players/${playerId}`), {
+              latestResultId: existingResultId,
+            });
+          }
+          return existingResultId;
+        }
+      }
+
+      const questions = getQuizQuestions(quiz);
+      const currentQuestionIndex = gameSession.currentQuestionIndex || 0;
+      const currentQuestion = questions[currentQuestionIndex];
+      const savedAnswers = { ...(player.answers || {}) };
+      const pendingAnswer = selectedAnswerRef.current;
+      const shouldMergePendingAnswer = Boolean(
+        pendingAnswer && !hasSubmittedRef.current && currentQuestion
+      );
+
+      if (shouldMergePendingAnswer) {
+        await submitAnswer({
+          playerId,
+          questionIndex: currentQuestionIndex,
+          answerToSubmit: pendingAnswer,
+          currentPlayer: player,
+          question: currentQuestion,
+          logPrefix: 'finalizeQuizAttempt',
+        });
+      }
+
+      const studentAnswers = buildStudentAnswersForMarking(
+        questions,
+        savedAnswers,
+        shouldMergePendingAnswer ? currentQuestionIndex : null,
+        shouldMergePendingAnswer ? pendingAnswer : null,
+      );
+      const markingResult = markTest(questions, studentAnswers);
+      const testTitle = getQuizTitle(quiz, gameSession);
+      const duration = getQuizDuration(quiz, gameSession);
+      const timeElapsed = getQuizTimeElapsed(gameSession, quiz, player);
+      const testType = getQuizType(quiz, gameSession);
+      const testSkill = getQuizSkill(quiz, gameSession);
+      const resultContext = buildQuizResultContext(
+        gameSessionId,
+        gameSession,
+        testTitle,
+        duration,
+      );
+
+      const resultId = await saveTestResult(
+        gameSessionId,
+        testId,
+        playerId,
+        player.name || player.playerName || player.displayName || 'Student',
+        markingResult,
+        {
+          title: testTitle,
+          type: testType,
+          skill: testSkill,
+          duration,
+        },
+        timeElapsed,
+        undefined,
+        false,
+        undefined,
+        undefined,
+        resultContext,
+      );
+
+      canonicalResultGuardRef.current.resultId = resultId;
+
+      await update(ref(database, `game_sessions/${gameSessionId}/players/${playerId}`), {
+        latestResultId: resultId,
+      });
+
+      return resultId;
+    } catch (error) {
+      canonicalResultGuardRef.current.resultId = null;
+      throw error;
+    } finally {
+      canonicalResultGuardRef.current.inFlight = false;
+    }
+  }, [gameSession, gameSessionId, quiz]);
 
   const submitAnswer = useCallback(async ({
     playerId,
@@ -336,6 +622,55 @@ const StudentQuizPageNew = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shouldAutoSubmit, handleTimeUp]);
+
+  useEffect(() => {
+    if (!gameSession?.status || !gameSessionId) {
+      return;
+    }
+
+    if (gameSession.status === 'in-progress') {
+      canonicalResultGuardRef.current.resultId = null;
+      terminalStatusHandledRef.current = false;
+      return;
+    }
+
+    if (FINAL_QUIZ_STATUSES.has(gameSession.status) && !quiz) {
+      if (!gameSession.quizId) {
+        handleSessionChange(gameSession.status, gameSessionId);
+      }
+      return;
+    }
+
+    if (!FINAL_QUIZ_STATUSES.has(gameSession.status)) {
+      handleSessionChange(gameSession.status, gameSessionId);
+      return;
+    }
+
+    if (terminalStatusHandledRef.current) {
+      return;
+    }
+
+    terminalStatusHandledRef.current = true;
+    let cancelled = false;
+
+    const finalizeAndNavigate = async () => {
+      try {
+        await materializeCanonicalQuizResult();
+      } catch (error) {
+        console.error('[StudentQuizPageNew] Failed to finalize canonical quiz result:', error);
+      } finally {
+        if (!cancelled) {
+          handleSessionChange(gameSession.status, gameSessionId);
+        }
+      }
+    };
+
+    finalizeAndNavigate();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [gameSession, gameSessionId, handleSessionChange, materializeCanonicalQuizResult]);
 
   if (!gameSession || !quiz) {
     return (

@@ -150,13 +150,13 @@ function App() {
           <Route path="/access-denied" element={<AccessDeniedPage />} />
           <Route path="/blocked" element={<BlockedUserPage />} />
           <Route path="/guest-join" element={<GuestJoinPage />} />
-          <Route path="/guest-results" element={<GuestResultsPage />} />
+          <Route path="/guest-results" element={withTrackedRoute(<GuestResultsPage />, 'results')} />
           <Route path="/teacher-invite" element={<TeacherInvitePage />} />
 
           {/* Profile Routes */}
           <Route path="/profile/complete" element={
             <PrivateRoute>
-              {withTrackedRoute(<ProfileCompletionPage />, 'profile')}
+              {withTrackedRoute(<ProfileCompletionPage />, 'results')}
             </PrivateRoute>
           } />
           <Route path="/profile" element={
@@ -290,13 +290,13 @@ function App() {
             </PrivateRoute>
           } />
           <Route path="/sessions" element={<PrivateRoute allowedRoles={['teacher']}>{withTrackedRoute(<SessionManagementPage />, 'sessions')}</PrivateRoute>} />
-          <Route path="/teacher/results" element={<PrivateRoute allowedRoles={['teacher']}>{withTrackedRoute(<TeacherResultsDashboard />, 'results')}</PrivateRoute>} />
+          <Route path="/teacher/results" element={<PrivateRoute allowedRoles={['teacher', 'super_admin']}>{withTrackedRoute(<TeacherResultsDashboard />, 'results')}</PrivateRoute>} />
 
           <Route path="/create-test" element={<PrivateRoute allowedRoles={['teacher']}>{withTrackedRoute(<TestBuilderRouter />, 'testCreation')}</PrivateRoute>} />
           <Route path="/teacher-wait/:gameSessionId" element={<PrivateRoute allowedRoles={['teacher']}>{withTrackedRoute(<TeacherWaitingRoomPage />, 'liveSessions')}</PrivateRoute>} />
           <Route path="/teacher-quiz/:gameSessionId" element={<PrivateRoute allowedRoles={['teacher']}>{withTrackedRoute(<TeacherQuizPage />, 'liveSessions')}</PrivateRoute>} />
           <Route path="/teacher-test/:sessionCode" element={<PrivateRoute allowedRoles={['teacher']}>{withTrackedRoute(<TeacherTestMonitorPage />)}</PrivateRoute>} />
-          <Route path="/teacher-test-results/:sessionCode" element={<PrivateRoute allowedRoles={['teacher']}>{withTrackedRoute(<TeacherTestResultsPage />, 'results')}</PrivateRoute>} />
+              <Route path="/teacher-test-results/:sessionCode" element={<PrivateRoute allowedRoles={['teacher', 'super_admin']}>{withTrackedRoute(<TeacherTestResultsPage />, 'results')}</PrivateRoute>} />
           <Route path="/teacher-feedback/:gameSessionId" element={<PrivateRoute allowedRoles={['teacher']}>{withTrackedRoute(<TeacherFeedbackPage />, 'feedback')}</PrivateRoute>} />
           <Route path="/teacher-results/:gameSessionId" element={<PrivateRoute allowedRoles={['teacher']}>{withTrackedRoute(<TeacherResultsPage />, 'results')}</PrivateRoute>} />
           <Route path="/teacher/classes" element={<PrivateRoute allowedRoles={['teacher']}>{withTrackedRoute(<TeacherClassesPage />, 'classes')}</PrivateRoute>} />

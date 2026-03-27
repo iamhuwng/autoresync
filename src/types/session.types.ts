@@ -144,6 +144,12 @@ export interface ClassSession {
   
   /** Teacher who created this class */
   teacherId: string;
+
+  /** Authoritative owner when persisted from newer session flows */
+  createdByUserId?: string;
+
+  /** Legacy authoritative owner fallback when it stores a real auth uid */
+  createdBy?: string;
   
   /** Active test assignments in this class */
   activeTests: Record<string, TestAssignment>;

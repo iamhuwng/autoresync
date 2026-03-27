@@ -14,6 +14,7 @@ import { ref, get } from 'firebase/database';
 import { database } from './firebase';
 import type { TestData } from './testStorage';
 import type { LibraryFilters, LibraryMaterial } from '../types/solo.types';
+import { getStudentResults as getCanonicalStudentResults } from './testResults.service';
 
 /**
  * Get materials for the student library with filters
@@ -222,29 +223,7 @@ export async function getStudentMaterialHistory(
     materialId: string
 ): Promise<LibraryMaterial['studentHistory']> {
     try {
-        const studentResultsRef = ref(database, `test_results_by_student/${studentId}`);
-        const studentResultsSnapshot = await get(studentResultsRef);
-
-        if (!studentResultsSnapshot.exists()) {
-            return undefined;
-        }
-
-        const resultIndex = studentResultsSnapshot.val() as Record<string, any>;
-        const resultIds = Object.keys(resultIndex);
-
-        const resolvedResults = await Promise.all(
-            resultIds.map(async (resultId) => {
-                try {
-                    const resultRef = ref(database, `test_results/${resultId}`);
-                    const resultSnapshot = await get(resultRef);
-                    return resultSnapshot.exists() ? resultSnapshot.val() : null;
-                } catch {
-                    return null;
-                }
-            })
-        );
-
-        const allResults = resolvedResults.filter(Boolean) as any[];
+        const allResults = await getCanonicalStudentResults(studentId);
 
         // Filter results for this student and material
         const materialResults = allResults.filter(result =>

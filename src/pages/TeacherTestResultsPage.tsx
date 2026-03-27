@@ -1,40 +1,36 @@
-/**
- * Teacher Test Results Page
- * Displays class-wide test results with statistics and analytics
- */
-
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { ref, get } from 'firebase/database';
 // @ts-ignore
 import { database } from '../services/firebase';
-import { Center, Loader } from '@mantine/core';
-import { Card, CardBody } from '../components/modern';
-import { Button } from '../components/modern';
+import { Center, Loader, Modal, Stack, Title, Text, Tabs, Badge, Group } from '@mantine/core';
+import { Card, CardBody, Button } from '../components/modern';
 import {
-  markTest,
-  calculateBandScore,
-  Question,
-  StudentAnswer,
-} from '../services/autoMarking.service';
+  TestResultRecord,
+  getSessionResults,
+  updateResultScore,
+  markAsReviewed,
+} from '../services/testResults.service';
 import { exportClassResultsToCSV } from '../utils/csvExport';
-import { TestResultRecord, getSessionResults, updateResultScore, markAsReviewed } from '../services/testResults.service';
 import { generateClassReportPDF } from '../utils/pdfReportGenerator';
 import { QuestionAnalytics } from '../components/results/QuestionAnalytics';
 import { ReMarkingModal } from '../components/results/ReMarkingModal';
-import { QuestionResult } from '../types/results.types';
 import { FeedbackEditor } from '../components/feedback/FeedbackEditor';
 import { saveQuestionFeedback, saveOverallFeedback } from '../services/feedbackService';
-import { Modal, Stack, Title, Text, Tabs, Badge, Group } from '@mantine/core';
 import WritingTestResultsSection from '../components/writing-results/WritingTestResultsSection';
-import { IntegrityBadge } from '../components/test/IntegrityBadge'; // PRD-0036
-import { IntegrityDetailPanel } from '../components/test/IntegrityDetailPanel'; // PRD-0036
-import { computeRiskLevel, normalizeIntegrityReport } from '../utils/integrityUtils'; // PRD-0036
-import type { IntegrityReport } from '../types/integrity.types'; // PRD-0036
+import { IntegrityBadge } from '../components/test/IntegrityBadge';
+import { IntegrityDetailPanel } from '../components/test/IntegrityDetailPanel';
+import { computeRiskLevel, normalizeIntegrityReport } from '../utils/integrityUtils';
+import type { IntegrityReport } from '../types/integrity.types';
+import type { QuestionResult } from '../types/results.types';
 import { reportingService } from '../services/reportingService';
+import { useAuth } from '../hooks/useAuth';
+import { useNavigation } from '../hooks/useNavigation';
+import { useFeatureTracking } from '../hooks/useFeatureTracking';
+import { classifyTeacherResultVisibility } from '../services/resultVisibility.service';
 
 interface StudentResult {
-  resultId?: string; // Link to backend record
+  resultId?: string;
   studentId: string;
   studentName: string;
   totalScore: number;
@@ -47,10 +43,10 @@ interface StudentResult {
   totalQuestions: number;
   timeElapsed: number;
   submittedAt: number;
-  questionResults?: QuestionResult[]; // Detailed results for re-marking
+  questionResults?: QuestionResult[];
   reMarkHistory?: any[];
   isGuest?: boolean;
-  markingStatus?: 'auto-marked' | 'pending-review' | 'reviewed'; // PRD-0015: Phase 7 & 8
+  markingStatus?: 'auto-marked' | 'pending-review' | 'reviewed';
 }
 
 interface QuestionAnalyticsData {
@@ -65,8 +61,8 @@ interface QuestionAnalyticsData {
 
 interface TestSession {
   sessionCode: string;
-  testId?: string; // Optional because it's cleared when test ends
-  lastTestId?: string; // PRD-0019: Fallback for results
+  testId?: string;
+  lastTestId?: string;
   status: string;
   createdAt: number;
   players: Record<string, any>;
@@ -76,354 +72,275 @@ interface TestData {
   title: string;
   type: string;
   skill: string;
-  questions: Question[];
+  questions: Array<{
+    id?: string;
+    number?: number;
+    points?: number;
+    question: string;
+  }>;
   duration: number;
 }
 
 type SortField = 'name' | 'score' | 'bandScore' | 'percentage';
+type ViewerRole = 'teacher' | 'super_admin';
+type CanonicalTeacherResult = TestResultRecord & {
+  teacherId?: string;
+  visibility?: {
+    visibilityOwnerTeacherId?: string | null;
+  } | null;
+  markingStatus?: 'auto-marked' | 'pending-review' | 'reviewed' | 'graded';
+};
+
+function mapResult(record: CanonicalTeacherResult): StudentResult {
+  return {
+    resultId: record.resultId,
+    studentId: record.studentId,
+    studentName: record.studentName,
+    totalScore: record.totalScore,
+    maxScore: record.maxScore,
+    percentage: record.percentage,
+    bandScore: record.bandScore,
+    correct: record.correct,
+    incorrect: record.incorrect,
+    partialCredit: record.partialCredit,
+    totalQuestions: record.totalQuestions,
+    timeElapsed: record.timeElapsed,
+    submittedAt: record.submittedAt,
+    questionResults: record.questionResults,
+    reMarkHistory: (record as any).reMarkHistory,
+    isGuest: (record as any).isGuest,
+    markingStatus: ((record as any).markingStatus as StudentResult['markingStatus']) || 'auto-marked',
+  };
+}
+
+function buildViewerTeacherId(record: CanonicalTeacherResult, viewerRole: ViewerRole, viewerTeacherId: string): string {
+  if (viewerRole === 'super_admin') {
+    return record.visibility?.visibilityOwnerTeacherId || viewerTeacherId;
+  }
+  return viewerTeacherId;
+}
+
+function buildQuestionAnalytics(records: CanonicalTeacherResult[]): QuestionAnalyticsData[] {
+  const stats = new Map<number, {
+    correct: number;
+    incorrect: number;
+    partial: number;
+    total: number;
+    wrongAnswers: Map<string, number>;
+  }>();
+
+  records.forEach((record) => {
+    (record.questionResults || []).forEach((questionResult) => {
+      const bucket = stats.get(questionResult.questionNumber) || {
+        correct: 0,
+        incorrect: 0,
+        partial: 0,
+        total: 0,
+        wrongAnswers: new Map<string, number>(),
+      };
+      const isPartial = questionResult.score > 0 && questionResult.score < questionResult.maxScore;
+
+      bucket.total += 1;
+      if (questionResult.isCorrect) {
+        bucket.correct += 1;
+      } else if (isPartial) {
+        bucket.partial += 1;
+      } else {
+        bucket.incorrect += 1;
+      }
+
+      if (!questionResult.isCorrect && questionResult.studentAnswer !== undefined && questionResult.studentAnswer !== null) {
+        const answerText = String(questionResult.studentAnswer).trim();
+        if (answerText) {
+          bucket.wrongAnswers.set(answerText, (bucket.wrongAnswers.get(answerText) || 0) + 1);
+        }
+      }
+
+      stats.set(questionResult.questionNumber, bucket);
+    });
+  });
+
+  return Array.from(stats.entries())
+    .map(([questionNumber, bucket]) => ({
+      questionNumber,
+      correctCount: bucket.correct,
+      incorrectCount: bucket.incorrect,
+      partialCount: bucket.partial,
+      totalAttempts: bucket.total,
+      difficultyPercent: bucket.total > 0 ? (bucket.correct / bucket.total) * 100 : 0,
+      commonWrongAnswers: Array.from(bucket.wrongAnswers.entries())
+        .map(([answer, count]) => ({ answer, count }))
+        .sort((left, right) => right.count - left.count)
+        .slice(0, 3),
+    }))
+    .sort((left, right) => left.questionNumber - right.questionNumber);
+}
 
 export const TeacherTestResultsPage: React.FC = () => {
   const { sessionCode } = useParams<{ sessionCode: string }>();
-  const navigate = useNavigate();
+  const { user, profile } = useAuth();
+  const viewerRole: ViewerRole = profile?.role === 'super_admin' ? 'super_admin' : 'teacher';
+  const viewerTeacherId = user?.uid || '';
+  const { navigateTo } = useNavigation(viewerRole);
+  const { trackAction } = useFeatureTracking('results');
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [session, setSession] = useState<TestSession | null>(null);
   const [testData, setTestData] = useState<TestData | null>(null);
   const [studentResults, setStudentResults] = useState<StudentResult[]>([]);
+  const [analyticsResults, setAnalyticsResults] = useState<StudentResult[]>([]);
   const [questionAnalytics, setQuestionAnalytics] = useState<QuestionAnalyticsData[]>([]);
   const [sortField, setSortField] = useState<SortField>('score');
   const [sortAscending, setSortAscending] = useState(false);
-
-  // Re-marking State
   const [remarkModalOpen, setRemarkModalOpen] = useState(false);
   const [selectedStudentForRemark, setSelectedStudentForRemark] = useState<StudentResult | null>(null);
-
-  // Feedback State
   const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
   const [selectedStudentForFeedback, setSelectedStudentForFeedback] = useState<StudentResult | null>(null);
-
-  // PRD-0036: Integrity data
   const [integrityMap, setIntegrityMap] = useState<Record<string, IntegrityReport>>({});
   const [selectedIntegrity, setSelectedIntegrity] = useState<{ report: IntegrityReport; studentName: string } | null>(null);
 
-  /**
-   * Load session and calculate all results
-   */
   useEffect(() => {
     if (!sessionCode) {
       setError('No session code provided');
       setLoading(false);
       return;
     }
-
-    loadAllResults();
-  }, [sessionCode]);
+    void loadAllResults();
+  }, [sessionCode, viewerRole, viewerTeacherId]);
 
   const loadAllResults = async () => {
     try {
-      console.log(`📊 [Teacher Results] Loading results for session: ${sessionCode}`);
+      if (!sessionCode) {
+        setError('No session code provided');
+        setLoading(false);
+        return;
+      }
+      if (!viewerTeacherId) {
+        setError('Authentication required');
+        setLoading(false);
+        return;
+      }
 
-      // Load session
-      const sessionRef = ref(database, `game_sessions/${sessionCode}`);
-      const sessionSnap = await get(sessionRef);
+      setLoading(true);
+      setError(null);
 
-      if (!sessionSnap.exists()) {
+      const sessionSnapshot = await get(ref(database, `game_sessions/${sessionCode}`));
+      if (!sessionSnapshot.exists()) {
         setError('Session not found');
         setLoading(false);
         return;
       }
 
-      const sessionData = sessionSnap.val();
+      const nextSession = sessionSnapshot.val();
+      setSession(nextSession);
 
-      // Security: Verify session ownership
-      // Get current user from Firebase Auth
-      const { getAuth } = await import('firebase/auth');
-      const auth = getAuth();
-      const currentUser = auth.currentUser;
-
-      if (currentUser) {
-        // Check if user is super_admin (fetch from profiles)
-        const profileRef = ref(database, `users/${currentUser.uid}/role`);
-        const profileSnap = await get(profileRef);
-        const userRole = profileSnap.val();
-        const isSuperAdmin = userRole === 'super_admin';
-
-        // Verify ownership: session.teacherId or session.createdBy must match current user
-        const isOwner = sessionData.teacherId === currentUser.uid ||
-          sessionData.createdBy === currentUser.uid;
-
-        if (!isOwner && !isSuperAdmin) {
-          console.warn(`[Security] Access denied to session ${sessionCode} for user ${currentUser.uid}`);
-          setError('Access denied: You can only view results for sessions you created.');
-          setLoading(false);
-          return;
-        }
-      }
-
-      setSession(sessionData);
-
-      // PRD-0036: Read integrity data from session players
-      const intMap: Record<string, IntegrityReport> = {};
-      if (sessionData.players) {
-        Object.entries(sessionData.players).forEach(([playerId, playerData]: [string, any]) => {
-          const normalizedIntegrity = normalizeIntegrityReport(playerData?.integrity);
-          if (normalizedIntegrity) {
-            intMap[playerId] = normalizedIntegrity;
+      const nextIntegrityMap: Record<string, IntegrityReport> = {};
+      if (nextSession.players) {
+        Object.entries(nextSession.players).forEach(([playerId, playerData]: [string, any]) => {
+          const normalized = normalizeIntegrityReport(playerData?.integrity);
+          if (normalized) {
+            nextIntegrityMap[playerId] = normalized;
           }
         });
       }
-      setIntegrityMap(intMap);
+      setIntegrityMap(nextIntegrityMap);
 
-      // Load test data
-      // PRD-0019: Use testId if active, otherwise fallback to lastTestId
-      const targetTestId = sessionData.testId || sessionData.lastTestId;
-
+      const targetTestId = nextSession.testId || nextSession.lastTestId;
       if (!targetTestId) {
-        console.error('❌ [Teacher Results] No testId or lastTestId found in session');
         setError('Test data not found for this session');
         setLoading(false);
         return;
       }
 
-      const testRef = ref(database, `tests/${targetTestId}`);
-      const testSnap = await get(testRef);
-
-      if (!testSnap.exists()) {
+      const testSnapshot = await get(ref(database, `tests/${targetTestId}`));
+      if (!testSnapshot.exists()) {
         setError('Test content not found');
         setLoading(false);
         return;
       }
+      setTestData(testSnapshot.val());
 
-      const test = testSnap.val();
-      setTestData(test);
+      const canonicalResults = await getSessionResults(sessionCode) as CanonicalTeacherResult[];
+      const classified = canonicalResults.map((result) => ({
+        result,
+        verdict: classifyTeacherResultVisibility({
+          result,
+          teacherId: buildViewerTeacherId(result, viewerRole, viewerTeacherId),
+          hasAssignmentAccess: true,
+        }),
+      }));
 
-      // ---------------------------------------------------------
-      // Enhanced Analytics Calculation
-      // ---------------------------------------------------------
-      let results: StudentResult[] = [];
-      const questionStats: Map<number, {
-        correct: number;
-        incorrect: number;
-        partial: number;
-        total: number;
-        wrongAnswers: Map<string, number>;
-      }> = new Map();
+      const visible = classified
+        .filter(({ verdict }) => verdict.shouldDisplayInTeacherHistory)
+        .map(({ result }) => mapResult(result));
+      const analyticsEligible = classified
+        .filter(({ verdict }) => verdict.shouldDisplayInTeacherHistory && !verdict.excludeFromAnalytics)
+        .map(({ result }) => result);
 
-      let usedPermanentStorage = false;
-
-      // Helper to track answer
-      const trackAnswer = (qNum: number, isCorrect: boolean, isPartial: boolean, answer: any) => {
-        const stats = questionStats.get(qNum) || {
-          correct: 0, incorrect: 0, partial: 0, total: 0,
-          wrongAnswers: new Map()
-        };
-
-        stats.total++;
-
-        if (isCorrect) {
-          stats.correct++;
-        } else {
-          if (isPartial) {
-            stats.partial++;
-          } else {
-            stats.incorrect++;
-          }
-
-          // Track wrong answer text for analysis
-          if (!isCorrect && answer !== undefined && answer !== null && answer !== '') {
-            const answerText = typeof answer === 'object' ? JSON.stringify(answer) : String(answer);
-            const cleanAnswer = answerText.trim();
-            if (cleanAnswer) {
-              const count = stats.wrongAnswers.get(cleanAnswer) || 0;
-              stats.wrongAnswers.set(cleanAnswer, count + 1);
-            }
-          }
-        }
-        questionStats.set(qNum, stats);
-      };
-
-      try {
-        const permanentResults = await getSessionResults(sessionCode!);
-        if (permanentResults && permanentResults.length > 0) {
-          console.log(`✅ Found ${permanentResults.length} permanent records`);
-          usedPermanentStorage = true;
-
-          permanentResults.forEach(record => {
-            // Map to StudentResult
-            results.push({
-              resultId: record.resultId, // Include ID
-              studentId: record.studentId,
-              studentName: record.studentName,
-              totalScore: record.totalScore,
-              maxScore: record.maxScore,
-              percentage: record.percentage,
-              bandScore: record.bandScore,
-              correct: record.correct,
-              incorrect: record.incorrect,
-              partialCredit: record.partialCredit,
-              totalQuestions: record.totalQuestions,
-              timeElapsed: record.timeElapsed,
-              submittedAt: record.submittedAt,
-              questionResults: record.questionResults, // Include details
-              reMarkHistory: record.reMarkHistory,
-              isGuest: record.isGuest,
-              markingStatus: record.markingStatus || 'auto-marked', // PRD-0015: Phase 7 & 8
-            });
-
-            // Aggregate Stats
-            record.questionResults.forEach(qResult => {
-              const isPartial = qResult.score > 0 && qResult.score < qResult.maxScore;
-              trackAnswer(qResult.questionNumber, qResult.isCorrect, isPartial, qResult.studentAnswer);
-            });
-          });
-        }
-      } catch (permErr) {
-        console.warn('Error fetching permanent results, falling back', permErr);
-      }
-
-      // Fallback Logic
-      if (!usedPermanentStorage) {
-        console.log('⚠️ No permanent results found, recalculating from raw answers...');
-
-        if (sessionData.players) {
-          Object.entries(sessionData.players).forEach(([studentId, studentData]: [string, any]) => {
-            if (!studentData.answers) return;
-
-            // Convert and mark (Legacy logic)
-            const studentAnswers: Record<number, StudentAnswer> = {};
-            Object.entries(studentData.answers).forEach(([qNum, answer]: [string, any]) => {
-              studentAnswers[parseInt(qNum)] = {
-                questionId: `q${qNum}`,
-                questionNumber: parseInt(qNum),
-                answer: answer.answer,
-                timeSpent: answer.timeSpent,
-                timestamp: answer.timestamp,
-              };
-            });
-
-            const markingResult = markTest(test.questions, studentAnswers);
-            const bandScore = calculateBandScore(markingResult.percentage);
-
-            results.push({
-              studentId,
-              studentName: studentData.name || 'Unknown',
-              totalScore: markingResult.totalScore,
-              maxScore: markingResult.maxScore,
-              percentage: markingResult.percentage,
-              bandScore,
-              correct: markingResult.summary.correct,
-              incorrect: markingResult.summary.incorrect,
-              partialCredit: markingResult.summary.partialCredit,
-              totalQuestions: markingResult.summary.totalQuestions,
-              timeElapsed: studentData.timeElapsed || 0,
-              submittedAt: studentData.submittedAt || Date.now(),
-              // Legacy results don't have resultId or persisted questionResults suitable for re-marking yet
-            });
-
-            markingResult.questionResults.forEach((qResult) => {
-              trackAnswer(
-                qResult.questionNumber,
-                qResult.isCorrect,
-                !!qResult.partialCredit,
-                qResult.studentAnswer
-              );
-            });
-          });
-        }
-      }
-
-      // Convert question stats to analytics array
-      const analytics: QuestionAnalyticsData[] = [];
-      questionStats.forEach((stats, questionNumber) => {
-        const difficultyPercent = stats.total > 0 ? (stats.correct / stats.total) * 100 : 0;
-
-        // Get top 3 wrong answers
-        const commonWrongAnswers = Array.from(stats.wrongAnswers.entries())
-          .map(([answer, count]) => ({ answer, count }))
-          .sort((a, b) => b.count - a.count)
-          .slice(0, 3);
-
-        analytics.push({
-          questionNumber,
-          correctCount: stats.correct,
-          incorrectCount: stats.incorrect,
-          partialCount: stats.partial,
-          totalAttempts: stats.total,
-          difficultyPercent,
-          commonWrongAnswers
-        });
-      });
-
-      analytics.sort((a, b) => a.questionNumber - b.questionNumber);
-
-      setStudentResults(results);
-      setQuestionAnalytics(analytics);
+      setStudentResults(visible);
+      setAnalyticsResults(analyticsEligible.map((result) => mapResult(result)));
+      setQuestionAnalytics(buildQuestionAnalytics(analyticsEligible));
       setLoading(false);
-    } catch (err) {
-      console.error('Error loading results:', err);
+    } catch (loadError) {
+      console.error('Error loading results:', loadError);
       setError('Failed to load results');
       setLoading(false);
     }
   };
 
-  /**
-   * Sort student results
-   */
-  const sortedStudents = [...studentResults].sort((a, b) => {
-    let aValue: number | string;
-    let bValue: number | string;
+  const sortedStudents = [...studentResults].sort((left, right) => {
+    let leftValue: number | string;
+    let rightValue: number | string;
 
     switch (sortField) {
       case 'name':
-        aValue = a.studentName.toLowerCase();
-        bValue = b.studentName.toLowerCase();
+        leftValue = left.studentName.toLowerCase();
+        rightValue = right.studentName.toLowerCase();
         break;
       case 'score':
-        aValue = a.totalScore;
-        bValue = b.totalScore;
+        leftValue = left.totalScore;
+        rightValue = right.totalScore;
         break;
       case 'bandScore':
-        aValue = a.bandScore;
-        bValue = b.bandScore;
+        leftValue = left.bandScore;
+        rightValue = right.bandScore;
         break;
       case 'percentage':
-        aValue = a.percentage;
-        bValue = b.percentage;
+        leftValue = left.percentage;
+        rightValue = right.percentage;
         break;
       default:
         return 0;
     }
 
-    if (aValue < bValue) return sortAscending ? -1 : 1;
-    if (aValue > bValue) return sortAscending ? 1 : -1;
+    if (leftValue < rightValue) return sortAscending ? -1 : 1;
+    if (leftValue > rightValue) return sortAscending ? 1 : -1;
     return 0;
   });
 
-  /**
-   * Handle sort
-   */
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortAscending(!sortAscending);
-    } else {
-      setSortField(field);
-      setSortAscending(false);
+      return;
     }
+    setSortField(field);
+    setSortAscending(false);
   };
 
-  /**
-   * Handle CSV export
-   * // FR-40: Integrity data is UI-only — do NOT include in any CSV/PDF exports
-   */
   const handleExportCSV = () => {
-    if (!testData || studentResults.length === 0) {
+    if (!testData || analyticsResults.length === 0) {
       alert('No results to export');
       return;
     }
 
-    // Convert StudentResult to TestResultRecord format for export
-    const exportData: TestResultRecord[] = studentResults.map((student) => ({
+    trackAction('exportResultsCsv', {
+      source: 'teacher_test_results',
+      sessionCode,
+      resultCount: analyticsResults.length,
+    });
+
+    const exportRows: TestResultRecord[] = analyticsResults.map((student) => ({
       resultId: student.resultId || `${sessionCode}_${student.studentId}`,
       sessionCode: sessionCode || '',
       testId: session?.testId || '',
@@ -433,7 +350,7 @@ export const TeacherTestResultsPage: React.FC = () => {
       maxScore: student.maxScore,
       percentage: student.percentage,
       bandScore: student.bandScore,
-      questionResults: [], // Not needed for CSV summary usually, or empty for legacy
+      questionResults: [],
       correct: student.correct,
       incorrect: student.incorrect,
       partialCredit: student.partialCredit,
@@ -447,38 +364,44 @@ export const TeacherTestResultsPage: React.FC = () => {
       testSkill: testData.skill,
     }));
 
-    exportClassResultsToCSV(exportData, sessionCode || '', testData.title);
+    exportClassResultsToCSV(exportRows, sessionCode || '', testData.title);
   };
 
   const handleExportPDF = () => {
-    if (!testData || !sessionCode) return;
+    if (!testData || !sessionCode || analyticsResults.length === 0) return;
 
-    // Map to format expected by generator
-    const exportData = studentResults.map(s => ({
-      studentId: s.studentId,
-      studentName: s.studentName,
-      sessionCode: sessionCode,
-      sessionMode: 'test' as const,
-      score: s.totalScore,
-      percentage: s.percentage,
-      totalQuestions: s.totalQuestions,
-      correctAnswers: s.correct,
-      completedAt: s.submittedAt,
-      timeSpent: s.timeElapsed,
-      isGuest: s.isGuest || false,
-      bandScore: s.bandScore,
-      testSkill: testData.skill,
-      testTitle: testData.title,
-      reMarkHistory: s.reMarkHistory ? s.reMarkHistory.length : 0
-    }));
+    trackAction('exportResultsPdf', {
+      source: 'teacher_test_results',
+      sessionCode,
+      resultCount: analyticsResults.length,
+    });
 
-    generateClassReportPDF(exportData, testData.title, sessionCode);
+    generateClassReportPDF(
+      analyticsResults.map((student) => ({
+        studentId: student.studentId,
+        studentName: student.studentName,
+        sessionCode,
+        sessionMode: 'test' as const,
+        score: student.totalScore,
+        percentage: student.percentage,
+        totalQuestions: student.totalQuestions,
+        correctAnswers: student.correct,
+        completedAt: student.submittedAt,
+        timeSpent: student.timeElapsed,
+        isGuest: student.isGuest || false,
+        bandScore: student.bandScore,
+        testSkill: testData.skill,
+        testTitle: testData.title,
+        reMarkHistory: student.reMarkHistory ? student.reMarkHistory.length : 0,
+      })),
+      testData.title,
+      sessionCode,
+    );
   };
 
-  // Re-marking handlers
   const openRemarkModal = (student: StudentResult) => {
     if (!student.resultId || !student.questionResults) {
-      alert('Re-marking is only available for permanently saved results. Legacy results cannot be re-marked.');
+      alert('Re-marking is only available for saved results.');
       return;
     }
     setSelectedStudentForRemark(student);
@@ -487,23 +410,19 @@ export const TeacherTestResultsPage: React.FC = () => {
 
   const handleRemarkSave = async (questionNumber: number, newScore: number, reason: string) => {
     if (!selectedStudentForRemark?.resultId) return;
-
     try {
       await updateResultScore(selectedStudentForRemark.resultId, questionNumber, newScore, reason, 'Teacher');
-
       setRemarkModalOpen(false);
-      // Reload results to reflect changes
-      loadAllResults();
-    } catch (err) {
-      console.error('Failed to save remark:', err);
+      await loadAllResults();
+    } catch (saveError) {
+      console.error('Failed to save remark:', saveError);
       alert('Failed to save re-mark. Please try again.');
     }
   };
 
-  // Feedback handlers
   const openFeedbackModal = (student: StudentResult) => {
     if (!student.resultId) {
-      alert('Feedback is only available for permanently saved results.');
+      alert('Feedback is only available for saved results.');
       return;
     }
     setSelectedStudentForFeedback(student);
@@ -512,104 +431,66 @@ export const TeacherTestResultsPage: React.FC = () => {
 
   const handleSaveOverallFeedback = async (feedback: string): Promise<void> => {
     if (!selectedStudentForFeedback?.resultId) return;
-
-    try {
-      await saveOverallFeedback(selectedStudentForFeedback.resultId, feedback, 'Teacher');
-      // Reload to show updated feedback
-      await loadAllResults();
-    } catch (err) {
-      console.error('Failed to save overall feedback:', err);
-      throw err;
-    }
+    await saveOverallFeedback(selectedStudentForFeedback.resultId, feedback, 'Teacher');
+    await loadAllResults();
   };
 
   const handleSaveQuestionFeedback = async (questionNumber: number, feedback: string): Promise<void> => {
     if (!selectedStudentForFeedback?.resultId) return;
-
-    try {
-      await saveQuestionFeedback(selectedStudentForFeedback.resultId, String(questionNumber), feedback, 'Teacher');
-      // Reload to show updated feedback
-      await loadAllResults();
-    } catch (err) {
-      console.error('Failed to save question feedback:', err);
-      throw err;
-    }
+    await saveQuestionFeedback(selectedStudentForFeedback.resultId, String(questionNumber), feedback, 'Teacher');
+    await loadAllResults();
   };
 
-  // Review status handler (PRD-0015: Phase 7 & 8)
   const handleMarkAsReviewed = async (student: StudentResult) => {
     if (!student.resultId) {
       alert('Cannot mark as reviewed: result not saved permanently.');
       return;
     }
-
     if (student.markingStatus !== 'pending-review') {
       alert('This result is not pending review.');
       return;
     }
 
     const confirmed = window.confirm(
-      `Mark ${student.studentName}'s ${testData?.skill || 'test'} submission as reviewed?\n\nThis will notify the student that their test has been reviewed.`
+      `Mark ${student.studentName}'s ${testData?.skill || 'test'} submission as reviewed?\n\nThis will notify the student that their test has been reviewed.`,
     );
-
     if (!confirmed) return;
 
     try {
+      trackAction('markResultReviewed', {
+        source: 'teacher_test_results',
+        sessionCode,
+        resultId: student.resultId,
+        studentId: student.studentId,
+      });
       await markAsReviewed(student.resultId, 'Teacher');
-      alert(`✅ ${student.studentName}'s test marked as reviewed!`);
-      // Reload results to show updated status
+      alert(`${student.studentName}'s test marked as reviewed.`);
       await loadAllResults();
-    } catch (err) {
-      console.error('Failed to mark as reviewed:', err);
+    } catch (reviewError) {
+      console.error('Failed to mark as reviewed:', reviewError);
       alert('Failed to mark as reviewed. Please try again.');
     }
   };
 
-  /**
-   * Calculate class statistics
-   */
   const classStats = {
-    totalStudents: studentResults.length,
-    averageScore: studentResults.length > 0
-      ? studentResults.reduce((sum, s) => sum + s.totalScore, 0) / studentResults.length
-      : 0,
-    averagePercentage: studentResults.length > 0
-      ? studentResults.reduce((sum, s) => sum + s.percentage, 0) / studentResults.length
-      : 0,
-    averageBandScore: studentResults.length > 0
-      ? studentResults.reduce((sum, s) => sum + s.bandScore, 0) / studentResults.length
-      : 0,
-    highestScore: studentResults.length > 0
-      ? Math.max(...studentResults.map(s => s.totalScore))
-      : 0,
-    lowestScore: studentResults.length > 0
-      ? Math.min(...studentResults.map(s => s.totalScore))
-      : 0,
-    passRate: studentResults.length > 0
-      ? (studentResults.filter(s => s.percentage >= 60).length / studentResults.length) * 100
-      : 0,
+    totalStudents: analyticsResults.length,
+    averageScore: analyticsResults.length ? analyticsResults.reduce((sum, result) => sum + result.totalScore, 0) / analyticsResults.length : 0,
+    averagePercentage: analyticsResults.length ? analyticsResults.reduce((sum, result) => sum + result.percentage, 0) / analyticsResults.length : 0,
+    averageBandScore: analyticsResults.length ? analyticsResults.reduce((sum, result) => sum + result.bandScore, 0) / analyticsResults.length : 0,
+    highestScore: analyticsResults.length ? Math.max(...analyticsResults.map((result) => result.totalScore)) : 0,
+    lowestScore: analyticsResults.length ? Math.min(...analyticsResults.map((result) => result.totalScore)) : 0,
+    passRate: analyticsResults.length ? (analyticsResults.filter((result) => result.percentage >= 60).length / analyticsResults.length) * 100 : 0,
   };
 
-  /**
-   * Format time
-   */
   const formatTime = (ms: number): string => {
     const seconds = Math.floor(ms / 1000);
     const minutes = Math.floor(seconds / 60);
     const hours = Math.floor(minutes / 60);
-
-    if (hours > 0) {
-      return `${hours}h ${minutes % 60}m`;
-    }
-    if (minutes > 0) {
-      return `${minutes}m`;
-    }
+    if (hours > 0) return `${hours}h ${minutes % 60}m`;
+    if (minutes > 0) return `${minutes}m`;
     return `${seconds}s`;
   };
 
-  /**
-   * Render loading state
-   */
   if (loading) {
     return (
       <Center style={{ height: '100vh' }}>
@@ -618,153 +499,64 @@ export const TeacherTestResultsPage: React.FC = () => {
     );
   }
 
-  /**
-   * Render error state
-   */
   if (error || !session || !testData) {
     return (
       <Center style={{ height: '100vh', flexDirection: 'column', gap: '1rem' }}>
-        <div style={{ fontSize: '3rem' }}>⚠️</div>
         <div style={{ fontSize: '1.5rem', fontWeight: 600, color: '#1e293b' }}>
           {error || 'Failed to load results'}
         </div>
-        <Button variant="primary" onClick={() => navigate('/sessions')}>
+        <Button variant="primary" onClick={() => navigateTo('SESSIONS', {}, { reason: 'teacher_results_error_back' })}>
           Return to Sessions
         </Button>
       </Center>
     );
   }
 
-  /**
-   * PRD-0030: Writing test — render dedicated writing results section
-   */
   if (testData.skill === 'Writing') {
-    return (
-      <WritingTestResultsSection
-        sessionCode={sessionCode || ''}
-        testTitle={testData.title}
-      />
-    );
+    return <WritingTestResultsSection sessionCode={sessionCode || ''} testTitle={testData.title} />;
   }
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: 'linear-gradient(135deg, rgba(250, 245, 255, 0.95) 0%, rgba(240, 249, 255, 0.95) 50%, rgba(240, 253, 250, 0.95) 100%)',
-        padding: '2rem',
-      }}
-    >
+    <div style={{ minHeight: '100vh', padding: '2rem', background: '#f8fafc' }}>
       <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
-        {/* Header */}
-        <div style={{ marginBottom: '2rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <div>
-              <h1
-                style={{
-                  margin: 0,
-                  fontSize: '2rem',
-                  fontWeight: 800,
-                  background: 'linear-gradient(135deg, #8b5cf6 0%, #06b6d4 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
-                }}
-              >
-                Test Results Dashboard
-              </h1>
-              <div style={{ fontSize: '1.125rem', color: '#64748b', fontWeight: 500, marginTop: '0.5rem' }}>
-                {testData.title}
-              </div>
-              <div style={{ fontSize: '0.875rem', color: '#94a3b8', marginTop: '0.25rem' }}>
-                Session: {sessionCode} • {testData.type} - {testData.skill}
-              </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+          <div>
+            <h1 style={{ margin: 0, fontSize: '2rem', color: '#0f172a' }}>Test Results Dashboard</h1>
+            <div style={{ marginTop: '0.5rem', color: '#64748b' }}>{testData.title}</div>
+            <div style={{ fontSize: '0.875rem', color: '#94a3b8' }}>
+              Session: {sessionCode} | {testData.type} | {testData.skill}
             </div>
-
-            <Button variant="glass" onClick={() => navigate('/sessions')}>
-              ← Back to Sessions
-            </Button>
           </div>
+          <Button variant="glass" onClick={() => navigateTo('SESSIONS', {}, { reason: 'teacher_results_back' })}>
+            Back to Sessions
+          </Button>
         </div>
 
-        {/* Class Statistics */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
-          <Card variant="glass">
-            <CardBody style={{ padding: '1.5rem', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.5rem' }}>
-                Students
-              </div>
-              <div style={{ fontSize: '2.5rem', fontWeight: 800, color: '#8b5cf6' }}>
-                {classStats.totalStudents}
-              </div>
-            </CardBody>
-          </Card>
-
-          <Card variant="glass">
-            <CardBody style={{ padding: '1.5rem', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.5rem' }}>
-                Average Score
-              </div>
-              <div style={{ fontSize: '2.5rem', fontWeight: 800, color: '#06b6d4' }}>
-                {classStats.averageScore.toFixed(1)}
-              </div>
-              <div style={{ fontSize: '0.875rem', color: '#64748b' }}>
-                {classStats.averagePercentage.toFixed(1)}%
-              </div>
-            </CardBody>
-          </Card>
-
-          <Card variant="glass">
-            <CardBody style={{ padding: '1.5rem', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.5rem' }}>
-                Avg Band Score
-              </div>
-              <div style={{ fontSize: '2.5rem', fontWeight: 800, color: '#10b981' }}>
-                {classStats.averageBandScore.toFixed(1)}
-              </div>
-            </CardBody>
-          </Card>
-
-          <Card variant="glass">
-            <CardBody style={{ padding: '1.5rem', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.5rem' }}>
-                Pass Rate
-              </div>
-              <div style={{ fontSize: '2.5rem', fontWeight: 800, color: '#f59e0b' }}>
-                {classStats.passRate.toFixed(0)}%
-              </div>
-            </CardBody>
-          </Card>
-
-          <Card variant="glass">
-            <CardBody style={{ padding: '1.5rem', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.5rem' }}>
-                High/Low
-              </div>
-              <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#10b981' }}>
-                {classStats.highestScore.toFixed(1)}
-              </div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 600, color: '#ef4444' }}>
-                {classStats.lowestScore.toFixed(1)}
-              </div>
-            </CardBody>
-          </Card>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+          {[
+            ['Students', classStats.totalStudents.toString()],
+            ['Average Score', classStats.averageScore.toFixed(1)],
+            ['Average %', `${classStats.averagePercentage.toFixed(1)}%`],
+            ['Avg Band', classStats.averageBandScore.toFixed(1)],
+            ['Pass Rate', `${classStats.passRate.toFixed(0)}%`],
+            ['High / Low', `${classStats.highestScore.toFixed(1)} / ${classStats.lowestScore.toFixed(1)}`],
+          ].map(([label, value]) => (
+            <Card key={label} variant="glass">
+              <CardBody style={{ padding: '1rem', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase' }}>{label}</div>
+                <div style={{ fontSize: '2rem', fontWeight: 700, color: '#0f172a' }}>{value}</div>
+              </CardBody>
+            </Card>
+          ))}
         </div>
 
-        {/* Student Results Table */}
-        <Card variant="glass" style={{ marginBottom: '2rem' }}>
-          <CardBody style={{ padding: '1.5rem' }}>
+        <Card variant="glass" style={{ marginBottom: '1.5rem' }}>
+          <CardBody style={{ padding: '1rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: '#1e293b' }}>
-                Individual Results
-              </h2>
-              <div style={{ display: 'flex', gap: '1rem' }}>
-                <Button variant="secondary" onClick={handleExportPDF}>
-                  📄 Export PDF
-                </Button>
-                <Button variant="success" onClick={handleExportCSV}>
-                  Download CSV
-                </Button>
+              <h2 style={{ margin: 0 }}>Individual Results</h2>
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <Button variant="secondary" onClick={handleExportPDF}>Export PDF</Button>
+                <Button variant="success" onClick={handleExportCSV}>Download CSV</Button>
               </div>
             </div>
 
@@ -772,218 +564,76 @@ export const TeacherTestResultsPage: React.FC = () => {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
-                    <th
-                      onClick={() => handleSort('name')}
-                      style={{
-                        padding: '1rem',
-                        textAlign: 'left',
-                        fontSize: '0.875rem',
-                        fontWeight: 600,
-                        color: '#64748b',
-                        cursor: 'pointer',
-                        userSelect: 'none',
-                      }}
-                    >
-                      Student {sortField === 'name' && (sortAscending ? '↑' : '↓')}
-                    </th>
-                    <th
-                      onClick={() => handleSort('score')}
-                      style={{
-                        padding: '1rem',
-                        textAlign: 'center',
-                        fontSize: '0.875rem',
-                        fontWeight: 600,
-                        color: '#64748b',
-                        cursor: 'pointer',
-                        userSelect: 'none',
-                      }}
-                    >
-                      Score {sortField === 'score' && (sortAscending ? '↑' : '↓')}
-                    </th>
-                    <th
-                      onClick={() => handleSort('percentage')}
-                      style={{
-                        padding: '1rem',
-                        textAlign: 'center',
-                        fontSize: '0.875rem',
-                        fontWeight: 600,
-                        color: '#64748b',
-                        cursor: 'pointer',
-                        userSelect: 'none',
-                      }}
-                    >
-                      Percentage {sortField === 'percentage' && (sortAscending ? '↑' : '↓')}
-                    </th>
-                    <th
-                      onClick={() => handleSort('bandScore')}
-                      style={{
-                        padding: '1rem',
-                        textAlign: 'center',
-                        fontSize: '0.875rem',
-                        fontWeight: 600,
-                        color: '#64748b',
-                        cursor: 'pointer',
-                        userSelect: 'none',
-                      }}
-                    >
-                      Band Score {sortField === 'bandScore' && (sortAscending ? '↑' : '↓')}
-                    </th>
-                    <th style={{ padding: '1rem', textAlign: 'center', fontSize: '0.875rem', fontWeight: 600, color: '#64748b' }}>
-                      Correct
-                    </th>
-                    <th style={{ padding: '1rem', textAlign: 'center', fontSize: '0.875rem', fontWeight: 600, color: '#64748b' }}>
-                      Partial
-                    </th>
-                    <th style={{ padding: '1rem', textAlign: 'center', fontSize: '0.875rem', fontWeight: 600, color: '#64748b' }}>
-                      Incorrect
-                    </th>
-                    <th style={{ padding: '1rem', textAlign: 'center', fontSize: '0.875rem', fontWeight: 600, color: '#64748b' }}>
-                      Time
-                    </th>
-                    <th style={{ padding: '1rem', textAlign: 'center', fontSize: '0.875rem', fontWeight: 600, color: '#64748b' }}>
-                      Action
-                    </th>
+                    <th style={{ textAlign: 'left', padding: '0.75rem', cursor: 'pointer' }} onClick={() => handleSort('name')}>Student</th>
+                    <th style={{ textAlign: 'center', padding: '0.75rem', cursor: 'pointer' }} onClick={() => handleSort('score')}>Score</th>
+                    <th style={{ textAlign: 'center', padding: '0.75rem', cursor: 'pointer' }} onClick={() => handleSort('percentage')}>Percentage</th>
+                    <th style={{ textAlign: 'center', padding: '0.75rem', cursor: 'pointer' }} onClick={() => handleSort('bandScore')}>Band</th>
+                    <th style={{ textAlign: 'center', padding: '0.75rem' }}>Correct</th>
+                    <th style={{ textAlign: 'center', padding: '0.75rem' }}>Partial</th>
+                    <th style={{ textAlign: 'center', padding: '0.75rem' }}>Incorrect</th>
+                    <th style={{ textAlign: 'center', padding: '0.75rem' }}>Time</th>
+                    <th style={{ textAlign: 'center', padding: '0.75rem' }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedStudents.map((student, index) => (
-                    <tr
-                      key={student.studentId}
-                      style={{
-                        borderBottom: '1px solid #e2e8f0',
-                        backgroundColor: index % 2 === 0 ? 'transparent' : 'rgba(248, 250, 252, 0.5)',
-                      }}
-                    >
-                      <td style={{ padding: '1rem', fontWeight: 600, color: '#1e293b' }}>
+                  {sortedStudents.map((student) => (
+                    <tr key={student.resultId || student.studentId} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '0.75rem', fontWeight: 600 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                           {student.studentName}
-                          {/* Marking status badge - PRD-0015: Phase 7 & 8 */}
-                          {student.markingStatus === 'pending-review' && (
-                            <Badge
-                              size="sm"
-                              style={{
-                                background: '#f59e0b',
-                                color: 'white',
-                                fontSize: '0.6875rem',
-                                fontWeight: 600,
-                                padding: '0.25rem 0.5rem',
-                              }}
-                            >
-                              ⏳ Pending Review
-                            </Badge>
-                          )}
-                          {student.markingStatus === 'reviewed' && (
-                            <Badge
-                              size="sm"
-                              style={{
-                                background: '#10b981',
-                                color: 'white',
-                                fontSize: '0.6875rem',
-                                fontWeight: 600,
-                                padding: '0.25rem 0.5rem',
-                              }}
-                            >
-                              ✓ Reviewed
-                            </Badge>
-                          )}
-                          {/* PRD-0036: Integrity Badge */}
+                          {student.markingStatus === 'pending-review' && <Badge size="sm">Pending Review</Badge>}
+                          {student.markingStatus === 'reviewed' && <Badge size="sm">Reviewed</Badge>}
                           {(() => {
-                            const iData = integrityMap[student.studentId];
-                            if (!iData) return null;
-                            const risk = iData.riskLevel || computeRiskLevel(iData.violationCount || 0, iData.forceSubmitted || false);
+                            const integrityData = integrityMap[student.studentId];
+                            if (!integrityData) return null;
+                            const riskLevel = integrityData.riskLevel || computeRiskLevel(integrityData.violationCount || 0, integrityData.forceSubmitted || false);
                             return (
                               <IntegrityBadge
-                                violationCount={iData.violationCount || 0}
-                                riskLevel={risk}
+                                violationCount={integrityData.violationCount || 0}
+                                riskLevel={riskLevel}
                                 onClick={() => {
                                   reportingService.trackAction('results', 'viewIntegrityDetails', {
                                     sessionCode,
                                     studentId: student.studentId,
                                     studentName: student.studentName,
-                                    violationCount: iData.violationCount || 0,
+                                    violationCount: integrityData.violationCount || 0,
                                   });
-                                  setSelectedIntegrity({ report: iData, studentName: student.studentName });
+                                  setSelectedIntegrity({ report: integrityData, studentName: student.studentName });
                                 }}
                               />
                             );
                           })()}
                         </div>
                       </td>
-                      <td style={{ padding: '1rem', textAlign: 'center', fontWeight: 600, color: '#1e293b' }}>
-                        {student.totalScore.toFixed(1)}/{student.maxScore}
-                      </td>
-                      <td style={{ padding: '1rem', textAlign: 'center', fontWeight: 600, color: '#1e293b' }}>
-                        {student.percentage.toFixed(1)}%
-                      </td>
-                      <td style={{ padding: '1rem', textAlign: 'center', fontWeight: 700, color: '#10b981', fontSize: '1.125rem' }}>
-                        {student.bandScore.toFixed(1)}
-                      </td>
-                      <td style={{ padding: '1rem', textAlign: 'center', color: '#10b981', fontWeight: 600 }}>
-                        {student.correct}
-                      </td>
-                      <td style={{ padding: '1rem', textAlign: 'center', color: '#f59e0b', fontWeight: 600 }}>
-                        {student.partialCredit}
-                      </td>
-                      <td style={{ padding: '1rem', textAlign: 'center', color: '#ef4444', fontWeight: 600 }}>
-                        {student.incorrect}
-                      </td>
-                      <td style={{ padding: '1rem', textAlign: 'center', color: '#64748b', fontSize: '0.875rem' }}>
-                        {formatTime(student.timeElapsed)}
-                      </td>
-                      <td style={{ padding: '1rem', textAlign: 'center', display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-                        <Button
-                          variant="glass"
-                          size="sm"
-                          onClick={(e: React.MouseEvent) => { e.stopPropagation(); openRemarkModal(student); }}
-                          disabled={!student.resultId}
-                        >
-                          ✏️ Re-mark
-                          {student.reMarkHistory && student.reMarkHistory.length > 0 && (
-                            <span style={{
-                              marginLeft: '4px',
-                              background: '#f59e0b',
-                              color: 'white',
-                              borderRadius: '50%',
-                              width: '16px', height: '16px',
-                              fontSize: '10px',
-                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center'
-                            }}>
-                              {student.reMarkHistory.length}
-                            </span>
-                          )}
-                        </Button>
-                        <Button
-                          variant="glass"
-                          size="sm"
-                          onClick={(e: React.MouseEvent) => { e.stopPropagation(); openFeedbackModal(student); }}
-                          disabled={!student.resultId}
-                        >
-                          💬 Feedback
-                        </Button>
-                        {/* Mark as Reviewed button - PRD-0015: Phase 7 & 8 */}
+                      <td style={{ padding: '0.75rem', textAlign: 'center' }}>{student.totalScore.toFixed(1)}/{student.maxScore}</td>
+                      <td style={{ padding: '0.75rem', textAlign: 'center' }}>{student.percentage.toFixed(1)}%</td>
+                      <td style={{ padding: '0.75rem', textAlign: 'center' }}>{student.bandScore.toFixed(1)}</td>
+                      <td style={{ padding: '0.75rem', textAlign: 'center' }}>{student.correct}</td>
+                      <td style={{ padding: '0.75rem', textAlign: 'center' }}>{student.partialCredit}</td>
+                      <td style={{ padding: '0.75rem', textAlign: 'center' }}>{student.incorrect}</td>
+                      <td style={{ padding: '0.75rem', textAlign: 'center' }}>{formatTime(student.timeElapsed)}</td>
+                      <td style={{ padding: '0.75rem', textAlign: 'center', display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                        <Button variant="glass" size="sm" onClick={() => openRemarkModal(student)} disabled={!student.resultId}>Re-mark</Button>
+                        <Button variant="glass" size="sm" onClick={() => openFeedbackModal(student)} disabled={!student.resultId}>Feedback</Button>
                         {student.markingStatus === 'pending-review' && (
-                          <Button
-                            variant="success"
-                            size="sm"
-                            onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleMarkAsReviewed(student); }}
-                            disabled={!student.resultId}
-                            style={{
-                              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                              border: 'none',
-                            }}
-                          >
-                            ✓ Mark Reviewed
+                          <Button variant="success" size="sm" onClick={() => void handleMarkAsReviewed(student)} disabled={!student.resultId}>
+                            Mark Reviewed
                           </Button>
                         )}
                         <Button
                           variant="glass"
                           size="sm"
-                          onClick={(e: React.MouseEvent) => {
-                            e.stopPropagation();
-                            navigate(`/teacher/student/${student.studentId}/history`);
+                          onClick={() => {
+                            trackAction('openStudentHistory', {
+                              source: 'teacher_test_results',
+                              sessionCode,
+                              studentId: student.studentId,
+                              resultId: student.resultId || null,
+                            });
+                            navigateTo('TEACHER_STUDENT_HISTORY', { studentId: student.studentId }, { reason: 'teacher_test_results_history' });
                           }}
                         >
-                          📜 History
+                          History
                         </Button>
                       </td>
                     </tr>
@@ -994,63 +644,55 @@ export const TeacherTestResultsPage: React.FC = () => {
           </CardBody>
         </Card>
 
-        {/* Question Difficulty Analysis */}
-        <div style={{ marginBottom: '2rem' }}>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#1e293b', marginBottom: '1rem' }}>
-            Question Difficulty Analysis ({questionAnalytics.length})
-          </h2>
+        <div>
+          <h2 style={{ marginBottom: '1rem' }}>Question Difficulty Analysis ({questionAnalytics.length})</h2>
           {questionAnalytics.length === 0 ? (
             <Card variant="glass"><CardBody>No analytics available.</CardBody></Card>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
-              {questionAnalytics.map(qa => (
-                <QuestionAnalytics key={qa.questionNumber} data={qa} />
+              {questionAnalytics.map((item) => (
+                <QuestionAnalytics key={item.questionNumber} data={item} />
               ))}
             </div>
           )}
         </div>
 
-        {/* Re-Marking Modal */}
         {selectedStudentForRemark && testData && (
           <ReMarkingModal
             isOpen={remarkModalOpen}
             onClose={() => setRemarkModalOpen(false)}
             studentName={selectedStudentForRemark.studentName}
             results={selectedStudentForRemark.questionResults || []}
-            questions={testData.questions.map(q => ({
-              questionNumber: q.number || (q.id ? parseInt(q.id.replace('q', '')) : 0),
-              maxScore: q.points || 1,
-              text: q.question
+            questions={testData.questions.map((question) => ({
+              questionNumber: question.number || (question.id ? parseInt(question.id.replace('q', ''), 10) : 0),
+              maxScore: question.points || 1,
+              text: question.question,
             }))}
             onSave={handleRemarkSave}
           />
         )}
 
-        {/* Feedback Modal */}
-        {selectedStudentForFeedback && testData && (
+        {selectedStudentForFeedback && (
           <Modal
             opened={feedbackModalOpen}
             onClose={() => setFeedbackModalOpen(false)}
-            title={
+            title={(
               <Group>
                 <Title order={3}>Provide Feedback</Title>
-                <Badge color="blue" size="lg">
-                  {selectedStudentForFeedback.studentName}
-                </Badge>
+                <Badge color="blue" size="lg">{selectedStudentForFeedback.studentName}</Badge>
               </Group>
-            }
+            )}
             size="xl"
           >
             <Stack gap="lg">
               <Tabs defaultValue="overall">
                 <Tabs.List>
-                  <Tabs.Tab value="overall">Overall Feedback</Tabs.Tab >
+                  <Tabs.Tab value="overall">Overall Feedback</Tabs.Tab>
                   <Tabs.Tab value="questions">Per-Question Feedback</Tabs.Tab>
                 </Tabs.List>
-
                 <Tabs.Panel value="overall" pt="md">
                   <FeedbackEditor
-                    initialFeedback={''}
+                    initialFeedback=""
                     onSave={handleSaveOverallFeedback}
                     isOverall={true}
                     placeholder="Provide overall feedback on the student's performance..."
@@ -1058,7 +700,6 @@ export const TeacherTestResultsPage: React.FC = () => {
                     maxRows={10}
                   />
                 </Tabs.Panel>
-
                 <Tabs.Panel value="questions" pt="md">
                   <Stack>
                     {selectedStudentForFeedback.questionResults?.map((question) => (
@@ -1066,29 +707,19 @@ export const TeacherTestResultsPage: React.FC = () => {
                         <Group justify="apart" mb="sm">
                           <Text fw={600}>
                             Question {question.questionNumber}
-                            {question.isCorrect ? (
-                              <Badge ml="sm" color="green" variant="light" size="sm">
-                                Correct ✓
-                              </Badge>
-                            ) : (
-                              <Badge ml="sm" color="red" variant="light" size="sm">
-                                Incorrect ✗
-                              </Badge>
-                            )}
+                            <Badge ml="sm" color={question.isCorrect ? 'green' : 'red'} variant="light" size="sm">
+                              {question.isCorrect ? 'Correct' : 'Incorrect'}
+                            </Badge>
                           </Text>
                           <Text size="sm" c="dimmed">
-                            Student: {question.studentAnswer} | Correct: {question.correctAnswer}
+                            Student: {String(question.studentAnswer)} | Correct: {String(question.correctAnswer)}
                           </Text>
                         </Group>
                         <FeedbackEditor
                           questionId={String(question.questionNumber)}
                           initialFeedback={question.teacherFeedback || ''}
                           onSave={(feedback) => handleSaveQuestionFeedback(question.questionNumber, feedback)}
-                          placeholder={
-                            question.isCorrect
-                              ? 'Optionally explain why this answer is correct...'
-                              : 'Explain the mistake or provide hints...'
-                          }
+                          placeholder={question.isCorrect ? 'Optionally explain why this answer is correct...' : 'Explain the mistake or provide hints...'}
                           minRows={2}
                           maxRows={6}
                         />
@@ -1102,7 +733,6 @@ export const TeacherTestResultsPage: React.FC = () => {
         )}
       </div>
 
-      {/* PRD-0036: Integrity Detail Panel */}
       {selectedIntegrity && (
         <IntegrityDetailPanel
           report={selectedIntegrity.report}

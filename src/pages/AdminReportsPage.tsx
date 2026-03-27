@@ -37,6 +37,7 @@ import { sessionStore } from '../core/platform/storage';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigation } from '../hooks/useNavigation';
 import { database } from '../services/firebase';
+import type { UnresolvedResultVisibilityReportEntry } from '../types/results.types';
 import './AdminReportsPage.css';
 
 type ReportsTab = 'health' | 'errors' | 'live';
@@ -103,6 +104,10 @@ interface LiveFeedItem {
   featureName: string;
   message: string;
   userName: string;
+}
+
+interface UnresolvedDiagnosticsRow extends UnresolvedResultVisibilityReportEntry {
+  id?: string;
 }
 
 const TAB_DEFINITIONS: TabDefinition[] = [
@@ -499,6 +504,13 @@ const AdminReportsPage: React.FC = () => {
     twoDaysAgoErrors: false,
     todayEvents: false,
   });
+  const [unresolvedDiagnosticsRows, setUnresolvedDiagnosticsRows] = useState<
+    UnresolvedDiagnosticsRow[]
+  >([]);
+  const [unresolvedDiagnosticsLoaded, setUnresolvedDiagnosticsLoaded] = useState(false);
+  const [unresolvedDiagnosticsError, setUnresolvedDiagnosticsError] = useState<
+    string | null
+  >(null);
   const [userFilter, setUserFilter] = useState('');
   const [sortMode, setSortMode] = useState<ErrorSortOption>('newest');
   const [dateStartFilter, setDateStartFilter] = useState(getReportDateKey(2));
@@ -641,6 +653,46 @@ const AdminReportsPage: React.FC = () => {
 
       if (typeof unsubscribeErrorsRoot === 'function') {
         unsubscribeErrorsRoot();
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const unresolvedRef = ref(database, '/reports/result_visibility/unresolved');
+    const unsubscribe = onValue(
+      unresolvedRef,
+      (snapshot) => {
+        const rows = snapshotToRecords<UnresolvedDiagnosticsRow>(snapshot.val())
+          .map((row) => ({
+            ...row,
+            resultId: row.resultId || row.id || 'unknown-result',
+          }))
+          .sort((left, right) => {
+            return (
+              (right.updatedAt || 0) - (left.updatedAt || 0) ||
+              (right.createdAt || 0) - (left.createdAt || 0) ||
+              left.resultId.localeCompare(right.resultId)
+            );
+          });
+
+        setUnresolvedDiagnosticsRows(rows);
+        setUnresolvedDiagnosticsError(null);
+        setUnresolvedDiagnosticsLoaded(true);
+      },
+      (error) => {
+        setUnresolvedDiagnosticsRows([]);
+        setUnresolvedDiagnosticsError(
+          error instanceof Error
+            ? error.message
+            : 'Failed to load unresolved result diagnostics.'
+        );
+        setUnresolvedDiagnosticsLoaded(true);
+      }
+    );
+
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
       }
     };
   }, []);
@@ -1090,6 +1142,12 @@ const AdminReportsPage: React.FC = () => {
     pageViews: liveFeedItems.filter((item) => item.kind === 'pageView').length,
     actions: liveFeedItems.filter((item) => item.kind === 'action').length,
   };
+  const unresolvedDiagnosticsSummary = {
+    total: unresolvedDiagnosticsRows.length,
+    sourceLookupAttempted: unresolvedDiagnosticsRows.filter(
+      (row) => row.sourceLookupAttempted
+    ).length,
+  };
   const oldestErrorTimestamp = oldestErrorDateKey
     ? new Date(`${oldestErrorDateKey}T00:00:00.000Z`).getTime()
     : null;
@@ -1416,7 +1474,7 @@ const AdminReportsPage: React.FC = () => {
         </Card>
 
         {activeTab === 'health' && (
-          <>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {!healthDataReady ? (
               <Card variant="glass" className="admin-reports-section-card" style={{ padding: '1.5rem' }}>
                 <h3 style={{ marginTop: 0, marginBottom: '0.75rem', color: '#0f172a' }}>
@@ -1629,7 +1687,176 @@ const AdminReportsPage: React.FC = () => {
                 </Card>
               </>
             )}
-          </>
+
+            <Card
+              variant="glass"
+              className="admin-reports-section-card"
+              style={{ padding: '1.5rem' }}
+            >
+              <div
+                data-testid="unresolved-result-diagnostics"
+                style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-start',
+                    gap: '1rem',
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <div>
+                    <h3 style={{ marginTop: 0, marginBottom: '0.5rem', color: '#0f172a' }}>
+                      Unresolved Result Diagnostics
+                    </h3>
+                    <p style={{ margin: 0, color: '#475569', lineHeight: 1.6 }}>
+                      Read-only diagnostics for ownership rows that could not be resolved
+                      by the shared visibility pipeline. No mutation or editing actions are
+                      available in this workspace.
+                    </p>
+                  </div>
+                  <div
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.6rem',
+                      padding: '0.55rem 0.85rem',
+                      borderRadius: '999px',
+                      background: 'rgba(148, 163, 184, 0.12)',
+                      color: '#334155',
+                      fontWeight: 700,
+                    }}
+                  >
+                    <span>{unresolvedDiagnosticsSummary.total} unresolved</span>
+                    <span aria-hidden="true">·</span>
+                    <span>
+                      {unresolvedDiagnosticsSummary.sourceLookupAttempted} lookup attempts
+                    </span>
+                  </div>
+                </div>
+
+                {!unresolvedDiagnosticsLoaded ? (
+                  <div
+                    className="admin-reports-empty-state"
+                    style={{
+                      padding: '1rem 1.1rem',
+                      borderRadius: '16px',
+                      background: 'rgba(248, 250, 252, 0.92)',
+                      color: '#475569',
+                    }}
+                  >
+                    Loading unresolved result diagnostics from the reporting workspace.
+                  </div>
+                ) : unresolvedDiagnosticsError ? (
+                  <div
+                    style={{
+                      padding: '1rem 1.1rem',
+                      borderRadius: '16px',
+                      background: 'rgba(239, 68, 68, 0.12)',
+                      color: '#b91c1c',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {unresolvedDiagnosticsError}
+                  </div>
+                ) : unresolvedDiagnosticsRows.length === 0 ? (
+                  <div
+                    className="admin-reports-empty-state"
+                    style={{
+                      padding: '1rem 1.1rem',
+                      borderRadius: '16px',
+                      background: 'rgba(248, 250, 252, 0.92)',
+                      color: '#475569',
+                    }}
+                  >
+                    No unresolved result diagnostics are currently queued.
+                  </div>
+                ) : (
+                  <div className="admin-reports-scroll-container" style={{ overflowX: 'auto' }}>
+                    <table
+                      style={{
+                        width: '100%',
+                        minWidth: '980px',
+                        borderCollapse: 'collapse',
+                      }}
+                    >
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.25)' }}>
+                          {[
+                            'Result ID',
+                            'Student ID',
+                            'Context',
+                            'Reason',
+                            'Source Lookup',
+                            'Strongest Source Clue',
+                            'Schema',
+                            'Created',
+                            'Updated',
+                          ].map((header) => (
+                            <th
+                              key={header}
+                              style={{
+                                textAlign: 'left',
+                                padding: '0.85rem 0.75rem',
+                                fontSize: '0.8rem',
+                                letterSpacing: '0.06em',
+                                textTransform: 'uppercase',
+                                color: '#64748b',
+                              }}
+                            >
+                              {header}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {unresolvedDiagnosticsRows.map((row) => (
+                          <tr
+                            key={row.resultId}
+                            style={{
+                              borderBottom: '1px solid rgba(226, 232, 240, 0.7)',
+                              verticalAlign: 'top',
+                            }}
+                          >
+                            <td style={{ padding: '1rem 0.75rem', fontWeight: 700, color: '#0f172a' }}>
+                              {row.resultId}
+                            </td>
+                            <td style={{ padding: '1rem 0.75rem', color: '#334155' }}>
+                              {row.studentId}
+                            </td>
+                            <td style={{ padding: '1rem 0.75rem', color: '#334155' }}>
+                              {row.contextType}
+                            </td>
+                            <td style={{ padding: '1rem 0.75rem', color: '#334155' }}>
+                              {row.unresolvedReason}
+                            </td>
+                            <td style={{ padding: '1rem 0.75rem', color: '#334155' }}>
+                              {row.sourceLookupAttempted ? 'Attempted' : 'Not attempted'}
+                            </td>
+                            <td style={{ padding: '1rem 0.75rem', color: '#334155' }}>
+                              {row.strongestKnownSourceClue || 'No source clue captured'}
+                            </td>
+                            <td style={{ padding: '1rem 0.75rem', color: '#334155', fontWeight: 700 }}>
+                              {typeof row.reportVersion === 'number'
+                                ? `v${row.reportVersion}`
+                                : 'legacy'}
+                            </td>
+                            <td style={{ padding: '1rem 0.75rem', color: '#334155' }}>
+                              {formatAbsoluteTime(row.createdAt)}
+                            </td>
+                            <td style={{ padding: '1rem 0.75rem', color: '#334155' }}>
+                              {formatAbsoluteTime(row.updatedAt)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </Card>
+          </div>
         )}
 
         {activeTab === 'errors' && (

@@ -23,15 +23,14 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ref, push, set } from 'firebase/database';
+import { ref, push } from 'firebase/database';
 // @ts-ignore — JS service file
 import { database } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import { getStudentClasses, getClass } from '../../services/classManager';
 import { getUserById } from '../../services/userService';
-import { createSubmission } from '../../services/writingSubmissionService';
+import { createSubmission, materializeSubmissionResult } from '../../services/writingSubmissionService';
 import { notifyWritingSubmitted } from '../../services/notificationService';
-import { deepRemoveUndefined } from '../../services/draftCloudService';
 import { useExternalPastePrevention } from '../../hooks/useExternalPastePrevention';
 import { useActiveTimeTracking } from '../../hooks/useActiveTimeTracking';
 import WritingPromptPanel from '../writing-student/WritingPromptPanel';
@@ -336,7 +335,7 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
                 studentId,
                 studentName,
                 context: {
-                    type: contextType as 'solo-practice',
+                    type: contextType as 'homework' | 'solo-practice',
                     selectedTeacherId: data.teacherId || undefined,
                     studentNote: data.note || undefined,
                     ...(isHomework ? { homeworkId: homeworkContext!.homeworkId, isLate } : {}),
@@ -357,6 +356,10 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
             };
 
             await createSubmission(submission);
+            const materializeResult = await materializeSubmissionResult(submission);
+            if (!materializeResult.success) {
+                throw new Error(materializeResult.error || 'Failed to save writing result');
+            }
 
             // Fire notification (non-blocking)
             notifyWritingSubmitted(
@@ -365,55 +368,6 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
                 testData.metadata.title,
                 isHomework ? 'homework' : 'solo-practice'
             ).catch(err => console.warn('[WritingPracticeView] Notification failed:', err));
-
-            // Create RTDB result index (for student's Academic Record)
-            const resultRecord = deepRemoveUndefined({
-                resultId,
-                testId: testData.id,
-                studentId,
-                studentName,
-                isGuest: false,
-                teacherId: data.teacherId || testData.createdBy,
-                totalScore: 0,
-                maxScore: 0,
-                percentage: 0,
-                bandScore: 0,
-                testTitle: testData.metadata.title,
-                testType: 'practice',
-                testSkill: 'writing',
-                testDuration: testData.metadata.duration,
-                questionResults: [],
-                correct: 0,
-                incorrect: 0,
-                partialCredit: 0,
-                totalQuestions: 0,
-                submittedAt: Date.now(),
-                timeElapsed: Math.round((Date.now() - startedAtRef.current) / 1000),
-                createdAt: Date.now(),
-                markingStatus: 'pending-review',
-                writingData: {
-                    submissionId: resultId,
-                    overallBand: null,
-                    markingStatus: 'pending-review',
-                    tasks: submissionTasks.map(t => ({
-                        taskNumber: t.taskNumber,
-                        wordCount: t.wordCount,
-                        activeTimeSeconds: t.activeTimeSeconds,
-                    })),
-                },
-            });
-
-            // Write main result record (academic record service reads from here)
-            await set(
-                ref(database, `test_results/${resultId}`),
-                resultRecord
-            );
-
-            // Write student index (for efficient per-student queries)
-            await set(
-                ref(database, `test_results_by_student/${studentId}/${resultId}`),
-                resultRecord
-            );
 
             // Clear localStorage
             clearPracticeState(saveKey);

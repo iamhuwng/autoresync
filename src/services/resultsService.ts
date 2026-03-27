@@ -5,8 +5,13 @@
 
 import { ref, get } from 'firebase/database';
 import { database } from './firebase';
-import { getSessionResults as getPermanentSessionResults, TestResultRecord } from './testResults.service';
+import {
+  getSessionResults as getPermanentSessionResults,
+  getTeacherResults as getCanonicalTeacherResults,
+  TestResultRecord,
+} from './testResults.service';
 import type { ResultContext, ResultContextType } from '../types/solo.types';
+import { classifyTeacherResultVisibility } from './resultVisibility.service';
 
 export interface StudentResult {
   id?: string; // Original resultId from test_results
@@ -40,6 +45,7 @@ export interface StudentResult {
   moduleId?: string;
   // PRD-0016: Result context (class_session, homework, self_study, course_material)
   context?: ResultContext;
+  visibility?: TestResultRecord['visibility'];
 }
 
 
@@ -72,6 +78,80 @@ export interface ClassResults {
       averageScore: number;
       lastActivity: number;
     };
+  };
+}
+
+function toStudentResult(
+  result: TestResultRecord,
+  sessionData?: any
+): StudentResult {
+  return {
+    id: result.resultId,
+    studentId: result.studentId,
+    studentName: result.studentName || sessionData?.players?.[result.studentId]?.name || 'Unknown',
+    studentEmail: sessionData?.players?.[result.studentId]?.email,
+    sessionCode: result.sessionCode,
+    sessionMode:
+      sessionData?.mode
+      || ((result.context?.type === 'homework' || result.context?.type === 'self_study') ? 'test' : 'quiz'),
+    testId: result.testId,
+    quizId: sessionData?.quizId || result.testId,
+    testTitle: result.testTitle || sessionData?.testTitle || sessionData?.quizTitle,
+    score: result.totalScore || 0,
+    percentage: result.percentage || 0,
+    totalQuestions: result.totalQuestions || 0,
+    correctAnswers: result.correct || 0,
+    completedAt: result.submittedAt || result.createdAt || Date.now(),
+    timeSpent: result.timeElapsed,
+    classId: result.classId !== null ? result.classId : sessionData?.classId,
+    className: result.className !== null ? result.className : sessionData?.className,
+    isGuest: !!result.isGuest,
+    userId: result.studentId,
+    bandScore: result.bandScore,
+    testSkill: result.testSkill || sessionData?.testSkill,
+    teacherId: result.visibility?.visibilityOwnerTeacherId ?? undefined,
+    reMarkHistory: result.reMarkHistory?.length || 0,
+    courseId: result.courseId !== null ? result.courseId : sessionData?.courseId,
+    courseName: result.courseName !== null ? result.courseName : sessionData?.courseName,
+    moduleId: result.moduleId !== null ? result.moduleId : sessionData?.moduleId,
+    context: result.context,
+    visibility: result.visibility,
+  };
+}
+
+function isTeacherVisibleResult(
+  result: Pick<StudentResult, 'visibility'> & Partial<StudentResult>,
+  teacherId: string,
+  hasAssignmentAccess: boolean
+): boolean {
+  return classifyTeacherResultVisibility({
+    result,
+    teacherId,
+    hasAssignmentAccess,
+  }).shouldDisplayInTeacherHistory;
+}
+
+function buildSessionResultsFromCanonical(
+  sessionCode: string,
+  results: TestResultRecord[],
+  sessionData?: any
+): SessionResults {
+  const mappedResults = results.map((result) => toStudentResult(result, sessionData));
+  const scores = mappedResults.map((result) => result.score);
+  const percentages = mappedResults.map((result) => result.percentage);
+
+  return {
+    sessionCode,
+    sessionMode: sessionData?.mode || 'quiz',
+    testTitle: sessionData?.testTitle || sessionData?.quizTitle || results[0]?.testTitle,
+    createdAt: sessionData?.createdAt || results[0]?.createdAt || Date.now(),
+    completedAt: sessionData?.completedAt,
+    totalStudents: mappedResults.length,
+    averageScore: scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0,
+    averagePercentage: percentages.length > 0 ? percentages.reduce((a, b) => a + b, 0) / percentages.length : 0,
+    highestScore: scores.length > 0 ? Math.max(...scores) : 0,
+    lowestScore: scores.length > 0 ? Math.min(...scores) : 0,
+    results: mappedResults,
   };
 }
 
@@ -141,12 +221,13 @@ export async function getSessionResults(sessionCode: string): Promise<SessionRes
           // New fields
           bandScore: permResult?.bandScore,
           testSkill: permResult?.testSkill || sessionData.testSkill,
-          teacherId: permResult?.teacherId || sessionData.teacherId,
+          teacherId: permResult?.visibility?.visibilityOwnerTeacherId ?? undefined,
           reMarkHistory: permResult?.reMarkHistory?.length || 0,
           // Phase 6: Course context from session
           courseId: sessionData.courseId,
           courseName: sessionData.courseName, // Will be populated from course lookup if needed
-          moduleId: sessionData.moduleId
+          moduleId: sessionData.moduleId,
+          visibility: permResult?.visibility,
         });
       }
     }
@@ -180,6 +261,30 @@ export async function getSessionResults(sessionCode: string): Promise<SessionRes
  */
 export async function getTeacherResults(teacherId?: string): Promise<SessionResults[]> {
   try {
+    if (teacherId) {
+      const canonicalResults = await getCanonicalTeacherResults(teacherId);
+      if (canonicalResults.length === 0) {
+        return [];
+      }
+
+      const sessionsSnapshot = await get(ref(database, 'game_sessions'));
+      const sessions = sessionsSnapshot.exists() ? sessionsSnapshot.val() : {};
+      const groupedResults = new Map<string, TestResultRecord[]>();
+
+      canonicalResults.forEach((result) => {
+        const sessionResults = groupedResults.get(result.sessionCode) ?? [];
+        sessionResults.push(result);
+        groupedResults.set(result.sessionCode, sessionResults);
+      });
+
+      const teacherResults = Array.from(groupedResults.entries()).map(([sessionCode, sessionResults]) =>
+        buildSessionResultsFromCanonical(sessionCode, sessionResults, sessions?.[sessionCode])
+      );
+
+      teacherResults.sort((a, b) => b.createdAt - a.createdAt);
+      return teacherResults;
+    }
+
     const sessionsRef = ref(database, 'game_sessions');
     const snapshot = await get(sessionsRef);
 
@@ -195,14 +300,9 @@ export async function getTeacherResults(teacherId?: string): Promise<SessionResu
 
       const session = sessionData as any;
 
-      // If teacherId is provided, filter by it. Otherwise, include all sessions (admin mode)
-      const matchesTeacher = !teacherId || session.teacherId === teacherId || session.createdBy === teacherId;
-
-      if (matchesTeacher) {
-        const sessionResults = await getSessionResults(sessionCode);
-        if (sessionResults) {
-          results.push(sessionResults);
-        }
+      const sessionResults = await getSessionResults(sessionCode);
+      if (sessionResults) {
+        results.push(sessionResults);
       }
     }
 
@@ -304,38 +404,9 @@ export async function getStudentHistory(studentUid: string): Promise<StudentResu
   try {
     const { getStudentResults } = await import('./testResults.service');
     const permResults = await getStudentResults(studentUid);
-
-    const results: StudentResult[] = permResults.map(r => ({
-      id: r.resultId,
-      studentId: r.studentId,
-      studentName: r.studentName || 'Unknown',
-      studentEmail: undefined,
-      sessionCode: r.sessionCode,
-      // Default to test mode if we have a context or no mode stored (legacy)
-      sessionMode: (r.context?.type === 'homework' || r.context?.type === 'self_study') ? 'test' : 'quiz',
-      testId: r.testId,
-      quizId: r.testId,
-      testTitle: r.testTitle,
-      score: r.totalScore || 0,
-      percentage: r.percentage || 0,
-      totalQuestions: r.totalQuestions || 0,
-      correctAnswers: r.correct || 0,
-      completedAt: r.submittedAt || r.createdAt || Date.now(),
-      timeSpent: r.timeElapsed,
-      classId: r.classId !== null ? r.classId : undefined,
-      className: r.className !== null ? r.className : undefined,
-      isGuest: !!r.isGuest,
+    const results: StudentResult[] = permResults.map((result) => ({
+      ...toStudentResult(result),
       userId: studentUid,
-      // Analytics fields
-      bandScore: r.bandScore,
-      testSkill: r.testSkill,
-      teacherId: r.teacherId,
-      reMarkHistory: r.reMarkHistory?.length || 0,
-      // Course context
-      courseId: r.courseId !== null ? r.courseId : undefined,
-      courseName: r.courseName !== null ? r.courseName : undefined,
-      moduleId: r.moduleId !== null ? r.moduleId : undefined,
-      context: r.context
     }));
 
     // Sort by completion date (newest first)
@@ -646,9 +717,8 @@ export async function getResultsForTeacher(
 
     for (const studentId of assignedStudentIds) {
       const studentResults = await getResultsByContext(studentId, contextType);
-      // Filter to include results where teacher is session owner or no teacherId (legacy)
-      const filteredResults = studentResults.filter(r =>
-        r.teacherId === teacherId || !r.teacherId
+      const filteredResults = studentResults.filter((result) =>
+        isTeacherVisibleResult(result, teacherId, true)
       );
       results.push(...filteredResults);
     }
@@ -786,7 +856,11 @@ export async function getResultsForAssignedStudents(
 
     for (const studentId of studentIds) {
       const studentResults = await getStudentHistory(studentId);
-      allResults.push(...studentResults);
+      allResults.push(
+        ...studentResults.filter((result) =>
+          isTeacherVisibleResult(result, teacherId, true)
+        )
+      );
     }
 
     // Sort by completion date (newest first)
@@ -821,6 +895,11 @@ export async function getStudentAllResults(
         console.warn(`Teacher ${teacherId} does not have access to student ${studentId} results`);
         return [];
       }
+
+      const studentResults = await getStudentHistory(studentId);
+      return studentResults.filter((result) =>
+        isTeacherVisibleResult(result, teacherId, true)
+      );
     }
 
     // Get all results for the student
