@@ -18,6 +18,7 @@ import { ref, onValue } from 'firebase/database';
 import { database } from '../../services/firebase';
 import { getTestResult, TestResultRecord } from '../../services/testResults.service';
 import type { FormativeFeedback } from '../../types/thcs-test.types';
+import { deriveSessionReleaseState, getReleaseVisibility, type ReviewReleaseState } from '../../types/releaseState.types';
 import { useFeedbackAutoTrigger } from '../../hooks/useFeedbackAutoTrigger';
 import { useScreenSize } from '@/core/platform';
 import { useTestAttempts } from '../../hooks/useTestAttempts';
@@ -105,6 +106,48 @@ function isIeltsResult(result: TestResultRecord): boolean {
   return type.includes('ielts') || skill === 'reading' || skill === 'listening';
 }
 
+function isSessionGovernedSavedResult(result: TestResultRecord): boolean {
+  return result.context?.type === 'class_session' && Boolean(result.sessionCode);
+}
+
+function sanitizeResultForReleaseState(
+  result: TestResultRecord,
+  releaseState: ReviewReleaseState,
+): TestResultRecord {
+  if (releaseState === 'feedback-released') {
+    return result;
+  }
+
+  return {
+    ...result,
+    questionResults: (result.questionResults || []).map((question) => ({
+      ...question,
+      correctAnswer: releaseState === 'locked-review' ? '' : question.correctAnswer,
+      feedback: '',
+      teacherFeedback: undefined,
+    })),
+    formativeFeedback: undefined,
+    overallFeedback: undefined,
+    feedbackUpdatedAt: undefined,
+    feedbackUpdatedBy: undefined,
+    hasFeedback: undefined,
+  };
+}
+
+interface SavedResultReleaseGate {
+  sessionCode: string | null;
+  resolved: boolean;
+  isGoverned: boolean;
+  releaseState: ReviewReleaseState;
+}
+
+const DEFAULT_SAVED_RESULT_RELEASE_GATE: SavedResultReleaseGate = {
+  sessionCode: null,
+  resolved: true,
+  isGoverned: false,
+  releaseState: 'feedback-released',
+};
+
 
 
 /* ─── Component ──────────────────────────────────────────────────────────── */
@@ -121,12 +164,51 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
   const [_highlightedQuestionNumber, setHighlightedQuestionNumber] = useState<number | null>(null);
   // ── FR-035: Access-lost state (Task 3.3) ────────────────────────────────
   const [accessLost, setAccessLost] = useState<AccessLostState>(ACCESS_LOST_INITIAL);
+  const [savedResultReleaseGate, setSavedResultReleaseGate] = useState<SavedResultReleaseGate>(
+    DEFAULT_SAVED_RESULT_RELEASE_GATE,
+  );
 
   // ── Closing animation ────────────────────────────────────────────────────
   const [isClosing, setIsClosing] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const studentId = result?.studentId || (result as any)?.userId;
   const { attempts, loading: attemptsLoading } = useTestAttempts(studentId, result?.testId);
+  const isPotentiallyGovernedSavedResult = useMemo(
+    () => (result ? isSessionGovernedSavedResult(result) : false),
+    [result],
+  );
+  const releaseGateResolved = !isPotentiallyGovernedSavedResult
+    || (
+      savedResultReleaseGate.resolved
+      && savedResultReleaseGate.sessionCode === result?.sessionCode
+    );
+  const effectiveSavedResultReleaseState: ReviewReleaseState = isPotentiallyGovernedSavedResult
+    ? (
+      releaseGateResolved
+        ? (savedResultReleaseGate.isGoverned ? savedResultReleaseGate.releaseState : 'feedback-released')
+        : 'locked-review'
+    )
+    : 'feedback-released';
+  const releaseVisibility = useMemo(
+    () => getReleaseVisibility(effectiveSavedResultReleaseState),
+    [effectiveSavedResultReleaseState],
+  );
+  const visibleResult = useMemo(
+    () => (result ? sanitizeResultForReleaseState(result, effectiveSavedResultReleaseState) : null),
+    [result, effectiveSavedResultReleaseState],
+  );
+  const feedbackAutoTriggerEnabled = !isPotentiallyGovernedSavedResult
+    || (releaseGateResolved && effectiveSavedResultReleaseState === 'feedback-released');
+  const availableTabs = useMemo(() => {
+    const tabs = [TABS[0]];
+    if (releaseVisibility.showCorrectAnswers) {
+      tabs.push(TABS[1]);
+    }
+    if (releaseVisibility.showAIFeedback) {
+      tabs.push(TABS[2]);
+    }
+    return tabs;
+  }, [releaseVisibility.showAIFeedback, releaseVisibility.showCorrectAnswers]);
 
   // ── Centralized feedback auto-trigger (PRD-0040 Task 3.6) ───────────────
   const {
@@ -138,7 +220,7 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
     resultId: activeAttemptResultId,
     result,
     loading,
-    autoTriggerEnabled: true,
+    autoTriggerEnabled: feedbackAutoTriggerEnabled,
     shellName: 'ResultSlidePanel',
   });
 
@@ -150,7 +232,53 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
     setError(null);
     setHighlightedQuestionNumber(null);
     setAccessLost(ACCESS_LOST_INITIAL);
+    setSavedResultReleaseGate(DEFAULT_SAVED_RESULT_RELEASE_GATE);
   }, [resultId]);
+
+  useEffect(() => {
+    if (!result || !isSessionGovernedSavedResult(result)) {
+      setSavedResultReleaseGate(DEFAULT_SAVED_RESULT_RELEASE_GATE);
+      return;
+    }
+
+    const governedSessionCode = result.sessionCode;
+    setSavedResultReleaseGate({
+      sessionCode: governedSessionCode,
+      resolved: false,
+      isGoverned: true,
+      releaseState: 'locked-review',
+    });
+
+    const sessionRef = ref(database, `game_sessions/${governedSessionCode}`);
+    const unsubscribe = onValue(
+      sessionRef,
+      (snapshot) => {
+        setSavedResultReleaseGate({
+          sessionCode: governedSessionCode,
+          resolved: true,
+          isGoverned: true,
+          releaseState: deriveSessionReleaseState(snapshot.exists() ? snapshot.val() : null),
+        });
+      },
+      (sessionError) => {
+        console.warn('[ResultSlidePanel] Could not load saved-result release state. Falling back to locked review.', sessionError);
+        setSavedResultReleaseGate({
+          sessionCode: governedSessionCode,
+          resolved: true,
+          isGoverned: true,
+          releaseState: 'locked-review',
+        });
+      },
+    );
+
+    return () => unsubscribe();
+  }, [result?.context?.type, result?.sessionCode]);
+
+  useEffect(() => {
+    if (!availableTabs.some((tab) => tab.id === activeTab)) {
+      setActiveTab('overview');
+    }
+  }, [activeTab, availableTabs]);
 
   const handleClose = useCallback(() => {
     setIsClosing(true);
@@ -320,21 +448,24 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
   const tabSections: SharedSavedResultCoreSections = useMemo(() => {
     switch (activeTab) {
       case 'overview':
-        return { scoreSummary: true, answerMap: true, sectionBreakdown: true, questionReview: false, feedbackDisplay: false, teacherFeedback: false, writingPlaceholder: false };
+        return { scoreSummary: true, answerMap: true, sectionBreakdown: releaseVisibility.showQuestionScoring, questionReview: false, feedbackDisplay: false, teacherFeedback: false, writingPlaceholder: false };
       case 'review':
-        return { scoreSummary: false, answerMap: false, sectionBreakdown: false, questionReview: true, feedbackDisplay: false, teacherFeedback: false, writingPlaceholder: false };
+        return { scoreSummary: false, answerMap: false, sectionBreakdown: false, questionReview: releaseVisibility.showCorrectAnswers, feedbackDisplay: false, teacherFeedback: false, writingPlaceholder: false };
       case 'feedback':
-        return { scoreSummary: false, answerMap: false, sectionBreakdown: false, questionReview: false, feedbackDisplay: true, teacherFeedback: false, writingPlaceholder: false };
+        return { scoreSummary: false, answerMap: false, sectionBreakdown: false, questionReview: false, feedbackDisplay: releaseVisibility.showAIFeedback, teacherFeedback: false, writingPlaceholder: false };
       default:
         return { scoreSummary: false, answerMap: false, sectionBreakdown: false, questionReview: false, feedbackDisplay: false, teacherFeedback: false, writingPlaceholder: false };
     }
-  }, [activeTab]);
+  }, [activeTab, releaseVisibility.showAIFeedback, releaseVisibility.showCorrectAnswers, releaseVisibility.showQuestionScoring]);
 
   // ── Question navigation: pill click → switch to review tab + highlight ──
   const handleCoreNavigateToQuestion = useCallback((questionNumber: number) => {
+    if (!releaseVisibility.showCorrectAnswers) {
+      return;
+    }
     setActiveTab('review');
     setHighlightedQuestionNumber(questionNumber);
-  }, []);
+  }, [releaseVisibility.showCorrectAnswers]);
 
   // ── Feedback retry handler for core ──────────────────────────────────────
   const handleFeedbackRetry = useCallback(() => {
@@ -381,22 +512,65 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
       );
     }
 
-    // Delegate tab content to SharedSavedResultCore (PRD-0040 Task 2.4)
-    return (
-      <SharedSavedResultCore
-        result={result}
-        variant="slide-panel"
-        sections={tabSections}
-        feedbackState={{
-          formativeFeedback: result.formativeFeedback as FormativeFeedback | null | undefined,
-          feedbackLoading: formativeFeedbackLoading && !result.formativeFeedback,
-          feedbackError: feedbackError,
-          needsUpgrade: storedFeedbackNeedsUpgrade,
-          isEligibleForAIFeedback: Boolean(result.thcsData?.sectionResults) || isIeltsResult(result),
-          onRetryFeedback: handleFeedbackRetry,
+    const renderedResult = visibleResult || result;
+    const releaseNotice = savedResultReleaseGate.isGoverned && effectiveSavedResultReleaseState !== 'feedback-released' ? (
+      <div
+        style={{
+          marginBottom: '1rem',
+          padding: '0.875rem 1rem',
+          borderRadius: '0.875rem',
+          border: effectiveSavedResultReleaseState === 'locked-review'
+            ? '1px solid rgba(245, 158, 11, 0.22)'
+            : '1px solid rgba(59, 130, 246, 0.18)',
+          background: effectiveSavedResultReleaseState === 'locked-review'
+            ? 'rgba(255, 251, 235, 0.92)'
+            : 'rgba(239, 246, 255, 0.92)',
         }}
-        onNavigateToQuestion={handleCoreNavigateToQuestion}
-      />
+        data-testid={`rsp-release-notice-${effectiveSavedResultReleaseState}`}
+      >
+        <div
+          style={{
+            fontSize: '0.875rem',
+            fontWeight: 700,
+            color: effectiveSavedResultReleaseState === 'locked-review' ? '#92400e' : '#1d4ed8',
+            marginBottom: '0.25rem',
+          }}
+        >
+          {effectiveSavedResultReleaseState === 'locked-review' ? 'Detailed review is still locked' : 'Answers released, feedback still pending'}
+        </div>
+        <div
+          style={{
+            fontSize: '0.8rem',
+            color: effectiveSavedResultReleaseState === 'locked-review' ? '#b45309' : '#3b82f6',
+            lineHeight: 1.5,
+          }}
+        >
+          {effectiveSavedResultReleaseState === 'locked-review'
+            ? 'This saved result is still governed by the live-session release state. You can see your score and answer map, but not the released answer review yet.'
+            : 'Your teacher has released answer review for this live-session result. AI and teacher feedback will appear here once the session reaches feedback release.'}
+        </div>
+      </div>
+    ) : null;
+
+    return (
+      <>
+        {releaseNotice}
+        <SharedSavedResultCore
+          result={renderedResult}
+          variant="slide-panel"
+          sections={tabSections}
+          feedbackState={{
+            formativeFeedback: renderedResult.formativeFeedback as FormativeFeedback | null | undefined,
+            feedbackLoading: feedbackAutoTriggerEnabled && formativeFeedbackLoading && !renderedResult.formativeFeedback,
+            feedbackError: releaseVisibility.showFeedbackControls ? feedbackError : null,
+            needsUpgrade: releaseVisibility.showFeedbackControls ? storedFeedbackNeedsUpgrade : false,
+            isEligibleForAIFeedback: releaseVisibility.showFeedbackControls && (Boolean(result.thcsData?.sectionResults) || isIeltsResult(result)),
+            onRetryFeedback: releaseVisibility.showFeedbackControls ? handleFeedbackRetry : undefined,
+          }}
+          onNavigateToQuestion={handleCoreNavigateToQuestion}
+          canNavigateToReview={availableTabs.some((tab) => tab.id === 'review')}
+        />
+      </>
     );
   };
 
@@ -499,7 +673,7 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
 
         {/* Tab bar (Task 5.8, 5.9) */}
         <div className="rsp-tab-bar" data-testid="rsp-tab-bar">
-          {TABS.map((tab) => (
+          {availableTabs.map((tab) => (
             <button
               key={tab.id}
               className={`rsp-tab ${activeTab === tab.id ? 'rsp-tab--active' : ''}`}

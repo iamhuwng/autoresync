@@ -35,6 +35,7 @@ import {
     IconAlertTriangle,
     IconDownload,
 } from '@tabler/icons-react';
+import type { ReadingLabeledOption } from '../../types/document.types';
 
 // ═══════════════════════════════════════════════════════════════
 // TYPES
@@ -45,7 +46,7 @@ interface QuestionForAnswer {
     questionText: string;
     type: string;
     answer?: string | string[];
-    options?: string[] | null;
+    options?: Array<ReadingLabeledOption | string> | null;
 }
 
 export interface AnswerKeyModalProps {
@@ -142,7 +143,7 @@ export const AnswerKeyModal: React.FC<AnswerKeyModalProps> = ({
         for (const line of lines) {
             // Match patterns like "1. A", "1) A", "1: A", "1 A"
             const match = line.match(/^(\d+)[\.\)\:\s]+(.+)$/);
-            if (match) {
+            if (match?.[1] && match?.[2]) {
                 const questionNumber = parseInt(match[1], 10);
                 const answer = match[2].trim();
                 updates.push({ questionNumber, answer });

@@ -4,13 +4,28 @@
  */
 
 import React, { useRef, useEffect } from 'react';
-import { hasExistingLabel } from '../../utils/labelDetection';
+import { DragDropMatchingInput } from './DragDropMatchingInput';
+import { MatchingInformationInput } from './MatchingInformationInput';
+import type { ReadingSectionReference } from '../../types/document.types';
+import {
+  getReadingOptionDisplayText,
+  getReadingQuestionOptions,
+  getReadingOptionSelectionValue,
+  splitReadingOptionLabel,
+  type ReadingOptionDisplayFormat,
+  type ReadingOptionDisplayValue,
+} from '../../utils/readingOptionDisplay';
+
+type QuestionOption = ReadingOptionDisplayValue;
 
 interface Question {
   number: number;
   type: string;
   question: string;
-  options?: string[];
+  options?: QuestionOption[];
+  labeledOptions?: QuestionOption[];
+  sectionReferences?: ReadingSectionReference[];
+  optionLabelFormat?: ReadingOptionDisplayFormat;
   answer: string | string[] | Record<string, string>;
   passageId: string;
   points: number;
@@ -25,9 +40,46 @@ interface AuthenticAnswerInputProps {
   disabled?: boolean;
   usedAnswers?: string[];
   showReferencePanel?: boolean;
+  skill?: string;
 }
 
 const primaryBlue = 'rgb(65, 142, 200)';
+const buildFallbackLetterLabel = (index: number): string => String.fromCharCode(65 + index);
+
+const getOptionDisplayText = (
+  option: QuestionOption,
+  index: number,
+  format: ReadingOptionDisplayFormat = 'letter',
+): string => {
+  return getReadingOptionDisplayText(option, index, format);
+};
+
+const getOptionSelectionValue = (
+  option: QuestionOption,
+  index: number,
+  preferLabelValue: boolean,
+  format: ReadingOptionDisplayFormat = 'letter',
+): string => {
+  return getReadingOptionSelectionValue(option, index, format, preferLabelValue);
+};
+
+const getSummaryListSelectionValue = (option: QuestionOption, index: number): string => {
+  const split = splitReadingOptionLabel(option);
+  return split.label || buildFallbackLetterLabel(index);
+};
+
+const renderOptionLabel = (option: QuestionOption, index: number): React.ReactNode => {
+  const split = splitReadingOptionLabel(option);
+  if (split.label) {
+    return split.text ? `${split.label}. ${split.text}` : split.label;
+  }
+
+  return <><strong style={{ color: primaryBlue }}>{buildFallbackLetterLabel(index)}</strong>  {split.text}</>;
+};
+
+const getQuestionOptions = (question: Question): QuestionOption[] => (
+  getReadingQuestionOptions(question)
+);
 
 /**
  * Derive the maximum allowed word count from the IELTS question type.
@@ -217,17 +269,17 @@ const MultipleChoiceInput: React.FC<AuthenticAnswerInputProps> = ({
   question,
   onChange,
   answer,
-  disabled = false
+  disabled = false,
 }) => {
   const selected = answer as string || '';
+  const options = getQuestionOptions(question);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0', padding: '0.25rem 0' }}>
-      {question.options?.map((option, index) => {
-        const letter = String.fromCharCode(65 + index);
-        const isSelected = selected === option;
-        const isLast = index === (question.options?.length ?? 0) - 1;
-        const alreadyLabeled = hasExistingLabel(option, index);
+      {options.map((option, index) => {
+        const optionValue = getOptionSelectionValue(option, index, true, question.optionLabelFormat);
+        const isSelected = selected === optionValue;
+        const isLast = index === options.length - 1;
         return (
           <label
             key={index}
@@ -247,7 +299,7 @@ const MultipleChoiceInput: React.FC<AuthenticAnswerInputProps> = ({
             <input
               type="radio"
               name={`q-${question.number}`}
-              value={option}
+              value={optionValue}
               checked={isSelected}
               onChange={(e) => !disabled && onChange(e.target.value)}
               disabled={disabled}
@@ -260,7 +312,7 @@ const MultipleChoiceInput: React.FC<AuthenticAnswerInputProps> = ({
               fontFamily: 'Arial, sans-serif',
               fontWeight: isSelected ? 600 : 400,
             }}>
-              {alreadyLabeled ? option : <><strong style={{ color: isSelected ? primaryBlue : '#374151' }}>{letter}</strong>  {option}</>}
+              {renderOptionLabel(option, index)}
             </span>
           </label>
         );
@@ -277,26 +329,26 @@ const MultipleSelectInput: React.FC<AuthenticAnswerInputProps> = ({
   question,
   onChange,
   answer,
-  disabled = false
+  disabled = false,
 }) => {
   const selected = Array.isArray(answer) ? answer : (answer ? [answer as string] : []);
   // Determine required count from instructions (default 2 for IELTS)
   const requiredCount = 2;
+  const options = getQuestionOptions(question);
 
-  const handleToggle = (option: string) => {
-    const newSelected = selected.includes(option)
-      ? selected.filter(i => i !== option)
-      : [...selected, option];
+  const handleToggle = (optionValue: string) => {
+    const newSelected = selected.includes(optionValue)
+      ? selected.filter(i => i !== optionValue)
+      : [...selected, optionValue];
     onChange(newSelected);
   };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0', padding: '0.25rem 0' }}>
-      {question.options?.map((option, index) => {
-        const letter = String.fromCharCode(65 + index);
-        const isChecked = selected.includes(option);
-        const isLast = index === (question.options?.length ?? 0) - 1;
-        const alreadyLabeled = hasExistingLabel(option, index);
+      {options.map((option, index) => {
+        const optionValue = getOptionSelectionValue(option, index, true, question.optionLabelFormat);
+        const isChecked = selected.includes(optionValue);
+        const isLast = index === options.length - 1;
         return (
           <label
             key={index}
@@ -316,7 +368,7 @@ const MultipleSelectInput: React.FC<AuthenticAnswerInputProps> = ({
             <input
               type="checkbox"
               checked={isChecked}
-              onChange={() => !disabled && handleToggle(option)}
+              onChange={() => !disabled && handleToggle(optionValue)}
               disabled={disabled}
               style={{ width: '14px', height: '14px', marginTop: '3px', accentColor: primaryBlue, cursor: 'pointer', flexShrink: 0 }}
             />
@@ -327,7 +379,7 @@ const MultipleSelectInput: React.FC<AuthenticAnswerInputProps> = ({
               fontFamily: 'Arial, sans-serif',
               fontWeight: isChecked ? 600 : 400,
             }}>
-              {alreadyLabeled ? option : <><strong style={{ color: isChecked ? primaryBlue : '#374151' }}>{letter}</strong>  {option}</>}
+              {renderOptionLabel(option, index)}
             </span>
           </label>
         );
@@ -362,9 +414,10 @@ const DropdownMatchingInput: React.FC<AuthenticAnswerInputProps> = ({
   question,
   onChange,
   answer,
-  disabled = false
+  disabled = false,
 }) => {
   const matches = typeof answer === 'object' && !Array.isArray(answer) ? answer : {};
+  const options = getQuestionOptions(question);
 
   const handleMatch = (itemId: string, optId: string) => {
     onChange({ ...matches, [itemId]: optId });
@@ -388,9 +441,12 @@ const DropdownMatchingInput: React.FC<AuthenticAnswerInputProps> = ({
             }}
           >
             <option value="">Select...</option>
-            {question.options?.map((opt, i) => (
-              <option key={i} value={opt}>{hasExistingLabel(opt, i) ? opt : `${String.fromCharCode(65 + i)}. ${opt}`}</option>
-            ))}
+            {options.map((opt, i) => {
+              const value = getOptionSelectionValue(opt, i, true, question.optionLabelFormat);
+              return (
+                <option key={i} value={value}>{getOptionDisplayText(opt, i, question.optionLabelFormat)}</option>
+              );
+            })}
           </select>
         </div>
       ))}
@@ -653,13 +709,13 @@ const SummaryCompletionListInput: React.FC<AuthenticAnswerInputProps & { usedAns
   showReferencePanel = true,
 }) => {
   const val = answer as string || '';
+  const options = getQuestionOptions(question);
   const cleanedText = cleanQuestionText(question.question);
   const parts = cleanedText.split(/_{3,}/);
   const hasInlineBlanks = parts.length >= 2;
 
   // Smart dropdown: filter out options used by OTHER questions (not this one)
-  const isOptionAvailable = (letterIndex: number) => {
-    const letter = String.fromCharCode(65 + letterIndex);
+  const isOptionAvailable = (letter: string) => {
     if (letter === val) return true; // Keep our own selection visible
     return !usedAnswers.includes(letter);
   };
@@ -690,17 +746,17 @@ const SummaryCompletionListInput: React.FC<AuthenticAnswerInputProps & { usedAns
       }}
     >
       <option value="">Select...</option>
-      {question.options?.map((opt, i) => {
-        const letter = String.fromCharCode(65 + i);
-        const available = isOptionAvailable(i);
-        return (
+            {options.map((opt, i) => {
+              const letter = getSummaryListSelectionValue(opt, i);
+              const available = isOptionAvailable(letter);
+              return (
           <option
             key={i}
             value={letter}
             disabled={!available}
             style={{ color: available ? '#000' : '#94a3b8' }}
           >
-            {hasExistingLabel(opt, i) ? opt : `${letter}. ${opt}`}{!available ? ' (used)' : ''}
+            {getOptionDisplayText(opt, i)}{!available ? ' (used)' : ''}
           </option>
         );
       })}
@@ -726,7 +782,7 @@ const SummaryCompletionListInput: React.FC<AuthenticAnswerInputProps & { usedAns
       )}
 
       {/* Visible options reference panel per IELTS design doc */}
-      {showReferencePanel && question.options && question.options.length > 0 && (
+      {showReferencePanel && options.length > 0 && (
         <div style={{
           background: '#f8fafc',
           border: '1px solid #d1d5db',
@@ -748,8 +804,9 @@ const SummaryCompletionListInput: React.FC<AuthenticAnswerInputProps & { usedAns
             gridTemplateColumns: 'repeat(2, 1fr)',
             gap: '0.375rem 1.5rem',
           }}>
-            {question.options.map((opt, i) => {
-              const letter = String.fromCharCode(65 + i);
+            {options.map((opt, i) => {
+              const displayLabel = renderOptionLabel(opt, i);
+              const letter = getSummaryListSelectionValue(opt, i);
               const isUsed = usedAnswers.includes(letter);
               return (
                 <div key={i} style={{
@@ -759,7 +816,7 @@ const SummaryCompletionListInput: React.FC<AuthenticAnswerInputProps & { usedAns
                   lineHeight: 1.5,
                   fontFamily: 'Arial, sans-serif',
                 }}>
-                  {hasExistingLabel(opt, i) ? opt : <><strong>{letter}</strong>  {opt}</>}
+                  {displayLabel}
                 </div>
               );
             })}
@@ -770,18 +827,25 @@ const SummaryCompletionListInput: React.FC<AuthenticAnswerInputProps & { usedAns
   );
 };
 
-import { DragDropMatchingInput } from './DragDropMatchingInput';
-
 export const AuthenticAnswerInput: React.FC<AuthenticAnswerInputProps> = (props) => {
   const { question } = props;
+  const questionOptions = getQuestionOptions(question);
   switch (question.type) {
     case 'true-false-not-given': return <TrueFalseInput {...props} />;
     case 'yes-no-not-given': return <YesNoInput {...props} />;
     case 'multiple-choice': return <MultipleChoiceInput {...props} />;
     case 'multiple-select': return <MultipleSelectInput {...props} />;
+    case 'matching-information':
+      return (
+        <MatchingInformationInput
+          questions={[question]}
+          answers={{ [question.number]: props.answer as string }}
+          onAnswerChange={(_num, ans) => props.onChange(ans)}
+          disabled={props.disabled}
+        />
+      );
     case 'matching':
     case 'matching-headings':
-    case 'matching-information':
     case 'matching-features':
     case 'matching-sentence-endings':
       // ── DIAGNOSTIC: Log matching type routing ──
@@ -789,20 +853,21 @@ export const AuthenticAnswerInput: React.FC<AuthenticAnswerInputProps> = (props)
         console.log(`🔀 [AuthenticAnswerInput] matching-headings Q${question.number}:`, {
           hasItems: !!(question.items && question.items.length > 0),
           itemsCount: (question.items || []).length,
-          hasOptions: !!(question.options && question.options.length > 0),
-          optionsCount: (question.options || []).length,
-          willUseDragDrop: !!(question.items && question.items.length > 0 && question.options && question.options.length > 0),
+          hasOptions: questionOptions.length > 0,
+          optionsCount: questionOptions.length,
+          willUseDragDrop: !!(question.items && question.items.length > 0 && questionOptions.length > 0),
           question: question.question.substring(0, 60),
           answer: props.answer,
         });
       }
       // Use DragDropMatchingInput for matching types if items and options are available
-      if (question.items && question.items.length > 0 && question.options && question.options.length > 0) {
+      if (question.items && question.items.length > 0 && questionOptions.length > 0) {
         return <DragDropMatchingInput
-          questions={[question]}
+          questions={[{ ...question, options: question.options, labeledOptions: question.labeledOptions }]}
           answers={{ [question.number]: props.answer as string }}
           onAnswerChange={(_num, ans) => props.onChange(ans)}
           disabled={props.disabled}
+          labelType={(question.optionLabelFormat || (question.type === 'matching-headings' ? 'roman' : 'letter')) === 'roman' ? 'roman' : 'letter'}
         />;
       }
       return <DropdownMatchingInput {...props} />;

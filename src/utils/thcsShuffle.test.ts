@@ -145,4 +145,29 @@ describe('shuffleIELTSTest', () => {
     expect(correctOptionIndex).toBeGreaterThanOrEqual(0);
     expect(gradingQuestion.answer).toBe(['A', 'B', 'C', 'D'][correctOptionIndex]);
   });
+
+  it('does not shuffle canonical labeled Reading option groups', () => {
+    const matchingHeadingsQuestion = [{
+      number: 14,
+      type: 'matching-headings',
+      passageId: 'p1',
+      question: 'Choose the correct heading.',
+      answer: 'iv',
+      labeledOptions: [
+        { label: 'ii', text: 'The spread of cities' },
+        { label: 'iv', text: 'The dead' },
+        { label: 'ix', text: 'The cities' },
+      ],
+      options: ['The spread of cities', 'The dead', 'The cities'],
+    }];
+
+    const shuffled = shuffleIELTSTest(matchingHeadingsQuestion, 'student-z', 'test-reading', {
+      shuffleQuestions: false,
+      shuffleOptions: true,
+    })[0];
+
+    expect(shuffled.labeledOptions).toEqual(matchingHeadingsQuestion[0].labeledOptions);
+    expect(shuffled.options).toEqual(matchingHeadingsQuestion[0].options);
+    expect(shuffled.answer).toBe('iv');
+  });
 });

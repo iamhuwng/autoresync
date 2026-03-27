@@ -34,6 +34,17 @@ const QuestionContextSchema = z.union([
   z.undefined(), // Or missing
 ]).nullable().optional();
 
+const ReadingLabeledOptionSchema = z.object({
+  label: z.string().min(1),
+  text: z.string().min(0),
+});
+
+const ReadingSectionReferenceSchema = z.object({
+  label: z.string().min(1),
+  title: z.string().min(0).optional(),
+  paragraph: z.string().min(0).optional(),
+});
+
 /**
  * Zod schema for AI question
  */
@@ -66,7 +77,10 @@ const AIQuestionSchema = z.object({
     'completion',
     'matching',
   ]),
-  options: z.array(z.string()).nullable().optional(),
+  options: z.array(z.union([z.string(), ReadingLabeledOptionSchema])).nullable().optional(),
+  labeledOptions: z.array(ReadingLabeledOptionSchema).nullable().optional(),
+  optionLabelFormat: z.enum(['letter', 'roman', 'number']).nullable().optional(),
+  sectionReferences: z.array(ReadingSectionReferenceSchema).nullable().optional(),
   summaryGroupId: z.string().optional(),
   answer: z.union([z.string(), z.array(z.string())]),
   passageId: z.string().nullable().optional(),

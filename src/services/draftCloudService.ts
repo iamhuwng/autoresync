@@ -12,6 +12,7 @@ import type {
   Passage,
   ParsedQuestion,
 } from '../types/draft.types';
+import { canonicalizeReadingQuestion } from '../utils/readingQuestionContract';
 
 /**
  * Legacy DraftData type for backwards compatibility with old quiz draft system
@@ -74,6 +75,33 @@ export function deepRemoveUndefined(obj: any): any {
 
   return obj;
 }
+
+const normalizeParsedQuestions = (questions: ParsedQuestion[]): ParsedQuestion[] => questions.map((question) => {
+  const canonicalQuestion = canonicalizeReadingQuestion({
+    questionNumber: question.questionNumber || question.number,
+    type: question.type,
+    questionText: question.questionText || question.question || '',
+    question: question.question,
+    options: question.labeledOptions || question.options || [],
+    labeledOptions: question.labeledOptions,
+    optionLabelFormat: question.optionLabelFormat,
+    sectionReferences: question.sectionReferences,
+  });
+
+  if (canonicalQuestion.issues.length > 0) {
+    throw new Error(canonicalQuestion.issues[0]!.message);
+  }
+
+  return {
+    ...question,
+    questionText: canonicalQuestion.questionText,
+    question: canonicalQuestion.question,
+    options: canonicalQuestion.options,
+    labeledOptions: canonicalQuestion.labeledOptions,
+    optionLabelFormat: canonicalQuestion.optionLabelFormat,
+    sectionReferences: canonicalQuestion.sectionReferences,
+  };
+});
 
 /**
  * Convert Firestore Timestamps to Date objects
@@ -439,6 +467,7 @@ export const testDraftService: DraftServiceInterface = {
       // Always update the updatedAt timestamp
       const updateData = {
         ...updates,
+        questions: Array.isArray(updates.questions) ? normalizeParsedQuestions(updates.questions) : updates.questions,
         updatedAt: new Date(),
       };
 
@@ -580,7 +609,7 @@ export const testDraftService: DraftServiceInterface = {
 
       await updateDoc(draftRef, deepRemoveUndefined({
         passages,
-        questions,
+        questions: normalizeParsedQuestions(questions),
         sectionInstructions,
         status: 'review' as DraftStatus,
         questionCount: questions.length,

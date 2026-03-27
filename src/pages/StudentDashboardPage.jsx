@@ -294,21 +294,20 @@ const StudentDashboardPage = () => {
         // must first register the student's player data in sessionStorage before
         // navigating, exactly as StudentClassDetailPage does. This ensures the
         // test page can identify the player and apply class-based permissions.
-        const { sessionCode, sessionMode } = notif.metadata || {};
+        const { sessionCode } = notif.metadata || {};
         if (sessionCode) {
             sessionService.setPlayerData(
                 user.uid,
                 user.displayName || user.email || 'Student',
                 sessionCode
             );
-            // Route based on mode: tests go directly to test page (which shows a
-            // "Waiting" overlay if the teacher hasn't started yet), quizzes go to
-            // the waiting room where session code lookup happens.
-            if (sessionMode === 'test' || (notif.link && notif.link.includes('/student-test/'))) {
-                navigate(`/student-test/${sessionCode}`);
-            } else {
-                navigate(`/student-wait/${sessionCode}`);
-            }
+            // Always enter live sessions via the waiting room so the session
+            // lifecycle controls the transition to the student test surface.
+            navigateTo(
+                'STUDENT_WAITING',
+                { gameSessionId: sessionCode },
+                { reason: 'dashboard_session_notification' },
+            );
             return;
         }
 
@@ -533,11 +532,11 @@ const StudentDashboardPage = () => {
                                             if (user) {
                                                 sessionService.setPlayerData(user.uid, user.displayName || user.email || 'Student', session.code);
                                             }
-                                            if (session.mode === 'test') {
-                                                navigate(`/student-test/${session.code}`);
-                                            } else {
-                                                navigate(`/student-wait/${session.code}`);
-                                            }
+                                            navigateTo(
+                                                'STUDENT_WAITING',
+                                                { gameSessionId: session.code },
+                                                { reason: 'dashboard_live_session_join' },
+                                            );
                                         }}
                                     >
                                         Join Now →

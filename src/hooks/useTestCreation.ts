@@ -29,7 +29,18 @@ import type { CompletenessCheck } from '../components/test-creation/CompletionCh
 import type { UncertainItem } from '../services/test-creation/validator.service';
 import type { QuestionType } from '../types/QuestionSchema';
 import { saveTestToFirebase, type TestMetadata } from '../services/testStorage';
-import type { Passage, ParsedQuestion as StorageQuestion } from '../types/document.types';
+import type {
+    Passage,
+    ParsedQuestion as StorageQuestion,
+    ReadingLabeledOption,
+    ReadingSectionReference,
+} from '../types/document.types';
+import {
+    canonicalizeReadingQuestion,
+    createDefaultReadingOptions,
+    isCanonicalReadingOptionType,
+    isMatchingInformationType,
+} from '../utils/readingQuestionContract';
 
 // ═══════════════════════════════════════════════════════════════
 // TYPES
@@ -113,6 +124,57 @@ export interface TestCreationActions {
     downloadDebugData: () => void;
 }
 
+const toReviewOptions = (question: {
+    questionNumber?: number;
+    type?: string;
+    questionText?: string;
+    question?: string;
+    options?: Array<string | ReadingLabeledOption> | null;
+    labeledOptions?: ReadingLabeledOption[] | null;
+    optionLabelFormat?: 'letter' | 'roman' | 'number' | null;
+    sectionReferences?: ReadingSectionReference[] | null;
+}): Array<ReadingLabeledOption | string> | undefined => {
+    const result = canonicalizeReadingQuestion({
+        questionNumber: question.questionNumber,
+        type: question.type,
+        questionText: question.questionText ?? question.question,
+        options: question.options,
+        labeledOptions: question.labeledOptions,
+        optionLabelFormat: question.optionLabelFormat,
+        sectionReferences: question.sectionReferences,
+    });
+
+    if (isMatchingInformationType(question.type)) {
+        return undefined;
+    }
+
+    if (!isCanonicalReadingOptionType(question.type)) {
+        return question.options || undefined;
+    }
+
+    return result.labeledOptions;
+};
+
+const toReviewSectionReferences = (question: {
+    questionNumber?: number;
+    type?: string;
+    questionText?: string;
+    question?: string;
+    options?: Array<string | ReadingLabeledOption> | null;
+    labeledOptions?: ReadingLabeledOption[] | null;
+    optionLabelFormat?: 'letter' | 'roman' | 'number' | null;
+    sectionReferences?: ReadingSectionReference[] | null;
+}): ReadingSectionReference[] | undefined =>
+    canonicalizeReadingQuestion({
+        questionNumber: question.questionNumber,
+        type: question.type,
+        questionText: question.questionText ?? question.question,
+        options: question.options,
+        labeledOptions: question.labeledOptions,
+        optionLabelFormat: question.optionLabelFormat,
+        sectionReferences: question.sectionReferences,
+    }).sectionReferences || undefined;
+
 // ═══════════════════════════════════════════════════════════════
 // HOOK
 // ═══════════════════════════════════════════════════════════════
@@ -152,6 +214,16 @@ export function useTestCreation(): [TestCreationState, TestCreationActions] {
 
     const completenessChecks = useMemo((): CompletenessCheck[] => {
         const checks: CompletenessCheck[] = [];
+        const readingContractIssues = questions.flatMap((question) =>
+            canonicalizeReadingQuestion({
+                questionNumber: question.questionNumber,
+                type: question.type,
+                questionText: question.questionText,
+                options: question.options || [],
+                optionLabelFormat: question.optionLabelFormat,
+                sectionReferences: question.sectionReferences,
+            }).issues,
+        );
 
         // Passages check
         const passageCount = passages.length;
@@ -213,6 +285,17 @@ export function useTestCreation(): [TestCreationState, TestCreationActions] {
             });
         }
 
+        if (readingContractIssues.length > 0) {
+            checks.push({
+                id: 'reading-contract',
+                label: 'Reading Labels',
+                description: 'Canonical Reading labels must be complete and structurally valid',
+                status: 'incomplete',
+                count: { current: 0, required: readingContractIssues.length },
+                details: readingContractIssues.slice(0, 5).map(issue => issue.message),
+            });
+        }
+
         return checks;
     }, [passages, questions, uncertainItems]);
 
@@ -227,7 +310,7 @@ export function useTestCreation(): [TestCreationState, TestCreationActions] {
         if (passages.length === 0 || questions.length === 0) return false;
 
         // All critical checks must be complete
-        const criticalChecks = completenessChecks.filter(c => c.id === 'answers');
+        const criticalChecks = completenessChecks.filter(c => c.id === 'answers' || c.id === 'reading-contract');
         return criticalChecks.every(c => c.status === 'complete' || c.status === 'warning');
     }, [passages, questions, completenessChecks]);
 
@@ -313,9 +396,31 @@ export function useTestCreation(): [TestCreationState, TestCreationActions] {
                         const disc = discrepancyMap.get(q.questionNumber);
                         return {
                             questionNumber: q.questionNumber,
-                            questionText: q.questionText || '',
+                            questionText: canonicalizeReadingQuestion({
+                                questionNumber: q.questionNumber,
+                                type: q.type as QuestionType,
+                                questionText: q.questionText || '',
+                            }).questionText,
                             type: q.type as QuestionType,
-                            options: q.options,
+                            options: toReviewOptions({
+                                questionNumber: q.questionNumber,
+                                type: q.type,
+                                questionText: q.questionText || '',
+                                options: q.options,
+                                labeledOptions: (q as any).labeledOptions,
+                                optionLabelFormat: (q as any).optionLabelFormat || null,
+                                sectionReferences: (q as any).sectionReferences || null,
+                            }),
+                            sectionReferences: toReviewSectionReferences({
+                                questionNumber: q.questionNumber,
+                                type: q.type,
+                                questionText: q.questionText || '',
+                                options: q.options,
+                                labeledOptions: (q as any).labeledOptions,
+                                optionLabelFormat: (q as any).optionLabelFormat || null,
+                                sectionReferences: (q as any).sectionReferences || null,
+                            }),
+                            optionLabelFormat: (q as any).optionLabelFormat,
                             answer: q.answer,
                             passageId: q.passageId,
                             confidence: q.confidence,
@@ -463,11 +568,13 @@ export function useTestCreation(): [TestCreationState, TestCreationActions] {
         const maxNumber = Math.max(0, ...questions.map(q => q.questionNumber));
         const targetPassageId = passageId || passages[0]?.id;
         const newQuestion: ParsedQuestion = {
-            questionNumber: maxNumber + 1,
-            questionText: '',
-            type: 'multiple-choice',
-            options: ['A', 'B', 'C', 'D'],
-            answer: undefined,
+                questionNumber: maxNumber + 1,
+                questionText: '',
+                type: 'multiple-choice',
+                options: createDefaultReadingOptions(4, 'letter'),
+                sectionReferences: undefined,
+                optionLabelFormat: 'letter',
+                answer: undefined,
             passageId: targetPassageId,
             confidence: 100,
             uncertain: false,
@@ -566,21 +673,35 @@ export function useTestCreation(): [TestCreationState, TestCreationActions] {
             });
 
             // 3. Transform questions to Firebase format
-            const storageQuestions: StorageQuestion[] = questions.map((q) => ({
-                id: `q-${q.questionNumber}`,
-                number: q.questionNumber,
-                questionNumber: q.questionNumber,
-                questionText: q.questionText || '',
-                question: q.questionText || '',
-                type: q.type,
-                options: q.options || [],
-                answer: q.answer || '',
-                answerSource: 'ai-suggestion' as const,
-                passageId: q.passageId || storagePassages[0]?.id || 'default',
-                confidence: q.confidence || 80,
-                points: 1,
-                wordLimit: q.wordLimit,
-            }));
+            const storageQuestions: StorageQuestion[] = questions.map((q) => {
+                const canonicalQuestion = canonicalizeReadingQuestion({
+                    questionNumber: q.questionNumber,
+                    type: q.type,
+                    questionText: q.questionText || '',
+                    options: q.options || [],
+                    optionLabelFormat: q.optionLabelFormat,
+                    sectionReferences: q.sectionReferences,
+                });
+
+                return {
+                    id: `q-${q.questionNumber}`,
+                    number: q.questionNumber,
+                    questionNumber: q.questionNumber,
+                    questionText: canonicalQuestion.questionText,
+                    question: canonicalQuestion.question,
+                    type: q.type,
+                    options: canonicalQuestion.options || [],
+                    labeledOptions: canonicalQuestion.labeledOptions,
+                    optionLabelFormat: canonicalQuestion.optionLabelFormat,
+                    sectionReferences: canonicalQuestion.sectionReferences,
+                    answer: q.answer || '',
+                    answerSource: 'ai-suggestion' as const,
+                    passageId: q.passageId || storagePassages[0]?.id || 'default',
+                    confidence: q.confidence || 80,
+                    points: 1,
+                    wordLimit: q.wordLimit,
+                };
+            });
 
             // 4. Get user ID for ownership
             const userId = user?.uid || 'anonymous';

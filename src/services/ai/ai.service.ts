@@ -1,4 +1,9 @@
-import type { Chunk } from '../../types/document.types';
+import type {
+  Chunk,
+  ReadingLabeledOption,
+  ReadingOptionLabelFormat,
+  ReadingSectionReference,
+} from '../../types/document.types';
 import type { Result } from '../../types/result.types';
 
 /**
@@ -22,7 +27,10 @@ export interface AIQuestion {
   questionNumber: number;
   questionText: string;
   type: string;
-  options?: string[] | null;
+  options?: Array<string | ReadingLabeledOption> | null;
+  labeledOptions?: ReadingLabeledOption[] | null;
+  optionLabelFormat?: ReadingOptionLabelFormat | null;
+  sectionReferences?: ReadingSectionReference[] | null;
   answer: string | string[];
   passageId?: string | null;
   confidence: number;

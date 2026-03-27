@@ -13,10 +13,24 @@
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-import type { Passage, ParsedQuestion, QuestionType } from './document.types';
+import type {
+    Passage,
+    ParsedQuestion,
+    QuestionType,
+    ReadingLabeledOption,
+    ReadingOptionLabelFormat,
+    ReadingSectionReference,
+} from './document.types';
 
 // Re-export for convenience
-export type { Passage, ParsedQuestion, QuestionType };
+export type {
+    Passage,
+    ParsedQuestion,
+    QuestionType,
+    ReadingLabeledOption,
+    ReadingOptionLabelFormat,
+    ReadingSectionReference,
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SECTION 1: Core Enums and Types

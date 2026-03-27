@@ -15,6 +15,8 @@ export interface OverviewTabProps {
   formativeFeedbackLoading?: boolean;
   feedbackError?: string | null;
   onRetryFeedback?: () => void;
+  showSectionBreakdown?: boolean;
+  reviewNavigationEnabled?: boolean;
 }
 
 function getTestCategory(result: TestResultRecord): 'thcs' | 'ielts-reading' | 'ielts-listening' | 'generic' {
@@ -133,6 +135,8 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   formativeFeedbackLoading,
   feedbackError,
   onRetryFeedback,
+  showSectionBreakdown = true,
+  reviewNavigationEnabled = true,
 }) => {
   const category = useMemo(() => getTestCategory(result), [result]);
   const timeSpent = formatTime(result.timeElapsed);
@@ -245,7 +249,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
           <div className="ov-pill-grid" style={{ gridTemplateColumns: `repeat(${gridCols}, 1fr)` }}>
             {questions.map((question) => {
               const status = getPillStatus(question);
-              const isClickable = status === 'incorrect' || status === 'partial';
+              const isClickable = reviewNavigationEnabled && (status === 'incorrect' || status === 'partial');
 
               return (
                 <button
@@ -265,7 +269,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         </div>
       ) : null}
 
-      {category === 'thcs' && sectionResults.length > 0 ? (
+      {showSectionBreakdown && category === 'thcs' && sectionResults.length > 0 ? (
         <div className="ov-section-cards fade-in-d3" data-testid="ov-thcs-sections">
           <h3 className="ov-section-title">Performance by Section</h3>
           {visibleSectionResults.map((section, index) => (
@@ -298,7 +302,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         </div>
       ) : null}
 
-      {(category === 'ielts-reading' || category === 'ielts-listening') && result.ieltsData?.passageResults ? (
+      {showSectionBreakdown && (category === 'ielts-reading' || category === 'ielts-listening') && result.ieltsData?.passageResults ? (
         <div className="ov-passage-cards fade-in-d3" data-testid="ov-ielts-passages">
           <h3 className="ov-section-title">Passage Breakdown</h3>
           {result.ieltsData.passageResults.map((passage, index) => (
