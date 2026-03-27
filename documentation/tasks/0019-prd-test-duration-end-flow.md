@@ -114,6 +114,16 @@ This PRD defines an automated, skill-aware flow for handling test duration expir
 | FR-L3 | After `endFullSession()`, the session SHALL be reusable for additional tests |
 | FR-L4 | Players with `hasCompletedTest: true` SHALL NOT be cleared; only their answers/scores SHALL be cleared for next test |
 
+### 4.6 Post-Test Result Recovery Contract
+
+| ID | Requirement |
+|----|-------------|
+| FR-R1 | For **IELTS Reading**, **IELTS Listening**, and **THCS** live sessions, student result access SHALL be recoverable from persisted post-test breadcrumbs (`lastTestId`, `lastTestSessionCode`, `lastTestEndedAt`, `lastTestCompletedAt`) even if router state is missing or the page is refreshed immediately after teacher-end. |
+| FR-R2 | `StudentWaitingRoomPage` SHALL be the recovery owner for live-session result handoff and SHALL rehydrate the effective release state from the full session snapshot, not only from a transient `reviewReleaseState` navigation value. |
+| FR-R3 | Teacher-end redirect state (`showResults`, `testId`, release metadata) MAY be passed as a fast path, but it SHALL NOT be the only source of truth for deciding whether recent results are available. |
+| FR-R4 | Listening test pages SHALL ignore transient `waiting` status changes while canonical `testData` is still loaded so the teacher-end redirect path can complete before the student is moved away from the active test surface. |
+| FR-R5 | **Writing** remains a teacher-graded path. Submission confirmation and later teacher feedback remain the contract there; immediate post-end result release is not required. |
+
 ---
 
 ## 5. Non-Goals (Out of Scope)
