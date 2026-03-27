@@ -1,14 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { ref, update } from 'firebase/database';
 import { useAuth } from '../hooks/useAuth';
 import { getClass, subscribeToClass, subscribeToActiveSessions } from '../services/classManager';
 import { getSession } from '../services/sessionManager';
 import { sessionService } from '../services/sessionService';
 import { useStudentHomeworkList } from '../hooks/useHomeworkSubmission';
+import { buildRoute } from '../constants/routes';
 import { Loader } from '@mantine/core';
 import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
 import { S } from '../components/layout/studentLayoutStyles';
+import { database } from '../services/firebase';
+import { getStudentResults } from '../services/testResults.service';
 
 const localStyles = {
   card: { background: 'white', borderRadius: 16, border: '1px solid #e5e7eb', padding: 24, marginBottom: 16 },
@@ -24,6 +28,28 @@ const localStyles = {
   quizTag: { background: '#e0e7ff', color: '#4338ca', padding: '4px 12px', borderRadius: 999, fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase' }
 };
 
+const getResolvedAssignmentResult = (assignment, progress, results) => {
+  if (!assignment?.testId || !Array.isArray(results) || results.length === 0) {
+    return null;
+  }
+
+  const matchingResults = results.filter((result) => (
+    result.testId === assignment.testId || result.sessionCode === assignment.testId
+  ));
+  if (matchingResults.length === 0) {
+    return null;
+  }
+
+  if (typeof progress?.submittedAt === 'number') {
+    const exactMatch = matchingResults.find((result) => result.submittedAt === progress.submittedAt);
+    if (exactMatch) {
+      return exactMatch;
+    }
+  }
+
+  return [...matchingResults].sort((a, b) => (b.submittedAt || 0) - (a.submittedAt || 0))[0] || null;
+};
+
 const StudentClassDetailPage = () => {
   const { classId } = useParams();
   const navigate = useNavigate();
@@ -35,6 +61,7 @@ const StudentClassDetailPage = () => {
   const [, setIsLoadingSelfStudy] = useState(false);
   const [activeSessions, setActiveSessions] = useState([]);
   const { notStarted } = useStudentHomeworkList(user?.uid || '');
+  const repairAttemptedRef = useRef(new Set());
 
   // Subscribe to active sessions (Live Sessions)
   useEffect(() => {
@@ -142,19 +169,144 @@ const StudentClassDetailPage = () => {
   };
 
   const handleStartTest = (assignment) => {
+    if (user) {
+      sessionService.setPlayerData(
+        user.uid,
+        user.displayName || user.email || 'Student',
+        assignment.testId,
+      );
+    }
+
     if (assignment.testType === 'quiz') {
-      navigate(`/student-quiz/${assignment.testId}`, {
+      navigate(buildRoute('STUDENT_QUIZ', { gameSessionId: assignment.testId }), {
         state: { classId, assignmentId: assignment.id }
       });
     } else {
-      navigate(`/student-test/${assignment.testId}`, {
+      navigate(buildRoute('STUDENT_TEST', { sessionCode: assignment.testId }), {
         state: { classId, assignmentId: assignment.id }
       });
     }
   };
 
-  const handleViewResults = (assignment) => {
-    navigate(`/student/results/${classId}/${assignment.id}`);
+  const patchAssignmentResultId = (assignmentId, resultId) => {
+    if (!classId || !user?.uid || !assignmentId || !resultId) {
+      return;
+    }
+
+    setClassData((currentClassData) => {
+      const currentStudent = currentClassData?.students?.[user.uid];
+      const currentAssignment = currentStudent?.assignments?.[assignmentId];
+      if (!currentStudent || !currentAssignment || currentAssignment.resultId === resultId) {
+        return currentClassData;
+      }
+
+      return {
+        ...currentClassData,
+        students: {
+          ...currentClassData.students,
+          [user.uid]: {
+            ...currentStudent,
+            assignments: {
+              ...currentStudent.assignments,
+              [assignmentId]: {
+                ...currentAssignment,
+                resultId,
+              },
+            },
+          },
+        },
+      };
+    });
+  };
+
+  const resolveAssignmentResultId = async (assignmentId, assignment, progress, studentResults = null) => {
+    if (!assignmentId || !assignment?.testId || !user?.uid) {
+      return null;
+    }
+
+    if (progress?.resultId) {
+      return progress.resultId;
+    }
+
+    const results = studentResults || await getStudentResults(user.uid);
+    const resolvedResult = getResolvedAssignmentResult(assignment, progress, results);
+
+    if (!resolvedResult?.resultId) {
+      return null;
+    }
+
+    patchAssignmentResultId(assignmentId, resolvedResult.resultId);
+
+    if (classId) {
+      try {
+        await update(ref(database, `classes/${classId}/students/${user.uid}/assignments/${assignmentId}`), {
+          resultId: resolvedResult.resultId,
+        });
+      } catch (error) {
+        console.warn('Failed to persist repaired assignment resultId:', error);
+      }
+    }
+
+    return resolvedResult.resultId;
+  };
+
+  useEffect(() => {
+    if (!classId || !user?.uid || !classData?.students?.[user.uid]) {
+      return;
+    }
+
+    const student = classData.students[user.uid];
+    const assignmentsNeedingRepair = Object.entries(classData.assignments || {})
+      .filter(([assignmentId, assignment]) => {
+        const progress = student.assignments?.[assignmentId];
+        return (
+          assignment?.testId &&
+          progress &&
+          !progress.resultId &&
+          (progress.status === 'submitted' || progress.status === 'graded')
+        );
+      });
+
+    if (assignmentsNeedingRepair.length === 0) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const repairMissingResultIds = async () => {
+      try {
+        const studentResults = await getStudentResults(user.uid);
+        if (cancelled) {
+          return;
+        }
+
+        for (const [assignmentId, assignment] of assignmentsNeedingRepair) {
+          const progress = student.assignments?.[assignmentId];
+          const repairKey = `${assignmentId}:${progress?.submittedAt ?? 'na'}:${progress?.status ?? 'na'}`;
+          if (repairAttemptedRef.current.has(repairKey)) {
+            continue;
+          }
+
+          repairAttemptedRef.current.add(repairKey);
+          await resolveAssignmentResultId(assignmentId, assignment, progress, studentResults);
+        }
+      } catch (error) {
+        console.warn('Failed to repair missing assignment result links:', error);
+      }
+    };
+
+    void repairMissingResultIds();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [classData, classId, user?.uid]);
+
+  const handleViewResults = async (assignment) => {
+    const progress = classData?.students?.[user?.uid]?.assignments?.[assignment.id];
+    const resultId = progress?.resultId || await resolveAssignmentResultId(assignment.id, assignment, progress);
+    if (!resultId) return;
+    navigate(buildRoute('RESULT_DETAIL', { resultId }));
   };
 
   const getAssignmentStatusBadge = (assignment) => {
@@ -309,11 +461,7 @@ const StudentClassDetailPage = () => {
                     if (user) {
                       sessionService.setPlayerData(user.uid, user.displayName || user.email || 'Student', session.code);
                     }
-                    if (session.mode === 'test') {
-                      navigate(`/student-test/${session.code}`);
-                    } else {
-                      navigate(`/student-wait/${session.code}`);
-                    }
+                    navigate(buildRoute('STUDENT_WAITING', { gameSessionId: session.code }));
                   }}
                 >
                   Join Session →
@@ -343,6 +491,8 @@ const StudentClassDetailPage = () => {
                   const statusBadge = getAssignmentStatusBadge(assignment);
                   const deadline = assignment.deadline ? formatDeadline(assignment.deadline) : null;
                   const isCompleted = assignment.studentProgress?.status === 'submitted' || assignment.studentProgress?.status === 'graded';
+                  const assignmentResultId = assignment.studentProgress?.resultId;
+                  const canViewResults = isCompleted && Boolean(assignmentResultId);
 
                   return (
                     <div key={assignment.id} style={{ ...localStyles.card, animation: `dashFadeIn 300ms ease-out ${index * 50}ms both` }}>
@@ -371,8 +521,12 @@ const StudentClassDetailPage = () => {
                           </div>
                         </div>
                         <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                          {isCompleted ? (
-                            <button style={localStyles.successBtn} onClick={() => handleViewResults(assignment)}>View Results</button>
+                          {canViewResults ? (
+                            <button style={localStyles.successBtn} onClick={() => handleViewResults(assignment)}>
+                              View Results
+                            </button>
+                          ) : isCompleted ? (
+                            <button style={localStyles.disabledBtn} disabled>Result Pending</button>
                           ) : assignment.status === 'available' || assignment.studentProgress?.status === 'in_progress' ? (
                             <button style={localStyles.primaryBtn} onClick={() => handleStartTest(assignment)}>
                               {assignment.studentProgress?.status === 'in_progress' ? 'Continue' : 'Start'}

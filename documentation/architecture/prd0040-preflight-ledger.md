@@ -1,8 +1,26 @@
-# PRD-0040 Preflight Ledger
+﻿# PRD-0040 Preflight Ledger
 
 > Task 0.1 deliverable. Every surface touched by PRD-0040 with domain, canonical surface, route/host, parent owner, data path, backend-rule dependency, tests, manual checks, docs to update, and forbidden moves.
 
 ---
+
+## 0. 2026-03-25 Reassessment Corrections
+
+This file contains both a frozen preflight baseline and historical verification notes from the original implementation window. Readers using it for current-state review should account for these repo-truth corrections:
+
+- `LegacyResultDetailView` no longer uses one-shot-only loading; it now uses an RTDB `onValue` listener like the other saved-result shells.
+- `src/components/results/SharedSavedResultCore.test.tsx` now exists, so the old "missing test" note in the frozen baseline is historical, not current.
+- `ResultSlidePanel` now applies live-session release-state governance for `class_session` saved results by subscribing to `game_sessions/{sessionCode}` and withholding unreleased review/feedback tabs.
+- `endFullSession()` now auto-releases `review-released` on session end and preserves `feedback-released` if it was already set, which is closer to the original FR-050 / FR-054 intent than the earlier relock behavior.
+- Guest-result claims now promote staged guest rows into canonical RTDB `test_results/{resultId}` records, rebuild the standard saved-result indexes, and retain a privileged/manual `migrateLegacyClaimedGuestResults()` helper for older nested claim rows.
+- Demo files were removed, and the stale demo config/script residue was also removed from `src/config/routeSecurity.ts`, `src/scripts/setupFeedbackDemo.js`, `src/scripts/setupFeedbackDemo.ts`, and `src/scripts/mockFeedbackData.ts`.
+- The routeSecurity-only `/student/results/history` residue identified in the frozen audit has also been removed; it now survives only in historical docs.
+- `StudentClassDetailPage.jsx` now repairs missing class-assignment `resultId` values in the background from existing student results, navigates only through canonical `buildRoute('RESULT_DETAIL', { resultId })` links, and still fails closed until a canonical id is resolved.
+- `StudentTestResultsPage.tsx` now live-subscribes to `game_sessions/{sessionCode}` so release-state changes propagate without refresh.
+- `TestResultsModal.tsx` now clears retry timers on close and unmount so background RTDB retries do not leak across modal opens.
+- `ClaimResultsModal.tsx` now loads claim counts in `useEffect`, replacing the earlier render-time async initialization.
+- `useTestSubmission.ts` now persists `resultId` back onto class-assignment progress when class-assignment context is available, so new submissions repair the canonical deep-link path automatically.
+- `featureRegistry.ts` and `App.jsx` now cover `/guest-results`, `/teacher/results`, `/submission-complete`, and `/profile/complete` as result-domain surfaces; the registry remains observability metadata, not the authoritative surface inventory.
 
 ## 1. Saved-Result Shells
 
@@ -15,12 +33,12 @@
 | Status | active |
 | Route / host | Mounted by `AcademicRecordPage`, `StudentDashboardPage`, `StudentHomeworkListPage`, `StudentHomeworkDetailPage` |
 | Parent owner | Student entry points own open/close; panel receives `resultId` + `onClose` |
-| Data path | RTDB `test_results/{resultId}` via `onValue` listener, fallback `getTestResult()` |
-| Backend-rule dependency | RTDB `test_results/{resultId}` — allows owning student read, any teacher read, any super_admin read |
+| Data path | RTDB `test_results/{resultId}` via `onValue` listener, fallback `getTestResult()`, plus `game_sessions/{sessionCode}` listener for `class_session` release-state governance |
+| Backend-rule dependency | RTDB `test_results/{resultId}` Ã¢â‚¬â€ allows owning student read, any teacher read, any super_admin read |
 | Tests to run | `src/components/results/ResultSlidePanel.test.tsx` |
-| Manual checks | Verify panel opens from each parent owner, attempt switching works, feedback auto-triggers for THCS |
+| Manual checks | Verify panel opens from each parent owner, attempt switching works, live-session saved results obey locked/review/feedback release gating, and feedback auto-triggers only after `feedback-released` |
 | Docs to update | `result-view-map.md`, `result-view-permission-matrix.md`, `result-view-fr-closure-matrix.md` |
-| Forbidden moves | No ownership check inside shell; no permission decisions in shared core; no fourth shell |
+| Forbidden moves | No ownership check inside shell; no permission decisions in shared core; no fourth shell; do not bypass live-session release-state governance for `class_session` results |
 
 ### 1.2 ResultDetailModal (Teacher Modal Shell)
 
@@ -32,7 +50,7 @@
 | Route / host | Mounted by `TeacherHomeworkDetailPage` |
 | Parent owner | Teacher homework detail page owns open/close; modal receives `opened`, `resultId`, `onClose`, optional `inline` |
 | Data path | RTDB `test_results/{resultId}` via `onValue` listener, fallback `getTestResult()` |
-| Backend-rule dependency | RTDB `test_results/{resultId}` — allows any teacher read (broader than assigned-teacher intent) |
+| Backend-rule dependency | RTDB `test_results/{resultId}` Ã¢â‚¬â€ allows any teacher read (broader than assigned-teacher intent) |
 | Tests to run | `src/components/results/ResultDetailModal.test.tsx` |
 | Manual checks | Verify modal opens from teacher homework detail, feedbackTiming controls work, feedback generation triggers |
 | Docs to update | `result-view-map.md`, `result-view-permission-matrix.md`, `result-view-fr-closure-matrix.md` |
@@ -47,8 +65,8 @@
 | Status | active |
 | Route / host | Mounted by `ResultDetailPage` at `/result/:resultId` |
 | Parent owner | `ResultDetailPage` is wrapper-only; `LegacyResultDetailView` owns data loading and ownership check |
-| Data path | RTDB `test_results/{resultId}` via `getTestResult()` (one-shot, no listener) |
-| Backend-rule dependency | RTDB `test_results/{resultId}` — allows any teacher read; `useResultOwnershipCheck` adds shell-level check |
+| Data path | RTDB `test_results/{resultId}` via `onValue` listener with access-lost handling |
+| Backend-rule dependency | RTDB `test_results/{resultId}` Ã¢â‚¬â€ allows any teacher read; `useResultOwnershipCheck` adds shell-level check |
 | Tests to run | `src/components/results/LegacyResultDetailView.test.tsx` |
 | Manual checks | Verify ownership check redirects unauthorized, PDF generation, teacher feedback display |
 | Docs to update | `result-view-map.md`, `result-view-permission-matrix.md`, `result-view-fr-closure-matrix.md` |
@@ -63,7 +81,7 @@
 | Status | active |
 | Route / host | `/result/:resultId` |
 | Parent owner | Route wrapper; students redirected to `/student/academic-record?result={resultId}`; teacher/admin see `LegacyResultDetailView` |
-| Data path | None directly — delegates to `LegacyResultDetailView` |
+| Data path | None directly Ã¢â‚¬â€ delegates to `LegacyResultDetailView` |
 | Backend-rule dependency | `PrivateRoute` auth gate; hierarchical role check |
 | Tests to run | `src/pages/ResultDetailPage.test.tsx` |
 | Manual checks | Verify student redirect, teacher/admin full-page render, missing resultId guard |
@@ -91,7 +109,7 @@
 | Domain | saved-result |
 | Route | `/student`, `/student/dashboard` |
 | Shell owned | `ResultSlidePanel` |
-| Open mechanism | Notification metadata `resultId` → opens panel directly |
+| Open mechanism | Notification metadata `resultId` Ã¢â€ â€™ opens panel directly |
 | Data path | Notification metadata triggers panel open |
 | Tests | `src/pages/StudentDashboardPage.teachers.test.jsx` |
 | Forbidden moves | Do not remove notification-driven open; do not reduce to placeholder |
@@ -103,7 +121,7 @@
 | Domain | saved-result |
 | Route | Student homework list |
 | Shell owned | `ResultSlidePanel` |
-| Open mechanism | Result selection from homework list → `setSelectedResultId` |
+| Open mechanism | Result selection from homework list Ã¢â€ â€™ `setSelectedResultId` |
 | Tests | `src/pages/StudentHomeworkListPage.test.tsx` |
 | Forbidden moves | Do not reduce to placeholder; this is a real entry owner |
 
@@ -114,7 +132,7 @@
 | Domain | saved-result |
 | Route | Student homework detail |
 | Shell owned | `ResultSlidePanel` |
-| Open mechanism | Result selection from homework detail → `setSelectedResultId` |
+| Open mechanism | Result selection from homework detail Ã¢â€ â€™ `setSelectedResultId` |
 | Tests | `src/pages/StudentHomeworkDetailPage.test.tsx` |
 | Forbidden moves | Do not reduce to placeholder; this is a real entry owner |
 
@@ -125,7 +143,7 @@
 | Domain | saved-result |
 | Route | Teacher homework detail |
 | Shell owned | `ResultDetailModal` |
-| Open mechanism | `setSelectedResultId` from submission table → modal opens |
+| Open mechanism | `setSelectedResultId` from submission table Ã¢â€ â€™ modal opens |
 | Data path | Homework detail provides context; modal loads result |
 | Tests | `src/pages/TeacherHomeworkDetailPage.test.tsx` |
 | Forbidden moves | Do not remove homework-specific behavior; feedbackTiming is part of contract |
@@ -136,7 +154,7 @@
 |-------|-------|
 | Domain | saved-result |
 | Route | `/teacher/student/:studentId/history` |
-| Shell owned | None directly — navigates to `/result/:resultId` (deep link) |
+| Shell owned | None directly Ã¢â‚¬â€ navigates to `/result/:resultId` (deep link) |
 | Open mechanism | `buildRoute('RESULT_DETAIL', { resultId })` navigation |
 | Data path | Uses `useStudentDataAccessCheck` for student data access |
 | Tests | `src/pages/TeacherStudentHistoryPage.test.tsx` |
@@ -161,7 +179,7 @@
 | Domain | session/post-test |
 | Route | Mounted by waiting room |
 | Data path | RTDB `test_results_by_student`, `test_results_by_session`, `lastTestId` fallback |
-| Tests | Static audit only (no focused test file) |
+| Tests | `src/components/test/TestResultsModal.test.tsx`, `src/pages/StudentWaitingRoomPage.test.jsx` |
 | Phase | Phase 2 |
 
 ### 3.3 StudentTestResultsPage
@@ -231,8 +249,8 @@
 | Route | `/guest-results` (public) |
 | Data path | RTDB `guest_results/{guestName}` |
 | Backend-rule | Top-level read requires `auth != null`; child write unrestricted |
-| Tests | None found |
-| Risk | Public route; CTAs point to invalid `/login` and `/register` routes |
+| Tests | `src/pages/GuestResultsPage.test.tsx` |
+| Risk | Public route vs. auth-required backend read remains an accepted mismatch; stale CTA targets were corrected to `/`. |
 
 ### 4.2 ProfileCompletionPage
 
@@ -249,8 +267,8 @@
 |-------|-------|
 | Domain | guest-result/claim |
 | Route | Mounted by profile completion |
-| Data path | `claimGuestResults(guestName, userId)` — writes non-canonical RTDB result path |
-| Tests | None found |
+| Data path | `claimGuestResults(guestName, userId)` Ã¢â‚¬â€ promotes claimed rows into canonical `test_results/{resultId}` storage, rebuilds standard saved-result indexes, and leaves `migrateLegacyClaimedGuestResults()` as a privileged/manual helper for older nested claim rows |
+| Tests | `src/components/guest/ClaimResultsModal.test.tsx`, `src/services/guestResultsService.test.ts` |
 
 ## 5. Live-Monitoring Surfaces
 
@@ -261,7 +279,7 @@
 | Domain | live-monitoring |
 | Route | `/teacher-test/:sessionCode` |
 | Data path | RTDB `game_sessions/{sessionId}` |
-| Tests | Static audit only |
+| Tests | `src/pages/TeacherTestMonitorPage.test.tsx`, `src/hooks/monitor/useMonitorControls.test.ts` |
 | Phase | Phase 2 (release controls), Phase 3 (writing monitor) |
 
 ### 5.2 StudentDetailModal
@@ -332,7 +350,7 @@
 | Domain | writing |
 | Lifecycle | result |
 | Route | `/submission-complete` |
-| Data path | Location state handoff → `/student-test-results/:sessionCode` |
+| Data path | Location state handoff Ã¢â€ â€™ `/student-test-results/:sessionCode` |
 
 ### 6.8 InlineWritingGrader (THCS editor)
 
@@ -410,9 +428,9 @@
 
 ## 8. Stale Producers and Config-Only References
 
-- `StudentClassDetailPage.jsx` produces `/student/results/${classId}/${assignment.id}` links → no matching mounted route
-- `routeSecurity.ts` contains `/student/results/history` → no mounted route found
-- `featureRegistry.ts` tracks some result routes but is incomplete — treat as observability metadata only
+- `StudentClassDetailPage.jsx` now repairs missing class-assignment `resultId` values in the background from existing student results, opens class-assignment results only through canonical `/result/:resultId` navigation, and renders a non-clickable pending state until a canonical id is available
+- The old `routeSecurity.ts` `/student/results/history` residue was removed on 2026-03-25; historical notes still mention it for auditability
+- `featureRegistry.ts` now includes `/guest-results`, `/teacher/results`, `/submission-complete`, and `/profile/complete`; treat it as observability metadata only, not the authoritative result-surface inventory
 
 ---
 
@@ -422,29 +440,29 @@
 
 | File | Exists |
 |------|--------|
-| `src/pages/AcademicRecordPage.test.tsx` | ✅ |
-| `src/pages/StudentDashboardPage.teachers.test.jsx` | ✅ |
-| `src/pages/StudentHomeworkListPage.test.tsx` | ✅ |
-| `src/pages/StudentHomeworkDetailPage.test.tsx` | ✅ |
-| `src/pages/TeacherHomeworkDetailPage.test.tsx` | ✅ |
-| `src/pages/TeacherStudentHistoryPage.test.tsx` | ✅ |
-| `src/pages/ResultDetailPage.test.tsx` | ✅ |
-| `src/pages/StudentWaitingRoomPage.test.jsx` | ✅ |
-| `src/pages/TeacherTestResultsPage.test.tsx` | ✅ |
-| `src/components/results/LegacyResultDetailView.test.tsx` | ✅ |
-| `src/components/results/ResultSlidePanel.test.tsx` | ✅ |
-| `src/components/results/ResultDetailModal.test.tsx` | ✅ |
-| `src/components/results/SharedSavedResultCore.test.tsx` | ❌ (created by task 2.2) |
-| `src/pages/StudentTestResultsPage.test.tsx` | ✅ |
-| `src/hooks/test/useTestSubmission.test.ts` | ✅ |
-| `src/components/PrivateRoute.test.tsx` | ✅ |
-| `src/__tests__/auth/PrivateRoute.test.tsx` | ✅ |
-| `src/services/guestResultsService.test.ts` | ✅ |
-| `src/services/testResults.service.test.ts` | ✅ |
-| `src/__tests__/security/routeAccess.test.ts` | ✅ |
-| `src/__tests__/security/prd0040-security.emulator.test.ts` | ✅ |
+| `src/pages/AcademicRecordPage.test.tsx` | Ã¢Å“â€¦ |
+| `src/pages/StudentDashboardPage.teachers.test.jsx` | Ã¢Å“â€¦ |
+| `src/pages/StudentHomeworkListPage.test.tsx` | Ã¢Å“â€¦ |
+| `src/pages/StudentHomeworkDetailPage.test.tsx` | Ã¢Å“â€¦ |
+| `src/pages/TeacherHomeworkDetailPage.test.tsx` | Ã¢Å“â€¦ |
+| `src/pages/TeacherStudentHistoryPage.test.tsx` | Ã¢Å“â€¦ |
+| `src/pages/ResultDetailPage.test.tsx` | Ã¢Å“â€¦ |
+| `src/pages/StudentWaitingRoomPage.test.jsx` | Ã¢Å“â€¦ |
+| `src/pages/TeacherTestResultsPage.test.tsx` | Ã¢Å“â€¦ |
+| `src/components/results/LegacyResultDetailView.test.tsx` | Ã¢Å“â€¦ |
+| `src/components/results/ResultSlidePanel.test.tsx` | Ã¢Å“â€¦ |
+| `src/components/results/ResultDetailModal.test.tsx` | Ã¢Å“â€¦ |
+| `src/components/results/SharedSavedResultCore.test.tsx` | Ã¢ÂÅ’ (created by task 2.2) |
+| `src/pages/StudentTestResultsPage.test.tsx` | Ã¢Å“â€¦ |
+| `src/hooks/test/useTestSubmission.test.ts` | Ã¢Å“â€¦ |
+| `src/components/PrivateRoute.test.tsx` | Ã¢Å“â€¦ |
+| `src/__tests__/auth/PrivateRoute.test.tsx` | Ã¢Å“â€¦ |
+| `src/services/guestResultsService.test.ts` | Ã¢Å“â€¦ |
+| `src/services/testResults.service.test.ts` | Ã¢Å“â€¦ |
+| `src/__tests__/security/routeAccess.test.ts` | Ã¢Å“â€¦ |
+| `src/__tests__/security/prd0040-security.emulator.test.ts` | Ã¢Å“â€¦ |
 
-**Only `SharedSavedResultCore.test.tsx` is missing.** It is a mandatory deliverable of task 2.2.
+**Reconciliation (2026-03-25):** `SharedSavedResultCore.test.tsx` was created as part of task 2.2 and now exists. The frozen baseline above retains the original âŒ mark for historical accuracy.
 
 ---
 
@@ -452,31 +470,31 @@
 
 | Script/Command | Exists |
 |----------------|--------|
-| `scripts/pre-commit-enforcement.js` | ✅ |
-| `scripts/run-security-tests.js` | ✅ |
-| `npm run test:security` | ✅ |
-| `npm run enforce:check` | ✅ |
-| `npm run check:utf8` | ✅ |
+| `scripts/pre-commit-enforcement.js` | Ã¢Å“â€¦ |
+| `scripts/run-security-tests.js` | Ã¢Å“â€¦ |
+| `npm run test:security` | Ã¢Å“â€¦ |
+| `npm run enforce:check` | Ã¢Å“â€¦ |
+| `npm run check:utf8` | Ã¢Å“â€¦ |
 
 ---
 
-## Verification Baseline Results (Task 0.3 — Frozen)
+## Verification Baseline Results (Task 0.3 Ã¢â‚¬â€ Frozen)
 
 Baseline captured 2026-03-24. Any regression against these counts blocks merge.
 
 | Bundle | ID | Files | Tests | Result |
 |--------|----|-------|-------|--------|
-| Phase-1 baseline | 0.3.1 | 9/9 | 32/32 | ✅ PASS |
-| Saved-result shells | 0.3.2 | 3/3 | 35/35 | ✅ PASS |
-| Session/post-test | 0.3.3 | 2/2 | 6/6 | ✅ PASS |
-| Security/auth | 0.3.4 | 5/5 | 130/130 | ✅ PASS |
-| Enforcement scripts | 0.3.5 | — | — | `enforce:check` ✅; `test:security` 11/13 (2 pre-existing) |
-| Test file existence | 0.3.6 | 20/21 | — | Only `SharedSavedResultCore.test.tsx` missing (task 2.2 deliverable) |
+| Phase-1 baseline | 0.3.1 | 9/9 | 32/32 | Ã¢Å“â€¦ PASS |
+| Saved-result shells | 0.3.2 | 3/3 | 35/35 | Ã¢Å“â€¦ PASS |
+| Session/post-test | 0.3.3 | 2/2 | 6/6 | Ã¢Å“â€¦ PASS |
+| Security/auth | 0.3.4 | 5/5 | 130/130 | Ã¢Å“â€¦ PASS |
+| Enforcement scripts | 0.3.5 | Ã¢â‚¬â€ | Ã¢â‚¬â€ | `enforce:check` Ã¢Å“â€¦; `test:security` 11/13 (2 pre-existing) |
+| Test file existence | 0.3.6 | 20/21 | Ã¢â‚¬â€ | Only `SharedSavedResultCore.test.tsx` missing (task 2.2 deliverable) |
 
 ### Pre-Existing Failures (Not Regressions)
 
-1. **`AccessDeniedPage.test.tsx`** — Mantine duplicate-text match issue in `test:security` bundle. Pre-existing; not caused by PRD-0040.
-2. **`prd0040-security.emulator.test.ts`** — Requires Firebase emulator running. Expected to fail without `firebase emulators:exec`. Blocked on emulator availability (see §Blocking Decisions below).
+1. **`AccessDeniedPage.test.tsx`** Ã¢â‚¬â€ Mantine duplicate-text match issue in `test:security` bundle. Pre-existing; not caused by PRD-0040.
+2. **`prd0040-security.emulator.test.ts`** Ã¢â‚¬â€ Requires Firebase emulator running. Expected to fail without `firebase emulators:exec`. Blocked on emulator availability (see Ã‚Â§Blocking Decisions below).
 
 ### Exact Commands (Frozen)
 
@@ -500,7 +518,7 @@ npm run enforce:check
 
 ---
 
-## Stop Conditions (Task 0.4 — Frozen)
+## Stop Conditions (Task 0.4 Ã¢â‚¬â€ Frozen)
 
 **Stop immediately and escalate if any of the following occur:**
 
@@ -513,7 +531,7 @@ npm run enforce:check
 
 ---
 
-## Blocking Architectural Decisions (Task 0.5 — Recorded)
+## Blocking Architectural Decisions (Task 0.5 Ã¢â‚¬â€ Recorded)
 
 ### Decision 1: `/result/:resultId` Student Ownership Gap
 
@@ -523,11 +541,11 @@ npm run enforce:check
 
 **Implementation for task 3.1:** Task 3.1 implements whatever is decided here. Since we carry, task 3.1 documents the carry decision and adds a regression test confirming the redirect works.
 
-### Decision 2: Guest-Result Claim — Compatibility Mapping
+### Decision 2: Guest-Result Claim - Canonical Promotion with Legacy Migration
 
-**Decision:** Guest-result claim **stays compatibility-mapped** in Phase 1. The existing `claimGuestResults()` flow writes to a non-canonical path. Phase 5 (guest domain) will decide migration vs. removal.
+**Decision:** Guest-result claim now **promotes into the canonical saved-result path**. `claimGuestResults()` writes claimed rows to `test_results/{resultId}`, rebuilds the normal saved-result fan-out indexes, and deletes the staging guest bucket only after the batch update succeeds. A privileged/manual `migrateLegacyClaimedGuestResults()` helper exists for environments that still contain the older nested claimed rows.
 
-**Rationale:** Changing the claim path in Phase 1 risks data loss for in-flight guest users. The PRD explicitly scopes guest work to Phase 5.
+**Rationale:** The older compatibility-mapped destination was materially out of step with the rest of the saved-result architecture. Canonical promotion resolves that drift without adding a fourth storage contract, while the migration helper preserves recoverability for historical data.
 
 ### Decision 3: Public/Demo Feedback Routes
 
@@ -535,7 +553,7 @@ npm run enforce:check
 
 **Surfaces affected:** `FeedbackComponentsDemo`, `FeedbackDemoPage`, `AcademicRecordDemoPage`, `DemoIndexPage`.
 
-**Risk:** `FeedbackComponentsDemo` writes to live RTDB paths (`courses/demo-course-789`, `test_results/demo-result-123`). Removal must include cleanup of those paths.
+**Risk:** `FeedbackComponentsDemo` wrote to live RTDB paths (`courses/demo-course-789`, `test_results/demo-result-123`). Cleanup is now complete in the repo, but the historical risk remains documented here for auditability.
 
 ### Decision 4: Manual Checks When PRD Requires Them
 
@@ -554,7 +572,7 @@ npm run enforce:check
 ### Decision 5: Runtime-Proof Work Blocked on Emulator
 
 **Blocked items:**
-- `prd0040-security.emulator.test.ts` — 4 tests require Firebase RTDB emulator
+- `prd0040-security.emulator.test.ts` Ã¢â‚¬â€ 4 tests require Firebase RTDB emulator
 - Any backend-rule change verification
 - Firestore rules verification for writing domain
 
@@ -564,32 +582,32 @@ npm run enforce:check
 
 ## Change Record (Task 0.6)
 
-### PRD-0040 Implementation Packet — Change Record
+### PRD-0040 Implementation Packet Ã¢â‚¬â€ Change Record
 
 | Field | Value |
 |-------|-------|
-| PRD | 0040 — Unified Result View Architecture and Governance |
+| PRD | 0040 Ã¢â‚¬â€ Unified Result View Architecture and Governance |
 | Implementation start | 2026-03-24 |
 | Readiness gate status | **COMPLETE** |
 | Preflight ledger | `documentation/architecture/prd0040-preflight-ledger.md` |
 | Living docs | `result-view-map.md`, `result-view-permission-matrix.md`, `result-view-fr-closure-matrix.md`, `result-view-reuse.md` |
-| Verification baseline | See §Verification Baseline Results above |
-| Stop conditions | See §Stop Conditions above |
-| Blocking decisions | See §Blocking Architectural Decisions above |
-| Manual check protocol | See §Decision 4 above |
+| Verification baseline | See Ã‚Â§Verification Baseline Results above |
+| Stop conditions | See Ã‚Â§Stop Conditions above |
+| Blocking decisions | See Ã‚Â§Blocking Architectural Decisions above |
+| Manual check protocol | See Ã‚Â§Decision 4 above |
 
 ### Carried Risks
 
-1. **Emulator unavailability** — 4 security emulator tests cannot run. Backend-rule verification relies on static rule file analysis.
-2. **`AccessDeniedPage.test.tsx` pre-existing failure** — Mantine duplicate-text match. Not a regression; tracked for separate fix.
-3. **Guest-result claim writes non-canonical path** — Deferred to Phase 5.
-4. **`FeedbackComponentsDemo` writes live RTDB data** — Removal scheduled for Phase 8.
+1. **Emulator unavailability** Ã¢â‚¬â€ 4 security emulator tests cannot run. Backend-rule verification relies on static rule file analysis.
+2. **`AccessDeniedPage.test.tsx` pre-existing failure** Ã¢â‚¬â€ Mantine duplicate-text match. Not a regression; tracked for separate fix.
+3. **Historical nested guest-claim rows may still exist** - environments that already used the old compatibility-mapped claim path may need a privileged/manual `migrateLegacyClaimedGuestResults()` run.
+4. **Historical class-assignment rows may lack persisted `resultId`** Ã¢â‚¬â€ `StudentClassDetailPage.jsx` now fails closed instead of generating dead links, but older assignment progress rows still need backfill or replayed submissions before they can deep-link into saved results.
 
 ### Phase Sequence
 
 | Phase | Scope | Depends On |
 |-------|-------|-----------|
-| 0.0 | Readiness gate | — |
+| 0.0 | Readiness gate | Ã¢â‚¬â€ |
 | 1.0 | Lock saved-result baseline | 0.0 |
 | 2.0 | Extract shared saved-result core | 1.0 |
 | 3.0 | Security hardening, feedback parity | 2.0 |
@@ -598,13 +616,13 @@ npm run enforce:check
 | 6.0 | Writing domain classification | 4.0 |
 | 7.0 | Live-monitoring preservation | 4.0 |
 | 8.0 | Legacy/demo triage | 4.0 |
-| 9.0 | Enforcement and merge gate | 5.0–8.0 |
+| 9.0 | Enforcement and merge gate | 5.0Ã¢â‚¬â€œ8.0 |
 
 ---
 
 ## Phase-1 Baseline Lockdown (Task 1.0)
 
-### 1.1 — Active Saved-Result Shell Count: Exactly 3
+### 1.1 Ã¢â‚¬â€ Active Saved-Result Shell Count: Exactly 3
 
 | # | Shell | Type | Status |
 |---|-------|------|--------|
@@ -614,63 +632,63 @@ npm run enforce:check
 
 **`ResultDetailPage`** is wrapper-only (role-based routing, no data loading, no rendering logic). Confirmed NOT a fourth shell.
 
-**Grep confirmation:** No other component in `src/` reads `test_results/{resultId}` via `onValue` or `getTestResult()` and renders a full result detail UI. `StudentFeedbackViewer`, `THCSPracticeView`, `WritingPracticeView`, and `FeedbackComponentsDemo` reference the path but serve different purposes (feedback viewing, practice, demo).
+**Grep confirmation:** No other component in `src/` reads `test_results/{resultId}` via `onValue` or `getTestResult()` and renders a full result detail UI. `StudentFeedbackViewer`, `THCSPracticeView`, and `WritingPracticeView` reference the path but serve different purposes (feedback viewing and practice). The old `FeedbackComponentsDemo` residue has been removed.
 
-### 1.2 — Host-Owner Registry
+### 1.2 Ã¢â‚¬â€ Host-Owner Registry
 
 | Host Page | Shell Owned | Open Mechanism |
 |-----------|-------------|----------------|
 | `AcademicRecordPage` | `ResultSlidePanel` | Query param `?result={resultId}` or inline `setSelectedResultId` |
-| `StudentDashboardPage` | `ResultSlidePanel` | Notification metadata `resultId` → `setSelectedResultId` |
-| `StudentHomeworkListPage` | `ResultSlidePanel` | Result selection → `setSelectedResultId` |
-| `StudentHomeworkDetailPage` | `ResultSlidePanel` | Result selection → `setSelectedResultId` |
-| `TeacherHomeworkDetailPage` | `ResultDetailModal` | Submission table row click → `setSelectedResultId` |
-| `TeacherStudentHistoryPage` | (deep-link) | `buildRoute('RESULT_DETAIL', { resultId })` → `/result/:resultId` → `ResultDetailPage` → `LegacyResultDetailView` |
+| `StudentDashboardPage` | `ResultSlidePanel` | Notification metadata `resultId` Ã¢â€ â€™ `setSelectedResultId` |
+| `StudentHomeworkListPage` | `ResultSlidePanel` | Result selection Ã¢â€ â€™ `setSelectedResultId` |
+| `StudentHomeworkDetailPage` | `ResultSlidePanel` | Result selection Ã¢â€ â€™ `setSelectedResultId` |
+| `TeacherHomeworkDetailPage` | `ResultDetailModal` | Submission table row click Ã¢â€ â€™ `setSelectedResultId` |
+| `TeacherStudentHistoryPage` | (deep-link) | `buildRoute('RESULT_DETAIL', { resultId })` Ã¢â€ â€™ `/result/:resultId` Ã¢â€ â€™ `ResultDetailPage` Ã¢â€ â€™ `LegacyResultDetailView` |
 
-### 1.3 — Risk Path Enforcement Ledger
+### 1.3 Ã¢â‚¬â€ Risk Path Enforcement Ledger
 
 | Entry Path | Enforcement Layer | Notes |
 |------------|-------------------|-------|
-| `/result/:resultId` | `PrivateRoute` auth gate → `ResultDetailPage` role check → students redirected to `/student/academic-record?result={resultId}` → teachers/admins get `LegacyResultDetailView` with `useResultOwnershipCheck` | Student ownership gap carried per Decision 1 |
-| `?result={resultId}` on academic record | `PrivateRoute` + `StudentLayout` role gate → `ResultSlidePanel` reads RTDB directly | No shell-level ownership check; relies on RTDB rules allowing owning student read |
-| Dashboard notification → panel | `PrivateRoute` + notification metadata → `setSelectedResultId` → `ResultSlidePanel` | Trusts notification metadata; hardening target in task 3.4 |
-| Homework list/detail → panel | `PrivateRoute` + homework page context → `setSelectedResultId` → `ResultSlidePanel` | Parent context provides resultId; no shell-level re-validation |
-| Teacher homework → modal | `PrivateRoute` + teacher role → submission table → `ResultDetailModal` | No additional ownership check in modal; relies on teacher RTDB read rule |
-| Teacher history → deep link | `PrivateRoute` + `useStudentDataAccessCheck` → `buildRoute` → `/result/:resultId` | Ownership check is on teacher-history page, not on target page |
+| `/result/:resultId` | `PrivateRoute` auth gate Ã¢â€ â€™ `ResultDetailPage` role check Ã¢â€ â€™ students redirected to `/student/academic-record?result={resultId}` Ã¢â€ â€™ teachers/admins get `LegacyResultDetailView` with `useResultOwnershipCheck` | Student ownership gap carried per Decision 1 |
+| `?result={resultId}` on academic record | `PrivateRoute` + `StudentLayout` role gate Ã¢â€ â€™ `ResultSlidePanel` reads RTDB directly | No shell-level ownership check; relies on RTDB rules allowing owning student read |
+| Dashboard notification Ã¢â€ â€™ panel | `PrivateRoute` + notification metadata Ã¢â€ â€™ `setSelectedResultId` Ã¢â€ â€™ `ResultSlidePanel` | Trusts notification metadata; hardening target in task 3.4 |
+| Homework list/detail Ã¢â€ â€™ panel | `PrivateRoute` + homework page context Ã¢â€ â€™ `setSelectedResultId` Ã¢â€ â€™ `ResultSlidePanel` | Parent context provides resultId; no shell-level re-validation |
+| Teacher homework Ã¢â€ â€™ modal | `PrivateRoute` + teacher role Ã¢â€ â€™ submission table Ã¢â€ â€™ `ResultDetailModal` | No additional ownership check in modal; relies on teacher RTDB read rule |
+| Teacher history Ã¢â€ â€™ deep link | `PrivateRoute` + `useStudentDataAccessCheck` Ã¢â€ â€™ `buildRoute` Ã¢â€ â€™ `/result/:resultId` | Ownership check is on teacher-history page, not on target page |
 
-### 1.4 — Phase-1 Non-Goals (Explicit)
+### 1.4 Ã¢â‚¬â€ Phase-1 Non-Goals (Explicit)
 
-These are NOT in scope for phases 0–3:
+These are NOT in scope for phases 0Ã¢â‚¬â€œ3:
 
-1. **No session loader unification** — `testResults.service.ts` session/post-test loading stays separate
-2. **No guest loader unification** — `guestResultsService.ts` stays separate
-3. **No writing loader unification** — Firestore `writing_submissions` loading stays separate
-4. **No live-monitor loader unification** — monitor RTDB paths stay separate
-5. **No new admin-only result body** — admin reuses teacher shell with additive diagnostics only
-6. **No risky admin mutation tools** — no ownership edit, metadata edit, score edit, answer edit, or raw payload edit
-7. **No new result storage path** — all shells continue reading from `test_results/{resultId}`
+1. **No session loader unification** Ã¢â‚¬â€ `testResults.service.ts` session/post-test loading stays separate
+2. **No guest loader unification** Ã¢â‚¬â€ `guestResultsService.ts` stays separate
+3. **No writing loader unification** Ã¢â‚¬â€ Firestore `writing_submissions` loading stays separate
+4. **No live-monitor loader unification** Ã¢â‚¬â€ monitor RTDB paths stay separate
+5. **No new admin-only result body** Ã¢â‚¬â€ admin reuses teacher shell with additive diagnostics only
+6. **No risky admin mutation tools** Ã¢â‚¬â€ no ownership edit, metadata edit, score edit, answer edit, or raw payload edit
+7. **No new result storage path** Ã¢â‚¬â€ all shells continue reading from `test_results/{resultId}`
 
-### 1.5 — FR Baseline for Phase-1
+### 1.5 Ã¢â‚¬â€ FR Baseline for Phase-1
 
-FRs that Phase 1 can affect directly (per PRD sections 8.1–8.4):
+FRs that Phase 1 can affect directly (per PRD sections 8.1Ã¢â‚¬â€œ8.4):
 
 | FR Range | Scope | Current Status |
 |----------|-------|---------------|
-| FR-014–017 | Shared core extraction, shell-and-core model | partial/unverified |
-| FR-021–027 | Feedback parity, display consistency | partial |
-| FR-030–036 | Security hardening, ownership, access-loss | partial/unverified |
-| FR-042–045A | Living doc governance | verified/partial |
+| FR-014Ã¢â‚¬â€œ017 | Shared core extraction, shell-and-core model | partial/unverified |
+| FR-021Ã¢â‚¬â€œ027 | Feedback parity, display consistency | partial |
+| FR-030Ã¢â‚¬â€œ036 | Security hardening, ownership, access-loss | partial/unverified |
+| FR-042Ã¢â‚¬â€œ045A | Living doc governance | verified/partial |
 
 FR closure matrix (`result-view-fr-closure-matrix.md`) was verified current in task 0.2. No stale rows found.
 
-### 1.6 — Closure Checklist
+### 1.6 Ã¢â‚¬â€ Closure Checklist
 
 - [x] Shell count confirmed: exactly 3 active + 1 wrapper
 - [x] Host-owner list recorded with open mechanisms
 - [x] Path-by-path enforcement ledger recorded
 - [x] Phase-1 non-goals recorded (7 items)
 - [x] FR baseline recorded and cross-checked against closure matrix
-- [x] Change record linked (see §Change Record above)
+- [x] Change record linked (see Ã‚Â§Change Record above)
 - [x] All items match living docs exactly
 
 ---
@@ -679,19 +697,19 @@ FR closure matrix (`result-view-fr-closure-matrix.md`) was verified current in t
 
 ### What the Shared Core Is
 
-`SharedSavedResultCore` is a **presentation-only** component that renders the content body of a saved test result. It receives a loaded `TestResultRecord` and rendering callbacks — it never loads data, never checks ownership, never decides access. All 3 shells delegate their content rendering to this single component.
+`SharedSavedResultCore` is a **presentation-only** component that renders the content body of a saved test result. It receives a loaded `TestResultRecord` and rendering callbacks Ã¢â‚¬â€ it never loads data, never checks ownership, never decides access. All 3 shells delegate their content rendering to this single component.
 
 ### Architecture
 
 ```
 Shell (owns chrome, data loading, ownership, open/close)
-  └─ SharedSavedResultCore (presentation-only body)
-       ├─ ScoreSummarySection (score ring/cards, stat cards)
-       ├─ SectionBreakdownSection (THCS sections, IELTS passages)
-       ├─ AnswerMapSection (pill grid, question navigation)
-       ├─ QuestionReviewSection (answer cards, explanations, teacher feedback)
-       ├─ FeedbackSection (AI analysis, study recommendations, trend, class position)
-       └─ Empty/Error/Loading states (presentation only)
+  Ã¢â€â€Ã¢â€â‚¬ SharedSavedResultCore (presentation-only body)
+       Ã¢â€Å“Ã¢â€â‚¬ ScoreSummarySection (score ring/cards, stat cards)
+       Ã¢â€Å“Ã¢â€â‚¬ SectionBreakdownSection (THCS sections, IELTS passages)
+       Ã¢â€Å“Ã¢â€â‚¬ AnswerMapSection (pill grid, question navigation)
+       Ã¢â€Å“Ã¢â€â‚¬ QuestionReviewSection (answer cards, explanations, teacher feedback)
+       Ã¢â€Å“Ã¢â€â‚¬ FeedbackSection (AI analysis, study recommendations, trend, class position)
+       Ã¢â€â€Ã¢â€â‚¬ Empty/Error/Loading states (presentation only)
 ```
 
 ### Props Contract
@@ -701,7 +719,7 @@ interface SharedSavedResultCoreProps {
   /** The loaded test result record. Never null when core renders. */
   result: TestResultRecord;
 
-  /** Shell layout variant — affects spacing, sizing, and visual density */
+  /** Shell layout variant Ã¢â‚¬â€ affects spacing, sizing, and visual density */
   variant: 'slide-panel' | 'modal' | 'full-page';
 
   /** Which sections to render. Shells control visibility. */
@@ -711,11 +729,11 @@ interface SharedSavedResultCoreProps {
     answerMap?: boolean;          // default: true
     questionReview?: boolean;     // default: true
     feedbackDisplay?: boolean;    // default: true
-    teacherFeedback?: boolean;    // default: true (only relevant for full-page shell)
+    teacherFeedback?: boolean;    // default: false (only full-page shell enables this)
     writingPlaceholder?: boolean; // default: false (only full-page shell)
   };
 
-  /** Formative feedback state — passed from shell's feedback management */
+  /** Formative feedback state Ã¢â‚¬â€ passed from shell's feedback management */
   feedbackState?: {
     formativeFeedback?: FormativeFeedback | null;
     feedbackLoading?: boolean;
@@ -725,11 +743,14 @@ interface SharedSavedResultCoreProps {
     onRetryFeedback?: () => void;
   };
 
-  /** Navigation callbacks — shells wire these to their own tab/scroll behavior */
+  /** Navigation callbacks Ã¢â‚¬â€ shells wire these to their own tab/scroll behavior */
   onNavigateToQuestion?: (questionNumber: number) => void;
 
-  /** feedbackTiming from homework context — controls question breakdown visibility */
+  /** feedbackTiming from homework context Ã¢â‚¬â€ controls question breakdown visibility */
   feedbackTiming?: 'after_completion' | 'after_deadline' | 'never';
+
+  /** Whether overview answer-map pills may navigate into the review surface */
+  canNavigateToReview?: boolean; // default: true
 }
 ```
 
@@ -737,36 +758,36 @@ interface SharedSavedResultCoreProps {
 
 | Section | Description | All 3 shells? |
 |---------|------------|---------------|
-| **ScoreSummarySection** | Score ring/percentage, stat cards (points, correct/incorrect/partial, time, scaled score for THCS, band score for IELTS) | Yes — each shell renders score differently today; core normalizes |
-| **SectionBreakdownSection** | THCS section results, IELTS passage breakdown | Yes — `OverviewTab` and `ResultDetailModal` both render these |
-| **AnswerMapSection** | Pill grid showing correct/incorrect/partial per question, with click-to-navigate | Yes — `OverviewTab` and `ResultDetailModal` (`QuestionPillsGrid`) both render |
-| **QuestionReviewSection** | Per-question answer comparison, AI explanations, pending-review notices | Yes — `ReviewTab` and `ResultDetailModal` both render; `LegacyResultDetailView` has expandable cards |
-| **FeedbackSection** | AI performance analysis, study recommendations, score trend, class position | Partial — `FeedbackTab` is most complete; `ResultDetailModal` has subset; `LegacyResultDetailView` has teacher-only |
-| **TeacherFeedbackSection** | Per-question teacher feedback + overall teacher feedback | `LegacyResultDetailView` only — via `FeedbackDisplay` component |
-| **WritingPlaceholder** | Writing/speaking submission placeholder | `LegacyResultDetailView` only — via `WritingSpeakingPlaceholder` |
+| **ScoreSummarySection** | Score ring/percentage, stat cards (points, correct/incorrect/partial, time, scaled score for THCS, band score for IELTS) | Yes Ã¢â‚¬â€ each shell renders score differently today; core normalizes |
+| **SectionBreakdownSection** | THCS section results, IELTS passage breakdown | Yes Ã¢â‚¬â€ `OverviewTab` and `ResultDetailModal` both render these |
+| **AnswerMapSection** | Pill grid showing correct/incorrect/partial per question, with click-to-navigate | Yes Ã¢â‚¬â€ `OverviewTab` and `ResultDetailModal` (`QuestionPillsGrid`) both render |
+| **QuestionReviewSection** | Per-question answer comparison, AI explanations, pending-review notices | Yes Ã¢â‚¬â€ `ReviewTab` and `ResultDetailModal` both render; `LegacyResultDetailView` has expandable cards |
+| **FeedbackSection** | AI performance analysis, study recommendations, score trend, class position | Partial Ã¢â‚¬â€ `FeedbackTab` is most complete; `ResultDetailModal` has subset; `LegacyResultDetailView` has teacher-only |
+| **TeacherFeedbackSection** | Per-question teacher feedback + overall teacher feedback | `LegacyResultDetailView` only Ã¢â‚¬â€ via `FeedbackDisplay` component |
+| **WritingPlaceholder** | Writing/speaking submission placeholder | `LegacyResultDetailView` only Ã¢â‚¬â€ via `WritingSpeakingPlaceholder` |
 
 ### Presentation-Only Helpers Allowed to Move into Core
 
 These are pure display helpers with no side effects:
 
-- `getTestCategory()` — derive THCS/IELTS/generic from result
-- `formatDate()` / `formatTime()` — timestamp formatting
-- `formatAnswer()` — answer display formatting
-- `getTypeBadge()` — type badge derivation
-- `getPerformanceLevel()` — performance tier label/icon
-- `getPillStatus()` — question pill color derivation
-- `getIntentColor()` — score bar color derivation
-- `formatScore()` — numeric score formatting
-- `ScoreRing` — SVG score ring widget
-- `StatCard` — stat card widget
-- `AnalysisSection` — AI analysis section renderer
+- `getTestCategory()` Ã¢â‚¬â€ derive THCS/IELTS/generic from result
+- `formatDate()` / `formatTime()` Ã¢â‚¬â€ timestamp formatting
+- `formatAnswer()` Ã¢â‚¬â€ answer display formatting
+- `getTypeBadge()` Ã¢â‚¬â€ type badge derivation
+- `getPerformanceLevel()` Ã¢â‚¬â€ performance tier label/icon
+- `getPillStatus()` Ã¢â‚¬â€ question pill color derivation
+- `getIntentColor()` Ã¢â‚¬â€ score bar color derivation
+- `formatScore()` Ã¢â‚¬â€ numeric score formatting
+- `ScoreRing` Ã¢â‚¬â€ SVG score ring widget
+- `StatCard` Ã¢â‚¬â€ stat card widget
+- `AnalysisSection` Ã¢â‚¬â€ AI analysis section renderer
 
 ### Logic That MUST Stay Outside the Core
 
 | Logic | Owner | Rationale |
 |-------|-------|-----------|
 | **Data loading** (RTDB `onValue`, `getTestResult` fallback) | Shell | FR-012: permission decisions stay outside |
-| **Ownership check** (`useResultOwnershipCheck`) | Shell / parent host | FR-012, FR-030–033 |
+| **Ownership check** (`useResultOwnershipCheck`) | Shell / parent host | FR-012, FR-030Ã¢â‚¬â€œ033 |
 | **Feedback generation trigger** (`generateFormativeFeedbackForSavedResult`) | Shell | Side effect; shell owns retry state |
 | **Feedback upgrade detection** (`needsAiFeedbackUpgrade`) | Shell | Decision logic |
 | **Tab switching / navigation** | Shell | Shell chrome behavior |
@@ -781,9 +802,9 @@ These are pure display helpers with no side effects:
 
 When a shell opens (or re-opens after being closed):
 1. Shell sets loading state and starts fresh RTDB listener or one-shot fetch
-2. Core receives new `result` prop → re-renders with fresh data
-3. No local caching in core — core is stateless with respect to result data
-4. If feedback is generated while core is displayed, shell updates `feedbackState` props → core re-renders
+2. Core receives new `result` prop Ã¢â€ â€™ re-renders with fresh data
+3. No local caching in core Ã¢â‚¬â€ core is stateless with respect to result data
+4. If feedback is generated while core is displayed, shell updates `feedbackState` props Ã¢â€ â€™ core re-renders
 
 ### Legacy Result Degradation
 
@@ -796,7 +817,7 @@ When a legacy result is missing expected fields:
 | `formativeFeedback` | Skip AI analysis section; show "not available" state |
 | `questionResults` | Skip answer map and question review; show empty state |
 | `bandScore` | Omit band score stat card; show other cards only |
-| `timeElapsed` | Show "—" in time stat card |
+| `timeElapsed` | Show "Ã¢â‚¬â€" in time stat card |
 | `context` | Skip context badge; render without homework context |
 | `overallFeedback` | Skip teacher overall feedback section |
 | `teacherFeedback` per question | Skip teacher feedback per question |
@@ -816,4 +837,4 @@ When a legacy result is missing expected fields:
 2. **No permission decisions in core.** Core renders states; it never decides who sees what based on role/ownership.
 3. **No data fetching in core.** Core receives data via props only.
 4. **No fourth shell.** Core is consumed by exactly 3 shells.
-5. **No new result data path.** Core reads from `TestResultRecord` only — no direct RTDB/Firestore access.
+5. **No new result data path.** Core reads from `TestResultRecord` only Ã¢â‚¬â€ no direct RTDB/Firestore access.

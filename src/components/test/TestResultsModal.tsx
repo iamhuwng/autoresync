@@ -13,7 +13,7 @@
  * Uses Mantine Modal to match existing design patterns (StudentDetailModal).
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Modal, Center, Loader, ScrollArea, Text } from '@mantine/core';
 import { getStudentSessionResult, getStudentResults, TestResultRecord } from '../../services/testResults.service';
 import { calculateBandScore, generatePerformanceFeedback } from '../../services/autoMarking.service';
@@ -46,6 +46,19 @@ export const TestResultsModal: React.FC<TestResultsModalProps> = ({
     const [error, setError] = useState<string | null>(null);
     const [result, setResult] = useState<TestResultRecord | null>(null);
     const [expandedQuestions, setExpandedQuestions] = useState<Set<number>>(new Set());
+    const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const openedRef = useRef(opened);
+
+    const clearRetryTimer = useCallback(() => {
+        if (retryTimeoutRef.current !== null) {
+            clearTimeout(retryTimeoutRef.current);
+            retryTimeoutRef.current = null;
+        }
+    }, []);
+
+    useEffect(() => {
+        openedRef.current = opened;
+    }, [opened]);
 
     /**
      * Multi-path result fetching with 3 fallback strategies:
@@ -61,12 +74,19 @@ export const TestResultsModal: React.FC<TestResultsModalProps> = ({
      */
     const loadResult = useCallback(async (retryCount = 0) => {
         const MAX_RETRIES = 7;
+        if (!openedRef.current) {
+            return;
+        }
         try {
+            clearRetryTimer();
             setLoading(true);
             setError(null);
 
             const studentId = sessionService.getPlayerId();
             if (!studentId) {
+                if (!openedRef.current) {
+                    return;
+                }
                 setError('Student ID not found');
                 setLoading(false);
                 return;
@@ -76,6 +96,9 @@ export const TestResultsModal: React.FC<TestResultsModalProps> = ({
 
             // Strategy 1: Query by session index (fastest path)
             const sessionResult = await getStudentSessionResult(studentId, sessionCode);
+            if (!openedRef.current) {
+                return;
+            }
             if (sessionResult) {
                 console.log('✅ [TestResultsModal] Found result via session index');
                 setResult(sessionResult);
@@ -87,6 +110,9 @@ export const TestResultsModal: React.FC<TestResultsModalProps> = ({
             // This works even if test_results_by_session wasn't written yet
             try {
                 const studentResults = await getStudentResults(studentId);
+                if (!openedRef.current) {
+                    return;
+                }
                 // Sort by submittedAt descending so the most recent submission wins
                 const matchingResult = studentResults
                     .filter(r => r.sessionCode === sessionCode)
@@ -107,12 +133,18 @@ export const TestResultsModal: React.FC<TestResultsModalProps> = ({
                 try {
                     const playerRef = ref(database, `game_sessions/${sessionCode}/players/${studentId}`);
                     const playerSnap = await get(playerRef);
+                    if (!openedRef.current) {
+                        return;
+                    }
                     if (playerSnap.exists()) {
                         const playerData = playerSnap.val();
                         const lastTestId = playerData.lastTestId;
                         if (lastTestId) {
                             console.log(`🔍 [TestResultsModal] Trying with lastTestId: ${lastTestId}`);
                             const studentResults = await getStudentResults(studentId);
+                            if (!openedRef.current) {
+                                return;
+                            }
                             const matchByTest = studentResults.find(
                                 r => r.testId === lastTestId && r.sessionCode === sessionCode
                             );
@@ -133,31 +165,56 @@ export const TestResultsModal: React.FC<TestResultsModalProps> = ({
             if (retryCount < MAX_RETRIES) {
                 const delay = Math.min((retryCount + 1) * 1500, 5000);
                 console.log(`⏳ [TestResultsModal] Result not found via any path, retrying in ${delay}ms (attempt ${retryCount + 2}/${MAX_RETRIES + 1})`);
-                setTimeout(() => loadResult(retryCount + 1), delay);
+                retryTimeoutRef.current = setTimeout(() => {
+                    retryTimeoutRef.current = null;
+                    if (!openedRef.current) {
+                        return;
+                    }
+                    void loadResult(retryCount + 1);
+                }, delay);
                 return;
             }
 
+            if (!openedRef.current) {
+                return;
+            }
             setError('Test results are still being processed. Please close and try again in a moment.');
             setLoading(false);
         } catch (err) {
+            if (!openedRef.current) {
+                return;
+            }
             console.error('[TestResultsModal] Error loading result:', err);
             if (retryCount < MAX_RETRIES) {
                 const delay = Math.min((retryCount + 1) * 1500, 5000);
-                setTimeout(() => loadResult(retryCount + 1), delay);
+                retryTimeoutRef.current = setTimeout(() => {
+                    retryTimeoutRef.current = null;
+                    if (!openedRef.current) {
+                        return;
+                    }
+                    void loadResult(retryCount + 1);
+                }, delay);
                 return;
             }
             setError('Failed to load test results. Please try again.');
             setLoading(false);
         }
-    }, [sessionCode]);
+    }, [clearRetryTimer, sessionCode]);
 
     // Load on open
     useEffect(() => {
+        clearRetryTimer();
         if (opened) {
             setExpandedQuestions(new Set());
+            setLoading(true);
+            setError(null);
+            setResult(null);
             loadResult();
         }
-    }, [opened, loadResult]);
+        return () => {
+            clearRetryTimer();
+        };
+    }, [clearRetryTimer, loadResult, opened]);
 
     // Toggle question expansion
     const toggleQuestion = (questionNumber: number) => {
@@ -324,7 +381,7 @@ export const TestResultsModal: React.FC<TestResultsModalProps> = ({
                     </div>
 
                     {/* ── THCS SECTION BREAKDOWN (THCS only) ── */}
-                    {isTHCS && thcsData?.sectionResults && thcsData.sectionResults.length > 0 && (
+                    {visibility.showCorrectAnswers && isTHCS && thcsData?.sectionResults && thcsData.sectionResults.length > 0 && (
                         <div>
                             <div style={{
                                 fontSize: '1.125rem',

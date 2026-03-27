@@ -49,6 +49,14 @@ export const RELEASE_STATE_ORDER: readonly ReviewReleaseState[] = [
   'feedback-released',
 ] as const;
 
+export interface SessionReleaseStateSource {
+  status?: string | null;
+  reviewReleaseState?: string | null;
+  completedAt?: number | null;
+  lastTestCompletedAt?: number | null;
+  lastTestId?: string | null;
+}
+
 /**
  * Returns the effective release state, defaulting to 'locked-review'
  * when the persisted value is absent, null, or invalid.
@@ -63,6 +71,53 @@ export function getEffectiveReleaseState(
   ) {
     return raw;
   }
+  return DEFAULT_RELEASE_STATE;
+}
+
+/**
+ * Default release tier to persist when a teacher/admin explicitly ends a session.
+ * Session end must always release answer review, but should never downgrade a
+ * session that was already promoted to feedback release.
+ */
+export function getSessionEndReleaseState(
+  raw: string | null | undefined
+): ReviewReleaseState {
+  const current = getEffectiveReleaseState(raw);
+  return current === 'feedback-released' ? current : 'review-released';
+}
+
+/**
+ * Derives the effective release state from a session snapshot.
+ *
+ * This is the canonical fallback for student-facing result surfaces when older
+ * session-ending codepaths failed to persist `reviewReleaseState`.
+ */
+export function deriveSessionReleaseState(
+  session: SessionReleaseStateSource | null | undefined
+): ReviewReleaseState {
+  const explicit = session?.reviewReleaseState;
+  if (
+    explicit === 'locked-review' ||
+    explicit === 'review-released' ||
+    explicit === 'feedback-released'
+  ) {
+    return explicit;
+  }
+
+  const status = String(session?.status || '').toLowerCase();
+  const hasEndedMarkers =
+    typeof session?.completedAt === 'number' ||
+    typeof session?.lastTestCompletedAt === 'number' ||
+    Boolean(session?.lastTestId);
+
+  if (status === 'completed' || status === 'ended') {
+    return 'review-released';
+  }
+
+  if (status === 'waiting' && hasEndedMarkers) {
+    return 'review-released';
+  }
+
   return DEFAULT_RELEASE_STATE;
 }
 

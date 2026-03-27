@@ -18,7 +18,7 @@ import { ref, get } from 'firebase/database';
 // @ts-ignore - firebase.js is a JS file
 import { database } from '../../services/firebase';
 import { sessionService } from '../../services/sessionService';
-import { getEffectiveReleaseState } from '../../types/releaseState.types';
+import { deriveSessionReleaseState } from '../../types/releaseState.types';
 
 interface UseTeacherEndRedirectOptions {
     sessionCode: string | undefined;
@@ -54,6 +54,10 @@ export const useTeacherEndRedirect = ({ sessionCode }: UseTeacherEndRedirectOpti
                     (playerData.submittedAt && typeof playerData.submittedAt === 'number');
                 const wasTeacherEnded = playerData.submittedBy === 'teacher-end' ||
                     playerData.submittedBy === 'system-timeout';
+                const hasPersistentLastTest = Boolean(
+                    playerData.lastTestId &&
+                    (!playerData.lastTestSessionCode || playerData.lastTestSessionCode === sessionCode)
+                );
 
                 // CRITICAL FIX: Also check persistent lastTestEndedAt field.
                 // The player flags (hasCompletedTest, isSubmitted) may have been
@@ -63,7 +67,7 @@ export const useTeacherEndRedirect = ({ sessionCode }: UseTeacherEndRedirectOpti
                 const recentlyEnded = lastTestEndedAt &&
                     (Date.now() - lastTestEndedAt) < 30000; // Within 30 seconds
 
-                if (wasCompleted || wasSubmitted || wasTeacherEnded || recentlyEnded) {
+                if (wasCompleted || wasSubmitted || wasTeacherEnded || recentlyEnded || hasPersistentLastTest) {
                     console.log('🔄 [TeacherEndRedirect] Student was auto-submitted, redirecting to waiting room with results modal');
                     console.log('  → hasCompletedTest:', wasCompleted, '| isSubmitted:', wasSubmitted, '| submittedBy:', playerData.submittedBy, '| recentlyEnded:', recentlyEnded);
 
@@ -73,7 +77,7 @@ export const useTeacherEndRedirect = ({ sessionCode }: UseTeacherEndRedirectOpti
                         const sessionRef = ref(database, `game_sessions/${sessionCode}`);
                         const sessionSnap = await get(sessionRef);
                         if (sessionSnap.exists()) {
-                            releaseState = getEffectiveReleaseState(sessionSnap.val()?.reviewReleaseState);
+                            releaseState = deriveSessionReleaseState(sessionSnap.val());
                         }
                     } catch (releaseErr) {
                         console.warn('[TeacherEndRedirect] Could not read release state, defaulting to locked-review:', releaseErr);
@@ -83,7 +87,12 @@ export const useTeacherEndRedirect = ({ sessionCode }: UseTeacherEndRedirectOpti
                     // PRD-0040: Also pass releaseState so the modal knows what to show
                     navigate(`/student-wait/${sessionCode}`, {
                         replace: true,
-                        state: { showResults: true, sessionCode, reviewReleaseState: releaseState },
+                        state: {
+                            showResults: true,
+                            sessionCode,
+                            reviewReleaseState: releaseState,
+                            testId: playerData.lastTestId || undefined,
+                        },
                     });
                     return true;
                 }
