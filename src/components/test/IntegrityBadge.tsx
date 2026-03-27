@@ -13,7 +13,7 @@ import React from 'react';
 interface IntegrityBadgeProps {
   violationCount: number;
   riskLevel: 'low' | 'medium' | 'high';
-  onClick?: () => void;
+  onClick?: React.MouseEventHandler<HTMLButtonElement>;
 }
 
 const badgeBaseStyle: React.CSSProperties = {

@@ -297,6 +297,7 @@ const ListeningTestPageContent: React.FC = () => {
 
   // Status stabilization
   const statusStableTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastStableStatusRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (error === 'Authentication required') {
@@ -316,6 +317,22 @@ const ListeningTestPageContent: React.FC = () => {
           );
         }
       });
+      return;
+    }
+
+    // IMPORTANT: If we still have testData loaded, stay on the active test page.
+    // Listening previously navigated away on a transient 'waiting' status before
+    // the teacher-end redirect path could attach showResults state.
+    if (testData && sessionCode) {
+      if (statusStableTimerRef.current) {
+        clearTimeout(statusStableTimerRef.current);
+        statusStableTimerRef.current = null;
+      }
+
+      if (sessionStatus && sessionStatus !== lastStableStatusRef.current) {
+        console.log(`📊 [ListeningTestPage] Session status: ${sessionStatus} (testData loaded, staying on test page)`);
+        lastStableStatusRef.current = sessionStatus;
+      }
       return;
     }
 
