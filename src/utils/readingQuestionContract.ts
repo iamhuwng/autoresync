@@ -393,11 +393,17 @@ export const canonicalizeReadingQuestion = (
       inferredFormat ||
       defaultLabelFormatForType(question.type);
 
-    const canonicalSections = normalizedSections.map((section, index) => ({
-      label: section.label || (!hasLabels ? buildGeneratedLabel(index, optionLabelFormat) : ''),
-      title: section.title?.trim() || undefined,
-      paragraph: section.paragraph?.trim() || undefined,
-    }));
+    const canonicalSections = normalizedSections.map((section, index) => {
+      const label = section.label || (!hasLabels ? buildGeneratedLabel(index, optionLabelFormat) : '');
+      const title = section.title?.trim();
+      const paragraph = section.paragraph?.trim();
+
+      return {
+        label,
+        ...(title ? { title } : {}),
+        ...(paragraph ? { paragraph } : {}),
+      };
+    });
 
     const duplicateLabels = new Set<string>();
     const seenLabels = new Set<string>();

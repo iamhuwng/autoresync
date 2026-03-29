@@ -13,6 +13,10 @@ const {
   reportingTrackActionMock,
   navigateToMock,
   classifyTeacherResultVisibilityMock,
+  updateResultScoreMock,
+  markAsReviewedMock,
+  saveQuestionFeedbackMock,
+  saveOverallFeedbackMock,
 } = vi.hoisted(() => ({
   refMock: vi.fn((_database, path) => ({ path })),
   getMock: vi.fn(),
@@ -23,10 +27,14 @@ const {
   reportingTrackActionMock: vi.fn(),
   navigateToMock: vi.fn(),
   classifyTeacherResultVisibilityMock: vi.fn(),
+  updateResultScoreMock: vi.fn(),
+  markAsReviewedMock: vi.fn(),
+  saveQuestionFeedbackMock: vi.fn(),
+  saveOverallFeedbackMock: vi.fn(),
 }));
 
 const authState = vi.hoisted(() => ({
-  user: { uid: 'teacher-1' },
+  user: { uid: 'teacher-1', displayName: 'Teacher One' },
   profile: { role: 'teacher' },
 }));
 
@@ -83,7 +91,14 @@ vi.mock('../components/results/ReMarkingModal', () => ({
 }));
 
 vi.mock('../components/feedback/FeedbackEditor', () => ({
-  FeedbackEditor: () => <div>Feedback Editor</div>,
+  FeedbackEditor: ({ isOverall, questionId, onSave }: any) => (
+    <button
+      type="button"
+      onClick={() => void onSave(isOverall ? 'Overall feedback from test' : `Question feedback ${questionId}`)}
+    >
+      {isOverall ? 'Save Overall Feedback' : `Save Question Feedback ${questionId}`}
+    </button>
+  ),
 }));
 
 vi.mock('../components/writing-results/WritingTestResultsSection', () => ({
@@ -93,13 +108,13 @@ vi.mock('../components/writing-results/WritingTestResultsSection', () => ({
 
 vi.mock('../services/testResults.service', () => ({
   getSessionResults: getSessionResultsMock,
-  updateResultScore: vi.fn(),
-  markAsReviewed: vi.fn(),
+  updateResultScore: updateResultScoreMock,
+  markAsReviewed: markAsReviewedMock,
 }));
 
 vi.mock('../services/feedbackService', () => ({
-  saveQuestionFeedback: vi.fn(),
-  saveOverallFeedback: vi.fn(),
+  saveQuestionFeedback: saveQuestionFeedbackMock,
+  saveOverallFeedback: saveOverallFeedbackMock,
 }));
 
 vi.mock('../utils/csvExport', () => ({
@@ -291,7 +306,7 @@ describe('TeacherTestResultsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    authState.user = { uid: 'teacher-1' };
+    authState.user = { uid: 'teacher-1', displayName: 'Teacher One' };
     authState.profile = { role: 'teacher' };
 
     getMock.mockImplementation(async ({ path }: { path: string }) => {
@@ -398,6 +413,38 @@ describe('TeacherTestResultsPage', () => {
       studentId: 'student-1',
       studentName: 'Student One',
       violationCount: 2,
+    });
+  });
+
+  it('passes authenticated teacher identity into feedback saves', async () => {
+    renderPage();
+
+    await screen.findByText('Student One');
+    fireEvent.click(screen.getAllByText('Feedback')[0]);
+
+    const overallSaveButton = await screen.findByRole('button', { name: 'Save Overall Feedback' });
+    fireEvent.click(overallSaveButton);
+
+    await waitFor(() => {
+      expect(saveOverallFeedbackMock).toHaveBeenCalledWith(
+        'result-visible',
+        'Overall feedback from test',
+        'teacher-1',
+        'Teacher One',
+      );
+    });
+
+    const questionSaveButton = await screen.findByRole('button', { name: 'Save Question Feedback 1' });
+    fireEvent.click(questionSaveButton);
+
+    await waitFor(() => {
+      expect(saveQuestionFeedbackMock).toHaveBeenCalledWith(
+        'result-visible',
+        '1',
+        'Question feedback 1',
+        'teacher-1',
+        'Teacher One',
+      );
     });
   });
 

@@ -20,6 +20,10 @@ import type {
     QuestionResult,
     StudyRecommendation,
 } from '../types/thcs-test.types';
+import type {
+    SavedResultFeedbackKind,
+    SavedResultFeedbackOutcome,
+} from '../types/results.types';
 import { INTENT_SKILL_MAP } from '../types/thcs-test.types';
 import {
     findApprovedStudyBook,
@@ -27,6 +31,14 @@ import {
 } from '../config/studyResources.config';
 import { executeGeminiWithKeyRotation } from './ai/gemini-key-rotation.service';
 import { extractJSON } from './test-creation/ai-json-repair';
+import {
+    classifySavedResultFeedbackKind,
+    getIeltsFeedbackSegmentLabel,
+    type IeltsFeedbackFormatKind,
+    type IeltsFeedbackSegmentLabel,
+    type NormalizedIeltsSegmentBreakdown,
+    type NormalizedQuestionTypeBreakdown,
+} from './feedbackClassification.service';
 
 // ═══════════════════════════════════════════════════════════════
 // Threshold Constants
@@ -262,6 +274,179 @@ function formatAnswerValue(value: unknown): string {
         return parts.length > 0 ? parts.join('; ') : NO_ANSWER_LABEL;
     }
     return String(value);
+}
+
+type WeakExplanationContext = SavedResultFeedbackKind | FeedbackPromptMetadata | null | undefined;
+
+function isIeltsReadingMarker(text: string): boolean {
+    return [
+        'passage',
+        'paragraph',
+        'line',
+        'heading',
+        'synonym',
+        'paraphrase',
+        'scan',
+        'scanning',
+        'skim',
+        'skimming',
+        'true false not given',
+        'tfng',
+        'yes no not given',
+        'ynng',
+        'matching headings',
+        'completion',
+        'word limit',
+        'location',
+    ].some((marker) => text.includes(marker));
+}
+
+function isIeltsListeningMarker(text: string): boolean {
+    return [
+        'listening',
+        'speaker',
+        'recording',
+        'audio',
+        'heard',
+        'heard it',
+        'spelling',
+        'plural',
+        'number',
+        'distractor',
+        'map',
+        'diagram',
+        'form completion',
+        'note completion',
+        'table completion',
+        'answer transfer',
+    ].some((marker) => text.includes(marker));
+}
+
+function inferIeltsFormatKindFromText(text: string): IeltsFeedbackFormatKind | null {
+    const normalized = text.toLowerCase();
+    const readingMarkerHit = isIeltsReadingMarker(normalized);
+    const listeningMarkerHit = isIeltsListeningMarker(normalized);
+
+    if (listeningMarkerHit && !readingMarkerHit) {
+        return 'ielts-listening';
+    }
+
+    if (readingMarkerHit && !listeningMarkerHit) {
+        return 'ielts-reading';
+    }
+
+    return null;
+}
+
+export interface FormativeFeedbackSnapshotResult {
+    feedback: FormativeFeedback;
+    aiApplied: boolean;
+    mode: 'ai' | 'deterministic';
+}
+
+export async function generateFormativeFeedbackSnapshot(
+    gradingResult: THCSGradingResult,
+    sections: THCSSection[],
+    testMetadata: FeedbackPromptMetadata,
+    resultId: string,
+): Promise<FormativeFeedbackSnapshotResult> {
+    const feedback = generateDeterministicFeedback(gradingResult, sections);
+    const aiResult = await generateAIFeedback(gradingResult, sections, testMetadata);
+
+    if (aiResult) {
+        feedback.questionTopics = aiResult.data.questionTopics;
+        feedback.questionExplanations = getRenderableQuestionExplanations(
+            aiResult.data.questionExplanations,
+            testMetadata,
+        );
+        feedback.aiFeedback = aiResult.data.feedback;
+        feedback.studyRecommendations = aiResult.data.studyRecommendations;
+        feedback.aiModel = aiResult.model;
+    } else {
+        console.log('ðŸ“Š [FormativeFeedback] Using deterministic-only feedback');
+    }
+
+    feedback.fallbackQuestionExplanations = buildFallbackQuestionExplanations(
+        gradingResult.questionResults || {},
+        sections,
+    );
+    feedback.resultId = resultId;
+    feedback.generationMode = aiResult ? 'ai' : 'deterministic';
+
+    return {
+        feedback,
+        aiApplied: Boolean(aiResult),
+        mode: aiResult ? 'ai' : 'deterministic',
+    };
+}
+
+function resolveWeakExplanationContextKind(context?: WeakExplanationContext): SavedResultFeedbackKind {
+    if (!context) {
+        return null;
+    }
+
+    if (typeof context === 'string' || context === null) {
+        return context;
+    }
+
+    if (context.kind) {
+        return context.kind;
+    }
+
+    if (context.formatKind === 'ielts-reading' || context.formatKind === 'ielts-listening') {
+        return context.formatKind;
+    }
+
+    if (context.family === 'ielts') {
+        return classifySavedResultFeedbackKind({
+            testType: context.type,
+            testSkill: context.skill,
+            bandScore: context.bandScore,
+            thcsData: undefined,
+            ieltsData: context.passageResults?.length ? { passageResults: context.passageResults } : undefined,
+            questionResults: [],
+        } as any);
+    }
+
+    return context.kind ?? null;
+}
+
+function isWeakIeltsQuestionExplanation(
+    normalized: string,
+    kind: IeltsFeedbackFormatKind | null,
+): boolean {
+    const hasReadingMarkers = isIeltsReadingMarker(normalized);
+    const hasListeningMarkers = isIeltsListeningMarker(normalized);
+
+    if (kind === 'ielts-reading') {
+        if (hasListeningMarkers && !hasReadingMarkers) {
+            return true;
+        }
+
+        if (
+            normalized.includes('grammar rule')
+            || normalized.includes('vocabulary pattern')
+            || normalized.includes('sentence arrangement')
+        ) {
+            return true;
+        }
+    }
+
+    if (kind === 'ielts-listening') {
+        if (hasReadingMarkers && !hasListeningMarkers) {
+            return true;
+        }
+
+        if (
+            normalized.includes('grammar rule')
+            || normalized.includes('vocabulary pattern')
+            || normalized.includes('sentence arrangement')
+        ) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 export interface FallbackQuestionContext {
@@ -811,7 +996,10 @@ function getReasoningGuidance(intent: string | undefined): {
     };
 }
 
-export function isWeakQuestionExplanation(text: string | null | undefined): boolean {
+export function isWeakQuestionExplanation(
+    text: string | null | undefined,
+    context?: WeakExplanationContext,
+): boolean {
     const normalized = normalizeExplanationText(text || '');
     if (!normalized) {
         return true;
@@ -848,7 +1036,19 @@ export function isWeakQuestionExplanation(text: string | null | undefined): bool
         .filter(Boolean)
         .length;
 
-    return normalized.length < 110 || sentenceCount < 2;
+    if (normalized.length < 110 || sentenceCount < 2) {
+        return true;
+    }
+
+    const resolvedKind = resolveWeakExplanationContextKind(context);
+    const inferredFormatKind = inferIeltsFormatKindFromText(normalized);
+    const formatKind = resolvedKind === 'ielts-reading' || resolvedKind === 'ielts-listening'
+        ? resolvedKind
+        : inferredFormatKind;
+
+    return formatKind
+        ? isWeakIeltsQuestionExplanation(normalized, formatKind)
+        : false;
 }
 
 function explanationMentionsUnansweredState(text: string | null | undefined): boolean {
@@ -1100,7 +1300,10 @@ export interface FeedbackPromptMetadata {
     gradeLevel: number;
     type?: string;
     skill?: string;
+    kind?: SavedResultFeedbackKind;
     family?: 'thcs' | 'ielts' | 'generic';
+    formatKind?: IeltsFeedbackFormatKind;
+    segmentLabel?: IeltsFeedbackSegmentLabel;
     bandScore?: number;
     passageResults?: Array<{
         passageName: string;
@@ -1109,6 +1312,9 @@ export interface FeedbackPromptMetadata {
         total: number;
         percentage: number;
     }>;
+    segmentBreakdown?: NormalizedIeltsSegmentBreakdown[];
+    questionTypeBreakdown?: NormalizedQuestionTypeBreakdown[];
+    unansweredCount?: number;
     timeSpent?: number;
     totalQuestions?: number;
 }
@@ -1125,9 +1331,60 @@ export interface FormativeFeedbackGenerationResult {
 
 export interface GenerateFormativeFeedbackOptions {
     forceAiUpgrade?: boolean;
+    triggerSource?: string;
 }
 
 const feedbackGenerationInFlight = new Map<string, Promise<FormativeFeedbackGenerationResult>>();
+
+function resolveFeedbackMetadataKind(testMetadata: FeedbackPromptMetadata): SavedResultFeedbackKind {
+    if (testMetadata.kind !== undefined) {
+        return testMetadata.kind;
+    }
+
+    if (testMetadata.family === 'thcs') {
+        return 'thcs';
+    }
+
+    if (testMetadata.formatKind === 'ielts-reading' || testMetadata.formatKind === 'ielts-listening') {
+        return testMetadata.formatKind;
+    }
+
+    if (testMetadata.family === 'ielts') {
+        return classifySavedResultFeedbackKind({
+            testType: testMetadata.type,
+            testSkill: testMetadata.skill,
+            ieltsData: testMetadata.passageResults?.length
+                ? { passageResults: testMetadata.passageResults as any }
+                : undefined,
+            questionResults: [],
+        } as any);
+    }
+
+    return null;
+}
+
+async function persistFeedbackGenerationMeta(
+    resultId: string,
+    testMetadata: FeedbackPromptMetadata,
+    outcome: SavedResultFeedbackOutcome,
+    options?: {
+        error?: string | null;
+        triggerSource?: string | null;
+    },
+): Promise<void> {
+    const { ref, update } = await import('firebase/database');
+    const { database } = await import('./firebase');
+
+    await update(ref(database, `test_results/${resultId}`), {
+        feedbackGenerationMeta: {
+            kind: resolveFeedbackMetadataKind(testMetadata),
+            lastAttemptAt: Date.now(),
+            lastTriggerSource: options?.triggerSource ?? null,
+            lastOutcome: outcome,
+            lastError: options?.error ?? null,
+        },
+    });
+}
 
 function isStoredFormativeFeedback(value: unknown): value is FormativeFeedback {
     if (!value || typeof value !== 'object') {
@@ -1188,6 +1445,7 @@ function toQuestionResultLike(question: ResultQuestionLike): QuestionResult {
 
 export function getRenderableQuestionExplanations(
     explanations: Record<string, string> | null | undefined,
+    context?: WeakExplanationContext,
 ): Record<string, string> {
     if (!explanations || typeof explanations !== 'object') {
         return {};
@@ -1200,7 +1458,7 @@ export function getRenderableQuestionExplanations(
         }
 
         const normalizedValue = value.trim();
-        if (!normalizedValue || isWeakQuestionExplanation(normalizedValue)) {
+        if (!normalizedValue || isWeakQuestionExplanation(normalizedValue, context)) {
             continue;
         }
 
@@ -1219,7 +1477,8 @@ export function getPreferredQuestionExplanation(
     }
 
     const questionKey = normalizeQuestionMappingKey(String(question.questionNumber));
-    const normalizedAiExplanations = getRenderableQuestionExplanations(feedback.questionExplanations);
+    const inferredKind = inferStoredFeedbackKind(feedback);
+    const normalizedAiExplanations = getRenderableQuestionExplanations(feedback.questionExplanations, inferredKind);
     const aiExplanation = getExplanationForQuestion(normalizedAiExplanations, questionKey);
     const questionResult = toQuestionResultLike(question);
 
@@ -1239,7 +1498,9 @@ export function getPreferredQuestionExplanation(
         }
 
         return {
-            text: buildFallbackQuestionExplanation(question.questionNumber, questionResult),
+            text: buildFallbackQuestionExplanation(question.questionNumber, questionResult, undefined, {
+                kind: inferredKind,
+            }),
             source: 'fallback',
         };
     }
@@ -1257,9 +1518,68 @@ function hasMeaningfulAIFeedback(feedback: FormativeFeedback | null | undefined)
         .some((value) => normalizeExplanationText(value).length > 0);
 }
 
+function inferStoredFeedbackKind(feedback: FormativeFeedback | null | undefined): SavedResultFeedbackKind {
+    if (!feedback) {
+        return null;
+    }
+
+    const topicText = Object.values(feedback.questionTopics || {})
+        .map((entry) => `${entry.topic} ${entry.category}`)
+        .join(' ')
+        .toLowerCase();
+    const recommendationText = (feedback.studyRecommendations || [])
+        .map((entry) => `${entry.skillTag} ${entry.guidance} ${(entry.resources || []).map((resource) => resource.sectionTitle).join(' ')}`)
+        .join(' ')
+        .toLowerCase();
+    const explanationText = Object.values(feedback.questionExplanations || {}).join(' ').toLowerCase();
+    const combined = `${topicText} ${recommendationText} ${explanationText}`;
+
+    if (
+        combined.includes('ielts')
+        || combined.includes('band score')
+        || combined.includes('time management')
+        || combined.includes('matching headings')
+        || combined.includes('true / false / not given')
+        || combined.includes('true false not given')
+        || combined.includes('yes / no / not given')
+        || combined.includes('yes no not given')
+        || combined.includes('form completion')
+        || combined.includes('note completion')
+        || combined.includes('table completion')
+        || combined.includes('distractor')
+        || combined.includes('spelling')
+        || combined.includes('plural')
+        || combined.includes('recording')
+        || combined.includes('speaker')
+        || combined.includes('listening')
+        || combined.includes('passage')
+        || combined.includes('paragraph')
+    ) {
+        if (
+            combined.includes('listening')
+            || combined.includes('recording')
+            || combined.includes('speaker')
+            || combined.includes('spelling')
+            || combined.includes('plural')
+            || combined.includes('map')
+            || combined.includes('diagram')
+            || combined.includes('table completion')
+            || combined.includes('note completion')
+            || combined.includes('form completion')
+        ) {
+            return 'ielts-listening';
+        }
+
+        return 'ielts-reading';
+    }
+
+    return null;
+}
+
 export function needsAiFeedbackUpgrade(
     feedback: FormativeFeedback | null | undefined,
     questionResults?: QuestionResultCollection,
+    context?: WeakExplanationContext,
 ): boolean {
     if (!feedback) {
         return false;
@@ -1283,10 +1603,20 @@ export function needsAiFeedbackUpgrade(
         return true;
     }
 
-    return hasWrongAnswers && explanationValues.some((value) => isWeakQuestionExplanation(value));
+    const inferredKind = resolveWeakExplanationContextKind(context) ?? inferStoredFeedbackKind(feedback);
+
+    return hasWrongAnswers && explanationValues.some((value) => isWeakQuestionExplanation(value, inferredKind));
 }
 
 function isIeltsPromptMetadata(testMetadata: FeedbackPromptMetadata): boolean {
+    if (testMetadata.kind === 'ielts-reading' || testMetadata.kind === 'ielts-listening') {
+        return true;
+    }
+
+    if (testMetadata.formatKind === 'ielts-reading' || testMetadata.formatKind === 'ielts-listening') {
+        return true;
+    }
+
     if (testMetadata.family === 'ielts') {
         return true;
     }
@@ -1311,6 +1641,165 @@ function formatDuration(seconds: number | undefined): string {
     return `${hours}h ${minutes}m`;
 }
 
+function buildIeltsFeedbackPrompt(
+    gradingResult: THCSGradingResult,
+    sections: THCSSection[],
+    testMetadata: FeedbackPromptMetadata,
+    approvedBooks: string,
+): { systemPrompt: string; userPrompt: string } {
+    const segmentLabel = testMetadata.segmentLabel
+        || (testMetadata.formatKind === 'ielts-listening' ? 'Part' : 'Passage');
+    const formatKind = testMetadata.formatKind
+        || (segmentLabel === 'Part' ? 'ielts-listening' : 'ielts-reading');
+    const questionLines: string[] = [];
+
+    sections.forEach((section, sectionIndex) => {
+        const normalizedSegmentName = `${segmentLabel} ${sectionIndex + 1}`;
+        questionLines.push(`--- ${normalizedSegmentName} ---`);
+
+        for (const question of section.questions) {
+            const questionResult = gradingResult.questionResults[question.questionNumber] as QuestionResult | undefined;
+            const status = questionResult?.isCorrect ? 'CORRECT' : 'WRONG';
+            const questionType = (question.type || question.intent || 'question').toString();
+            const studentAnswer = buildPromptAnswerLabel(questionResult?.studentAnswer, question.options);
+            const correctAnswer = buildPromptAnswerLabel(question.correctAnswer || questionResult?.correctAnswer || '', question.options);
+
+            questionLines.push(
+                [
+                    `Q${question.questionNumber} [${questionType}] ${status}`,
+                    `  Text: ${question.questionText || `Question ${question.questionNumber}`}`,
+                    `  Answer status: ${buildPromptAnswerStateLine(questionResult?.studentAnswer)}`,
+                    `  Student answer: ${studentAnswer}`,
+                    `  Correct answer: ${correctAnswer}`,
+                ].join('\n'),
+            );
+        }
+    });
+
+    const normalizedSegmentBreakdown = testMetadata.segmentBreakdown && testMetadata.segmentBreakdown.length > 0
+        ? testMetadata.segmentBreakdown
+        : (testMetadata.passageResults || []).map((passage, index) => ({
+            segmentNumber: index + 1,
+            segmentName: `${segmentLabel} ${index + 1}`,
+            questionRange: passage.questionRange,
+            correct: passage.correct,
+            total: passage.total,
+            percentage: passage.percentage,
+        }));
+
+    const normalizedQuestionTypeBreakdown = testMetadata.questionTypeBreakdown && testMetadata.questionTypeBreakdown.length > 0
+        ? testMetadata.questionTypeBreakdown
+        : Object.entries(
+            gradingResult.sectionResults.reduce<Record<string, { correct: number; total: number }>>(
+                (acc, sectionResult) => {
+                    for (const [questionType, counts] of Object.entries(sectionResult.intentBreakdown || {})) {
+                        if (!acc[questionType]) {
+                            acc[questionType] = { correct: 0, total: 0 };
+                        }
+
+                        acc[questionType].correct += counts.correct;
+                        acc[questionType].total += counts.total;
+                    }
+
+                    return acc;
+                },
+                {},
+            ),
+        ).map(([questionType, counts]) => ({
+            questionType,
+            correct: counts.correct,
+            total: counts.total,
+            percentage: counts.total > 0 ? Math.round((counts.correct / counts.total) * 100) : 0,
+        }));
+
+    const segmentPerformanceLines = normalizedSegmentBreakdown.length > 0
+        ? normalizedSegmentBreakdown.map((segment) =>
+            `${segment.segmentName}: ${segment.correct}/${segment.total} (${Math.round(segment.percentage)}%)`,
+        )
+        : ['No segment breakdown available'];
+
+    const questionTypeBreakdownLines = normalizedQuestionTypeBreakdown.length > 0
+        ? normalizedQuestionTypeBreakdown.map((entry) =>
+            `${entry.questionType}: ${entry.correct}/${entry.total} (${entry.percentage}%)`,
+        )
+        : ['No question-type breakdown available'];
+
+    const unansweredCount = testMetadata.unansweredCount ?? 0;
+    const systemPrompt = `You are an expert IELTS tutor providing precise formative feedback for a student.
+Your response must interpret IELTS band performance, identify the weakest ${segmentLabel.toLowerCase()}, analyse IELTS-specific question types, and give time-management advice.
+If the format is IELTS Reading, explain passage clues, paraphrases, headings, and location tracking. If the format is IELTS Listening, explain spoken cues, distractors, corrections, spelling, numbers, plurals, and answer transfer.
+For each wrong answer, explain the IELTS clue or language feature that makes the correct answer right. If Answer status is UNANSWERED, say the student left it blank or did not answer; never say the student chose an option.
+You must also recommend specific chapters, units, sections, or practice-test parts from the approved study books only.
+Return ONLY valid JSON matching the requested schema.`;
+
+    const userPrompt = `IELTS Test: "${testMetadata.title}"
+Format kind: ${formatKind}
+Segment label: ${segmentLabel}
+Band score: ${testMetadata.bandScore?.toFixed(1) || gradingResult.scaledScore.toFixed(1)}
+Raw score: ${gradingResult.totalPoints}/${gradingResult.maxPoints}
+Time spent: ${formatDuration(testMetadata.timeSpent)}
+Question count: ${testMetadata.totalQuestions || gradingResult.maxPoints}
+Unanswered questions: ${unansweredCount}
+
+Segment performance:
+${segmentPerformanceLines.join('\n')}
+
+Question-type analysis:
+${questionTypeBreakdownLines.join('\n')}
+
+Approved study books (choose ONLY from this exact list):
+${approvedBooks}
+
+Questions:
+${questionLines.join('\n\n')}
+
+Return JSON with this EXACT schema:
+{
+  "questionTopics": {
+    "<questionNumber>": { "topic": "<IELTS skill or topic>", "category": "<Reading|Listening|Vocabulary|Grammar|Time Management>" }
+  },
+  "questionExplanations": {
+    "<questionNumber>": "<3-5 sentence explanation naming the IELTS question type, the passage clue or listening cue, why the student's answer is wrong or what clue they missed if they left it blank, why the correct answer is right, and a short tip>"
+  },
+  "feedback": {
+    "summary": "<2-3 sentences with band-score interpretation and the main IELTS skill pattern>",
+    "strengths": "<2-3 sentences referencing the strongest passage/question types>",
+    "revision": "<2-3 sentences on areas for improvement, naming the weakest passage/question types>",
+    "critical": "<2-3 sentences with time-management advice and the most urgent IELTS practice areas, or empty string if there are no critical gaps>"
+  },
+  "studyRecommendations": [
+    {
+      "skillTag": "<short label such as 'True / False / Not Given' or 'Reading Strategy'>",
+      "questionNumbers": [<wrong question numbers tied to this recommendation, or [] for advanced stretch work>],
+      "guidance": "<1-2 sentences connecting the student's mistake pattern to the recommended study target>",
+      "resources": [
+        {
+          "bookTitle": "<must exactly match one approved title>",
+          "author": "<must exactly match the approved author>",
+          "sectionTitle": "<specific chapter, unit, section, or practice-test part>",
+          "reason": "<why this exact section helps with those mistakes>"
+        }
+      ]
+    }
+  ]
+}
+
+RULES:
+1. Include band-score interpretation in feedback.summary
+2. Identify the weakest ${segmentLabel.toLowerCase()} explicitly in feedback.revision
+3. Analyse IELTS-specific question types (for example true/false/not given, matching, completion) in feedback.revision or feedback.critical
+4. Give time-management advice based on time spent versus total question count in feedback.critical
+5. questionTopics must cover all questions
+6. questionExplanations should only cover wrong answers
+7. Return 1-3 studyRecommendations and keep them tied to the student's actual wrong questions unless this is a perfect score
+8. Use ONLY the approved books listed above; never invent another title or author
+9. Each resource must name a specific chapter, unit, section, or practice-test part. If you are unsure about exact page numbers, omit pages entirely
+10. If Answer status is UNANSWERED, explicitly say the student left it blank or did not answer instead of saying they chose an option
+11. Use encouraging but precise tutor language`;
+
+    return { systemPrompt, userPrompt };
+}
+
 export function buildFeedbackPrompt(
     gradingResult: THCSGradingResult,
     sections: THCSSection[],
@@ -1319,6 +1808,8 @@ export function buildFeedbackPrompt(
     const approvedBooks = formatApprovedStudyBooksForPrompt();
 
     if (isIeltsPromptMetadata(testMetadata)) {
+        return buildIeltsFeedbackPrompt(gradingResult, sections, testMetadata, approvedBooks);
+
         const questionLines: string[] = [];
 
         for (const section of sections) {
@@ -1595,6 +2086,7 @@ RULES:
 export function validateAIFeedbackResponse(
     raw: unknown,
     requiredExplanationKeys: string[] = [],
+    context?: WeakExplanationContext,
 ): AIFeedbackResponse | null {
     if (!raw || typeof raw !== 'object') return null;
 
@@ -1633,7 +2125,7 @@ export function validateAIFeedbackResponse(
     );
     for (const requiredKey of normalizedRequiredKeys) {
         const explanation = getExplanationForQuestion(explanations, requiredKey);
-        if (!explanation || isWeakQuestionExplanation(explanation)) {
+        if (!explanation || isWeakQuestionExplanation(explanation, context)) {
             return null;
         }
     }
@@ -1732,6 +2224,7 @@ async function callGeminiForFeedback(
     systemPrompt: string,
     userPrompt: string,
     requiredExplanationKeys: string[],
+    context?: WeakExplanationContext,
 ): Promise<AICallResult> {
     try {
         const rotationResult = await executeGeminiWithKeyRotation<{
@@ -1764,7 +2257,7 @@ async function callGeminiForFeedback(
                 }
 
                 const parsed = extractJSON(text);
-                const validated = validateAIFeedbackResponse(parsed, requiredExplanationKeys);
+                const validated = validateAIFeedbackResponse(parsed, requiredExplanationKeys, context);
 
                 if (!validated) {
                     console.warn(`⚠️ [FormativeFeedback/Gemini] Validation failed for key ${attemptNumber}`);
@@ -1808,6 +2301,7 @@ async function callGroqForFeedback(
     systemPrompt: string,
     userPrompt: string,
     requiredExplanationKeys: string[],
+    context?: WeakExplanationContext,
 ): Promise<AICallResult> {
     try {
         const { default: Groq } = await import('groq-sdk');
@@ -1872,7 +2366,7 @@ async function callGroqForFeedback(
                 }
 
                 const parsed = extractJSON(text);
-                const validated = validateAIFeedbackResponse(parsed, requiredExplanationKeys);
+                const validated = validateAIFeedbackResponse(parsed, requiredExplanationKeys, context);
 
                 if (!validated) {
                     console.warn(`⚠️ [FormativeFeedback/Groq] Validation failed for key ${i + 1}`);
@@ -1924,7 +2418,7 @@ async function generateAIFeedback(
 
     // Step 1: Try Gemini first
     console.log('🤖 [FormativeFeedback] Attempting Gemini...');
-    const geminiResult = await callGeminiForFeedback(systemPrompt, userPrompt, requiredExplanationKeys);
+    const geminiResult = await callGeminiForFeedback(systemPrompt, userPrompt, requiredExplanationKeys, testMetadata);
 
     if (geminiResult.success && geminiResult.data) {
         if (hasExplanationAnswerStateMismatch(geminiResult.data.questionExplanations, gradingResult.questionResults)) {
@@ -1939,7 +2433,7 @@ async function generateAIFeedback(
 
     // Step 2: Fall back to Groq
     console.log('🔄 [FormativeFeedback] Falling back to Groq...');
-    const groqResult = await callGroqForFeedback(systemPrompt, userPrompt, requiredExplanationKeys);
+    const groqResult = await callGroqForFeedback(systemPrompt, userPrompt, requiredExplanationKeys, testMetadata);
 
     if (groqResult.success && groqResult.data) {
         if (hasExplanationAnswerStateMismatch(groqResult.data.questionExplanations, gradingResult.questionResults)) {
@@ -2108,75 +2602,87 @@ export async function generateFormativeFeedback(
                         forceAiUpgrade = needsAiFeedbackUpgrade(
                             storedFeedback,
                             gradingResult.questionResults,
+                            testMetadata,
                         ) && Boolean(options?.forceAiUpgrade || hasAnswerStateMismatch);
                         if (!forceAiUpgrade) {
                             console.log(`[FormativeFeedback] Reusing stored feedback for result ${resultId}.`);
+                            await persistFeedbackGenerationMeta(resultId, testMetadata, 'reused', {
+                                triggerSource: options?.triggerSource ?? null,
+                            });
                             return buildStoredFeedbackResult(storedFeedback);
                         }
                         console.log(`[FormativeFeedback] Attempting AI upgrade for stored feedback on result ${resultId}.`);
+                    } else {
+                        console.warn(`⚠️ [FormativeFeedback] Ignoring mismatched stored feedback for result ${resultId}.`);
                     }
-
-                    console.warn(`⚠️ [FormativeFeedback] Ignoring mismatched stored feedback for result ${resultId}.`);
                 }
             }
 
             console.log(`🧠 [FormativeFeedback] Generating feedback for result ${resultId}...`);
 
-            // Step 1: Generate deterministic baseline (sync, always works)
-            const feedback = generateDeterministicFeedback(gradingResult, sections);
+            const snapshot = await generateFormativeFeedbackSnapshot(
+                gradingResult,
+                sections,
+                testMetadata,
+                resultId,
+            );
 
-            // Step 2: Attempt AI enhancement (async, may fail gracefully)
-            const aiResult = await generateAIFeedback(gradingResult, sections, testMetadata);
-
-            if (aiResult) {
-                // Merge AI data into deterministic baseline
-                feedback.questionTopics = aiResult.data.questionTopics;
-                feedback.questionExplanations = getRenderableQuestionExplanations(aiResult.data.questionExplanations);
-                feedback.aiFeedback = aiResult.data.feedback;
-                feedback.studyRecommendations = aiResult.data.studyRecommendations;
-                feedback.aiModel = aiResult.model;
-                console.log(`🤖 [FormativeFeedback] AI enrichment applied (${aiResult.model})`);
-            } else {
-                if (storedFeedback && forceAiUpgrade) {
-                    console.log(`[FormativeFeedback] AI upgrade unavailable for result ${resultId}; keeping stored feedback.`);
-                    return {
-                        ...buildStoredFeedbackResult(storedFeedback),
-                        error: 'AI upgrade did not complete. The existing feedback is still being shown.',
-                        upgradeAttempted: true,
-                        upgradeApplied: false,
-                    };
-                }
-                console.log('📊 [FormativeFeedback] Using deterministic-only feedback');
+            if (!snapshot.aiApplied && storedFeedback && forceAiUpgrade) {
+                console.log(`[FormativeFeedback] AI upgrade unavailable for result ${resultId}; keeping stored feedback.`);
+                const errorMessage = 'AI upgrade did not complete. The existing feedback is still being shown.';
+                await persistFeedbackGenerationMeta(resultId, testMetadata, 'reused', {
+                    error: errorMessage,
+                    triggerSource: options?.triggerSource ?? null,
+                });
+                return {
+                    ...buildStoredFeedbackResult(storedFeedback),
+                    error: errorMessage,
+                    upgradeAttempted: true,
+                    upgradeApplied: false,
+                };
             }
 
-            const fallbackExplanations = buildFallbackQuestionExplanations(gradingResult.questionResults || {}, sections);
-            feedback.fallbackQuestionExplanations = fallbackExplanations;
-
-            feedback.resultId = resultId;
-            feedback.generationMode = aiResult ? 'ai' : 'deterministic';
-
-            // Step 3: Save feedback to RTDB
+            const outcome: SavedResultFeedbackOutcome = snapshot.aiApplied ? 'saved-ai' : 'saved-deterministic';
             await update(ref(database, `test_results/${resultId}`), {
-                formativeFeedback: feedback,
+                formativeFeedback: snapshot.feedback,
+                feedbackGenerationMeta: {
+                    kind: resolveFeedbackMetadataKind(testMetadata),
+                    lastAttemptAt: Date.now(),
+                    lastTriggerSource: options?.triggerSource ?? null,
+                    lastOutcome: outcome,
+                    lastError: null,
+                },
             });
 
-            const mode = aiResult ? `AI (${aiResult.model})` : 'deterministic-only';
+            const mode = snapshot.aiApplied
+                ? `AI (${snapshot.feedback.aiModel || 'unknown'})`
+                : 'deterministic-only';
             console.log(`✅ [FormativeFeedback] Saved feedback for result ${resultId} (${mode})`);
             return {
                 saved: true,
-                aiApplied: Boolean(aiResult),
-                mode: aiResult ? 'ai' : 'deterministic',
+                aiApplied: snapshot.aiApplied,
+                mode: snapshot.mode,
                 upgradeAttempted: forceAiUpgrade,
-                upgradeApplied: forceAiUpgrade ? Boolean(aiResult) : undefined,
+                upgradeApplied: forceAiUpgrade ? snapshot.aiApplied : undefined,
             };
         } catch (error) {
             // Non-blocking: log and swallow — test result is already saved
             console.error(`❌ [FormativeFeedback] Failed for result ${resultId}:`, error);
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            await persistFeedbackGenerationMeta(resultId, testMetadata, 'failed', {
+                error: errorMessage,
+                triggerSource: options?.triggerSource ?? null,
+            }).catch((persistError) => {
+                console.warn(
+                    `[FormativeFeedback] Failed to persist generation meta for ${resultId}:`,
+                    persistError,
+                );
+            });
             return {
                 saved: false,
                 aiApplied: false,
                 mode: 'failed',
-                error: error instanceof Error ? error.message : 'Unknown error',
+                error: errorMessage,
             };
         } finally {
             feedbackGenerationInFlight.delete(resultId);

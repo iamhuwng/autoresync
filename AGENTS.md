@@ -18,6 +18,15 @@ These rules are obligatory for file creation, conversion, and editing:
 - Prefer repo guardrails over ad hoc byte-safe editing: `.editorconfig`, `.gitattributes`, and `npm run check:utf8`.
 - Use `npm run check:utf8:staged` for staged changes, `npm run check:utf8:all` for a broader repo scan, and `npm run check:utf8 -- <paths...>` for targeted verification.
 
+## Dev Login Shortcuts (MANDATORY)
+
+When testing authenticated teacher or student flows in this repo:
+- Prefer the built-in dev quick-login buttons on the login page before asking for credentials.
+- Use the `Teacher` quick-login button for the teacher dev account (`teacher@test.com`).
+- Use the `Student` quick-login button for the student dev account (`student@test.com`).
+- Treat these buttons as the default path for browser verification unless the task explicitly requires manual credential entry or a different account.
+- If the quick-login buttons fail, check app/runtime configuration first (for example Firebase API key referrer restrictions) before assuming the accounts are broken.
+
 | When you are... | READ this file |
 |----------------|----------------|
 | Writing `navigate()`, `<Link>`, redirect URLs, or notification links | [`rules/navigation.md`](documentation/rules/navigation.md) |

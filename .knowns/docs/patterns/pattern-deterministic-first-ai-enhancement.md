@@ -1,17 +1,15 @@
 ---
 title: 'Pattern: Deterministic-First AI Enhancement'
+description: Architecture pattern where a deterministic baseline is always computed first, then optionally enhanced with AI-generated content that merges on top. Guarantees output even when AI fails.
 createdAt: '2026-03-04T22:24:40.015Z'
-updatedAt: '2026-03-05T08:24:04.820Z'
-description: >-
-  Architecture pattern where a deterministic baseline is always computed first,
-  then optionally enhanced with AI-generated content that merges on top.
-  Guarantees output even when AI fails.
+updatedAt: '2026-03-29T04:48:35.548Z'
 tags:
   - pattern
   - ai
   - architecture
   - resilience
 ---
+
 # Pattern: Deterministic-First AI Enhancement
 
 ## Problem
@@ -218,3 +216,59 @@ function TierSection({ aiText, config }) {
 
 ### Source
 This session — `src/components/thcs-student/FormativeFeedbackPanel.tsx` (March 2026)
+
+
+## 2026-03-29 Amendment — Snapshot Reuse, Repair Tooling, and Outcome Metadata
+
+### Additional pattern refinement
+
+A deterministic-first AI feature is easier to repair if the generation stack can produce a reusable snapshot without immediately writing to storage.
+
+Instead of coupling generation and persistence into one function, expose a snapshot step that returns:
+- the deterministic baseline
+- any merged AI enhancement
+- whether AI was actually applied
+- the final mode (`ai` or `deterministic`)
+
+This lets the same engine support:
+- normal online generation
+- viewer-triggered upgrades
+- one-off backfill and repair scripts
+
+### Why this matters
+
+Historical repair paths usually need more control than the online flow:
+- they may need to rebuild from saved result data when the original source test is missing
+- they may need to write through a different operational path
+- they still need the exact same deterministic + AI merge behavior as production generation
+
+If the only API is "generate and save now", repair tools either duplicate logic or become fragile.
+
+### Recommended shape
+
+Keep a reusable snapshot helper plus a thin persistence wrapper.
+
+Pattern:
+- `generateDeterministicFeedback(...)`
+- `generateAIFeedback(...)`
+- `generate...Snapshot(...)`
+- `persist...(...)`
+
+### Outcome metadata
+
+Deterministic-first systems should also persist coarse generation outcomes so support and repair tools can tell what happened without diffing the full output blob.
+
+Useful outcomes:
+- `saved-ai`
+- `saved-deterministic`
+- `reused`
+- `skipped-ineligible`
+- `failed`
+
+### Current operational state
+
+The formative-feedback system now supports snapshot reuse for both live generation and IELTS saved-result backfill. Historical repairs no longer need a separate explanation engine.
+
+### Related docs
+- @doc/patterns/pattern-rtdb-real-time-auto-load-with-fire-and-forget-generation
+- @doc/architecture/test-system-architecture

@@ -8,6 +8,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { buildRoute } from '../constants/routes';
+import { useAuth } from '../hooks/useAuth';
 import WritingMetadataPanel from '../components/writing/WritingMetadataPanel';
 import WritingTaskPanel from '../components/writing/WritingTaskPanel';
 import type { WritingTaskWithKey } from '../components/writing/WritingTaskPanel';
@@ -48,6 +50,7 @@ const DEFAULT_METADATA: WritingTestMetadata = {
 export default function WritingTestBuilder() {
     const { draftId } = useParams<{ draftId: string }>();
     const navigate = useNavigate();
+    const { user } = useAuth();
 
     const [metadata, setMetadata] = useState<WritingTestMetadata>(DEFAULT_METADATA);
     const [task1, setTask1] = useState<WritingTaskWithKey>(DEFAULT_TASK1);
@@ -57,6 +60,7 @@ export default function WritingTestBuilder() {
     const [showPublishDialog, setShowPublishDialog] = useState(false);
     const [currentDraftId, setCurrentDraftId] = useState<string | undefined>(draftId);
     const [loading, setLoading] = useState(!!draftId);
+    const [loadError, setLoadError] = useState<string | null>(null);
 
     // [GAP-06] Auto-save debounce using useRef — NOT useState
     const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -68,18 +72,21 @@ export default function WritingTestBuilder() {
 
         (async () => {
             setLoading(true);
+            setLoadError(null);
             const result = await getWritingDraft(draftId);
             if (cancelled) return;
 
             if (result.success && result.data) {
                 const draft = result.data;
-                setMetadata(draft.metadata);
+                setMetadata({ ...DEFAULT_METADATA, ...draft.metadata });
 
                 const t1 = draft.tasks.find(t => t.taskNumber === 1);
                 const t2 = draft.tasks.find(t => t.taskNumber === 2);
                 if (t1) setTask1({ ...DEFAULT_TASK1, ...t1 });
                 if (t2) setTask2({ ...DEFAULT_TASK2, ...t2 });
                 setCurrentDraftId(draftId);
+            } else {
+                setLoadError(result.error || 'Failed to load writing draft.');
             }
             setLoading(false);
         })();
@@ -100,8 +107,7 @@ export default function WritingTestBuilder() {
     // Validation
     const validationState = validateWritingTest(metadata, getActiveTasks());
 
-    // Get current user ID (from sessionStorage)
-    const userId = sessionStorage.getItem('userId') || '';
+    const userId = user?.uid || '';
 
     // [GAP-06] Auto-save with useRef debounce
     useEffect(() => {
@@ -132,6 +138,10 @@ export default function WritingTestBuilder() {
 
     // Manual save
     const handleSave = async () => {
+        if (!userId) {
+            alert('You must be signed in to save this draft.');
+            return;
+        }
         setSaveStatus('Saving...');
         const tasks: WritingTask[] = getActiveTasks().map(({ _imageKey, ...rest }) => rest);
         const result = await saveWritingDraft(userId, {
@@ -149,6 +159,11 @@ export default function WritingTestBuilder() {
 
     // [Task 2.5] Publish flow
     const handlePublish = async () => {
+        if (!userId) {
+            alert('You must be signed in to publish this test.');
+            return;
+        }
+
         // Check blocking errors
         if (validationState.errors.length > 0) {
             alert('Please fix all validation errors before publishing.');
@@ -194,6 +209,9 @@ export default function WritingTestBuilder() {
             });
 
             if (result.success) {
+                if (result.draftId) {
+                    setCurrentDraftId(result.draftId);
+                }
                 setShowPublishDialog(true);
             } else {
                 alert('Failed to publish: ' + (result.error || 'Unknown error'));
@@ -212,6 +230,27 @@ export default function WritingTestBuilder() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh' }}>
                     <div className="wtb-spinner" />
                     <span style={{ marginLeft: 12, color: '#64748b' }}>Loading draft...</span>
+                </div>
+            </div>
+        );
+    }
+
+    if (loadError) {
+        return (
+            <div className="wtb-page">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '50vh' }}>
+                    <div className="wtb-dialog" style={{ maxWidth: 520 }}>
+                        <h2>Unable to open draft</h2>
+                        <p>{loadError}</p>
+                        <div className="wtb-dialog-actions">
+                            <button
+                                className="wtb-btn wtb-btn--primary"
+                                onClick={() => navigate(buildRoute('LOBBY'))}
+                            >
+                                Back to Materials
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         );
@@ -274,21 +313,21 @@ export default function WritingTestBuilder() {
                         <div className="wtb-dialog-actions">
                             <button
                                 className="wtb-btn wtb-btn--primary"
-                                onClick={() => navigate('/sessions')}
+                                onClick={() => navigate(buildRoute('LOBBY'))}
                             >
-                                🚀 Start Session
+                                📚 Go to Materials
                             </button>
                             <button
                                 className="wtb-btn wtb-btn--outline"
-                                onClick={() => navigate('/teacher/homework')}
+                                onClick={() => navigate(buildRoute('TEACHER_HOMEWORK'))}
                             >
                                 📋 Assign as Homework
                             </button>
                             <button
                                 className="wtb-btn wtb-btn--outline"
-                                onClick={() => navigate('/sessions')}
+                                onClick={() => setShowPublishDialog(false)}
                             >
-                                📚 Go to Test List
+                                Keep Editing
                             </button>
                         </div>
                     </div>

@@ -151,7 +151,7 @@ describe('ResultDetailModal', () => {
     });
   });
 
-  it('does not auto-trigger feedback generation for IELTS results in the modal', async () => {
+  it('auto-triggers feedback generation for missing IELTS results in the modal', async () => {
     render(<ResultDetailModal opened onClose={vi.fn()} resultId="res-1" />);
     simulateOnValueSuccess(IELTS_RESULT);
 
@@ -159,23 +159,32 @@ describe('ResultDetailModal', () => {
       expect(screen.getByText('IELTS Reading Practice 1')).toBeInTheDocument();
     });
 
-    expect(mockGenerateFormativeFeedbackForSavedResult).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(mockGenerateFormativeFeedbackForSavedResult).toHaveBeenCalledWith(
+        'res-1',
+        expect.objectContaining({ triggerSource: 'ResultDetailModal:auto-generate' }),
+      );
+    });
   });
 
-  it('uses the shared saved-result retry flow when manual retry is clicked', async () => {
+  it('uses the shared saved-result generate flow when manual retry is clicked for missing feedback', async () => {
     render(<ResultDetailModal opened onClose={vi.fn()} resultId="res-1" />);
     simulateOnValueSuccess(IELTS_RESULT);
 
     await waitFor(() => {
-      expect(screen.getByText('Retry AI Feedback')).toBeInTheDocument();
+      expect(screen.getByText('Generate AI Feedback')).toBeInTheDocument();
     });
 
     act(() => {
-      screen.getByText('Retry AI Feedback').click();
+      screen.getByText('Generate AI Feedback').click();
     });
 
     await waitFor(() => {
-      expect(mockGenerateFormativeFeedbackForSavedResult).toHaveBeenCalledWith('res-1', { forceAiUpgrade: true });
+      expect(mockGenerateFormativeFeedbackForSavedResult).toHaveBeenNthCalledWith(
+        2,
+        'res-1',
+        expect.objectContaining({ triggerSource: 'ResultDetailModal:manual-generate' }),
+      );
     });
   });
 
@@ -202,7 +211,13 @@ describe('ResultDetailModal', () => {
 
     expect(screen.getByText(/Retry AI Feedback/i)).toBeInTheDocument();
     await waitFor(() => {
-      expect(mockGenerateFormativeFeedbackForSavedResult).toHaveBeenCalledWith('res-1', { forceAiUpgrade: true });
+      expect(mockGenerateFormativeFeedbackForSavedResult).toHaveBeenCalledWith(
+        'res-1',
+        expect.objectContaining({
+          forceAiUpgrade: true,
+          triggerSource: 'ResultDetailModal:auto-upgrade',
+        }),
+      );
     });
   });
 
@@ -232,7 +247,13 @@ describe('ResultDetailModal', () => {
     });
 
     await waitFor(() => {
-      expect(mockGenerateFormativeFeedbackForSavedResult).toHaveBeenCalledWith('res-generic', { forceAiUpgrade: true });
+      expect(mockGenerateFormativeFeedbackForSavedResult).toHaveBeenCalledWith(
+        'res-generic',
+        expect.objectContaining({
+          forceAiUpgrade: true,
+          triggerSource: 'ResultDetailModal:auto-upgrade',
+        }),
+      );
     });
   });
 
@@ -274,5 +295,28 @@ describe('ResultDetailModal', () => {
     // OverviewTab and FeedbackTab both render the AI summary text, so use getAllByText
     expect(screen.getAllByText(/matching questions/i).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByTestId('study-recommendations')).toBeInTheDocument();
+  });
+
+  it('renders teacher feedback sections in the teacher homework modal', async () => {
+    render(<ResultDetailModal opened onClose={vi.fn()} resultId="res-1" />);
+    simulateOnValueSuccess({
+      ...IELTS_RESULT,
+      overallFeedback: 'Teacher overall feedback',
+      feedbackUpdatedBy: 'Ms. Nguyen',
+      feedbackUpdatedAt: 1710921600000,
+      questionResults: [
+        {
+          ...IELTS_RESULT.questionResults[0],
+          teacherFeedback: 'Check the passage for the detail that changes the answer.',
+        },
+      ],
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('ssrc-teacher-overall-feedback')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Teacher overall feedback')).toBeInTheDocument();
+    expect(screen.getByTestId('ssrc-teacher-question-feedback')).toBeInTheDocument();
+    expect(screen.getByText(/check the passage for the detail/i)).toBeInTheDocument();
   });
 });

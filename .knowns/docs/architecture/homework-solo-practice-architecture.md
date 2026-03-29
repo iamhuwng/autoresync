@@ -1,16 +1,15 @@
 ---
 title: Homework Solo Practice Architecture
+description: 'Solo practice and homework system: data flows, status machine, result context, access control.'
 createdAt: '2026-02-27T16:20:59.562Z'
-updatedAt: '2026-02-27T16:21:07.109Z'
-description: >-
-  Solo practice and homework system: data flows, status machine, result context,
-  access control.
+updatedAt: '2026-03-29T08:41:42.846Z'
 tags:
   - architecture
   - homework
   - solo
   - practice
 ---
+
 # Homework & Solo Practice Architecture
 
 ## Overview
@@ -112,3 +111,33 @@ Colors: 🏫 Live=Blue, 📋 Homework=Orange, 📖 Practice=Green, 📚 Course=P
 - @doc/prd/prd-solo-study-homework — PRD
 - @doc/prd/prd-unified-solo-practice — Unified practice PRD
 - @doc/architecture/test-system-architecture — Test system (cross-ref)
+
+
+## 2026-03-29 Addendum — IELTS Writing Exception Path
+
+The generic solo/homework architecture in this document remains broadly correct for non-writing materials, but IELTS Writing now needs an explicit exception note.
+
+### Current Writing path
+- IELTS Writing solo and homework entry currently route through `StudentPracticePage`, not the older generic `StudentSoloTestPage` wording used above.
+- `StudentPracticePage` detects `testType: 'IELTS'` plus `skill: 'Writing'` and renders `WritingPracticeView`.
+- `WritingPracticeView` writes canonical Firestore `writing_submissions` rows and then materializes the compatible RTDB result/index records.
+- Live-session Writing uses a separate `WritingTestPage` + RTDB live-session draft path and only later promotes into `writing_submissions`.
+
+### Why this matters
+- Non-writing IELTS solo practice depends on the student-safe RTDB projection path.
+- IELTS Writing does not use that same delivery contract and must be evaluated against the Writing-specific grading/result lifecycle.
+- Homework Writing currently reuses the solo-practice Writing UI, but it is not yet identical to the generic homework submission lifecycle described elsewhere in the codebase.
+
+### Guardrail
+- When updating solo practice or homework architecture, do not assume IELTS Writing follows the same submit, result-detail, or ownership path as Reading/Listening or generic solo-test flows.
+- Cross-check with @doc/architecture/scheme/ielts-writing-current-state-scheme before changing Writing-related logic.
+
+## 2026-03-29 Implementation Update — IELTS Writing Homework/Practice Sync
+
+The current implementation now enforces the Writing-specific async contract in the homework and solo-practice flows:
+
+- Homework Writing attempts are routed with `homeworkId`, `submissionId`, and the assigning `teacherId` into `StudentPracticePage` and `WritingPracticeView`.
+- Homework Writing no longer behaves like free teacher-pick solo practice. The assigned homework teacher is the grading target, and the stored Writing submission now records that with `context.assigningTeacherId`.
+- Submitting a homework Writing essay now updates both storage systems: `writing_submissions/{resultId}` plus the canonical `homework_submissions/{submissionId}` lifecycle row.
+- Final teacher grading now upgrades the linked homework attempt to `graded` and stores the band score used by homework-facing student UI.
+- Student homework cards/details now treat Writing as a manual-review workflow: pending submissions show waiting-state copy, and graded submissions can display band output instead of percentage-only assumptions.

@@ -133,6 +133,33 @@ const MOCK_GENERIC_RESULT = {
   bandScore: undefined,
 };
 
+const MOCK_WRITING_RESULT = {
+  ...MOCK_RESULT,
+  resultId: 'res-writing',
+  testTitle: 'IELTS Writing Homework',
+  testType: 'homework',
+  testSkill: 'writing',
+  percentage: 0,
+  totalScore: 0,
+  maxScore: 0,
+  correct: 0,
+  incorrect: 0,
+  totalQuestions: 0,
+  bandScore: 0,
+  markingStatus: 'pending-review',
+  questionResults: [],
+  writingData: {
+    submissionId: 'res-writing',
+    overallBand: null,
+    markingStatus: 'pending-review',
+    tasks: [{ taskNumber: 1, wordCount: 260, activeTimeSeconds: 1200 }],
+  },
+  writingSubmission: {
+    text: 'Task 1\nSample essay text',
+    wordCount: 260,
+  },
+};
+
 const MOCK_LEGACY_CONTEXT_RESULT = {
   ...MOCK_GENERIC_RESULT,
   resultId: 'res-legacy-context',
@@ -319,6 +346,15 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
 
       expect(screen.getByText('IELTS Reading Practice Test 3')).toBeInTheDocument();
       expect(screen.getByText('IELTS Reading')).toBeInTheDocument();
+    });
+
+    it('renders the writing submission placeholder instead of score summary for writing results', () => {
+      render(<ResultSlidePanel resultId="res-writing" onClose={mockOnClose} />);
+      emitResultSnapshot('res-writing', MOCK_WRITING_RESULT);
+
+      expect(screen.getByText('Writing Submission')).toBeInTheDocument();
+      expect(screen.getByText('Pending Review')).toBeInTheDocument();
+      expect(screen.queryByText('No question results available for this test.')).not.toBeInTheDocument();
     });
 
     it('should render attempt history beside the title when multiple attempts exist', () => {
@@ -559,7 +595,7 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
   });
 
   describe('Feedback generation', () => {
-    it('does not auto-trigger formative feedback for IELTS results without existing feedback', async () => {
+    it('auto-triggers formative feedback for missing IELTS results', async () => {
       render(<ResultSlidePanel resultId="res-1" onClose={mockOnClose} />);
       emitResultSnapshot('res-1', {
         ...MOCK_RESULT,
@@ -599,10 +635,15 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
         expect(screen.getByText('IELTS Reading Practice Test 3')).toBeInTheDocument();
       });
 
-      expect(mockGenerateFormativeFeedbackForSavedResult).not.toHaveBeenCalled();
+      await waitFor(() => {
+        expect(mockGenerateFormativeFeedbackForSavedResult).toHaveBeenCalledWith(
+          'res-1',
+          expect.objectContaining({ triggerSource: 'ResultSlidePanel:auto-generate' }),
+        );
+      });
     });
 
-    it('allows manual retry for IELTS results without stored feedback', async () => {
+    it('generates feedback on manual retry when IELTS results have no stored feedback', async () => {
       render(<ResultSlidePanel resultId="res-1" onClose={mockOnClose} />);
       emitResultSnapshot('res-1', {
         ...MOCK_RESULT,
@@ -621,6 +662,11 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
             feedback: '',
           },
         ],
+        ieltsData: {
+          passageResults: [
+            { passageName: 'Passage 1', questionRange: [1, 1], correct: 0, total: 1, percentage: 0 },
+          ],
+        },
       });
 
       fireEvent.click(screen.getByTestId('rsp-tab-feedback'));
@@ -629,10 +675,14 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
         expect(screen.getByTestId('fb-feedback-missing')).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByText('Retry AI Feedback'));
+      fireEvent.click(screen.getByText('Generate AI Feedback'));
 
       await waitFor(() => {
-        expect(mockGenerateFormativeFeedbackForSavedResult).toHaveBeenCalledWith('res-1', { forceAiUpgrade: true });
+        expect(mockGenerateFormativeFeedbackForSavedResult).toHaveBeenNthCalledWith(
+          2,
+          'res-1',
+          expect.objectContaining({ triggerSource: 'ResultSlidePanel:manual-generate' }),
+        );
       });
     });
 
@@ -697,7 +747,13 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
       });
 
       await waitFor(() => {
-        expect(mockGenerateFormativeFeedbackForSavedResult).toHaveBeenCalledWith('res-thcs', { forceAiUpgrade: true });
+        expect(mockGenerateFormativeFeedbackForSavedResult).toHaveBeenCalledWith(
+          'res-thcs',
+          expect.objectContaining({
+            forceAiUpgrade: true,
+            triggerSource: 'ResultSlidePanel:auto-upgrade',
+          }),
+        );
       });
     });
 
@@ -780,7 +836,13 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
       });
 
       await waitFor(() => {
-        expect(mockGenerateFormativeFeedbackForSavedResult).toHaveBeenCalledWith('res-thcs', { forceAiUpgrade: true });
+        expect(mockGenerateFormativeFeedbackForSavedResult).toHaveBeenCalledWith(
+          'res-thcs',
+          expect.objectContaining({
+            forceAiUpgrade: true,
+            triggerSource: 'ResultSlidePanel:auto-upgrade',
+          }),
+        );
       });
     });
 
@@ -844,7 +906,13 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
       expect(screen.getByText(/still needs an AI upgrade/i)).toBeInTheDocument();
       expect(screen.getByText('Retry AI Feedback')).toBeInTheDocument();
       await waitFor(() => {
-        expect(mockGenerateFormativeFeedbackForSavedResult).toHaveBeenCalledWith('res-thcs', { forceAiUpgrade: true });
+        expect(mockGenerateFormativeFeedbackForSavedResult).toHaveBeenCalledWith(
+          'res-thcs',
+          expect.objectContaining({
+            forceAiUpgrade: true,
+            triggerSource: 'ResultSlidePanel:auto-upgrade',
+          }),
+        );
       });
     });
 
@@ -876,13 +944,19 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
       });
 
       await waitFor(() => {
-        expect(mockGenerateFormativeFeedbackForSavedResult).toHaveBeenCalledWith('res-generic', { forceAiUpgrade: true });
+        expect(mockGenerateFormativeFeedbackForSavedResult).toHaveBeenCalledWith(
+          'res-generic',
+          expect.objectContaining({
+            forceAiUpgrade: true,
+            triggerSource: 'ResultSlidePanel:auto-upgrade',
+          }),
+        );
       });
     });
   });
 
   describe('Live-session release governance', () => {
-    it('keeps waiting live-session results locked until the session has ending markers', async () => {
+    it('does not keep historical waiting-session results under live-session governance', async () => {
       render(<ResultSlidePanel resultId="res-live" onClose={mockOnClose} />);
       emitResultSnapshot('res-live', MOCK_LIVE_SESSION_THCS_RESULT);
 
@@ -892,19 +966,22 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
 
       emitSessionSnapshot('live-session-1', {
         status: 'waiting',
+        lastTestId: 'test-live',
+        lastTestCompletedAt: Date.now(),
         players: {
           'student-1': {
             name: 'Student 1',
+            latestResultId: 'res-live',
           },
         },
       });
 
       await waitFor(() => {
-        expect(screen.getByTestId('rsp-release-notice-locked-review')).toBeInTheDocument();
+        expect(screen.getByTestId('rsp-tab-review')).toBeInTheDocument();
       });
 
-      expect(screen.queryByTestId('rsp-tab-review')).not.toBeInTheDocument();
-      expect(screen.queryByTestId('rsp-tab-feedback')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('rsp-release-notice-locked-review')).not.toBeInTheDocument();
+      expect(screen.getByTestId('rsp-tab-feedback')).toBeInTheDocument();
     });
 
     it('locks live-session saved results to the overview tab until review is released', async () => {
@@ -917,6 +994,7 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
 
       emitSessionSnapshot('live-session-1', {
         status: 'in-progress',
+        testId: 'test-live',
         reviewReleaseState: 'locked-review',
       });
 
@@ -939,7 +1017,8 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
       });
 
       emitSessionSnapshot('live-session-1', {
-        status: 'waiting',
+        status: 'in-progress',
+        testId: 'test-live',
         reviewReleaseState: 'review-released',
       });
 
@@ -961,7 +1040,8 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
       });
 
       emitSessionSnapshot('live-session-1', {
-        status: 'waiting',
+        status: 'in-progress',
+        testId: 'test-live',
         reviewReleaseState: 'feedback-released',
       });
 

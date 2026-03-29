@@ -5,12 +5,14 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 const {
   mockGetStudentSessionResult,
   mockGetStudentResults,
+  mockGetTestResult,
   mockGeneratePerformanceFeedback,
   mockGetPlayerId,
   mockGet,
 } = vi.hoisted(() => ({
   mockGetStudentSessionResult: vi.fn(),
   mockGetStudentResults: vi.fn(),
+  mockGetTestResult: vi.fn(),
   mockGeneratePerformanceFeedback: vi.fn(),
   mockGetPlayerId: vi.fn(),
   mockGet: vi.fn(),
@@ -34,6 +36,7 @@ vi.mock('@mantine/core', () => ({
 vi.mock('../../services/testResults.service', () => ({
   getStudentSessionResult: (...args: any[]) => mockGetStudentSessionResult(...args),
   getStudentResults: (...args: any[]) => mockGetStudentResults(...args),
+  getTestResult: (...args: any[]) => mockGetTestResult(...args),
 }));
 
 vi.mock('../../services/autoMarking.service', () => ({
@@ -112,6 +115,7 @@ describe('TestResultsModal release governance', () => {
     mockGetPlayerId.mockReturnValue('student-1');
     mockGetStudentSessionResult.mockResolvedValue(MOCK_RESULT);
     mockGetStudentResults.mockResolvedValue([MOCK_RESULT]);
+    mockGetTestResult.mockResolvedValue(MOCK_RESULT);
     mockGeneratePerformanceFeedback.mockReturnValue('Mock tutor feedback');
     mockGet.mockResolvedValue({
       exists: () => false,
@@ -232,5 +236,60 @@ describe('TestResultsModal release governance', () => {
       vi.useRealTimers();
     }
   });
-});
 
+  it('uses the player latestResultId pointer when session and student indexes miss', async () => {
+    mockGetStudentSessionResult.mockResolvedValueOnce(null);
+    mockGetStudentResults.mockResolvedValueOnce([]);
+    mockGet.mockResolvedValueOnce({
+      exists: () => true,
+      val: () => ({
+        latestResultId: 'result-direct',
+        lastTestId: 'test-1',
+      }),
+    });
+    mockGetTestResult.mockResolvedValueOnce({
+      ...MOCK_RESULT,
+      resultId: 'result-direct',
+    });
+
+    render(
+      <TestResultsModal
+        opened
+        onClose={vi.fn()}
+        sessionCode="SESSION-1"
+        reviewReleaseState="review-released"
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('THCS Grammar Review')).toBeInTheDocument();
+    });
+
+    expect(mockGetTestResult).toHaveBeenCalledWith('result-direct');
+  });
+
+  it('renders a safe empty state when the result has no questionResults array', async () => {
+    mockGetStudentSessionResult.mockResolvedValueOnce({
+      ...MOCK_RESULT,
+      testSkill: 'writing',
+      questionResults: undefined,
+    });
+
+    render(
+      <TestResultsModal
+        opened
+        onClose={vi.fn()}
+        sessionCode="SESSION-1"
+        reviewReleaseState="review-released"
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('THCS Grammar Review')).toBeInTheDocument();
+    });
+
+    expect(
+      screen.getByText('This writing submission does not include a per-question breakdown. Your writing result is saved, and detailed grading will appear once review is available.')
+    ).toBeInTheDocument();
+  });
+});

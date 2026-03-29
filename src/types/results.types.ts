@@ -22,6 +22,7 @@ export type ResultOwnerResolutionSource =
     | 'homework.createdBy'
     | 'session.createdByUserId'
     | 'session.createdBy'
+    | 'result.teacherId'
     | 'class.createdBy'
     | 'course.ownerId'
     | 'solo_practice'
@@ -109,6 +110,23 @@ export interface UnresolvedResultVisibilityReportEntry {
     reportVersion: number;
     createdAt: number;
     updatedAt: number;
+}
+
+export type SavedResultFeedbackKind = 'thcs' | 'ielts-reading' | 'ielts-listening' | null;
+
+export type SavedResultFeedbackOutcome =
+    | 'saved-ai'
+    | 'saved-deterministic'
+    | 'reused'
+    | 'skipped-ineligible'
+    | 'failed';
+
+export interface FeedbackGenerationMeta {
+    kind: SavedResultFeedbackKind;
+    lastAttemptAt: number | null;
+    lastTriggerSource: string | null;
+    lastOutcome: SavedResultFeedbackOutcome | null;
+    lastError?: string | null;
 }
 
 export interface EnhancedTestResultRecord {
@@ -215,6 +233,9 @@ export interface EnhancedTestResultRecord {
 
     // PRD-0039: AI formative feedback (stored at test_results/{id}/formativeFeedback in RTDB)
     formativeFeedback?: FormativeFeedback;
+
+    // PRD-0039: Feedback pipeline status metadata
+    feedbackGenerationMeta?: FeedbackGenerationMeta;
 
     // PRD-0039: Derived attempt summary (UI-only, not persisted to RTDB)
     attemptSummary?: AttemptSummary;

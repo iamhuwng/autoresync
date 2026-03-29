@@ -1,11 +1,8 @@
 ---
 title: Test System Architecture
+description: 'Complete test lifecycle architecture: IELTS + THCS creation, editing, session management, test-taking, grading, results. The single entry point for understanding the test system.'
 createdAt: '2026-02-27T16:15:16.855Z'
-updatedAt: '2026-02-27T16:15:25.953Z'
-description: >-
-  Complete test lifecycle architecture: IELTS + THCS creation, editing, session
-  management, test-taking, grading, results. The single entry point for
-  understanding the test system.
+updatedAt: '2026-03-29T08:35:07.616Z'
 tags:
   - architecture
   - test
@@ -13,6 +10,7 @@ tags:
   - thcs
   - core
 ---
+
 # Test System Architecture
 
 ## Overview
@@ -210,3 +208,272 @@ The test system is the core feature of the platform. It supports two test types 
 - @doc/sop/test-end-flow-debug-retrospective — End flow debugging journey
 - @doc/sop/timer-bug-fix-retrospective — Timer bug investigation
 - @doc/sop/tfynng-implementation — True/False/Yes/No/Not Given question type
+
+
+## 2026-03-28 Amendment — Auto-Submit Result Durability
+
+The auto-submit pipeline does not end at grading. For class-session tests, the durable completion boundary is the successful atomic persistence of the canonical result row plus all required discovery indexes.
+
+### Additional RTDB paths that matter
+```text
+/test_results_by_teacher/{teacherId}/{resultId}   — Teacher visibility index
+/game_sessions/{sessionCode}/players/{studentId}/latestResultId   — Waiting-room recovery pointer
+```
+
+### New gotcha
+A session can be marked submitted while the product still cannot discover the saved result if ownership resolution or secondary indexes fail. This creates a cross-surface failure where the waiting-room modal, academic record, and teacher history all miss the same attempt.
+
+### Current standard
+- Treat canonical row + indexes as one persistence unit.
+- Prefer session ownership metadata first.
+- Fall back to canonical `result.teacherId` for class-session ownership when session ownership cannot be resolved.
+- Plan for historical backfill of orphaned canonical rows.
+
+See @doc/patterns/pattern-canonical-result-persistence-invariants and @doc/architecture/results-academic-record.
+
+
+## 2026-03-28 Amendment — IELTS Writing Grading Access State
+
+The IELTS writing grading flow depends on a single Firestore collection, `writing_submissions`, across multiple teacher-facing surfaces.
+
+### Current read path
+- `TeacherGradingPage` loads the queue through `getPendingSubmissions()` using a `markingStatus == 'pending-review'` query plus client-side teacher filtering.
+- `WritingGradingPage` loads a single submission through `getSubmission()`.
+- `updateGrading()` performs a pre-update `getDoc()` on the same submission before writing grading data.
+
+### Current ownership model
+- Live session: teacher ownership should come from the session/test owner and be persisted as `context.assigningTeacherId` on new submissions.
+- Homework: ownership comes from `context.assigningTeacherId`.
+- Solo practice: ownership comes from `context.selectedTeacherId`.
+
+### Current operational state
+- The hosted project must have the compatible `writing_submissions` Firestore rule deployed or the teacher queue fails before client-side filtering runs.
+- Because queue, detail, and save all read the same collection, a permission regression here is cross-surface, not isolated to one page.
+- Broad authenticated reads currently keep the grading queue stable for hosted Firebase use.
+- Historical live-session submissions may still miss teacher ownership metadata, so rule strategy cannot assume perfect backfill.
+
+See @doc/sop/ielts-writing-grading-permission-retrospective and @doc/patterns/pattern-firestore-rules-vs-collection-queries.
+
+
+## 2026-03-29 Amendment — Session End Source of Truth and Interaction Boundaries
+
+### Current state of the live test flow
+- Starting a test from the Teacher Lobby materials card is a supported entry path into an active monitored session.
+- For active in-progress tests, the Teacher Monitor flow is now the only supported finalization path.
+- Session Management remains a session inventory and control surface, but not a substitute result-finalization surface for active tests.
+
+### Cross-feature interaction boundaries
+
+#### Teacher Lobby ↔ Teacher Monitor
+Teacher Lobby is allowed to create or attach to the session. Teacher Monitor owns finish-time responsibilities: auto-submit, academic-context normalization, durable result persistence, and player completion updates.
+
+#### Teacher Monitor ↔ Session Management
+Session Management can view and manage sessions, but if it finalizes an active test through a generic end-session utility it bypasses result-generation guarantees. The architecture now explicitly rejects that interaction for in-progress tests.
+
+#### Result persistence ↔ Waiting-room UI
+Waiting-room result UX is downstream from persistence. It must never be treated as the primary source of truth. If result persistence fails, the waiting room will only expose that absence; it cannot repair it.
+
+#### Session model ↔ Academic context
+Live sessions may carry academic context in more than one shape:
+- embedded `academicContext`
+- linked class / course / module identifiers on the session root
+
+Any auto-submit or end-flow logic must normalize both forms before building result context.
+
+### Problems this feature has with neighboring interactions
+- A generic session-completion utility is too weak for an active test because it does not inherently know about result durability obligations.
+- UI completion flags are shared by routing, waiting-room gating, and monitor state; when written prematurely they create cross-surface false positives.
+- Reader surfaces such as waiting room, academic record, and teacher history depend on result indexes and `latestResultId`, so a persistence defect propagates as multiple independent UI failures.
+
+### Operational rule going forward
+When a feature ends a live test, it must own the full chain below or delegate to the code path that does:
+1. identify all unsubmitted students
+2. grade or synthesize fallback results
+3. persist canonical result plus indexes
+4. update player/session completion metadata
+5. release waiting-room/result UI
+
+Any path that skips step 3 but still performs steps 4 or 5 is architecturally invalid.
+
+See @doc/patterns/pattern-canonical-result-persistence-invariants, @doc/sop/test-end-flow-debug-retrospective, and @doc/architecture/results-academic-record.
+
+
+## 2026-03-29 Amendment — IELTS Reading/Listening Saved-Result Feedback Hardening
+
+### Current state of the feature
+
+IELTS Reading and Listening saved results now follow the same durability model as THCS saved feedback, but with IELTS-specific adaptation.
+
+Current lifecycle:
+- canonical result is persisted through `saveTestResult()`
+- the writer owns initial formative-feedback triggering for eligible auto-marked saves
+- shared result shells auto-heal missing eligible feedback when release governance allows it
+- shared result shells auto-upgrade weak saved feedback
+- listening breakdown is rendered as `Part Breakdown`; reading remains `Passage Breakdown`
+- historical missing IELTS feedback can be repaired through the backfill utility
+
+### What was wrong before
+
+The feature was previously split across unrelated paths:
+- normal student submit triggered feedback
+- teacher-end auto-submit could save the result without triggering feedback
+- legacy student quiz flow had its own save behavior
+- emergency/disconnect fallback could bypass the canonical saved-result flow
+- THCS had missing-feedback auto-heal, but IELTS missing-feedback recovery was weaker
+
+This meant the product promise was "auto-generated with upgrade", but the actual behavior depended on which writer path created the row.
+
+### Cross-feature interaction boundary
+
+This feature interacts with more than the feedback engine.
+
+Affected neighbors:
+- result persistence
+- teacher monitor auto-submit
+- solo/practice submission
+- legacy quiz submission
+- saved-result shells and release-state governance
+- academic-record and teacher-history result readers
+
+Operational lesson: missing feedback on a saved result is often an orchestration bug, not an AI-model bug.
+
+### Current interaction risks that still matter
+
+- Saved-result feedback is still client-triggered; there is no durable backend worker.
+- Release-state governance still controls when student shells may auto-heal or upgrade feedback.
+- Any future result writer that bypasses `saveTestResult()` risks reintroducing the gap.
+- Classification drift between save path and result shells will cause either false negatives (missing feedback) or false positives (wrong feature family).
+
+### Architectural rule going forward
+
+Any new path that can create an auto-marked saved result must either:
+- call `saveTestResult()` directly, or
+- preserve the same writer-owned trigger and metadata contract if a lower-level save utility is introduced later
+
+Do not reintroduce feedback triggering in submit hooks as the primary contract.
+
+### Related docs
+- @doc/patterns/pattern-rtdb-real-time-auto-load-with-fire-and-forget-generation
+- @doc/patterns/pattern-deterministic-first-ai-enhancement
+- @doc/architecture/results-academic-record
+- @doc/patterns/pattern-canonical-result-persistence-invariants
+
+
+## 2026-03-29 Amendment — IELTS Writing Live Session Routing Contract
+
+### Current state of the feature
+
+The live student test flow now has a two-stage routing contract:
+
+1. `testType` selects the delivery family boundary.
+2. For IELTS-family tests, `skill` selects the concrete student page.
+
+This matters because IELTS Writing shares the same top-level `testType: 'IELTS'` value as other IELTS surfaces but uses a different payload contract (`tasks` instead of reader-style `passages` and `questions`).
+
+### Cross-feature interaction boundary
+
+#### Router ↔ Published test contract
+
+Publishing must be treated as a routing contract producer. If publish writes:
+
+- `testType`
+- `skill`
+- skill-specific payload shape
+
+then route resolution must consume enough of that contract to choose a page that matches the payload shape.
+
+#### Router ↔ Generic IELTS page
+
+The generic IELTS page owns reading/listening-style render contracts. It must not be the default target for all IELTS-family tests when some IELTS skills have their own dedicated payload and page contracts.
+
+#### Session payload ↔ Page renderer
+
+A session-safe payload being present is not sufficient. The selected page must match the payload contract. A valid payload on the wrong page is still a broken interaction.
+
+### Problems this feature has with neighboring interactions
+
+- `testType` is a family discriminator, not always a page discriminator.
+- A fallback chosen before `skill` resolution can silently send a valid payload to the wrong renderer.
+- Generic pages can mask architecture mistakes if they are treated as universal fallbacks instead of contract-bound surfaces.
+- New resume/deep-link/waiting-room entry surfaces can reintroduce the bug if they reuse only the family discriminator.
+
+### Operational rule going forward
+
+- Resolve routing in discriminator layers, not in one shortcut branch.
+- Use `testType` to split broad families like THCS vs IELTS.
+- Within a family, resolve `skill` before selecting a concrete page or fallback.
+- Tie fallback rules to payload compatibility, not only to missing enum values.
+- Add regression coverage for any feature where multiple surfaces share the same top-level discriminator.
+
+### Related docs
+
+- @doc/sop/ielts-writing-grading-permission-runtime-state
+- @doc/patterns/pattern-test-router-must-resolve-render-contract-before-fallback
+- @task-nszwf2
+
+
+## 2026-03-29 Amendment — IELTS Writing Post-Submission Student Contract
+
+### Current state of the feature
+- Pure IELTS Writing live-session submissions no longer route into the waiting-room `TestResultsModal` after submit or auto-submit.
+- `WritingTestPage` now sends all successful submit paths to `/submission-complete`, including:
+  - manual student submit
+  - timer-expiry auto-submit
+  - teacher-ended early auto-submit
+- The submission-complete surface now states that IELTS Writing is manually graded by the teacher and does not show instant score or AI feedback.
+
+### Cross-feature interaction boundary
+
+#### Writing submit path ↔ waiting-room result surface
+The waiting-room review modal is a session-first result surface for flows that already have an immediately reviewable result artifact. Pure IELTS Writing does not meet that contract at submission time because the student-facing outcome is still pending teacher review.
+
+#### Writing submit path ↔ writing result viewer
+The first student-facing post-submit surface for pure IELTS Writing is an acknowledgement page, not a result viewer. `StudentTestResultsPage` and `WritingResultView` remain valid later entry points once the student intentionally opens the Writing result surface.
+
+#### Submission acknowledgement ↔ grading workflow
+The acknowledgement page must not imply auto-grading. It exists to confirm persistence and set expectation for the teacher-owned grading workflow.
+
+### Operational rule going forward
+- Do not navigate pure IELTS Writing submit/auto-submit directly to `StudentWaitingRoomPage` with `showResults: true`.
+- Do not auto-open `TestResultsModal` for pure IELTS Writing immediately after submit.
+- Keep manual submit, timer expiry, and teacher-ended early submit on the same destination contract.
+- Keep the acknowledgement copy explicit: teacher hand-grading only, no instant score, no AI feedback.
+
+### Related docs
+- @doc/prd/ielts-writing-test-system-prd
+- @doc/prd/prd-test-duration-end-flow
+- @doc/architecture/results-academic-record
+- @doc/architecture/scheme/ielts-writing-current-state-scheme
+
+
+## 2026-03-29 Amendment — IELTS Writing Grading Submit Compatibility State
+
+### Current state of the feature
+- IELTS Writing teacher grading still uses Firestore `writing_submissions` as the canonical grading artifact.
+- RTDB `test_results` and its indexes remain compatibility and discoverability projections for existing readers.
+- Teacher final grading can no longer assume a pre-existing readable RTDB compatibility row.
+
+### Cross-feature interaction boundary
+#### Firestore grading artifact ↔ RTDB compatibility result
+- The teacher grading workflow must succeed from the canonical Firestore artifact even if the RTDB compatibility row is missing.
+- The RTDB result should be reconstructed from Firestore submission state plus session context when necessary.
+
+#### Materialization helper ↔ submission and grading flows
+- `autoSubmitFromRTDB()` and teacher final grading both depend on the same writing-result materialization layer.
+- A persistence regression there affects both submission-time and grading-time behavior.
+
+#### Compatibility result ↔ result readers
+- Academic record, teacher history, and session-based readers still depend on RTDB compatibility rows and indexes.
+- This creates a shared failure mode: canonically graded but not discoverable.
+
+### Operational rule going forward
+- Firestore remains canonical for IELTS Writing grading.
+- RTDB remains projection-only for writing results.
+- Persist the canonical RTDB root row first, then fan out secondary indexes.
+- Never make teacher grading depend on an already-existing compatibility row.
+
+### Related docs
+- @doc/architecture/architecture-ielts-writing-grading-submit-compatibility-audit-2026-03-29
+- @doc/architecture/results-academic-record
+- @doc/architecture/scheme/ielts-writing-current-state-scheme
+- @doc/architecture/firebase-infrastructure

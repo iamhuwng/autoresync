@@ -100,12 +100,12 @@ export const ReviewTab: React.FC<ReviewTabProps> = ({
 
   const formativeFeedback = (result as any).formativeFeedback;
   const explanations = useMemo(
-    () => getRenderableQuestionExplanations(formativeFeedback?.questionExplanations),
-    [formativeFeedback?.questionExplanations],
+    () => getRenderableQuestionExplanations(formativeFeedback?.questionExplanations, result),
+    [formativeFeedback?.questionExplanations, result],
   );
   const aiExplanationPending = useMemo(
-    () => Boolean(formativeFeedback && needsAiFeedbackUpgrade(formativeFeedback, result.questionResults as any)),
-    [formativeFeedback, result.questionResults],
+    () => Boolean(formativeFeedback && needsAiFeedbackUpgrade(formativeFeedback, result.questionResults as any, result)),
+    [formativeFeedback, result],
   );
 
   useEffect(() => {

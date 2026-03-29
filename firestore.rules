@@ -239,14 +239,23 @@ service cloud.firestore {
     // IELTS WRITING SYSTEM (PRD-0030) — Added 2026-02-28
     // ═══════════════════════════════════════════════════════════════════════════
 
-    // Writing submissions — students read own, teachers read assigned
+    // Writing submissions — broad authenticated reads keep grading queue queries compatible.
+    // Updates still require the student owner or teacher-linked grading metadata.
+    function isAssignedWritingTeacher(submissionId) {
+      return get(/databases/$(database)/documents/writing_submissions/$(submissionId)).data.context.assigningTeacherId == request.auth.uid
+        || get(/databases/$(database)/documents/writing_submissions/$(submissionId)).data.context.selectedTeacherId == request.auth.uid;
+    }
+
     match /writing_submissions/{submissionId} {
-      allow read: if request.auth != null
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null
         && (resource.data.studentId == request.auth.uid
             || resource.data.context.assigningTeacherId == request.auth.uid
-            || resource.data.context.selectedTeacherId == request.auth.uid);
-      allow create: if request.auth != null;
-      allow update: if request.auth != null;
+            || resource.data.context.selectedTeacherId == request.auth.uid
+            || request.resource.data.context.assigningTeacherId == request.auth.uid
+            || request.resource.data.context.selectedTeacherId == request.auth.uid
+            || request.resource.data.grading.teacherId == request.auth.uid);
       allow delete: if false;  // Submissions are permanent records
     }
 
@@ -263,6 +272,24 @@ service cloud.firestore {
     }
 
     // [GAP-02] User settings — per-user private settings (annotation categories, etc.)
+    // Private grading drafts. Assigned teachers can read/update/delete so the
+    // discard-and-take-over workflow is possible without exposing the draft to students.
+    match /writing_grading_drafts/{submissionId} {
+      allow get: if request.auth != null && (
+        isAssignedWritingTeacher(submissionId)
+        || (exists(/databases/$(database)/documents/writing_grading_drafts/$(submissionId))
+            && resource.data.ownerTeacherId == request.auth.uid)
+      );
+      allow list: if false;
+      allow create: if request.auth != null
+        && request.resource.data.ownerTeacherId == request.auth.uid
+        && isAssignedWritingTeacher(submissionId);
+      allow update, delete: if request.auth != null && (
+        resource.data.ownerTeacherId == request.auth.uid
+        || isAssignedWritingTeacher(submissionId)
+      );
+    }
+
     match /users/{userId}/settings/{document=**} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }

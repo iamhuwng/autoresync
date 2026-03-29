@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useNavigation } from '../../hooks/useNavigation';
 import { useFeatureTracking } from '../../hooks/useFeatureTracking';
+import { FEATURE_IDS } from '../../config/featureRegistry';
 import { getSubmission } from '../../services/writingSubmissionService';
 import { getSessionResults, type TestResultRecord } from '../../services/testResults.service';
 import { classifyTeacherResultVisibility } from '../../services/resultVisibility.service';
@@ -23,6 +24,7 @@ type CanonicalWritingResult = TestResultRecord & {
     submissionId?: string | null;
     overallBand?: number | null;
     markingStatus?: 'pending-review' | 'graded' | 'reviewed' | null;
+    tasks?: Array<{ taskNumber: number; wordCount: number; activeTimeSeconds: number }>;
   };
   markingStatus?: 'pending-review' | 'graded' | 'reviewed';
 };
@@ -35,7 +37,7 @@ interface WritingResultRow {
   overallBand: number | null;
   task1Band: number | 'Voided' | null;
   task2Band: number | 'Voided' | null;
-  markingStatus: 'pending-review' | 'graded' | 'reviewed';
+  markingStatus: 'pending-review' | 'published' | 'draft-in-progress' | 'lock conflict';
   submittedAt: number;
   submission: WritingSubmission | null;
 }
@@ -47,7 +49,16 @@ function buildViewerTeacherId(result: CanonicalWritingResult, viewerRole: Viewer
   return viewerTeacherId;
 }
 
-function buildRow(result: CanonicalWritingResult, submission: WritingSubmission | null): WritingResultRow {
+function buildRow(
+  result: CanonicalWritingResult,
+  submission: WritingSubmission | null,
+  viewerTeacherId: string,
+): WritingResultRow {
+  const rawMarkingStatus = submission?.markingStatus || result.writingData?.markingStatus || result.markingStatus || 'pending-review';
+  const markingStatus: WritingResultRow['markingStatus'] = submission?.gradingDraftMeta?.ownerTeacherId
+    ? (submission.gradingDraftMeta.ownerTeacherId === viewerTeacherId ? 'draft-in-progress' : 'lock conflict')
+    : (rawMarkingStatus === 'graded' || rawMarkingStatus === 'reviewed' ? 'published' : 'pending-review');
+  const isResolved = markingStatus === 'published' || markingStatus === 'draft-in-progress' || markingStatus === 'lock conflict';
   const task1 = submission?.grading?.perTask.find((task) => task.taskNumber === 1);
   const task2 = submission?.grading?.perTask.find((task) => task.taskNumber === 2);
 
@@ -56,10 +67,10 @@ function buildRow(result: CanonicalWritingResult, submission: WritingSubmission 
     submissionId: result.writingData?.submissionId || result.resultId,
     studentId: result.studentId,
     studentName: result.studentName,
-    overallBand: submission?.grading?.overallBand ?? result.writingData?.overallBand ?? result.bandScore ?? null,
-    task1Band: task1?.isVoided ? 'Voided' : task1?.taskBand ?? null,
-    task2Band: task2?.isVoided ? 'Voided' : task2?.taskBand ?? null,
-    markingStatus: (submission?.markingStatus || result.writingData?.markingStatus || result.markingStatus || 'pending-review') as WritingResultRow['markingStatus'],
+    overallBand: isResolved ? (submission?.grading?.overallBand ?? result.writingData?.overallBand ?? result.bandScore ?? null) : null,
+    task1Band: isResolved ? (task1?.isVoided ? 'Voided' : task1?.taskBand ?? null) : null,
+    task2Band: isResolved ? (task2?.isVoided ? 'Voided' : task2?.taskBand ?? null) : null,
+    markingStatus,
     submittedAt: submission?.submittedAt || result.submittedAt,
     submission,
   };
@@ -72,8 +83,8 @@ export default function WritingTestResultsSection({
   const { user, profile } = useAuth();
   const viewerRole: ViewerRole = profile?.role === 'super_admin' ? 'super_admin' : 'teacher';
   const viewerTeacherId = user?.uid || '';
-  const { navigateTo } = useNavigation(viewerRole);
-  const { trackAction } = useFeatureTracking('results');
+  const { navigateTo } = useNavigation('teacher');
+  const { trackAction } = useFeatureTracking(FEATURE_IDS.results);
 
   const [rows, setRows] = useState<WritingResultRow[]>([]);
   const [analyticsRows, setAnalyticsRows] = useState<WritingResultRow[]>([]);
@@ -100,7 +111,7 @@ export default function WritingTestResultsSection({
     const classified = canonicalResults.map((result) => ({
       result,
       verdict: classifyTeacherResultVisibility({
-        result,
+        result: result as any,
         teacherId: buildViewerTeacherId(result, viewerRole, viewerTeacherId),
         hasAssignmentAccess: true,
       }),
@@ -118,10 +129,10 @@ export default function WritingTestResultsSection({
         const submissionId = result.writingData?.submissionId || result.resultId;
         try {
           const response = await getSubmission(submissionId);
-          return buildRow(result, response.success ? response.data || null : null);
+          return buildRow(result, response.success ? response.data || null : null, viewerTeacherId);
         } catch (error) {
           console.warn('[WritingTestResultsSection] Failed to load submission detail', submissionId, error);
-          return buildRow(result, null);
+          return buildRow(result, null, viewerTeacherId);
         }
       }),
     );
@@ -170,7 +181,7 @@ export default function WritingTestResultsSection({
     return 0;
   });
 
-  const gradedCount = analyticsRows.filter((row) => row.markingStatus === 'graded' || row.markingStatus === 'reviewed').length;
+  const gradedCount = analyticsRows.filter((row) => row.markingStatus === 'published').length;
   const avgBand = gradedCount > 0
     ? analyticsRows
       .filter((row) => row.overallBand !== null)
@@ -192,6 +203,7 @@ export default function WritingTestResultsSection({
       source: 'teacher_test_results_writing',
       resultId: row.resultId,
       submissionId: row.submissionId,
+      status: row.markingStatus,
     });
     navigateTo(
       'TEACHER_GRADING_DETAIL',
@@ -268,11 +280,11 @@ export default function WritingTestResultsSection({
                     <td style={{ padding: '12px 16px', textAlign: 'center' }}>{row.task1Band ?? '-'}</td>
                     <td style={{ padding: '12px 16px', textAlign: 'center' }}>{row.task2Band ?? '-'}</td>
                     <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                      {row.markingStatus === 'graded' || row.markingStatus === 'reviewed' ? 'Graded' : 'Pending'}
+                      {row.markingStatus}
                     </td>
                     <td style={{ padding: '12px 16px', textAlign: 'center' }}>{new Date(row.submittedAt).toLocaleDateString()}</td>
                     <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                      {(row.markingStatus === 'pending-review') && (
+                      {(row.markingStatus === 'pending-review' || row.markingStatus === 'draft-in-progress' || row.markingStatus === 'lock conflict') && (
                         <button
                           onClick={(event) => {
                             event.stopPropagation();
@@ -280,7 +292,11 @@ export default function WritingTestResultsSection({
                           }}
                           style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #3b82f6', background: '#eff6ff', color: '#1d4ed8', cursor: 'pointer' }}
                         >
-                          Grade
+                          {row.markingStatus === 'draft-in-progress'
+                            ? 'Resume Draft'
+                            : row.markingStatus === 'lock conflict'
+                              ? 'View Conflict'
+                              : 'Grade'}
                         </button>
                       )}
                     </td>
@@ -332,6 +348,7 @@ export default function WritingTestResultsSection({
               },
             } as CanonicalWritingResult,
             selectedSubmission,
+            viewerTeacherId,
           ))}
         />
       )}

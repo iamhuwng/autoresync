@@ -165,6 +165,19 @@ async function buildCanonicalClaimFanout(
         });
     }
 
+    if (
+        canonicalResult.visibility.ownershipResolved
+        && canonicalResult.visibility.contextType === 'solo_practice'
+    ) {
+        updates[`test_results_solo_practice_by_student/${userId}/${canonicalResultId}`] = omitUndefined({
+            resultId: canonicalResultId,
+            sessionCode,
+            testId,
+            percentage,
+            submittedAt,
+        });
+    }
+
     if (canonicalResult.visibility.ownershipResolved) {
         updates[`reports/result_visibility/unresolved/${canonicalResultId}`] = null;
     } else {

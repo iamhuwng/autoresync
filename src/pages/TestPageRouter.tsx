@@ -79,6 +79,27 @@ const TestPageRouter: React.FC<TestPageRouterProps> = () => {
 
         const testType = testTypeSnapshot.val();
 
+        const loadNonThcsSkill = async (fallbackSkill: string | null = null) => {
+          const skillRef = ref(database, `tests/${testId}/skill`);
+          const skillSnapshot = await get(skillRef);
+          const testSkill = skillSnapshot.exists() ? skillSnapshot.val() : fallbackSkill;
+          console.log(`📍 Test Page Router: Detected skill = ${testSkill || 'generic'}`);
+
+          if (testSkill === 'Writing') {
+            const testRef = ref(database, `tests/${testId}`);
+            const testSnapshot = await get(testRef);
+            if (!testSnapshot.exists()) {
+              setError('Test data not found');
+              setLoading(false);
+              return;
+            }
+            setWritingTestData(testSnapshot.val());
+          }
+
+          setSkill(testSkill || 'generic');
+          setLoading(false);
+        };
+
         // PRD-0027: THCS-THPT tests use testType discriminator, not skill
         if (testType === 'THCS-THPT') {
           console.log('📍 Test Page Router: Detected THCS-THPT test');
@@ -106,29 +127,12 @@ const TestPageRouter: React.FC<TestPageRouterProps> = () => {
           return;
         }
 
-        // IELTS tests: read skill field
         if (!testTypeSnapshot.exists()) {
-          // testType not set — read skill instead (legacy IELTS format)
-          const skillRef = ref(database, `tests/${testId}/skill`);
-          const skillSnapshot = await get(skillRef);
-          const testSkill = skillSnapshot.val() || 'Reading';
-          console.log(`📍 Test Page Router: Detected skill = ${testSkill}`);
-
-          // PRD-0030: Writing tests need full test data
-          if (testSkill === 'Writing') {
-            const testRef = ref(database, `tests/${testId}`);
-            const testSnapshot = await get(testRef);
-            if (testSnapshot.exists()) {
-              setWritingTestData(testSnapshot.val());
-            }
-          }
-
-          setSkill(testSkill);
-        } else {
-          // Non-THCS test with testType set — fallback to generic
-          setSkill('generic');
+          await loadNonThcsSkill('Reading');
+          return;
         }
-        setLoading(false);
+
+        await loadNonThcsSkill(null);
       } catch (err) {
         console.error('Error detecting test skill:', err);
         setError('Failed to load test information');

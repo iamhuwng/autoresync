@@ -20,6 +20,8 @@ export interface FeatureDefinition {
 
 export const FEATURE_IDS = {
   antiCheat: 'antiCheat',
+  grading: 'grading',
+  results: 'results',
 } as const;
 
 // ─── Registry ───────────────────────────────────────────────────────────────
@@ -168,7 +170,7 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       'High-signal runtime telemetry for integrity detection, persistence, and teacher-triggered anti-cheat flows',
   },
   {
-    id: 'grading',
+    id: FEATURE_IDS.grading,
     name: 'Grading',
     routes: [
       '/teacher/grading',
@@ -176,8 +178,21 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       '/teacher/grading/writing/:submissionId',
     ],
     actions: [
-      'gradeSubmission',
-      'addFeedback',
+      'openSubmission',
+      'startRegrade',
+      'acquireLock',
+      'lockExpired',
+      'discardDraftTakeover',
+      'saveDraft',
+      'submitGrading',
+      'switchTask',
+      'switchTab',
+      'toggleOriginalView',
+      'addComment',
+      'resolveComment',
+      'deleteComment',
+      'recoverComment',
+      'useQuickComment',
       'bulkGrade',
     ],
     description: 'Teacher grading workflows',
@@ -242,11 +257,12 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       'selectAttempt',
       'jumpToQuestion',
       'retryAiFeedback',
+      'returnToDashboard',
     ],
     description: 'Student academic record viewing',
   },
   {
-    id: 'results',
+    id: FEATURE_IDS.results,
     name: 'Results',
     routes: [
       '/guest-results',

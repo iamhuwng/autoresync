@@ -21,7 +21,7 @@ import {
     orderBy,
     Timestamp,
 } from 'firebase/firestore';
-import { ref, set, push } from 'firebase/database';
+import { ref, set, push, update as dbUpdate } from 'firebase/database';
 // @ts-ignore — JS service file
 import { database, firestore as db } from './firebase';
 import { deepRemoveUndefined } from './draftCloudService';
@@ -33,6 +33,49 @@ import type { WritingTestDraft, IELTSWritingTest } from '../types/ielts-writing.
 // ═══════════════════════════════════════════════════════════════
 
 const WRITING_DRAFTS_COLLECTION = 'writing_drafts';
+
+function toDateOrFallback(value: unknown, fallback: Date): Date {
+    if (value instanceof Timestamp) return value.toDate();
+    if (value instanceof Date) return value;
+    if (typeof value === 'number' || typeof value === 'string') {
+        const parsed = new Date(value);
+        if (!Number.isNaN(parsed.getTime())) return parsed;
+    }
+    return fallback;
+}
+
+async function buildWritingDraftDocument(
+    draftId: string,
+    userId: string,
+    draft: Partial<WritingTestDraft> & {
+        metadata: WritingTestDraft['metadata'];
+        tasks: WritingTestDraft['tasks'];
+    },
+    existingData: Record<string, any> | null = null,
+): Promise<WritingTestDraft> {
+    const fallbackCreatedAt = draft.createdAt instanceof Date ? draft.createdAt : new Date();
+
+    return deepRemoveUndefined({
+        id: draftId,
+        userId: existingData?.userId || userId,
+        testType: 'IELTS',
+        skill: 'Writing',
+        metadata: {
+            title: draft.metadata?.title || '',
+            description: draft.metadata?.description || '',
+            duration: draft.metadata?.duration || 60,
+            format: draft.metadata?.format || 'full-test',
+            difficulty: draft.metadata?.difficulty,
+            targetBand: draft.metadata?.targetBand,
+            tags: Array.isArray(draft.metadata?.tags) ? draft.metadata.tags : [],
+        },
+        tasks: Array.isArray(draft.tasks) ? draft.tasks : [],
+        status: draft.status || existingData?.status || 'editing',
+        publishedTestId: draft.publishedTestId || existingData?.publishedTestId,
+        createdAt: toDateOrFallback(existingData?.createdAt, fallbackCreatedAt),
+        updatedAt: new Date(),
+    }) as WritingTestDraft;
+}
 
 /**
  * Save a writing test draft to Firestore.
@@ -46,26 +89,18 @@ export const saveWritingDraft = withRestoreGuard<{ success: boolean; draftId?: s
     draft: Partial<WritingTestDraft> & { metadata: WritingTestDraft['metadata']; tasks: WritingTestDraft['tasks'] }
 ): Promise<{ success: boolean; draftId?: string; error?: string }> => {
     try {
-        // [GAP-03] Generate draftId if not set
         let draftId = draft.id;
+        let existingDraftData: Record<string, any> | null = null;
+
         if (!draftId) {
             draftId = doc(collection(db, WRITING_DRAFTS_COLLECTION)).id;
+        } else {
+            const existingSnap = await getDoc(doc(db, WRITING_DRAFTS_COLLECTION, draftId));
+            existingDraftData = existingSnap.exists() ? existingSnap.data() : null;
         }
 
-        const draftDoc: WritingTestDraft = {
-            id: draftId,
-            userId,
-            testType: 'IELTS',
-            skill: 'Writing',
-            metadata: draft.metadata,
-            tasks: draft.tasks,
-            status: draft.status || 'editing',
-            createdAt: draft.createdAt || new Date(),
-            updatedAt: new Date(),
-        };
-
-        const sanitized = deepRemoveUndefined(draftDoc);
-        await setDoc(doc(db, WRITING_DRAFTS_COLLECTION, draftId), sanitized);
+        const draftDoc = await buildWritingDraftDocument(draftId, userId, draft, existingDraftData);
+        await setDoc(doc(db, WRITING_DRAFTS_COLLECTION, draftId), draftDoc);
 
         console.log('✅ Writing draft saved:', draftId);
         return { success: true, draftId };
@@ -97,6 +132,16 @@ export async function getWritingDraft(
         // Convert Firestore Timestamps to Date objects
         const draft: WritingTestDraft = {
             ...data,
+            metadata: {
+                title: data.metadata?.title || '',
+                description: data.metadata?.description || '',
+                duration: data.metadata?.duration || 60,
+                format: data.metadata?.format || 'full-test',
+                difficulty: data.metadata?.difficulty,
+                targetBand: data.metadata?.targetBand,
+                tags: Array.isArray(data.metadata?.tags) ? data.metadata.tags : [],
+            },
+            tasks: Array.isArray(data.tasks) ? data.tasks : [],
             createdAt: data.createdAt instanceof Timestamp
                 ? data.createdAt.toDate()
                 : new Date(data.createdAt),
@@ -183,6 +228,16 @@ export async function getUserWritingDrafts(
             const data = docSnap.data();
             drafts.push({
                 ...data,
+                metadata: {
+                    title: data.metadata?.title || '',
+                    description: data.metadata?.description || '',
+                    duration: data.metadata?.duration || 60,
+                    format: data.metadata?.format || 'full-test',
+                    difficulty: data.metadata?.difficulty,
+                    targetBand: data.metadata?.targetBand,
+                    tags: Array.isArray(data.metadata?.tags) ? data.metadata.tags : [],
+                },
+                tasks: Array.isArray(data.tasks) ? data.tasks : [],
                 createdAt: data.createdAt instanceof Timestamp
                     ? data.createdAt.toDate()
                     : new Date(data.createdAt),
@@ -210,29 +265,51 @@ export async function getUserWritingDrafts(
  * Publish a writing test draft to RTDB.
  * [GAP-08] Generates test ID using Firebase push ID for chronological sorting.
  */
-export const publishWritingTest = withRestoreGuard<{ success: boolean; testId?: string; error?: string }>(
+export const publishWritingTest = withRestoreGuard<{ success: boolean; testId?: string; draftId?: string; error?: string }>(
     'WritingTestPublish',
     { success: false, error: 'Blocked by restore guard' }
 )(async (
     draft: WritingTestDraft
-): Promise<{ success: boolean; testId?: string; error?: string }> => {
+): Promise<{ success: boolean; testId?: string; draftId?: string; error?: string }> => {
     try {
-        // [GAP-08] Generate test ID using push() for chronologically-sortable unique ID
-        const testId = push(ref(database, 'tests')).key;
+        const sourceDraftId = draft.id || doc(collection(db, WRITING_DRAFTS_COLLECTION)).id;
+        const draftRef = doc(db, WRITING_DRAFTS_COLLECTION, sourceDraftId);
+        const existingDraftData = draft.id
+            ? await getDoc(draftRef).then((snap) => (snap.exists() ? snap.data() : null))
+            : null;
+        const testId = draft.publishedTestId || existingDraftData?.publishedTestId || push(ref(database, 'tests')).key;
         if (!testId) {
             return { success: false, error: 'Failed to generate test ID' };
         }
 
+        const normalizedMetadata = {
+            title: draft.metadata?.title || '',
+            description: draft.metadata?.description || '',
+            duration: draft.metadata?.duration || 60,
+            format: draft.metadata?.format || 'full-test',
+            difficulty: draft.metadata?.difficulty,
+            targetBand: draft.metadata?.targetBand,
+            tags: Array.isArray(draft.metadata?.tags) ? draft.metadata.tags : [],
+        };
+        const normalizedTasks = Array.isArray(draft.tasks) ? draft.tasks : [];
+        const ownerId = existingDraftData?.userId || draft.userId;
         const testData: IELTSWritingTest = {
             id: testId,
+            type: 'IELTS',
             testType: 'IELTS',
             skill: 'Writing',
-            metadata: draft.metadata,
-            tasks: draft.tasks,
-            createdBy: draft.userId,
-            ownerId: draft.userId,
+            title: normalizedMetadata.title || 'Untitled Writing Test',
+            duration: normalizedMetadata.duration,
+            questionCount: normalizedTasks.length,
+            metadata: normalizedMetadata,
+            tasks: normalizedTasks,
+            createdBy: ownerId,
+            ownerId,
+            sourceDraftId,
             isPublic: false,
-            createdAt: Date.now(),
+            createdAt: existingDraftData?.publishedTestId
+                ? toDateOrFallback(existingDraftData?.createdAt, new Date()).getTime()
+                : Date.now(),
             updatedAt: Date.now(),
             publishedAt: Date.now(),
         };
@@ -241,13 +318,70 @@ export const publishWritingTest = withRestoreGuard<{ success: boolean; testId?: 
         const sanitized = deepRemoveUndefined(testData);
         await set(ref(database, 'tests/' + testId), sanitized);
 
+        try {
+            const draftDoc = await buildWritingDraftDocument(sourceDraftId, ownerId, {
+                ...draft,
+                id: sourceDraftId,
+                status: 'published',
+                publishedTestId: testId,
+            }, existingDraftData);
+            await setDoc(draftRef, draftDoc);
+        } catch (draftError) {
+            console.error('⚠️ Published writing test without synced draft link:', draftError);
+        }
+
         console.log('✅ Writing test published to RTDB:', testId);
-        return { success: true, testId };
+        return { success: true, testId, draftId: sourceDraftId };
     } catch (error) {
         console.error('❌ Failed to publish writing test:', error);
         return {
             success: false,
             error: error instanceof Error ? error.message : 'Failed to publish writing test',
+        };
+    }
+});
+
+export const ensureWritingEditableDraft = withRestoreGuard<{ success: boolean; draftId?: string; error?: string }>(
+    'WritingEditableDraftEnsure',
+    { success: false, error: 'Blocked by restore guard' }
+)(async (
+    test: IELTSWritingTest,
+    userId: string
+): Promise<{ success: boolean; draftId?: string; error?: string }> => {
+    try {
+        const draftId = test.sourceDraftId || doc(collection(db, WRITING_DRAFTS_COLLECTION)).id;
+        const draftRef = doc(db, WRITING_DRAFTS_COLLECTION, draftId);
+        const draftSnap = test.sourceDraftId ? await getDoc(draftRef) : null;
+
+        if (!draftSnap || !draftSnap.exists()) {
+            const draftDoc = deepRemoveUndefined({
+                id: draftId,
+                userId,
+                testType: 'IELTS',
+                skill: 'Writing',
+                metadata: test.metadata,
+                tasks: test.tasks,
+                status: 'published',
+                publishedTestId: test.id,
+                createdAt: toDateOrFallback(test.createdAt, new Date()),
+                updatedAt: toDateOrFallback(test.updatedAt, new Date()),
+            }) as WritingTestDraft;
+            await setDoc(draftRef, draftDoc);
+        }
+
+        if (!test.sourceDraftId) {
+            await dbUpdate(ref(database, `tests/${test.id}`), {
+                sourceDraftId: draftId,
+                updatedAt: Date.now(),
+            });
+        }
+
+        return { success: true, draftId };
+    } catch (error) {
+        console.error('❌ Failed to ensure editable writing draft:', error);
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to prepare writing draft',
         };
     }
 });
@@ -260,6 +394,7 @@ const writingTestService = {
     deleteWritingDraft,
     getUserWritingDrafts,
     publishWritingTest,
+    ensureWritingEditableDraft,
 };
 
 export default writingTestService;

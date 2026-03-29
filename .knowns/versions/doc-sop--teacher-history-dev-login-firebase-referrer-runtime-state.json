@@ -1,0 +1,71 @@
+{
+  "docPath": "sop/teacher-history-dev-login-firebase-referrer-runtime-state",
+  "currentVersion": 2,
+  "versions": [
+    {
+      "id": "v1",
+      "docPath": "sop/teacher-history-dev-login-firebase-referrer-runtime-state",
+      "version": 1,
+      "timestamp": "2026-03-27T22:23:12.3511116Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "Teacher History Dev Login Firebase Referrer Runtime State"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "Dated incident record for the teacher history, dev quick-login, Firebase referrer, and hosted verification repairs completed in March 2026."
+        },
+        {
+          "field": "tags",
+          "oldValue": null,
+          "newValue": [
+            "sop",
+            "runtime-state",
+            "incident",
+            "firebase",
+            "results"
+          ]
+        }
+      ],
+      "snapshot": {
+        "description": "Dated incident record for the teacher history, dev quick-login, Firebase referrer, and hosted verification repairs completed in March 2026.",
+        "tags": [
+          "sop",
+          "runtime-state",
+          "incident",
+          "firebase",
+          "results"
+        ],
+        "title": "Teacher History Dev Login Firebase Referrer Runtime State"
+      }
+    },
+    {
+      "id": "v2",
+      "docPath": "sop/teacher-history-dev-login-firebase-referrer-runtime-state",
+      "version": 2,
+      "timestamp": "2026-03-27T22:23:40.4438564Z",
+      "changes": [
+        {
+          "field": "content",
+          "oldValue": null,
+          "newValue": "# Teacher History Dev Login Firebase Referrer Runtime State\n\n## Scope\n\nThis document records the concrete event trail, live repairs, and current runtime state for the March 2026 teacher-history investigation and hosted verification work.\n\nThis is intentionally not a reusable pattern doc. It is the operational closeout for this specific repair cycle.\n\n## Initial Report\n\nPrimary user-visible failures:\n\n- Teacher could open `Students` and click `Analytics`, but the student history page failed to load.\n- For the known teacher/student pair, the teacher history page showed only `1` test even though the student had completed many tests.\n- Hosted dev quick-login later failed even though the app rendered, which initially looked like an auth/account problem.\n\nReference dev accounts used during verification:\n\n- teacher: `teacher@test.com`\n- student: `student@test.com`\n\n## Live Data Findings\n\nFor teacher `glMHCrzMnyS6AqFcb9I0nlOqQ6X2` and student `x3hDfjYVN7cJtSbwq0ChIjl1Bk62`:\n\n- student index contained `29` result rows\n- resolved teacher-owned results for this teacher: `3`\n- solo-practice results: `6`\n- results owned by another teacher: `5`\n- unresolved results: `15`\n\nObserved defect at investigation time:\n\n- teacher-visible history was undercounting because valid teacher-owned rows were missing from `test_results_by_teacher/{teacherId}`\n- two known missing teacher-owned rows were `-OmclHzRoBBi5vZb5dz9` and `-OoaEcztH5QEDfBJqyYK`\n\n## Root Causes\n\n### 1. Incomplete teacher index\n\nThe teacher-history reader depended on `test_results_by_teacher/{teacherId}`. Missing fan-out rows made valid teacher-owned results invisible.\n\n### 2. Solo-practice visibility path not fully live\n\nThe teacher-history merge path added dedicated solo-practice loading, but that path depended on RTDB rules and dedicated index availability.\n\n### 3. Noisy bulk permission handling\n\nBulk teacher-result loading emitted repeated per-result `Permission denied` console errors for inaccessible stale IDs instead of a summary-only signal.\n\n### 4. Hosted quick-login blocked by API key referrer restrictions\n\nHosted login failure was not caused by broken dev accounts. The Firebase browser API key allowed-referrer list was missing active verification origins, including the hosted app origin.\n\n## Code Repairs Applied\n\nKey code repairs completed:\n\n- teacher history now reads through the teacher-student merged path instead of failing the page when one branch is denied\n- solo-practice teacher read degrades to `[]` when its dedicated index path is unavailable instead of killing the whole history page\n- bulk teacher-result loading suppresses duplicate per-result permission-denied console errors and keeps the final skipped-summary log\n- native mobile drawer replacements removed the new-file Mantine rule violations previously shown in console output\n- restore-flag listeners suppress `permission_denied` warnings so they do not leak non-actionable console noise\n- `AGENTS.md` now records the built-in teacher/student quick-login rule so future Codex runs use it by default\n\nPrimary touched files:\n\n- `src/services/testResults.service.ts`\n- `src/pages/TeacherStudentHistoryPage.tsx`\n- `src/components/navigation/MobileMenu.tsx`\n- `src/components/navigation/AdminLayout.tsx`\n- `src/components/RestoreBanner.tsx`\n- `src/services/restoreGuard.ts`\n- `database.rules.json`\n- `AGENTS.md`\n\n## Live Data / Config Repairs Applied\n\nDirect runtime repairs completed against project `temp-a1437`:\n\n- created or confirmed `student_teacher_links/glMHCrzMnyS6AqFcb9I0nlOqQ6X2/x3hDfjYVN7cJtSbwq0ChIjl1Bk62 = true`\n- restored missing teacher-owned teacher-index rows\n- backfilled the dedicated solo-practice student index for the target student with `6` rows\n- removed `10` stale/inaccessible rows from `test_results_by_teacher/glMHCrzMnyS6AqFcb9I0nlOqQ6X2`\n- deployed RTDB rules so the dedicated visibility/index paths were live\n- updated the Firebase browser API key allow-referrer list to include active verification origins, including the hosted origin\n- rebuilt and redeployed hosting to `https://kahut1.web.app`\n\n## Hosted Verification Result\n\nEnd-to-end hosted verification was completed using the built-in quick-login flow:\n\n1. Open hosted app.\n2. Use `Teacher` quick-login button.\n3. Open `Students`.\n4. Click `Analytics` on the target student.\n5. Confirm history page loads.\n6. Inspect browser console at the target page.\n\nVerified hosted result:\n\n- route loaded: `/teacher/student/x3hDfjYVN7cJtSbwq0ChIjl1Bk62/history`\n- visible count on page: `History (9)`\n- browser console at target page: `0 errors, 0 warnings`\n\n## Current State\n\nCurrent expected runtime state after the repair cycle:\n\n- hosted teacher quick-login works\n- hosted student quick-login is available for browser verification\n- teacher `Students -\u003e Analytics -\u003e Student History` loads successfully for the target pair\n- teacher history for the target pair shows the intended `9` visible rows (`3` teacher-owned + `6` solo practice)\n- stale teacher-index noise previously causing repeated permission-denied console spam has been cleaned up\n- the previously observed restore-flag warning path no longer surfaces browser warnings in the verified teacher flow\n\n## Follow-Up Watchpoints\n\nIf the same symptom returns, check these in order:\n\n1. hosted Firebase browser API key allowed-referrer list\n2. `test_results_by_teacher/{teacherId}` for stale or missing rows\n3. dedicated solo-practice index/rules deployment state\n4. teacher-student link presence\n5. browser-console summary logs from `testResults.service.ts`\n\n## Related Docs\n\n- @doc/guides/guide-dev-quick-login-and-hosted-firebase-referrer-troubleshooting\n"
+        }
+      ],
+      "snapshot": {
+        "content": "# Teacher History Dev Login Firebase Referrer Runtime State\n\n## Scope\n\nThis document records the concrete event trail, live repairs, and current runtime state for the March 2026 teacher-history investigation and hosted verification work.\n\nThis is intentionally not a reusable pattern doc. It is the operational closeout for this specific repair cycle.\n\n## Initial Report\n\nPrimary user-visible failures:\n\n- Teacher could open `Students` and click `Analytics`, but the student history page failed to load.\n- For the known teacher/student pair, the teacher history page showed only `1` test even though the student had completed many tests.\n- Hosted dev quick-login later failed even though the app rendered, which initially looked like an auth/account problem.\n\nReference dev accounts used during verification:\n\n- teacher: `teacher@test.com`\n- student: `student@test.com`\n\n## Live Data Findings\n\nFor teacher `glMHCrzMnyS6AqFcb9I0nlOqQ6X2` and student `x3hDfjYVN7cJtSbwq0ChIjl1Bk62`:\n\n- student index contained `29` result rows\n- resolved teacher-owned results for this teacher: `3`\n- solo-practice results: `6`\n- results owned by another teacher: `5`\n- unresolved results: `15`\n\nObserved defect at investigation time:\n\n- teacher-visible history was undercounting because valid teacher-owned rows were missing from `test_results_by_teacher/{teacherId}`\n- two known missing teacher-owned rows were `-OmclHzRoBBi5vZb5dz9` and `-OoaEcztH5QEDfBJqyYK`\n\n## Root Causes\n\n### 1. Incomplete teacher index\n\nThe teacher-history reader depended on `test_results_by_teacher/{teacherId}`. Missing fan-out rows made valid teacher-owned results invisible.\n\n### 2. Solo-practice visibility path not fully live\n\nThe teacher-history merge path added dedicated solo-practice loading, but that path depended on RTDB rules and dedicated index availability.\n\n### 3. Noisy bulk permission handling\n\nBulk teacher-result loading emitted repeated per-result `Permission denied` console errors for inaccessible stale IDs instead of a summary-only signal.\n\n### 4. Hosted quick-login blocked by API key referrer restrictions\n\nHosted login failure was not caused by broken dev accounts. The Firebase browser API key allowed-referrer list was missing active verification origins, including the hosted app origin.\n\n## Code Repairs Applied\n\nKey code repairs completed:\n\n- teacher history now reads through the teacher-student merged path instead of failing the page when one branch is denied\n- solo-practice teacher read degrades to `[]` when its dedicated index path is unavailable instead of killing the whole history page\n- bulk teacher-result loading suppresses duplicate per-result permission-denied console errors and keeps the final skipped-summary log\n- native mobile drawer replacements removed the new-file Mantine rule violations previously shown in console output\n- restore-flag listeners suppress `permission_denied` warnings so they do not leak non-actionable console noise\n- `AGENTS.md` now records the built-in teacher/student quick-login rule so future Codex runs use it by default\n\nPrimary touched files:\n\n- `src/services/testResults.service.ts`\n- `src/pages/TeacherStudentHistoryPage.tsx`\n- `src/components/navigation/MobileMenu.tsx`\n- `src/components/navigation/AdminLayout.tsx`\n- `src/components/RestoreBanner.tsx`\n- `src/services/restoreGuard.ts`\n- `database.rules.json`\n- `AGENTS.md`\n\n## Live Data / Config Repairs Applied\n\nDirect runtime repairs completed against project `temp-a1437`:\n\n- created or confirmed `student_teacher_links/glMHCrzMnyS6AqFcb9I0nlOqQ6X2/x3hDfjYVN7cJtSbwq0ChIjl1Bk62 = true`\n- restored missing teacher-owned teacher-index rows\n- backfilled the dedicated solo-practice student index for the target student with `6` rows\n- removed `10` stale/inaccessible rows from `test_results_by_teacher/glMHCrzMnyS6AqFcb9I0nlOqQ6X2`\n- deployed RTDB rules so the dedicated visibility/index paths were live\n- updated the Firebase browser API key allow-referrer list to include active verification origins, including the hosted origin\n- rebuilt and redeployed hosting to `https://kahut1.web.app`\n\n## Hosted Verification Result\n\nEnd-to-end hosted verification was completed using the built-in quick-login flow:\n\n1. Open hosted app.\n2. Use `Teacher` quick-login button.\n3. Open `Students`.\n4. Click `Analytics` on the target student.\n5. Confirm history page loads.\n6. Inspect browser console at the target page.\n\nVerified hosted result:\n\n- route loaded: `/teacher/student/x3hDfjYVN7cJtSbwq0ChIjl1Bk62/history`\n- visible count on page: `History (9)`\n- browser console at target page: `0 errors, 0 warnings`\n\n## Current State\n\nCurrent expected runtime state after the repair cycle:\n\n- hosted teacher quick-login works\n- hosted student quick-login is available for browser verification\n- teacher `Students -\u003e Analytics -\u003e Student History` loads successfully for the target pair\n- teacher history for the target pair shows the intended `9` visible rows (`3` teacher-owned + `6` solo practice)\n- stale teacher-index noise previously causing repeated permission-denied console spam has been cleaned up\n- the previously observed restore-flag warning path no longer surfaces browser warnings in the verified teacher flow\n\n## Follow-Up Watchpoints\n\nIf the same symptom returns, check these in order:\n\n1. hosted Firebase browser API key allowed-referrer list\n2. `test_results_by_teacher/{teacherId}` for stale or missing rows\n3. dedicated solo-practice index/rules deployment state\n4. teacher-student link presence\n5. browser-console summary logs from `testResults.service.ts`\n\n## Related Docs\n\n- @doc/guides/guide-dev-quick-login-and-hosted-firebase-referrer-troubleshooting\n",
+        "description": "Dated incident record for the teacher history, dev quick-login, Firebase referrer, and hosted verification repairs completed in March 2026.",
+        "tags": [
+          "sop",
+          "runtime-state",
+          "incident",
+          "firebase",
+          "results"
+        ],
+        "title": "Teacher History Dev Login Firebase Referrer Runtime State"
+      }
+    }
+  ]
+}

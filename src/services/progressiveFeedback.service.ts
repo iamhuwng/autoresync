@@ -430,8 +430,16 @@ export const refreshProgressiveFeedback = withRestoreGuard(
         lastAutoRefreshAt: manual ? (existing?.lastAutoRefreshAt || now) : now,
     };
 
+    const progressiveFeedbackPayload = finalRecord.aiModel === undefined
+        ? (() => {
+            const { aiModel, ...rest } = finalRecord;
+            void aiModel;
+            return rest;
+        })()
+        : finalRecord;
+
     await update(ref(database, `academic_records/${studentId}`), {
-        progressiveFeedback: finalRecord,
+        progressiveFeedback: progressiveFeedbackPayload,
     });
 
     return finalRecord;

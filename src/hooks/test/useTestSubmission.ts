@@ -259,8 +259,8 @@ export const useTestSubmission = ({
     playerId: string,
     playerName: string,
     results: TestResults
-  ): Promise<void> => {
-    if (!testData || !sessionCode) return;
+  ): Promise<string | null> => {
+    if (!testData || !sessionCode) return null;
 
     try {
       console.log('💾 Saving permanent test result...');
@@ -407,10 +407,10 @@ export const useTestSubmission = ({
           // Map Question[] (uses .number) to GradingQuestion[] (uses .questionNumber)
           const mappedQuestions = testData.questions.map((q: any) => ({
             questionNumber: q.number,
-            passageId: q.passageId as string | undefined,
-            sectionId: q.sectionId as string | undefined,
-            passageName: q.passageName as string | undefined,
-            sectionName: q.sectionName as string | undefined,
+            passageId: q.passageId ?? q.passage ?? undefined,
+            sectionId: q.sectionId ?? (q.sectionNumber !== undefined && q.sectionNumber !== null ? String(q.sectionNumber) : undefined),
+            passageName: q.passageName ?? q.passageTitle ?? (q.passage ? String(q.passage) : undefined),
+            sectionName: q.sectionName ?? (q.sectionNumber !== undefined && q.sectionNumber !== null ? `Part ${q.sectionNumber}` : undefined),
           }));
           const passageResults = deriveIeltsPassageResults(
             mappedQuestions,
@@ -457,14 +457,13 @@ export const useTestSubmission = ({
 
       console.log('✅ Permanent result saved with ID:', resultId);
 
-      if (isIeltsReadingOrListening && resultId) {
-        import('../../services/resultFeedbackGeneration.service')
-          .then(({ triggerFormativeFeedbackForSavedResult }) => {
-            triggerFormativeFeedbackForSavedResult(resultId);
-          })
-          .catch((feedbackErr) => {
-            console.warn('Failed to trigger IELTS formative feedback generation:', feedbackErr);
-          });
+      try {
+        await update(ref(database, `game_sessions/${sessionCode}/players/${playerId}`), {
+          latestResultId: resultId,
+          lastResultPersistedAt: Date.now(),
+        });
+      } catch (pointerErr) {
+        console.warn('Failed to persist latestResultId pointer:', pointerErr);
       }
 
       // Link test result to attendance record if module context exists
@@ -544,9 +543,11 @@ export const useTestSubmission = ({
         }
       }
 
+      return resultId;
     } catch (saveErr) {
       console.error('❌ Failed to save permanent result:', saveErr);
       // Don't throw - we still want the session submission to succeed even if permanent save fails
+      return null;
     }
   };
 
@@ -592,7 +593,14 @@ export const useTestSubmission = ({
         };
       });
 
-      // Update player's answers and results in the session
+      // NEW: Save permanent result record
+      const resultId = await savePermanentResult(playerId, playerName, results);
+      if (!resultId) {
+        throw new Error('Failed to persist test result. Submission was not finalized.');
+      }
+
+      // Update player's answers and results in the session only after the
+      // canonical result exists so the UI never advertises a result that failed to save.
       const playerRef = ref(database, `game_sessions/${sessionCode}/players/${playerId}`);
       const now = Date.now();
       await update(playerRef, {
@@ -622,9 +630,6 @@ export const useTestSubmission = ({
           console.warn('[PRD-0036] Failed to save integrity report:', integrityErr);
         }
       }
-
-      // NEW: Save permanent result record
-      await savePermanentResult(playerId, playerName, results);
 
       // Update local state
       setTestResults(results);
@@ -666,7 +671,7 @@ export const useTestSubmission = ({
         console.log(`✅ [PRD-0019] Redirecting to waiting lobby with results modal for ${testSkill} test`);
         navigate(`/student-wait/${sessionCode}`, {
           replace: true,
-          state: { showResults: true, sessionCode, testId: testData.id },
+          state: { showResults: Boolean(resultId), sessionCode, testId: testData.id },
         });
       } else if (testSkill === 'Writing') {
         // Writing tests: redirect to submission confirmation

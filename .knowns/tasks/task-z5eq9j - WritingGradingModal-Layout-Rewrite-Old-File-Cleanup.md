@@ -8,7 +8,7 @@ labels:
   - from-spec
   - grading-editor
 createdAt: '2026-03-01T06:45:41.064Z'
-updatedAt: '2026-03-01T08:08:51.415Z'
+updatedAt: '2026-03-29T20:17:34.761Z'
 timeSpent: 477
 assignee: '@me'
 spec: specs/grading-editor-redesign
@@ -81,5 +81,7 @@ Rewrite WritingGradingModal.tsx with new 2-column + 3-tab layout. Integrate all 
 
 ### AC-9 Note
 Deleted 2 files (AnnotationToolbar.tsx, AnnotatedEssayRenderer.tsx). FeedbackPanel.tsx and writingAnnotationService.ts retained because they still have active imports from WritingGradingPage.tsx and CategoryManager.tsx. These can be removed in a follow-up cleanup task once those consumers are updated."
+
+2026-03-30 note: Historical layout task only. The finalized teacher writing grading editor layout and comment workflow now live in @doc/specs/ielts-writing-grading-editor-finalization-2026-03-30. The teacher-shell containment requirement supersedes older detached-surface assumptions.
 <!-- SECTION:NOTES:END -->
 

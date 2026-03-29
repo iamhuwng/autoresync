@@ -4,6 +4,7 @@
 
 import React, { useMemo, useEffect, useCallback, useState } from 'react';
 import type { TestResultRecord } from '../../services/testResults.service';
+import { classifySavedResultFeedbackKind } from '../../services/feedbackClassification.service';
 import type { TabId } from './ResultSlidePanel';
 import type { FormativeFeedback } from '../../types/thcs-test.types';
 import './OverviewTab.css';
@@ -20,18 +21,7 @@ export interface OverviewTabProps {
 }
 
 function getTestCategory(result: TestResultRecord): 'thcs' | 'ielts-reading' | 'ielts-listening' | 'generic' {
-  const type = String(result.testType || '').toLowerCase();
-  const skill = String(result.testSkill || '').toLowerCase();
-
-  if (type.startsWith('thcs') || type.startsWith('practice_thcs')) return 'thcs';
-  if (skill === 'reading' || type === 'reading' || (type.includes('ielts') && type.includes('reading'))) {
-    return 'ielts-reading';
-  }
-  if (skill === 'listening' || type === 'listening' || (type.includes('ielts') && type.includes('listening'))) {
-    return 'ielts-listening';
-  }
-
-  return 'generic';
+  return classifySavedResultFeedbackKind(result) ?? 'generic';
 }
 
 function formatTime(seconds: number | undefined | null): string {
@@ -216,6 +206,8 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   const sectionResults = category === 'thcs' ? result.thcsData?.sectionResults || [] : [];
   const visibleSectionResults = showAllSections ? sectionResults : sectionResults.slice(0, 3);
   const hasExtraSections = sectionResults.length > 3;
+  const ieltsSegmentLabel = category === 'ielts-listening' ? 'Part' : 'Passage';
+  const ieltsSectionHeading = category === 'ielts-listening' ? 'Part Breakdown' : 'Passage Breakdown';
 
   return (
     <div className="ov-root" data-testid="ov-root">
@@ -304,11 +296,11 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 
       {showSectionBreakdown && (category === 'ielts-reading' || category === 'ielts-listening') && result.ieltsData?.passageResults ? (
         <div className="ov-passage-cards fade-in-d3" data-testid="ov-ielts-passages">
-          <h3 className="ov-section-title">Passage Breakdown</h3>
+          <h3 className="ov-section-title">{ieltsSectionHeading}</h3>
           {result.ieltsData.passageResults.map((passage, index) => (
             <div key={index} className="ov-section-card">
               <div className="ov-section-card-row">
-                <span className="ov-section-name">{passage.passageName || `Passage ${index + 1}`}</span>
+                <span className="ov-section-name">{passage.passageName || `${ieltsSegmentLabel} ${index + 1}`}</span>
                 <div className="ov-section-bar-track">
                   <div
                     className="ov-section-bar-fill"

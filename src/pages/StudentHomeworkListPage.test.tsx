@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { StudentHomeworkListPage } from './StudentHomeworkListPage';
@@ -84,6 +84,7 @@ function makeHomeworkItem(overrides: Record<string, unknown> = {}) {
     homework: {
       id: 'hw-1',
       title: 'Reading Homework',
+      createdBy: 'teacher-1',
       materialId: 'material-1',
       materialTitle: 'Reading Homework',
       materialSkill: 'reading',
@@ -209,6 +210,49 @@ describe('StudentHomeworkListPage', () => {
 
     fireEvent.click(screen.getByText('Start Homework'));
 
-    expect(createSubmissionMock).toHaveBeenCalledWith('hw-1', 'student-1', 'Student One');
+    await waitFor(() => {
+      expect(createSubmissionMock).toHaveBeenCalledWith('hw-1', 'student-1', 'Student One');
+      expect(navigateMock).toHaveBeenCalledWith('/student/practice/material-1', {
+        state: expect.objectContaining({
+          isHomework: true,
+          homeworkId: 'hw-1',
+          submissionId: 'submission-1',
+          teacherId: 'teacher-1',
+        }),
+      });
+    });
+  });
+
+  it('shows pending-review copy for manual-review submissions without a score', () => {
+    const pendingReviewItem = makeHomeworkItem({
+      homework: {
+        ...makeHomeworkItem().homework,
+        materialSkill: 'writing',
+      },
+      latestSubmission: {
+        id: 'submission-writing-1',
+        status: 'submitted',
+        resultId: 'result-writing-1',
+      },
+      canSubmit: false,
+      canViewFeedback: true,
+      status: 'submitted',
+    });
+
+    useStudentHomeworkListMock.mockReturnValue({
+      homeworkItems: [pendingReviewItem],
+      isLoading: false,
+      error: null,
+      refreshData: vi.fn(),
+      notStarted: [],
+      inProgress: [],
+      completed: [pendingReviewItem],
+      overdue: [],
+    });
+
+    render(<StudentHomeworkListPage />);
+
+    expect(screen.getAllByText('Pending Review')[0]).toBeInTheDocument();
+    expect(screen.getByText('Awaiting teacher')).toBeInTheDocument();
   });
 });

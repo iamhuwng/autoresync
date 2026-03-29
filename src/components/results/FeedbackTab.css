@@ -135,7 +135,7 @@
   background: #eff6ff;
   border: 1px solid #bfdbfe;
   border-radius: 12px;
-  padding: 16px;
+  padding: 14px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
@@ -144,73 +144,210 @@
   border-color: #c7d2fe;
 }
 
-.fb-recommendations-intro {
-  margin: 0 0 12px;
-  font-size: 0.84rem;
-  line-height: 1.55;
-  color: #1e40af;
+.fb-recommendations-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.fb-recommendations-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+  color: #1d4ed8;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
 
 .fb-recommendation-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .fb-recommendation-item {
   background: rgba(255, 255, 255, 0.92);
   border: 1px solid rgba(191, 219, 254, 0.9);
   border-radius: 12px;
-  padding: 12px;
+}
+
+.fb-recommendation-item--compact {
+  overflow: hidden;
+}
+
+.fb-recommendation-summary {
+  list-style: none;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.fb-recommendation-summary::-webkit-details-marker {
+  display: none;
+}
+
+.fb-recommendation-priority {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background: #4f46e5;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  font-weight: 800;
+  box-shadow: 0 8px 14px rgba(79, 70, 229, 0.18);
+}
+
+.fb-recommendation-main {
+  min-width: 0;
 }
 
 .fb-recommendation-head {
   display: flex;
-  justify-content: space-between;
   align-items: flex-start;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 6px;
+  margin-bottom: 6px;
 }
 
 .fb-recommendation-tag {
   display: inline-flex;
   align-items: center;
-  padding: 4px 10px;
+  padding: 4px 8px;
   border-radius: 999px;
   background: #dbeafe;
   color: #1d4ed8;
-  font-size: 0.75rem;
-  font-weight: 700;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
 
-.fb-recommendation-questions {
-  font-size: 0.75rem;
+.fb-recommendation-focus {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: #4b5563;
+  font-size: 0.67rem;
+  font-weight: 800;
+}
+
+.fb-question-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fb-question-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: #6b7280;
+  font-size: 0.66rem;
+  font-weight: 800;
+}
+
+.fb-question-chip--more {
+  color: #1d4ed8;
+  background: #dbeafe;
+}
+
+.fb-recommendation-start {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font-size: 0.73rem;
+  line-height: 1.35;
+}
+
+.fb-recommendation-start-label {
+  flex-shrink: 0;
+  color: #9ca3af;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.fb-recommendation-start-unit {
+  min-width: 0;
+  color: #111827;
   font-weight: 700;
-  color: #1e40af;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fb-recommendation-start-book {
+  flex-shrink: 0;
+  color: #6b7280;
+  font-weight: 600;
+}
+
+.fb-recommendation-expand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  padding-top: 4px;
+  color: #4f46e5;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.fb-recommendation-details {
+  display: grid;
+  gap: 8px;
+  padding: 0 12px 10px 50px;
+  border-top: 1px dashed #dbeafe;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.fb-recommendation-item:not([open]) .fb-recommendation-details {
+  display: none;
 }
 
 .fb-recommendation-guidance {
-  margin: 0 0 10px;
-  font-size: 0.82rem;
-  line-height: 1.55;
+  margin: 8px 0 0;
+  font-size: 0.74rem;
+  line-height: 1.45;
   color: #1e3a8a;
 }
 
 .fb-recommendation-books {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .fb-book-chip {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  padding: 10px 12px;
+  padding: 8px 10px;
   border-radius: 10px;
   border: 1px solid #dbeafe;
   background: #fff;
+}
+
+.fb-book-chip--primary {
+  background: #f9fafb;
+  border-color: #e5e7eb;
 }
 
 .fb-book-title-row {
@@ -221,25 +358,19 @@
 }
 
 .fb-book-title {
-  font-size: 0.82rem;
+  font-size: 0.74rem;
   color: #111827;
 }
 
 .fb-book-author {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   color: #6b7280;
 }
 
-.fb-book-section {
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: #1d4ed8;
-}
-
 .fb-book-focus {
-  font-size: 0.76rem;
+  font-size: 0.71rem;
   color: #4b5563;
-  line-height: 1.5;
+  line-height: 1.42;
 }
 
 .fb-widget-card {
@@ -374,5 +505,21 @@
 @media (max-width: 768px) {
   .fb-layout {
     grid-template-columns: 1fr;
+  }
+
+  .fb-recommendation-summary {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .fb-recommendation-expand {
+    display: none;
+  }
+
+  .fb-recommendation-details {
+    padding-left: 12px;
+  }
+
+  .fb-recommendation-start {
+    flex-wrap: wrap;
   }
 }

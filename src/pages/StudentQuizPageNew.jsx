@@ -26,6 +26,7 @@ import { ref, onValue, update, get } from 'firebase/database';
 import { calculateScore } from '../utils/scoring';
 import { markTest } from '../services/autoMarking.service';
 import { saveTestResult } from '../services/testResults.service';
+import { deriveIeltsPassageResults } from '../services/ieltsPassageResults.service';
 // import { useLog } from '../context/LogContext'; // DISABLED FOR TESTING
 import SemicircleTimer from '../components/SemicircleTimer';
 import StudentAnswerInput from '../components/StudentAnswerInput';
@@ -353,6 +354,29 @@ const StudentQuizPageNew = () => {
         duration,
       );
 
+      const isIeltsReadingOrListening =
+        String(testType || '').toLowerCase().includes('ielts')
+        && ['reading', 'listening'].includes(String(testSkill || '').toLowerCase());
+
+      let ieltsData;
+      if (isIeltsReadingOrListening) {
+        try {
+          const mappedQuestions = questions.map((q) => ({
+            questionNumber: q.number,
+            passageId: q.passageId ?? q.passage ?? undefined,
+            sectionId: q.sectionId ?? (q.sectionNumber !== undefined && q.sectionNumber !== null ? String(q.sectionNumber) : undefined),
+            passageName: q.passageName ?? q.passageTitle ?? (q.passage ? String(q.passage) : undefined),
+            sectionName: q.sectionName ?? (q.sectionNumber !== undefined && q.sectionNumber !== null ? `Part ${q.sectionNumber}` : undefined),
+          }));
+          const passageResults = deriveIeltsPassageResults(mappedQuestions, markingResult.questionResults || []);
+          if (passageResults.length > 0) {
+            ieltsData = { passageResults };
+          }
+        } catch (ieltsErr) {
+          console.warn('[StudentQuizPageNew] Failed to derive IELTS passage results:', ieltsErr);
+        }
+      }
+
       const resultId = await saveTestResult(
         gameSessionId,
         testId,
@@ -371,6 +395,8 @@ const StudentQuizPageNew = () => {
         undefined,
         undefined,
         resultContext,
+        undefined,
+        ieltsData,
       );
 
       canonicalResultGuardRef.current.resultId = resultId;

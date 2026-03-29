@@ -52,13 +52,28 @@ const StudentTestPageContent: React.FC = () => {
   const flushIntegrityRef = useRef<(() => Promise<void>) | null>(null);
 
   const {
-    testData,
+    testData: rawTestData,
     loading,
     error,
     activePassageId,
     setActivePassageId,
     questionsWithAnswersRef, // PRD-0036 Task 9
   } = useTestData({ sessionCode });
+
+  const testData = useMemo(() => {
+    if (!rawTestData) {
+      return null;
+    }
+
+    return {
+      ...rawTestData,
+      passages: Array.isArray(rawTestData.passages) ? rawTestData.passages : [],
+      questions: Array.isArray(rawTestData.questions) ? rawTestData.questions : [],
+    };
+  }, [rawTestData]);
+
+  const hasUnsupportedTestShape = Boolean(rawTestData)
+    && (!Array.isArray(rawTestData.passages) || !Array.isArray(rawTestData.questions));
 
   // PRD-0019 Task 6.3: Re-entry prevention - check if test already completed
   useTestCompletionCheck({
@@ -500,6 +515,43 @@ const StudentTestPageContent: React.FC = () => {
           </div>
           <button
             onClick={() => navigateTo('LOGIN', {}, { reason: 'error_return' })}
+            style={{
+              padding: '0.75rem 1.5rem',
+              background: '#8b5cf6',
+              color: 'white',
+              border: 'none',
+              borderRadius: '0.5rem',
+              fontSize: '0.9375rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Back to Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (hasUnsupportedTestShape) {
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: '100vh',
+        background: '#f8fafc'
+      }}>
+        <div style={{ textAlign: 'center', maxWidth: '440px', padding: '2rem' }}>
+          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⚠️</div>
+          <div style={{ fontSize: '1.25rem', fontWeight: 600, color: '#1e293b', marginBottom: '0.5rem' }}>
+            Unsupported Test Format
+          </div>
+          <div style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '1.5rem' }}>
+            This session payload cannot be shown in the generic test page.
+          </div>
+          <button
+            onClick={() => navigateTo('LOGIN', {}, { reason: 'unsupported_test_format' })}
             style={{
               padding: '0.75rem 1.5rem',
               background: '#8b5cf6',

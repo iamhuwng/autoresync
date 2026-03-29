@@ -22,7 +22,7 @@ interface WritingResult {
     id: string;
     testTitle: string;
     submittedAt: number;
-    status: 'pending' | 'graded' | 'reviewed';
+    status: 'pending' | 'graded';
     bandScore?: number;
     taskScores?: Array<{
         taskNumber: number;
@@ -145,7 +145,6 @@ function getBandColor(band: number): { bg: string; text: string } {
 function getStatusStyle(status: string): { bg: string; text: string } {
     switch (status) {
         case 'graded':
-        case 'reviewed':
             return { bg: '#d1fae5', text: '#059669' };
         case 'pending':
             return { bg: '#fef3c7', text: '#d97706' };
@@ -173,15 +172,16 @@ export default function WritingProgressSection({ studentId }: WritingProgressSec
 
                 const fetched: WritingResult[] = snap.docs.map(doc => {
                     const d = doc.data();
+                    const markingStatus = d.markingStatus === 'graded' ? 'graded' : 'pending';
                     return {
                         id: doc.id,
-                        testTitle: d.testMeta?.title || d.testMeta?.testId || 'Untitled',
+                        testTitle: d.testMeta?.testTitle || d.testMeta?.testId || 'Untitled',
                         submittedAt: d.submittedAt || d.createdAt || 0,
-                        status: d.status || 'pending',
-                        bandScore: d.gradingResult?.overallBand,
-                        taskScores: d.tasks?.map((t: any) => ({
-                            taskNumber: t.taskNumber,
-                            overallBand: t.gradingResult?.overallBand,
+                        status: markingStatus,
+                        bandScore: d.grading?.overallBand,
+                        taskScores: d.grading?.perTask?.map((task: any) => ({
+                            taskNumber: task.taskNumber,
+                            overallBand: task.taskBand,
                         })),
                         contextType: d.context?.type,
                         wordCount: d.tasks?.reduce((sum: number, t: any) => sum + (t.wordCount || 0), 0),

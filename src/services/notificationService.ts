@@ -16,6 +16,8 @@ const buildStudentHomeworkLink = (homeworkId: string) =>
     buildRoute('STUDENT_HOMEWORK_DETAIL', { homeworkId });
 const buildResultDetailLink = (resultId: string) =>
     buildRoute('RESULT_DETAIL', { resultId });
+const buildTeacherWritingLink = (submissionId: string) =>
+    buildRoute('TEACHER_GRADING_DETAIL', { submissionId });
 
 export const createNotification = withRestoreGuard(
     'Notification',
@@ -1211,6 +1213,52 @@ export async function notifyWritingSubmitted(
         return result;
     } catch (error) {
         console.error('Error sending writing submitted notification:', error);
+        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+}
+
+/**
+ * Notify the responsible teacher that a writing submission is waiting for review.
+ * Used for asynchronous workflows such as solo practice and homework.
+ */
+export async function notifyTeacherWritingSubmitted(
+    teacherId: string,
+    submissionId: string,
+    studentId: string,
+    studentName: string,
+    testTitle: string,
+    contextType: 'solo-practice' | 'homework'
+): Promise<{ success: boolean; notificationId?: string; error?: string }> {
+    try {
+        if (!teacherId || !submissionId || !studentId || !studentName || !testTitle) {
+            return { success: false, error: 'Missing required parameters' };
+        }
+
+        const contextLabel = contextType === 'homework' ? 'homework' : 'solo practice';
+
+        const result = await createNotification({
+            userId: teacherId,
+            type: 'info',
+            title: 'New Writing Submission',
+            message: `${studentName} submitted a ${contextLabel} essay for "${testTitle}".`,
+            link: buildTeacherWritingLink(submissionId),
+            metadata: {
+                submissionId,
+                studentId,
+                studentName,
+                testTitle,
+                contextType,
+                submittedAt: Date.now(),
+            },
+        });
+
+        if (result.success) {
+            console.log(`✅ [Notification] Writing submission notification sent to teacher ${teacherId}`);
+        }
+
+        return result;
+    } catch (error) {
+        console.error('Error sending teacher writing submitted notification:', error);
         return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
 }

@@ -1,13 +1,12 @@
 /**
- * SubmissionCompletePage Component
- * PRD-0019 Task 6.1: Post-submission confirmation page for Writing tests
- * 
- * Displayed after Writing test auto-submission to inform students
- * that their work has been submitted and is awaiting teacher feedback.
+ * SubmissionCompletePage
+ * Post-submission confirmation page for IELTS Writing tests.
  */
 
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { ROUTES } from '../constants/routes';
+import { useFeatureTracking } from '../hooks/useFeatureTracking';
 import { Card, CardBody, Button } from '../components/modern';
 
 interface SubmissionCompleteState {
@@ -19,92 +18,112 @@ interface SubmissionCompleteState {
 export const SubmissionCompletePage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { trackAction } = useFeatureTracking('results');
   const state = (location.state as SubmissionCompleteState) || {};
   const { sessionCode, testId, studentName } = state;
 
-  // If no state provided, redirect to home
   React.useEffect(() => {
     if (!sessionCode && !testId) {
-      console.warn('[SubmissionComplete] No state provided, redirecting to home');
-      navigate('/', { replace: true });
+      console.warn('[SubmissionComplete] No state provided, redirecting to login');
+      navigate(ROUTES.LOGIN, { replace: true });
     }
-  }, [sessionCode, testId, navigate]);
+  }, [navigate, sessionCode, testId]);
 
   const handleReturnToDashboard = () => {
-    navigate('/dashboard');
-  };
-
-  const handleViewResults = () => {
-    if (sessionCode) {
-      navigate(`/student-test-results/${sessionCode}`);
-    } else {
-      navigate('/dashboard');
-    }
+    trackAction('returnToDashboard', {
+      source: 'submission_complete',
+      hasSessionCode: Boolean(sessionCode),
+    });
+    navigate(ROUTES.STUDENT_DASHBOARD, { replace: true });
   };
 
   return (
     <div
+      className="student-view-root"
       style={{
         minHeight: '100vh',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(135deg, rgba(250, 245, 255, 0.95) 0%, rgba(240, 249, 255, 0.95) 50%, rgba(240, 253, 250, 0.95) 100%)',
+        background: '#f3f4f6',
         padding: '2rem',
       }}
     >
       <Card
-        variant="glass"
+        variant="default"
         hover={false}
         style={{
           maxWidth: '600px',
           width: '100%',
+          border: '1px solid #e5e7eb',
+          borderRadius: '24px',
+          boxShadow: '0 20px 45px rgba(15, 23, 42, 0.08)',
         }}
       >
         <CardBody style={{ padding: '3rem', textAlign: 'center' }}>
-          {/* Success Icon */}
           <div
             style={{
-              fontSize: '5rem',
               marginBottom: '1.5rem',
+              display: 'flex',
+              justifyContent: 'center',
               animation: 'scaleIn 0.5s ease-out',
             }}
           >
-            ✅
+            <div
+              style={{
+                width: '5rem',
+                height: '5rem',
+                borderRadius: '999px',
+                background: '#dcfce7',
+                color: '#166534',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                style={{ width: '2.5rem', height: '2.5rem' }}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
           </div>
 
-          {/* Heading */}
           <h1
             style={{
               fontSize: '2rem',
               fontWeight: 800,
-              color: '#1e293b',
+              color: '#111827',
               marginBottom: '1rem',
-              fontFamily: 'Poppins, Inter, sans-serif',
+              fontFamily: 'Inter, sans-serif',
             }}
           >
             Your work has been submitted
           </h1>
 
-          {/* Message */}
           <p
             style={{
               fontSize: '1.125rem',
-              color: '#64748b',
+              color: '#374151',
               marginBottom: '2rem',
               lineHeight: 1.6,
             }}
           >
-            Your test has been successfully submitted and is now awaiting teacher feedback.
-            You will be notified once your work has been reviewed.
+            Your IELTS Writing test has been submitted successfully. This test is graded manually by
+            your teacher, so there is no instant score or AI feedback after submission.
           </p>
 
-          {/* Student Name (if available) */}
           {studentName && (
             <div
               style={{
-                background: 'rgba(139, 92, 246, 0.1)',
-                borderRadius: '0.75rem',
+                background: '#f9fafb',
+                border: '1px solid #e5e7eb',
+                borderRadius: '1rem',
                 padding: '1rem',
                 marginBottom: '2rem',
               }}
@@ -112,7 +131,7 @@ export const SubmissionCompletePage: React.FC = () => {
               <div
                 style={{
                   fontSize: '0.875rem',
-                  color: '#64748b',
+                  color: '#6b7280',
                   marginBottom: '0.25rem',
                 }}
               >
@@ -122,7 +141,7 @@ export const SubmissionCompletePage: React.FC = () => {
                 style={{
                   fontSize: '1.125rem',
                   fontWeight: 600,
-                  color: '#8b5cf6',
+                  color: '#111827',
                 }}
               >
                 {studentName}
@@ -130,13 +149,12 @@ export const SubmissionCompletePage: React.FC = () => {
             </div>
           )}
 
-          {/* Info Box */}
           <div
             style={{
-              background: 'rgba(59, 130, 246, 0.1)',
-              borderLeft: '4px solid #3b82f6',
-              borderRadius: '0.5rem',
-              padding: '1rem',
+              background: '#eff6ff',
+              border: '1px solid #bfdbfe',
+              borderRadius: '1rem',
+              padding: '1.25rem',
               marginBottom: '2rem',
               textAlign: 'left',
             }}
@@ -144,20 +162,19 @@ export const SubmissionCompletePage: React.FC = () => {
             <div
               style={{
                 fontSize: '0.875rem',
-                color: '#1e293b',
+                color: '#1f2937',
                 lineHeight: 1.6,
               }}
             >
               <strong>What happens next?</strong>
               <ul style={{ margin: '0.5rem 0 0 1.25rem', paddingLeft: 0 }}>
-                <li>Your teacher will review your submission</li>
-                <li>You'll receive feedback and your score</li>
-                <li>Check your dashboard for updates</li>
+                <li>Your teacher will hand-grade your writing submission.</li>
+                <li>Your result will appear after your teacher finishes the review.</li>
+                <li>Check your dashboard later, or contact your teacher if you need an update.</li>
               </ul>
             </div>
           </div>
 
-          {/* Action Buttons */}
           <div
             style={{
               display: 'flex',
@@ -174,22 +191,10 @@ export const SubmissionCompletePage: React.FC = () => {
             >
               Return to Dashboard
             </Button>
-
-            {sessionCode && (
-              <Button
-                variant="outline"
-                size="lg"
-                onClick={handleViewResults}
-                style={{ minWidth: '200px' }}
-              >
-                View Results
-              </Button>
-            )}
           </div>
         </CardBody>
       </Card>
 
-      {/* CSS Animations */}
       <style>{`
         @keyframes scaleIn {
           from {

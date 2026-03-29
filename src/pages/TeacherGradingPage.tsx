@@ -10,9 +10,11 @@ import { AppShell, Loader, Stack, Text, Center } from '@mantine/core';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigation } from '../hooks/useNavigation';
+import { useFeatureTracking } from '../hooks/useFeatureTracking';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { ref, get } from 'firebase/database';
 import { firestore, database } from '../services/firebase';
+import { FEATURE_IDS } from '../config/featureRegistry';
 import { Card, CardBody, Button, Input } from '../components/modern';
 import { TeacherHeader } from '../components/navigation';
 import { GradingTestCard } from '../components/thcs-grading/GradingTestCard';
@@ -29,6 +31,7 @@ type SortOption = 'newest' | 'oldest';
 export function TeacherGradingPage() {
     const { user, profile, logout } = useAuth();
     const { navigateTo } = useNavigation('teacher');
+    const { trackAction } = useFeatureTracking(FEATURE_IDS.grading);
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -242,6 +245,51 @@ export function TeacherGradingPage() {
             default: return type || '—';
         }
     };
+
+    const getWritingQueueState = (submission: WritingSubmission) => {
+        if (submission.gradingDraftMeta?.ownerTeacherId) {
+            if (submission.gradingDraftMeta.ownerTeacherId === user?.uid) {
+                return {
+                    label: 'draft-in-progress',
+                    accent: '#2563eb',
+                    background: 'rgba(37, 99, 235, 0.12)',
+                    actionable: true,
+                    cta: 'Resume Draft',
+                };
+            }
+
+            return {
+                label: 'lock conflict',
+                accent: '#b45309',
+                background: 'rgba(245, 158, 11, 0.14)',
+                actionable: true,
+                cta: 'View Conflict',
+            };
+        }
+
+        return {
+            label: 'pending-review',
+            accent: '#ea580c',
+            background: 'rgba(249, 115, 22, 0.12)',
+            actionable: true,
+            cta: 'Grade',
+        };
+    };
+
+    const openWritingSubmission = useCallback((submission: WritingSubmission, source: 'card' | 'button') => {
+        trackAction('openSubmission', {
+            source: `teacher_grading_queue_${source}`,
+            submissionId: submission.id,
+            queueState: getWritingQueueState(submission).label,
+            contextType: submission.context?.type,
+        });
+
+        navigateTo(
+            'TEACHER_GRADING_DETAIL',
+            { submissionId: submission.id },
+            { reason: 'teacher_open_writing_submission' },
+        );
+    }, [navigateTo, trackAction, user?.uid]);
 
     return (
         <div
@@ -611,13 +659,14 @@ export function TeacherGradingPage() {
                                             const isDeleted = !sub.studentName;
                                             const wordCount = getTotalWordCount(sub);
                                             const pasteAttempts = sub.pasteAttemptCount || 0;
+                                            const queueState = getWritingQueueState(sub);
 
                                             return (
                                                 <Card
                                                     key={sub.id}
                                                     variant="glass"
                                                     hover
-                                                    onClick={() => navigate(`/teacher/grading/writing/${sub.id}`)}
+                                                    onClick={() => openWritingSubmission(sub, 'card')}
                                                     style={{
                                                         cursor: 'pointer',
                                                         animation: `slideUp 0.4s ease-out ${index * 0.04}s backwards`,
@@ -693,19 +742,36 @@ export function TeacherGradingPage() {
 
                                                             {/* Right: time + action */}
                                                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem', flexShrink: 0 }}>
+                                                                <span style={{
+                                                                    display: 'inline-flex',
+                                                                    alignItems: 'center',
+                                                                    padding: '0.18rem 0.6rem',
+                                                                    borderRadius: '9999px',
+                                                                    fontSize: '0.6875rem',
+                                                                    fontWeight: '700',
+                                                                    textTransform: 'uppercase',
+                                                                    letterSpacing: '0.04em',
+                                                                    background: queueState.background,
+                                                                    color: queueState.accent,
+                                                                }}>
+                                                                    {queueState.label}
+                                                                </span>
                                                                 <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
                                                                     {formatTime(sub.submittedAt)}
                                                                 </span>
                                                                 <Button
                                                                     variant="primary"
                                                                     size="sm"
-                                                                    onClick={e => { e.stopPropagation(); navigate(`/teacher/grading/writing/${sub.id}`); }}
+                                                                    onClick={e => {
+                                                                        e.stopPropagation();
+                                                                        openWritingSubmission(sub, 'button');
+                                                                    }}
                                                                     style={{
                                                                         background: 'linear-gradient(135deg, #ea580c, #f97316)',
                                                                         fontSize: '0.8125rem',
                                                                     }}
                                                                 >
-                                                                    Grade →
+                                                                    {queueState.cta} →
                                                                 </Button>
                                                             </div>
                                                         </div>

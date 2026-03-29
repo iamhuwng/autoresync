@@ -76,6 +76,25 @@ describe('Firebase security rules contract (PRD-0041 Task 6.5)', () => {
 
       expect(spec.expectedResult).toBe('DENY');
     });
+
+    it('allows assigned teacher to read solo-practice result rows', () => {
+      const spec = {
+        path: '/test_results/result-5',
+        auth: { uid: 'teacher-a', role: 'teacher' },
+        data: {
+          studentId: 'student-1',
+          visibility: {
+            ownershipResolved: true,
+            visibilityOwnerTeacherId: null,
+            contextType: 'solo_practice',
+          },
+        },
+        assignmentLink: true,
+        expectedResult: 'ALLOW',
+      };
+
+      expect(spec.expectedResult).toBe('ALLOW');
+    });
   });
 
   describe('index-path access', () => {
@@ -89,11 +108,12 @@ describe('Firebase security rules contract (PRD-0041 Task 6.5)', () => {
       expect(spec.expectedResult).toBe('DENY');
     });
 
-    it('denies broad authenticated reads on test_results_by_session/{sessionCode}', () => {
+    it('allows only the canonical session owner or super_admin to read test_results_by_session/{sessionCode}', () => {
       const teacherSessionSpec = {
         path: '/test_results_by_session/session-1',
         auth: { uid: 'teacher-a', role: 'teacher' },
-        expectedResult: 'DENY',
+        session: { createdByUserId: 'teacher-a' },
+        expectedResult: 'ALLOW',
       };
       const studentSessionSpec = {
         path: '/test_results_by_session/session-1',
@@ -106,12 +126,12 @@ describe('Firebase security rules contract (PRD-0041 Task 6.5)', () => {
         expectedResult: 'ALLOW',
       };
 
-      expect(teacherSessionSpec.expectedResult).toBe('DENY');
+      expect(teacherSessionSpec.expectedResult).toBe('ALLOW');
       expect(studentSessionSpec.expectedResult).toBe('DENY');
       expect(superAdminSessionSpec.expectedResult).toBe('ALLOW');
     });
 
-    it('allows only owner or super_admin writes on test_results_by_session/{sessionCode}', () => {
+    it('allows canonical owner, student owner, or super_admin writes on test_results_by_session/{sessionCode}', () => {
       const ownerWriteSpec = {
         path: '/test_results_by_session/session-1/result-1',
         auth: { uid: 'student-1', role: 'student' },
@@ -127,11 +147,66 @@ describe('Firebase security rules contract (PRD-0041 Task 6.5)', () => {
         data: {
           studentId: 'student-1',
           sessionCode: 'session-1',
+          visibility: {
+            ownershipResolved: true,
+            visibilityOwnerTeacherId: 'teacher-a',
+          },
         },
-        expectedResult: 'DENY',
+        expectedResult: 'ALLOW',
       };
 
       expect(ownerWriteSpec.expectedResult).toBe('ALLOW');
+      expect(teacherWriteSpec.expectedResult).toBe('ALLOW');
+    });
+
+    it('allows canonical owner writes on test_results_by_student/{studentId}/{resultId} without granting teacher reads', () => {
+      const teacherWriteSpec = {
+        path: '/test_results_by_student/student-1/result-1',
+        auth: { uid: 'teacher-a', role: 'teacher' },
+        data: {
+          studentId: 'student-1',
+          visibility: {
+            ownershipResolved: true,
+            visibilityOwnerTeacherId: 'teacher-a',
+          },
+        },
+        expectedResult: 'ALLOW',
+      };
+
+      expect(teacherWriteSpec.expectedResult).toBe('ALLOW');
+    });
+
+    it('allows assigned teacher to read solo-practice index rows only through the dedicated surface', () => {
+      const ownPathSpec = {
+        path: '/test_results_solo_practice_by_student/student-1',
+        auth: { uid: 'teacher-a', role: 'teacher' },
+        assignmentLink: true,
+        expectedResult: 'ALLOW',
+      };
+      const deniedSpec = {
+        path: '/test_results_solo_practice_by_student/student-2',
+        auth: { uid: 'teacher-a', role: 'teacher' },
+        assignmentLink: false,
+        expectedResult: 'DENY',
+      };
+
+      expect(ownPathSpec.expectedResult).toBe('ALLOW');
+      expect(deniedSpec.expectedResult).toBe('DENY');
+    });
+
+    it('allows only the student or super_admin to write solo-practice index rows', () => {
+      const studentWriteSpec = {
+        path: '/test_results_solo_practice_by_student/student-1/result-1',
+        auth: { uid: 'student-1', role: 'student' },
+        expectedResult: 'ALLOW',
+      };
+      const teacherWriteSpec = {
+        path: '/test_results_solo_practice_by_student/student-1/result-1',
+        auth: { uid: 'teacher-a', role: 'teacher' },
+        expectedResult: 'DENY',
+      };
+
+      expect(studentWriteSpec.expectedResult).toBe('ALLOW');
       expect(teacherWriteSpec.expectedResult).toBe('DENY');
     });
 
@@ -143,6 +218,22 @@ describe('Firebase security rules contract (PRD-0041 Task 6.5)', () => {
       };
       const otherPathSpec = {
         path: '/test_results_by_teacher/teacher-b',
+        auth: { uid: 'teacher-a', role: 'teacher' },
+        expectedResult: 'DENY',
+      };
+
+      expect(ownPathSpec.expectedResult).toBe('ALLOW');
+      expect(otherPathSpec.expectedResult).toBe('DENY');
+    });
+
+    it('allows teacher to read own student link path but not another teacher link path', () => {
+      const ownPathSpec = {
+        path: '/student_teacher_links/teacher-a/student-1',
+        auth: { uid: 'teacher-a', role: 'teacher' },
+        expectedResult: 'ALLOW',
+      };
+      const otherPathSpec = {
+        path: '/student_teacher_links/teacher-b/student-1',
         auth: { uid: 'teacher-a', role: 'teacher' },
         expectedResult: 'DENY',
       };

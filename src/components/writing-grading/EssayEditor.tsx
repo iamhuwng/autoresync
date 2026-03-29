@@ -10,7 +10,6 @@
  * - TipTap BubbleMenu near text selection
  * - Left gutter with colored comment dots
  * - Original / Marked toggle
- * - Word count + writing time metadata
  * - Keyboard shortcuts (Ctrl+Shift+H, Ctrl+Shift+M, etc.)
  *
  * @see specs/grading-editor-redesign FR-GROUP-1
@@ -21,9 +20,12 @@ import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Highlight from '@tiptap/extension-highlight';
-import { TextStyle, Color } from '@tiptap/extension-text-style';
+import { TextStyle } from '@tiptap/extension-text-style';
+import Color from '@tiptap/extension-color';
 import Placeholder from '@tiptap/extension-placeholder';
 import { CommentMark, CorrectionMark, MarksOnlyMode } from './extensions';
+import { RichContent } from '../../core/components/RichContent';
+import type { GradingComment, QuickCommentPreset } from '../../types/ielts-writing.types';
 import './extensions/essayEditorStyles.css';
 import './EssayEditor.css';
 
@@ -53,23 +55,48 @@ export interface EssayEditorProps {
     /** Current task number (1 or 2) for dynamic labels */
     taskNumber: 1 | 2;
     /** Callback when a comment mark is added — passes the selected text and generated commentId */
-    onAddComment: (selectedText: string, from: number, to: number, commentId: string) => void;
+    onAddComment: (
+        selectedText: string,
+        from: number,
+        to: number,
+        commentId: string,
+        preset?: QuickCommentPreset
+    ) => void;
     /** Callback when a comment gutter dot is clicked */
     onGutterDotClick: (commentId: string) => void;
     /** Callback when a highlighted comment mark is clicked in the essay */
     onCommentMarkClick: (commentId: string) => void;
+    /** Callback when a highlighted comment mark is hovered in the essay */
+    onCommentMarkHover?: (commentId: string | null) => void;
     /** Callback when Original/Marked view changes — parent disables Comments tab */
     onViewModeChange: (mode: 'marked' | 'original') => void;
     /** Callback when editor content changes (for auto-save / task switching) */
     onContentChange?: (json: object) => void;
     /** Callback when correction popup should open — passes selection range */
     onCorrectionRequest?: (from: number, to: number, selectedText: string) => void;
+    /** External quick-comment command from the page */
+    pendingQuickComment?: { preset: QuickCommentPreset; nonce: number } | null;
+    /** External correction command from the page */
+    pendingCorrection?: { from: number; to: number; correctionText: string; nonce: number } | null;
+    /** External comment-mark mutation from the page */
+    pendingCommentMutation?: {
+        action: 'remove' | 'apply';
+        commentId: string;
+        color: string;
+        from: number;
+        to: number;
+        nonce: number;
+    } | null;
     /** Comment mark positions for gutter dots: [{commentId, color, top}] */
     commentPositions?: Array<{ commentId: string; color: string; top: number }>;
+    /** Saved comments for tooltip content */
+    comments?: GradingComment[];
     /** ID of the currently focused comment (for highlighting) */
     focusedCommentId?: string | null;
     /** ID of the currently hovered comment (for subtle highlighting) */
     hoveredCommentId?: string | null;
+    /** Read-only review mode */
+    readOnly?: boolean;
 }
 
 type ViewMode = 'marked' | 'original';
@@ -81,28 +108,41 @@ type ViewMode = 'marked' | 'original';
 const EssayEditor: React.FC<EssayEditorProps> = ({
     originalEssayText,
     initialContent,
-    wordCount,
-    activeTimeSeconds,
+    wordCount: _wordCount,
+    activeTimeSeconds: _activeTimeSeconds,
     taskNumber: _taskNumber,
     onAddComment,
     onGutterDotClick,
     onCommentMarkClick,
+    onCommentMarkHover,
     onViewModeChange,
     onContentChange,
     onCorrectionRequest,
+    pendingQuickComment = null,
+    pendingCorrection = null,
+    pendingCommentMutation = null,
     commentPositions = [],
+    comments = [],
     focusedCommentId = null,
     hoveredCommentId = null,
+    readOnly = false,
 }) => {
     const [viewMode, setViewMode] = useState<ViewMode>('marked');
     const [lastHighlightColor, setLastHighlightColor] = useState<string>(HIGHLIGHT_COLORS[0].color);
     const [showHighlightDropdown, setShowHighlightDropdown] = useState(false);
     const [showColorDropdown, setShowColorDropdown] = useState(false);
     const [bubbleMenuPos, setBubbleMenuPos] = useState<{ top: number; left: number } | null>(null);
+    const [hoverTooltip, setHoverTooltip] = useState<{ commentId: string; top: number; left: number } | null>(null);
     const highlightDropdownRef = useRef<HTMLDivElement>(null);
     const colorDropdownRef = useRef<HTMLDivElement>(null);
     const editorContainerRef = useRef<HTMLDivElement>(null);
     const bubbleMenuRef = useRef<HTMLDivElement>(null);
+    const lastQuickCommentNonceRef = useRef<number | null>(null);
+    const lastCorrectionNonceRef = useRef<number | null>(null);
+    const lastCommentMutationNonceRef = useRef<number | null>(null);
+    const commentsById = useMemo(() => {
+        return new Map(comments.map((comment) => [comment.id, comment]));
+    }, [comments]);
 
     // ─── TipTap Editor Setup ─────────────────────────────────
     const editor = useEditor({
@@ -151,7 +191,12 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
         onUpdate: ({ editor: ed }) => {
             onContentChange?.(ed.getJSON());
         },
+        editable: !readOnly,
     });
+
+    useEffect(() => {
+        editor?.setEditable(!readOnly);
+    }, [editor, readOnly]);
 
     // ─── Keyboard Shortcuts ──────────────────────────────────
     useEffect(() => {
@@ -252,6 +297,119 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
         }
     }, [focusedCommentId, hoveredCommentId]);
 
+    useEffect(() => {
+        const container = editorContainerRef.current;
+        if (!container) {
+            return;
+        }
+
+        const clearTooltip = () => {
+            setHoverTooltip(null);
+            onCommentMarkHover?.(null);
+        };
+
+        const handleMouseMove = (event: MouseEvent) => {
+            if (viewMode !== 'marked') {
+                clearTooltip();
+                return;
+            }
+
+            const target = event.target as HTMLElement | null;
+            const commentElement = target?.closest('[data-comment-id]') as HTMLElement | null;
+            const commentId = commentElement?.getAttribute('data-comment-id');
+            if (!commentElement || !commentId || !commentsById.has(commentId)) {
+                clearTooltip();
+                return;
+            }
+
+            const containerRect = container.getBoundingClientRect();
+            const markRect = commentElement.getBoundingClientRect();
+            const tooltipLeft = Math.max(
+                20,
+                Math.min(
+                    Math.max(20, container.clientWidth - 300),
+                    markRect.left - containerRect.left
+                )
+            );
+
+            setHoverTooltip((current) => {
+                const nextTooltip = {
+                    commentId,
+                    top: markRect.bottom - containerRect.top + container.scrollTop + 12,
+                    left: tooltipLeft,
+                };
+
+                if (
+                    current
+                    && current.commentId === nextTooltip.commentId
+                    && current.top === nextTooltip.top
+                    && current.left === nextTooltip.left
+                ) {
+                    return current;
+                }
+
+                return nextTooltip;
+            });
+            onCommentMarkHover?.(commentId);
+        };
+
+        container.addEventListener('mousemove', handleMouseMove);
+        container.addEventListener('mouseleave', clearTooltip);
+
+        return () => {
+            container.removeEventListener('mousemove', handleMouseMove);
+            container.removeEventListener('mouseleave', clearTooltip);
+        };
+    }, [commentsById, onCommentMarkHover, viewMode]);
+
+    useEffect(() => {
+        if (!editor || !pendingQuickComment) return;
+        if (lastQuickCommentNonceRef.current === pendingQuickComment.nonce) return;
+
+        lastQuickCommentNonceRef.current = pendingQuickComment.nonce;
+        const { from, to } = editor.state.selection;
+        if (from === to) return;
+
+        const selectedText = editor.state.doc.textBetween(from, to, ' ');
+        const commentId = `comment-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+        onAddComment(selectedText, from, to, commentId, pendingQuickComment.preset);
+    }, [editor, onAddComment, pendingQuickComment]);
+
+    useEffect(() => {
+        if (!editor || !pendingCorrection) return;
+        if (lastCorrectionNonceRef.current === pendingCorrection.nonce) return;
+
+        lastCorrectionNonceRef.current = pendingCorrection.nonce;
+        editor.chain()
+            .focus()
+            .setTextSelection({ from: pendingCorrection.from, to: pendingCorrection.to })
+            .setCorrectionMark({ correctionText: pendingCorrection.correctionText })
+            .run();
+    }, [editor, pendingCorrection]);
+
+    useEffect(() => {
+        if (!editor || !pendingCommentMutation) return;
+        if (lastCommentMutationNonceRef.current === pendingCommentMutation.nonce) return;
+
+        lastCommentMutationNonceRef.current = pendingCommentMutation.nonce;
+        const chain = editor.chain()
+            .focus()
+            .setTextSelection({ from: pendingCommentMutation.from, to: pendingCommentMutation.to });
+
+        if (pendingCommentMutation.action === 'remove') {
+            chain.unsetCommentMark().run();
+            return;
+        }
+
+        chain
+            .setCommentMark({
+                commentId: pendingCommentMutation.commentId,
+                color: pendingCommentMutation.color,
+            })
+            .run();
+    }, [editor, pendingCommentMutation]);
+
     // ─── Handlers ────────────────────────────────────────────
 
     const handleViewModeChange = useCallback((mode: ViewMode) => {
@@ -273,16 +431,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
         if (from === to) return; // No selection
         const selectedText = editor.state.doc.textBetween(from, to, ' ');
 
-        // Generate a unique comment ID
         const commentId = `comment-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-
-        // Apply the TipTap comment mark to the selected text
-        editor.chain()
-            .focus()
-            .setCommentMark({ commentId, color: '#6b7280' })
-            .run();
-
-        // Notify parent with the generated ID
         onAddComment(selectedText, from, to, commentId);
     }, [editor, onAddComment]);
 
@@ -312,12 +461,6 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
     const handleRedo = useCallback(() => {
         editor?.chain().focus().redo().run();
     }, [editor]);
-
-    // ─── Format time ─────────────────────────────────────────
-    const formattedTime = useMemo(() => {
-        const mins = Math.floor(activeTimeSeconds / 60);
-        return `${mins} min`;
-    }, [activeTimeSeconds]);
 
     if (!editor) return null;
 
@@ -489,6 +632,21 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                         {/* TipTap Editor Content */}
                         <EditorContent editor={editor} className="essay-editor-editable" />
 
+                        {hoverTooltip && commentsById.get(hoverTooltip.commentId) && (
+                            <div
+                                className="essay-comment-tooltip"
+                                style={{
+                                    top: hoverTooltip.top,
+                                    left: hoverTooltip.left,
+                                }}
+                            >
+                                <RichContent
+                                    className="essay-comment-tooltip-body"
+                                    content={commentsById.get(hoverTooltip.commentId)?.text || ''}
+                                />
+                            </div>
+                        )}
+
                         {/* Custom Bubble Menu — positioned near selection */}
                         {bubbleMenuPos && (
                             <div
@@ -551,11 +709,6 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                     </div>
                 </div>
             )}
-
-            {/* ── Metadata Bar ── */}
-            <div className="essay-editor-metadata" id="essay-editor-metadata">
-                📝 {wordCount} words · ⏱️ {formattedTime}
-            </div>
         </div>
     );
 };

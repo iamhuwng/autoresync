@@ -22,6 +22,21 @@ function formatQuestionNumbers(questionNumbers: number[]): string {
 
 interface NormalizedStudyRecommendation extends StudyRecommendation {
   questionNumbers: number[];
+  focusLabel: string;
+}
+
+function deriveFocusLabel(guidance: string, skillTag: string): string {
+  const lower = guidance.toLowerCase();
+
+  if (lower.includes('tense')) return 'Tense';
+  if (lower.includes('evidence') || lower.includes('keyword') || lower.includes('clue')) return 'Evidence';
+  if (lower.includes('structure') || lower.includes('rewrite')) return 'Structure';
+  if (lower.includes('scan') || lower.includes('scanning')) return 'Scanning';
+  if (lower.includes('vocabulary')) return 'Vocabulary';
+  if (lower.includes('grammar')) return 'Grammar';
+
+  const compactSkill = skillTag.split(/\s+/).slice(0, 2).join(' ').trim();
+  return compactSkill || 'Focus';
 }
 
 function normalizeRecommendation(rawRecommendation: unknown): NormalizedStudyRecommendation | null {
@@ -73,6 +88,7 @@ function normalizeRecommendation(rawRecommendation: unknown): NormalizedStudyRec
     skillTag,
     guidance,
     questionNumbers: Array.from(new Set(questionNumbers)).sort((left, right) => left - right),
+    focusLabel: deriveFocusLabel(guidance, skillTag),
     resources,
   };
 }
@@ -106,40 +122,86 @@ export const StudyRecommendations: React.FC<StudyRecommendationsProps> = ({
       className={`fb-recommendations-card ${isStretchSet ? 'fb-recommendations-card--perfect' : ''}`}
       data-testid="fb-study-recommendations"
     >
-      <h3 className="fb-card-title">
-        <span>📚</span> What to Study Next
-      </h3>
-      <p className="fb-recommendations-intro">
-        {isStretchSet
-          ? 'These AI suggestions keep you moving forward with specific stretch targets from your approved book library.'
-          : 'These AI suggestions connect the exact mistakes in this result to specific chapters, units, and sections from your approved book library.'}
-      </p>
+      <div className="fb-recommendations-header">
+        <h3 className="fb-card-title">
+          <span>📚</span> What to Study Next
+        </h3>
+        <span className="fb-recommendations-badge">
+          {isStretchSet ? 'Stretch targets' : 'Top priorities'}
+        </span>
+      </div>
       <div className="fb-recommendation-list">
         {recommendations.map((recommendation, index) => {
           const cardSlug = toTestIdSlug(recommendation.skillTag, index);
+          const primaryResource = recommendation.resources[0];
+          const extraResources = recommendation.resources.slice(1);
+          const visibleQuestionNumbers = recommendation.questionNumbers.slice(0, 3);
+          const hiddenQuestionCount = Math.max(recommendation.questionNumbers.length - visibleQuestionNumbers.length, 0);
 
           return (
-            <article className="fb-recommendation-item" key={`${cardSlug}-${index}`} data-testid={`fb-study-card-${cardSlug}`}>
-              <div className="fb-recommendation-head">
-                <span className="fb-recommendation-tag">{recommendation.skillTag}</span>
-                {recommendation.questionNumbers.length > 0 ? (
-                  <span className="fb-recommendation-questions">{formatQuestionNumbers(recommendation.questionNumbers)}</span>
+            <details
+              className="fb-recommendation-item fb-recommendation-item--compact"
+              key={`${cardSlug}-${index}`}
+              data-testid={`fb-study-card-${cardSlug}`}
+            >
+              <summary className="fb-recommendation-summary">
+                <div className="fb-recommendation-priority">{index + 1}</div>
+                <div className="fb-recommendation-main">
+                  <div className="fb-recommendation-head">
+                    <span className="fb-recommendation-tag">{recommendation.skillTag}</span>
+                    <span className="fb-recommendation-focus">{recommendation.focusLabel}</span>
+                    {visibleQuestionNumbers.length > 0 ? (
+                      <div className="fb-question-chip-row" aria-label={formatQuestionNumbers(recommendation.questionNumbers)}>
+                        {visibleQuestionNumbers.map((questionNumber) => (
+                          <span className="fb-question-chip" key={`${cardSlug}-q-${questionNumber}`}>
+                            Q{questionNumber}
+                          </span>
+                        ))}
+                        {hiddenQuestionCount > 0 ? (
+                          <span className="fb-question-chip fb-question-chip--more">+{hiddenQuestionCount}</span>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="fb-recommendation-start">
+                    <span className="fb-recommendation-start-label">Start:</span>
+                    <span className="fb-recommendation-start-unit">{primaryResource.sectionTitle}</span>
+                    <span className="fb-recommendation-start-book">{primaryResource.author}</span>
+                  </div>
+                </div>
+                <div className="fb-recommendation-expand">
+                  {extraResources.length > 0 ? `+${extraResources.length}` : 'Why'}
+                </div>
+              </summary>
+
+              <div className="fb-recommendation-details">
+                <p className="fb-recommendation-guidance">
+                  <strong>Why:</strong> {recommendation.guidance}
+                </p>
+
+                <div className="fb-book-chip fb-book-chip--primary">
+                  <div className="fb-book-title-row">
+                    <strong className="fb-book-title">{primaryResource.sectionTitle}</strong>
+                    <span className="fb-book-author">{primaryResource.bookTitle}</span>
+                  </div>
+                  <span className="fb-book-focus">{primaryResource.reason}</span>
+                </div>
+
+                {extraResources.length > 0 ? (
+                  <div className="fb-recommendation-books">
+                    {extraResources.map((resource, resourceIndex) => (
+                      <div className="fb-book-chip" key={`${resource.bookTitle}-${resource.sectionTitle}-${resourceIndex}`}>
+                        <div className="fb-book-title-row">
+                          <strong className="fb-book-title">{resource.sectionTitle}</strong>
+                          <span className="fb-book-author">{resource.bookTitle}</span>
+                        </div>
+                        <span className="fb-book-focus">{resource.reason}</span>
+                      </div>
+                    ))}
+                  </div>
                 ) : null}
               </div>
-              <p className="fb-recommendation-guidance">{recommendation.guidance}</p>
-              <div className="fb-recommendation-books">
-                {recommendation.resources.map((resource, resourceIndex) => (
-                  <div className="fb-book-chip" key={`${resource.bookTitle}-${resource.sectionTitle}-${resourceIndex}`}>
-                    <div className="fb-book-title-row">
-                      <strong className="fb-book-title">{resource.bookTitle}</strong>
-                      <span className="fb-book-author">{resource.author}</span>
-                    </div>
-                    <span className="fb-book-section">{resource.sectionTitle}</span>
-                    <span className="fb-book-focus">{resource.reason}</span>
-                  </div>
-                ))}
-              </div>
-            </article>
+            </details>
           );
         })}
       </div>

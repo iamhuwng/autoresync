@@ -30,18 +30,22 @@ import { useAuth } from '../../contexts/AuthContext';
 import { getStudentClasses, getClass } from '../../services/classManager';
 import { getUserById } from '../../services/userService';
 import { createSubmission, materializeSubmissionResult } from '../../services/writingSubmissionService';
-import { notifyWritingSubmitted } from '../../services/notificationService';
+import { submitHomework } from '../../services/homeworkSubmissionService';
+import { notifyTeacherWritingSubmitted, notifyWritingSubmitted } from '../../services/notificationService';
 import { useExternalPastePrevention } from '../../hooks/useExternalPastePrevention';
 import { useActiveTimeTracking } from '../../hooks/useActiveTimeTracking';
 import WritingPromptPanel from '../writing-student/WritingPromptPanel';
 import WritingEditor from '../writing-student/WritingEditor';
 import SubmitToTeacherModal from './SubmitToTeacherModal';
 import type { IELTSWritingTest, WritingSubmission } from '../../types/ielts-writing.types';
+import { buildRoute } from '../../constants/routes';
 import './WritingPracticeView.css';
 
 // ── Types ──────────────────────────────────────────────────
 export interface HomeworkWritingContext {
     homeworkId: string;
+    submissionId: string;
+    teacherId: string;
     dueDate?: number;              // epoch ms
     lateSubmissionAllowed?: boolean;
     previousEssay?: { 1: string; 2: string };  // re-attempt pre-load
@@ -169,6 +173,22 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
 
         const loadTeachers = async () => {
             try {
+                if (isHomework) {
+                    if (!homeworkContext?.teacherId) {
+                        setTeachers([]);
+                        return;
+                    }
+
+                    const profile = await getUserById(homeworkContext.teacherId);
+                    setTeachers([
+                        {
+                            id: homeworkContext.teacherId,
+                            name: profile?.displayName || profile?.email || 'Assigned teacher',
+                        },
+                    ]);
+                    return;
+                }
+
                 const classes = await getStudentClasses(studentId);
                 const teacherIds = new Set<string>();
 
@@ -199,7 +219,7 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
         };
 
         loadTeachers();
-    }, [studentId, teachersLoaded]);
+    }, [studentId, teachersLoaded, isHomework, homeworkContext?.teacherId]);
 
     // ── Timer (optional) ────────────────────────────────────
     useEffect(() => {
@@ -291,6 +311,17 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
         setShowSubmitModal(false);
 
         try {
+            const assignedTeacherId = isHomework
+                ? homeworkContext?.teacherId || null
+                : data.teacherId;
+            const homeworkSubmissionId = isHomework
+                ? homeworkContext?.submissionId || null
+                : null;
+
+            if (isHomework && (!assignedTeacherId || !homeworkSubmissionId)) {
+                throw new Error('Homework submission context is incomplete. Please reopen this assignment from the homework page.');
+            }
+
             // Generate resultId
             const resultId = push(ref(database)).key;
             if (!resultId) throw new Error('Failed to generate resultId');
@@ -336,9 +367,17 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
                 studentName,
                 context: {
                     type: contextType as 'homework' | 'solo-practice',
-                    selectedTeacherId: data.teacherId || undefined,
                     studentNote: data.note || undefined,
-                    ...(isHomework ? { homeworkId: homeworkContext!.homeworkId, isLate } : {}),
+                    ...(isHomework
+                        ? {
+                            homeworkId: homeworkContext!.homeworkId,
+                            homeworkSubmissionId: homeworkSubmissionId || undefined,
+                            assigningTeacherId: assignedTeacherId || undefined,
+                            isLate,
+                        }
+                        : {
+                            selectedTeacherId: assignedTeacherId || undefined,
+                        }),
                 },
                 testMeta: {
                     testId: testData.id,
@@ -361,6 +400,18 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
                 throw new Error(materializeResult.error || 'Failed to save writing result');
             }
 
+            if (isHomework && homeworkSubmissionId) {
+                await submitHomework(
+                    homeworkSubmissionId,
+                    resultId,
+                    undefined,
+                    undefined,
+                    undefined,
+                    undefined,
+                    submission.totalElapsedTimeSeconds,
+                );
+            }
+
             // Fire notification (non-blocking)
             notifyWritingSubmitted(
                 studentId,
@@ -369,13 +420,24 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
                 isHomework ? 'homework' : 'solo-practice'
             ).catch(err => console.warn('[WritingPracticeView] Notification failed:', err));
 
+            if (assignedTeacherId && (isHomework || data.teacherId)) {
+                notifyTeacherWritingSubmitted(
+                    assignedTeacherId,
+                    resultId,
+                    studentId,
+                    studentName,
+                    testData.metadata.title,
+                    isHomework ? 'homework' : 'solo-practice',
+                ).catch(err => console.warn('[WritingPracticeView] Teacher notification failed:', err));
+            }
+
             // Clear localStorage
             clearPracticeState(saveKey);
             setSubmitted(true);
 
             // Show brief confirmation, then navigate
-            const teacherName = data.teacherId
-                ? teachers.find(t => t.id === data.teacherId)?.name || 'your teacher'
+            const teacherName = assignedTeacherId
+                ? teachers.find(t => t.id === assignedTeacherId)?.name || 'your teacher'
                 : null;
 
             const confirmMsg = teacherName
@@ -387,14 +449,14 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
 
             if (isHomework) {
                 console.log('✅ [WritingPracticeView] Homework submitted — redirecting to homework page');
-                navigate('/student/homework', { replace: true });
+                navigate(buildRoute('STUDENT_HOMEWORK'), { replace: true });
             } else {
                 console.log('✅ [WritingPracticeView] Solo essay submitted — redirecting to dashboard');
-                navigate('/student/dashboard', { replace: true });
+                navigate(buildRoute('STUDENT_DASHBOARD'), { replace: true });
             }
         } catch (err) {
             console.error('[WritingPracticeView] Submit failed:', err);
-            alert('Failed to submit. Please try again.');
+            alert(err instanceof Error ? err.message : 'Failed to submit. Please try again.');
         } finally {
             setSubmitting(false);
         }
@@ -439,7 +501,7 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
                 <div style={{ fontSize: 64 }}>⏰</div>
                 <h1>Deadline Passed</h1>
                 <p>The deadline for this homework has passed. Submissions are no longer accepted.</p>
-                <button className="wpv-done-btn" onClick={() => navigate('/student/homework', { replace: true })}>
+                <button className="wpv-done-btn" onClick={() => navigate(buildRoute('STUDENT_HOMEWORK'), { replace: true })}>
                     ← Back to Homework
                 </button>
             </div>
@@ -450,7 +512,7 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
         <div className="wpv-page">
             {/* ── Header ──────────────────────────────────── */}
             <div className="wpv-header">
-                <button className="wpv-back-btn" onClick={() => isHomework ? navigate('/student/homework') : navigate(-1)}>
+                <button className="wpv-back-btn" onClick={() => isHomework ? navigate(buildRoute('STUDENT_HOMEWORK')) : navigate(-1)}>
                     ← Back
                 </button>
                 <div className="wpv-title-area">

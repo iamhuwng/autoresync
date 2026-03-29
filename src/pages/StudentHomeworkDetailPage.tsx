@@ -69,6 +69,7 @@ import { useNavigation } from '../hooks/useNavigation';
 import { getTestFromFirebase, TestData } from '../services/testStorage';
 import { Card, CardBody, Button } from '../components/modern';
 import { ResultSlidePanel } from '../components/results/ResultSlidePanel';
+import { buildRoute } from '../constants/routes';
 
 
 // ============================================================================
@@ -135,6 +136,26 @@ const formatTimeAgo = (timestamp: number): string => {
     return new Date(timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
+const formatSubmissionOutcome = (submission: { percentage?: number; bandScore?: number; status: string }): string | null => {
+    if (typeof submission.percentage === 'number') {
+        return `${submission.percentage.toFixed(0)}%`;
+    }
+
+    if (typeof submission.bandScore === 'number') {
+        return `Band ${submission.bandScore.toFixed(1)}`;
+    }
+
+    if (submission.status === 'graded') {
+        return 'Graded';
+    }
+
+    if (submission.status === 'submitted') {
+        return 'Pending Review';
+    }
+
+    return null;
+};
+
 // ============================================================================
 // COMPONENT
 // ============================================================================
@@ -198,11 +219,12 @@ export const StudentHomeworkDetailPage: React.FC = () => {
 
     const navigateToTest = (submission?: any) => {
         if (!homework?.materialId || !homeworkId) return;
-        navigate(`/student/practice/${homework.materialId}`, {
+        navigate(buildRoute('STUDENT_PRACTICE', { materialId: homework.materialId }), {
             state: {
                 isHomework: true,
                 homeworkId,
                 submissionId: submission?.id || currentSubmission?.id,
+                teacherId: homework.createdBy,
                 dueDate: homework.scheduling?.dueDate,
                 lateSubmissionAllowed: homework.config?.lateSubmissionAllowed ?? false,
             },
@@ -625,9 +647,9 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                                                         <Text size="sm" c="dimmed">
                                                             {new Date(submission.submittedAt || 0).toLocaleString()}
                                                         </Text>
-                                                        {submission.percentage !== undefined && (
+                                                        {formatSubmissionOutcome(submission) && (
                                                             <Text size="lg" fw={700} c="blue">
-                                                                {submission.percentage.toFixed(0)}%
+                                                                {formatSubmissionOutcome(submission)}
                                                             </Text>
                                                         )}
                                                     </div>
@@ -658,9 +680,9 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                                                     <IconTrophy size={20} />
                                                 </ThemeIcon>
                                                 <div>
-                                                    <Text size="sm" c="dimmed">Best Score</Text>
+                                                    <Text size="sm" c="dimmed">Best Result</Text>
                                                     <Text fw={700} size="lg" c="blue">
-                                                        {bestSubmission.percentage?.toFixed(0)}%
+                                                        {formatSubmissionOutcome(bestSubmission) || '--'}
                                                     </Text>
                                                 </div>
                                             </Group>

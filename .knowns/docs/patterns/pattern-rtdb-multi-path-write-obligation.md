@@ -1,10 +1,8 @@
 ---
 title: 'Pattern: RTDB Multi-Path Write Obligation'
+description: When saving RTDB records that use index-based lookups, ALL required paths must be written — not just the index. Missing writes cause silent data loss.
 createdAt: '2026-02-28T12:13:04.062Z'
-updatedAt: '2026-02-28T16:40:52.488Z'
-description: >-
-  When saving RTDB records that use index-based lookups, ALL required paths must
-  be written — not just the index. Missing writes cause silent data loss.
+updatedAt: '2026-03-28T12:50:02.713Z'
 tags:
   - pattern
   - rtdb
@@ -12,6 +10,7 @@ tags:
   - bug-prevention
   - data-integrity
 ---
+
 # Pattern: RTDB Multi-Path Write Obligation
 
 ## Problem
@@ -163,3 +162,42 @@ This pattern was generalized into **Rule 17 — Producer-Consumer Contract** in 
 
 **Trigger:** Writing new data to a path where existing code already reads.
 **Self-check:** _"Have I traced every reader and confirmed my write satisfies all of them?"_
+
+
+## Additional Example: Student-Safe Projection For Solo Practice
+
+A second form of this same failure mode appeared in March 2026 in Solo Practice.
+
+### Producer-consumer contract
+
+- canonical test record: `/tests/{testId}`
+- student-facing sanitized projection: `/student_safe_tests/{testId}`
+
+Non-writing IELTS solo practice reads the student-facing projection, not the canonical grading object.
+
+### Failure shape
+
+A test can still appear in Library because discovery reads canonical metadata, but entry into the practice player fails if `/student_safe_tests/{testId}` is missing.
+
+This is a stronger version of the same pattern:
+
+- producer wrote or preserved the canonical object
+- consumer depended on a derived projection
+- missing projection made the feature look partially healthy while still broken at runtime
+
+### Pattern extension
+
+When auditing RTDB writes, do not only look for "main record plus indexes". Also look for any required derived read models, including:
+
+- sanitized student payloads
+- teacher-facing denormalized summaries
+- per-context result indexes
+- restore/backfill projections regenerated from canonical sources
+
+### Operational guardrail
+
+If you add a fallback from projection -> canonical source, also add a best-effort projection backfill so the system heals forward instead of repeatedly serving from degraded mode.
+
+### Related incident
+
+- @doc/sop/solo-practice-ielts-student-safe-payload-runtime-state

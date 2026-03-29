@@ -22,6 +22,8 @@ import { generateCertificatePDF, isPDFGenerationAvailable } from '../../utils/pd
 import { useResultOwnershipCheck } from '../../hooks/useOwnershipCheck';
 import { isPermissionDeniedError } from '../../utils/rtdbAccessLost';
 import { classifyTeacherResultVisibility } from '../../services/resultVisibility.service';
+import { isEligibleForSavedResultFeedback, useFeedbackAutoTrigger } from '../../hooks/useFeedbackAutoTrigger';
+import type { FormativeFeedback } from '../../types/thcs-test.types';
 import type {
     DeletedSourceDisplayMetadata,
     ResolvedResultVisibilityVerdict,
@@ -104,6 +106,19 @@ export const LegacyResultDetailView: React.FC<LegacyResultDetailViewProps> = ({
         visibilityOwnerTeacherId: visibilitySnapshot?.visibilityOwnerTeacherId ?? null,
     });
     const allowTeacherOwnedSections = Boolean(visibilityVerdict?.shouldAllowTeacherActions);
+    const feedbackTiming = result?.context?.configApplied?.feedbackTiming || 'after_completion';
+    const {
+        feedbackLoading: formativeFeedbackLoading,
+        feedbackError,
+        storedFeedbackNeedsUpgrade,
+        handleGenerateFeedback: handleGenerateFormativeFeedback,
+    } = useFeedbackAutoTrigger({
+        resultId,
+        result,
+        loading,
+        autoTriggerEnabled: true,
+        shellName: 'LegacyResultDetailView',
+    });
     const shouldShowAccessLost = Boolean(
         accessLost
         || (
@@ -456,6 +471,15 @@ export const LegacyResultDetailView: React.FC<LegacyResultDetailViewProps> = ({
                     teacherFeedback: allowTeacherOwnedSections,
                     writingPlaceholder: allowTeacherOwnedSections,
                 }}
+                feedbackState={{
+                    formativeFeedback: result.formativeFeedback as FormativeFeedback | null | undefined,
+                    feedbackLoading: formativeFeedbackLoading && !result.formativeFeedback,
+                    feedbackError,
+                    needsUpgrade: storedFeedbackNeedsUpgrade,
+                    isEligibleForAIFeedback: isEligibleForSavedResultFeedback(result),
+                    onRetryFeedback: () => handleGenerateFormativeFeedback(storedFeedbackNeedsUpgrade),
+                }}
+                feedbackTiming={feedbackTiming as 'after_completion' | 'after_deadline' | 'never'}
             />
 
             {/* Action Buttons */}

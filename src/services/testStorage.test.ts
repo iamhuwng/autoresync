@@ -8,6 +8,7 @@ import {
   generateTestId,
   saveTestToFirebase,
   getTestFromFirebase,
+  getStudentSafeTestFromFirebase,
   getAllTestsFromFirebase,
   deleteTestFromFirebase,
   buildStudentSafeTestData,
@@ -23,6 +24,12 @@ vi.mock('firebase/database', () => ({
 
 vi.mock('./firebase', () => ({
   database: {},
+}));
+
+vi.mock('./restoreGuard', () => ({
+  withRestoreGuard: (_serviceName: string, _safeReturn: unknown) => (
+    fn: (...args: unknown[]) => Promise<unknown>
+  ) => fn,
 }));
 
 describe('testStorage', () => {
@@ -90,6 +97,61 @@ describe('testStorage', () => {
           ],
         },
       ]);
+    });
+  });
+
+  describe('getStudentSafeTestFromFirebase', () => {
+    beforeEach(async () => {
+      vi.clearAllMocks();
+      const { ref } = await import('firebase/database');
+      (ref as any).mockImplementation((_db: unknown, path: string) => ({ path }));
+    });
+
+    it('builds and backfills a student-safe payload when the cached projection is missing', async () => {
+      const { get, set } = await import('firebase/database');
+      const canonicalTest = {
+        id: 'test-1',
+        title: 'Reading Test',
+        questions: [
+          {
+            number: 1,
+            question: 'Q1',
+            answer: 'A',
+            correctAnswer: 'B',
+            options: ['A', 'B'],
+          },
+        ],
+      };
+
+      (get as any)
+        .mockResolvedValueOnce({ exists: () => false })
+        .mockResolvedValueOnce({ exists: () => true, val: () => canonicalTest });
+      (set as any).mockResolvedValueOnce(undefined);
+
+      const result = await getStudentSafeTestFromFirebase('test-1');
+
+      expect(result.success).toBe(true);
+      expect(result.data?.questions).toEqual([
+        {
+          number: 1,
+          question: 'Q1',
+          options: ['A', 'B'],
+        },
+      ]);
+      expect(set).toHaveBeenCalledWith(
+        { path: 'student_safe_tests/test-1' },
+        {
+          id: 'test-1',
+          title: 'Reading Test',
+          questions: [
+            {
+              number: 1,
+              question: 'Q1',
+              options: ['A', 'B'],
+            },
+          ],
+        },
+      );
     });
   });
 
@@ -487,6 +549,49 @@ describe('testStorage', () => {
 
       const savedData = (set as any).mock.calls[0][1];
       expect(savedData.questions[0].wordLimit).toBeUndefined();
+    });
+
+    it('omits empty matching-information section metadata when publishing', async () => {
+      const { set } = await import('firebase/database');
+      (set as any).mockResolvedValueOnce(undefined);
+
+      const metadata: TestMetadata = {
+        title: 'Matching Information Test',
+        type: 'IELTS',
+        skill: 'Reading',
+        duration: 60,
+      };
+      const passages = [{
+        id: 'p1', title: 'P1', content: 'Content',
+        type: 'text' as const, wordCount: 1, questionStart: 1, questionEnd: 1, createdAt: '',
+      }];
+      const questions = [{
+        id: 'q-1',
+        number: 1,
+        questionNumber: 1,
+        questionText: 'Which section contains the following information?',
+        question: 'Which section contains the following information?',
+        type: 'matching-information' as const,
+        answer: 'A',
+        answerSource: 'ai-suggestion' as const,
+        passageId: 'p1',
+        confidence: 90,
+        points: 1,
+        sectionReferences: [
+          { label: 'A', title: '  ', paragraph: '' },
+          { label: 'B' },
+        ],
+      }];
+
+      await saveTestToFirebase(metadata, passages as any, questions as any, 'user1');
+
+      const savedData = (set as any).mock.calls[0][1];
+      expect(savedData.questions[0].sectionReferences).toEqual([
+        { label: 'A' },
+        { label: 'B' },
+      ]);
+      expect(savedData.questions[0].sectionReferences[0]).not.toHaveProperty('title');
+      expect(savedData.questions[0].sectionReferences[0]).not.toHaveProperty('paragraph');
     });
   });
 });

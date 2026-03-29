@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Drawer } from '@mantine/core';
 import { AdminSidebar } from './AdminSidebar';
 import { AdminTopBar } from './AdminTopBar';
 import { Breadcrumbs } from './Breadcrumbs';
@@ -83,26 +82,52 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
             {/* Mobile: Sidebar in Drawer */}
             {isMobile && (
-                <Drawer
-                    opened={mobileDrawerOpen}
-                    onClose={() => setMobileDrawerOpen(false)}
-                    position="left"
-                    size={240}
-                    padding={0}
-                >
-                    <AdminSidebar
-                        currentPage={currentPage}
-                        onNavigate={(page) => {
-                            onNavigate(page);
-                            setMobileDrawerOpen(false);
+                <>
+                    {mobileDrawerOpen && (
+                        <div
+                            style={{
+                                position: 'fixed',
+                                inset: 0,
+                                background: 'rgba(15, 23, 42, 0.45)',
+                                zIndex: 999,
+                            }}
+                            onClick={() => setMobileDrawerOpen(false)}
+                            aria-hidden="true"
+                        />
+                    )}
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="Admin navigation"
+                        style={{
+                            position: 'fixed',
+                            top: 0,
+                            left: 0,
+                            bottom: 0,
+                            width: '240px',
+                            maxWidth: '80vw',
+                            background: '#ffffff',
+                            boxShadow: '0 24px 48px rgba(15, 23, 42, 0.18)',
+                            zIndex: 1000,
+                            transform: mobileDrawerOpen ? 'translateX(0)' : 'translateX(-100%)',
+                            transition: 'transform 0.25s ease',
+                            overflow: 'hidden',
                         }}
-                        onLogout={() => {
-                            onLogout();
-                            setMobileDrawerOpen(false);
-                        }}
-                        collapsed={false}
-                    />
-                </Drawer>
+                    >
+                        <AdminSidebar
+                            currentPage={currentPage}
+                            onNavigate={(page) => {
+                                onNavigate(page);
+                                setMobileDrawerOpen(false);
+                            }}
+                            onLogout={() => {
+                                onLogout();
+                                setMobileDrawerOpen(false);
+                            }}
+                            collapsed={false}
+                        />
+                    </div>
+                </>
             )}
 
             {/* Main Content Area */}

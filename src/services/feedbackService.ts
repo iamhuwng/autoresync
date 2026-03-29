@@ -34,6 +34,173 @@ export interface FeedbackHistoryEntry {
     feedback: string;
 }
 
+type CanonicalQuestionResult = {
+    questionNumber?: number;
+    questionId?: string;
+    teacherFeedback?: string | null;
+    [key: string]: any;
+};
+
+type CanonicalResultRecord = {
+    questionResults?: CanonicalQuestionResult[];
+    overallFeedback?: string | null;
+    feedbackUpdatedAt?: number | null;
+    feedbackUpdatedBy?: string | null;
+    hasFeedback?: boolean;
+};
+
+function normalizeFeedbackKey(value: string | number | null | undefined): string {
+    return String(value ?? '').trim();
+}
+
+function resolveTeacherLabel(teacherId: string, teacherName?: string): string {
+    const normalizedTeacherName = teacherName?.trim();
+    return normalizedTeacherName || teacherId;
+}
+
+async function getCanonicalResult(resultId: string): Promise<CanonicalResultRecord | null> {
+    const resultRef = ref(database, `test_results/${resultId}`);
+    const snapshot = await get(resultRef);
+    return snapshot.exists() ? snapshot.val() : null;
+}
+
+function findQuestionResultIndex(result: CanonicalResultRecord | null, questionId: string): number {
+    const normalizedQuestionId = normalizeFeedbackKey(questionId);
+
+    if (!result?.questionResults?.length || !normalizedQuestionId) {
+        return -1;
+    }
+
+    return result.questionResults.findIndex((questionResult) => {
+        const questionNumberKey = normalizeFeedbackKey(questionResult.questionNumber);
+        const questionIdKey = normalizeFeedbackKey(questionResult.questionId);
+
+        return questionNumberKey === normalizedQuestionId || questionIdKey === normalizedQuestionId;
+    });
+}
+
+function resultHasAnyFeedback(result: CanonicalResultRecord | null): boolean {
+    if (!result) {
+        return false;
+    }
+
+    if (typeof result.overallFeedback === 'string' && result.overallFeedback.trim()) {
+        return true;
+    }
+
+    return (result.questionResults || []).some((questionResult) => {
+        return typeof questionResult.teacherFeedback === 'string' && questionResult.teacherFeedback.trim().length > 0;
+    });
+}
+
+async function syncCanonicalQuestionFeedback(
+    resultId: string,
+    questionId: string,
+    feedback: string,
+    teacherId: string,
+    teacherName?: string,
+    updatedAt?: number
+): Promise<void> {
+    try {
+        const canonicalResult = await getCanonicalResult(resultId);
+        const questionIndex = findQuestionResultIndex(canonicalResult, questionId);
+
+        if (questionIndex === -1) {
+            return;
+        }
+
+        const resultRef = ref(database, `test_results/${resultId}`);
+        await update(resultRef, {
+            [`questionResults/${questionIndex}/teacherFeedback`]: feedback,
+            feedbackUpdatedAt: updatedAt ?? Date.now(),
+            feedbackUpdatedBy: resolveTeacherLabel(teacherId, teacherName),
+            hasFeedback: true
+        });
+    } catch (error) {
+        console.warn('Failed to sync canonical question feedback:', error);
+    }
+}
+
+async function syncCanonicalOverallFeedback(
+    resultId: string,
+    feedback: string,
+    teacherId: string,
+    teacherName?: string,
+    updatedAt?: number
+): Promise<void> {
+    try {
+        const resultRef = ref(database, `test_results/${resultId}`);
+        await update(resultRef, {
+            overallFeedback: feedback,
+            feedbackUpdatedAt: updatedAt ?? Date.now(),
+            feedbackUpdatedBy: resolveTeacherLabel(teacherId, teacherName),
+            hasFeedback: true
+        });
+    } catch (error) {
+        console.warn('Failed to sync canonical overall feedback:', error);
+    }
+}
+
+async function clearCanonicalQuestionFeedback(resultId: string, questionId: string): Promise<void> {
+    try {
+        const canonicalResult = await getCanonicalResult(resultId);
+        const questionIndex = findQuestionResultIndex(canonicalResult, questionId);
+
+        if (questionIndex === -1) {
+            return;
+        }
+
+        const nextResult: CanonicalResultRecord = {
+            ...canonicalResult,
+            questionResults: (canonicalResult?.questionResults || []).map((questionResult, index) => (
+                index === questionIndex
+                    ? { ...questionResult, teacherFeedback: null }
+                    : questionResult
+            ))
+        };
+        const hasFeedback = resultHasAnyFeedback(nextResult);
+        const updateData: Record<string, any> = {
+            [`questionResults/${questionIndex}/teacherFeedback`]: null,
+            hasFeedback
+        };
+
+        if (!hasFeedback) {
+            updateData.feedbackUpdatedAt = null;
+            updateData.feedbackUpdatedBy = null;
+        }
+
+        const resultRef = ref(database, `test_results/${resultId}`);
+        await update(resultRef, updateData);
+    } catch (error) {
+        console.warn('Failed to clear canonical question feedback:', error);
+    }
+}
+
+async function clearCanonicalOverallFeedback(resultId: string): Promise<void> {
+    try {
+        const canonicalResult = await getCanonicalResult(resultId);
+        const nextResult: CanonicalResultRecord = {
+            ...canonicalResult,
+            overallFeedback: null
+        };
+        const hasFeedback = resultHasAnyFeedback(nextResult);
+        const updateData: Record<string, any> = {
+            overallFeedback: null,
+            hasFeedback
+        };
+
+        if (!hasFeedback) {
+            updateData.feedbackUpdatedAt = null;
+            updateData.feedbackUpdatedBy = null;
+        }
+
+        const resultRef = ref(database, `test_results/${resultId}`);
+        await update(resultRef, updateData);
+    } catch (error) {
+        console.warn('Failed to clear canonical overall feedback:', error);
+    }
+}
+
 /**
  * Save feedback for a specific question in a test result
  * 
@@ -55,9 +222,10 @@ export async function saveQuestionFeedback(
         throw new Error('Missing required parameters: resultId, questionId, or teacherId');
     }
 
+    const normalizedFeedback = feedback.trim();
     const feedbackData: QuestionFeedback = {
         questionId,
-        feedback: feedback.trim(),
+        feedback: normalizedFeedback,
         updatedAt: Date.now(),
         updatedBy: teacherId,
         ...(teacherName && { teacherName })
@@ -74,8 +242,17 @@ export async function saveQuestionFeedback(
         teacherName,
         type: 'question',
         questionId,
-        feedback: feedback.trim()
+        feedback: normalizedFeedback
     });
+
+    await syncCanonicalQuestionFeedback(
+        resultId,
+        questionId,
+        normalizedFeedback,
+        teacherId,
+        teacherName,
+        feedbackData.updatedAt
+    );
 }
 
 /**
@@ -96,7 +273,29 @@ export async function getQuestionFeedback(
     const feedbackRef = ref(database, `test_results/${resultId}/questionFeedback/${questionId}`);
     const snapshot = await get(feedbackRef);
 
-    return snapshot.exists() ? snapshot.val() : null;
+    if (snapshot.exists()) {
+        return snapshot.val();
+    }
+
+    const canonicalResult = await getCanonicalResult(resultId);
+    const questionIndex = findQuestionResultIndex(canonicalResult, questionId);
+
+    if (questionIndex === -1) {
+        return null;
+    }
+
+    const questionFeedback = canonicalResult?.questionResults?.[questionIndex]?.teacherFeedback;
+    if (!questionFeedback) {
+        return null;
+    }
+
+    return {
+        questionId,
+        feedback: questionFeedback,
+        updatedAt: canonicalResult?.feedbackUpdatedAt ?? Date.now(),
+        updatedBy: canonicalResult?.feedbackUpdatedBy ?? '',
+        ...(canonicalResult?.feedbackUpdatedBy && { teacherName: canonicalResult.feedbackUpdatedBy })
+    };
 }
 
 /**
@@ -115,7 +314,37 @@ export async function getAllQuestionFeedback(
     const feedbackRef = ref(database, `test_results/${resultId}/questionFeedback`);
     const snapshot = await get(feedbackRef);
 
-    return snapshot.exists() ? snapshot.val() : {};
+    if (snapshot.exists()) {
+        return snapshot.val();
+    }
+
+    const canonicalResult = await getCanonicalResult(resultId);
+    if (!canonicalResult?.questionResults?.length) {
+        return {};
+    }
+
+    const fallbackFeedback: Record<string, QuestionFeedback> = {};
+
+    canonicalResult.questionResults.forEach((questionResult) => {
+        if (!questionResult.teacherFeedback) {
+            return;
+        }
+
+        const fallbackQuestionId = normalizeFeedbackKey(questionResult.questionNumber || questionResult.questionId);
+        if (!fallbackQuestionId) {
+            return;
+        }
+
+        fallbackFeedback[fallbackQuestionId] = {
+            questionId: fallbackQuestionId,
+            feedback: questionResult.teacherFeedback,
+            updatedAt: canonicalResult.feedbackUpdatedAt ?? Date.now(),
+            updatedBy: canonicalResult.feedbackUpdatedBy ?? '',
+            ...(canonicalResult.feedbackUpdatedBy && { teacherName: canonicalResult.feedbackUpdatedBy })
+        };
+    });
+
+    return fallbackFeedback;
 }
 
 /**
@@ -137,8 +366,9 @@ export async function saveOverallFeedback(
         throw new Error('Missing required parameters: resultId or teacherId');
     }
 
+    const normalizedFeedback = feedback.trim();
     const feedbackData: OverallFeedback = {
-        feedback: feedback.trim(),
+        feedback: normalizedFeedback,
         updatedAt: Date.now(),
         updatedBy: teacherId,
         ...(teacherName && { teacherName })
@@ -162,8 +392,16 @@ export async function saveOverallFeedback(
         teacherId,
         teacherName,
         type: 'overall',
-        feedback: feedback.trim()
+        feedback: normalizedFeedback
     });
+
+    await syncCanonicalOverallFeedback(
+        resultId,
+        normalizedFeedback,
+        teacherId,
+        teacherName,
+        feedbackData.updatedAt
+    );
 }
 
 /**
@@ -182,7 +420,21 @@ export async function getOverallFeedback(
     const feedbackRef = ref(database, `test_results/${resultId}/overallFeedback`);
     const snapshot = await get(feedbackRef);
 
-    return snapshot.exists() ? snapshot.val() : null;
+    if (snapshot.exists()) {
+        return snapshot.val();
+    }
+
+    const canonicalResult = await getCanonicalResult(resultId);
+    if (!canonicalResult?.overallFeedback) {
+        return null;
+    }
+
+    return {
+        feedback: canonicalResult.overallFeedback,
+        updatedAt: canonicalResult.feedbackUpdatedAt ?? Date.now(),
+        updatedBy: canonicalResult.feedbackUpdatedBy ?? '',
+        ...(canonicalResult.feedbackUpdatedBy && { teacherName: canonicalResult.feedbackUpdatedBy })
+    };
 }
 
 /**
@@ -245,6 +497,8 @@ export async function deleteQuestionFeedback(
 
     const feedbackRef = ref(database, `test_results/${resultId}/questionFeedback/${questionId}`);
     await set(feedbackRef, null);
+
+    await clearCanonicalQuestionFeedback(resultId, questionId);
 }
 
 /**
@@ -277,6 +531,8 @@ export async function deleteOverallFeedback(
             feedbackUpdatedBy: null
         })
     });
+
+    await clearCanonicalOverallFeedback(resultId);
 }
 
 /**

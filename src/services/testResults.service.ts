@@ -18,6 +18,7 @@ import {
   ReMarkEntry,
   ResultFilters,
   EnhancedTestResultRecord,
+  FeedbackGenerationMeta,
   PassageResult,
   ResultVisibilityContextType,
   ResultVisibilitySnapshot,
@@ -40,6 +41,8 @@ import {
   type ScopedIndexLocation,
   type TeacherIndexReindexPlan,
 } from './resultVisibilityReindex.service';
+import { classifyTeacherResultVisibility } from './resultVisibility.service';
+import { classifySavedResultFeedbackKind } from './feedbackClassification.service';
 
 /**
  * Complete test result record
@@ -148,6 +151,9 @@ export interface TestResultRecord {
   /** PRD-0039: AI formative feedback */
   formativeFeedback?: FormativeFeedback;
 
+  /** PRD-0039: Feedback pipeline status metadata */
+  feedbackGenerationMeta?: FeedbackGenerationMeta;
+
   /** PRD-0041: Canonical teacher visibility snapshot */
   visibility?: ResultVisibilitySnapshot;
 }
@@ -196,6 +202,36 @@ function buildStrongestKnownSourceClue(
   return `${sourceType}:${sourceId}`;
 }
 
+function isPermissionDeniedError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /permission denied/i.test(message) || /permission_denied/i.test(message);
+}
+
+function sanitizeRtdbValue<T>(value: T): T {
+  if (value === undefined) {
+    return null as T;
+  }
+
+  if (value === null) {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((entry) => sanitizeRtdbValue(entry)) as T;
+  }
+
+  if (typeof value === 'object') {
+    const sanitizedEntries = Object.entries(value as Record<string, unknown>).map(([key, entry]) => ([
+      key,
+      entry === undefined ? null : sanitizeRtdbValue(entry),
+    ]));
+
+    return Object.fromEntries(sanitizedEntries) as T;
+  }
+
+  return value;
+}
+
 function getTeacherIndexOwnerId(result: Partial<TestResultRecord>): string | null {
   if (!result.visibility?.ownershipResolved) {
     return null;
@@ -204,6 +240,191 @@ function getTeacherIndexOwnerId(result: Partial<TestResultRecord>): string | nul
     return null;
   }
   return result.visibility.visibilityOwnerTeacherId ?? null;
+}
+
+function isSoloPracticeResult(result: Pick<TestResultRecord, 'visibility'>): boolean {
+  return Boolean(
+    result.visibility
+    && result.visibility.ownershipResolved
+    && result.visibility.contextType === 'solo_practice'
+  );
+}
+
+function buildStudentIndexRow(
+  result: Pick<TestResultRecord, 'resultId' | 'sessionCode' | 'testId' | 'percentage' | 'submittedAt'>
+): Record<string, unknown> {
+  return {
+    resultId: result.resultId,
+    sessionCode: result.sessionCode,
+    testId: result.testId,
+    percentage: result.percentage,
+    submittedAt: result.submittedAt,
+  };
+}
+
+function buildSoloPracticeStudentIndexRow(
+  result: Pick<TestResultRecord, 'resultId' | 'sessionCode' | 'testId' | 'percentage' | 'submittedAt'>
+): Record<string, unknown> {
+  return buildStudentIndexRow(result);
+}
+
+function buildSessionIndexRow(
+  result: Pick<TestResultRecord, 'resultId' | 'studentId' | 'studentName' | 'percentage' | 'submittedAt'>
+): Record<string, unknown> {
+  return {
+    resultId: result.resultId,
+    studentId: result.studentId,
+    studentName: result.studentName,
+    percentage: result.percentage,
+    submittedAt: result.submittedAt,
+  };
+}
+
+function buildTeacherIndexRow(
+  result: Pick<TestResultRecord, 'resultId' | 'sessionCode' | 'studentId' | 'studentName' | 'percentage' | 'submittedAt' | 'isGuest'>
+): Record<string, unknown> {
+  return {
+    resultId: result.resultId,
+    sessionCode: result.sessionCode,
+    studentId: result.studentId,
+    studentName: result.studentName,
+    percentage: result.percentage,
+    submittedAt: result.submittedAt,
+    isGuest: Boolean(result.isGuest),
+  };
+}
+
+function buildCourseIndexRow(
+  result: Pick<TestResultRecord, 'resultId' | 'studentId' | 'studentName' | 'percentage' | 'bandScore' | 'testTitle' | 'testSkill' | 'submittedAt' | 'moduleId'>
+): Record<string, unknown> {
+  return {
+    resultId: result.resultId,
+    studentId: result.studentId,
+    studentName: result.studentName,
+    percentage: result.percentage,
+    bandScore: result.bandScore,
+    testTitle: result.testTitle,
+    testSkill: result.testSkill,
+    submittedAt: result.submittedAt,
+    moduleId: result.moduleId ?? null,
+  };
+}
+
+function buildClassIndexRow(
+  result: Pick<TestResultRecord, 'resultId' | 'studentId' | 'studentName' | 'percentage' | 'bandScore' | 'testTitle' | 'testSkill' | 'submittedAt'>,
+  courseId: string | null
+): Record<string, unknown> {
+  return {
+    resultId: result.resultId,
+    studentId: result.studentId,
+    studentName: result.studentName,
+    percentage: result.percentage,
+    bandScore: result.bandScore,
+    testTitle: result.testTitle,
+    testSkill: result.testSkill,
+    submittedAt: result.submittedAt,
+    courseId,
+  };
+}
+
+function buildResultPersistenceUpdates(
+  result: TestResultRecord
+): Record<string, unknown> {
+  const updates: Record<string, unknown> = {
+    [`test_results/${result.resultId}`]: result,
+    [`test_results_by_session/${result.sessionCode}/${result.resultId}`]: buildSessionIndexRow(result),
+    [`test_results_by_student/${result.studentId}/${result.resultId}`]: buildStudentIndexRow(result),
+  };
+
+  if (isSoloPracticeResult(result)) {
+    updates[`test_results_solo_practice_by_student/${result.studentId}/${result.resultId}`] =
+      buildSoloPracticeStudentIndexRow(result);
+  }
+
+  const teacherIndexOwnerId = getTeacherIndexOwnerId(result);
+  if (teacherIndexOwnerId) {
+    updates[`test_results_by_teacher/${teacherIndexOwnerId}/${result.resultId}`] =
+      buildTeacherIndexRow(result);
+  }
+
+  const canWriteScopedIndexes = isScopedIndexBackfillEligible(result);
+  const canonicalCourseId = getCanonicalCourseIndexId(result);
+  const canonicalClassId = getCanonicalClassIndexId(result);
+
+  if (canWriteScopedIndexes && canonicalCourseId) {
+    updates[`test_results_by_course/${canonicalCourseId}/${result.studentId}/${result.resultId}`] =
+      buildCourseIndexRow(result);
+  }
+
+  if (canWriteScopedIndexes && canonicalClassId) {
+    updates[`test_results_by_class/${canonicalClassId}/${result.studentId}/${result.resultId}`] =
+      buildClassIndexRow(result, canonicalCourseId);
+  }
+
+  return updates;
+}
+
+function applyResultFilters(
+  results: TestResultRecord[],
+  filters?: ResultFilters
+): TestResultRecord[] {
+  let filteredResults = results;
+
+  if (!filters) {
+    return filteredResults;
+  }
+
+  if (filters.sessionCode) {
+    filteredResults = filteredResults.filter((result) => result.sessionCode === filters.sessionCode);
+  }
+
+  if (filters.classId) {
+    filteredResults = filteredResults.filter((result) => result.classId === filters.classId);
+  }
+
+  if (filters.dateFrom) {
+    filteredResults = filteredResults.filter((result) => result.submittedAt >= filters.dateFrom!);
+  }
+
+  if (filters.dateTo) {
+    filteredResults = filteredResults.filter((result) => result.submittedAt <= filters.dateTo!);
+  }
+
+  if (filters.testType) {
+    filteredResults = filteredResults.filter((result) => result.testType === filters.testType);
+  }
+
+  if (filters.skill) {
+    filteredResults = filteredResults.filter((result) => result.testSkill === filters.skill);
+  }
+
+  if (filters.scoreMin !== undefined) {
+    filteredResults = filteredResults.filter((result) => result.percentage >= filters.scoreMin!);
+  }
+
+  if (filters.scoreMax !== undefined) {
+    filteredResults = filteredResults.filter((result) => result.percentage <= filters.scoreMax!);
+  }
+
+  if (filters.isGuest !== undefined) {
+    filteredResults = filteredResults.filter((result) => !!result.isGuest === filters.isGuest);
+  }
+
+  return filteredResults;
+}
+
+async function syncUnresolvedVisibilityReportSafely(
+  result: TestResultRecord,
+  options?: {
+    sourceLookupAttempted?: boolean;
+    strongestKnownSourceClue?: string | null;
+  }
+): Promise<void> {
+  try {
+    await syncUnresolvedVisibilityReport(result, options);
+  } catch (error) {
+    console.warn('[TestResults] Non-blocking unresolved visibility report sync failed', error);
+  }
 }
 
 function isStoredResultRecord(value: unknown): value is TestResultRecord {
@@ -276,6 +497,32 @@ function buildExistingScopedLocationsByResultId(
   return mapping;
 }
 
+function buildExistingStudentIdsByResultId(
+  studentIndexTree: unknown
+): Record<string, string[]> {
+  if (!studentIndexTree || typeof studentIndexTree !== 'object' || Array.isArray(studentIndexTree)) {
+    return {};
+  }
+
+  const mapping: Record<string, string[]> = {};
+
+  for (const [studentId, resultBucket] of Object.entries(studentIndexTree as Record<string, unknown>)) {
+    if (!resultBucket || typeof resultBucket !== 'object' || Array.isArray(resultBucket)) {
+      continue;
+    }
+
+    for (const resultId of Object.keys(resultBucket as Record<string, unknown>)) {
+      if (!mapping[resultId]) {
+        mapping[resultId] = [];
+      }
+
+      mapping[resultId].push(studentId);
+    }
+  }
+
+  return mapping;
+}
+
 async function syncUnresolvedVisibilityReport(
   result: TestResultRecord,
   options?: {
@@ -299,11 +546,50 @@ async function syncUnresolvedVisibilityReport(
   });
 }
 
+async function rebuildSoloPracticeStudentIndexes(
+  results: TestResultRecord[]
+): Promise<{ rebuilt: number; deleted: number }> {
+  const snapshot = await get(ref(database, 'test_results_solo_practice_by_student'));
+  const existingStudentIdsByResultId = buildExistingStudentIdsByResultId(
+    snapshot.exists() ? snapshot.val() : null
+  );
+  const updates: Record<string, Record<string, unknown> | null> = {};
+  let rebuilt = 0;
+  let deleted = 0;
+
+  for (const result of results) {
+    const existingStudentIds = existingStudentIdsByResultId[result.resultId] ?? [];
+    const canonicalStudentId = isSoloPracticeResult(result) ? result.studentId : null;
+
+    for (const studentId of existingStudentIds) {
+      if (studentId === canonicalStudentId) {
+        continue;
+      }
+
+      updates[`test_results_solo_practice_by_student/${studentId}/${result.resultId}`] = null;
+      deleted += 1;
+    }
+
+    if (canonicalStudentId && !existingStudentIds.includes(canonicalStudentId)) {
+      updates[`test_results_solo_practice_by_student/${canonicalStudentId}/${result.resultId}`] =
+        buildSoloPracticeStudentIndexRow(result);
+      rebuilt += 1;
+    }
+  }
+
+  if (Object.keys(updates).length > 0) {
+    await update(ref(database), updates);
+  }
+
+  return { rebuilt, deleted };
+}
+
 async function resolveVisibilityForResult(
   result: TestResultRecord
 ) {
   return resolveResultOwnership({
     result,
+    teacherId: result.teacherId ?? null,
     contextType: inferVisibilityContextType(result.context, {
       homeworkId: result.context?.assignment?.homeworkId ?? null,
       classId: result.classId ?? null,
@@ -322,7 +608,7 @@ async function ensureResultVisibility(
   result: TestResultRecord
 ): Promise<TestResultRecord> {
   if (result.visibility) {
-    await syncUnresolvedVisibilityReport(result);
+    await syncUnresolvedVisibilityReportSafely(result);
     return result;
   }
 
@@ -336,7 +622,7 @@ async function ensureResultVisibility(
   await update(ref(database, `test_results/${result.resultId}`), {
     visibility: visibilityResult.visibility,
   });
-  await syncUnresolvedVisibilityReport(enrichedResult, {
+  await syncUnresolvedVisibilityReportSafely(enrichedResult, {
     sourceLookupAttempted: visibilityResult.sourceLookupAttempted,
     strongestKnownSourceClue: visibilityResult.strongestKnownSourceClue,
   });
@@ -356,6 +642,27 @@ function isCanonicalTeacherOwnedResult(
     && visibility.visibilityOwnerTeacherId === teacherId
     && visibility.contextType !== 'solo_practice'
   );
+}
+
+function normalizeSavedResultText(value: string | undefined | null): string {
+  return typeof value === 'string' ? value.trim().toLowerCase() : '';
+}
+
+function shouldTriggerInitialFeedback(result: TestResultRecord): boolean {
+  if (result.markingStatus !== 'auto-marked') {
+    return false;
+  }
+
+  return classifySavedResultFeedbackKind(result) !== null;
+}
+
+async function triggerInitialSavedResultFeedback(resultId: string): Promise<void> {
+  try {
+    const { triggerFormativeFeedbackForSavedResult } = await import('./resultFeedbackGeneration.service');
+    triggerFormativeFeedbackForSavedResult(resultId, { triggerSource: 'saveTestResult' });
+  } catch (error) {
+    console.warn(`[TestResults] Failed to trigger formative feedback for ${resultId}:`, error);
+  }
 }
 
 /**
@@ -391,7 +698,10 @@ export async function saveTestResult(
   },
   context?: ResultContext, // PRD-0016: Result context (class_session, homework, self_study, course_material)
   thcsData?: TestResultRecord['thcsData'], // PRD-0027: THCS grading data
-  ieltsData?: TestResultRecord['ieltsData'] // PRD-0039: IELTS passage results
+  ieltsData?: TestResultRecord['ieltsData'], // PRD-0039: IELTS passage results
+  options?: {
+    skipInitialFeedbackTrigger?: boolean;
+  }
 ): Promise<string> {
   try {
     // PRD-0015: Phase 7 - Route guest results to separate storage
@@ -482,87 +792,38 @@ export async function saveTestResult(
     if (context) resultRecord.context = context;
     if (thcsData) (resultRecord as any).thcsData = thcsData;
     if (ieltsData) resultRecord.ieltsData = ieltsData; // PRD-0039
+    resultRecord.feedbackGenerationMeta = {
+      kind: classifySavedResultFeedbackKind(resultRecord as TestResultRecord),
+      lastAttemptAt: null,
+      lastTriggerSource: null,
+      lastOutcome: null,
+      lastError: null,
+    };
 
-    const normalizedResultRecord = resultRecord as TestResultRecord;
+    const normalizedResultRecord = sanitizeRtdbValue(resultRecord) as TestResultRecord;
     const visibilityResult = await resolveVisibilityForResult(normalizedResultRecord);
-    normalizedResultRecord.visibility = visibilityResult.visibility;
+    const persistedResultRecord = sanitizeRtdbValue({
+      ...normalizedResultRecord,
+      visibility: visibilityResult.visibility,
+    }) as TestResultRecord;
 
-    // Save to test_results/{resultId}
-    await set(resultRef, normalizedResultRecord);
-    await syncUnresolvedVisibilityReport(normalizedResultRecord, {
+    // Persist the canonical row first. The RTDB rules for several secondary indexes
+    // validate against root.test_results/{resultId}, so a single multi-path fan-out
+    // can fail even though the canonical payload is part of the same update.
+    await set(resultRef, persistedResultRecord);
+
+    const persistenceUpdates = sanitizeRtdbValue(
+      buildResultPersistenceUpdates(persistedResultRecord)
+    ) as Record<string, unknown>;
+    await update(ref(database), persistenceUpdates);
+
+    await syncUnresolvedVisibilityReportSafely(persistedResultRecord, {
       sourceLookupAttempted: visibilityResult.sourceLookupAttempted,
       strongestKnownSourceClue: visibilityResult.strongestKnownSourceClue,
     });
 
-    // Create indexes for efficient querying
-    // Index by session
-    const sessionIndexRef = ref(database, `test_results_by_session/${sessionCode}/${resultId}`);
-    await set(sessionIndexRef, {
-      resultId,
-      studentId,
-      studentName,
-      percentage: markingResult.percentage,
-      submittedAt: markingResult.completedAt,
-    });
-
-    // Index by student
-    const studentIndexRef = ref(database, `test_results_by_student/${studentId}/${resultId}`);
-    await set(studentIndexRef, {
-      resultId,
-      sessionCode,
-      testId,
-      percentage: markingResult.percentage,
-      submittedAt: markingResult.completedAt,
-    });
-
-    const teacherIndexOwnerId = getTeacherIndexOwnerId(normalizedResultRecord);
-    if (teacherIndexOwnerId) {
-      const teacherIndexRef = ref(database, `test_results_by_teacher/${teacherIndexOwnerId}/${resultId}`);
-      await set(teacherIndexRef, {
-        resultId,
-        sessionCode,
-        studentId,
-        studentName,
-        percentage: markingResult.percentage,
-        submittedAt: markingResult.completedAt,
-        isGuest: !!isGuest
-      });
-    }
-
-    const canWriteScopedIndexes = isScopedIndexBackfillEligible(normalizedResultRecord);
-    const canonicalCourseId = getCanonicalCourseIndexId(normalizedResultRecord);
-    const canonicalClassId = getCanonicalClassIndexId(normalizedResultRecord);
-
-    // Index by course (if ownership is resolved and the result is not solo practice)
-    if (canWriteScopedIndexes && canonicalCourseId) {
-      const courseIndexRef = ref(database, `test_results_by_course/${canonicalCourseId}/${studentId}/${resultId}`);
-      await set(courseIndexRef, {
-        resultId,
-        studentId,
-        studentName,
-        percentage: markingResult.percentage,
-        bandScore,
-        testTitle: testMetadata.title,
-        testSkill: testMetadata.skill,
-        submittedAt: markingResult.completedAt,
-        moduleId: academicContext.moduleId || null
-      });
-    }
-
-    // Index by class (if ownership is resolved and the result is not solo practice)
-    if (canWriteScopedIndexes && canonicalClassId) {
-      const classIndexRef = ref(database, `test_results_by_class/${canonicalClassId}/${studentId}/${resultId}`);
-      await set(classIndexRef, {
-        resultId,
-        studentId,
-        studentName,
-        percentage: markingResult.percentage,
-        bandScore,
-        testTitle: testMetadata.title,
-        testSkill: testMetadata.skill,
-        submittedAt: markingResult.completedAt,
-        courseId: academicContext.courseId || null
-      });
+    if (!options?.skipInitialFeedbackTrigger && shouldTriggerInitialFeedback(persistedResultRecord)) {
+      void triggerInitialSavedResultFeedback(resultId);
     }
 
     console.log(`💾 Test result saved: ${resultId}`);
@@ -595,7 +856,12 @@ export async function saveTestResult(
 /**
  * Get a specific test result by ID
  */
-export async function getTestResult(resultId: string): Promise<TestResultRecord | null> {
+export async function getTestResult(
+  resultId: string,
+  options?: {
+    suppressPermissionDeniedLog?: boolean;
+  }
+): Promise<TestResultRecord | null> {
   try {
     const resultRef = ref(database, `test_results/${resultId}`);
     const snapshot = await get(resultRef);
@@ -606,9 +872,50 @@ export async function getTestResult(resultId: string): Promise<TestResultRecord 
 
     return null;
   } catch (error) {
-    console.error('Error getting test result:', error);
+    const shouldSuppressPermissionDeniedLog =
+      options?.suppressPermissionDeniedLog && isPermissionDeniedError(error);
+
+    if (!shouldSuppressPermissionDeniedLog) {
+      console.error('Error getting test result:', error);
+    }
     throw error;
   }
+}
+
+async function getAccessibleResultsByIds(
+  resultIds: string[],
+  indexLabel: string
+): Promise<TestResultRecord[]> {
+  if (resultIds.length === 0) {
+    return [];
+  }
+
+  const settledResults = await Promise.allSettled(
+    resultIds.map((resultId) => getTestResult(resultId, { suppressPermissionDeniedLog: true }))
+  );
+
+  const accessibleResults: TestResultRecord[] = [];
+  const skippedResultIds: string[] = [];
+
+  settledResults.forEach((result, index) => {
+    if (result.status === 'fulfilled') {
+      if (result.value) {
+        accessibleResults.push(result.value);
+      }
+      return;
+    }
+
+    skippedResultIds.push(resultIds[index]);
+  });
+
+  if (skippedResultIds.length > 0) {
+    console.warn(
+      `[TestResults] Skipped ${skippedResultIds.length} inaccessible ${indexLabel} result(s)`,
+      skippedResultIds
+    );
+  }
+
+  return accessibleResults;
 }
 
 /**
@@ -625,12 +932,7 @@ export async function getSessionResults(sessionCode: string): Promise<TestResult
 
     const resultIds = Object.keys(indexSnapshot.val());
 
-    // Fetch all results
-    const results = await Promise.all(
-      resultIds.map((resultId) => getTestResult(resultId))
-    );
-
-    return results.filter((r): r is TestResultRecord => r !== null);
+    return getAccessibleResultsByIds(resultIds, `session ${sessionCode}`);
   } catch (error) {
     console.error('Error getting session results:', error);
     throw error;
@@ -651,12 +953,7 @@ export async function getStudentResults(studentId: string): Promise<TestResultRe
 
     const resultIds = Object.keys(indexSnapshot.val());
 
-    // Fetch all results
-    const results = await Promise.all(
-      resultIds.map((resultId) => getTestResult(resultId))
-    );
-
-    return results.filter((r): r is TestResultRecord => r !== null);
+    return getAccessibleResultsByIds(resultIds, `student ${studentId}`);
   } catch (error) {
     console.error('Error getting student results:', error);
     throw error;
@@ -680,58 +977,92 @@ export async function getTeacherResults(
 
     const resultIds = Object.keys(indexSnapshot.val());
 
-    // Fetch all results
-    const results = await Promise.all(
-      resultIds.map((resultId) => getTestResult(resultId))
-    );
-
-    let validResults = results.filter((r): r is TestResultRecord => r !== null);
+    let validResults = await getAccessibleResultsByIds(resultIds, `teacher ${teacherId}`);
     validResults = validResults.filter((result) => isCanonicalTeacherOwnedResult(result, teacherId));
 
-    // Apply filters if provided
-    if (filters) {
-      if (filters.sessionCode) {
-        validResults = validResults.filter(r => r.sessionCode === filters.sessionCode);
-      }
-
-      if (filters.classId) {
-        validResults = validResults.filter(r => r.classId === filters.classId);
-      }
-
-      if (filters.dateFrom) {
-        validResults = validResults.filter(r => r.submittedAt >= filters.dateFrom!);
-      }
-
-      if (filters.dateTo) {
-        validResults = validResults.filter(r => r.submittedAt <= filters.dateTo!);
-      }
-
-      if (filters.testType) {
-        validResults = validResults.filter(r => r.testType === filters.testType);
-      }
-
-      if (filters.skill) {
-        validResults = validResults.filter(r => r.testSkill === filters.skill);
-      }
-
-      if (filters.scoreMin !== undefined) {
-        validResults = validResults.filter(r => r.percentage >= filters.scoreMin!);
-      }
-
-      if (filters.scoreMax !== undefined) {
-        validResults = validResults.filter(r => r.percentage <= filters.scoreMax!);
-      }
-
-      if (filters.isGuest !== undefined) {
-        validResults = validResults.filter(r => !!r.isGuest === filters.isGuest);
-      }
-    }
-
-    return validResults;
+    return applyResultFilters(validResults, filters);
   } catch (error) {
     console.error('Error getting teacher results:', error);
     throw error;
   }
+}
+
+async function getTeacherVisibleSoloPracticeResults(
+  studentId: string,
+  filters?: ResultFilters
+): Promise<TestResultRecord[]> {
+  try {
+    const indexRef = ref(database, `test_results_solo_practice_by_student/${studentId}`);
+    const indexSnapshot = await get(indexRef);
+
+    if (!indexSnapshot.exists()) {
+      return [];
+    }
+
+    const resultIds = Object.keys(indexSnapshot.val());
+    const visibleResults = await getAccessibleResultsByIds(resultIds, `solo practice ${studentId}`);
+
+    return applyResultFilters(
+      visibleResults.filter(
+        (result) => result.studentId === studentId && isSoloPracticeResult(result)
+      ),
+      filters
+    );
+  } catch (error) {
+    if (isPermissionDeniedError(error)) {
+      console.warn(
+        `[TestResults] Solo-practice index unavailable for student ${studentId}; continuing with teacher-owned rows only`
+      );
+      return [];
+    }
+
+    throw error;
+  }
+}
+
+/**
+ * Get teacher-visible results for a specific student.
+ * Merges teacher-owned rows with solo-practice rows that are visible after
+ * the outer assignment gate.
+ */
+export async function getTeacherStudentResults(
+  teacherId: string,
+  studentId: string,
+  filters?: ResultFilters,
+  options?: {
+    hasAssignmentAccess?: boolean;
+  }
+): Promise<TestResultRecord[]> {
+  if (!options?.hasAssignmentAccess) {
+    return [];
+  }
+
+  const [teacherResults, soloPracticeResults] = await Promise.all([
+    getTeacherResults(teacherId, filters),
+    getTeacherVisibleSoloPracticeResults(studentId, filters),
+  ]);
+
+  const mergedResults = new Map<string, TestResultRecord>();
+
+  teacherResults
+    .filter((result) => result.studentId === studentId)
+    .forEach((result) => {
+      mergedResults.set(result.resultId, result);
+    });
+
+  soloPracticeResults.forEach((result) => {
+    const verdict = classifyTeacherResultVisibility({
+      result,
+      teacherId,
+      hasAssignmentAccess: true,
+    });
+
+    if (verdict.shouldDisplayInTeacherHistory) {
+      mergedResults.set(result.resultId, result);
+    }
+  });
+
+  return Array.from(mergedResults.values());
 }
 
 /**
@@ -823,16 +1154,26 @@ export async function updateResultScore(
       });
     }
 
-    if (result.courseId) {
-      const courseIndexRef = ref(database, `test_results_by_course/${result.courseId}/${result.studentId}/${resultId}`);
+    if (isSoloPracticeResult(result)) {
+      const soloPracticeIndexRef = ref(database, `test_results_solo_practice_by_student/${result.studentId}/${resultId}`);
+      await update(soloPracticeIndexRef, {
+        percentage: result.percentage,
+        submittedAt: result.submittedAt,
+      });
+    }
+
+    const canonicalCourseId = getCanonicalCourseIndexId(result);
+    if (canonicalCourseId) {
+      const courseIndexRef = ref(database, `test_results_by_course/${canonicalCourseId}/${result.studentId}/${resultId}`);
       await update(courseIndexRef, {
         percentage: result.percentage,
         bandScore: result.bandScore,
       });
     }
 
-    if (result.classId) {
-      const classIndexRef = ref(database, `test_results_by_class/${result.classId}/${result.studentId}/${resultId}`);
+    const canonicalClassId = getCanonicalClassIndexId(result);
+    if (canonicalClassId) {
+      const classIndexRef = ref(database, `test_results_by_class/${canonicalClassId}/${result.studentId}/${resultId}`);
       await update(classIndexRef, {
         percentage: result.percentage,
         bandScore: result.bandScore,
@@ -1026,23 +1367,34 @@ export async function deleteTestResult(resultId: string): Promise<void> {
     const studentIndexRef = ref(database, `test_results_by_student/${result.studentId}/${resultId}`);
     await set(studentIndexRef, null);
 
+    if (isSoloPracticeResult(result)) {
+      const soloPracticeIndexRef = ref(database, `test_results_solo_practice_by_student/${result.studentId}/${resultId}`);
+      await set(soloPracticeIndexRef, null);
+    }
+
     const teacherIndexOwnerId = getTeacherIndexOwnerId(result);
     if (teacherIndexOwnerId) {
       const teacherIndexRef = ref(database, `test_results_by_teacher/${teacherIndexOwnerId}/${resultId}`);
       await set(teacherIndexRef, null);
     }
 
-    if (result.courseId) {
-      const courseIndexRef = ref(database, `test_results_by_course/${result.courseId}/${result.studentId}/${resultId}`);
+    const canonicalCourseId = getCanonicalCourseIndexId(result);
+    if (canonicalCourseId) {
+      const courseIndexRef = ref(database, `test_results_by_course/${canonicalCourseId}/${result.studentId}/${resultId}`);
       await set(courseIndexRef, null);
     }
 
-    if (result.classId) {
-      const classIndexRef = ref(database, `test_results_by_class/${result.classId}/${result.studentId}/${resultId}`);
+    const canonicalClassId = getCanonicalClassIndexId(result);
+    if (canonicalClassId) {
+      const classIndexRef = ref(database, `test_results_by_class/${canonicalClassId}/${result.studentId}/${resultId}`);
       await set(classIndexRef, null);
     }
 
-    await clearUnresolvedResultVisibilityReport(resultId);
+    try {
+      await clearUnresolvedResultVisibilityReport(resultId);
+    } catch (error) {
+      console.warn('[TestResults] Non-blocking unresolved visibility report clear failed', error);
+    }
 
     console.log(`🗑️ Test result deleted: ${resultId}`);
   } catch (error) {
@@ -1257,20 +1609,11 @@ export async function getStudentTestAttempts(
 
     const resultIds = Object.keys(indexSnapshot.val());
 
-    // Fetch all results in parallel, skip inaccessible ones
-    const results = await Promise.all(
-      resultIds.map(async (resultId) => {
-        try {
-          return getTestResult(resultId);
-        } catch {
-          return null;
-        }
-      })
-    );
+    const results = await getAccessibleResultsByIds(resultIds, `student ${studentId} attempts`);
 
     // Filter by testId and sort by submittedAt DESC
     return results
-      .filter((r): r is TestResultRecord => r !== null && r.testId === testId)
+      .filter((r) => r.testId === testId)
       .sort((a, b) => b.submittedAt - a.submittedAt);
   } catch (error) {
     console.error('[TestResults] Error fetching student test attempts:', error);
@@ -1304,18 +1647,7 @@ export async function getHistoricalScores(
 
     const resultIds = Object.keys(indexSnapshot.val());
 
-    // Fetch all results
-    const allResults = await Promise.all(
-      resultIds.map(async (resultId) => {
-        try {
-          return getTestResult(resultId);
-        } catch {
-          return null;
-        }
-      })
-    );
-
-    const validResults = allResults.filter((r): r is TestResultRecord => r !== null);
+    const validResults = await getAccessibleResultsByIds(resultIds, `student ${studentId} history`);
 
     // Determine filter function based on anchor result context
     const anchorContext = (anchorResult as any).context;
@@ -1400,21 +1732,10 @@ export async function getClassTestScores(
       return [];
     }
 
-    // Fetch all results in parallel
-    const results = await Promise.all(
-      resultIds.map(async (resultId) => {
-        try {
-          return getTestResult(resultId);
-        } catch {
-          return null;
-        }
-      })
-    );
+    const results = await getAccessibleResultsByIds(resultIds, `class ${classId}`);
 
     // Filter by testId
-    return results.filter(
-      (r): r is TestResultRecord => r !== null && r.testId === testId
-    );
+    return results.filter((r) => r.testId === testId);
   } catch (error) {
     console.error('[TestResults] Error fetching class test scores:', error);
     throw new Error('Failed to fetch class test scores');
@@ -1457,8 +1778,9 @@ export async function rebuildTeacherResultIndexes(): Promise<TeacherIndexReindex
     });
 
     const appliedPlan = await applyTeacherResultReindexPlan(plan);
+    const soloPracticeRebuild = await rebuildSoloPracticeStudentIndexes(normalizedResults);
     console.log(
-      `[ResultVisibilityReindex] rebuilt=${appliedPlan.rebuiltCount} deleted=${appliedPlan.deletedCount} skipped=${appliedPlan.skippedCount} unresolved=${appliedPlan.unresolvedCount} rebuiltCourse=${appliedPlan.rebuiltCourseCount} deletedCourse=${appliedPlan.deletedCourseCount} rebuiltClass=${appliedPlan.rebuiltClassCount} deletedClass=${appliedPlan.deletedClassCount}`
+      `[ResultVisibilityReindex] rebuilt=${appliedPlan.rebuiltCount} deleted=${appliedPlan.deletedCount} skipped=${appliedPlan.skippedCount} unresolved=${appliedPlan.unresolvedCount} rebuiltCourse=${appliedPlan.rebuiltCourseCount} deletedCourse=${appliedPlan.deletedCourseCount} rebuiltClass=${appliedPlan.rebuiltClassCount} deletedClass=${appliedPlan.deletedClassCount} rebuiltSolo=${soloPracticeRebuild.rebuilt} deletedSolo=${soloPracticeRebuild.deleted}`
     );
 
     return appliedPlan;

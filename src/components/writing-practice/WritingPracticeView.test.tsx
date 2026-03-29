@@ -6,6 +6,8 @@ const {
     mockNavigate,
     mockCreateSubmission,
     mockMaterializeSubmissionResult,
+    mockSubmitHomework,
+    mockNotifyTeacherWritingSubmitted,
     mockNotifyWritingSubmitted,
     mockPush,
     mockGetStudentClasses,
@@ -17,6 +19,8 @@ const {
     mockNavigate: vi.fn(),
     mockCreateSubmission: vi.fn(),
     mockMaterializeSubmissionResult: vi.fn(),
+    mockSubmitHomework: vi.fn(),
+    mockNotifyTeacherWritingSubmitted: vi.fn(() => Promise.resolve()),
     mockNotifyWritingSubmitted: vi.fn(() => Promise.resolve()),
     mockPush: vi.fn(() => ({ key: 'result-1' })),
     mockGetStudentClasses: vi.fn(),
@@ -58,7 +62,12 @@ vi.mock('../../services/writingSubmissionService', () => ({
     materializeSubmissionResult: (...args: unknown[]) => mockMaterializeSubmissionResult(...args),
 }));
 
+vi.mock('../../services/homeworkSubmissionService', () => ({
+    submitHomework: (...args: unknown[]) => mockSubmitHomework(...args),
+}));
+
 vi.mock('../../services/notificationService', () => ({
+    notifyTeacherWritingSubmitted: (...args: unknown[]) => mockNotifyTeacherWritingSubmitted(...args),
     notifyWritingSubmitted: (...args: unknown[]) => mockNotifyWritingSubmitted(...args),
 }));
 
@@ -96,7 +105,7 @@ vi.mock('../writing-student/WritingEditor', () => ({
 vi.mock('./SubmitToTeacherModal', () => ({
     default: ({ isOpen, onSubmit }: { isOpen: boolean; onSubmit: (data: { teacherId: string | null; note: string }) => void }) =>
         isOpen ? (
-            <button type="button" onClick={() => onSubmit({ teacherId: null, note: '' })}>
+            <button type="button" onClick={() => onSubmit({ teacherId: 'teacher-1', note: '' })}>
                 confirm-submit
             </button>
         ) : null,
@@ -112,6 +121,7 @@ describe('WritingPracticeView', () => {
         mockGetUserById.mockResolvedValue(null);
         mockCreateSubmission.mockResolvedValue({ success: true });
         mockMaterializeSubmissionResult.mockResolvedValue({ success: true });
+        mockSubmitHomework.mockResolvedValue(undefined);
         mockUseExternalPastePrevention.mockReturnValue({
             pasteAttemptCount: 2,
         });
@@ -183,6 +193,14 @@ describe('WritingPracticeView', () => {
             'IELTS Writing',
             'solo-practice',
         );
+        expect(mockNotifyTeacherWritingSubmitted).toHaveBeenCalledWith(
+            'teacher-1',
+            'result-1',
+            'student-1',
+            'Student One',
+            'IELTS Writing',
+            'solo-practice',
+        );
         expect(mockNavigate).toHaveBeenCalledWith('/student/dashboard', { replace: true });
     });
 
@@ -192,6 +210,8 @@ describe('WritingPracticeView', () => {
                 materialId="material-2"
                 homeworkContext={{
                     homeworkId: 'homework-1',
+                    submissionId: 'homework-submission-1',
+                    teacherId: 'teacher-1',
                     dueDate: Date.now() + 60_000,
                     lateSubmissionAllowed: true,
                 }}
@@ -236,6 +256,8 @@ describe('WritingPracticeView', () => {
             context: expect.objectContaining({
                 type: 'homework',
                 homeworkId: 'homework-1',
+                homeworkSubmissionId: 'homework-submission-1',
+                assigningTeacherId: 'teacher-1',
             }),
             tasks: expect.arrayContaining([
                 expect.objectContaining({
@@ -247,6 +269,23 @@ describe('WritingPracticeView', () => {
         expect(mockNotifyWritingSubmitted).toHaveBeenCalledWith(
             'student-1',
             'result-1',
+            'Homework IELTS Writing',
+            'homework',
+        );
+        expect(mockSubmitHomework).toHaveBeenCalledWith(
+            'homework-submission-1',
+            'result-1',
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            expect.any(Number),
+        );
+        expect(mockNotifyTeacherWritingSubmitted).toHaveBeenCalledWith(
+            'teacher-1',
+            'result-1',
+            'student-1',
+            'Student One',
             'Homework IELTS Writing',
             'homework',
         );

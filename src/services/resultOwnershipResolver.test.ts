@@ -138,6 +138,50 @@ describe('resultOwnershipResolver', () => {
         expect(result.strongestKnownSourceClue).toBe('session:SESSION-C');
     });
 
+    it('falls back to result.teacherId for class-session rows when the session owner cannot be resolved', async () => {
+        (dependencies.getSession as ReturnType<typeof vi.fn>).mockResolvedValue({
+            createdBy: 'teacher_123',
+            title: 'Broken Session',
+        });
+
+        const result = await resolveResultOwnership({
+            contextType: 'class_session',
+            sessionCode: 'SESSION-D',
+            teacherId: 'teacher-session-fallback',
+        }, dependencies);
+
+        expect(result.visibility).toMatchObject({
+            contextType: 'class_session',
+            sourceType: 'session',
+            sourceId: 'SESSION-D',
+            visibilityOwnerTeacherId: 'teacher-session-fallback',
+            ownerResolutionSource: 'result.teacherId',
+            ownershipResolved: true,
+        });
+    });
+
+    it('falls back to result.teacherId when the class-session source cannot be loaded', async () => {
+        (dependencies.getSession as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+
+        const result = await resolveResultOwnership({
+            contextType: 'class_session',
+            sessionCode: 'SESSION-E',
+            result: {
+                teacherId: 'teacher-session-fallback',
+                testTitle: 'Session E',
+            },
+        }, dependencies);
+
+        expect(result.visibility).toMatchObject({
+            contextType: 'class_session',
+            sourceType: 'session',
+            sourceId: 'SESSION-E',
+            visibilityOwnerTeacherId: 'teacher-session-fallback',
+            ownerResolutionSource: 'result.teacherId',
+            ownershipResolved: true,
+        });
+    });
+
     it('resolves class-linked course material from class.createdBy', async () => {
         (dependencies.getClass as ReturnType<typeof vi.fn>).mockResolvedValue({
             createdBy: 'teacher-class',

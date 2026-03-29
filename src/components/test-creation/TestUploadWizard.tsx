@@ -9,7 +9,7 @@
  * @date 2026-02-07
  */
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { IconUpload, IconClipboardText, IconFileText, IconX } from '@tabler/icons-react';
 
 // ═══════════════════════════════════════════════════════════════
@@ -46,17 +46,18 @@ export const TestUploadWizard: React.FC<TestUploadWizardProps> = ({
     const [error, setError] = useState<string | null>(null);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const onChangeRef = useRef(onChange);
+    onChangeRef.current = onChange;
 
-    React.useEffect(() => {
-        if (onChange) {
-            if (mode === 'file') {
-                onChange({ type: 'file', data: selectedFile, format: defaultFormat });
-            } else {
-                const text = pasteText.trim();
-                onChange({ type: 'text', data: text.length > 50 ? text : null, format: defaultFormat });
-            }
+    useEffect(() => {
+        if (mode === 'file') {
+            onChangeRef.current?.({ type: 'file', data: selectedFile, format: defaultFormat });
+            return;
         }
-    }, [mode, selectedFile, pasteText, defaultFormat, onChange]);
+
+        const text = pasteText.trim();
+        onChangeRef.current?.({ type: 'text', data: text.length > 50 ? text : null, format: defaultFormat });
+    }, [mode, selectedFile, pasteText, defaultFormat]);
 
     // ─────────────────────────────────────────────────────────────
     // FILE HANDLING

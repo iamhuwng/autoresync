@@ -464,6 +464,12 @@ export async function endSession(sessionCode, finalData = {}) {
     const now = Date.now();
     const currentTestId = sessionData.testId || null;
 
+    if (currentTestId && sessionData.status === SessionStatus.IN_PROGRESS) {
+      throw new Error(
+        'Active test sessions must be ended from the teacher monitor so student results can be auto-submitted.'
+      );
+    }
+
     // Update session status
     updates[`game_sessions/${sessionCode}/status`] = SessionStatus.COMPLETED;
     updates[`game_sessions/${sessionCode}/completedAt`] = now;

@@ -540,6 +540,13 @@ describe('guestResultsService', () => {
 
             const claimUpdates = (update as any).mock.calls[0][1];
             expect(claimUpdates['test_results_by_teacher/teacher-1/result-solo']).toBeUndefined();
+            expect(claimUpdates['test_results_solo_practice_by_student/user-123/result-solo']).toEqual(
+                expect.objectContaining({
+                    resultId: 'result-solo',
+                    testId: 'test-solo',
+                    submittedAt: 1000,
+                }),
+            );
             expect(claimUpdates['reports/result_visibility/unresolved/result-solo']).toBeNull();
         });
 

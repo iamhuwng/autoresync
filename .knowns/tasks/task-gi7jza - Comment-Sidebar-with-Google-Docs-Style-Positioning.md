@@ -8,7 +8,7 @@ labels:
   - from-spec
   - grading-editor
 createdAt: '2026-03-01T06:44:32.735Z'
-updatedAt: '2026-03-01T07:52:32.721Z'
+updatedAt: '2026-03-29T20:17:34.737Z'
 timeSpent: 186
 assignee: '@me'
 spec: specs/grading-editor-redesign
@@ -86,5 +86,7 @@ Build CommentSidebar.tsx, CommentCard.tsx, and ConnectionLines.tsx. Google Docs-
 - Connection line SVG positioning
 
 ### Build: Zero new TS errors"
+
+2026-03-30 note: Historical implementation task only. The finalized teacher writing grading editor interaction contract now lives in @doc/specs/ielts-writing-grading-editor-finalization-2026-03-30. If this task note conflicts with current comment UX, follow the finalization doc.
 <!-- SECTION:NOTES:END -->
 

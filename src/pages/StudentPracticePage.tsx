@@ -46,6 +46,7 @@ interface PracticeLocationState {
     // Homework context
     homeworkId?: string;
     submissionId?: string;
+    teacherId?: string;
     dueDate?: number;
     lateSubmissionAllowed?: boolean;
     // Resume hint
@@ -207,6 +208,8 @@ const StudentPracticePageContent: React.FC = () => {
                     testData={writingTestData}
                     homeworkContext={locationState.isHomework ? {
                         homeworkId: locationState.homeworkId || '',
+                        submissionId: locationState.submissionId || '',
+                        teacherId: locationState.teacherId || '',
                         dueDate: locationState.dueDate,
                         lateSubmissionAllowed: locationState.lateSubmissionAllowed ?? false,
                         previousEssay: locationState.resumeFrom?.essays,

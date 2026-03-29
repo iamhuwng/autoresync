@@ -1,12 +1,8 @@
 ---
 title: 'Lessons Learned: PRD-0034 Homework Management Overhaul'
+description: 'Consolidated lessons from PRD-0034 homework management overhaul: placeholder stubs as debt bombs, N+1 write patterns hiding in hooks, data hook purity rules, route ordering, CSS display:table bug, duplicate CSS rules, function existence verification.'
 createdAt: '2026-03-13T19:20:55.832Z'
-updatedAt: '2026-03-19T15:53:16.425Z'
-description: >-
-  Consolidated lessons from PRD-0034 homework management overhaul: placeholder
-  stubs as debt bombs, N+1 write patterns hiding in hooks, data hook purity
-  rules, route ordering, CSS display:table bug, duplicate CSS rules, function
-  existence verification.
+updatedAt: '2026-03-29T04:47:46.700Z'
 tags:
   - lesson
   - pattern
@@ -14,6 +10,7 @@ tags:
   - prd-0034
   - post-mortem
 ---
+
 # Lessons Learned: PRD-0034 Homework Management Overhaul
 
 ## L1: Placeholder Components Are Technical Debt Bombs
@@ -92,3 +89,42 @@ tags:
 ## L13: Redundant Entry Points for the Same Modal
 **What happened:** Two buttons ('Create Homework' + 'Create THCS Homework') opened the same `HomeworkCreateModal` with different preset filters. The modal already had internal filter tabs (All/Quizzes/Tests/THCS-THPT).
 **Standard:** One entry point per modal. Let users select within the modal using tabs/filters. Multiple buttons for the same modal = confusion + maintenance overhead. Matches the 'Create New Test' pattern in Lobby.
+
+
+## L14: Teacher Material Visibility Rules Must Match Across All Selectors
+
+**What happened:** The teacher-side `HomeworkCreateModal` loaded all tests and quizzes through the raw query optimizer, but then filtered the list to owned materials only. Public-library materials from other teachers were visible elsewhere in teacher workflows, but they disappeared inside homework creation.
+
+**Concrete findings:**
+- `TeacherLobbyPage` and related teacher filters already distinguish between owned materials and public-library materials.
+- `MaterialSelectorModal` explicitly exposes public materials with the rule: `isPublic === true` and not owned by the current teacher.
+- `HomeworkCreateModal` reimplemented its own selector logic and omitted the public branch entirely.
+- Because the modal consumed raw records from `queryOptimizer.getAllTests()` and `queryOptimizer.getAllQuizzes()`, nothing at the service layer enforced a consistent visibility contract.
+
+**Root cause:** Multiple teacher-facing material selectors were allowed to own their own filtering logic instead of sharing one visibility contract. The bug was not a missing database flag. It was cross-surface drift in client-side filtering.
+
+**Solution applied:**
+- `HomeworkCreateModal` now includes both:
+  - owned materials
+  - public materials from other teachers
+- foreign private materials remain excluded
+- public entries are visually marked so a merged list still communicates source
+
+**Current feature state after the fix:**
+- Teacher homework creation now shows the same broad material universe teachers expect from other selector surfaces: owned + public-shareable.
+- Teacher lobby and course material linking remain the reference surfaces for teacher-side public-material behavior.
+- Student library still uses a separate discovery contract and should not be treated as identical to teacher-shareable visibility.
+
+**Interaction risks with other features:**
+- Teacher-side `public` and student-side `public library` are related but not identical concepts. Teacher selectors rely on `isPublic` plus owner exclusion; student discovery still has partially separate solo/public semantics.
+- Any new teacher modal, picker, or quick-action that fetches raw tests/quizzes can silently regress if it reimplements ownership/public filtering locally.
+- THCS title/type mapping can also drift between selectors when each UI maps raw records independently.
+- Merged lists without a source badge create ambiguity once owned and shared materials coexist.
+
+**Standard:** Visibility rules for the same material domain must be treated as a shared contract, not per-component behavior. If one teacher-facing selector supports owned + public-shareable materials, every other teacher-facing selector for the same action domain must be audited for the same split.
+
+**Self-check for future work:**
+- [ ] Does this new teacher-facing selector use the same owned/public split as existing teacher surfaces?
+- [ ] Are foreign private materials still excluded?
+- [ ] If owned and public materials are merged, is the source visible in the UI?
+- [ ] Have all other selectors for the same material domain been grep-audited for drift?

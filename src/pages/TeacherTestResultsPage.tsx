@@ -181,6 +181,7 @@ export const TeacherTestResultsPage: React.FC = () => {
   const { user, profile } = useAuth();
   const viewerRole: ViewerRole = profile?.role === 'super_admin' ? 'super_admin' : 'teacher';
   const viewerTeacherId = user?.uid || '';
+  const viewerTeacherName = profile?.displayName || user?.displayName || profile?.email || user?.email || viewerTeacherId || 'Teacher';
   const { navigateTo } = useNavigation(viewerRole);
   const { trackAction } = useFeatureTracking('results');
 
@@ -411,7 +412,7 @@ export const TeacherTestResultsPage: React.FC = () => {
   const handleRemarkSave = async (questionNumber: number, newScore: number, reason: string) => {
     if (!selectedStudentForRemark?.resultId) return;
     try {
-      await updateResultScore(selectedStudentForRemark.resultId, questionNumber, newScore, reason, 'Teacher');
+      await updateResultScore(selectedStudentForRemark.resultId, questionNumber, newScore, reason, viewerTeacherId);
       setRemarkModalOpen(false);
       await loadAllResults();
     } catch (saveError) {
@@ -431,13 +432,13 @@ export const TeacherTestResultsPage: React.FC = () => {
 
   const handleSaveOverallFeedback = async (feedback: string): Promise<void> => {
     if (!selectedStudentForFeedback?.resultId) return;
-    await saveOverallFeedback(selectedStudentForFeedback.resultId, feedback, 'Teacher');
+    await saveOverallFeedback(selectedStudentForFeedback.resultId, feedback, viewerTeacherId, viewerTeacherName);
     await loadAllResults();
   };
 
   const handleSaveQuestionFeedback = async (questionNumber: number, feedback: string): Promise<void> => {
     if (!selectedStudentForFeedback?.resultId) return;
-    await saveQuestionFeedback(selectedStudentForFeedback.resultId, String(questionNumber), feedback, 'Teacher');
+    await saveQuestionFeedback(selectedStudentForFeedback.resultId, String(questionNumber), feedback, viewerTeacherId, viewerTeacherName);
     await loadAllResults();
   };
 
@@ -463,7 +464,7 @@ export const TeacherTestResultsPage: React.FC = () => {
         resultId: student.resultId,
         studentId: student.studentId,
       });
-      await markAsReviewed(student.resultId, 'Teacher');
+      await markAsReviewed(student.resultId, viewerTeacherId);
       alert(`${student.studentName}'s test marked as reviewed.`);
       await loadAllResults();
     } catch (reviewError) {

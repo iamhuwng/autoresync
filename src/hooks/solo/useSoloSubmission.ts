@@ -6,6 +6,7 @@ import { scoreQuestion } from '../../services/autoMarking.service';
 import { calculateIELTSReadingBandScore } from '../../config/scoring.config';
 import { saveTestResult } from '../../services/testResults.service';
 import { getTestQuestionsFromFirebase } from '../../services/testStorage';
+import { deriveIeltsPassageResults } from '../../services/ieltsPassageResults.service';
 import { getIELTSQuestionsForStudent } from '../../utils/thcsShuffle';
 import { clearSoloProgress } from './useSoloAutoSave';
 import type { ResolvedPracticeSettings } from '../../types/practice.types';
@@ -300,6 +301,30 @@ export const useSoloSubmission = ({
                 completedAt: Date.now(),
             };
 
+            const isIeltsReadingOrListening =
+                String(testData.type || '').toLowerCase().includes('ielts')
+                && ['reading', 'listening'].includes(String(testData.skill || '').toLowerCase());
+
+            let ieltsData: { passageResults: ReturnType<typeof deriveIeltsPassageResults> } | undefined;
+
+            if (isIeltsReadingOrListening) {
+                try {
+                    const mappedQuestions = gradingQuestions.map((q: any) => ({
+                        questionNumber: q.number,
+                        passageId: q.passageId ?? q.passage ?? undefined,
+                        sectionId: q.sectionId ?? (q.sectionNumber !== undefined && q.sectionNumber !== null ? String(q.sectionNumber) : undefined),
+                        passageName: q.passageName ?? q.passageTitle ?? (q.passage ? String(q.passage) : undefined),
+                        sectionName: q.sectionName ?? (q.sectionNumber !== undefined && q.sectionNumber !== null ? `Part ${q.sectionNumber}` : undefined),
+                    }));
+                    const passageResults = deriveIeltsPassageResults(mappedQuestions, questionResultsList);
+                    if (passageResults.length > 0) {
+                        ieltsData = { passageResults };
+                    }
+                } catch (ieltsErr) {
+                    console.warn('Failed to derive IELTS passage results:', ieltsErr);
+                }
+            }
+
             const canonicalContext = buildCanonicalResultContext();
 
             // Save to test_results/ using canonical practice/homework context identifiers
@@ -323,22 +348,10 @@ export const useSoloSubmission = ({
                     courseId: courseContext.courseId,
                     moduleId: courseContext.moduleId,
                 } : undefined,
-                canonicalContext
+                canonicalContext,
+                undefined,
+                ieltsData
             );
-
-            const isIeltsReadingOrListening =
-                String(testData.type || '').toLowerCase().includes('ielts')
-                && ['reading', 'listening'].includes(String(testData.skill || '').toLowerCase());
-
-            if (isIeltsReadingOrListening && resultId) {
-                import('../../services/resultFeedbackGeneration.service')
-                    .then(({ triggerFormativeFeedbackForSavedResult }) => {
-                        triggerFormativeFeedbackForSavedResult(resultId);
-                    })
-                    .catch((feedbackErr) => {
-                        console.warn('Failed to trigger IELTS formative feedback generation:', feedbackErr);
-                    });
-            }
 
             // Update course progress if passing score met
             if (courseContext && resolvedSettings?.minPassingScore != null && results.percentage != null) {

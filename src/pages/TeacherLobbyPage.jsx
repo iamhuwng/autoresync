@@ -4,7 +4,7 @@ import React, { useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useNavigation } from '../hooks/useNavigation';
 import { useAuth } from '../hooks/useAuth';
-import { useThemeContext } from '../context/ThemeContext.jsx';
+import { buildRoute } from '../constants/routes';
 import { AppShell } from '@mantine/core';
 import { Card, CardBody, Button, Input } from '../components/modern';
 import { TeacherHeader } from '../components/navigation';
@@ -33,10 +33,59 @@ import TestCreationModal from '../components/test-creation/TestCreationModal';
 import { THCSHomeworkAssignDialog } from '../components/thcs-editor/THCSHomeworkAssignDialog';
 import THCSTestEditorModal from '../components/thcs-editor/THCSTestEditorModal';
 
+const DEFAULT_WRITING_TASK1 = {
+  taskType: 'line-graph',
+  promptText: '',
+  wordMinimum: 150,
+  recommendedTimeMinutes: 20,
+  showModelAnswerToStudent: false,
+};
+
+const DEFAULT_WRITING_TASK2 = {
+  taskType: 'opinion',
+  promptText: '',
+  wordMinimum: 250,
+  recommendedTimeMinutes: 40,
+  showModelAnswerToStudent: false,
+};
+
+function buildWritingModalState(draft) {
+  const task1 = draft?.tasks?.find((task) => task.taskNumber === 1);
+  const task2 = draft?.tasks?.find((task) => task.taskNumber === 2);
+  const hasTaskContent = Boolean(task1?.promptText || task2?.promptText);
+
+  return {
+    initialStep: hasTaskContent ? 'writing-content' : 'writing-metadata',
+    initialData: {
+      testType: 'IELTS',
+      skillType: 'writing',
+      writingMetadata: {
+        title: draft?.metadata?.title || '',
+        description: draft?.metadata?.description,
+        duration: draft?.metadata?.duration || 60,
+        difficulty: draft?.metadata?.difficulty,
+        targetBand: draft?.metadata?.targetBand,
+        tags: Array.isArray(draft?.metadata?.tags) ? draft.metadata.tags : [],
+      },
+      writingFormat: draft?.metadata?.format || 'full-test',
+      writingTasks: {
+        task1: {
+          ...DEFAULT_WRITING_TASK1,
+          ...(task1 || {}),
+        },
+        task2: {
+          ...DEFAULT_WRITING_TASK2,
+          ...(task2 || {}),
+        },
+      },
+    },
+    initialWritingDraftId: draft?.id,
+  };
+}
+
 const TeacherLobbyPage = () => {
   const { navigateTo } = useNavigation('teacher');
   const { sessionCode } = useParams();
-  const { template } = useThemeContext();
   const { user, profile, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -46,6 +95,9 @@ const TeacherLobbyPage = () => {
   const [testTypeFilter, setTestTypeFilter] = useState('all');
   const [thcsGradeFilter, setThcsGradeFilter] = useState('all');
   const [thcsExamTypeFilter, setThcsExamTypeFilter] = useState('all');
+  const [testCreationInitialStep, setTestCreationInitialStep] = useState('type');
+  const [testCreationInitialData, setTestCreationInitialData] = useState(undefined);
+  const [testCreationInitialWritingDraftId, setTestCreationInitialWritingDraftId] = useState(undefined);
 
   // ---------- Hooks ----------
   const modals = useModalManager();
@@ -73,6 +125,30 @@ const TeacherLobbyPage = () => {
     thcsExamTypeFilter,
   });
 
+  const resetTestCreationOverrides = useCallback(() => {
+    setTestCreationInitialStep('type');
+    setTestCreationInitialData(undefined);
+    setTestCreationInitialWritingDraftId(undefined);
+  }, []);
+
+  const handleOpenTestCreation = useCallback(() => {
+    resetTestCreationOverrides();
+    modals.openTestCreation();
+  }, [modals.openTestCreation, resetTestCreationOverrides]);
+
+  const handleCloseTestCreation = useCallback(() => {
+    resetTestCreationOverrides();
+    modals.closeTestCreation();
+  }, [modals.closeTestCreation, resetTestCreationOverrides]);
+
+  const openWritingDraftInModal = useCallback((draft) => {
+    const modalState = buildWritingModalState(draft);
+    setTestCreationInitialStep(modalState.initialStep);
+    setTestCreationInitialData(modalState.initialData);
+    setTestCreationInitialWritingDraftId(modalState.initialWritingDraftId);
+    modals.openTestCreation();
+  }, [modals.openTestCreation]);
+
   // ---------- Handlers ----------
   const handleLogout = async () => {
     try {
@@ -85,16 +161,47 @@ const TeacherLobbyPage = () => {
   };
 
   const handleEditTest = useCallback((test) => {
+    const isWritingTest = test?.testType === 'IELTS' && String(test?.skill || '').toLowerCase() === 'writing';
+
     if (test.testType === 'THCS-THPT') {
       modals.openEditThcsTest(test);
       return;
     }
+
+    if (isWritingTest) {
+      if (!user?.uid) {
+        alert('You must be signed in to edit this writing test.');
+        return;
+      }
+
+      import('../services/writingTestService')
+        .then(async ({ ensureWritingEditableDraft, getWritingDraft }) => {
+          const result = await ensureWritingEditableDraft(test, user.uid);
+          if (!result.success || !result.draftId) {
+            throw new Error(result.error || 'Failed to prepare writing draft');
+          }
+
+          const draftResult = await getWritingDraft(result.draftId);
+          if (!draftResult.success || !draftResult.data) {
+            throw new Error(draftResult.error || 'Failed to load writing draft');
+          }
+
+          openWritingDraftInModal(draftResult.data);
+        })
+        .catch((error) => {
+          console.error('Failed to open writing editor:', error);
+          alert(error instanceof Error ? error.message : 'Failed to open writing editor.');
+        });
+      return;
+    }
+
     modals.openEditTest(test);
-  }, [modals.openEditThcsTest, modals.openEditTest]);
+  }, [modals.openEditThcsTest, modals.openEditTest, openWritingDraftInModal, user?.uid]);
 
   const handleDeleteTest = useCallback(async (test) => {
     const isThcs = test.testType === 'THCS-THPT';
-    const testTitle = isThcs ? test.metadata?.title : test.title;
+    const isWritingTest = test?.testType === 'IELTS' && String(test?.skill || '').toLowerCase() === 'writing';
+    const testTitle = isThcs || isWritingTest ? test.metadata?.title : test.title;
     if (window.confirm(`Are you sure you want to delete "${testTitle || 'this test'}"?`)) {
       await deleteTest(test);
     }
@@ -115,7 +222,7 @@ const TeacherLobbyPage = () => {
       const { cloneFromPublicTest } = await import('../services/thcsDraftService');
       const result = await cloneFromPublicTest(test.id, user.uid);
       if (result.success && result.data) {
-        navigate(`/teacher/thcs-test/edit/${result.data.draftId}`);
+        navigate(buildRoute('TEACHER_THCS_EDIT', { draftId: result.data.draftId }));
       } else {
         alert('Failed to clone test: ' + (result.error || 'Unknown error'));
       }
@@ -246,7 +353,7 @@ const TeacherLobbyPage = () => {
                         No Drafts Yet
                       </h3>
                       <p style={{ color: '#64748b' }}>
-                        Create a new THCS test to start saving drafts
+                        Create a new THCS or IELTS writing test to start saving drafts
                       </p>
                     </Card>
                   ) : (
@@ -260,7 +367,13 @@ const TeacherLobbyPage = () => {
                           key={draft.id}
                           draft={draft}
                           index={index}
-                          onResume={(draftId) => navigate(`/teacher/thcs-test/edit/${draftId}`)}
+                          onResume={(draftToResume) => {
+                            if (draftToResume?.draftKind === 'writing') {
+                              openWritingDraftInModal(draftToResume);
+                              return;
+                            }
+                            navigate(buildRoute('TEACHER_THCS_EDIT', { draftId: draftToResume.id }));
+                          }}
                           onDelete={handleDeleteDraft}
                         />
                       ))}
@@ -282,7 +395,7 @@ const TeacherLobbyPage = () => {
                         onThcsGradeFilterChange={setThcsGradeFilter}
                         thcsExamTypeFilter={thcsExamTypeFilter}
                         onThcsExamTypeFilterChange={setThcsExamTypeFilter}
-                        onCreateNew={modals.openTestCreation}
+                        onCreateNew={handleOpenTestCreation}
                       />
                     </CardBody>
                   </Card>
@@ -407,11 +520,14 @@ const TeacherLobbyPage = () => {
         {/* Test Creation Modal */}
         <TestCreationModal
           opened={modals.state.testCreation.show}
-          onClose={modals.closeTestCreation}
+          onClose={handleCloseTestCreation}
           onComplete={(draftId) => {
-            modals.closeTestCreation();
+            handleCloseTestCreation();
             navigate(`/teacher/test/review/${draftId}`);
           }}
+          initialStep={testCreationInitialStep}
+          initialData={testCreationInitialData}
+          initialWritingDraftId={testCreationInitialWritingDraftId}
         />
 
         {/* THCS Homework Dialog */}

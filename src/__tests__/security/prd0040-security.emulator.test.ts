@@ -69,6 +69,7 @@ async function seedSecurityFixtures() {
 async function makeContexts() {
   const student = testEnv.authenticatedContext('student-1');
   const otherStudent = testEnv.authenticatedContext('student-2');
+  const assignedTeacher = testEnv.authenticatedContext('teacher-1');
   const teacher = testEnv.authenticatedContext('teacher-2');
   const unauthenticated = testEnv.unauthenticatedContext();
   const unrelatedUser = testEnv.authenticatedContext('intruder-1');
@@ -76,6 +77,7 @@ async function makeContexts() {
   return {
     student,
     otherStudent,
+    assignedTeacher,
     teacher,
     unauthenticated,
     unrelatedUser,
@@ -119,6 +121,48 @@ describe('PRD-0040 security emulator checks', () => {
     await assertSucceeds(teacher.database().ref('test_results/result-1').once('value'));
   });
 
+  it('allows teacher queue queries over pending writing submissions even when other teachers own the docs', async () => {
+    const { teacher } = await makeContexts();
+
+    await assertSucceeds(
+      teacher.firestore()
+        .collection('writing_submissions')
+        .where('markingStatus', '==', 'pending-review')
+        .get()
+    );
+  });
+
+  it('allows the assigned teacher to get a missing writing grading draft document', async () => {
+    const { assignedTeacher } = await makeContexts();
+
+    await assertSucceeds(
+      assignedTeacher.firestore()
+        .doc('writing_grading_drafts/submission-1')
+        .get()
+    );
+  });
+
+  it('rejects unrelated teachers creating private grading drafts for submissions they do not own', async () => {
+    const { teacher } = await makeContexts();
+
+    await assertFails(
+      teacher.firestore()
+        .doc('writing_grading_drafts/submission-1')
+        .set({
+          ownerTeacherId: 'teacher-2',
+          ownerTeacherName: 'Teacher Two',
+          submissionId: 'submission-1',
+          perTask: {},
+          version: 1,
+          basedOnPublishedVersion: 0,
+          overallSummary: '',
+          overallBand: 0,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        })
+    );
+  });
+
   it('rejects unauthenticated guest-results reads but allows unauthenticated guest-results writes', async () => {
     const { unauthenticated } = await makeContexts();
     const guestRef = unauthenticated.database().ref('guest_results/guest-1');
@@ -133,11 +177,11 @@ describe('PRD-0040 security emulator checks', () => {
     }));
   });
 
-  it('allows an unrelated authenticated user to update writing_submissions/submission-1', async () => {
+  it('rejects unrelated authenticated users updating writing submissions without ownership markers', async () => {
     const { unrelatedUser } = await makeContexts();
     const submissionRef = unrelatedUser.firestore().doc('writing_submissions/submission-1');
 
-    await assertSucceeds(
+    await assertFails(
       submissionRef.update({
         markingStatus: 'graded',
         totalScore: 9,

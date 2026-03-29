@@ -79,6 +79,79 @@ export const StudentTestResultsPage: React.FC = () => {
   // PRD-0030 Task 6.1.1: Writing submission for WritingResultView
   const [writingSubmission, setWritingSubmission] = useState<WritingSubmission | null>(null);
 
+  const applyPermanentResult = async (
+    permanentResult: TestResultRecord,
+    studentId: string,
+    activeSessionCode: string
+  ) => {
+    console.log('[Results] Found permanent result record');
+    setPermanentResultRecord(permanentResult);
+
+    setTestData({
+      title: permanentResult.testTitle || 'Test',
+      type: permanentResult.testType || 'reading',
+      skill: permanentResult.testSkill || 'Reading',
+      questions: permanentResult.questionResults.map(qr => ({
+        number: qr.questionNumber,
+        type: qr.questionType,
+        answer: qr.correctAnswer,
+      })) as any,
+      duration: permanentResult.testDuration || 0,
+    });
+
+    if ((permanentResult.testSkill || '').toLowerCase() === 'writing') {
+      console.log('[Results] Writing test detected â€” fetching writing submission');
+      try {
+        const subResult = await getSubmissionsBySession(activeSessionCode);
+        if (subResult.success && subResult.data) {
+          const mySubmission = subResult.data.find(
+            s => s.studentId === studentId
+          );
+          if (mySubmission) {
+            setWritingSubmission(mySubmission);
+            setLoading(false);
+            return;
+          }
+        }
+        console.warn('[Results] Writing submission not found in Firestore, falling back to standard results');
+      } catch (writingErr) {
+        console.warn('[Results] Failed to fetch writing submission:', writingErr);
+      }
+    }
+
+    const adaptedResult: TestMarkingResult = {
+      totalScore: permanentResult.totalScore,
+      maxScore: permanentResult.maxScore,
+      percentage: permanentResult.percentage,
+      questionResults: permanentResult.questionResults.map(qr => ({
+        questionId: String(qr.questionNumber),
+        questionNumber: qr.questionNumber,
+        questionType: qr.questionType as any,
+        studentAnswer: qr.studentAnswer,
+        correctAnswer: qr.correctAnswer,
+        isCorrect: qr.isCorrect,
+        score: qr.score,
+        maxScore: qr.maxScore,
+        feedback: qr.feedback,
+        partialCredit: false
+      })),
+      summary: {
+        correct: permanentResult.correct,
+        incorrect: permanentResult.incorrect,
+        partialCredit: permanentResult.partialCredit,
+        totalQuestions: permanentResult.totalQuestions
+      },
+      completedAt: permanentResult.submittedAt,
+      correct: permanentResult.correct,
+      incorrect: permanentResult.incorrect,
+      partialCredit: permanentResult.partialCredit,
+      totalQuestions: permanentResult.totalQuestions
+    } as TestMarkingResult;
+
+    setResults(adaptedResult);
+    setLoading(false);
+  };
+
   /**
    * Keep the live session snapshot fresh so release-state changes update
    * while the page stays open.
@@ -205,6 +278,9 @@ export const StudentTestResultsPage: React.FC = () => {
         const permanentResult = await getStudentSessionResult(studentId, sessionCode!);
 
         if (permanentResult) {
+          await applyPermanentResult(permanentResult, studentId, sessionCode!);
+          return;
+
           console.log('[Results] Found permanent result record');
           setPermanentResultRecord(permanentResult);
 
@@ -279,6 +355,21 @@ export const StudentTestResultsPage: React.FC = () => {
           return;
         } else {
           console.log('[Results] No permanent result found yet');
+
+          const latestResultId = sessionData.players?.[studentId]?.latestResultId;
+          if (latestResultId) {
+            console.log(`[Results] Falling back to player latestResultId pointer: ${latestResultId}`);
+            const directResult = await getTestResult(latestResultId);
+
+            if (
+              directResult
+              && directResult.studentId === studentId
+              && directResult.sessionCode === sessionCode
+            ) {
+              await applyPermanentResult(directResult, studentId, sessionCode!);
+              return;
+            }
+          }
         }
       } catch (permErr) {
         console.warn('[Results] Error fetching permanent result:', permErr);
@@ -518,7 +609,10 @@ export const StudentTestResultsPage: React.FC = () => {
   // At this point, results is guaranteed non-null (error guard + writing branch returned above)
   const safeResults = results!;
   const bandScore = calculateBandScore(safeResults.percentage);
-  const feedback = generatePerformanceFeedback(safeResults.percentage);
+  const storedFeedback =
+    permanentResultRecord?.formativeFeedback?.aiFeedback?.summary?.trim()
+    || permanentResultRecord?.formativeFeedback?.deterministicFeedback?.trim();
+  const feedback = storedFeedback || generatePerformanceFeedback(safeResults.percentage);
 
   // PRD-0040 Task 4.4: Release-state governance for session-scoped results
   const effectiveReleaseState = deriveSessionReleaseState(session);

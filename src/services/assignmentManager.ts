@@ -26,6 +26,7 @@ import { logCreate, logDelete } from './auditService';
 const ASSIGNMENTS_REF = 'student_teacher_assignments';
 const ASSIGNMENT_REQUESTS_REF = 'student_requests';
 const ASSIGNMENT_HISTORY_REF = 'assignment_history';
+const ASSIGNMENT_LINKS_REF = 'student_teacher_links';
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -43,6 +44,15 @@ function generateId(): string {
  */
 function now(): number {
     return Date.now();
+}
+
+async function setAssignmentLink(
+    teacherId: string,
+    studentId: string,
+    isActive: boolean
+): Promise<void> {
+    const linkRef = ref(database, `${ASSIGNMENT_LINKS_REF}/${teacherId}/${studentId}`);
+    await set(linkRef, isActive ? true : null);
 }
 
 // ============================================================================
@@ -99,6 +109,7 @@ export async function createAssignment(
         // Save assignment
         const assignmentRef = ref(database, `${ASSIGNMENTS_REF}/${assignmentId}`);
         await set(assignmentRef, assignment);
+        await setAssignmentLink(teacherId, studentId, true);
 
         // Create history entry
         await createHistoryEntry({
@@ -174,6 +185,7 @@ export async function removeAssignment(
             unassignedAt: timestamp,
             status: 'removed'
         });
+        await setAssignmentLink(assignment.teacherId, assignment.studentId, false);
 
         // Create history entry
         await createHistoryEntry({

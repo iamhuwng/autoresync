@@ -1,14 +1,15 @@
 ---
 title: Test End Flow Debug Retrospective
-createdAt: '2026-02-27T15:27:04.080Z'
-updatedAt: '2026-02-27T15:27:05.491Z'
 description: Retrospective on test end flow debugging and fixes
+createdAt: '2026-02-27T15:27:04.080Z'
+updatedAt: '2026-03-28T23:11:49.489Z'
 tags:
   - sop
   - bugfix
   - test-end
   - retrospective
 ---
+
 # 0034 - Test End Flow Debugging Retrospective (2026-02-12)
 
 ## Overview
@@ -178,3 +179,111 @@ The PRD (`PRD-test-end-flow-refactor.md`) outlines 6 phases:
 | 6 | Revert retry logic from `StudentTestResultsPage` | ⏳ Pending PRD approval |
 
 The PRD has been delivered to the user and is awaiting assessment before implementation begins.
+
+
+## 2026-03-28 Amendment — Result Persistence Invariant Incident
+
+### Event
+A teacher-reported incident showed that `student@test.com` completed a class-session IELTS Reading attempt, saw the waiting-room result modal fail after repeated re-fetch attempts, and could not find the attempt in either the student academic record or the teacher student-history view.
+
+### Concrete live case
+- Session code: `3F15BY`
+- Result id: `-OolNjDsPHI4s410MXaT`
+- Canonical `/test_results/{resultId}` row existed
+- Student, session, and teacher discovery indexes were initially missing
+- Ownership was initially unresolved even though the row represented a teacher-owned class session
+
+### Finding
+This was not a simple UI-rendering bug. It was a persistence invariant failure:
+- the canonical row was written
+- discoverability paths were not fully written
+- feature readers therefore behaved as if no saved result existed
+
+### Root-cause lesson
+The earlier test-end retrospective correctly focused on chasing the data path instead of the symptom, and this later incident reinforces the same rule. For result features, "saved" must mean:
+- canonical row exists
+- required indexes exist
+- ownership is resolved enough for the intended reader surfaces
+
+### Solution applied
+- canonical result writes were moved to a single RTDB multi-location root update
+- class-session ownership resolution now falls back to canonical `result.teacherId` when session ownership metadata cannot be resolved
+- the live row for `3F15BY` was repaired and made discoverable again
+
+### Feature state after fix
+- new writes of this class should no longer create the same partial-save orphan state
+- student waiting-room retrieval, academic record, and teacher history all depend on the same underlying discoverability contract
+- remaining long-term gap: add a generic backfill/reindex utility for historical orphaned result rows
+
+See @doc/patterns/pattern-canonical-result-persistence-invariants, @doc/architecture/results-academic-record, and @doc/sop/enhanced-saved-results-ux.
+
+
+## 2026-03-29 Amendment — Live No-Result Incident
+
+### Event
+
+A live student session still failed after the previous local fix set. The console log showed the student being treated as already completed, redirected back into the waiting room, and the waiting-room modal retrying result lookup repeatedly without finding any durable result.
+
+### Concrete live case
+- Session code: `2CEBLR`
+- Test id: `test-1774721949650-sqed9qj`
+- Student symptom: `Student has already completed this test. Redirecting...` followed by waiting-room retries with no result found
+- Live data symptom:
+  - `game_sessions/2CEBLR` had already rotated back toward waiting-state fields
+  - `lastTestId` existed
+  - player `latestResultId` did not exist
+  - `test_results_by_session/2CEBLR` was empty
+  - no canonical `test_results/{resultId}` row existed for the failed finish
+
+### Start-to-end path that was traced
+1. Teacher starts a test from the materials card in Teacher Lobby.
+2. Session enters teacher monitor / in-progress state correctly.
+3. Student submits manually or is auto-submitted when the teacher ends the test.
+4. Result persistence runs.
+5. Session/player completion flags and waiting-room navigation react to the finish.
+6. Student waiting room tries to resolve the just-finished result for modal display.
+
+The start path was not the bug. The break began at persistence/finalization.
+
+### Findings
+
+#### Finding 1: This was not a waiting-room modal bug
+The modal was correctly exposing that no durable result existed. It retried because the session state implied a result should be available, but the database had no canonical row to read.
+
+#### Finding 2: Nested `undefined` inside result context broke canonical persistence
+The teacher auto-submit path could build `ResultContext` / academic metadata from live sessions where `academicContext` was absent. Optional fields such as `classId` and `courseId` remained nested `undefined` values. RTDB rejects those writes, so canonical result persistence failed before `/test_results/{resultId}` existed.
+
+#### Finding 3: Completion state advanced ahead of durability
+Some flows were still able to mark the player/session as completed or navigate to result UI before durable persistence was guaranteed. That created the false-success state the student saw.
+
+#### Finding 4: Session Management had an unsafe interaction with active tests
+The Session Management page could end a session via the legacy `endSession()` service path. That path is acceptable for generic session closure but unsafe for active in-progress tests because it bypasses the teacher-monitor auto-submit contract.
+
+#### Finding 5: Zero-answer fallback handling was too optimistic
+The disconnected/unsubmitted fallback could skip students with zero counted answers instead of persisting an explicit 0-score result. That creates the same product symptom: completion state without discoverable result data.
+
+### Solutions applied
+- Added recursive RTDB sanitization before canonical and index writes.
+- Moved manual submit to persist the canonical result before marking player completion or navigating with `showResults`.
+- Made teacher end flow derive academic context from live session fields when embedded academic context is absent.
+- Made teacher end flow fail closed if any auto-submit result fails to persist.
+- Ensured zero-answer fallback still creates a durable 0-score result.
+- Blocked Session Management from finalizing active in-progress tests through the legacy end-session path.
+- Surfaced the Session Management failure reason to the user instead of a generic error.
+
+### Root-cause lesson
+A completion flag is not evidence of durable result persistence. In this system, the only trustworthy indicator is successful canonical save plus required discovery paths. Any flow that sets completion first is architecturally unsafe.
+
+### Current state after fix
+- Teacher Lobby start flow remains valid.
+- Teacher Monitor is the authoritative end-test path for active tests.
+- Session Management may still list active sessions, but it must not be used as a generic substitute for monitor-based finalization.
+- Student waiting-room result retrieval remains a dependent consumer, not the source of truth.
+- Result persistence now defends against missing indexes, missing ownership resolution, and nested `undefined` payload failures.
+
+### Remaining interaction risks to watch
+- Historical sessions created before the fixes may still contain orphaned or missing result data.
+- Any future code that constructs `context` or academic metadata objects from optional fields can reintroduce the RTDB `undefined` rejection if recursive sanitization is bypassed.
+- Any new end-session entry point must either delegate to the monitor finalization pipeline or explicitly refuse active in-progress tests.
+
+See also @doc/patterns/pattern-canonical-result-persistence-invariants and @doc/architecture/test-system-architecture.

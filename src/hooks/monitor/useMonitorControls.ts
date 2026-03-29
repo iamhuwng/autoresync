@@ -55,6 +55,70 @@ function extractMonitorTestQuestions(testRecord: any): any[] | null {
   return null;
 }
 
+function buildAutoSubmitTestMetadata(
+  testRecord: any,
+  fallbackSession: TestSession | null,
+  fallbackTestData?: TestData | null,
+): TestData {
+  const fallbackQuestions = extractMonitorTestQuestions(testRecord);
+  const isTHCS = testRecord?.testType === 'THCS-THPT';
+
+  if (fallbackTestData) {
+    return {
+      ...fallbackTestData,
+      questionCount: fallbackTestData.questionCount || fallbackQuestions?.length || 0,
+    };
+  }
+
+  if (isTHCS) {
+    return {
+      title: testRecord?.metadata?.title || fallbackSession?.title || fallbackSession?.testId || 'Untitled Test',
+      type: 'THCS-THPT',
+      skill: 'Mixed',
+      duration: testRecord?.metadata?.duration || fallbackSession?.duration || 60,
+      questionCount: testRecord?.questionCount || fallbackQuestions?.length || 40,
+    };
+  }
+
+  return {
+    title: testRecord?.title || fallbackSession?.title || fallbackSession?.testId || 'Untitled Test',
+    type: testRecord?.type || fallbackSession?.testType || 'IELTS',
+    skill: testRecord?.skill || 'reading',
+    duration: testRecord?.duration || fallbackSession?.duration || 60,
+    questionCount: testRecord?.questionCount || fallbackQuestions?.length || 40,
+    audioSections: testRecord?.audioSections || undefined,
+  };
+}
+
+type SessionAcademicContext = {
+  courseId?: string;
+  courseName?: string;
+  classId?: string;
+  className?: string;
+  moduleId?: string;
+  moduleName?: string;
+};
+
+function resolveSessionAcademicContext(
+  session: TestSession | null,
+): SessionAcademicContext | undefined {
+  const rawContext = (session as any)?.academicContext;
+  const academicContext: SessionAcademicContext = {
+    courseId: rawContext?.courseId || (session as any)?.courseId || undefined,
+    courseName: rawContext?.courseName || undefined,
+    classId: rawContext?.classId || (session as any)?.linkedClassId || (session as any)?.classId || undefined,
+    className: rawContext?.className || undefined,
+    moduleId: rawContext?.moduleId || (session as any)?.moduleId || undefined,
+    moduleName: rawContext?.moduleName || undefined,
+  };
+
+  return Object.values(academicContext).some(
+    (value) => value !== undefined && value !== null && value !== ''
+  )
+    ? academicContext
+    : undefined;
+}
+
 /** Per-student accommodation settings */
 export interface StudentAccommodationInput {
   extraTime?: number;
@@ -135,22 +199,39 @@ export function useMonitorControls(
 ): MonitorControlsResult {
   const { navigateTo } = useNavigation('teacher');
 
-  const loadQuestionsForAutoSubmit = async (): Promise<any[] | null> => {
+  const loadAutoSubmitTestData = async (): Promise<{
+    questions: any[] | null;
+    metadata: TestData;
+  }> => {
     const inMemoryQuestions = extractMonitorTestQuestions(fullTestData);
     if (inMemoryQuestions) {
-      return inMemoryQuestions;
+      return {
+        questions: inMemoryQuestions,
+        metadata: buildAutoSubmitTestMetadata(fullTestData, session, testData),
+      };
     }
 
     if (!session?.testId) {
-      return null;
+      return {
+        questions: null,
+        metadata: buildAutoSubmitTestMetadata(null, session, testData),
+      };
     }
 
     const snapshot = await get(ref(database, `tests/${session.testId}`));
     if (!snapshot.exists()) {
-      return null;
+      return {
+        questions: null,
+        metadata: buildAutoSubmitTestMetadata(null, session, testData),
+      };
     }
 
-    return extractMonitorTestQuestions(snapshot.val());
+    const persistedTest = snapshot.val();
+
+    return {
+      questions: extractMonitorTestQuestions(persistedTest),
+      metadata: buildAutoSubmitTestMetadata(persistedTest, session, testData),
+    };
   };
 
   /**
@@ -312,27 +393,54 @@ export function useMonitorControls(
 
           const disconnectedStudents = identifyDisconnectedStudents(disconnectedPlayers);
           const disconnectedUnsubmittedStudents = identifyUnsubmittedStudents(disconnectedPlayers);
-          const testQuestions = testData ? await loadQuestionsForAutoSubmit() : null;
+          const autoSubmitTestData = await loadAutoSubmitTestData();
+          const testQuestions = autoSubmitTestData.questions;
+          const autoSubmitMetadata = autoSubmitTestData.metadata;
+          const academicContext = resolveSessionAcademicContext(session);
+          let autoSubmitResults: Array<{ success: boolean; studentId: string; error?: string }> = [];
 
-          if (testQuestions && testData && disconnectedUnsubmittedStudents.length > 0) {
-            await autoSubmitAllUnsubmittedStudents(
+          if (testQuestions && disconnectedUnsubmittedStudents.length > 0) {
+            autoSubmitResults = await autoSubmitAllUnsubmittedStudents(
               sessionCode,
               session.testId,
               disconnectedUnsubmittedStudents,
               testQuestions,
-              { title: testData.title, type: testData.type, skill: testData.skill, duration: testData.duration },
+              {
+                title: autoSubmitMetadata.title,
+                type: autoSubmitMetadata.type,
+                skill: autoSubmitMetadata.skill,
+                duration: autoSubmitMetadata.duration,
+              },
               resolveCanonicalSessionTeacherId(session) || '',
               session.startTime || null,
-              (session as any).academicContext || undefined
+              academicContext
             );
           } else if (disconnectedStudents.length > 0) {
             // Emergency fallback preserves the submission instead of dropping it entirely.
-            const totalQuestions = testData?.questionCount || 0;
-            await autoSubmitDisconnectedStudents(
+            autoSubmitResults = await autoSubmitDisconnectedStudents(
               sessionCode,
               session.testId,
               disconnectedStudents,
-              totalQuestions
+              {
+                title: autoSubmitMetadata.title,
+                type: autoSubmitMetadata.type,
+                skill: autoSubmitMetadata.skill,
+                duration: autoSubmitMetadata.duration,
+                questionCount: autoSubmitMetadata.questionCount,
+              },
+              resolveCanonicalSessionTeacherId(session) || '',
+              session.startTime || null,
+              academicContext
+            );
+          }
+
+          const failedAutoSubmissions = autoSubmitResults.filter((result) => !result.success);
+          if (failedAutoSubmissions.length > 0) {
+            const failedStudentLabels = failedAutoSubmissions.map(
+              (result) => result.studentId
+            );
+            throw new Error(
+              `Failed to persist timer-expiry results for ${failedStudentLabels.join(', ')}. Session was not advanced.`
             );
           }
         }
@@ -409,8 +517,10 @@ export function useMonitorControls(
         const teacherId = resolveCanonicalSessionTeacherId(session) || '';
 
         // Get academic context from session data if available
-        const academicContext = (session as any).academicContext || undefined;
-        const testQuestions = testData ? await loadQuestionsForAutoSubmit() : null;
+        const academicContext = resolveSessionAcademicContext(session);
+        const autoSubmitTestData = await loadAutoSubmitTestData();
+        const testQuestions = autoSubmitTestData.questions;
+        const autoSubmitMetadata = autoSubmitTestData.metadata;
 
         if (isBaseTimeExpired) {
           // Base time expired: submit remaining accommodated students who haven't completed
@@ -421,28 +531,111 @@ export function useMonitorControls(
           if (remainingStudents.length > 0) {
             console.log(`🔄 [PRD-0019] Submitting ${remainingStudents.length} remaining accommodated students...`);
 
-            // Mark them as completed in Firebase
-            const playerUpdates: Record<string, any> = {};
-            remainingStudents.forEach(playerId => {
-              playerUpdates[`players/${playerId}/hasCompletedTest`] = true;
-              playerUpdates[`players/${playerId}/completedAt`] = now;
-              playerUpdates[`players/${playerId}/submittedBy`] = 'teacher-end';
-            });
-            await update(sessionRef, playerUpdates);
-
-            if (testQuestions && testData) {
-              const unsubmittedData = identifyUnsubmittedStudents(
-                Object.fromEntries(
-                  remainingStudents.map(id => [id, session.players![id]])
-                )
-              );
-              if (unsubmittedData.length > 0) {
-                await autoSubmitAllUnsubmittedStudents(
+            const unsubmittedData = identifyUnsubmittedStudents(
+              Object.fromEntries(
+                remainingStudents.map(id => [id, session.players![id]])
+              )
+            );
+            let autoSubmitResults: Array<{ success: boolean; studentId: string; error?: string }> = [];
+            if (unsubmittedData.length > 0) {
+              if (testQuestions) {
+                autoSubmitResults = await autoSubmitAllUnsubmittedStudents(
                   sessionCode,
                   session.testId,
                   unsubmittedData,
                   testQuestions,
-                  { title: testData.title, type: testData.type, skill: testData.skill, duration: testData.duration },
+                  {
+                    title: autoSubmitMetadata.title,
+                    type: autoSubmitMetadata.type,
+                    skill: autoSubmitMetadata.skill,
+                    duration: autoSubmitMetadata.duration,
+                  },
+                  teacherId,
+                  session.startTime || null,
+                  academicContext
+                );
+              } else {
+                autoSubmitResults = await autoSubmitDisconnectedStudents(
+                  sessionCode,
+                  session.testId,
+                  unsubmittedData,
+                  {
+                    title: autoSubmitMetadata.title,
+                    type: autoSubmitMetadata.type,
+                    skill: autoSubmitMetadata.skill,
+                    duration: autoSubmitMetadata.duration,
+                    questionCount: autoSubmitMetadata.questionCount,
+                  },
+                  teacherId,
+                  session.startTime || null,
+                  academicContext
+                );
+              }
+            }
+
+            const failedStudentIds = new Set(
+              autoSubmitResults.filter((result) => !result.success).map((result) => result.studentId)
+            );
+            const playersReadyForCompletion = remainingStudents.filter(
+              (studentId) => !failedStudentIds.has(studentId)
+            );
+
+            if (playersReadyForCompletion.length > 0) {
+              const playerUpdates: Record<string, any> = {};
+              playersReadyForCompletion.forEach(playerId => {
+                playerUpdates[`players/${playerId}/hasCompletedTest`] = true;
+                playerUpdates[`players/${playerId}/completedAt`] = now;
+                playerUpdates[`players/${playerId}/submittedBy`] = 'teacher-end';
+              });
+              await update(sessionRef, playerUpdates);
+            }
+
+            if (failedStudentIds.size > 0) {
+              throw new Error(
+                `Failed to persist end-session results for ${Array.from(failedStudentIds).join(', ')}. Session was not closed.`
+              );
+            }
+          }
+        } else {
+          // BUG-FIX: Submit ALL unsubmitted students (not just disconnected ones)
+          const unsubmittedStudents = identifyUnsubmittedStudents(session.players);
+          let autoSubmitResults: Array<{ success: boolean; studentId: string; error?: string }> = [];
+          if (unsubmittedStudents.length > 0) {
+            console.log(`🔄 [BUG-FIX] Found ${unsubmittedStudents.length} unsubmitted students - saving results...`);
+
+            if (testQuestions) {
+              // Use proper auto-submit with marking and full Firebase indexes
+              autoSubmitResults = await autoSubmitAllUnsubmittedStudents(
+                sessionCode,
+                session.testId,
+                unsubmittedStudents,
+                testQuestions,
+                {
+                  title: autoSubmitMetadata.title,
+                  type: autoSubmitMetadata.type,
+                  skill: autoSubmitMetadata.skill,
+                  duration: autoSubmitMetadata.duration,
+                },
+                teacherId,
+                session.startTime || null,
+                academicContext
+              );
+            } else {
+              // Fallback: preserve submissions for every unsubmitted student, not
+              // just disconnected ones, when monitor metadata is unavailable.
+              console.warn('⚠️ [BUG-FIX] Full test data not available, falling back to broad auto-submit');
+              if (unsubmittedStudents.length > 0) {
+                autoSubmitResults = await autoSubmitDisconnectedStudents(
+                  sessionCode,
+                  session.testId,
+                  unsubmittedStudents,
+                  {
+                    title: autoSubmitMetadata.title,
+                    type: autoSubmitMetadata.type,
+                    skill: autoSubmitMetadata.skill,
+                    duration: autoSubmitMetadata.duration,
+                    questionCount: autoSubmitMetadata.questionCount,
+                  },
                   teacherId,
                   session.startTime || null,
                   academicContext
@@ -450,44 +643,30 @@ export function useMonitorControls(
               }
             }
           }
-        } else {
-          // BUG-FIX: Submit ALL unsubmitted students (not just disconnected ones)
-          const unsubmittedStudents = identifyUnsubmittedStudents(session.players);
-          if (unsubmittedStudents.length > 0) {
-            console.log(`🔄 [BUG-FIX] Found ${unsubmittedStudents.length} unsubmitted students - saving results...`);
-
-            if (testQuestions && testData) {
-              // Use proper auto-submit with marking and full Firebase indexes
-              await autoSubmitAllUnsubmittedStudents(
-                sessionCode,
-                session.testId,
-                unsubmittedStudents,
-                testQuestions,
-                { title: testData.title, type: testData.type, skill: testData.skill, duration: testData.duration },
-                teacherId,
-                session.startTime || null,
-                academicContext
-              );
-            } else {
-              // Fallback: use legacy disconnected-only submit if test data not available
-              console.warn('⚠️ [BUG-FIX] Full test data not available, falling back to legacy auto-submit');
-              const disconnectedStudents = identifyDisconnectedStudents(session.players);
-              if (disconnectedStudents.length > 0) {
-                await autoSubmitDisconnectedStudents(sessionCode, session.testId, disconnectedStudents);
-              }
-            }
-          }
 
           // Mark all unsubmitted players as completed in Firebase
-          if (unsubmittedStudents.length > 0) {
+          const failedStudentIds = new Set(
+            autoSubmitResults.filter((result) => !result.success).map((result) => result.studentId)
+          );
+          const studentsReadyForCompletion = unsubmittedStudents.filter(
+            (student) => !failedStudentIds.has(student.studentId)
+          );
+
+          if (studentsReadyForCompletion.length > 0) {
             const playerCompletionUpdates: Record<string, any> = {};
-            unsubmittedStudents.forEach(student => {
+            studentsReadyForCompletion.forEach(student => {
               playerCompletionUpdates[`players/${student.studentId}/hasCompletedTest`] = true;
               playerCompletionUpdates[`players/${student.studentId}/completedAt`] = now;
               playerCompletionUpdates[`players/${student.studentId}/submittedBy`] = 'teacher-end';
               playerCompletionUpdates[`players/${student.studentId}/isSubmitted`] = true;
             });
             await update(sessionRef, playerCompletionUpdates);
+          }
+
+          if (failedStudentIds.size > 0) {
+            throw new Error(
+              `Failed to persist end-session results for ${Array.from(failedStudentIds).join(', ')}. Session was not closed.`
+            );
           }
         }
       }
@@ -573,9 +752,9 @@ export function useMonitorControls(
               playerUpdates[`players/${playerId}/forceSubmittedBy`] = null;
               playerUpdates[`players/${playerId}/forceSubmitRequestedAt`] = null;
               playerUpdates[`players/${playerId}/submissionResetAt`] = null;
-              playerUpdates[`players/${playerId}/latestResultId`] = null;
               // NOTE: We intentionally DO NOT clear lastTestId, lastTestSessionCode, lastTestEndedAt
-              // These persist so students can always find their last test results
+              // These persist so students can always find their last test results.
+              // latestResultId is also preserved as a direct pointer to the canonical row.
             });
 
             await update(sessionRef, playerUpdates);
@@ -615,7 +794,7 @@ export function useMonitorControls(
       }
     } catch (error) {
       console.error('❌ [PRD-0019] Error ending full session:', error);
-      alert('Failed to end test. Please try again.');
+      alert(error instanceof Error ? error.message : 'Failed to end test. Please try again.');
     }
   };
 

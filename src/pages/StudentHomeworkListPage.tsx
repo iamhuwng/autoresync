@@ -8,6 +8,7 @@ import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
 import { S } from '../components/layout/studentLayoutStyles';
 import { ResultSlidePanel } from '../components/results/ResultSlidePanel';
+import { buildRoute } from '../constants/routes';
 
 // ─── Utility: Date Formatting & Status ──────────────────────────────────────
 const formatDate = (timestamp: number): string => {
@@ -50,6 +51,7 @@ const getStatusColor = (status: string): { bg: string; text: string } => {
         case 'not_started': return { bg: '#f3f4f6', text: '#374151' }; // gray
         case 'in_progress': return { bg: '#dbeafe', text: '#2563eb' }; // blue
         case 'submitted': return { bg: '#d1fae5', text: '#059669' };   // green
+        case 'graded': return { bg: '#dcfce7', text: '#166534' };      // green
         case 'overdue': return { bg: '#fef2f2', text: '#dc2626' };     // red
         default: return { bg: '#f3f4f6', text: '#374151' };
     }
@@ -121,6 +123,45 @@ const localStyles: any = {
     }
 };
 
+function getHomeworkResultDisplay(
+    latestSubmission: StudentHomeworkItem['latestSubmission'],
+    canViewFeedback: boolean
+): { label: string; value: string; valueColor: string } {
+    if (!latestSubmission) {
+        return { label: 'Result', value: '--', valueColor: '#9ca3af' };
+    }
+
+    if (canViewFeedback && typeof latestSubmission.percentage === 'number') {
+        return {
+            label: 'Your Score',
+            value: `${latestSubmission.percentage.toFixed(0)}%`,
+            valueColor: '#4f46e5',
+        };
+    }
+
+    if (canViewFeedback && typeof latestSubmission.bandScore === 'number') {
+        return {
+            label: 'Your Band',
+            value: `Band ${latestSubmission.bandScore.toFixed(1)}`,
+            valueColor: '#4f46e5',
+        };
+    }
+
+    if (latestSubmission.status === 'graded') {
+        return {
+            label: canViewFeedback ? 'Grade Ready' : 'Result Locked',
+            value: canViewFeedback ? 'Open Result' : 'Awaiting release',
+            valueColor: canViewFeedback ? '#4f46e5' : '#9ca3af',
+        };
+    }
+
+    return {
+        label: 'Pending Review',
+        value: 'Awaiting teacher',
+        valueColor: '#9ca3af',
+    };
+}
+
 export const StudentHomeworkListPage: React.FC = () => {
     const { user, profile } = useAuth();
     const navigate = useNavigate();
@@ -153,18 +194,19 @@ export const StudentHomeworkListPage: React.FC = () => {
         }
 
         // If already submitted / completed, go to academic record to view results
-        if (status === 'submitted' && latestSubmission?.resultId) {
+        if ((status === 'submitted' || status === 'graded') && latestSubmission?.resultId) {
             setSelectedResultId(latestSubmission.resultId);
             return;
         }
 
         // If there's an in-progress submission, resume it directly
         if (status === 'in_progress' && latestSubmission?.id) {
-            navigate(`/student/practice/${homework.materialId}`, {
+            navigate(buildRoute('STUDENT_PRACTICE', { materialId: homework.materialId }), {
                 state: {
                     isHomework: true,
                     homeworkId: homework.id,
                     submissionId: latestSubmission.id,
+                    teacherId: homework.createdBy,
                     dueDate: homework.scheduling?.dueDate,
                     lateSubmissionAllowed: homework.config?.lateSubmissionAllowed ?? false,
                 },
@@ -180,11 +222,12 @@ export const StudentHomeworkListPage: React.FC = () => {
                     user.uid,
                     user.displayName || 'Student',
                 );
-                navigate(`/student/practice/${homework.materialId}`, {
+                navigate(buildRoute('STUDENT_PRACTICE', { materialId: homework.materialId }), {
                     state: {
                         isHomework: true,
                         homeworkId: homework.id,
                         submissionId: submission.id,
+                        teacherId: homework.createdBy,
                         dueDate: homework.scheduling?.dueDate,
                         lateSubmissionAllowed: homework.config?.lateSubmissionAllowed ?? false,
                     },
@@ -248,6 +291,7 @@ export const StudentHomeworkListPage: React.FC = () => {
                     const { homework, latestSubmission, attemptsUsed, attemptsRemaining, canSubmit, canViewFeedback, status } = item;
                     const timeInfo = getTimeRemaining(homework.scheduling.dueDate);
                     const isCardOverdue = status === 'overdue';
+                    const resultDisplay = getHomeworkResultDisplay(latestSubmission, canViewFeedback);
 
                     const statColor = getStatusColor(status);
                     const sklColor = getSkillColor(homework.materialSkill);
@@ -325,10 +369,10 @@ export const StudentHomeworkListPage: React.FC = () => {
                                     }}
                                 >
                                     <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#475569' }}>
-                                        {canViewFeedback ? 'Your Score' : 'Score Hidden'}
+                                        {resultDisplay.label}
                                     </span>
-                                    <span style={{ fontSize: '1.125rem', fontWeight: 700, color: canViewFeedback ? '#4f46e5' : '#9ca3af' }}>
-                                        {canViewFeedback ? `${latestSubmission.percentage?.toFixed(0)}%` : '--'}
+                                    <span style={{ fontSize: '1.125rem', fontWeight: 700, color: resultDisplay.valueColor }}>
+                                        {resultDisplay.value}
                                     </span>
                                 </div>
                             )}

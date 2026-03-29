@@ -15,7 +15,12 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Modal, Center, Loader, ScrollArea, Text } from '@mantine/core';
-import { getStudentSessionResult, getStudentResults, TestResultRecord } from '../../services/testResults.service';
+import {
+    getStudentSessionResult,
+    getStudentResults,
+    getTestResult,
+    TestResultRecord,
+} from '../../services/testResults.service';
 import { calculateBandScore, generatePerformanceFeedback } from '../../services/autoMarking.service';
 import { sessionService } from '../../services/sessionService';
 import { ref, get } from 'firebase/database';
@@ -69,8 +74,11 @@ export const TestResultsModal: React.FC<TestResultsModalProps> = ({
      * Strategy 2: Query test_results_by_student/{studentId} and filter by sessionCode
      *   - Fallback if the session index write was delayed/failed but student index succeeded
      * 
-     * Strategy 3: Read player's lastTestId from game session and search by testId
-     *   - Ultimate fallback using the persistent lastTestId we save on each player node
+     * Strategy 3: Read player's latestResultId from game session and load canonical row directly
+     *   - Durable pointer when secondary indexes are delayed or missing
+     *
+     * Strategy 4: Read player's lastTestId from game session and search by testId
+     *   - Legacy fallback using the persistent lastTestId we save on each player node
      */
     const loadResult = useCallback(async (retryCount = 0) => {
         const MAX_RETRIES = 7;
@@ -127,17 +135,36 @@ export const TestResultsModal: React.FC<TestResultsModalProps> = ({
                 console.warn('[TestResultsModal] Student index fallback failed:', fallbackErr);
             }
 
-            // Strategy 3: Read player's lastTestId and search in student results
-            // The teacher saves lastTestId on each player node before clearing the session
-            if (retryCount >= 2) { // Only try this on later retries
-                try {
-                    const playerRef = ref(database, `game_sessions/${sessionCode}/players/${studentId}`);
-                    const playerSnap = await get(playerRef);
-                    if (!openedRef.current) {
-                        return;
+            // Strategy 3: Read the player's direct canonical result pointer
+            try {
+                const playerRef = ref(database, `game_sessions/${sessionCode}/players/${studentId}`);
+                const playerSnap = await get(playerRef);
+                if (!openedRef.current) {
+                    return;
+                }
+                if (playerSnap.exists()) {
+                    const playerData = playerSnap.val();
+                    const latestResultId = playerData.latestResultId;
+                    if (latestResultId) {
+                        console.log(`🔍 [TestResultsModal] Trying with latestResultId: ${latestResultId}`);
+                        const directResult = await getTestResult(latestResultId);
+                        if (!openedRef.current) {
+                            return;
+                        }
+                        if (
+                            directResult
+                            && directResult.studentId === studentId
+                            && directResult.sessionCode === sessionCode
+                        ) {
+                            console.log('✅ [TestResultsModal] Found result via latestResultId (direct fallback)');
+                            setResult(directResult);
+                            setLoading(false);
+                            return;
+                        }
                     }
-                    if (playerSnap.exists()) {
-                        const playerData = playerSnap.val();
+
+                    // Strategy 4: Legacy lastTestId fallback via student history
+                    if (retryCount >= 2) {
                         const lastTestId = playerData.lastTestId;
                         if (lastTestId) {
                             console.log(`🔍 [TestResultsModal] Trying with lastTestId: ${lastTestId}`);
@@ -156,9 +183,9 @@ export const TestResultsModal: React.FC<TestResultsModalProps> = ({
                             }
                         }
                     }
-                } catch (lastTestErr) {
-                    console.warn('[TestResultsModal] lastTestId fallback failed:', lastTestErr);
                 }
+            } catch (lastTestErr) {
+                console.warn('[TestResultsModal] direct player fallback failed:', lastTestErr);
             }
 
             // Result not available yet — retry with increasing delays
@@ -300,6 +327,11 @@ export const TestResultsModal: React.FC<TestResultsModalProps> = ({
         // PRD-0040 Phase 2: Derive visibility flags from release state
         const effectiveState = getEffectiveReleaseState(reviewReleaseState);
         const visibility = getReleaseVisibility(effectiveState);
+        const questionResults = Array.isArray(result.questionResults)
+            ? result.questionResults
+            : [];
+        const hasQuestionBreakdown = questionResults.length > 0;
+        const isWritingResult = result.testSkill === 'writing' || Boolean((result as any).writingData);
 
         const feedback = visibility.showAIFeedback ? generatePerformanceFeedback(result.percentage) : null;
 
@@ -566,7 +598,7 @@ export const TestResultsModal: React.FC<TestResultsModalProps> = ({
                         </div>
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
-                            {result.questionResults.map((qr) => {
+                            {hasQuestionBreakdown ? questionResults.map((qr) => {
                                 const isExpanded = expandedQuestions.has(qr.questionNumber);
                                 // PRD-0040: In locked-review, all questions appear as neutral (no correct/incorrect indication)
                                 const sc = !visibility.showCorrectAnswers
@@ -708,7 +740,23 @@ export const TestResultsModal: React.FC<TestResultsModalProps> = ({
                                         )}
                                     </div>
                                 );
-                            })}
+                            }) : (
+                                <div
+                                    style={{
+                                        padding: '1rem 1.25rem',
+                                        borderRadius: '0.875rem',
+                                        background: '#f8fafc',
+                                        border: '1px solid #e2e8f0',
+                                        color: '#475569',
+                                        fontSize: '0.9rem',
+                                        lineHeight: 1.6,
+                                    }}
+                                >
+                                    {isWritingResult
+                                        ? 'This writing submission does not include a per-question breakdown. Your writing result is saved, and detailed grading will appear once review is available.'
+                                        : 'Detailed question breakdown is not available for this result yet.'}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

@@ -269,15 +269,16 @@ const FeedbackStateCard: React.FC<{
   containerRef?: React.Ref<HTMLDivElement>;
   loading?: boolean;
   onRetry?: () => void;
+  retryLabel?: string;
   testId: string;
-}> = ({ title, body, icon, containerRef, loading = false, onRetry, testId }) => (
+}> = ({ title, body, icon, containerRef, loading = false, onRetry, retryLabel = 'Retry AI Feedback', testId }) => (
   <div ref={containerRef} className="fb-no-feedback" data-testid={testId}>
     <span className="fb-no-icon">{icon}</span>
     <p className="fb-no-text" style={{ marginBottom: 0 }}>{title}</p>
     <p className="fb-no-text" style={{ fontSize: '0.85rem', maxWidth: '42ch', color: '#64748b' }}>{body}</p>
     {!loading && onRetry ? (
       <button type="button" style={feedbackRetryButtonStyle} onClick={onRetry}>
-        Retry AI Feedback
+        {retryLabel}
       </button>
     ) : null}
   </div>
@@ -311,9 +312,11 @@ export const FeedbackTab: React.FC<FeedbackTabProps> = ({
 
   const hasStoredFeedback = !!formativeFeedback;
   const hasAIFeedback = !!formativeFeedback?.aiFeedback;
-  const needsFeedbackUpgrade = hasStoredFeedback && needsAiFeedbackUpgrade(formativeFeedback, result.questionResults as any);
+  const needsFeedbackUpgrade = hasStoredFeedback
+    && needsAiFeedbackUpgrade(formativeFeedback, result.questionResults as any, result);
   const storedFeedbackBody = formativeFeedback?.deterministicFeedback?.trim()
     || 'This result already has saved formative feedback. Additional AI generation is locked for this result.';
+  const feedbackRetryLabel = needsFeedbackUpgrade ? 'Retry AI Feedback' : 'Generate AI Feedback';
   const showTrendWidget = scoresLoading || scores.length > 0;
   const showClassPosition = !!classId;
 
@@ -415,6 +418,7 @@ export const FeedbackTab: React.FC<FeedbackTabProps> = ({
                   body={feedbackError || 'The saved AI summary exists, but some question explanations are still weak or fallback-based. Retry AI to refresh the detailed reasoning.'}
                   icon="ðŸ¤–"
                   onRetry={onRetryFeedback}
+                  retryLabel="Retry AI Feedback"
                   testId="fb-feedback-upgrade"
                 />
               ) : null}
@@ -429,6 +433,7 @@ export const FeedbackTab: React.FC<FeedbackTabProps> = ({
               icon="📝"
               containerRef={primaryLeftRef}
               onRetry={needsFeedbackUpgrade ? onRetryFeedback : undefined}
+              retryLabel={feedbackRetryLabel}
               testId="fb-feedback-stored"
             />
           ) : feedbackLoading ? (
@@ -447,6 +452,7 @@ export const FeedbackTab: React.FC<FeedbackTabProps> = ({
               icon="⚠️"
               containerRef={primaryLeftRef}
               onRetry={onRetryFeedback}
+              retryLabel="Generate AI Feedback"
               testId="fb-feedback-error"
             />
           ) : isEligibleForAIFeedback ? (
@@ -456,6 +462,7 @@ export const FeedbackTab: React.FC<FeedbackTabProps> = ({
               icon="🤖"
               containerRef={primaryLeftRef}
               onRetry={onRetryFeedback}
+              retryLabel="Generate AI Feedback"
               testId="fb-feedback-missing"
             />
           ) : (

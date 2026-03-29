@@ -14,7 +14,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { getAuth, signOut } from 'firebase/auth';
 import { buildRoute } from '../constants/routes';
 import {
-    getStudentResults,
+    getTeacherStudentResults,
     TestResultRecord,
 } from '../services/testResults.service';
 import { classifyTeacherResultVisibility } from '../services/resultVisibility.service';
@@ -323,7 +323,12 @@ export const TeacherStudentHistoryPage: React.FC = () => {
                     setError(null);
                 }
 
-                const results = await getStudentResults(studentId);
+                const results: TestResultRecord[] = await getTeacherStudentResults(
+                    currentUser.uid,
+                    studentId,
+                    undefined,
+                    { hasAssignmentAccess: canViewStudent },
+                );
 
                 if (!isMounted) {
                     return;

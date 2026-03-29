@@ -1,5 +1,5 @@
 import { renderHook, waitFor, act } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useTestSubmission } from './useTestSubmission';
 import { scoreQuestion } from '../../services/autoMarking.service';
 import { saveTestResult } from '../../services/testResults.service';
@@ -10,14 +10,12 @@ const {
   mockGet,
   mockUpdate,
   mockTrackAntiCheatAction,
-  mockTriggerFormativeFeedbackForSavedResult,
 } = vi.hoisted(() => ({
   mockNavigate: vi.fn(),
   mockUseLocation: vi.fn(),
   mockGet: vi.fn(),
   mockUpdate: vi.fn(),
   mockTrackAntiCheatAction: vi.fn(),
-  mockTriggerFormativeFeedbackForSavedResult: vi.fn(),
 }));
 
 vi.mock('react-router-dom', () => ({
@@ -56,11 +54,6 @@ vi.mock('../../services/testResults.service', () => ({
 
 vi.mock('../../services/emailNotification.service', () => ({
   sendResultNotification: vi.fn(() => Promise.resolve()),
-}));
-
-vi.mock('../../services/resultFeedbackGeneration.service', () => ({
-  triggerFormativeFeedbackForSavedResult: (...args: any[]) =>
-    mockTriggerFormativeFeedbackForSavedResult(...args),
 }));
 
 vi.mock('../../services/antiCheatReporting', () => ({
@@ -113,6 +106,10 @@ describe('useTestSubmission', () => {
     }) as any);
 
     vi.mocked(saveTestResult).mockResolvedValue('result-1');
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('persists the result, integrity snapshot, and redirect state after submit', async () => {
@@ -177,6 +174,14 @@ describe('useTestSubmission', () => {
       expect(saveTestResult).toHaveBeenCalled();
     });
 
+    expect(mockUpdate).toHaveBeenCalledWith(
+      'game_sessions/SESSION123/players/guest_1',
+      expect.objectContaining({
+        latestResultId: 'result-1',
+        lastResultPersistedAt: expect.any(Number),
+      }),
+    );
+
     const saveCall = vi.mocked(saveTestResult).mock.calls[0];
     expect(saveCall?.[7]).toBeUndefined();
     expect(saveCall?.[11]).toEqual(
@@ -195,7 +200,6 @@ describe('useTestSubmission', () => {
       replace: true,
       state: { showResults: true, sessionCode: 'SESSION123', testId: 'test-1' },
     });
-    expect(mockTriggerFormativeFeedbackForSavedResult).not.toHaveBeenCalled();
   });
 
   it('uses questionsWithAnswersRef as the grading source when provided', async () => {
@@ -266,7 +270,62 @@ describe('useTestSubmission', () => {
     );
   });
 
-  it('triggers shared formative feedback generation after saving an IELTS result', async () => {
+  it('does not mark the player submitted when permanent result persistence fails', async () => {
+    const alertMock = vi.fn();
+    vi.stubGlobal('alert', alertMock);
+    vi.mocked(saveTestResult).mockRejectedValueOnce(new Error('RTDB rejected undefined'));
+
+    const { result } = renderHook(() =>
+      useTestSubmission({
+        testData: {
+          id: 'test-1',
+          duration: 60,
+          skill: 'Reading',
+          questionCount: 1,
+          questions: [
+            {
+              number: 1,
+              type: 'multiple-choice',
+              question: 'Q1',
+              options: ['A', 'B'],
+              passageId: 'p1',
+              points: 1,
+            },
+          ],
+        } as any,
+        session: {
+          testId: 'test-1',
+          sessionCode: 'SESSION123',
+          studentName: 'Guest Student',
+          startTime: 1,
+          answers: {},
+          isSubmitted: false,
+        },
+        sessionCode: 'SESSION123',
+        answers: {
+          1: 'A',
+        },
+        timeRemaining: 3000,
+      }),
+    );
+
+    await act(async () => {
+      await result.current.handleSubmit(false);
+    });
+
+    expect(mockUpdate).not.toHaveBeenCalledWith(
+      'game_sessions/SESSION123/players/guest_1',
+      expect.objectContaining({
+        isSubmitted: true,
+        hasCompletedTest: true,
+      }),
+    );
+    expect(alertMock).toHaveBeenCalledWith(
+      'Failed to submit test. Please try again.'
+    );
+  });
+
+  it('passes IELTS breakdown data to saveTestResult so the writer can trigger feedback', async () => {
     const { result } = renderHook(() =>
       useTestSubmission({
         testData: {
@@ -307,8 +366,19 @@ describe('useTestSubmission', () => {
     });
 
     await waitFor(() => {
-      expect(mockTriggerFormativeFeedbackForSavedResult).toHaveBeenCalledWith('result-1');
+      expect(saveTestResult).toHaveBeenCalled();
     });
+
+    const saveCall = vi.mocked(saveTestResult).mock.calls[0];
+    expect(saveCall?.[13]).toEqual(
+      expect.objectContaining({
+        passageResults: expect.arrayContaining([
+          expect.objectContaining({
+            passageName: 'Passage 1',
+          }),
+        ]),
+      }),
+    );
   });
 
   it('links the saved result back to class assignment progress when class navigation state is present', async () => {

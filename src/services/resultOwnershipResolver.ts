@@ -61,6 +61,7 @@ export interface ResolveResultOwnershipInput {
     result?: Partial<EnhancedTestResultRecord> | null;
     context?: ResultContext | null;
     contextType?: ResultVisibilityContextType | null;
+    teacherId?: string | null;
     sessionCode?: string | null;
     classId?: string | null;
     courseId?: string | null;
@@ -91,6 +92,7 @@ type NormalizedIdentifiers = {
     sourceType: ResultVisibilitySourceType;
     sourceId: string | null;
     sourceNameSnapshot: string | null;
+    teacherId: string | null;
     homeworkId: string | null;
     sessionCode: string | null;
     courseId: string | null;
@@ -318,6 +320,21 @@ async function resolveSessionOwnership(
 
     const session = await dependencies.getSession(identifiers.sessionCode);
     if (!session) {
+        const fallbackTeacherId = sanitizeTeacherUid(identifiers.teacherId);
+        if (fallbackTeacherId) {
+            return resolvedResult({
+                identifiers: {
+                    ...identifiers,
+                    contextType,
+                    sourceType: 'session',
+                    sourceId: identifiers.sessionCode,
+                },
+                visibilityOwnerTeacherId: fallbackTeacherId,
+                ownerResolutionSource: 'result.teacherId',
+                currentSourceName: identifiers.sourceNameSnapshot,
+            });
+        }
+
         return unresolvedResult({
             identifiers: {
                 ...identifiers,
@@ -362,6 +379,23 @@ async function resolveSessionOwnership(
             },
             visibilityOwnerTeacherId: createdBy,
             ownerResolutionSource: 'session.createdBy',
+            currentSourceName: getDisplayName(session),
+        });
+    }
+
+    const fallbackTeacherId = sanitizeTeacherUid(identifiers.teacherId);
+    if (fallbackTeacherId) {
+        return resolvedResult({
+            identifiers: {
+                ...identifiers,
+                contextType,
+                sourceType: 'session',
+                sourceId: identifiers.sessionCode,
+                classId: identifiers.classId ?? session.linkedClassId ?? session.classId ?? null,
+                courseId: identifiers.courseId ?? session.courseId ?? null,
+            },
+            visibilityOwnerTeacherId: fallbackTeacherId,
+            ownerResolutionSource: 'result.teacherId',
             currentSourceName: getDisplayName(session),
         });
     }
@@ -525,25 +559,27 @@ function resolveSoloPracticeOwnership(
 }
 
 function resolvedResult(args: ResolveSuccessArgs): ResultOwnershipResolutionResult {
+    const visibility: ResultVisibilitySnapshot = {
+        contextType: args.identifiers.contextType,
+        sourceType: args.identifiers.sourceType,
+        sourceId: args.identifiers.sourceId,
+        sourceNameSnapshot: args.identifiers.sourceNameSnapshot,
+        visibilityOwnerTeacherId: args.visibilityOwnerTeacherId,
+        ownerResolutionSource: args.ownerResolutionSource,
+        ownershipResolved: true,
+        unresolvedReason: null,
+        homeworkId: args.identifiers.homeworkId,
+        sessionCode: args.identifiers.sessionCode,
+        courseId: args.identifiers.courseId,
+        classId: args.identifiers.classId,
+        assignmentId: args.identifiers.assignmentId,
+        currentSourceName: args.currentSourceName ?? null,
+        ...(args.sourceDeleted !== undefined ? { sourceDeleted: args.sourceDeleted } : {}),
+        ...(args.sourceArchived !== undefined ? { sourceArchived: args.sourceArchived } : {}),
+    };
+
     return {
-        visibility: {
-            contextType: args.identifiers.contextType,
-            sourceType: args.identifiers.sourceType,
-            sourceId: args.identifiers.sourceId,
-            sourceNameSnapshot: args.identifiers.sourceNameSnapshot,
-            visibilityOwnerTeacherId: args.visibilityOwnerTeacherId,
-            ownerResolutionSource: args.ownerResolutionSource,
-            ownershipResolved: true,
-            unresolvedReason: null,
-            homeworkId: args.identifiers.homeworkId,
-            sessionCode: args.identifiers.sessionCode,
-            courseId: args.identifiers.courseId,
-            classId: args.identifiers.classId,
-            assignmentId: args.identifiers.assignmentId,
-            sourceDeleted: args.sourceDeleted,
-            sourceArchived: args.sourceArchived,
-            currentSourceName: args.currentSourceName ?? null,
-        },
+        visibility,
         sourceLookupAttempted: true,
         strongestKnownSourceClue: buildSourceClue(
             args.identifiers.sourceType,
@@ -553,25 +589,27 @@ function resolvedResult(args: ResolveSuccessArgs): ResultOwnershipResolutionResu
 }
 
 function unresolvedResult(args: ResolveUnresolvedArgs): ResultOwnershipResolutionResult {
+    const visibility: ResultVisibilitySnapshot = {
+        contextType: args.identifiers.contextType,
+        sourceType: args.identifiers.sourceType,
+        sourceId: args.identifiers.sourceId,
+        sourceNameSnapshot: args.identifiers.sourceNameSnapshot,
+        visibilityOwnerTeacherId: null,
+        ownerResolutionSource: 'unresolved',
+        ownershipResolved: false,
+        unresolvedReason: args.unresolvedReason,
+        homeworkId: args.identifiers.homeworkId,
+        sessionCode: args.identifiers.sessionCode,
+        courseId: args.identifiers.courseId,
+        classId: args.identifiers.classId,
+        assignmentId: args.identifiers.assignmentId,
+        currentSourceName: args.currentSourceName ?? null,
+        ...(args.sourceDeleted !== undefined ? { sourceDeleted: args.sourceDeleted } : {}),
+        ...(args.sourceArchived !== undefined ? { sourceArchived: args.sourceArchived } : {}),
+    };
+
     return {
-        visibility: {
-            contextType: args.identifiers.contextType,
-            sourceType: args.identifiers.sourceType,
-            sourceId: args.identifiers.sourceId,
-            sourceNameSnapshot: args.identifiers.sourceNameSnapshot,
-            visibilityOwnerTeacherId: null,
-            ownerResolutionSource: 'unresolved',
-            ownershipResolved: false,
-            unresolvedReason: args.unresolvedReason,
-            homeworkId: args.identifiers.homeworkId,
-            sessionCode: args.identifiers.sessionCode,
-            courseId: args.identifiers.courseId,
-            classId: args.identifiers.classId,
-            assignmentId: args.identifiers.assignmentId,
-            sourceDeleted: args.sourceDeleted,
-            sourceArchived: args.sourceArchived,
-            currentSourceName: args.currentSourceName ?? null,
-        },
+        visibility,
         sourceLookupAttempted: args.sourceLookupAttempted,
         strongestKnownSourceClue: args.strongestKnownSourceClue,
     };
@@ -581,6 +619,10 @@ function normalizeIdentifiers(input: ResolveResultOwnershipInput): NormalizedIde
     const result = input.result ?? {};
     const context = input.context ?? result.context ?? null;
     const visibility = result.visibility ?? null;
+    const resultTeacherId =
+        typeof result.teacherId === 'string'
+            ? result.teacherId
+            : null;
 
     const sessionCode =
         input.sessionCode
@@ -638,6 +680,11 @@ function normalizeIdentifiers(input: ResolveResultOwnershipInput): NormalizedIde
             ?? result.className
             ?? result.courseName
             ?? result.testTitle
+            ?? null,
+        teacherId:
+            input.teacherId
+            ?? visibility?.visibilityOwnerTeacherId
+            ?? resultTeacherId
             ?? null,
         homeworkId,
         sessionCode,

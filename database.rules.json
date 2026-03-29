@@ -35,6 +35,16 @@
                 "status"
             ]
         },
+        "student_teacher_links": {
+            ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+            "$teacherId": {
+                ".read": "$teacherId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && auth.uid === $teacherId)",
+                "$studentId": {
+                    ".validate": "newData.val() === true || !newData.exists()"
+                }
+            }
+        },
         "assignment_history": {
             ".read": "root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
             "$historyId": {
@@ -61,7 +71,7 @@
         "test_results": {
             ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
             "$resultId": {
-                ".read": "data.child('studentId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && data.child('visibility').child('ownershipResolved').val() === true && data.child('visibility').child('visibilityOwnerTeacherId').val() === auth.uid)",
+                ".read": "data.child('studentId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && data.child('visibility').child('ownershipResolved').val() === true && (data.child('visibility').child('visibilityOwnerTeacherId').val() === auth.uid || (data.child('visibility').child('contextType').val() === 'solo_practice' && root.child('student_teacher_links').child(auth.uid).child(data.child('studentId').val()).val() === true)))",
                 ".write": "auth != null"
             },
             ".indexOn": [
@@ -88,6 +98,23 @@
             "$studentId": {
                 ".read": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
                 ".write": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                "$resultId": {
+                    ".write": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && root.child('test_results').child($resultId).child('studentId').val() === $studentId && root.child('test_results').child($resultId).child('visibility').child('ownershipResolved').val() === true && root.child('test_results').child($resultId).child('visibility').child('visibilityOwnerTeacherId').val() === auth.uid)"
+                },
+                ".indexOn": [
+                    "submittedAt"
+                ]
+            }
+        },
+        "test_results_solo_practice_by_student": {
+            ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+            "$studentId": {
+                ".read": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && root.child('student_teacher_links').child(auth.uid).child($studentId).val() === true)",
+                ".write": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                "$resultId": {
+                    ".write": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                    ".validate": "!newData.exists() || (newData.hasChildren(['resultId', 'submittedAt']) && newData.child('resultId').val() === $resultId)"
+                },
                 ".indexOn": [
                     "submittedAt"
                 ]
@@ -96,8 +123,11 @@
         "test_results_by_session": {
             ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
             "$sessionCode": {
-                ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('game_sessions').child($sessionCode).child('createdByUserId').val() === auth.uid || root.child('game_sessions').child($sessionCode).child('createdBy').val() === auth.uid",
                 ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' || data.child('studentId').val() === auth.uid || newData.child('studentId').val() === auth.uid",
+                "$resultId": {
+                    ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('test_results').child($resultId).child('sessionCode').val() === $sessionCode && root.child('test_results').child($resultId).child('studentId').val() === auth.uid) || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && root.child('test_results').child($resultId).child('sessionCode').val() === $sessionCode && root.child('test_results').child($resultId).child('visibility').child('ownershipResolved').val() === true && root.child('test_results').child($resultId).child('visibility').child('visibilityOwnerTeacherId').val() === auth.uid)"
+                },
                 ".indexOn": [
                     "submittedAt"
                 ]
@@ -127,6 +157,14 @@
                         "submittedAt"
                     ]
                 }
+            }
+        },
+        "writing_grading_locks": {
+            ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+            "$submissionId": {
+                ".read": "root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                ".write": "root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                ".validate": "!newData.exists() || (newData.hasChildren(['teacherId', 'sessionId', 'heartbeatAt', 'expiresAt']) && newData.child('teacherId').isString() && newData.child('sessionId').isString() && newData.child('heartbeatAt').isNumber() && newData.child('expiresAt').isNumber())"
             }
         },
         "audit_logs": {
@@ -467,7 +505,7 @@
                     "$resultId": {
                         ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
                         ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() !== 'guest'",
-                        ".validate": "!newData.exists() || ((root.child('test_results').child($resultId).exists() || newData.root.child('test_results').child($resultId).exists()) && newData.hasChildren(['resultId', 'studentId', 'contextType', 'unresolvedReason', 'sourceLookupAttempted', 'ownershipResolved', 'createdAt', 'updatedAt', 'reportVersion']) && newData.child('resultId').val() === $resultId && newData.child('ownershipResolved').val() === false && newData.child('studentId').val() === (newData.root.child('test_results').child($resultId).child('studentId').val() || root.child('test_results').child($resultId).child('studentId').val()))"
+                        ".validate": "!newData.exists() || (root.child('test_results').child($resultId).exists() && newData.hasChildren(['resultId', 'studentId', 'contextType', 'unresolvedReason', 'sourceLookupAttempted', 'ownershipResolved', 'createdAt', 'updatedAt', 'reportVersion']) && newData.child('resultId').val() === $resultId && newData.child('ownershipResolved').val() === false && newData.child('studentId').val() === root.child('test_results').child($resultId).child('studentId').val())"
                     }
                 }
             },

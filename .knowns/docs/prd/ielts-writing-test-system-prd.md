@@ -1,13 +1,8 @@
 ---
 title: IELTS Writing Test System PRD
+description: Complete PRD (0030) for the IELTS Writing test system covering test creation, student essay writing, teacher grading with inline annotations, solo practice, homework integration, notifications, academic record, and THCS writing integration. Includes TypeScript data models, IELTS band score calculation rules, storage architecture, and detailed UI mockups.
 createdAt: '2026-02-27T18:25:58.493Z'
-updatedAt: '2026-02-27T18:33:28.198Z'
-description: >-
-  Complete PRD (0030) for the IELTS Writing test system covering test creation,
-  student essay writing, teacher grading with inline annotations, solo practice,
-  homework integration, notifications, academic record, and THCS writing
-  integration. Includes TypeScript data models, IELTS band score calculation
-  rules, storage architecture, and detailed UI mockups.
+updatedAt: '2026-03-29T22:09:55.587Z'
 tags:
   - prd
   - ielts
@@ -15,6 +10,7 @@ tags:
   - grading
   - test-system
 ---
+
 # IELTS Writing Test System PRD (0030)
 
 > **Source:** documentation/tasks/0030-prd-ielts-writing-test-system.md
@@ -211,3 +207,18 @@ AI grading, speaking test, batch grading, mobile grading, version control, templ
 > **`documentation/tasks/0030-prd-ielts-writing-test-system.md`** (1300+ lines)
 >
 > Always read the full PRD when implementing. This doc is for quick reference and discoverability only.
+
+
+## Superseded UI Finalization Note
+
+For the latest finalized teacher grading editor layout and comment interaction rules, use @doc/specs/ielts-writing-grading-editor-finalization-2026-03-30.
+
+This PRD remains product context, but the finalization doc is the operative UI reference for the grading editor.
+
+
+## Finalization Note 2026-03-30
+- The canonical finalized UI and interaction source of truth for the teacher writing grading page is @doc/specs/ielts-writing-grading-editor-finalization-2026-03-30.
+- This PRD remains valid for product scope and business intent, but detailed grading-editor layout and interaction rules should now follow the finalization doc and its paired finalized mockup.
+- Finalized deltas include: teacher-shell containment with homework-style page language, comment tooltip body without repeated selected text, comments ordered by essay position in a responsive right-column list, and per-task `Task Summary` replacing editable submission-level `Overall Summary`.
+
+- Latest finalized UI refinement also includes the compact inline existing-comment edit workspace and the reduced-radius segmented-control treatment described in @doc/specs/ielts-writing-grading-editor-finalization-2026-03-30.

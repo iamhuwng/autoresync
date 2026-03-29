@@ -1,14 +1,13 @@
 ---
 title: Grading Editor Redesign
+description: Specification for redesigning the IELTS Writing grading editor with TipTap rich essay editor, Google Docs-style comments, and 3-tab right panel
 createdAt: '2026-03-01T05:40:45.441Z'
-updatedAt: '2026-03-01T06:46:38.170Z'
-description: >-
-  Specification for redesigning the IELTS Writing grading editor with TipTap
-  rich essay editor, Google Docs-style comments, and 3-tab right panel
+updatedAt: '2026-03-29T21:51:22.769Z'
 tags:
   - spec
   - approved
 ---
+
 ## Overview
 
 Complete redesign of the IELTS Writing grading editor (`WritingGradingModal`). Replaces the current offset-based annotation system and 5 separate TipTap feedback editors with a modern 2-column layout featuring a TipTap rich essay editor (left) and a 3-tab panel (right) with Google Docs-style comments.
@@ -455,3 +454,18 @@ interface GradingComment {
 
 - [ ] Should resolved comments be visible to students in the result view, or only active comments?
 - [ ] Should Quick Comments presets eventually sync across devices via Firestore (future enhancement)?
+
+
+## Superseded UI Finalization Note
+
+This document remains useful as historical redesign context, but the finalized interaction contract now lives in @doc/specs/ielts-writing-grading-editor-finalization-2026-03-30.
+
+When this document conflicts with the latest teacher writing grading editor behavior, follow the finalization doc.
+
+
+## Superseded Finalization Update 2026-03-30
+- This redesign spec is now superseded for final interaction and layout decisions by @doc/specs/ielts-writing-grading-editor-finalization-2026-03-30.
+- Finalized changes include: homework-style teacher-page visual language, responsive full-width sidebar comment cards, tooltip content without repeating selected text, removal of submission-level `Overall Summary`, per-task `Task Summary` as the publish requirement, and removal of essay-bottom word/time metadata.
+- If any section in this redesign spec conflicts with the finalization doc, follow the finalization doc.
+
+- Additional finalized UI delta: existing-comment edit mode now uses a compact inline edit workspace with a single source-context row and reduced-radius controls, instead of reusing the full new-comment composer hierarchy inside the focused card.

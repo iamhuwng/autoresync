@@ -84,10 +84,23 @@ export function useHomeworkSubmission({
     const completedSubmissions = allSubmissions.filter(
         s => s.status === 'submitted' || s.status === 'graded'
     );
-    const bestSubmission = completedSubmissions.reduce<HomeworkSubmission | null>(
+    const scoredSubmissions = completedSubmissions.filter(
+        submission =>
+            typeof submission.percentage === 'number'
+            || typeof submission.bandScore === 'number'
+    );
+    const bestSubmission = scoredSubmissions.reduce<HomeworkSubmission | null>(
         (best, current) => {
             if (!best) return current;
-            return (current.percentage || 0) > (best.percentage || 0) ? current : best;
+
+            const currentValue = typeof current.percentage === 'number'
+                ? current.percentage
+                : current.bandScore ?? Number.NEGATIVE_INFINITY;
+            const bestValue = typeof best.percentage === 'number'
+                ? best.percentage
+                : best.bandScore ?? Number.NEGATIVE_INFINITY;
+
+            return currentValue > bestValue ? current : best;
         },
         null
     );
@@ -271,7 +284,7 @@ export interface StudentHomeworkItem {
     isOverdue: boolean;
     canSubmit: boolean;
     canViewFeedback: boolean;
-    status: 'not_started' | 'in_progress' | 'submitted' | 'overdue';
+    status: 'not_started' | 'in_progress' | 'submitted' | 'graded' | 'overdue';
 }
 
 export interface UseStudentHomeworkListReturn {
@@ -319,7 +332,9 @@ export function useStudentHomeworkList(
                 if (submission) {
                     if (submission.status === 'in_progress') {
                         status = 'in_progress';
-                    } else if (submission.status === 'submitted' || submission.status === 'graded') {
+                    } else if (submission.status === 'graded') {
+                        status = 'graded';
+                    } else if (submission.status === 'submitted') {
                         status = 'submitted';
                     }
                 }
@@ -370,7 +385,7 @@ export function useStudentHomeworkList(
     // Categorized lists
     const notStarted = homeworkItems.filter(i => i.status === 'not_started');
     const inProgress = homeworkItems.filter(i => i.status === 'in_progress');
-    const completed = homeworkItems.filter(i => i.status === 'submitted');
+    const completed = homeworkItems.filter(i => i.status === 'submitted' || i.status === 'graded');
     const overdue = homeworkItems.filter(i => i.status === 'overdue');
 
     return {

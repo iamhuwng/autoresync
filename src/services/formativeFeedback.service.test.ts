@@ -279,10 +279,78 @@ describe('formativeFeedback.service', () => {
 
     expect(prompt.systemPrompt).toContain('IELTS tutor');
     expect(prompt.userPrompt).toContain('Band score');
-    expect(prompt.userPrompt).toContain('Passage performance');
+    expect(prompt.userPrompt).toContain('Segment performance');
     expect(prompt.userPrompt).toContain('Question-type analysis');
     expect(prompt.userPrompt).toContain('time-management advice');
     expect(prompt.userPrompt).toContain('Grammar for IELTS');
+    expect(prompt.userPrompt).toContain('"studyRecommendations"');
+  });
+
+  it('labels IELTS listening prompts with part-based breakdown metadata', () => {
+    const gradingResult = {
+      totalPoints: 33,
+      maxPoints: 40,
+      scaledScore: 7.5,
+      sectionResults: [
+        {
+          sectionId: 'part-1',
+          sectionName: 'Part 1',
+          pointsEarned: 8,
+          pointsMax: 10,
+          correctCount: 8,
+          totalCount: 10,
+          percentage: 80,
+          intentBreakdown: {
+            form_completion: { correct: 8, total: 10 },
+          },
+        },
+      ],
+      questionResults: {
+        1: {
+          questionNumber: 1,
+          isCorrect: false,
+          studentAnswer: '',
+          correctAnswer: 'railway station',
+          pointsEarned: 0,
+          pointsMax: 1,
+        },
+      },
+    } as any;
+
+    const sections = [
+      {
+        id: 'part-1',
+        name: 'Part 1',
+        questions: [
+          {
+            questionNumber: 1,
+            questionText: 'Question 1',
+            type: 'form_completion',
+          },
+        ],
+      },
+    ] as any;
+
+    const prompt = buildFeedbackPrompt(gradingResult, sections, {
+      title: 'IELTS Listening Test 1',
+      gradeLevel: 9,
+      family: 'ielts',
+      type: 'ielts_listening',
+      formatKind: 'ielts-listening',
+      segmentLabel: 'Part',
+      bandScore: 7.5,
+      timeSpent: 2100,
+      totalQuestions: 40,
+      passageResults: [
+        { passageName: 'Part 1', questionRange: [1, 10], correct: 8, total: 10, percentage: 80 },
+      ],
+    });
+
+    expect(prompt.systemPrompt).toContain('IELTS tutor');
+    expect(prompt.userPrompt).toContain('Segment label: Part');
+    expect(prompt.userPrompt).toContain('Segment performance');
+    expect(prompt.userPrompt).toContain('Question-type analysis');
+    expect(prompt.userPrompt).toContain('time-management advice');
     expect(prompt.userPrompt).toContain('"studyRecommendations"');
   });
 

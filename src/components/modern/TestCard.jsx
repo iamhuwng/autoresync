@@ -4,7 +4,19 @@ import { EditIcon, DeleteIcon, PlayIcon, ViewIcon } from './icons.jsx';
 import './TestCard.css';
 
 const TestCard = ({ test, index, canEdit, isOwner, onEdit, onDelete, onStartTest, onTogglePublic }) => {
-  const questionCount = test.questionCount || 0;
+  const isWritingTest = test?.testType === 'IELTS' && String(test?.skill || '').toLowerCase() === 'writing';
+  const itemCount = isWritingTest
+    ? (Array.isArray(test?.tasks) ? test.tasks.length : (test?.metadata?.format === 'full-test' ? 2 : 1))
+    : (test.questionCount || test.questions?.length || 0);
+  const itemLabel = isWritingTest ? 'task' : 'question';
+  const title = isWritingTest
+    ? (test?.metadata?.title || test?.title || 'Untitled Writing Test')
+    : (test?.title || test?.metadata?.title || 'Untitled Test');
+  const duration = isWritingTest
+    ? (test?.metadata?.duration || test?.duration || 60)
+    : (test?.duration || test?.metadata?.duration || 0);
+  const testTypeLabel = test?.testType || test?.type || 'Test';
+  const skillLabel = test?.skill || 'Unknown';
   const variants = ['lavender', 'sky', 'mint', 'rose', 'peach'];
   const variant = variants[index % variants.length];
 
@@ -38,7 +50,7 @@ const TestCard = ({ test, index, canEdit, isOwner, onEdit, onDelete, onStartTest
               color: isIncomplete ? '#94a3b8' : '#1e293b',
               margin: 0,
             }}>
-              {test.title}
+              {title}
             </h3>
             {isIncomplete && (
               <span style={{
@@ -58,13 +70,13 @@ const TestCard = ({ test, index, canEdit, isOwner, onEdit, onDelete, onStartTest
           </div>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
             <div className="test-card-badge test-card-badge--gray">
-              {questionCount} question{questionCount === 1 ? '' : 's'}
+              {itemCount} {itemLabel}{itemCount === 1 ? '' : 's'}
             </div>
             <div className="test-card-badge" style={{ background: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6' }}>
-              {test.type} - {test.skill}
+              {testTypeLabel} - {skillLabel}
             </div>
             <div className="test-card-badge test-card-badge--green">
-              {test.duration} min
+              {duration} min
             </div>
             {isIncomplete && missingCount > 0 && (
               <div className="test-card-badge test-card-badge--warning">

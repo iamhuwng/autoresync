@@ -1,0 +1,71 @@
+{
+  "docPath": "patterns/pattern-shared-result-body-shell-owned-governance",
+  "currentVersion": 2,
+  "versions": [
+    {
+      "id": "v1",
+      "docPath": "patterns/pattern-shared-result-body-shell-owned-governance",
+      "version": 1,
+      "timestamp": "2026-03-29T04:49:22.2943605Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "Pattern: Shared Result Body, Shell-Owned Governance"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "Reusable architecture pattern for unifying result views around one shared body while keeping access, release-state, and audience-specific controls in shell owners."
+        },
+        {
+          "field": "tags",
+          "oldValue": null,
+          "newValue": [
+            "pattern",
+            "results",
+            "governance",
+            "ui-architecture",
+            "shared-shells"
+          ]
+        }
+      ],
+      "snapshot": {
+        "description": "Reusable architecture pattern for unifying result views around one shared body while keeping access, release-state, and audience-specific controls in shell owners.",
+        "tags": [
+          "pattern",
+          "results",
+          "governance",
+          "ui-architecture",
+          "shared-shells"
+        ],
+        "title": "Pattern: Shared Result Body, Shell-Owned Governance"
+      }
+    },
+    {
+      "id": "v2",
+      "docPath": "patterns/pattern-shared-result-body-shell-owned-governance",
+      "version": 2,
+      "timestamp": "2026-03-29T04:50:16.3291239Z",
+      "changes": [
+        {
+          "field": "content",
+          "oldValue": null,
+          "newValue": "# Pattern: Shared Result Body, Shell-Owned Governance\n\n## Problem\n\nResult systems often drift when each audience surface reimplements the same body, feedback wiring, and visibility decisions.\nThe failure mode is predictable:\n- one shell writes data another shell does not read\n- one shell exposes sections another shell hides\n- route wrappers and history pages quietly become policy owners instead of policy consumers\n\n## Solution\n\nKeep one shared saved-result body and make shell owners responsible for everything around it.\n\n### Shared body responsibilities\n- render canonical saved-result content\n- consume canonical result data shape\n- render optional feedback and review sections when the shell enables them\n\n### Shell responsibilities\n- route and auth entry\n- release-state gates\n- teacher ownership checks\n- container chrome and affordances\n- audience-specific action permissions\n\n### Service responsibilities\n- canonical persistence shape\n- compatibility reads and writes during migration\n- feedback generation and upgrade hooks\n- visibility classification and ownership resolution\n\n## When to use\n\nUse this pattern when:\n- student and teacher surfaces need the same result content but different gates\n- one product area needs release-state restrictions and another needs teacher tooling\n- a migration must consolidate behavior without forcing every surface into the same container\n\n## Invariants\n\n- The shared body must depend on one canonical saved-result model.\n- Shells may differ in layout and gates, but they should not invent alternate storage contracts.\n- Access policy must be decided outside the shared body and passed in, not inferred ad hoc by each tab or card.\n- Legacy surfaces remain explicit until migrated; they are not considered unified just because they show similar content.\n\n## Example\n\n```tsx\nfunction TeacherShell({ result }: { result: TestResultRecord }) {\n  const feedbackState = useFeedbackAutoTrigger({\n    resultId: result.resultId,\n    result,\n    loading: false,\n    autoTriggerEnabled: true,\n    shellName: 'TeacherShell',\n  });\n\n  return (\n    \u003cSharedSavedResultCore\n      result={result}\n      sections={{\n        overview: true,\n        review: true,\n        feedback: true,\n        teacherFeedback: true,\n      }}\n      feedbackState={{\n        formativeFeedback: result.formativeFeedback,\n        feedbackLoading: feedbackState.formativeFeedbackLoading,\n        feedbackError: feedbackState.feedbackError,\n        needsUpgrade: feedbackState.storedFeedbackNeedsUpgrade,\n      }}\n    /\u003e\n  );\n}\n```\n\nThe teacher shell owns teacher permissions and container behavior. The shared body renders the result content. A student shell can use the same body while applying release-state gates and disabling teacher-only affordances.\n\n## Anti-patterns\n\n- Saving teacher feedback in a node that the shared result readers never read.\n- Treating raw producer convenience fields as authoritative ownership signals.\n- Leaving a legacy page outside the shared shell stack but assuming it already has unified behavior.\n- Letting every route wrapper decide its own feedback-generation semantics.\n\n## Source\n\n- @doc/architecture/result-view/result-view-governance-audit-2026-03-29\n- @doc/patterns/pattern-canonical-result-persistence-invariants\n- `documentation/architecture/result-view/surface-map.md`\n- `documentation/architecture/result-view/visibility-policy.md`\n- `documentation/architecture/result-view/verification-matrix.md`\n"
+        }
+      ],
+      "snapshot": {
+        "content": "# Pattern: Shared Result Body, Shell-Owned Governance\n\n## Problem\n\nResult systems often drift when each audience surface reimplements the same body, feedback wiring, and visibility decisions.\nThe failure mode is predictable:\n- one shell writes data another shell does not read\n- one shell exposes sections another shell hides\n- route wrappers and history pages quietly become policy owners instead of policy consumers\n\n## Solution\n\nKeep one shared saved-result body and make shell owners responsible for everything around it.\n\n### Shared body responsibilities\n- render canonical saved-result content\n- consume canonical result data shape\n- render optional feedback and review sections when the shell enables them\n\n### Shell responsibilities\n- route and auth entry\n- release-state gates\n- teacher ownership checks\n- container chrome and affordances\n- audience-specific action permissions\n\n### Service responsibilities\n- canonical persistence shape\n- compatibility reads and writes during migration\n- feedback generation and upgrade hooks\n- visibility classification and ownership resolution\n\n## When to use\n\nUse this pattern when:\n- student and teacher surfaces need the same result content but different gates\n- one product area needs release-state restrictions and another needs teacher tooling\n- a migration must consolidate behavior without forcing every surface into the same container\n\n## Invariants\n\n- The shared body must depend on one canonical saved-result model.\n- Shells may differ in layout and gates, but they should not invent alternate storage contracts.\n- Access policy must be decided outside the shared body and passed in, not inferred ad hoc by each tab or card.\n- Legacy surfaces remain explicit until migrated; they are not considered unified just because they show similar content.\n\n## Example\n\n```tsx\nfunction TeacherShell({ result }: { result: TestResultRecord }) {\n  const feedbackState = useFeedbackAutoTrigger({\n    resultId: result.resultId,\n    result,\n    loading: false,\n    autoTriggerEnabled: true,\n    shellName: 'TeacherShell',\n  });\n\n  return (\n    \u003cSharedSavedResultCore\n      result={result}\n      sections={{\n        overview: true,\n        review: true,\n        feedback: true,\n        teacherFeedback: true,\n      }}\n      feedbackState={{\n        formativeFeedback: result.formativeFeedback,\n        feedbackLoading: feedbackState.formativeFeedbackLoading,\n        feedbackError: feedbackState.feedbackError,\n        needsUpgrade: feedbackState.storedFeedbackNeedsUpgrade,\n      }}\n    /\u003e\n  );\n}\n```\n\nThe teacher shell owns teacher permissions and container behavior. The shared body renders the result content. A student shell can use the same body while applying release-state gates and disabling teacher-only affordances.\n\n## Anti-patterns\n\n- Saving teacher feedback in a node that the shared result readers never read.\n- Treating raw producer convenience fields as authoritative ownership signals.\n- Leaving a legacy page outside the shared shell stack but assuming it already has unified behavior.\n- Letting every route wrapper decide its own feedback-generation semantics.\n\n## Source\n\n- @doc/architecture/result-view/result-view-governance-audit-2026-03-29\n- @doc/patterns/pattern-canonical-result-persistence-invariants\n- `documentation/architecture/result-view/surface-map.md`\n- `documentation/architecture/result-view/visibility-policy.md`\n- `documentation/architecture/result-view/verification-matrix.md`\n",
+        "description": "Reusable architecture pattern for unifying result views around one shared body while keeping access, release-state, and audience-specific controls in shell owners.",
+        "tags": [
+          "pattern",
+          "results",
+          "governance",
+          "ui-architecture",
+          "shared-shells"
+        ],
+        "title": "Pattern: Shared Result Body, Shell-Owned Governance"
+      }
+    }
+  ]
+}

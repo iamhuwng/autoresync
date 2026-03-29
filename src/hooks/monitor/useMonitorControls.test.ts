@@ -67,6 +67,7 @@ describe('useMonitorControls', () => {
 
   afterEach(() => {
     vi.clearAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it('writes review-released by default when ending a session', async () => {
@@ -244,5 +245,208 @@ describe('useMonitorControls', () => {
       undefined
     );
     expect(autoSubmitDisconnectedStudentsMock).not.toHaveBeenCalled();
+  });
+
+  it('derives end-session auto-submit metadata from the persisted test when monitor testData is missing', async () => {
+    getMock.mockResolvedValue({
+      exists: () => true,
+      val: () => ({
+        title: 'Fetched Reading Test',
+        type: 'IELTS',
+        skill: 'Reading',
+        duration: 30,
+        questionCount: 2,
+        questions: [{ id: 'q1' }, { id: 'q2' }],
+      }),
+    });
+    identifyUnsubmittedStudentsMock.mockReturnValue([
+      {
+        studentId: 'student-1',
+        name: 'Student One',
+        answers: { 1: { answer: 'A' } },
+        isConnected: true,
+        lastActivity: 10,
+      },
+    ]);
+
+    const session = {
+      testId: 'test-3',
+      startTime: 3333,
+      createdByUserId: 'teacher-canonical',
+      reviewReleaseState: 'locked-review',
+      players: {
+        'student-1': {
+          name: 'Student One',
+          answers: { 1: { answer: 'A' } },
+          lastActivity: 10,
+        },
+      },
+    } as any;
+
+    const { result } = renderHook(() =>
+      useMonitorControls('SESSION1000', session, null, null)
+    );
+
+    await act(async () => {
+      await result.current.endFullSession(false, true);
+    });
+
+    expect(getMock).toHaveBeenCalledWith({ path: 'tests/test-3' });
+    expect(autoSubmitAllUnsubmittedStudentsMock).toHaveBeenCalledWith(
+      'SESSION1000',
+      'test-3',
+      expect.arrayContaining([
+        expect.objectContaining({ studentId: 'student-1' }),
+      ]),
+      [{ id: 'q1' }, { id: 'q2' }],
+      {
+        title: 'Fetched Reading Test',
+        type: 'IELTS',
+        skill: 'Reading',
+        duration: 30,
+      },
+      'teacher-canonical',
+      3333,
+      undefined
+    );
+    expect(autoSubmitDisconnectedStudentsMock).not.toHaveBeenCalled();
+  });
+
+  it('derives academic context from the live session when academicContext is absent', async () => {
+    getMock.mockResolvedValue({
+      exists: () => true,
+      val: () => ({
+        title: 'Fetched Reading Test',
+        type: 'IELTS',
+        skill: 'Reading',
+        duration: 30,
+        questionCount: 2,
+        questions: [{ id: 'q1' }, { id: 'q2' }],
+      }),
+    });
+    identifyUnsubmittedStudentsMock.mockReturnValue([
+      {
+        studentId: 'student-1',
+        name: 'Student One',
+        answers: {},
+        isConnected: true,
+        lastActivity: 10,
+      },
+    ]);
+
+    const session = {
+      testId: 'test-4',
+      startTime: 4444,
+      createdByUserId: 'teacher-canonical',
+      linkedClassId: 'class-linked',
+      courseId: 'course-1',
+      moduleId: 'module-1',
+      reviewReleaseState: 'locked-review',
+      players: {
+        'student-1': {
+          name: 'Student One',
+          answers: {},
+          lastActivity: 10,
+        },
+      },
+    } as any;
+
+    const { result } = renderHook(() =>
+      useMonitorControls('SESSION1001', session, null, null)
+    );
+
+    await act(async () => {
+      await result.current.endFullSession(false, true);
+    });
+
+    expect(autoSubmitAllUnsubmittedStudentsMock).toHaveBeenCalledWith(
+      'SESSION1001',
+      'test-4',
+      expect.arrayContaining([
+        expect.objectContaining({ studentId: 'student-1' }),
+      ]),
+      [{ id: 'q1' }, { id: 'q2' }],
+      {
+        title: 'Fetched Reading Test',
+        type: 'IELTS',
+        skill: 'Reading',
+        duration: 30,
+      },
+      'teacher-canonical',
+      4444,
+      {
+        classId: 'class-linked',
+        courseId: 'course-1',
+        moduleId: 'module-1',
+      }
+    );
+  });
+
+  it('does not reset the session to waiting when end-session result persistence fails', async () => {
+    const alertMock = vi.fn();
+    vi.stubGlobal('alert', alertMock);
+
+    getMock.mockResolvedValue({
+      exists: () => true,
+      val: () => ({
+        title: 'Fetched Reading Test',
+        type: 'IELTS',
+        skill: 'Reading',
+        duration: 30,
+        questionCount: 2,
+        questions: [{ id: 'q1' }, { id: 'q2' }],
+      }),
+    });
+    identifyUnsubmittedStudentsMock.mockReturnValue([
+      {
+        studentId: 'student-1',
+        name: 'Student One',
+        answers: {},
+        isConnected: true,
+        lastActivity: 10,
+      },
+    ]);
+    autoSubmitAllUnsubmittedStudentsMock.mockResolvedValue([
+      {
+        success: false,
+        studentId: 'student-1',
+        studentName: 'Student One',
+        answeredCount: 0,
+        error: 'Invalid result payload',
+      },
+    ]);
+
+    const session = {
+      testId: 'test-5',
+      startTime: 5555,
+      createdByUserId: 'teacher-canonical',
+      reviewReleaseState: 'locked-review',
+      players: {
+        'student-1': {
+          name: 'Student One',
+          answers: {},
+          lastActivity: 10,
+        },
+      },
+    } as any;
+
+    const { result } = renderHook(() =>
+      useMonitorControls('SESSION1002', session, null, null)
+    );
+
+    await act(async () => {
+      await result.current.endFullSession(false, true);
+    });
+
+    expect(updateMock).not.toHaveBeenCalledWith(
+      { path: 'game_sessions/SESSION1002' },
+      expect.objectContaining({
+        status: 'waiting',
+      })
+    );
+    expect(alertMock).toHaveBeenCalledWith(
+      expect.stringContaining('Session was not closed')
+    );
+
   });
 });

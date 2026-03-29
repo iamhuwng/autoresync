@@ -144,6 +144,12 @@ describe('buildResultFeedbackPayload', () => {
 
     expect(payload).not.toBeNull();
     expect(payload?.testMetadata.family).toBe('ielts');
+    expect(payload?.testMetadata.kind).toBe('ielts-reading');
+    expect(payload?.testMetadata.formatKind).toBe('ielts-reading');
+    expect(payload?.testMetadata.segmentLabel).toBe('Passage');
+    expect(payload?.testMetadata.unansweredCount).toBe(0);
+    expect(payload?.testMetadata.questionTypeBreakdown?.[0]?.questionType).toBe('matching');
+    expect(payload?.testMetadata.segmentBreakdown).toHaveLength(1);
     expect(payload?.testMetadata.bandScore).toBe(6.5);
   });
 });

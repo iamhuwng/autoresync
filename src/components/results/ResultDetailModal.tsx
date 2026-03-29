@@ -7,7 +7,7 @@ import { database } from '../../services/firebase';
 import { ResultContextBadge } from './ResultContextBadge';
 import { SharedSavedResultCore } from './SharedSavedResultCore';
 import type { FormativeFeedback } from '../../types/thcs-test.types';
-import { useFeedbackAutoTrigger } from '../../hooks/useFeedbackAutoTrigger';
+import { isEligibleForSavedResultFeedback, useFeedbackAutoTrigger } from '../../hooks/useFeedbackAutoTrigger';
 import { isPermissionDeniedError, AccessLostState, ACCESS_LOST_INITIAL } from '../../utils/rtdbAccessLost';
 
 interface ResultDetailModalProps {
@@ -15,12 +15,6 @@ interface ResultDetailModalProps {
     onClose: () => void;
     resultId: string;
     inline?: boolean;
-}
-
-function isIeltsResult(result: TestResultRecord): boolean {
-    const type = String(result.testType || '').toLowerCase();
-    const skill = String(result.testSkill || '').toLowerCase();
-    return type.includes('ielts') || skill === 'reading' || skill === 'listening';
 }
 
 export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
@@ -139,8 +133,8 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
 
     // ── Feedback retry handler for core (PRD-0040 Task 2.5) ──────────────────
     const handleFeedbackRetry = useCallback(() => {
-        handleGenerateFormativeFeedback(true);
-    }, [handleGenerateFormativeFeedback]);
+        handleGenerateFormativeFeedback(storedFeedbackNeedsUpgrade);
+    }, [handleGenerateFormativeFeedback, storedFeedbackNeedsUpgrade]);
 
     // ── feedbackTiming from homework context ─────────────────────────────────
     const feedbackTiming = result?.context?.configApplied?.feedbackTiming || 'after_completion';
@@ -237,7 +231,7 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
                                 sectionBreakdown: true,
                                 questionReview: true,
                                 feedbackDisplay: true,
-                                teacherFeedback: false,
+                                teacherFeedback: true,
                                 writingPlaceholder: false,
                             }}
                             feedbackState={{
@@ -245,7 +239,7 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
                                 feedbackLoading: formativeFeedbackLoading && !result.formativeFeedback,
                                 feedbackError: feedbackError,
                                 needsUpgrade: storedFeedbackNeedsUpgrade,
-                                isEligibleForAIFeedback: Boolean((result as any).thcsData?.sectionResults) || isIeltsResult(result),
+                                isEligibleForAIFeedback: isEligibleForSavedResultFeedback(result),
                                 onRetryFeedback: handleFeedbackRetry,
                             }}
                             feedbackTiming={feedbackTiming as 'after_completion' | 'after_deadline' | 'never'}

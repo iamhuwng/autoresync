@@ -99,6 +99,24 @@ describe('canonicalizeReadingQuestion', () => {
     expect(result.sectionReferences?.map((section) => section.label)).toEqual(['A', 'B', 'C']);
   });
 
+  it('omits empty optional matching-information section fields', () => {
+    const result = canonicalizeReadingQuestion({
+      number: 14,
+      type: 'matching-information',
+      question: 'Which section contains the following information?',
+      sectionReferences: [
+        { label: 'A', title: '  ', paragraph: '' },
+        { label: 'B' },
+      ],
+    });
+
+    expect(result.issues).toEqual([]);
+    expect(result.sectionReferences).toEqual([
+      { label: 'A' },
+      { label: 'B' },
+    ]);
+  });
+
   it('rejects empty matching-information section references', () => {
     const result = canonicalizeReadingQuestion({
       number: 14,

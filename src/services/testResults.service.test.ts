@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
     saveTestResult,
     getTeacherResults,
+    getTeacherStudentResults,
     getStudentResults,
     rebuildTeacherResultIndexes,
     updateResultScore,
@@ -24,6 +25,7 @@ const {
     mockClassifyTeacherResultVisibility,
     mockClearUnresolvedResultVisibilityReport,
     mockUpsertUnresolvedResultVisibilityReport,
+    mockTriggerFormativeFeedbackForSavedResult,
 } = vi.hoisted(() => ({
     mockCreateNotification: vi.fn(),
     mockSendReviewedNotification: vi.fn(),
@@ -31,6 +33,7 @@ const {
     mockClassifyTeacherResultVisibility: vi.fn(),
     mockClearUnresolvedResultVisibilityReport: vi.fn(),
     mockUpsertUnresolvedResultVisibilityReport: vi.fn(),
+    mockTriggerFormativeFeedbackForSavedResult: vi.fn(),
 }));
 
 // Mock Firebase
@@ -74,6 +77,11 @@ vi.mock('./notificationService', () => ({
     sendReviewedNotification: mockSendReviewedNotification,
 }));
 
+vi.mock('./resultFeedbackGeneration.service', () => ({
+    triggerFormativeFeedbackForSavedResult: (...args: any[]) =>
+        mockTriggerFormativeFeedbackForSavedResult(...args),
+}));
+
 function createLegacyResultRecord(
     overrides: Partial<TestResultRecord> = {}
 ): TestResultRecord {
@@ -101,6 +109,28 @@ function createLegacyResultRecord(
         testSkill: 'reading',
         ...overrides,
     };
+}
+
+function getSaveResultUpdatePayload(resultId = 'result-123'): Record<string, unknown> {
+    const updateCalls = (update as any).mock.calls;
+    const rootUpdateCall = updateCalls.find(
+        (call: any[]) => {
+            const payload = call[1];
+            if (!payload || typeof payload !== 'object') {
+                return false;
+            }
+
+            return Object.keys(payload).some(
+                (key) => key === `test_results/${resultId}` || key.startsWith('test_results/')
+            );
+        }
+    ) ?? updateCalls[updateCalls.length - 1];
+
+    if (!rootUpdateCall) {
+        throw new Error('Expected saveTestResult to write a root update payload');
+    }
+
+    return rootUpdateCall[1];
 }
 
 describe('testResults.service', () => {
@@ -170,19 +200,44 @@ describe('testResults.service', () => {
             );
 
             expect(resultId).toBe('result-123');
-
-            // Check that teacher index was created
-            expect(set).toHaveBeenCalledTimes(4); // Main record, session index, student index, teacher index
-
-            // Verify teacher index call
-            // The 4th call to set should be the teacher index
-            const teacherIndexCall = (set as any).mock.calls.find((call: any[]) =>
-                call[0] && call[0].toString && call[0].toString().includes('teacher-1')
+            expect(set).toHaveBeenCalledWith(
+                expect.anything(),
+                expect.objectContaining({
+                    resultId: 'result-123',
+                    studentId,
+                    sessionCode,
+                })
             );
 
-            // Since ref() is mocked, we need to inspect how ref was called or mock ref return values
-            // A simpler way is to verify 'ref' calls
-            expect(ref).toHaveBeenCalledWith(database, `test_results_by_teacher/${teacherId}/${resultId}`);
+            const updates = getSaveResultUpdatePayload('result-solo-1');
+            expect(updates['test_results/result-123']).toEqual(
+                expect.objectContaining({
+                    resultId: 'result-123',
+                    studentId,
+                    sessionCode,
+                })
+            );
+            expect(updates[`test_results_by_session/${sessionCode}/${resultId}`]).toEqual(
+                expect.objectContaining({
+                    resultId,
+                    studentId,
+                    studentName: 'Student Name',
+                })
+            );
+            expect(updates[`test_results_by_student/${studentId}/${resultId}`]).toEqual(
+                expect.objectContaining({
+                    resultId,
+                    sessionCode,
+                    testId,
+                })
+            );
+            expect(updates[`test_results_by_teacher/${teacherId}/${resultId}`]).toEqual(
+                expect.objectContaining({
+                    resultId,
+                    studentId,
+                    sessionCode,
+                })
+            );
             expect(mockClearUnresolvedResultVisibilityReport).toHaveBeenCalledWith('result-123');
             expect(mockCreateNotification).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -192,6 +247,221 @@ describe('testResults.service', () => {
                         resultId: 'result-123',
                     }),
                 })
+            );
+        });
+
+        it('writes the canonical result before fan-out indexes so RTDB rule checks can resolve the row', async () => {
+            const mockPush = { key: 'result-order-1' };
+            (push as any).mockReturnValue(mockPush);
+
+            const markingResult = {
+                totalScore: 10,
+                maxScore: 20,
+                percentage: 50,
+                completedAt: 1000,
+                questionResults: [],
+                summary: { correct: 5, incorrect: 5, partialCredit: 0, totalQuestions: 10 }
+            } as any;
+
+            const metadata = {
+                title: 'Test',
+                type: 'reading',
+                skill: 'reading',
+                duration: 30
+            };
+
+            await saveTestResult(
+                'SESSION-1', 'TEST-1', 'student-1', 'Student Name',
+                markingResult, metadata, 500, 'teacher-1', false
+            );
+
+            expect((set as any).mock.invocationCallOrder[0]).toBeLessThan(
+                (update as any).mock.invocationCallOrder[0]
+            );
+        });
+
+        it('sanitizes nested undefined fields in result context before persisting to RTDB', async () => {
+            const mockPush = { key: 'result-context-1' };
+            (push as any).mockReturnValue(mockPush);
+
+            const markingResult = {
+                totalScore: 0,
+                maxScore: 20,
+                percentage: 0,
+                completedAt: 1000,
+                questionResults: [],
+                summary: { correct: 0, incorrect: 20, partialCredit: 0, totalQuestions: 20 }
+            } as any;
+
+            const metadata = {
+                title: 'Reading Test',
+                type: 'IELTS',
+                skill: 'Reading',
+                duration: 30
+            };
+
+            await saveTestResult(
+                'SESSION-CONTEXT',
+                'TEST-CONTEXT',
+                'student-1',
+                'Student Name',
+                markingResult,
+                metadata,
+                500,
+                'teacher-1',
+                false,
+                undefined,
+                undefined,
+                {
+                    type: 'class_session',
+                    source: {
+                        type: 'class',
+                        id: 'SESSION-CONTEXT',
+                        name: 'Reading Test',
+                        sessionCode: 'SESSION-CONTEXT',
+                        classId: undefined,
+                        courseId: undefined,
+                    },
+                    sessionCode: 'SESSION-CONTEXT',
+                    classId: undefined,
+                    courseId: undefined,
+                    assignmentId: undefined,
+                    configApplied: {
+                        timerMinutes: 30,
+                        feedbackTiming: 'after_completion',
+                        source: 'teacher_override',
+                    },
+                },
+            );
+
+            expect(set).toHaveBeenCalledWith(
+                expect.anything(),
+                expect.objectContaining({
+                    context: expect.objectContaining({
+                        sessionCode: 'SESSION-CONTEXT',
+                        classId: null,
+                        courseId: null,
+                        assignmentId: null,
+                        source: expect.objectContaining({
+                            classId: null,
+                            courseId: null,
+                        }),
+                    }),
+                })
+            );
+        });
+
+        it('should seed feedback generation metadata and trigger initial feedback for IELTS reading saves', async () => {
+            const mockPush = { key: 'result-ielts-1' };
+            (push as any).mockReturnValue(mockPush);
+
+            const markingResult = {
+                totalScore: 30,
+                maxScore: 40,
+                percentage: 75,
+                completedAt: 1000,
+                questionResults: [],
+                summary: { correct: 30, incorrect: 10, partialCredit: 0, totalQuestions: 40 }
+            } as any;
+
+            const metadata = {
+                title: 'IELTS Reading Practice',
+                type: 'ielts-reading',
+                skill: 'reading',
+                duration: 60
+            };
+
+            const ieltsData = {
+                passageResults: [
+                    { passageName: 'Passage 1', questionRange: [1, 13] as [number, number], correct: 10, total: 13, percentage: 76.9 },
+                    { passageName: 'Passage 2', questionRange: [14, 26] as [number, number], correct: 11, total: 13, percentage: 84.6 },
+                    { passageName: 'Passage 3', questionRange: [27, 40] as [number, number], correct: 9, total: 14, percentage: 64.3 },
+                ]
+            };
+
+            const resultId = await saveTestResult(
+                'SESSION-IELTS',
+                'TEST-IELTS',
+                'student-1',
+                'Student Name',
+                markingResult,
+                metadata,
+                3000,
+                'teacher-1',
+                false,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                ieltsData,
+            );
+
+            expect(resultId).toBe('result-ielts-1');
+
+            const updates = getSaveResultUpdatePayload('result-ielts-1');
+            expect(updates['test_results/result-ielts-1']).toEqual(
+                expect.objectContaining({
+                    feedbackGenerationMeta: expect.objectContaining({
+                        kind: 'ielts-reading',
+                        lastAttemptAt: null,
+                        lastTriggerSource: null,
+                        lastOutcome: null,
+                        lastError: null,
+                    }),
+                }),
+            );
+
+            expect(mockTriggerFormativeFeedbackForSavedResult).toHaveBeenCalledWith(
+                'result-ielts-1',
+                { triggerSource: 'saveTestResult' },
+            );
+        });
+
+        it('does not trigger initial feedback for pending-review writing saves', async () => {
+            const mockPush = { key: 'result-writing-1' };
+            (push as any).mockReturnValue(mockPush);
+
+            const markingResult = {
+                totalScore: 8,
+                maxScore: 10,
+                percentage: 80,
+                completedAt: 1000,
+                questionResults: [],
+                summary: { correct: 8, incorrect: 2, partialCredit: 0, totalQuestions: 10 }
+            } as any;
+
+            const metadata = {
+                title: 'Writing Task',
+                type: 'writing',
+                skill: 'writing',
+                duration: 60
+            };
+
+            const submissionContent = {
+                writing: { text: 'Essay content', wordCount: 250 },
+            };
+
+            await saveTestResult(
+                'SESSION-1',
+                'TEST-1',
+                'student-1',
+                'Student Name',
+                markingResult,
+                metadata,
+                3000,
+                'teacher-1',
+                false,
+                submissionContent,
+            );
+
+            expect(mockTriggerFormativeFeedbackForSavedResult).not.toHaveBeenCalled();
+            const updates = getSaveResultUpdatePayload('result-writing-1');
+            expect(updates['test_results/result-writing-1']).toEqual(
+                expect.objectContaining({
+                    feedbackGenerationMeta: expect.objectContaining({
+                        kind: null,
+                    }),
+                }),
             );
         });
 
@@ -244,7 +514,69 @@ describe('testResults.service', () => {
                 } as any
             );
 
-            expect(ref).not.toHaveBeenCalledWith(database, 'test_results_by_teacher/teacher-1/result-solo-1');
+            const updates = getSaveResultUpdatePayload('result-solo-1');
+            expect(updates['test_results_by_teacher/teacher-1/result-solo-1']).toBeUndefined();
+            expect(updates['test_results_solo_practice_by_student/student-1/result-solo-1']).toEqual(
+                expect.objectContaining({
+                    resultId: 'result-solo-1',
+                    sessionCode: 'solo-session',
+                    testId: 'TEST-1',
+                })
+            );
+        });
+
+        it('should keep student and session indexes when visibility is unresolved', async () => {
+            (push as any).mockReturnValue({ key: 'result-123' });
+            mockResolveResultOwnership.mockResolvedValueOnce({
+                visibility: {
+                    contextType: 'class_session',
+                    sourceType: 'session',
+                    sourceId: 'SESSION-1',
+                    sourceNameSnapshot: 'Test',
+                    visibilityOwnerTeacherId: null,
+                    ownerResolutionSource: 'unresolved',
+                    ownershipResolved: false,
+                    unresolvedReason: 'owner_not_resolved',
+                    homeworkId: null,
+                    sessionCode: 'SESSION-1',
+                    courseId: null,
+                    classId: null,
+                    assignmentId: null,
+                },
+                sourceLookupAttempted: true,
+                strongestKnownSourceClue: 'session:SESSION-1',
+            });
+
+            const markingResult = {
+                totalScore: 10,
+                maxScore: 20,
+                percentage: 50,
+                completedAt: 1000,
+                questionResults: [],
+                summary: { correct: 5, incorrect: 5, partialCredit: 0, totalQuestions: 10 }
+            } as any;
+
+            const metadata = {
+                title: 'Test',
+                type: 'reading',
+                skill: 'reading',
+                duration: 30
+            };
+
+            await saveTestResult(
+                'SESSION-1', 'TEST-1', 'student-1', 'Student Name',
+                markingResult, metadata, 500, 'teacher-1', false
+            );
+
+            const updates = getSaveResultUpdatePayload('result-123');
+            expect(updates['test_results/result-123']).toBeDefined();
+            expect(updates['test_results_by_session/SESSION-1/result-123']).toEqual(
+                expect.objectContaining({ resultId: 'result-123', studentId: 'student-1' })
+            );
+            expect(updates['test_results_by_student/student-1/result-123']).toEqual(
+                expect.objectContaining({ resultId: 'result-123', sessionCode: 'SESSION-1' })
+            );
+            expect(updates['test_results_by_teacher/teacher-1/result-123']).toBeUndefined();
         });
     });
 
@@ -280,6 +612,50 @@ describe('testResults.service', () => {
 
             expect(results).toHaveLength(1);
             expect(results[0].resultId).toBe('res-1');
+        });
+
+        it('should suppress per-result permission-denied errors and keep only the skipped summary', async () => {
+            const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+            const mockIndex = {
+                'res-1': { resultId: 'res-1' },
+                'denied-row': { resultId: 'denied-row' },
+            };
+            const visibleResult = createLegacyResultRecord({
+                resultId: 'res-1',
+                visibility: {
+                    contextType: 'class_session',
+                    sourceType: 'session',
+                    sourceId: 'SESSION-1',
+                    sourceNameSnapshot: 'Visible Result',
+                    visibilityOwnerTeacherId: 'teacher-1',
+                    ownerResolutionSource: 'session.createdByUserId',
+                    ownershipResolved: true,
+                    unresolvedReason: null,
+                    homeworkId: null,
+                    sessionCode: 'SESSION-1',
+                    courseId: null,
+                    classId: null,
+                    assignmentId: null,
+                },
+            });
+
+            (get as any)
+                .mockResolvedValueOnce({ exists: () => true, val: () => mockIndex })
+                .mockResolvedValueOnce({ exists: () => true, val: () => visibleResult })
+                .mockRejectedValueOnce(new Error('Permission denied'));
+
+            const results = await getTeacherResults('teacher-1');
+
+            expect(results.map((result) => result.resultId)).toEqual(['res-1']);
+            expect(errorSpy).not.toHaveBeenCalledWith('Error getting test result:', expect.anything());
+            expect(warnSpy).toHaveBeenCalledWith(
+                '[TestResults] Skipped 1 inaccessible teacher teacher-1 result(s)',
+                ['denied-row']
+            );
+
+            warnSpy.mockRestore();
+            errorSpy.mockRestore();
         });
 
         it('should exclude rows whose normalized visibility does not belong to the teacher', async () => {
@@ -692,6 +1068,325 @@ describe('testResults.service', () => {
         });
     });
 
+    describe('getTeacherStudentResults', () => {
+        it('returns no results and performs no reads when assignment access is denied', async () => {
+            const results = await getTeacherStudentResults(
+                'teacher-1',
+                'student-1',
+                undefined,
+                { hasAssignmentAccess: false }
+            );
+
+            expect(results).toEqual([]);
+            expect(get).not.toHaveBeenCalled();
+            expect(mockClassifyTeacherResultVisibility).not.toHaveBeenCalled();
+        });
+
+        it('merges teacher-owned rows with only the target student solo-practice rows', async () => {
+            (ref as any).mockImplementation((_: unknown, path?: string) => path ?? '__root__');
+            (get as any).mockImplementation((path: string) => {
+                switch (path) {
+                    case 'test_results_by_teacher/teacher-1':
+                        return Promise.resolve({
+                            exists: () => true,
+                            val: () => ({
+                                'teacher-row': { resultId: 'teacher-row' },
+                                'other-student-row': { resultId: 'other-student-row' },
+                            }),
+                        });
+                    case 'test_results_solo_practice_by_student/student-1':
+                        return Promise.resolve({
+                            exists: () => true,
+                            val: () => ({
+                                'solo-visible': { resultId: 'solo-visible' },
+                                'solo-foreign-student': { resultId: 'solo-foreign-student' },
+                            }),
+                        });
+                    case 'test_results/teacher-row':
+                        return Promise.resolve({
+                            exists: () => true,
+                            val: () => ({
+                                resultId: 'teacher-row',
+                                sessionCode: 'SESSION-1',
+                                testId: 'TEST-1',
+                                studentId: 'student-1',
+                                studentName: 'Student One',
+                                totalScore: 18,
+                                maxScore: 20,
+                                percentage: 90,
+                                bandScore: 8,
+                                questionResults: [],
+                                correct: 18,
+                                incorrect: 2,
+                                partialCredit: 0,
+                                totalQuestions: 20,
+                                submittedAt: 1000,
+                                timeElapsed: 100,
+                                testDuration: 30,
+                                createdAt: 1000,
+                                testTitle: 'Teacher-Owned Result',
+                                testType: 'test',
+                                testSkill: 'reading',
+                                visibility: {
+                                    contextType: 'class_session',
+                                    sourceType: 'session',
+                                    sourceId: 'SESSION-1',
+                                    sourceNameSnapshot: 'Teacher-Owned Result',
+                                    visibilityOwnerTeacherId: 'teacher-1',
+                                    ownerResolutionSource: 'session.createdByUserId',
+                                    ownershipResolved: true,
+                                    unresolvedReason: null,
+                                    homeworkId: null,
+                                    sessionCode: 'SESSION-1',
+                                    courseId: null,
+                                    classId: null,
+                                    assignmentId: null,
+                                },
+                            }),
+                        });
+                    case 'test_results/other-student-row':
+                        return Promise.resolve({
+                            exists: () => true,
+                            val: () => ({
+                                resultId: 'other-student-row',
+                                sessionCode: 'SESSION-2',
+                                testId: 'TEST-2',
+                                studentId: 'student-2',
+                                studentName: 'Student Two',
+                                totalScore: 17,
+                                maxScore: 20,
+                                percentage: 85,
+                                bandScore: 7.5,
+                                questionResults: [],
+                                correct: 17,
+                                incorrect: 3,
+                                partialCredit: 0,
+                                totalQuestions: 20,
+                                submittedAt: 900,
+                                timeElapsed: 100,
+                                testDuration: 30,
+                                createdAt: 900,
+                                testTitle: 'Other Student Result',
+                                testType: 'test',
+                                testSkill: 'reading',
+                                visibility: {
+                                    contextType: 'class_session',
+                                    sourceType: 'session',
+                                    sourceId: 'SESSION-2',
+                                    sourceNameSnapshot: 'Other Student Result',
+                                    visibilityOwnerTeacherId: 'teacher-1',
+                                    ownerResolutionSource: 'session.createdByUserId',
+                                    ownershipResolved: true,
+                                    unresolvedReason: null,
+                                    homeworkId: null,
+                                    sessionCode: 'SESSION-2',
+                                    courseId: null,
+                                    classId: null,
+                                    assignmentId: null,
+                                },
+                            }),
+                        });
+                    case 'test_results/solo-visible':
+                        return Promise.resolve({
+                            exists: () => true,
+                            val: () => ({
+                                resultId: 'solo-visible',
+                                sessionCode: 'SOLO-1',
+                                testId: 'SOLO-TEST-1',
+                                studentId: 'student-1',
+                                studentName: 'Student One',
+                                totalScore: 12,
+                                maxScore: 20,
+                                percentage: 60,
+                                bandScore: 6,
+                                questionResults: [],
+                                correct: 12,
+                                incorrect: 8,
+                                partialCredit: 0,
+                                totalQuestions: 20,
+                                submittedAt: 1100,
+                                timeElapsed: 100,
+                                testDuration: 30,
+                                createdAt: 1100,
+                                testTitle: 'Solo Visible Result',
+                                testType: 'self_study',
+                                testSkill: 'reading',
+                                visibility: {
+                                    contextType: 'solo_practice',
+                                    sourceType: 'solo_practice',
+                                    sourceId: 'material-1',
+                                    sourceNameSnapshot: 'Solo Visible Result',
+                                    visibilityOwnerTeacherId: null,
+                                    ownerResolutionSource: 'solo_practice',
+                                    ownershipResolved: true,
+                                    unresolvedReason: null,
+                                    homeworkId: null,
+                                    sessionCode: 'SOLO-1',
+                                    courseId: null,
+                                    classId: null,
+                                    assignmentId: null,
+                                },
+                            }),
+                        });
+                    case 'test_results/solo-foreign-student':
+                        return Promise.resolve({
+                            exists: () => true,
+                            val: () => ({
+                                resultId: 'solo-foreign-student',
+                                sessionCode: 'SOLO-2',
+                                testId: 'SOLO-TEST-2',
+                                studentId: 'student-2',
+                                studentName: 'Student Two',
+                                totalScore: 11,
+                                maxScore: 20,
+                                percentage: 55,
+                                bandScore: 5.5,
+                                questionResults: [],
+                                correct: 11,
+                                incorrect: 9,
+                                partialCredit: 0,
+                                totalQuestions: 20,
+                                submittedAt: 1200,
+                                timeElapsed: 100,
+                                testDuration: 30,
+                                createdAt: 1200,
+                                testTitle: 'Solo Foreign Result',
+                                testType: 'self_study',
+                                testSkill: 'reading',
+                                visibility: {
+                                    contextType: 'solo_practice',
+                                    sourceType: 'solo_practice',
+                                    sourceId: 'material-2',
+                                    sourceNameSnapshot: 'Solo Foreign Result',
+                                    visibilityOwnerTeacherId: null,
+                                    ownerResolutionSource: 'solo_practice',
+                                    ownershipResolved: true,
+                                    unresolvedReason: null,
+                                    homeworkId: null,
+                                    sessionCode: 'SOLO-2',
+                                    courseId: null,
+                                    classId: null,
+                                    assignmentId: null,
+                                },
+                            }),
+                        });
+                    default:
+                        return Promise.resolve({ exists: () => false, val: () => null });
+                }
+            });
+            mockClassifyTeacherResultVisibility.mockImplementation(({ result }: any) => ({
+                shouldDisplayInTeacherHistory: result.resultId === 'solo-visible',
+            }));
+
+            const results = await getTeacherStudentResults(
+                'teacher-1',
+                'student-1',
+                undefined,
+                { hasAssignmentAccess: true }
+            );
+
+            expect(results.map((result) => result.resultId)).toEqual([
+                'teacher-row',
+                'solo-visible',
+            ]);
+            expect(mockClassifyTeacherResultVisibility).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    teacherId: 'teacher-1',
+                    hasAssignmentAccess: true,
+                    result: expect.objectContaining({ resultId: 'solo-visible' }),
+                })
+            );
+            expect(mockClassifyTeacherResultVisibility).not.toHaveBeenCalledWith(
+                expect.objectContaining({
+                    result: expect.objectContaining({ resultId: 'solo-foreign-student' }),
+                })
+            );
+
+            (ref as any).mockReset();
+            (get as any).mockReset();
+        });
+
+        it('keeps teacher-owned history when the solo-practice index read is denied', async () => {
+            const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+            (ref as any).mockImplementation((_: unknown, path?: string) => path ?? '__root__');
+            (get as any).mockImplementation((path: string) => {
+                switch (path) {
+                    case 'test_results_by_teacher/teacher-1':
+                        return Promise.resolve({
+                            exists: () => true,
+                            val: () => ({
+                                'teacher-row': { resultId: 'teacher-row' },
+                            }),
+                        });
+                    case 'test_results_solo_practice_by_student/student-1':
+                        return Promise.reject(new Error('Permission denied'));
+                    case 'test_results/teacher-row':
+                        return Promise.resolve({
+                            exists: () => true,
+                            val: () => ({
+                                resultId: 'teacher-row',
+                                sessionCode: 'SESSION-1',
+                                testId: 'TEST-1',
+                                studentId: 'student-1',
+                                studentName: 'Student One',
+                                totalScore: 18,
+                                maxScore: 20,
+                                percentage: 90,
+                                bandScore: 8,
+                                questionResults: [],
+                                correct: 18,
+                                incorrect: 2,
+                                partialCredit: 0,
+                                totalQuestions: 20,
+                                submittedAt: 1000,
+                                timeElapsed: 100,
+                                testDuration: 30,
+                                createdAt: 1000,
+                                testTitle: 'Teacher-Owned Result',
+                                testType: 'test',
+                                testSkill: 'reading',
+                                visibility: {
+                                    contextType: 'class_session',
+                                    sourceType: 'session',
+                                    sourceId: 'SESSION-1',
+                                    sourceNameSnapshot: 'Teacher-Owned Result',
+                                    visibilityOwnerTeacherId: 'teacher-1',
+                                    ownerResolutionSource: 'session.createdByUserId',
+                                    ownershipResolved: true,
+                                    unresolvedReason: null,
+                                    homeworkId: null,
+                                    sessionCode: 'SESSION-1',
+                                    courseId: null,
+                                    classId: null,
+                                    assignmentId: null,
+                                },
+                            }),
+                        });
+                    default:
+                        return Promise.resolve({ exists: () => false, val: () => null });
+                }
+            });
+
+            const results = await getTeacherStudentResults(
+                'teacher-1',
+                'student-1',
+                undefined,
+                { hasAssignmentAccess: true }
+            );
+
+            expect(results.map((result) => result.resultId)).toEqual(['teacher-row']);
+            expect(mockClassifyTeacherResultVisibility).not.toHaveBeenCalled();
+            expect(warnSpy).toHaveBeenCalledWith(
+                expect.stringContaining('Solo-practice index unavailable for student student-1')
+            );
+
+            warnSpy.mockRestore();
+            (ref as any).mockReset();
+            (get as any).mockReset();
+        });
+    });
+
     describe('getStudentResults', () => {
         it('should keep student reads complete even for unresolved and foreign-owned rows', async () => {
             const mockIndex = {
@@ -792,6 +1487,48 @@ describe('testResults.service', () => {
 
             expect(results).toHaveLength(2);
             expect(results.map((result) => result.resultId)).toEqual(['owned-row', 'unresolved-row']);
+        });
+
+        it('should skip inaccessible rows instead of failing the whole student history fetch', async () => {
+            const mockIndex = {
+                'owned-row': { resultId: 'owned-row' },
+                'denied-row': { resultId: 'denied-row' },
+            };
+
+            (get as any)
+                .mockResolvedValueOnce({ exists: () => true, val: () => mockIndex })
+                .mockResolvedValueOnce({
+                    exists: () => true,
+                    val: () => ({
+                        resultId: 'owned-row',
+                        sessionCode: 'SESSION-1',
+                        testId: 'TEST-1',
+                        studentId: 'student-1',
+                        studentName: 'Student Name',
+                        totalScore: 8,
+                        maxScore: 10,
+                        percentage: 80,
+                        bandScore: 7,
+                        questionResults: [],
+                        correct: 8,
+                        incorrect: 2,
+                        partialCredit: 0,
+                        totalQuestions: 10,
+                        submittedAt: 1000,
+                        timeElapsed: 100,
+                        testDuration: 30,
+                        createdAt: 1000,
+                        testTitle: 'Owned',
+                        testType: 'test',
+                        testSkill: 'reading',
+                    }),
+                })
+                .mockRejectedValueOnce(new Error('PERMISSION_DENIED'));
+
+            const results = await getStudentResults('student-1');
+
+            expect(results).toHaveLength(1);
+            expect(results[0].resultId).toBe('owned-row');
         });
     });
 
@@ -1275,9 +2012,7 @@ describe('testResults.service', () => {
 
             expect(resultId).toBe('result-123');
 
-            // Verify main record includes context fields
-            const mainRecordCall = (set as any).mock.calls[0];
-            const savedRecord = mainRecordCall[1];
+            const savedRecord = getSaveResultUpdatePayload()['test_results/result-123'] as Record<string, unknown>;
 
             expect(savedRecord.courseId).toBe('course-1');
             expect(savedRecord.courseName).toBe('IELTS Preparation');
@@ -1301,24 +2036,14 @@ describe('testResults.service', () => {
                 academicContext
             );
 
-            // Should create: main record, session index, student index, teacher index, course index
-            expect(set).toHaveBeenCalledTimes(5);
-
-            // Verify course index was created
-            expect(ref).toHaveBeenCalledWith(
-                database,
-                `test_results_by_course/${academicContext.courseId}/${studentId}/result-123`
+            const updates = getSaveResultUpdatePayload();
+            expect(updates[`test_results_by_course/${academicContext.courseId}/${studentId}/result-123`]).toEqual(
+                expect.objectContaining({
+                    resultId: 'result-123',
+                    studentId,
+                    moduleId: 'module-1',
+                })
             );
-
-            // Find the course index call
-            const courseIndexCall = (set as any).mock.calls.find((call: any[]) => {
-                const refCall = (ref as any).mock.calls.find((r: any[]) =>
-                    r[1] && r[1].includes('test_results_by_course')
-                );
-                return refCall !== undefined;
-            });
-
-            expect(courseIndexCall).toBeDefined();
         });
 
         it('should create class index when classId is provided', async () => {
@@ -1335,13 +2060,13 @@ describe('testResults.service', () => {
                 academicContext
             );
 
-            // Should create: main record, session index, student index, teacher index, course index, class index
-            expect(set).toHaveBeenCalledTimes(6);
-
-            // Verify class index was created
-            expect(ref).toHaveBeenCalledWith(
-                database,
-                `test_results_by_class/${academicContext.classId}/${studentId}/result-123`
+            const updates = getSaveResultUpdatePayload();
+            expect(updates[`test_results_by_class/${academicContext.classId}/${studentId}/result-123`]).toEqual(
+                expect.objectContaining({
+                    resultId: 'result-123',
+                    studentId,
+                    courseId: 'course-1',
+                })
             );
         });
 
@@ -1362,18 +2087,9 @@ describe('testResults.service', () => {
                 academicContext
             );
 
-            // Should create: main record, session index, student index, teacher index, course index, class index
-            expect(set).toHaveBeenCalledTimes(6);
-
-            // Verify both indexes were created
-            expect(ref).toHaveBeenCalledWith(
-                database,
-                `test_results_by_course/${academicContext.courseId}/${studentId}/result-123`
-            );
-            expect(ref).toHaveBeenCalledWith(
-                database,
-                `test_results_by_class/${academicContext.classId}/${studentId}/result-123`
-            );
+            const updates = getSaveResultUpdatePayload();
+            expect(updates[`test_results_by_course/${academicContext.courseId}/${studentId}/result-123`]).toBeDefined();
+            expect(updates[`test_results_by_class/${academicContext.classId}/${studentId}/result-123`]).toBeDefined();
         });
 
         it('should skip course and class indexes when ownership is unresolved', async () => {
@@ -1410,14 +2126,11 @@ describe('testResults.service', () => {
                 academicContext
             );
 
-            expect(ref).not.toHaveBeenCalledWith(
-                database,
-                `test_results_by_course/${academicContext.courseId}/${studentId}/result-123`
-            );
-            expect(ref).not.toHaveBeenCalledWith(
-                database,
-                `test_results_by_class/${academicContext.classId}/${studentId}/result-123`
-            );
+            const updates = getSaveResultUpdatePayload();
+            expect(updates[`test_results_by_session/${sessionCode}/result-123`]).toBeDefined();
+            expect(updates[`test_results_by_student/${studentId}/result-123`]).toBeDefined();
+            expect(updates[`test_results_by_course/${academicContext.courseId}/${studentId}/result-123`]).toBeUndefined();
+            expect(updates[`test_results_by_class/${academicContext.classId}/${studentId}/result-123`]).toBeUndefined();
         });
 
         it('should set context fields to null when not provided', async () => {
@@ -1429,9 +2142,7 @@ describe('testResults.service', () => {
 
             expect(resultId).toBe('result-123');
 
-            // Verify main record has null context fields
-            const mainRecordCall = (set as any).mock.calls[0];
-            const savedRecord = mainRecordCall[1];
+            const savedRecord = getSaveResultUpdatePayload()['test_results/result-123'] as Record<string, unknown>;
 
             expect(savedRecord.courseId).toBeNull();
             expect(savedRecord.courseName).toBeNull();
@@ -1440,8 +2151,9 @@ describe('testResults.service', () => {
             expect(savedRecord.moduleId).toBeNull();
             expect(savedRecord.moduleName).toBeNull();
 
-            // Should NOT create course or class indexes
-            expect(set).toHaveBeenCalledTimes(4); // Only main, session, student, teacher
+            const updates = getSaveResultUpdatePayload();
+            expect(updates['test_results_by_course/course-1/student-1/result-123']).toBeUndefined();
+            expect(updates['test_results_by_class/class-1/student-1/result-123']).toBeUndefined();
         });
 
         it('should handle partial context (only courseId)', async () => {
@@ -1457,15 +2169,15 @@ describe('testResults.service', () => {
                 academicContext
             );
 
-            const mainRecordCall = (set as any).mock.calls[0];
-            const savedRecord = mainRecordCall[1];
+            const updates = getSaveResultUpdatePayload();
+            const savedRecord = updates['test_results/result-123'] as Record<string, unknown>;
 
             expect(savedRecord.courseId).toBe('course-1');
             expect(savedRecord.courseName).toBeNull();
             expect(savedRecord.classId).toBeNull();
 
-            // Should create course index but not class index
-            expect(set).toHaveBeenCalledTimes(5); // main, session, student, teacher, course
+            expect(updates['test_results_by_course/course-1/student-1/result-123']).toBeDefined();
+            expect(updates['test_results_by_class/class-1/student-1/result-123']).toBeUndefined();
         });
 
         it('should include moduleId in course index', async () => {
@@ -1481,18 +2193,9 @@ describe('testResults.service', () => {
                 academicContext
             );
 
-            // Find the course index set call
-            const courseIndexSetCall = (set as any).mock.calls.find((call: any[], index: number) => {
-                const correspondingRefCall = (ref as any).mock.calls[index];
-                return correspondingRefCall && correspondingRefCall[1] &&
-                    correspondingRefCall[1].includes('test_results_by_course');
-            });
-
-            expect(courseIndexSetCall).toBeDefined();
-            if (courseIndexSetCall) {
-                const indexData = courseIndexSetCall[1];
-                expect(indexData.moduleId).toBe('module-1');
-            }
+            const updates = getSaveResultUpdatePayload();
+            const courseIndexData = updates['test_results_by_course/course-1/student-1/result-123'] as Record<string, unknown>;
+            expect(courseIndexData.moduleId).toBe('module-1');
         });
 
         it('should include courseId in class index', async () => {
@@ -1508,18 +2211,9 @@ describe('testResults.service', () => {
                 academicContext
             );
 
-            // Find the class index set call
-            const classIndexSetCall = (set as any).mock.calls.find((call: any[], index: number) => {
-                const correspondingRefCall = (ref as any).mock.calls[index];
-                return correspondingRefCall && correspondingRefCall[1] &&
-                    correspondingRefCall[1].includes('test_results_by_class');
-            });
-
-            expect(classIndexSetCall).toBeDefined();
-            if (classIndexSetCall) {
-                const indexData = classIndexSetCall[1];
-                expect(indexData.courseId).toBe('course-1');
-            }
+            const updates = getSaveResultUpdatePayload();
+            const classIndexData = updates['test_results_by_class/class-1/student-1/result-123'] as Record<string, unknown>;
+            expect(classIndexData.courseId).toBe('course-1');
         });
     });
 
@@ -1685,8 +2379,7 @@ describe('testResults.service', () => {
                 submissionContent
             );
 
-            const mainRecordCall = (set as any).mock.calls[0];
-            const savedRecord = mainRecordCall[1];
+            const savedRecord = getSaveResultUpdatePayload('result-456')['test_results/result-456'] as Record<string, any>;
 
             expect(savedRecord.markingStatus).toBe('pending-review');
             expect(savedRecord.writingSubmission.text).toBe('Student essay here...');
@@ -1705,8 +2398,7 @@ describe('testResults.service', () => {
                 submissionContent
             );
 
-            const mainRecordCall = (set as any).mock.calls[0];
-            const savedRecord = mainRecordCall[1];
+            const savedRecord = getSaveResultUpdatePayload('result-456')['test_results/result-456'] as Record<string, any>;
 
             expect(savedRecord.markingStatus).toBe('pending-review');
             expect(savedRecord.speakingSubmission.audioUrl).toBe('https://storage.example.com/audio.mp3');
@@ -1720,8 +2412,7 @@ describe('testResults.service', () => {
                 markingResult, readingMetadata, 500, teacherId, false
             );
 
-            const mainRecordCall = (set as any).mock.calls[0];
-            const savedRecord = mainRecordCall[1];
+            const savedRecord = getSaveResultUpdatePayload('result-456')['test_results/result-456'] as Record<string, any>;
 
             expect(savedRecord.markingStatus).toBe('auto-marked');
             expect(savedRecord.writingSubmission).toBeUndefined();
@@ -1740,8 +2431,7 @@ describe('testResults.service', () => {
                 submissionContent
             );
 
-            const mainRecordCall = (set as any).mock.calls[0];
-            const savedRecord = mainRecordCall[1];
+            const savedRecord = getSaveResultUpdatePayload('result-456')['test_results/result-456'] as Record<string, any>;
 
             expect(savedRecord.markingStatus).toBe('pending-review');
             expect(savedRecord.writingSubmission.text).toBe('Essay...');
@@ -1954,8 +2644,7 @@ describe('testResults.service', () => {
                 ieltsData
             );
 
-            const mainRecordCall = (set as any).mock.calls[0];
-            const savedRecord = mainRecordCall[1];
+            const savedRecord = getSaveResultUpdatePayload('result-789')['test_results/result-789'] as Record<string, any>;
 
             expect(savedRecord.ieltsData).toBeDefined();
             expect(savedRecord.ieltsData.passageResults).toHaveLength(3);
@@ -1987,8 +2676,7 @@ describe('testResults.service', () => {
                 markingResult, metadata, 500, 'teacher-1', false
             );
 
-            const mainRecordCall = (set as any).mock.calls[0];
-            const savedRecord = mainRecordCall[1];
+            const savedRecord = getSaveResultUpdatePayload('result-790')['test_results/result-790'] as Record<string, any>;
 
             expect(savedRecord.ieltsData).toBeUndefined();
         });

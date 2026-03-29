@@ -212,9 +212,9 @@ export async function updateSubmission(
 export async function submitHomework(
     submissionId: string,
     resultId: string,
-    score: number,
-    maxScore: number,
-    percentage: number,
+    score?: number,
+    maxScore?: number,
+    percentage?: number,
     bandScore?: number,
     timeSpent?: number,
     integrity?: HomeworkIntegrity, // PRD-0036
@@ -242,19 +242,50 @@ export async function submitHomework(
     await updateDoc(submissionRef, {
         submittedAt: now,
         resultId,
-        score,
-        maxScore,
-        percentage,
-        bandScore: bandScore || null,
-        timeSpent: timeSpent || null,
         isLate,
         status: 'submitted' as HomeworkSubmissionStatus,
+        ...(typeof score === 'number' ? { score } : {}),
+        ...(typeof maxScore === 'number' ? { maxScore } : {}),
+        ...(typeof percentage === 'number' ? { percentage } : {}),
+        ...(typeof bandScore === 'number' ? { bandScore } : {}),
+        ...(typeof timeSpent === 'number' ? { timeSpent } : {}),
         ...(integrity ? { integrity } : {}), // PRD-0036: Anti-cheat integrity data
         ...(attemptsNullified ? { attemptsNullified: true } : {}), // PRD-0036: Nullify remaining attempts
     });
 
     // Update homework stats
     await updateHomeworkStats(submission.homeworkId, 'submitted', isLate);
+}
+
+/**
+ * Mark a homework submission as graded after a teacher finishes manual review.
+ *
+ * Used by manual-review workflows such as IELTS Writing where the submission is
+ * first recorded as "submitted" and later upgraded to "graded".
+ */
+export async function markHomeworkSubmissionGraded(
+    submissionId: string,
+    updates: {
+        bandScore?: number;
+        score?: number;
+        maxScore?: number;
+        percentage?: number;
+    } = {}
+): Promise<void> {
+    const submissionRef = doc(db, SUBMISSION_COLLECTION, submissionId);
+    const snapshot = await getDoc(submissionRef);
+
+    if (!snapshot.exists()) {
+        throw new HomeworkSubmissionError('Submission not found', 'SUBMISSION_NOT_FOUND');
+    }
+
+    await updateDoc(submissionRef, {
+        status: 'graded' as HomeworkSubmissionStatus,
+        ...(typeof updates.bandScore === 'number' ? { bandScore: updates.bandScore } : {}),
+        ...(typeof updates.score === 'number' ? { score: updates.score } : {}),
+        ...(typeof updates.maxScore === 'number' ? { maxScore: updates.maxScore } : {}),
+        ...(typeof updates.percentage === 'number' ? { percentage: updates.percentage } : {}),
+    });
 }
 
 // ============================================================================

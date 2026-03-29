@@ -25,17 +25,38 @@ vi.mock('@/services/firebase', () => ({
 describe('feedbackService', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+
+        vi.mocked(get).mockResolvedValue({
+            exists: () => false,
+            val: () => null
+        } as any);
     });
 
     describe('saveQuestionFeedback', () => {
         it('should save question feedback with all required fields', async () => {
             const mockSet = vi.mocked(set);
             const mockPush = vi.mocked(push);
+            const mockUpdate = vi.mocked(update);
+            const mockGet = vi.mocked(get);
             const mockRef = vi.mocked(ref);
 
-            mockRef.mockReturnValue({} as any);
+            mockRef.mockImplementation((_database, path) => ({ path } as any));
             mockPush.mockReturnValue({} as any);
             mockSet.mockResolvedValue(undefined);
+            mockUpdate.mockResolvedValue(undefined);
+            mockGet.mockResolvedValue({
+                exists: () => true,
+                val: () => ({
+                    questionResults: [
+                        { questionNumber: 1, questionId: 'q1' },
+                        { questionNumber: 2, questionId: 'q2' }
+                    ],
+                    overallFeedback: null,
+                    feedbackUpdatedAt: null,
+                    feedbackUpdatedBy: null,
+                    hasFeedback: false
+                })
+            } as any);
 
             await saveQuestionFeedback('result123', 'q1', 'Great answer!', 'teacher456', 'Mr. Smith');
 
@@ -47,6 +68,15 @@ describe('feedbackService', () => {
             expect(feedbackData.updatedBy).toBe('teacher456');
             expect(feedbackData.teacherName).toBe('Mr. Smith');
             expect(feedbackData.updatedAt).toBeTypeOf('number');
+
+            expect(mockUpdate).toHaveBeenCalledWith(
+                expect.objectContaining({ path: 'test_results/result123' }),
+                expect.objectContaining({
+                    'questionResults/0/teacherFeedback': 'Great answer!',
+                    feedbackUpdatedBy: 'Mr. Smith',
+                    hasFeedback: true
+                })
+            );
         });
 
         it('should trim feedback text', async () => {
@@ -125,6 +155,38 @@ describe('feedbackService', () => {
             expect(result1).toBeNull();
             expect(result2).toBeNull();
         });
+
+        it('should fall back to canonical feedback when legacy data is absent', async () => {
+            const mockGet = vi.mocked(get);
+            const mockRef = vi.mocked(ref);
+
+            mockRef.mockImplementation((_database, path) => ({ path } as any));
+            mockGet
+                .mockResolvedValueOnce({
+                    exists: () => false,
+                    val: () => null
+                } as any)
+                .mockResolvedValueOnce({
+                    exists: () => true,
+                    val: () => ({
+                        questionResults: [
+                            { questionNumber: 1, teacherFeedback: 'Canonical feedback' }
+                        ],
+                        feedbackUpdatedAt: 123,
+                        feedbackUpdatedBy: 'Ms. Nguyen'
+                    })
+                } as any);
+
+            const result = await getQuestionFeedback('result123', '1');
+
+            expect(result).toEqual({
+                questionId: '1',
+                feedback: 'Canonical feedback',
+                updatedAt: 123,
+                updatedBy: 'Ms. Nguyen',
+                teacherName: 'Ms. Nguyen'
+            });
+        });
     });
 
     describe('getAllQuestionFeedback', () => {
@@ -170,17 +232,28 @@ describe('feedbackService', () => {
             const mockSet = vi.mocked(set);
             const mockUpdate = vi.mocked(update);
             const mockPush = vi.mocked(push);
+            const mockGet = vi.mocked(get);
             const mockRef = vi.mocked(ref);
 
-            mockRef.mockReturnValue({} as any);
+            mockRef.mockImplementation((_database, path) => ({ path } as any));
             mockPush.mockReturnValue({} as any);
             mockSet.mockResolvedValue(undefined);
             mockUpdate.mockResolvedValue(undefined);
+            mockGet.mockResolvedValue({
+                exists: () => true,
+                val: () => ({
+                    questionResults: [],
+                    overallFeedback: null,
+                    feedbackUpdatedAt: null,
+                    feedbackUpdatedBy: null,
+                    hasFeedback: false
+                })
+            } as any);
 
             await saveOverallFeedback('result123', 'Overall great work!', 'teacher456', 'Mr. Smith');
 
             expect(mockSet).toHaveBeenCalled();
-            expect(mockUpdate).toHaveBeenCalled();
+            expect(mockUpdate).toHaveBeenCalledTimes(2);
 
             const feedbackData = mockSet.mock.calls[0][1] as OverallFeedback;
             expect(feedbackData.feedback).toBe('Overall great work!');
@@ -189,6 +262,11 @@ describe('feedbackService', () => {
             const updateData = mockUpdate.mock.calls[0][1] as any;
             expect(updateData.hasFeedback).toBe(true);
             expect(updateData.feedbackUpdatedBy).toBe('teacher456');
+
+            const canonicalUpdateData = mockUpdate.mock.calls[1][1] as any;
+            expect(canonicalUpdateData.overallFeedback).toBe('Overall great work!');
+            expect(canonicalUpdateData.feedbackUpdatedBy).toBe('Mr. Smith');
+            expect(canonicalUpdateData.hasFeedback).toBe(true);
         });
 
         it('should throw error if required parameters are missing', async () => {
@@ -223,6 +301,35 @@ describe('feedbackService', () => {
             const result = await getOverallFeedback('result123');
 
             expect(result).toEqual(mockFeedback);
+        });
+
+        it('should fall back to canonical overall feedback when legacy data is absent', async () => {
+            const mockGet = vi.mocked(get);
+            const mockRef = vi.mocked(ref);
+
+            mockRef.mockImplementation((_database, path) => ({ path } as any));
+            mockGet
+                .mockResolvedValueOnce({
+                    exists: () => false,
+                    val: () => null
+                } as any)
+                .mockResolvedValueOnce({
+                    exists: () => true,
+                    val: () => ({
+                        overallFeedback: 'Canonical overall feedback',
+                        feedbackUpdatedAt: 456,
+                        feedbackUpdatedBy: 'Mr. Smith'
+                    })
+                } as any);
+
+            const result = await getOverallFeedback('result123');
+
+            expect(result).toEqual({
+                feedback: 'Canonical overall feedback',
+                updatedAt: 456,
+                updatedBy: 'Mr. Smith',
+                teacherName: 'Mr. Smith'
+            });
         });
 
         it('should return null if feedback does not exist', async () => {
@@ -313,7 +420,7 @@ describe('feedbackService', () => {
             const mockGet = vi.mocked(get);
             const mockRef = vi.mocked(ref);
 
-            mockRef.mockReturnValue({} as any);
+            mockRef.mockImplementation((_database, path) => ({ path } as any));
             mockSet.mockResolvedValue(undefined);
             mockUpdate.mockResolvedValue(undefined);
             mockGet.mockResolvedValue({

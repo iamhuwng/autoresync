@@ -71,6 +71,7 @@ describe('assignmentManager', () => {
             mockGet.mockResolvedValueOnce({ exists: () => false, val: () => null });
             // Mock: Set assignment
             mockSet.mockResolvedValueOnce(undefined);
+            mockSet.mockResolvedValueOnce(undefined);
             // Mock: Set history
             mockSet.mockResolvedValueOnce(undefined);
 
@@ -83,7 +84,7 @@ describe('assignmentManager', () => {
 
             expect(result.success).toBe(true);
             expect(result.assignmentId).toBeTruthy();
-            expect(mockSet).toHaveBeenCalledTimes(2); // Assignment + History
+            expect(mockSet).toHaveBeenCalledTimes(3); // Assignment + link + History
         });
 
         it('should validate required fields', async () => {
@@ -124,6 +125,7 @@ describe('assignmentManager', () => {
             mockGet.mockResolvedValueOnce({ exists: () => false, val: () => null });
             mockSet.mockResolvedValueOnce(undefined);
             mockSet.mockResolvedValueOnce(undefined);
+            mockSet.mockResolvedValueOnce(undefined);
 
             const studentId = 'student-123';
             const teacherId = 'teacher-456';
@@ -147,6 +149,7 @@ describe('assignmentManager', () => {
 
         it('should handle empty courseIds array', async () => {
             mockGet.mockResolvedValueOnce({ exists: () => false, val: () => null });
+            mockSet.mockResolvedValueOnce(undefined);
             mockSet.mockResolvedValueOnce(undefined);
             mockSet.mockResolvedValueOnce(undefined);
 
@@ -200,6 +203,7 @@ describe('assignmentManager', () => {
                 val: () => existingAssignment
             });
             mockUpdate.mockResolvedValueOnce(undefined);
+            mockSet.mockResolvedValueOnce(undefined);
             mockSet.mockResolvedValueOnce(undefined); // History
 
             const result = await removeAssignment('assignment-123', 'No longer needed');
@@ -231,6 +235,7 @@ describe('assignmentManager', () => {
                 val: () => existingAssignment
             });
             mockUpdate.mockResolvedValueOnce(undefined);
+            mockSet.mockResolvedValueOnce(undefined);
             mockSet.mockResolvedValueOnce(undefined);
 
             const beforeTime = Date.now();
@@ -279,12 +284,13 @@ describe('assignmentManager', () => {
             });
             mockUpdate.mockResolvedValueOnce(undefined);
             mockSet.mockResolvedValueOnce(undefined);
+            mockSet.mockResolvedValueOnce(undefined);
 
             await removeAssignment('assignment-123', 'Test reason');
 
             // Verify history entry was created
-            expect(mockSet).toHaveBeenCalledTimes(1);
-            const historyCall = mockSet.mock.calls[0][1];
+            expect(mockSet).toHaveBeenCalledTimes(2);
+            const historyCall = mockSet.mock.calls[1][1];
             expect(historyCall).toMatchObject({
                 studentId: 'student-123',
                 teacherId: 'teacher-456',

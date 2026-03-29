@@ -35,6 +35,7 @@ export const ROUTES = {
   STUDENT_WAITING: '/student-wait/:gameSessionId',
   STUDENT_TEST: '/student-test/:sessionCode',
   STUDENT_TEST_RESULTS: '/student-test-results/:sessionCode',
+  SUBMISSION_COMPLETE: '/submission-complete',
   STUDENT_QUIZ: '/student-quiz/:gameSessionId',
   STUDENT_FEEDBACK: '/student-feedback/:gameSessionId',
   STUDENT_RESULTS: '/student-results/:gameSessionId',

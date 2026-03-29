@@ -14,6 +14,7 @@ vi.mock('firebase/database', () => ({
 
 vi.mock('./firebase', () => ({
   database: {},
+  firestore: {},
 }));
 
 import { generateFormativeFeedback } from './formativeFeedback.service';
@@ -96,7 +97,15 @@ describe('generateFormativeFeedback single-write guard', () => {
       reusedExisting: true,
     });
     expect(mockGet).toHaveBeenCalledTimes(1);
-    expect(mockUpdate).not.toHaveBeenCalled();
+    expect(mockUpdate).toHaveBeenCalledWith(
+      { path: 'test_results/result-1' },
+      expect.objectContaining({
+        feedbackGenerationMeta: expect.objectContaining({
+          kind: 'thcs',
+          lastOutcome: 'reused',
+        }),
+      }),
+    );
   });
 
   it('bypasses stored deterministic feedback when a force-upgrade is requested, but keeps the old payload if AI upgrade fails', async () => {
@@ -123,7 +132,16 @@ describe('generateFormativeFeedback single-write guard', () => {
       upgradeApplied: false,
     });
     expect(mockGet).toHaveBeenCalledTimes(1);
-    expect(mockUpdate).not.toHaveBeenCalled();
+    expect(mockUpdate).toHaveBeenCalledWith(
+      { path: 'test_results/result-1' },
+      expect.objectContaining({
+        feedbackGenerationMeta: expect.objectContaining({
+          kind: 'thcs',
+          lastOutcome: 'reused',
+          lastError: 'AI upgrade did not complete. The existing feedback is still being shown.',
+        }),
+      }),
+    );
   });
 
   it('dedupes concurrent generation requests for the same result id', async () => {
@@ -166,6 +184,6 @@ describe('generateFormativeFeedback single-write guard', () => {
       },
     ]);
     expect(mockGet).toHaveBeenCalledTimes(1);
-    expect(mockUpdate).not.toHaveBeenCalled();
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
   });
 });

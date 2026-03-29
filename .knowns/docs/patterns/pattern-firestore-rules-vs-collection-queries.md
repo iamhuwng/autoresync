@@ -1,55 +1,52 @@
 ---
 title: 'Pattern: Firestore Rules vs Collection Queries'
+description: Firestore security rules silently reject entire queries when ANY returned document fails the read rule. This causes invisible data loss for teacher-facing features.
 createdAt: '2026-03-01T09:46:26.555Z'
-updatedAt: '2026-03-01T09:46:57.403Z'
-description: >-
-  Firestore security rules silently reject entire queries when ANY returned
-  document fails the read rule. This causes invisible data loss for
-  teacher-facing features.
+updatedAt: '2026-03-28T09:18:16.865Z'
 tags:
   - pattern
   - firestore
   - security
   - debugging
 ---
+
 # Pattern: Firestore Rules vs Collection Queries
 
 ## Problem
 
-Firestore security rules evaluate **per-document**, but collection queries must satisfy rules for **EVERY document** returned. If even ONE document in the result set fails the read rule, the **entire query is rejected** — silently, with no partial results.
+Firestore security rules evaluate per-document, but collection queries must satisfy rules for every document returned. If even one document in the result set fails the read rule, the entire query is rejected.
 
-This creates a class of bug where:
-1. Data writes succeed (create rules are permissive)
-2. Individual reads succeed (student can see their own submission)
-3. Collection queries fail silently (teacher sees empty list)
-
-The symptom is always the same: "I can see the data exists, but the other user's query returns nothing."
+This creates a bug class where:
+1. Data writes succeed.
+2. Individual reads may succeed.
+3. Collection queries fail with `Missing or insufficient permissions` or appear to return nothing.
 
 ## Root Cause Pattern
 
-```
-// ❌ Per-document ownership check on a collection query
+```ts
+// Per-document ownership check on a collection query
 match /submissions/{id} {
   allow read: if request.auth != null
     && (resource.data.studentId == request.auth.uid
         || resource.data.context.teacherId == request.auth.uid);
 }
 
-// Teacher query — FAILS if ANY doc belongs to another teacher
+// Teacher queue query
 const q = query(
   collection(db, 'submissions'),
   where('status', '==', 'pending')
 );
-// Firestore checks the read rule against ALL returned docs
-// If doc #3 belongs to Teacher B, Teacher A's entire query is rejected
 ```
 
-## Solution
+If that query can return documents owned by multiple teachers, Firestore evaluates the read rule against the full result set and rejects the query when any returned document is unreadable to the caller.
 
-### Option A: Broad read + client-side filter (recommended for internal tools)
+## Solution Options
 
-```
-// ✅ Any authenticated user can read — client filters by ownership
+### Option A: Broad read + client-side filter
+
+Use this for internal teacher-facing queues when the service layer already filters ownership.
+
+```rules
 match /submissions/{id} {
   allow read: if request.auth != null;
   allow create: if request.auth != null;
@@ -58,68 +55,111 @@ match /submissions/{id} {
 }
 ```
 
-Client-side ownership filtering already exists in the service layer.
+### Option B: Query must match the rule filter
 
-### Option B: Query must match the security rule filter
+Use this only when the ownership field is guaranteed on every document and the required indexes exist.
 
-```
-// ✅ Security rule matches query filter — requires composite index
-match /submissions/{id} {
-  allow read: if request.auth != null
-    && resource.data.teacherId == request.auth.uid;
-}
-
-// Query MUST include the same filter
+```ts
 const q = query(
   collection(db, 'submissions'),
   where('status', '==', 'pending'),
-  where('teacherId', '==', currentUser.uid)  // matches security rule
+  where('teacherId', '==', currentUser.uid)
 );
 ```
 
-### Option C: Ensure ownership field is always populated
+### Option C: Always persist ownership metadata at create time
 
-When using per-document rules, the ownership field MUST be written at creation time, not looked up later:
-
-```typescript
-// ❌ Missing ownership field — rules will block reads
+```ts
+// Wrong
 context: { type: 'live-session', sessionCode }
 
-// ✅ Always populate the ownership field
-context: { type: 'live-session', sessionCode, assigningTeacherId: testData.createdBy }
+// Correct
+context: {
+  type: 'live-session',
+  sessionCode,
+  assigningTeacherId: testData.createdBy,
+}
 ```
+
+Do not rely on RTDB lookups or later enrichment to save a Firestore query that has already been rejected.
 
 ## Real Bug: Writing Submissions Invisible to Teachers (2026-03-01)
 
-**Symptom:** Students submit writing tests in live sessions. Students see "pending review" in their records. Teachers see nothing in their grading tab.
+Symptom:
+- Students could submit IELTS writing.
+- Teachers saw nothing in the grading queue.
 
-**Cause:** Two compounding issues:
-1. `autoSubmitFromRTDB()` wrote `context: { type: 'live-session', sessionCode }` — no `assigningTeacherId`
-2. Firestore read rule checked `context.assigningTeacherId == auth.uid` — always failed for live-session docs
-3. Teacher's query `where('markingStatus', '==', 'pending-review')` returned ALL pending docs, but the read rule rejected the query because other teachers' docs failed the check
+Cause:
+1. `autoSubmitFromRTDB()` created live-session submissions without `assigningTeacherId`.
+2. Firestore rules only allowed reads when the teacher ownership field matched.
+3. The queue queried `where('markingStatus', '==', 'pending-review')` and then filtered client-side.
 
-**Fix:**
-1. Added `assigningTeacherId: testData.createdBy` to submission context
-2. Broadened Firestore read rule to `allow read: if request.auth != null`
+Fix pattern:
+1. Persist teacher ownership metadata on live-session submissions.
+2. Align the Firestore read rule with the queue design, or align the queue with the rule.
+
+## Operational Follow-Through: Deploy the Rules You Fixed
+
+A local `firestore.rules` change does not affect a hosted app until the active Firebase project receives a rules deploy.
+
+Required follow-through after any Firestore permission fix:
+1. Confirm the runtime Firebase project ID from the console log, environment, or Firebase CLI state.
+2. Deploy the rules to that exact project with `firebase deploy --only firestore:rules`.
+3. Read back the remote rules or otherwise verify the live project now contains the updated rule block.
+4. Only then retest the browser flow.
+
+If the browser still throws the exact same permission error after a local rules fix, assume stale deployed rules before assuming the code fix failed.
+
+## Real Bug Follow-Up: Same Queue Failure After Local Fix (2026-03-28)
+
+A follow-up incident confirmed the same teacher queue still failing at `writingSubmissionService.getPendingSubmissions()`, even though the local repo already contained the correct rule change.
+
+What actually happened:
+- The runtime project was `temp-a1437`.
+- The hosted project still had the old `writing_submissions` read rule deployed.
+- Deploying `firestore.rules` to the live project removed the stale rule mismatch.
+
+Additional lesson:
+- This bug class has both a design layer and a deployment-state layer.
+- Fixing only the source file resolves the design bug but does not repair the live system until rules are deployed.
+
+## Teacher Read Surfaces To Audit Together
+
+When `writing_submissions` permissions regress, inspect all of these together:
+- Queue read: `getPendingSubmissions()`
+- Detail read: `getSubmission(submissionId)`
+- Grading save pre-read: `updateGrading()` before `updateDoc()`
+
+A stale read rule can break all three surfaces at once.
+
+## Current Standard
+
+- Broad-read teacher queue patterns must be paired with deployed rules, not only local file edits.
+- Live-session writing submissions should persist teacher ownership metadata even when broad authenticated reads are used for queue compatibility.
+- Firestore permission fixes must include a live deployment verification step when the failing app is hosted.
 
 ## Checklist When Adding Firestore Collections
 
-- [ ] Does any query fetch docs that might belong to different users?
-- [ ] If yes, does the security rule allow the querying user to read ALL possible results?
-- [ ] If using per-document ownership checks, does the query filter match the security rule?
-- [ ] Are ALL ownership fields populated at document creation time?
-- [ ] Test with multiple users — not just the document creator
+- [ ] Does any collection query span documents owned by multiple users?
+- [ ] If yes, do the rules allow the caller to read the full possible result set?
+- [ ] If using ownership-based rules, does the query explicitly match that ownership field?
+- [ ] Are all ownership fields written at document creation time?
+- [ ] Have you tested the flow with multiple users?
+- [ ] Have you deployed and verified the live rules if the bug occurs in a hosted environment?
 
-## Anti-Pattern: RTDB Fallback for Ownership
+## Anti-Pattern: RTDB Fallback After Firestore Rejection
 
-```typescript
-// ❌ This CANNOT fix a Firestore rule rejection
-// The RTDB lookup happens AFTER the Firestore query, but the query already failed
+```ts
 const q = query(collection(db, 'submissions'), where('status', '==', 'pending'));
-const docs = await getDocs(q); // ← rejected by Firestore rules
-// RTDB lookup to check session ownership never runs
+const docs = await getDocs(q); // already rejected by Firestore rules
+// RTDB ownership lookup here cannot recover the failed query
 ```
+
+## Related Docs
+
+- @doc/architecture/firebase-infrastructure
+- @doc/sop/ielts-writing-grading-permission-runtime-state
 
 ## Source
 
-Bug discovered 2026-03-01 in `writingSubmissionService.ts` → `getPendingSubmissions()`
+Primary incident family discovered in `writingSubmissionService.ts` -> `getPendingSubmissions()` and re-confirmed on 2026-03-28 against live project `temp-a1437`.

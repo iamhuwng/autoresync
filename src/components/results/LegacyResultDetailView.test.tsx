@@ -10,12 +10,14 @@ const {
   useResultOwnershipCheckMock,
   mockOnValue,
   mockRef,
+  mockGenerateFormativeFeedbackForSavedResult,
 } = vi.hoisted(() => ({
   generateCertificatePDFMock: vi.fn(),
   isPDFGenerationAvailableMock: vi.fn(),
   useResultOwnershipCheckMock: vi.fn(),
   mockOnValue: vi.fn(),
   mockRef: vi.fn((_db: any, path: string) => ({ path })),
+  mockGenerateFormativeFeedbackForSavedResult: vi.fn(),
 }));
 
 let mockAuthUser: { uid: string; email?: string } | null = { uid: 'teacher-1', email: 'teacher@example.com' };
@@ -40,6 +42,10 @@ vi.mock('../../services/firebase', () => ({
 vi.mock('../../services/testResults.service', () => ({
   getHistoricalScores: vi.fn().mockResolvedValue([]),
   getClassTestScores: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock('../../services/resultFeedbackGeneration.service', () => ({
+  generateFormativeFeedbackForSavedResult: (...args: unknown[]) => mockGenerateFormativeFeedbackForSavedResult(...args),
 }));
 
 vi.mock('../../utils/pdfCertificate', () => ({
@@ -206,6 +212,11 @@ describe('LegacyResultDetailView', () => {
     useResultOwnershipCheckMock.mockImplementation(() => mockOwnershipState);
     // Default: onValue returns an unsubscribe fn
     mockOnValue.mockReturnValue(vi.fn());
+    mockGenerateFormativeFeedbackForSavedResult.mockResolvedValue({
+      saved: true,
+      aiApplied: true,
+      mode: 'ai',
+    });
     Object.defineProperty(window, 'print', {
       value: printMock,
       writable: true,
@@ -225,6 +236,12 @@ describe('LegacyResultDetailView', () => {
     expect(screen.getByTestId('result-source-primary-label')).toHaveTextContent('Homework 1');
     // SharedSavedResultCore renders via OverviewTab — score header is present
     expect(screen.getByTestId('ov-score-header')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(mockGenerateFormativeFeedbackForSavedResult).toHaveBeenCalledWith(
+        'res-1',
+        expect.objectContaining({ triggerSource: 'LegacyResultDetailView:auto-generate' }),
+      );
+    });
   });
 
   it('shows the error state and supports the return callback when the result is missing', async () => {

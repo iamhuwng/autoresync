@@ -4,12 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import TeacherStudentHistoryPage from './TeacherStudentHistoryPage';
 
 const {
-    getStudentResultsMock,
+    getTeacherStudentResultsMock,
     signOutMock,
     trackActionMock,
     renderResultFiltersMock,
 } = vi.hoisted(() => ({
-    getStudentResultsMock: vi.fn(),
+    getTeacherStudentResultsMock: vi.fn(),
     signOutMock: vi.fn(),
     trackActionMock: vi.fn(),
     renderResultFiltersMock: vi.fn(),
@@ -49,7 +49,7 @@ vi.mock('firebase/auth', () => ({
 }));
 
 vi.mock('../services/testResults.service', () => ({
-    getStudentResults: getStudentResultsMock,
+    getTeacherStudentResults: getTeacherStudentResultsMock,
 }));
 
 vi.mock('../services/resultVisibility.service', () => ({
@@ -122,7 +122,7 @@ describe('TeacherStudentHistoryPage', () => {
             photoURL: null,
         };
 
-        getStudentResultsMock.mockResolvedValue([
+        getTeacherStudentResultsMock.mockResolvedValue([
             {
                 resultId: 'result-1',
                 sessionCode: 'session-1',
@@ -202,19 +202,92 @@ describe('TeacherStudentHistoryPage', () => {
                 },
             },
         ]);
-
         classifyTeacherResultVisibilityMock.mockImplementation(({ result }: any) => ({
             shouldDisplayInTeacherHistory: result.resultId === 'result-2',
         }));
     });
 
     it('renders the teacher shell while the history request is still loading', () => {
-        getStudentResultsMock.mockReturnValue(new Promise(() => {}));
+        getTeacherStudentResultsMock.mockReturnValue(new Promise(() => {}));
 
         renderPage();
 
         expect(screen.getByText('Teacher Header: Student History')).toBeInTheDocument();
         expect(screen.getByText('Loading student history...')).toBeInTheDocument();
+    });
+
+    it('keeps the loading shell up while assignment access is still resolving', () => {
+        ownershipCheckState = {
+            allowed: false,
+            loading: true,
+            denialReason: undefined,
+        };
+
+        renderPage();
+
+        expect(screen.getByText('Teacher Header: Student History')).toBeInTheDocument();
+        expect(screen.getByText('Loading student history...')).toBeInTheDocument();
+        expect(getTeacherStudentResultsMock).not.toHaveBeenCalled();
+    });
+
+    it('loads canonical teacher-student results through the dedicated service path', async () => {
+        getTeacherStudentResultsMock.mockResolvedValue([
+            {
+                resultId: 'teacher-owned-row',
+                sessionCode: 'SESSION-TEACHER',
+                testId: 'TEST-TEACHER',
+                studentId: 'student-1',
+                studentName: 'Student One',
+                teacherId: 'teacher-1',
+                totalScore: 19,
+                maxScore: 20,
+                percentage: 95,
+                bandScore: 8.5,
+                questionResults: [],
+                correct: 19,
+                incorrect: 1,
+                partialCredit: 0,
+                totalQuestions: 20,
+                submittedAt: 1_700_000_500_000,
+                timeElapsed: 700_000,
+                testDuration: 3_600,
+                createdAt: 1_700_000_500_000,
+                testTitle: 'Teacher-Owned Reading',
+                testType: 'test',
+                testSkill: 'reading',
+                visibility: {
+                    contextType: 'class_session',
+                    sourceType: 'session',
+                    sourceId: 'SESSION-TEACHER',
+                    sourceNameSnapshot: 'Teacher-Owned Reading',
+                    visibilityOwnerTeacherId: 'teacher-1',
+                    ownerResolutionSource: 'session.createdByUserId',
+                    ownershipResolved: true,
+                    unresolvedReason: null,
+                    homeworkId: null,
+                    sessionCode: 'SESSION-TEACHER',
+                    courseId: null,
+                    classId: null,
+                    assignmentId: null,
+                },
+            },
+        ]);
+        classifyTeacherResultVisibilityMock.mockImplementation(({ result }: any) => ({
+            shouldDisplayInTeacherHistory: result.resultId === 'teacher-owned-row',
+            excludeFromAnalytics: false,
+        }));
+
+        renderPage();
+
+        await screen.findByText("Student One's History");
+
+        expect(getTeacherStudentResultsMock).toHaveBeenCalledWith(
+            'teacher-1',
+            'student-1',
+            undefined,
+            { hasAssignmentAccess: true },
+        );
+        expect(screen.getByText('Teacher-Owned Reading')).toBeInTheDocument();
     });
 
     it('uses the shared visibility classifier and passes only classified results to ResultFilters', async () => {
@@ -249,7 +322,7 @@ describe('TeacherStudentHistoryPage', () => {
     });
 
     it('keeps solo-practice rows in the history list while excluding them from analytics cards', async () => {
-        getStudentResultsMock.mockResolvedValue([
+        getTeacherStudentResultsMock.mockResolvedValue([
             {
                 resultId: 'result-owned',
                 sessionCode: 'session-owned',
@@ -347,7 +420,7 @@ describe('TeacherStudentHistoryPage', () => {
     });
 
     it('renders solo-practice and deleted-source badges while unresolved rows remain excluded', async () => {
-        getStudentResultsMock.mockResolvedValue([
+        getTeacherStudentResultsMock.mockResolvedValue([
             {
                 resultId: 'solo-row',
                 sessionCode: 'solo-session',
@@ -532,12 +605,12 @@ describe('TeacherStudentHistoryPage', () => {
 
         expect(screen.getByText('Teacher Header: Student History')).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Back to Students' })).toBeInTheDocument();
-        expect(getStudentResultsMock).not.toHaveBeenCalled();
+        expect(getTeacherStudentResultsMock).not.toHaveBeenCalled();
         expect(screen.queryByText('Listening Test')).not.toBeInTheDocument();
     });
 
     it('renders solo-practice rows with canonical label and no generic legacy ownership badges', async () => {
-        getStudentResultsMock.mockResolvedValue([
+        getTeacherStudentResultsMock.mockResolvedValue([
             {
                 resultId: 'solo-visible',
                 sessionCode: 'solo-session',
@@ -561,24 +634,41 @@ describe('TeacherStudentHistoryPage', () => {
                 testTitle: 'Solo Source Snapshot',
                 testType: 'solo_practice',
                 testSkill: 'reading',
+                visibility: {
+                    contextType: 'solo_practice',
+                    sourceType: 'solo_practice',
+                    sourceId: 'material-1',
+                    sourceNameSnapshot: 'Solo Source Snapshot',
+                    visibilityOwnerTeacherId: null,
+                    ownerResolutionSource: 'solo_practice',
+                    ownershipResolved: true,
+                    unresolvedReason: null,
+                    homeworkId: null,
+                    sessionCode: 'solo-session',
+                    courseId: null,
+                    classId: null,
+                    assignmentId: null,
+                },
             },
         ]);
 
         classifyTeacherResultVisibilityMock.mockReturnValue({
             shouldDisplayInTeacherHistory: true,
+            excludeFromAnalytics: true,
         });
 
         renderPage();
 
         await screen.findByText("Student One's History");
         expect(screen.getByText('Solo Source Snapshot')).toBeInTheDocument();
-        expect(screen.getByText(/Solo Practice/i)).toBeInTheDocument();
+        expect(screen.getByTestId('history-badge-solo-practice-solo-visible')).toHaveTextContent('Solo Practice');
+        expect(screen.getByTestId('teacher-history-total-tests')).toHaveTextContent('0');
         expect(screen.queryByText(/teacher-owned/i)).not.toBeInTheDocument();
         expect(screen.queryByText(/legacy\/unverified/i)).not.toBeInTheDocument();
     });
 
     it('excludes unresolved rows from teacher history while keeping resolved rows and deleted-source snapshot titles', async () => {
-        getStudentResultsMock.mockResolvedValue([
+        getTeacherStudentResultsMock.mockResolvedValue([
             {
                 resultId: 'resolved-deleted-source',
                 sessionCode: 'session-resolved',
@@ -651,7 +741,7 @@ describe('TeacherStudentHistoryPage', () => {
 
         await screen.findByText('Access denied');
         expect(screen.getByText('Teacher Header: Student History')).toBeInTheDocument();
-        expect(getStudentResultsMock).not.toHaveBeenCalled();
+        expect(getTeacherStudentResultsMock).not.toHaveBeenCalled();
     });
 
     it('clears visible history and shows an in-shell access-revoked state after mid-view revocation', async () => {

@@ -4,10 +4,14 @@ const {
   mockGetTestResult,
   mockBuildResultFeedbackPayload,
   mockGenerateFormativeFeedback,
+  mockRef,
+  mockUpdate,
 } = vi.hoisted(() => ({
   mockGetTestResult: vi.fn(),
   mockBuildResultFeedbackPayload: vi.fn(),
   mockGenerateFormativeFeedback: vi.fn(),
+  mockRef: vi.fn((_database: unknown, path: string) => ({ path })),
+  mockUpdate: vi.fn(),
 }));
 
 vi.mock('./testResults.service', () => ({
@@ -20,6 +24,15 @@ vi.mock('./resultFeedbackPayload.service', () => ({
 
 vi.mock('./formativeFeedback.service', () => ({
   generateFormativeFeedback: (...args: unknown[]) => mockGenerateFormativeFeedback(...args),
+}));
+
+vi.mock('firebase/database', () => ({
+  ref: (...args: unknown[]) => mockRef(...args),
+  update: (...args: unknown[]) => mockUpdate(...args),
+}));
+
+vi.mock('./firebase', () => ({
+  database: {},
 }));
 
 import { generateFormativeFeedbackForSavedResult } from './resultFeedbackGeneration.service';
@@ -74,6 +87,14 @@ describe('generateFormativeFeedbackForSavedResult', () => {
 
     await expect(generateFormativeFeedbackForSavedResult('result-2')).resolves.toBeNull();
     expect(mockGenerateFormativeFeedback).not.toHaveBeenCalled();
+    expect(mockUpdate).toHaveBeenCalledWith(
+      { path: 'test_results/result-2' },
+      expect.objectContaining({
+        feedbackGenerationMeta: expect.objectContaining({
+          lastOutcome: 'skipped-ineligible',
+        }),
+      }),
+    );
   });
 
   it('passes force-upgrade options through to the generation service', async () => {

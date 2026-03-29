@@ -12,8 +12,10 @@ import { ref, update } from 'firebase/database';
 // @ts-ignore - firebase.js is a JS file without type declarations
 import { database } from '../../services/firebase';
 import { saveTestResult } from '../../services/testResults.service';
+import { deriveIeltsPassageResults } from '../../services/ieltsPassageResults.service';
 import { markTest } from '../../services/autoMarking.service';
 import type { StudentAnswer } from '../../services/autoMarking.service';
+import type { ResultContext } from '../../types/solo.types';
 
 // ============================================================
 // TYPES
@@ -86,7 +88,23 @@ export async function autoSubmitDisconnectedStudents(
     sessionCode: string,
     testId: string,
     disconnectedStudents: DisconnectedStudentData[],
-    totalQuestions: number = 0 // Default to 0 if not provided
+    testMetadata: {
+        title: string;
+        type: string;
+        skill: string;
+        duration: number;
+        questionCount?: number;
+    },
+    teacherId?: string,
+    sessionStartTime: number | null = null,
+    academicContext?: {
+        courseId?: string;
+        courseName?: string;
+        classId?: string;
+        className?: string;
+        moduleId?: string;
+        moduleName?: string;
+    }
 ): Promise<AutoSubmitResult[]> {
     const results: AutoSubmitResult[] = [];
 
@@ -94,45 +112,71 @@ export async function autoSubmitDisconnectedStudents(
 
     for (const student of disconnectedStudents) {
         try {
-            // Skip if no answers to submit
-            if (!student.answers || Object.keys(student.answers).length === 0) {
-                console.log(`⏭️ [AutoSubmit] Skipping ${student.name} - no answers to submit`);
-                results.push({
-                    success: true,
-                    studentId: student.studentId,
-                    studentName: student.name,
-                    submittedCount: 0,
-                });
-                continue;
-            }
+            const totalQuestions = testMetadata.questionCount ?? Object.keys(student.answers || {}).length;
 
             // Check completeness (PRD-0019)
             const { answeredCount, isComplete } = checkSubmissionCompleteness(student.answers, totalQuestions);
+            const answeredQuestions: Record<number, StudentAnswer> = {};
 
-            // Create test result entry
-            const resultId = `${testId}_${student.studentId}_${Date.now()}`;
+            Object.entries(student.answers).forEach(([questionNum, answerData]) => {
+                const qNum = parseInt(questionNum);
+                if (isNaN(qNum)) return;
 
-            const testResult = {
-                testId,
+                const rawAnswer = typeof answerData === 'object' && answerData !== null && 'answer' in answerData
+                    ? answerData.answer
+                    : answerData;
+
+                if (rawAnswer !== null && rawAnswer !== undefined && rawAnswer !== '') {
+                    answeredQuestions[qNum] = {
+                        questionId: String(qNum),
+                        questionNumber: qNum,
+                        answer: rawAnswer,
+                    };
+                }
+            });
+
+            const markingResult = buildFallbackMarkingResult(answeredQuestions, totalQuestions);
+            const timeElapsed = sessionStartTime ? Math.floor((Date.now() - sessionStartTime) / 1000) : testMetadata.duration * 60;
+            const resultContext: ResultContext = {
+                type: 'class_session',
+                source: {
+                    type: 'class',
+                    id: sessionCode,
+                    name: testMetadata.title,
+                    sessionCode,
+                    classId: academicContext?.classId,
+                    courseId: academicContext?.courseId,
+                },
                 sessionCode,
-                studentId: student.studentId,
-                studentName: student.name,
-                answers: student.answers,
-                submittedAt: Date.now(),
-                isIncomplete: !isComplete, // PRD-0019 flag
-                submittedBy: 'system-timeout', // PRD-0019 unified value
-                disconnectedAt: student.disconnectedAt || student.lastActivity,
-                lastActivityAt: student.lastActivity,
-                answeredCount: answeredCount,
-                totalQuestions: totalQuestions, // Store total questions for reference
-                // Mark as needing review
-                needsReview: true,
-                reviewReason: 'Student disconnected during test',
+                classId: academicContext?.classId,
+                courseId: academicContext?.courseId,
+                assignmentId: undefined,
+                configApplied: {
+                    timerMinutes: testMetadata.duration,
+                    feedbackTiming: 'after_completion',
+                    source: 'teacher_override',
+                },
             };
 
-            await update(ref(database), {
-                [`test_results/${resultId}`]: testResult,
-            });
+            const resultId = await saveTestResult(
+                sessionCode,
+                testId,
+                student.studentId,
+                student.name,
+                markingResult as any,
+                testMetadata,
+                timeElapsed,
+                teacherId,
+                false,
+                undefined,
+                academicContext,
+                resultContext,
+                undefined,
+                undefined,
+                {
+                    skipInitialFeedbackTrigger: true,
+                }
+            );
 
             console.log(`✅ [AutoSubmit] Submitted ${answeredCount} answers for ${student.name} (Complete: ${isComplete})`);
 
@@ -222,6 +266,55 @@ export interface FullAutoSubmitResult {
     resultId?: string;
     answeredCount: number;
     error?: string;
+}
+
+function buildIeltsGroupingQuestion(question: any): {
+    questionNumber: number;
+    passageId?: string;
+    sectionId?: string;
+    passageName?: string;
+    sectionName?: string;
+} {
+    return {
+        questionNumber: question.number,
+        passageId: question.passageId ?? question.passage ?? undefined,
+        sectionId: question.sectionId ?? (question.sectionNumber !== undefined && question.sectionNumber !== null ? String(question.sectionNumber) : undefined),
+        passageName: question.passageName ?? question.passageTitle ?? (question.passage ? String(question.passage) : undefined),
+        sectionName: question.sectionName ?? (question.sectionNumber !== undefined && question.sectionNumber !== null ? `Part ${question.sectionNumber}` : undefined),
+    };
+}
+
+function buildFallbackMarkingResult(
+    studentAnswers: Record<number, StudentAnswer>,
+    totalQuestions: number
+) {
+    const questionResults = Object.values(studentAnswers).map((answer, index) => ({
+        questionId: answer.questionId || `q${index + 1}`,
+        questionNumber: answer.questionNumber || index + 1,
+        questionType: 'unknown',
+        studentAnswer: answer.answer,
+        correctAnswer: '',
+        isCorrect: false,
+        score: 0,
+        maxScore: 1,
+        feedback: 'Unable to fully auto-grade during disconnect fallback.',
+    }));
+
+    const resolvedTotalQuestions = Math.max(totalQuestions, questionResults.length, 1);
+
+    return {
+        totalScore: 0,
+        maxScore: resolvedTotalQuestions,
+        percentage: 0,
+        questionResults,
+        summary: {
+            correct: 0,
+            incorrect: resolvedTotalQuestions,
+            partialCredit: 0,
+            totalQuestions: resolvedTotalQuestions,
+        },
+        completedAt: Date.now(),
+    };
 }
 
 // ============================================================
@@ -340,6 +433,22 @@ export async function autoSubmitAllUnsubmittedStudents(
 
             // 2. Mark the test using the auto-marking service
             const markingResult = markTest(testQuestions, studentAnswers);
+            const isIeltsReadingOrListening =
+                String(testMetadata.type || '').toLowerCase().includes('ielts')
+                && ['reading', 'listening'].includes(String(testMetadata.skill || '').toLowerCase());
+
+            let ieltsData: { passageResults: ReturnType<typeof deriveIeltsPassageResults> } | undefined;
+            if (isIeltsReadingOrListening) {
+                try {
+                    const mappedQuestions = testQuestions.map((question) => buildIeltsGroupingQuestion(question));
+                    const passageResults = deriveIeltsPassageResults(mappedQuestions, markingResult.questionResults);
+                    if (passageResults.length > 0) {
+                        ieltsData = { passageResults };
+                    }
+                } catch (ieltsErr) {
+                    console.warn('Failed to derive IELTS passage results for auto-submit:', ieltsErr);
+                }
+            }
 
             // 3. Calculate time elapsed
             const now = Date.now();
@@ -373,16 +482,33 @@ export async function autoSubmitAllUnsubmittedStudents(
                 // ResultContext for teacher-ended auto-submissions
                 {
                     type: 'class_session' as const,
-                    source: { type: 'class' as const },
+                    source: {
+                        type: 'class' as const,
+                        id: sessionCode,
+                        name: testMetadata.title,
+                        sessionCode,
+                        classId: academicContext?.classId,
+                        courseId: academicContext?.courseId,
+                    },
+                    sessionCode,
+                    classId: academicContext?.classId,
+                    courseId: academicContext?.courseId,
                     configApplied: {
                         timerMinutes: testMetadata.duration,
                         feedbackTiming: 'after_completion' as const,
                         source: 'teacher_override' as const,
                     },
-                }
+                },
+                undefined,
+                ieltsData,
             );
 
             console.log(`✅ [AutoSubmit] Saved result for ${student.name}: ${answeredCount} answers, score=${markingResult.percentage}%, resultId=${resultId}`);
+
+            await update(ref(database), {
+                [`game_sessions/${sessionCode}/players/${student.studentId}/latestResultId`]: resultId,
+                [`game_sessions/${sessionCode}/players/${student.studentId}/lastResultPersistedAt`]: now,
+            });
 
             results.push({
                 success: true,

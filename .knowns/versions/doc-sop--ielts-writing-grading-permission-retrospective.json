@@ -1,0 +1,115 @@
+{
+  "docPath": "sop/ielts-writing-grading-permission-retrospective",
+  "currentVersion": 3,
+  "versions": [
+    {
+      "id": "v1",
+      "docPath": "sop/ielts-writing-grading-permission-retrospective",
+      "version": 1,
+      "timestamp": "2026-03-28T09:16:34.5737382Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "IELTS Writing Grading Permission Retrospective"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "Incident notes for the teacher grading queue permission failure, including root cause, fix, deployment dependency, and current feature state."
+        },
+        {
+          "field": "tags",
+          "oldValue": null,
+          "newValue": [
+            "sop",
+            "bugfix",
+            "ielts-writing",
+            "grading",
+            "permissions",
+            "firestore"
+          ]
+        }
+      ],
+      "snapshot": {
+        "description": "Incident notes for the teacher grading queue permission failure, including root cause, fix, deployment dependency, and current feature state.",
+        "tags": [
+          "sop",
+          "bugfix",
+          "ielts-writing",
+          "grading",
+          "permissions",
+          "firestore"
+        ],
+        "title": "IELTS Writing Grading Permission Retrospective"
+      }
+    },
+    {
+      "id": "v2",
+      "docPath": "sop/ielts-writing-grading-permission-retrospective",
+      "version": 2,
+      "timestamp": "2026-03-28T09:17:02.8747801Z",
+      "changes": [
+        {
+          "field": "content",
+          "oldValue": null,
+          "newValue": "# IELTS Writing Grading Permission Retrospective\n\n## Incident\n\nTeachers opening `Grading -\u003e IELTS Writing` saw `Missing or insufficient permissions` and the queue failed with a retry state.\n\n## Affected Feature Surfaces\n\n- Queue page: `TeacherGradingPage` -\u003e `getPendingSubmissions()`\n- Detail page initial load: `WritingGradingPage` -\u003e `getSubmission()`\n- Save path pre-read: `updateGrading()` reads the same submission before `updateDoc()`\n\n## Root Cause\n\nTwo separate integration gaps compounded into one teacher-facing failure:\n\n1. The queue query fetched all `writing_submissions` with `markingStatus == 'pending-review'`, then filtered by teacher on the client.\n2. Firestore rules for `writing_submissions` used per-document teacher ownership checks.\n3. Firestore rejects a collection query when any returned document is unreadable, so the whole teacher query failed.\n4. Live-session auto-submit wrote `context.type` and `context.sessionCode` but did not reliably persist teacher ownership metadata.\n5. The local rule fix did not affect the running app until Firestore rules were deployed to the active hosted Firebase project.\n\n## Fix Applied\n\n- Broadened `writing_submissions` read rules so the teacher queue query can execute without query-wide rejection.\n- Tightened the update rule compared with the previous fully-open `allow update: if request.auth != null` state.\n- Updated live-session auto-submit to persist `context.assigningTeacherId` from the best available teacher source.\n- Deployed Firestore rules to the active Firebase project `temp-a1437`.\n\n## Reusable Findings\n\n- A local Firestore rules change is not a fix until the active project receives a rules deploy.\n- If a teacher-facing queue relies on client-side ownership filtering, the corresponding Firestore read rule must allow the full query result set.\n- In the IELTS writing flow, queue, detail load, and grading save all depend on the same `writing_submissions` read surface.\n- Hosted Firebase incidents must be debugged against the active project, not just local source code.\n\n## Current Feature State\n\n- Queue page now depends on deployed broad authenticated reads on `writing_submissions` plus client-side teacher filtering.\n- Detail page and grading save still read from `writing_submissions`, so future permission regressions in that collection will break more than one grading surface.\n- New live-session submissions should now persist `context.assigningTeacherId`.\n- Historical submissions created before the metadata fix may still exist without teacher ownership fields, but broad read rules prevent that from blocking teacher access.\n\n## Verification\n\n- Console logs confirmed the failing call site was still `getPendingSubmissions()`.\n- `src/services/writingSubmissionService.test.ts` passed after the fix.\n- Firestore rules were deployed successfully to `temp-a1437` and remote read-back confirmed the updated `writing_submissions` rule block.\n- Emulator security coverage could not be run end to end in this environment because Firebase emulator execution requires Java.\n\n## Related Knowledge\n\n- @doc/patterns/pattern-firestore-rules-vs-collection-queries\n- @doc/architecture/test-system-architecture\n- @doc/patterns/writing-grading-pipeline\n\n## Source\n\n- @task-jtjism\n- @task-ekgnn8\n- @task-g5yfeo\n- @task-nykvop\n- Incident investigation and live rules deploy on 2026-03-28."
+        }
+      ],
+      "snapshot": {
+        "content": "# IELTS Writing Grading Permission Retrospective\n\n## Incident\n\nTeachers opening `Grading -\u003e IELTS Writing` saw `Missing or insufficient permissions` and the queue failed with a retry state.\n\n## Affected Feature Surfaces\n\n- Queue page: `TeacherGradingPage` -\u003e `getPendingSubmissions()`\n- Detail page initial load: `WritingGradingPage` -\u003e `getSubmission()`\n- Save path pre-read: `updateGrading()` reads the same submission before `updateDoc()`\n\n## Root Cause\n\nTwo separate integration gaps compounded into one teacher-facing failure:\n\n1. The queue query fetched all `writing_submissions` with `markingStatus == 'pending-review'`, then filtered by teacher on the client.\n2. Firestore rules for `writing_submissions` used per-document teacher ownership checks.\n3. Firestore rejects a collection query when any returned document is unreadable, so the whole teacher query failed.\n4. Live-session auto-submit wrote `context.type` and `context.sessionCode` but did not reliably persist teacher ownership metadata.\n5. The local rule fix did not affect the running app until Firestore rules were deployed to the active hosted Firebase project.\n\n## Fix Applied\n\n- Broadened `writing_submissions` read rules so the teacher queue query can execute without query-wide rejection.\n- Tightened the update rule compared with the previous fully-open `allow update: if request.auth != null` state.\n- Updated live-session auto-submit to persist `context.assigningTeacherId` from the best available teacher source.\n- Deployed Firestore rules to the active Firebase project `temp-a1437`.\n\n## Reusable Findings\n\n- A local Firestore rules change is not a fix until the active project receives a rules deploy.\n- If a teacher-facing queue relies on client-side ownership filtering, the corresponding Firestore read rule must allow the full query result set.\n- In the IELTS writing flow, queue, detail load, and grading save all depend on the same `writing_submissions` read surface.\n- Hosted Firebase incidents must be debugged against the active project, not just local source code.\n\n## Current Feature State\n\n- Queue page now depends on deployed broad authenticated reads on `writing_submissions` plus client-side teacher filtering.\n- Detail page and grading save still read from `writing_submissions`, so future permission regressions in that collection will break more than one grading surface.\n- New live-session submissions should now persist `context.assigningTeacherId`.\n- Historical submissions created before the metadata fix may still exist without teacher ownership fields, but broad read rules prevent that from blocking teacher access.\n\n## Verification\n\n- Console logs confirmed the failing call site was still `getPendingSubmissions()`.\n- `src/services/writingSubmissionService.test.ts` passed after the fix.\n- Firestore rules were deployed successfully to `temp-a1437` and remote read-back confirmed the updated `writing_submissions` rule block.\n- Emulator security coverage could not be run end to end in this environment because Firebase emulator execution requires Java.\n\n## Related Knowledge\n\n- @doc/patterns/pattern-firestore-rules-vs-collection-queries\n- @doc/architecture/test-system-architecture\n- @doc/patterns/writing-grading-pipeline\n\n## Source\n\n- @task-jtjism\n- @task-ekgnn8\n- @task-g5yfeo\n- @task-nykvop\n- Incident investigation and live rules deploy on 2026-03-28.",
+        "description": "Incident notes for the teacher grading queue permission failure, including root cause, fix, deployment dependency, and current feature state.",
+        "tags": [
+          "sop",
+          "bugfix",
+          "ielts-writing",
+          "grading",
+          "permissions",
+          "firestore"
+        ],
+        "title": "IELTS Writing Grading Permission Retrospective"
+      }
+    },
+    {
+      "id": "v3",
+      "docPath": "sop/ielts-writing-grading-permission-retrospective",
+      "version": 3,
+      "timestamp": "2026-03-29T04:48:54.0087198Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "IELTS Writing Grading Permission Retrospective"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "Pointer doc for the March 2026 IELTS writing grading permission incident record."
+        },
+        {
+          "field": "tags",
+          "oldValue": null,
+          "newValue": [
+            "sop",
+            "incident",
+            "ielts",
+            "writing",
+            "firebase"
+          ]
+        }
+      ],
+      "snapshot": {
+        "content": "# IELTS Writing Grading Permission Retrospective\n\nThis retrospective was consolidated into @doc/sop/ielts-writing-grading-permission-runtime-state.\n\n## Why this stub exists\n\nOlder architecture docs referenced a retrospective path under this name. The canonical incident record now lives in the runtime-state document above.\n\n## Use this doc for\n\n- old references that still point to the retrospective name\n- jumping to the current incident summary without breaking links\n",
+        "description": "Pointer doc for the March 2026 IELTS writing grading permission incident record.",
+        "tags": [
+          "sop",
+          "incident",
+          "ielts",
+          "writing",
+          "firebase"
+        ],
+        "title": "IELTS Writing Grading Permission Retrospective"
+      }
+    }
+  ]
+}

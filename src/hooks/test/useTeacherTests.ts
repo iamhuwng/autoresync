@@ -88,6 +88,8 @@ export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
   const deleteTest = async (test: any) => {
     const testRef = ref(database, `tests/${test.id}`);
     await remove(testRef);
+    const isWritingTest = test?.testType === 'IELTS' && String(test?.skill || '').toLowerCase() === 'writing';
+
     // PRD-0027: Clean up Firestore thcs_library and draft if THCS test
     const isThcs = test.testType === 'THCS-THPT';
     if (isThcs) {
@@ -99,6 +101,13 @@ export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
           await deleteDoc(doc(db, 'thcs_drafts', test.sourceDraftId));
         } catch { }
       }
+      return;
+    }
+
+    if (isWritingTest && test.sourceDraftId) {
+      try {
+        await deleteDoc(doc(db, 'writing_drafts', test.sourceDraftId));
+      } catch { }
     }
   };
 

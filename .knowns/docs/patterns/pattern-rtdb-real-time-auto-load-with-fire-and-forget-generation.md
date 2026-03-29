@@ -1,12 +1,8 @@
 ---
 title: 'Pattern: RTDB Real-Time Auto-Load with Fire-and-Forget Generation'
+description: Architecture pattern for async content generation (AI feedback, reports) that uses fire-and-forget at submission time combined with RTDB onValue() real-time listeners in the viewer to auto-load content without refresh or manual triggers.
 createdAt: '2026-03-12T14:23:42.958Z'
-updatedAt: '2026-03-12T14:24:39.510Z'
-description: >-
-  Architecture pattern for async content generation (AI feedback, reports) that
-  uses fire-and-forget at submission time combined with RTDB onValue() real-time
-  listeners in the viewer to auto-load content without refresh or manual
-  triggers.
+updatedAt: '2026-03-29T04:48:35.459Z'
 tags:
   - pattern
   - rtdb
@@ -15,6 +11,7 @@ tags:
   - ux
   - fire-and-forget
 ---
+
 # Pattern: RTDB Real-Time Auto-Load with Fire-and-Forget Generation
 
 ## Problem
@@ -154,3 +151,84 @@ Examples: AI feedback, report generation, image processing results, grading resu
 >
 > **Manual trigger buttons for async content are BANNED.**
 > Show shimmer/skeleton loading states instead.
+
+
+## 2026-03-29 Amendment — Writer-Owned Saved-Result Generation and Gated Auto-Heal
+
+### Additional failure class
+
+The original three-layer pattern breaks down when the fire-and-forget trigger is owned by submit hooks instead of the canonical saved-result writer. In a system with multiple result writers, one path eventually bypasses the trigger.
+
+The observed failure set was:
+- normal submit created feedback correctly
+- teacher-end auto-submit saved the canonical IELTS result but never triggered feedback
+- legacy result writers drifted from the main flow
+- viewer shells treated missing IELTS feedback differently from THCS
+
+### Updated standard
+
+For saved-result features, the trigger order is now:
+1. canonical writer persists the result and owns the initial fire-and-forget generation
+2. viewer shell auto-heals missing or weak saved feedback when the shell is allowed to do so
+3. manual retry remains available as a recovery action
+
+This is stricter than the older rule. The source of truth is no longer "the submit flow"; it is the canonical persistence boundary.
+
+### Trigger ownership rule
+
+If multiple flows can create the same saved-result row, only the canonical writer should own the initial async generation trigger.
+
+Why:
+- submit-hook ownership drifts as new save paths appear
+- teacher tools and disconnect recovery often bypass the original hook stack
+- duplicated trigger code creates coverage gaps and inconsistent metadata
+
+### Viewer policy rule
+
+Viewer auto-triggering is now a fallback, not the primary trigger.
+
+The viewer may:
+- generate when eligible saved feedback is missing
+- upgrade when saved feedback exists but is weak or deterministic-only
+- remain locked when release governance says the feedback should not yet be visible
+
+The viewer should not be the only place that guarantees generation.
+
+### Manual retry rule
+
+Manual retry buttons are allowed for saved-result recovery paths.
+
+Use this rule:
+- if feedback is missing, retry means generate
+- if feedback exists but is weak, retry means upgrade
+- do not hide manual retry behind the old blanket rule that all async generation must be invisible to the user
+
+The older wording in this doc is too broad for saved-result systems with release gating and historical repair needs.
+
+### Metadata rule
+
+Persist lightweight generation metadata next to the saved result, separate from the feedback blob itself.
+
+Recommended fields:
+- `kind`
+- `lastAttemptAt`
+- `lastTriggerSource`
+- `lastOutcome`
+- `lastError`
+
+This turns missing-feedback incidents from guesswork into inspectable state.
+
+### Current operational state
+
+The saved-result feedback system now uses:
+- writer-owned initial generation from `saveTestResult()`
+- shared classification for THCS, IELTS Reading, and IELTS Listening
+- release-gated auto-heal in shared result shells
+- manual retry for generate-or-upgrade semantics
+- targeted backfill tooling for historical missing-feedback rows
+
+### Related docs
+- @doc/patterns/pattern-deterministic-first-ai-enhancement
+- @doc/architecture/test-system-architecture
+- @doc/architecture/results-academic-record
+- @doc/patterns/pattern-canonical-result-persistence-invariants

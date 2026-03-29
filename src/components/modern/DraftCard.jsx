@@ -19,6 +19,10 @@ function timeAgo(updatedAt) {
 
 const DraftCard = ({ draft, index, onResume, onDelete }) => {
   const meta = draft.metadata || {};
+  const isWritingDraft = draft?.draftKind === 'writing' || (draft?.testType === 'IELTS' && String(draft?.skill || '').toLowerCase() === 'writing');
+  const taskCount = Array.isArray(draft?.tasks)
+    ? draft.tasks.length
+    : (meta.format === 'full-test' ? 2 : (meta.format ? 1 : 0));
   const variants = ['lavender', 'sky', 'mint', 'rose', 'peach'];
   const variant = variants[index % variants.length];
 
@@ -59,13 +63,29 @@ const DraftCard = ({ draft, index, onResume, onDelete }) => {
 
           {/* Badges row */}
           <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>
-            <div className="test-card-badge test-card-badge--gray">
-              {draft.questionCount || 0} Q
-            </div>
-            <div className="test-card-badge test-card-badge--purple">
-              Grade {meta.gradeLevel || '?'}
-            </div>
-            {meta.examType && (
+            {isWritingDraft ? (
+              <>
+                <div className="test-card-badge test-card-badge--gray">
+                  {taskCount} task{taskCount === 1 ? '' : 's'}
+                </div>
+                <div className="test-card-badge test-card-badge--purple">
+                  IELTS Writing
+                </div>
+                <div className="test-card-badge test-card-badge--green">
+                  {meta.duration || 60} min
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="test-card-badge test-card-badge--gray">
+                  {draft.questionCount || 0} Q
+                </div>
+                <div className="test-card-badge test-card-badge--purple">
+                  Grade {meta.gradeLevel || '?'}
+                </div>
+              </>
+            )}
+            {!isWritingDraft && meta.examType && (
               <div className="test-card-badge test-card-badge--green">
                 {meta.examType}
               </div>
@@ -84,7 +104,7 @@ const DraftCard = ({ draft, index, onResume, onDelete }) => {
         <Button
           variant="primary"
           size="sm"
-          onClick={() => onResume(draft.id)}
+          onClick={() => onResume(draft)}
           style={{ flex: '1 1 60%' }}
         >
           <EditIcon size={14} style={{ marginRight: '0.25rem' }} />

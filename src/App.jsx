@@ -83,7 +83,6 @@ const THCSTestEditorPage = lazyWithRetry(() => import('./pages/THCSTestEditorPag
 const TeacherGradingPage = lazyWithRetry(() => import('./pages/TeacherGradingPage.tsx'));
 // PRD-0030: IELTS Writing Test System
 const WritingTestBuilder = lazyWithRetry(() => import('./pages/WritingTestBuilder.tsx'));
-const WritingGradingQueuePage = lazyWithRetry(() => import('./pages/WritingGradingQueuePage.tsx'));
 const WritingGradingPage = lazyWithRetry(() => import('./pages/WritingGradingPage.tsx'));
 import PrivateRoute from './components/PrivateRoute.jsx';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';

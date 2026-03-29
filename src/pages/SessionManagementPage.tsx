@@ -194,7 +194,7 @@ const SessionManagementPage: React.FC = () => {
         handleRefresh();
       } catch (error) {
         console.error('Error ending session:', error);
-        alert('Failed to end session. Please try again.');
+        alert(error instanceof Error ? error.message : 'Failed to end session. Please try again.');
       }
     }
   };

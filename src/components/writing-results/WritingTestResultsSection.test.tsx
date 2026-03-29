@@ -251,6 +251,7 @@ describe('WritingTestResultsSection', () => {
     expect(getSubmissionMock).toHaveBeenCalledWith('submission-visible');
     expect(getSubmissionMock).toHaveBeenCalledWith('submission-analytics-excluded');
     expect(screen.getByText('Total Submissions').parentElement).toHaveTextContent('1');
+    expect(screen.getByText('Writer One').closest('tr')).not.toHaveTextContent('6.5');
   });
 
   it('tracks result detail and grading navigation through shared hooks', async () => {
@@ -271,12 +272,83 @@ describe('WritingTestResultsSection', () => {
       source: 'teacher_test_results_writing',
       resultId: 'submission-visible',
       submissionId: 'submission-visible',
+      status: 'pending-review',
     });
     expect(navigateToMock).toHaveBeenCalledWith(
       'TEACHER_GRADING_DETAIL',
       { submissionId: 'submission-visible' },
       { reason: 'teacher_writing_results_grade' },
     );
+  });
+
+  it('surfaces draft ownership and lock conflict states from grading draft metadata', async () => {
+    getSessionResultsMock.mockResolvedValue([
+      {
+        ...canonicalResults[0],
+        resultId: 'submission-draft-owned',
+        studentId: 'student-draft-owned',
+        studentName: 'Draft Owner',
+        writingData: {
+          submissionId: 'submission-draft-owned',
+          overallBand: null,
+          markingStatus: 'pending-review',
+        },
+      },
+      {
+        ...canonicalResults[0],
+        resultId: 'submission-draft-locked',
+        studentId: 'student-draft-locked',
+        studentName: 'Locked Writer',
+        writingData: {
+          submissionId: 'submission-draft-locked',
+          overallBand: null,
+          markingStatus: 'pending-review',
+        },
+      },
+    ]);
+    getSubmissionMock.mockImplementation(async (submissionId: string) => {
+      if (submissionId === 'submission-draft-owned') {
+        return {
+          success: true,
+          data: {
+            ...submissionFixtures['submission-visible'],
+            id: 'submission-draft-owned',
+            studentId: 'student-draft-owned',
+            studentName: 'Draft Owner',
+            gradingDraftMeta: {
+              ownerTeacherId: 'teacher-1',
+            },
+          },
+        };
+      }
+
+      if (submissionId === 'submission-draft-locked') {
+        return {
+          success: true,
+          data: {
+            ...submissionFixtures['submission-visible'],
+            id: 'submission-draft-locked',
+            studentId: 'student-draft-locked',
+            studentName: 'Locked Writer',
+            gradingDraftMeta: {
+              ownerTeacherId: 'teacher-2',
+            },
+          },
+        };
+      }
+
+      return { success: false, data: null };
+    });
+
+    render(<WritingTestResultsSection sessionCode="SESSION-1" testTitle="Writing Test" />);
+
+    await screen.findByText('Draft Owner');
+    await screen.findByText('Locked Writer');
+
+    expect(screen.getByText('Resume Draft')).toBeInTheDocument();
+    expect(screen.getByText('View Conflict')).toBeInTheDocument();
+    expect(screen.getByText('draft-in-progress')).toBeInTheDocument();
+    expect(screen.getByText('lock conflict')).toBeInTheDocument();
   });
 
   it('uses normalized owner data for super-admin analytics classification', async () => {

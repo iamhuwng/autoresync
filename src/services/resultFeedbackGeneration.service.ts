@@ -2,8 +2,10 @@ import {
   generateFormativeFeedback,
   type GenerateFormativeFeedbackOptions,
 } from './formativeFeedback.service';
+import { classifySavedResultFeedbackKind } from './feedbackClassification.service';
 import { buildResultFeedbackPayload } from './resultFeedbackPayload.service';
 import { getTestResult } from './testResults.service';
+import type { SavedResultFeedbackKind, SavedResultFeedbackOutcome } from '../types/results.types';
 
 /**
  * In-flight dedupe map: prevents duplicate concurrent generation calls
@@ -12,6 +14,28 @@ import { getTestResult } from './testResults.service';
  * a new one. (PRD-0040 Task 3.6)
  */
 const inFlightGenerations = new Map<string, Promise<any>>();
+
+async function persistFeedbackGenerationMeta(
+  resultId: string,
+  meta: {
+    kind: SavedResultFeedbackKind;
+    lastOutcome: SavedResultFeedbackOutcome;
+    lastError?: string | null;
+    lastTriggerSource?: string | null;
+  },
+) {
+  const { ref, update } = await import('firebase/database');
+  const { database } = await import('./firebase');
+  await update(ref(database, `test_results/${resultId}`), {
+    feedbackGenerationMeta: {
+      kind: meta.kind,
+      lastAttemptAt: Date.now(),
+      lastTriggerSource: meta.lastTriggerSource ?? null,
+      lastOutcome: meta.lastOutcome,
+      lastError: meta.lastError ?? null,
+    },
+  });
+}
 
 export async function generateFormativeFeedbackForSavedResult(
   resultId: string,
@@ -39,6 +63,14 @@ export async function generateFormativeFeedbackForSavedResult(
       const payload = await buildResultFeedbackPayload(result, resultId);
       if (!payload) {
         console.log(`[ResultFeedbackGeneration] Result ${resultId} is not eligible for formative feedback`);
+        await persistFeedbackGenerationMeta(resultId, {
+          kind: classifySavedResultFeedbackKind(result),
+          lastOutcome: 'skipped-ineligible',
+          lastError: null,
+          lastTriggerSource: options?.triggerSource ?? null,
+        }).catch((error) => {
+          console.warn(`[ResultFeedbackGeneration] Failed to persist skipped-ineligible meta for ${resultId}:`, error);
+        });
         return null;
       }
 

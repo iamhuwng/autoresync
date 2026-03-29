@@ -39,6 +39,7 @@ import {
     DEFAULT_DRAFT_METADATA,
     generateDefaultTitle,
 } from '../../types/draft.types';
+import { buildRoute } from '../../constants/routes';
 import { useAuth } from '../../hooks/useAuth';
 import { testDraftService } from '../../services/draftCloudService';
 import testCreationService from '../../services/test-creation';
@@ -64,6 +65,8 @@ export interface TestCreationModalProps {
     initialStep?: ModalStep;
     /** Optional initial data (for resuming) */
     initialData?: Partial<ModalStepData>;
+    /** Optional existing writing draft ID for edit/resume flows */
+    initialWritingDraftId?: string;
 }
 
 interface StepConfig {
@@ -238,6 +241,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
     onComplete,
     initialStep = 'type',
     initialData,
+    initialWritingDraftId,
 }) => {
     const navigate = useNavigate();
     // ─── Auth ────────────────────────────────────────────────────
@@ -372,9 +376,8 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             return;
         }
 
-        // PRD-0030: Writing stays in-modal — advance to writing-metadata step
+        // Writing stays in the modal and advances into the writing-specific steps.
         if (skillType === 'writing') {
-            // Pre-populate writing metadata with default title
             const now = new Date();
             const month = now.toLocaleString('en-US', { month: 'long' });
             setWritingMeta(prev => ({
@@ -455,6 +458,9 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
     // ─── Reset on modal open ─────────────────────────────────────
     useEffect(() => {
         if (opened) {
+            const initialWritingMetadata = initialData?.writingMetadata;
+            const initialWritingFormat = initialData?.writingFormat;
+            const initialWritingTasks = initialData?.writingTasks;
             setCurrentStep(initialStep);
             setStepData({ ...INITIAL_MODAL_DATA, ...initialData });
             setHasUnsavedChanges(false);
@@ -466,16 +472,29 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             setParsingError(undefined);
             setDraftId(null);
             // Reset writing state
-            setWritingMeta({ title: '', duration: 60 });
-            setWritingFormat(undefined);
-            setWritingTask1({ ...DEFAULT_WRITING_TASK1 });
-            setWritingTask2({ ...DEFAULT_WRITING_TASK2 });
+            setWritingMeta({
+                title: initialWritingMetadata?.title || '',
+                description: initialWritingMetadata?.description,
+                duration: initialWritingMetadata?.duration || 60,
+                difficulty: initialWritingMetadata?.difficulty,
+                targetBand: initialWritingMetadata?.targetBand,
+                tags: initialWritingMetadata?.tags,
+            });
+            setWritingFormat(initialWritingFormat);
+            setWritingTask1({
+                ...DEFAULT_WRITING_TASK1,
+                ...(initialWritingTasks?.task1 || {}),
+            });
+            setWritingTask2({
+                ...DEFAULT_WRITING_TASK2,
+                ...(initialWritingTasks?.task2 || {}),
+            });
             setWritingPublishing(false);
             setWritingSaving(false);
-            setWritingDraftId(undefined);
+            setWritingDraftId(initialWritingDraftId);
             // Note: parsingAbortRef and isParsingRef are reset in startRealParsing
         }
-    }, [opened, initialStep, initialData]);
+    }, [opened, initialStep, initialData, initialWritingDraftId]);
 
     // ─── Real Parsing Flow ──────────────────────────────────────────
     // Ref to track parsing abort
@@ -953,6 +972,9 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                 updatedAt: new Date(),
             });
             if (result.success) {
+                if (result.draftId) {
+                    setWritingDraftId(result.draftId);
+                }
                 onClose();
                 // Reset all state
                 setCurrentStep('type');
@@ -962,7 +984,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                 setWritingTask1({ ...DEFAULT_WRITING_TASK1 });
                 setWritingTask2({ ...DEFAULT_WRITING_TASK2 });
                 setWritingDraftId(undefined);
-                navigate('/teacher/grading/writing');
+                navigate(buildRoute('LOBBY'));
             } else {
                 alert('Failed to publish: ' + (result.error || 'Unknown error'));
             }

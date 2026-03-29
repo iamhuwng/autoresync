@@ -1,10 +1,8 @@
 ---
 title: Firebase Infrastructure
+description: Firebase RTDB schema, deployment, backup/restore, error handling patterns, development workflows.
 createdAt: '2026-02-27T16:33:56.072Z'
-updatedAt: '2026-02-27T16:34:15.887Z'
-description: >-
-  Firebase RTDB schema, deployment, backup/restore, error handling patterns,
-  development workflows.
+updatedAt: '2026-03-29T08:35:07.732Z'
 tags:
   - architecture
   - firebase
@@ -12,6 +10,7 @@ tags:
   - deployment
   - core
 ---
+
 # Firebase Infrastructure & Operations
 
 ## Overview
@@ -121,3 +120,49 @@ See @doc/conventions for full rules.
 - @doc/guides/cloudflare-setup-guide — Cloudflare Worker setup
 - @doc/conventions — Integration safety rules
 - @doc/architecture/auth-rbac-architecture — Auth system (cross-ref)
+
+
+## Firestore Rules Deployment Verification
+
+This project uses both RTDB and Firestore. A local Firestore rules change is not live until it is deployed to the active Firebase project.
+
+Use this workflow for Firestore permission incidents:
+
+```bash
+# Deploy Firestore rules only
+firebase deploy --only firestore:rules
+```
+
+Verification protocol:
+
+1. Confirm the active project ID from runtime config or Firebase CLI environment.
+2. Deploy the rules to that exact project.
+3. Read back the remote Firestore rules, or otherwise verify that the live project now contains the updated rule block.
+4. Only after remote verification, retest the browser flow that was failing.
+
+Operational lesson:
+
+- If the browser still throws the exact same Firestore permission error after a local fix, suspect undeployed rules before assuming the code path is still wrong.
+- Hosted verification should distinguish between frontend deploy requirements and rules-only deploy requirements. A Firestore permission fix can require no hosting deploy if the failing surface is purely rules-gated.
+
+Related incident: @doc/sop/ielts-writing-grading-permission-runtime-state
+
+
+## 2026-03-29 Amendment — RTDB Result Fan-Out Ordering for Teacher Materialization
+
+When RTDB secondary result indexes validate against `root.test_results/{resultId}`, a teacher-triggered first-write fan-out cannot safely create the canonical row and dependent indexes in the same assumption-blind step.
+
+### Current rule
+- Persist `test_results/{resultId}` first.
+- Only after the canonical row exists, fan out `test_results_by_student`, `test_results_by_session`, `test_results_by_teacher`, and any scoped indexes.
+- If the canonical row is missing or unreadable during a grading workflow, rebuild it from the canonical Firestore submission artifact instead of failing the workflow.
+
+### Why this matters
+- RTDB result projection is still required for discovery and compatibility readers.
+- Teacher grading should not fail just because the compatibility row is absent.
+- This is a cross-store architecture rule, not just an IELTS Writing implementation detail.
+
+### Related docs
+- @doc/architecture/architecture-ielts-writing-grading-submit-compatibility-audit-2026-03-29
+- @doc/patterns/pattern-rtdb-multi-path-write-obligation
+- @doc/architecture/test-system-architecture

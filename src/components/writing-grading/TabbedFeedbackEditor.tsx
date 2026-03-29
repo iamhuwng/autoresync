@@ -21,10 +21,10 @@ import './TabbedFeedbackEditor.css';
 // TYPES
 // ═══════════════════════════════════════════════════════════════
 
-type FeedbackTab = 'overall' | 'ta' | 'cc' | 'lr' | 'gra';
+type FeedbackTab = 'taskSummary' | 'ta' | 'cc' | 'lr' | 'gra';
 
 export interface FeedbackContent {
-    overall: string;
+    taskSummary: string;
     ta: string;
     cc: string;
     lr: string;
@@ -37,6 +37,7 @@ export interface TabbedFeedbackEditorProps {
     feedback: FeedbackContent;
     /** Called on every content change with updated feedback */
     onChange: (feedback: FeedbackContent) => void;
+    onTabChange?: (tab: FeedbackTab) => void;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -51,7 +52,7 @@ interface TabConfig {
 
 function getTabs(taskNumber: 1 | 2): TabConfig[] {
     return [
-        { id: 'overall', label: 'Overall', criterionName: 'overall' },
+        { id: 'taskSummary', label: 'Task Summary', criterionName: 'task summary' },
         { id: 'ta', label: taskNumber === 1 ? 'TA' : 'TR', criterionName: taskNumber === 1 ? 'Task Achievement' : 'Task Response' },
         { id: 'cc', label: 'CC', criterionName: 'Coherence & Cohesion' },
         { id: 'lr', label: 'LR', criterionName: 'Lexical Resource' },
@@ -67,8 +68,9 @@ const TabbedFeedbackEditor: React.FC<TabbedFeedbackEditorProps> = ({
     taskNumber,
     feedback,
     onChange,
+    onTabChange,
 }) => {
-    const [activeTab, setActiveTab] = useState<FeedbackTab>('overall');
+    const [activeTab, setActiveTab] = useState<FeedbackTab>('taskSummary');
     const contentRef = useRef<FeedbackContent>({ ...feedback });
     const tabs = getTabs(taskNumber);
     const activeConfig = tabs.find(t => t.id === activeTab)!;
@@ -105,11 +107,12 @@ const TabbedFeedbackEditor: React.FC<TabbedFeedbackEditorProps> = ({
 
         // Switch tab
         setActiveTab(tabId);
+        onTabChange?.(tabId);
 
         // Load new tab content
         const newContent = contentRef.current[tabId] || '';
         editor.commands.setContent(newContent);
-    }, [editor, activeTab, tabs]);
+    }, [editor, activeTab, onTabChange]);
 
     // Update placeholder when tab changes
     useEffect(() => {

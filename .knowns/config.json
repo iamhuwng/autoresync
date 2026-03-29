@@ -4,7 +4,8 @@
   "createdAt": "2026-02-27T15:15:25.203Z",
   "settings": {
     "defaultPriority": "high",
-    "defaultLabels": [],
+    "timeFormat": "24h",
+    "gitTrackingMode": "git-tracked",
     "statuses": [
       "todo",
       "in-progress",
@@ -14,6 +15,15 @@
       "on-hold",
       "urgent"
     ],
+    "statusColors": {
+      "blocked": "red",
+      "done": "green",
+      "in-progress": "blue",
+      "in-review": "purple",
+      "on-hold": "yellow",
+      "todo": "gray",
+      "urgent": "orange"
+    },
     "visibleColumns": [
       "todo",
       "in-progress",
@@ -21,17 +31,6 @@
       "done",
       "in-review"
     ],
-    "statusColors": {
-      "todo": "gray",
-      "in-progress": "blue",
-      "in-review": "purple",
-      "done": "green",
-      "blocked": "red",
-      "on-hold": "yellow",
-      "urgent": "orange"
-    },
-    "timeFormat": "24h",
-    "gitTrackingMode": "git-tracked",
     "semanticSearch": {
       "enabled": true,
       "model": "gte-base"

@@ -1,4 +1,8 @@
 import type { FeedbackPromptMetadata } from './formativeFeedback.service';
+import {
+  buildSavedResultFeedbackMetadata,
+  normalizeFeedbackQuestionType,
+} from './feedbackClassification.service';
 import { getTestFromFirebase, type TestData } from './testStorage';
 import type { TestResultRecord } from './testResults.service';
 import { getThcsTestFromFirebase } from './thcsTestStorage';
@@ -6,25 +10,9 @@ import type { THCSGradingResult, THCSSection } from '../types/thcs-test.types';
 
 export interface ResultFeedbackPayload {
   gradingResult: THCSGradingResult;
-  sections: THCSSection[];
+  sections: THCSSection[]; 
   testMetadata: FeedbackPromptMetadata;
   resultId: string;
-}
-
-function isIeltsResult(result: TestResultRecord): boolean {
-  const type = String(result.testType || '').toLowerCase();
-  return type.includes('ielts')
-    || Boolean(result.ieltsData?.passageResults?.length)
-    || typeof result.bandScore === 'number';
-}
-
-function normalizeFeedbackQuestionType(questionType: string | undefined): string {
-  const raw = String(questionType || 'question').trim().toLowerCase();
-  if (!raw) {
-    return 'question';
-  }
-
-  return raw.replace(/\s+/g, '_').replace(/-/g, '_');
 }
 
 function buildQuestionResultsRecord(result: TestResultRecord) {
@@ -252,16 +240,20 @@ function buildFallbackSectionsFromResult(result: TestResultRecord): THCSSection[
 }
 
 async function loadSourceSections(result: TestResultRecord): Promise<THCSSection[]> {
-  if (String(result.testType || '').toLowerCase().startsWith('thcs') || String(result.testType || '').toLowerCase().startsWith('practice_thcs')) {
-    const thcsTest = await getThcsTestFromFirebase(result.testId);
-    if (thcsTest.success && thcsTest.data?.sections?.length) {
-      return thcsTest.data.sections;
+  try {
+    if (String(result.testType || '').toLowerCase().startsWith('thcs') || String(result.testType || '').toLowerCase().startsWith('practice_thcs')) {
+      const thcsTest = await getThcsTestFromFirebase(result.testId);
+      if (thcsTest.success && thcsTest.data?.sections?.length) {
+        return thcsTest.data.sections;
+      }
+    } else {
+      const genericTest = await getTestFromFirebase(result.testId);
+      if (genericTest.success && genericTest.data) {
+        return buildSectionsFromGenericTestData(genericTest.data, result);
+      }
     }
-  } else {
-    const genericTest = await getTestFromFirebase(result.testId);
-    if (genericTest.success && genericTest.data) {
-      return buildSectionsFromGenericTestData(genericTest.data, result);
-    }
+  } catch (error) {
+    console.warn(`[ResultFeedbackPayload] Falling back to result-derived sections for ${result.testId}:`, error);
   }
 
   return buildFallbackSectionsFromResult(result);
@@ -279,8 +271,10 @@ export async function buildResultFeedbackPayload(
 
   const questionResultsRecord = buildQuestionResultsRecord(result);
   const sourceSections = await loadSourceSections(result);
+  const feedbackMetadata = buildSavedResultFeedbackMetadata(result);
+  const feedbackKind = feedbackMetadata.kind;
 
-  if (result.thcsData?.sectionResults?.length) {
+  if (feedbackKind === 'thcs') {
     return {
       gradingResult: {
         scaledScore: result.thcsData.scaledScore,
@@ -300,6 +294,7 @@ export async function buildResultFeedbackPayload(
         type: result.testType,
         skill: result.testSkill,
         family: 'thcs',
+        kind: feedbackKind,
         timeSpent: result.timeElapsed,
         totalQuestions: result.totalQuestions,
       },
@@ -326,7 +321,7 @@ export async function buildResultFeedbackPayload(
     };
   });
 
-  if (!isIeltsResult(result)) {
+  if (feedbackKind === null) {
     return {
       gradingResult: {
         scaledScore: Number((result.percentage / 10).toFixed(1)),
@@ -346,6 +341,7 @@ export async function buildResultFeedbackPayload(
         type: result.testType,
         skill: result.testSkill,
         family: 'generic',
+        kind: feedbackKind,
         timeSpent: result.timeElapsed,
         totalQuestions: result.totalQuestions,
       },
@@ -372,8 +368,14 @@ export async function buildResultFeedbackPayload(
       type: result.testType,
       skill: result.testSkill,
       family: 'ielts',
+      kind: feedbackKind,
+      formatKind: feedbackMetadata.formatKind,
+      segmentLabel: feedbackMetadata.segmentLabel,
       bandScore: result.bandScore,
       passageResults: result.ieltsData?.passageResults || [],
+      unansweredCount: feedbackMetadata.unansweredCount,
+      questionTypeBreakdown: feedbackMetadata.questionTypeBreakdown,
+      segmentBreakdown: feedbackMetadata.segmentBreakdown,
       timeSpent: result.timeElapsed,
       totalQuestions: result.totalQuestions,
     },

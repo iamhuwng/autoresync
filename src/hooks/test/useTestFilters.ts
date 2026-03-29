@@ -38,7 +38,7 @@ export function useTestFilters(tests: any[], filters: FilterParams) {
 
     // Search filter
     let searchFiltered = ownershipFiltered.filter(test => {
-      const title = test.testType === 'THCS-THPT' ? test.metadata?.title : test.title;
+      const title = test.metadata?.title || test.title;
       return (title || '').toLowerCase().includes(searchTerm.toLowerCase());
     });
 

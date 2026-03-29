@@ -438,3 +438,39 @@ Task 4.3 should say:
 5. **Introduce** Mantine imports or synthetic teacherId bugs by not knowing current code pitfalls
 
 The task list needs a revision pass that adds the concrete code-level details identified in Sections B, C, and D before handing to a junior.
+
+## 2026-03-28 result-persistence invariant amendment
+
+- A new runtime failure class was confirmed after the 2026-03-27 assessment: a canonical test result row could exist in `/test_results/{resultId}` while one or more discovery indexes (`test_results_by_student/*`, `test_results_by_session/*`, `test_results_by_teacher/*`) were missing or while `visibility.ownershipResolved` remained `false` even though the row already carried a valid canonical `teacherId`.
+- This was not just a display bug. It created a structurally inconsistent saved-result state where the student waiting-room modal, student academic history, and teacher student-history page could all fail to find a result that had technically been persisted.
+- The concrete live case that exposed the gap was a teacher-ended IELTS Reading auto-submit for session `3F15BY`, where the canonical row was present but visibility was unresolved and the teacher/student/session indexes were absent until repaired.
+
+### Root Cause Findings
+
+1. `src/services/testResults.service.ts::saveTestResult(...)` previously wrote the canonical row first and then wrote indexes in separate follow-up operations. That allowed partial persistence states if a later step failed.
+2. `src/services/resultOwnershipResolver.ts::resolveSessionOwnership(...)` treated unresolved session ownership as terminal even when the canonical result row already contained a valid Firebase teacher UID in `result.teacherId`.
+3. PRD-0041 correctly defined ownership and teacher-visibility policy, but this assessment had not yet elevated the required persistence invariant: a saved result is not complete unless both the canonical row and its discovery/index contract are durable together.
+4. The assessment also had not explicitly required a recoverability rule for historical orphaned canonical rows created before the invariant was enforced.
+
+### Applied Solution
+
+- `saveTestResult(...)` now performs a single RTDB multi-location `update(...)` for the canonical row plus all required indexes. This removes the partial-write class where `/test_results/{id}` succeeds but discovery indexes do not.
+- `resolveSessionOwnership(...)` now falls back to a valid canonical `result.teacherId` for `class_session` rows when the authoritative session-owner lookup cannot resolve. This keeps teacher-ended session results from being persisted as unresolved orphans when the canonical owner is already known.
+- Focused regressions were added in `src/services/testResults.service.test.ts` and `src/services/resultOwnershipResolver.test.ts` to lock both behaviors.
+- Existing orphaned live data was repairable once these invariants were understood, but the lasting fix is the writer-side and resolver-side contract above, not one-off row repair.
+
+### Assessment Correction For PRD Amendments
+
+The 2026-03-27 assessment should be read as directionally correct on visibility policy but incomplete on persistence guarantees. Any later PRD amendment set derived from this assessment should add the following non-optional requirements:
+
+1. Canonical result persistence must be atomic across `/test_results/{resultId}` and every required discovery index for that row.
+2. For `class_session` results, ownership resolution must define a fallback or recovery path when the authoritative session record is unavailable or malformed but the canonical row already contains a valid teacher UID.
+3. A result must not be treated as successfully saved if student history, session lookup, or eligible teacher history cannot discover it through the standard read paths.
+4. Historical repair/backfill must be part of the governance model for canonical results and indexes, not an ad hoc incident-only action.
+5. Future PRD and assessment work on result visibility must distinguish policy correctness from persistence correctness. Both are required for a logically complete saved-result system.
+
+### Scope Impact
+
+- This finding affects PRD-0041 directly because it governs ownership and teacher visibility.
+- It also affects PRD-0040 style saved-result governance because read-path correctness depends on the canonical producer/index contract remaining intact.
+- Any later consolidated PRD amendment pass should treat this as a cross-PRD saved-result invariant, not a page-specific teacher-history fix.

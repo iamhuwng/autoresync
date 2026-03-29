@@ -209,6 +209,30 @@ describe('useTeacherTests', () => {
     expect(mockDeleteDoc).not.toHaveBeenCalled();
   });
 
+  it('deleteTest cleans up linked writing drafts for IELTS writing tests', async () => {
+    const { result } = renderHook(() => useTeacherTests({ realtime: false }));
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    const writingTest = {
+      id: 'writing-1',
+      testType: 'IELTS',
+      skill: 'Writing',
+      sourceDraftId: 'writing-draft-1',
+    };
+
+    await act(async () => {
+      await result.current.deleteTest(writingTest);
+    });
+
+    expect(mockRemove).toHaveBeenCalledWith({ path: 'tests/writing-1' });
+    expect(mockDeleteDoc).toHaveBeenCalledWith(
+      expect.objectContaining({ collection: 'writing_drafts', id: 'writing-draft-1' })
+    );
+  });
+
   it('togglePublic updates the RTDB record', async () => {
     const { result } = renderHook(() => useTeacherTests({ realtime: false }));
 

@@ -1,5 +1,4 @@
 import React from 'react';
-import { Drawer } from '@mantine/core';
 import { Button } from '../modern';
 
 interface MobileMenuProps {
@@ -18,14 +17,14 @@ interface MobileMenuProps {
 
 /**
  * MobileMenu - Slide-in drawer navigation for mobile devices
- * 
+ *
  * Features:
  * - Hamburger menu trigger
  * - Slide-in from left
  * - Flat list of navigation items
  * - Active state highlighting
  * - Logout at bottom
- * 
+ *
  * Used by:
  * - TeacherHeader (mobile breakpoint)
  * - AdminLayout (mobile breakpoint)
@@ -37,58 +36,95 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({
     onLogout,
     userRole,
 }) => {
+    if (!isOpen) {
+        return null;
+    }
+
     return (
-        <Drawer
-            opened={isOpen}
-            onClose={onClose}
-            position="left"
-            size="80%"
-            padding="md"
-            style={{
-                background: 'linear-gradient(135deg, #faf5ff 0%, #f0f9ff 50%, #f0fdfa 100%)',
-            }}
-        >
+        <>
             <div
                 style={{
+                    position: 'fixed',
+                    inset: 0,
+                    background: 'rgba(15, 23, 42, 0.45)',
+                    zIndex: 999,
+                }}
+                onClick={onClose}
+                aria-hidden="true"
+            />
+            <div
+                role="dialog"
+                aria-modal="true"
+                aria-label="Navigation menu"
+                style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    bottom: 0,
+                    width: 'min(80vw, 22rem)',
+                    padding: '1rem',
+                    background: 'linear-gradient(135deg, #faf5ff 0%, #f0f9ff 50%, #f0fdfa 100%)',
+                    boxShadow: '0 24px 48px rgba(15, 23, 42, 0.18)',
+                    zIndex: 1000,
                     display: 'flex',
                     flexDirection: 'column',
-                    height: '100%',
                 }}
             >
-                {/* Header */}
                 <div
                     style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        justifyContent: 'space-between',
                         padding: '1rem 0',
                         borderBottom: '1px solid rgba(203, 213, 225, 0.3)',
                         marginBottom: '1rem',
                     }}
                 >
-                    <h3
-                        style={{
-                            fontSize: '1.25rem',
-                            fontWeight: '700',
-                            color: '#1e293b',
-                            margin: 0,
-                        }}
-                    >
-                        Navigation
-                    </h3>
-                    {userRole && (
-                        <p
+                    <div>
+                        <h3
                             style={{
-                                fontSize: '0.875rem',
-                                color: '#64748b',
-                                margin: '0.25rem 0 0',
+                                fontSize: '1.25rem',
+                                fontWeight: '700',
+                                color: '#1e293b',
+                                margin: 0,
                             }}
                         >
-                            {userRole === 'super_admin' && '👑 Super Admin'}
-                            {userRole === 'teacher' && '👨‍🏫 Teacher'}
-                            {userRole === 'student' && '👨‍🎓 Student'}
-                        </p>
-                    )}
+                            Navigation
+                        </h3>
+                        {userRole && (
+                            <p
+                                style={{
+                                    fontSize: '0.875rem',
+                                    color: '#64748b',
+                                    margin: '0.25rem 0 0',
+                                }}
+                            >
+                                {userRole === 'super_admin' && 'Super Admin'}
+                                {userRole === 'teacher' && 'Teacher'}
+                                {userRole === 'student' && 'Student'}
+                            </p>
+                        )}
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        aria-label="Close navigation menu"
+                        style={{
+                            border: 'none',
+                            background: 'rgba(255, 255, 255, 0.75)',
+                            color: '#1e293b',
+                            width: '2.25rem',
+                            height: '2.25rem',
+                            borderRadius: '999px',
+                            cursor: 'pointer',
+                            fontSize: '1.25rem',
+                            lineHeight: 1,
+                        }}
+                    >
+                        x
+                    </button>
                 </div>
 
-                {/* Navigation Items */}
                 <div
                     style={{
                         flex: 1,
@@ -132,7 +168,6 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({
                     ))}
                 </div>
 
-                {/* Logout Button */}
                 <div
                     style={{
                         padding: '1rem 0',
@@ -153,13 +188,12 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({
                         }}
                     >
                         <span style={{ fontSize: '1.25rem', marginRight: '0.5rem' }}>
-                            🚪
+                            Log out
                         </span>
-                        <span>Logout</span>
                     </Button>
                 </div>
             </div>
-        </Drawer>
+        </>
     );
 };
 

@@ -7,6 +7,7 @@
 import { ref, set, get, update } from 'firebase/database';
 // @ts-ignore - firebase.js doesn't have type declarations
 import { database } from './firebase';
+import { withRestoreGuard } from './restoreGuard';
 import type {
   Passage,
   ParsedQuestion,
@@ -500,6 +501,14 @@ const writeStudentSafeTestData = async (
   );
 };
 
+const backfillStudentSafeTestData = withRestoreGuard(
+  'StudentSafeTestProjectionBackfill',
+  false,
+)(async (testId: string, testData: TestData): Promise<boolean> => {
+  await writeStudentSafeTestData(testId, testData);
+  return true;
+});
+
 /**
  * Read the global student-safe payload for solo/homework delivery.
  */
@@ -517,9 +526,25 @@ export const getStudentSafeTestFromFirebase = async (
       };
     }
 
+    const canonicalResult = await getTestFromFirebase(testId);
+
+    if (canonicalResult.success && canonicalResult.data) {
+      console.warn('[SoloTestData] Missing student-safe payload, falling back to canonical test:', testId);
+      void backfillStudentSafeTestData(testId, canonicalResult.data).catch((backfillError) => {
+        console.warn(
+          `⚠️ [TestStorage] Failed to backfill student-safe payload for ${testId}:`,
+          backfillError,
+        );
+      });
+      return {
+        success: true,
+        data: buildStudentSafeTestData(canonicalResult.data),
+      };
+    }
+
     return {
       success: false,
-      error: 'Student-safe test payload not found',
+      error: canonicalResult.error || 'Student-safe test payload not found',
     };
   } catch (error) {
     console.error('❌ Error getting student-safe test from Firebase:', error);

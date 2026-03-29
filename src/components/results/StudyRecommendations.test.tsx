@@ -46,9 +46,12 @@ describe('StudyRecommendations', () => {
 
     expect(screen.getByTestId('fb-study-recommendations')).toBeInTheDocument();
     expect(screen.getByTestId('fb-study-card-grammar')).toBeInTheDocument();
-    expect(screen.getByText('Q5, Q6, Q7')).toBeInTheDocument();
-    expect(screen.getByText('Unit 11: Present Perfect and Past Simple')).toBeInTheDocument();
-    expect(screen.getByText(/caused the mistakes in Questions 5, 6, and 7/i)).toBeInTheDocument();
+    expect(screen.getByText('Q5')).toBeInTheDocument();
+    expect(screen.getByText('Q6')).toBeInTheDocument();
+    expect(screen.getByText('Q7')).toBeInTheDocument();
+    expect(screen.getByText('Top priorities')).toBeInTheDocument();
+    expect(screen.getAllByText('Unit 11: Present Perfect and Past Simple').length).toBeGreaterThan(0);
+    expect(screen.getByText('Tense')).toBeInTheDocument();
   });
 
   it('hides the widget when no AI study recommendations exist', () => {
@@ -79,8 +82,8 @@ describe('StudyRecommendations', () => {
       />,
     );
 
-    expect(screen.getByText(/stretch targets from your approved book library/i)).toBeInTheDocument();
-    expect(screen.getByText('Advanced Verb Patterns')).toBeInTheDocument();
+    expect(screen.getByText('Stretch targets')).toBeInTheDocument();
+    expect(screen.getAllByText('Advanced Verb Patterns').length).toBeGreaterThan(0);
   });
 
   it('does not crash when legacy recommendations omit questionNumbers', () => {
@@ -107,6 +110,6 @@ describe('StudyRecommendations', () => {
 
     expect(screen.getByTestId('fb-study-recommendations')).toBeInTheDocument();
     expect(screen.queryByText(/^Q/)).not.toBeInTheDocument();
-    expect(screen.getByText('Unit 11: Present Perfect and Past Simple')).toBeInTheDocument();
+    expect(screen.getAllByText('Unit 11: Present Perfect and Past Simple').length).toBeGreaterThan(0);
   });
 });

@@ -8,7 +8,7 @@ labels:
   - from-spec
   - grading-editor
 createdAt: '2026-03-01T06:44:58.194Z'
-updatedAt: '2026-03-01T07:56:25.735Z'
+updatedAt: '2026-03-29T20:17:34.756Z'
 timeSpent: 179
 assignee: '@me'
 spec: specs/grading-editor-redesign
@@ -66,5 +66,7 @@ Build QuickCommentsDialog.tsx \u2014 speech-bubble dialog from FAB button. Categ
 - Add row: input + select + button inline
 
 ### Build: Zero new TS errors (fixed one ! assertion)"
+
+2026-03-30 note: Historical implementation task only. The finalized teacher writing grading editor interaction contract now lives in @doc/specs/ielts-writing-grading-editor-finalization-2026-03-30. Quick comment behavior must now stay consistent with the finalized comment-ordering and linking rules.
 <!-- SECTION:NOTES:END -->
 

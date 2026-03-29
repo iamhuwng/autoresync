@@ -1,5 +1,5 @@
 /**
- * useFeedbackAutoTrigger — Centralized feedback generation dedupe and auto-trigger hook.
+ * useFeedbackAutoTrigger - Centralized feedback generation dedupe and auto-trigger hook.
  *
  * PRD-0040 Task 3.6: Centralizes the duplicated feedback generation logic
  * from ResultSlidePanel and ResultDetailModal into a single shared hook.
@@ -7,7 +7,7 @@
  * Responsibilities:
  * 1. Manages feedbackLoading, feedbackError state
  * 2. Provides handleGenerateFeedback callback with error categorization
- * 3. Auto-triggers feedback for THCS results without existing feedback
+ * 3. Auto-triggers feedback for eligible saved results without feedback
  * 4. Auto-triggers AI upgrade for results with weak/deterministic feedback
  * 5. Provides feedbackAttemptedRef-based once-per-open dedupe
  * 6. Resets state when resultId changes (attempt switch, modal close/reopen)
@@ -18,8 +18,13 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { generateFormativeFeedbackForSavedResult } from '../services/resultFeedbackGeneration.service';
 import { needsAiFeedbackUpgrade } from '../services/formativeFeedback.service';
+import { classifySavedResultFeedbackKind } from '../services/feedbackClassification.service';
 import type { FormativeFeedback } from '../types/thcs-test.types';
 import type { TestResultRecord } from '../services/testResults.service';
+
+export function isEligibleForSavedResultFeedback(result: TestResultRecord | null | undefined): boolean {
+  return Boolean(result && classifySavedResultFeedbackKind(result));
+}
 
 export interface UseFeedbackAutoTriggerOptions {
   /** The current result ID being displayed */
@@ -30,8 +35,8 @@ export interface UseFeedbackAutoTriggerOptions {
   loading: boolean;
   /**
    * Whether auto-trigger is enabled for this shell.
-   * Student shells (ResultSlidePanel) and teacher homework modals (ResultDetailModal)
-   * enable this. Teacher/admin full-page views (LegacyResultDetailView) do NOT.
+   * Each saved-result shell opts in explicitly so the hook can keep one policy
+   * while the shells own their own access and visibility rules.
    */
   autoTriggerEnabled: boolean;
   /** Shell identifier for logging/auditing */
@@ -66,11 +71,14 @@ export function useFeedbackAutoTrigger({
     const formativeFeedback = result?.formativeFeedback as FormativeFeedback | undefined;
     return Boolean(
       formativeFeedback &&
-      needsAiFeedbackUpgrade(formativeFeedback, result?.questionResults as any),
+      needsAiFeedbackUpgrade(formativeFeedback, result?.questionResults as any, result || undefined),
     );
-  }, [result?.formativeFeedback, result?.questionResults]);
+  }, [result]);
 
-  const handleGenerateFeedback = useCallback(async (forceAiUpgrade = false) => {
+  const runGenerateFeedback = useCallback(async (
+    forceAiUpgrade: boolean,
+    triggerMode: 'auto' | 'manual',
+  ) => {
     if (!result) return;
 
     try {
@@ -79,7 +87,10 @@ export function useFeedbackAutoTrigger({
 
       const generationResult = await generateFormativeFeedbackForSavedResult(
         resultId,
-        forceAiUpgrade ? { forceAiUpgrade: true } : undefined,
+        {
+          ...(forceAiUpgrade ? { forceAiUpgrade: true } : {}),
+          triggerSource: `${shellName}:${triggerMode}-${forceAiUpgrade ? 'upgrade' : 'generate'}`,
+        },
       );
 
       if (generationResult && !generationResult.saved) {
@@ -91,8 +102,8 @@ export function useFeedbackAutoTrigger({
       } else {
         setFeedbackError(null);
       }
-      // No need to call loadResult() — the RTDB onValue listener
-      // will automatically pick up the newly-written formativeFeedback
+      // No need to call loadResult() - the RTDB onValue listener
+      // will automatically pick up the newly-written formativeFeedback.
     } catch (err) {
       console.error(`[${shellName}] Failed to generate formative feedback:`, err);
       setFeedbackError('Failed to generate feedback.');
@@ -101,29 +112,42 @@ export function useFeedbackAutoTrigger({
     }
   }, [result, resultId, shellName]);
 
-  // Auto-trigger generation for missing THCS feedback, and AI-upgrade weak or deterministic saved feedback.
+  const handleGenerateFeedback = useCallback(async (forceAiUpgrade = false) => {
+    await runGenerateFeedback(forceAiUpgrade, 'manual');
+  }, [runGenerateFeedback]);
+
+  // Auto-trigger generation for missing eligible feedback, and AI-upgrade weak or deterministic saved feedback.
   useEffect(() => {
     if (!autoTriggerEnabled) return;
     if (!result || loading) return;
 
-    const hasFeedback = !!result.formativeFeedback;
-    const hasThcsData = !!result.thcsData?.sectionResults;
+    const hasFeedback = Boolean(result.formativeFeedback);
+    const isEligibleForFeedback = isEligibleForSavedResultFeedback(result);
 
     if (!feedbackLoading && !feedbackError && !feedbackAttemptedRef.current) {
-      if (hasThcsData && !hasFeedback) {
+      if (isEligibleForFeedback && !hasFeedback) {
         feedbackAttemptedRef.current = true;
-        console.log(`🤖 [${shellName}] Auto-triggering feedback generation`);
-        handleGenerateFeedback();
+        console.log(`[${shellName}] Auto-triggering feedback generation`);
+        void runGenerateFeedback(false, 'auto');
         return;
       }
 
       if (hasFeedback && storedFeedbackNeedsUpgrade) {
         feedbackAttemptedRef.current = true;
         console.log(`[${shellName}] Auto-triggering AI feedback upgrade`);
-        handleGenerateFeedback(true);
+        void runGenerateFeedback(true, 'auto');
       }
     }
-  }, [autoTriggerEnabled, result, loading, feedbackLoading, feedbackError, storedFeedbackNeedsUpgrade, handleGenerateFeedback, shellName]);
+  }, [
+    autoTriggerEnabled,
+    result,
+    loading,
+    feedbackLoading,
+    feedbackError,
+    storedFeedbackNeedsUpgrade,
+    runGenerateFeedback,
+    shellName,
+  ]);
 
   // Reset feedback attempt when resultId changes (attempt switch, modal reopen)
   useEffect(() => {

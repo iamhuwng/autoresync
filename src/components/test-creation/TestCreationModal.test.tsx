@@ -14,6 +14,14 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { MantineProvider } from '@mantine/core';
 import { BrowserRouter } from 'react-router-dom';
+const mockNavigate = vi.fn();
+vi.mock('react-router-dom', async () => {
+    const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
+    return {
+        ...actual,
+        useNavigate: () => mockNavigate,
+    };
+});
 vi.mock('../../hooks/useAuth', () => ({
     useAuth: () => ({
         user: { uid: 'user-1' },
@@ -65,6 +73,7 @@ const renderModal = (props: Partial<Parameters<typeof TestCreationModal>[0]> = {
 describe('TestCreationModal', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        mockNavigate.mockReset();
     });
 
     describe('Initial Render', () => {
@@ -95,6 +104,7 @@ describe('TestCreationModal', () => {
             const stepIndicator = screen.getByText(/Step 1 of 5/i);
             expect(stepIndicator).toBeInTheDocument();
         });
+
     });
 
     describe('Type Selection Step', () => {
@@ -171,6 +181,26 @@ describe('TestCreationModal', () => {
 
             await waitFor(() => {
                 expect(screen.getByText('Details')).toBeInTheDocument();
+            });
+        });
+
+        it('keeps Writing selection inside the modal flow', async () => {
+            const onClose = vi.fn();
+            const user = userEvent.setup();
+            renderModal({ onClose });
+
+            await user.click(screen.getByText('IELTS'));
+
+            await waitFor(() => {
+                expect(screen.getByText('Writing')).toBeInTheDocument();
+            });
+
+            await user.click(screen.getByText('Writing'));
+
+            await waitFor(() => {
+                expect(onClose).not.toHaveBeenCalled();
+                expect(mockNavigate).not.toHaveBeenCalled();
+                expect(screen.getByText('Advanced Settings')).toBeInTheDocument();
             });
         });
     });
@@ -410,6 +440,41 @@ describe('TestCreationModal', () => {
             });
 
             expect(screen.getByDisplayValue('Pre-filled Title')).toBeInTheDocument();
+        });
+
+        it('hydrates writing edit state from initialData', async () => {
+            renderModal({
+                initialStep: 'writing-content',
+                initialWritingDraftId: 'writing-draft-1',
+                initialData: {
+                    testType: 'IELTS',
+                    skillType: 'writing',
+                    writingMetadata: {
+                        title: 'Loaded Writing Draft',
+                        duration: 60,
+                    },
+                    writingFormat: 'full-test',
+                    writingTasks: {
+                        task1: {
+                            taskType: 'line-graph',
+                            promptText: 'Describe the graph.',
+                            wordMinimum: 150,
+                            recommendedTimeMinutes: 20,
+                            showModelAnswerToStudent: false,
+                        },
+                        task2: {
+                            taskType: 'opinion',
+                            promptText: 'Discuss both views and give your opinion.',
+                            wordMinimum: 250,
+                            recommendedTimeMinutes: 40,
+                            showModelAnswerToStudent: false,
+                        },
+                    },
+                },
+            });
+
+            expect(await screen.findByDisplayValue('Describe the graph.')).toBeInTheDocument();
+            expect(screen.getByDisplayValue('Discuss both views and give your opinion.')).toBeInTheDocument();
         });
     });
 

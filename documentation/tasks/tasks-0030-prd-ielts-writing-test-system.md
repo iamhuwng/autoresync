@@ -1,3 +1,10 @@
+> [!IMPORTANT]
+> Historical planning or design document.
+> The current finalized source of truth for the teacher writing grading editor is:
+> - .knowns/docs/specs/ielts-writing-grading-editor-finalization-2026-03-30.md
+> - documentation/mockups/ielts-writing-grading-editor-finalized-2026-03-30.html
+>
+> If this file conflicts with the finalization doc or finalized mockup, follow the finalization doc.
 # Tasks: PRD-0030 — IELTS Writing Test System
 
 > Generated from [PRD-0030](./0030-prd-ielts-writing-test-system.md)

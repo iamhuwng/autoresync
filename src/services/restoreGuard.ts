@@ -24,6 +24,11 @@ import { database } from './firebase';
 
 const RESTORE_FLAG_PATH = 'system_flags/restore_in_progress';
 
+function isPermissionDeniedError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    return message.toLowerCase().includes('permission_denied');
+}
+
 // Cache the flag check result for 5 seconds to avoid hammering RTDB
 let cachedResult: { active: boolean; checkedAt: number } | null = null;
 const CACHE_TTL_MS = 5000;
@@ -56,7 +61,9 @@ export async function isRestoreInProgress(): Promise<boolean> {
         return active;
     } catch (error) {
         // On error, assume NOT restoring (don't block normal operations)
-        console.warn('[RestoreGuard] Failed to check restore flag, allowing operation:', error);
+        if (!isPermissionDeniedError(error)) {
+            console.warn('[RestoreGuard] Failed to check restore flag, allowing operation:', error);
+        }
         cachedResult = { active: false, checkedAt: now };
         return false;
     }

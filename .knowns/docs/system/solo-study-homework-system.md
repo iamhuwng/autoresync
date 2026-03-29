@@ -1,14 +1,15 @@
 ---
 title: Solo Study Homework System
-createdAt: '2026-02-27T15:25:43.328Z'
-updatedAt: '2026-02-27T15:25:44.671Z'
 description: Architecture and implementation docs for solo study and homework system
+createdAt: '2026-02-27T15:25:43.328Z'
+updatedAt: '2026-03-28T12:49:15.199Z'
 tags:
   - solo
   - homework
   - system
   - architecture
 ---
+
 # Solo Study & Homework System Architecture
 
 > **PRD Reference:** PRD-0016  
@@ -307,3 +308,15 @@ Added homework-related notification types:
 ---
 
 *Documentation generated: 2026-02-03*
+
+
+## Student-Safe Delivery Contract
+
+Non-writing IELTS solo practice depends on a sanitized RTDB projection at `student_safe_tests/{id}` rather than reading only from `tests/{id}`. This means Library visibility and practice-open success are not guaranteed by the same data path.
+
+Operational implications:
+- Save and update flows must keep `student_safe_tests/{id}` in sync with `tests/{id}`.
+- Restore and migration work must include derived student-safe nodes or run a backfill.
+- THCS and IELTS Writing should be debugged separately because they use different load paths.
+
+See @doc/patterns/pattern-student-safe-solo-test-projection for the incident summary, solution, and checklist.

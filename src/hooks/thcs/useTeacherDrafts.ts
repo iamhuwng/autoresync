@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getUserThcsDrafts, deleteThcsDraft } from '../../services/thcsDraftService';
+import { getUserWritingDrafts, deleteWritingDraft } from '../../services/writingTestService';
 
 interface UseTeacherDraftsParams {
   userId: string;
@@ -19,12 +20,30 @@ export function useTeacherDrafts({ userId, enabled }: UseTeacherDraftsParams) {
       setLoading(true);
       setError(null);
       try {
-        const result = await getUserThcsDrafts(userId);
+        const [thcsResult, writingResult] = await Promise.all([
+          getUserThcsDrafts(userId),
+          getUserWritingDrafts(userId),
+        ]);
+
         if (!isSubscribed) return;
-        if (result.success && result.data) {
-          setDrafts(result.data);
+
+        const thcsDrafts = thcsResult.success && thcsResult.data
+          ? thcsResult.data.map((draft: any) => ({ ...draft, draftKind: 'thcs' }))
+          : [];
+        const writingDrafts = writingResult.success && writingResult.data
+          ? writingResult.data.map((draft: any) => ({ ...draft, draftKind: 'writing' }))
+          : [];
+
+        const mergedDrafts = [...thcsDrafts, ...writingDrafts].sort((a: any, b: any) => {
+          const aTime = a.updatedAt instanceof Date ? a.updatedAt.getTime() : new Date(a.updatedAt || 0).getTime();
+          const bTime = b.updatedAt instanceof Date ? b.updatedAt.getTime() : new Date(b.updatedAt || 0).getTime();
+          return bTime - aTime;
+        });
+
+        if (thcsResult.success || writingResult.success) {
+          setDrafts(mergedDrafts);
         } else {
-          setError(result.error || 'Failed to load drafts');
+          setError(thcsResult.error || writingResult.error || 'Failed to load drafts');
         }
       } catch (err: any) {
         if (isSubscribed) {
@@ -41,7 +60,10 @@ export function useTeacherDrafts({ userId, enabled }: UseTeacherDraftsParams) {
 
   const deleteDraft = async (draftId: string): Promise<boolean> => {
     try {
-      const result = await deleteThcsDraft(draftId);
+      const draft = drafts.find((d: any) => d.id === draftId);
+      const result = draft?.draftKind === 'writing'
+        ? await deleteWritingDraft(draftId)
+        : await deleteThcsDraft(draftId);
       if (result.success) {
         setDrafts(prev => prev.filter(d => d.id !== draftId));
         return true;

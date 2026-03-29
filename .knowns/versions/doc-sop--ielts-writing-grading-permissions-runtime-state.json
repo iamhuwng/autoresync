@@ -1,0 +1,49 @@
+{
+  "docPath": "sop/ielts-writing-grading-permissions-runtime-state",
+  "currentVersion": 1,
+  "versions": [
+    {
+      "id": "v1",
+      "docPath": "sop/ielts-writing-grading-permissions-runtime-state",
+      "version": 1,
+      "timestamp": "2026-03-28T09:18:04.2792336Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "IELTS Writing Grading Permissions Runtime State"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "Operational closeout for the March 2026 teacher grading permission incident, including issues, fixes, reusable findings, and current live state."
+        },
+        {
+          "field": "tags",
+          "oldValue": null,
+          "newValue": [
+            "sop",
+            "runtime-state",
+            "incident",
+            "firebase",
+            "writing",
+            "grading"
+          ]
+        }
+      ],
+      "snapshot": {
+        "content": "# IELTS Writing Grading Permissions Runtime State\n\n## Scope\n\nThis document records the concrete issue trail, fixes, reusable findings, and current runtime state for the IELTS Writing teacher grading permission incident resolved on 2026-03-28.\n\nThis is intentionally not the general pattern doc. Use @doc/patterns/pattern-firestore-rules-vs-collection-queries for the reusable rule/query lesson.\n\n## Feature Surface\n\nAffected teacher-facing features:\n\n- `Grading` page in teacher navigation\n- in-page `IELTS Writing` tab inside the grading surface\n- teacher writing queue load via `getPendingSubmissions()`\n- teacher grading detail load via `getSubmission()`\n- teacher grading save path via the initial submission read inside `updateGrading()`\n\nPrimary runtime target during this incident:\n\n- Firebase project: `temp-a1437`\n\n## Initial Report\n\nPrimary user-visible failure:\n\n- Teacher could open `Grading` and switch to `IELTS Writing`, but the page showed `Missing or insufficient permissions.` with `Retry`.\n\nConsole evidence consistently pointed to the same read surface:\n\n- `writingSubmissionService.ts:getPendingSubmissions()`\n- caller: `TeacherGradingPage.tsx`\n\n## Root Causes\n\n### 1. Firestore rules vs queue query mismatch\n\nThe queue queried `writing_submissions` by `markingStatus == 'pending-review'` and then filtered ownership client-side. Firestore rules were still enforcing per-document teacher ownership on read, so the collection query was rejected before the client-side filter could run.\n\n### 2. Live-session submissions lacked teacher ownership metadata\n\n`autoSubmitFromRTDB()` created live-session submissions with `context.type` and `context.sessionCode`, but without a teacher ownership field. That made any rule depending on `context.assigningTeacherId` fragile for both queue and detail reads.\n\n### 3. Deployment-state drift\n\nThe local repository had already been patched, but the running app targeted the live Firebase project. The live project was still serving the older deployed Firestore rules until a rules deploy was executed.\n\n### 4. Over-open update rule in the same surface\n\nThe `writing_submissions` rule block also allowed authenticated updates too broadly. This was not the user-facing blocker, but it was part of the same incident surface and needed tightening while the rule block was open.\n\n## Repairs Applied\n\n### Code repairs\n\nLocal code changes completed:\n\n- broadened `writing_submissions` read compatibility for the grading queue surface\n- tightened the `writing_submissions` update rule so plain unrelated updates are no longer wide open\n- updated `autoSubmitFromRTDB()` to persist `context.assigningTeacherId` for new live-session submissions using the best available teacher source\n- updated service coverage to assert the new live-session teacher metadata\n- updated the security emulator spec to capture the queue-query regression and the stricter unrelated-update expectation\n\nPrimary touched files:\n\n- `firestore.rules`\n- `src/services/writingSubmissionService.ts`\n- `src/services/writingSubmissionService.test.ts`\n- `src/__tests__/security/prd0040-security.emulator.test.ts`\n\n### Live repair\n\nRuntime repair completed against project `temp-a1437`:\n\n- deployed Firestore rules with `firebase deploy --only firestore:rules`\n- confirmed the deployed `writing_submissions` block now matches the intended fix instead of the stale per-document teacher-read rule\n\n## Reusable Findings\n\n- A Firestore collection query cannot be rescued by client-side filtering if the rules reject the query result set up front.\n- RTDB/session ownership lookups that happen after a Firestore query do not help if the Firestore read already failed.\n- When a local permission fix appears correct but production still throws the exact same permission error at the same callsite, deployment-state drift is the first thing to check.\n- The most reliable verification sequence is:\n  1. identify the active Firebase project from runtime\n  2. inspect the deployed rule text\n  3. deploy the changed rules\n  4. re-read the deployed rule text\n  5. retest the exact page that failed\n\n## Current State\n\nCurrent expected state after the repair cycle:\n\n- live project `temp-a1437` is using the updated Firestore rules for `writing_submissions`\n- teacher queue reads should no longer fail on the stale rule/query mismatch\n- teacher detail reads (`getSubmission`) and the pre-update read inside `updateGrading()` now share the same broader read surface and should not fail for the old reason\n- new live-session submissions created from the patched code will include `context.assigningTeacherId`\n- the in-page IELTS Writing queue remains integrated inside `TeacherGradingPage`; the active route may still be `/teacher/grading` while the writing tab is selected\n\n## Verification Limits\n\nWhat was verified directly during the repair:\n\n- local writing submission service tests passed\n- Firestore rules deployed successfully to `temp-a1437`\n- deployed rules were re-read and confirmed\n\nWhat remained environment-limited:\n\n- the Firebase emulator security suite required Java in this environment and could not be run end to end here\n- hosted browser re-verification depends on a fresh page reload after the live rules deploy\n\n## Follow-Up Watchpoints\n\nIf the same symptom returns, check these in order:\n\n1. browser console callsite for the failing read\n2. active Firebase project ID at runtime\n3. deployed Firestore rule text for `writing_submissions`\n4. whether the failure is on queue load, detail load, or grading save\n5. whether new live-session submissions still contain `context.assigningTeacherId`\n\n## Related Docs\n\n- @doc/patterns/pattern-firestore-rules-vs-collection-queries\n- @doc/architecture/firebase-infrastructure",
+        "description": "Operational closeout for the March 2026 teacher grading permission incident, including issues, fixes, reusable findings, and current live state.",
+        "tags": [
+          "sop",
+          "runtime-state",
+          "incident",
+          "firebase",
+          "writing",
+          "grading"
+        ],
+        "title": "IELTS Writing Grading Permissions Runtime State"
+      }
+    }
+  ]
+}

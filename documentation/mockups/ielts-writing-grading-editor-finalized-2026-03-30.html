@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IELTS Writing Grading Editor Finalized Mockup</title>
+    <style>
+        :root {
+            --bg: #eff6ff;
+            --panel: #ffffff;
+            --panel-soft: #f8fafc;
+            --line: #dbe4ef;
+            --text: #0f172a;
+            --muted: #64748b;
+            --brand: #2563eb;
+            --brand-soft: rgba(37, 99, 235, 0.12);
+            --brand-strong: #1d4ed8;
+            --glow: rgba(37, 99, 235, 0.18);
+            --comment-1: rgba(245, 158, 11, 0.26);
+            --comment-2: rgba(16, 185, 129, 0.24);
+            --comment-3: rgba(139, 92, 246, 0.22);
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: Inter, system-ui, sans-serif;
+            color: var(--text);
+            background: linear-gradient(135deg, #f8fafc 0%, #eff6ff 50%, #ecfeff 100%);
+        }
+
+        .teacher-shell {
+            min-height: 100vh;
+        }
+
+        .teacher-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 18px 24px;
+            border-bottom: 1px solid rgba(203, 213, 225, 0.6);
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(14px);
+        }
+
+        .teacher-header h1,
+        .teacher-header p {
+            margin: 0;
+        }
+
+        .teacher-nav {
+            display: flex;
+            gap: 10px;
+            color: var(--muted);
+            font-size: 0.85rem;
+            font-weight: 700;
+        }
+
+        .page-wrap {
+            padding: 32px 16px 48px;
+        }
+
+        .page-panel {
+            max-width: 1400px;
+            margin: 0 auto;
+            border-radius: 0;
+            overflow: visible;
+            border: 0;
+            background: transparent;
+            box-shadow: none;
+        }
+
+        .page-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 22px 24px;
+            background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+            color: var(--text);
+            border: 1px solid #e5e7eb;
+            border-radius: 20px;
+            box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+        }
+
+        .pill {
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: #dbeafe;
+            color: #1d4ed8;
+            font-size: 0.75rem;
+            font-weight: 800;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .page-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .btn {
+            border-radius: 14px;
+            padding: 11px 16px;
+            border: 1px solid #e5e7eb;
+            background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+            color: #0f172a;
+            font-weight: 700;
+        }
+
+        .btn.primary {
+            border: none;
+            background: linear-gradient(135deg, #2563eb, #4f46e5);
+            color: #ffffff;
+        }
+
+        .task-tabs,
+        .side-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            padding: 16px 0 0;
+        }
+
+        .task-tab,
+        .side-tab {
+            border: 2px solid #e5e7eb;
+            background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+            color: #6b7280;
+            border-radius: 14px;
+            padding: 10px 14px;
+            font-weight: 700;
+        }
+
+        .task-tab.active,
+        .side-tab.active {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: #ffffff;
+            border-color: #3b82f6;
+            box-shadow: 0 6px 14px rgba(59, 130, 246, 0.2);
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1.2fr) minmax(390px, 0.88fr);
+            gap: 20px;
+            padding: 18px 0 0;
+        }
+
+        .card {
+            position: relative;
+            background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+            border: 1px solid #e5e7eb;
+            border-radius: 20px;
+            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+            overflow: hidden;
+        }
+
+        .essay-toolbar,
+        .essay-subheader {
+            display: flex;
+            gap: 10px;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--line);
+            background: var(--panel-soft);
+        }
+
+        .essay-body {
+            position: relative;
+            padding: 26px 24px 34px 40px;
+            min-height: 640px;
+            font-family: Georgia, serif;
+            line-height: 1.9;
+            font-size: 1rem;
+            background: var(--panel);
+        }
+
+        .essay-line {
+            margin-bottom: 18px;
+        }
+
+        .mark {
+            border-bottom: 2px dotted rgba(15, 23, 42, 0.35);
+            border-radius: 4px;
+            padding: 1px 0;
+        }
+
+        .mark.one { background: var(--comment-1); }
+        .mark.two { background: var(--comment-2); }
+        .mark.three { background: var(--comment-3); }
+
+        .tooltip {
+            position: absolute;
+            top: 176px;
+            left: 132px;
+            width: 260px;
+            padding: 12px 14px;
+            border-radius: 14px;
+            background: rgba(15, 23, 42, 0.96);
+            color: #f8fafc;
+            box-shadow: 0 18px 40px rgba(15, 23, 42, 0.28);
+        }
+
+        .tooltip small,
+        .tooltip > strong:first-of-type,
+        .connector,
+        .footer {
+            display: none;
+        }
+
+        .gutter-dot {
+            position: absolute;
+            left: 12px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .gutter-dot.one { top: 174px; background: #f59e0b; }
+        .gutter-dot.two { top: 278px; background: #10b981; }
+        .gutter-dot.three { top: 232px; background: #8b5cf6; }
+
+        .comments-body {
+            padding: 14px 14px 20px;
+            min-height: 760px;
+            background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+        }
+
+        .filter-row {
+            display: flex;
+            gap: 8px;
+            padding-bottom: 12px;
+        }
+
+        .filter-pill {
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            background: #ffffff;
+            padding: 6px 10px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: var(--muted);
+        }
+
+        .filter-pill.active {
+            background: #2563eb;
+            border-color: #2563eb;
+            color: #ffffff;
+        }
+
+        .comment-list {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            min-height: 680px;
+        }
+
+        .comment-card {
+            padding: 12px 14px;
+            border-radius: 16px;
+            border: 1px solid #e5e7eb;
+            background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+        }
+
+        .comment-card.focused {
+            border-color: #3b82f6;
+            box-shadow:
+                0 0 0 1px rgba(59, 130, 246, 0.25),
+                0 0 0 7px var(--glow),
+                0 16px 30px rgba(59, 130, 246, 0.18);
+            background: #fafbff;
+        }
+
+        .comment-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 8px;
+            font-size: 0.78rem;
+            color: var(--muted);
+            font-weight: 700;
+        }
+
+        .comment-anchor {
+            margin-bottom: 8px;
+            font-size: 0.8rem;
+            color: #64748b;
+            font-style: italic;
+        }
+
+        .composer {
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            background: #ffffff;
+            box-shadow: 0 16px 34px rgba(15, 23, 42, 0.08);
+            overflow: hidden;
+        }
+
+        .composer-head,
+        .composer-tools,
+        .composer-actions {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .composer-body {
+            min-height: 140px;
+            padding: 14px;
+            color: #334155;
+            line-height: 1.6;
+        }
+
+        .composer-tools {
+            justify-content: flex-start;
+        }
+
+        .composer-tools span,
+        .tool {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 34px;
+            height: 34px;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: #ffffff;
+            font-weight: 700;
+        }
+
+        .composer-actions {
+            border-bottom: 0;
+            justify-content: flex-end;
+        }
+
+        .side-tabs {
+            display: inline-flex;
+            padding: 6px;
+            border-radius: 16px;
+            background: rgba(243, 244, 246, 0.95);
+            border: 1px solid #e5e7eb;
+            margin-bottom: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="teacher-shell">
+        <div class="teacher-header">
+            <div>
+                <h1>Writing Grading</h1>
+                <p>Contained inside the teacher shell header and navigation</p>
+            </div>
+            <div class="teacher-nav">
+                <span>Materials</span>
+                <span>Classes</span>
+                <span>Grading</span>
+                <span>Students</span>
+            </div>
+        </div>
+
+        <div class="page-wrap">
+            <div class="page-panel">
+                <div class="page-header">
+                    <div>
+                        <div style="font-size:1.1rem;font-weight:800;">Nguyen Minh Anh</div>
+                        <div style="font-size:0.84rem;color:#cbd5e1;">Cambridge IELTS Writing 8 | Submitted 30 Mar 2026</div>
+                    </div>
+                    <div class="page-actions">
+                        <span class="pill">Draft Editing</span>
+                        <button class="btn">Save Draft</button>
+                        <button class="btn primary">Submit Grading</button>
+                    </div>
+                </div>
+
+                <div class="task-tabs">
+                    <button class="task-tab active">Task 1</button>
+                    <button class="task-tab">Task 2</button>
+                </div>
+
+                <div class="layout">
+                    <section class="card">
+                        <div class="essay-subheader">
+                            <button class="task-tab active">Marked</button>
+                            <button class="task-tab">Original</button>
+                        </div>
+                        <div class="essay-toolbar">
+                            <span class="tool">✏</span>
+                            <span class="tool">💬</span>
+                            <span class="tool">S</span>
+                            <span class="tool">→</span>
+                            <span class="tool">🎨</span>
+                        </div>
+                        <div class="essay-body">
+                            <div class="gutter-dot one"></div>
+                            <div class="gutter-dot two"></div>
+                            <div class="gutter-dot three"></div>
+
+                            <div class="essay-line">
+                                The bar chart illustrates the number of students choosing different transport methods. Overall, the most
+                                noticeable trend is that
+                                <span class="mark one">public transport remained the dominant option</span>
+                                throughout the period.
+                            </div>
+                            <div class="essay-line">
+                                In addition, bicycle usage rose steadily, while car travel declined after 2018. However, the candidate
+                                <span class="mark three">introduces the overview after listing details</span>,
+                                which weakens the report structure.
+                            </div>
+                            <div class="essay-line">
+                                The final paragraph states that
+                                <span class="mark two">the figures was increased dramatically</span>
+                                in every category, which is not accurate according to the visual data.
+                            </div>
+
+                            <div class="tooltip">
+                                <small>Hovered Comment</small>
+                                <strong>“the figures was increased dramatically”</strong><br>
+                                Subject-verb agreement is incorrect here. Use <em>“figures were”</em> and avoid claiming that every category increased.
+                            </div>
+
+                            <div class="connector"></div>
+                        </div>
+                    </section>
+
+                    <aside>
+                        <div class="side-tabs">
+                            <button class="side-tab">Prompt</button>
+                            <button class="side-tab active">Comments</button>
+                            <button class="side-tab">Scoring</button>
+                        </div>
+
+                        <div class="card comments-body">
+                            <div class="filter-row">
+                                <span class="filter-pill">All (3)</span>
+                                <span class="filter-pill active">Open (3)</span>
+                                <span class="filter-pill">Resolved (1)</span>
+                                <span class="filter-pill">Deleted (0)</span>
+                            </div>
+
+                            <div class="comment-list">
+                                <div class="comment-card">
+                                    <div class="comment-head"><span>TA</span><span>Essay order #1</span></div>
+                                    <div class="comment-anchor">“public transport remained the dominant option”</div>
+                                    <div>The overview is clear, but you should compare at least one secondary trend in the same sentence.</div>
+                                </div>
+
+                                <div class="comment-card focused">
+                                    <div class="comment-head"><span>GRA</span><span>Essay order #2, glowing after essay click</span></div>
+                                    <div class="comment-anchor">“the figures was increased dramatically”</div>
+                                    <div>Subject-verb agreement is incorrect here. Use <strong>“figures were”</strong> and do not overstate the change.</div>
+                                </div>
+
+                                <div class="comment-card">
+                                    <div class="comment-head"><span>CC</span><span>Essay order #3</span></div>
+                                    <div class="comment-anchor">“introduces the overview after listing details”</div>
+                                    <div>Your overview should come immediately after the introduction so the report structure is easier to follow.</div>
+                                </div>
+
+                                <div class="composer">
+                                    <div class="composer-head">
+                                        <div>
+                                            <div style="font-size:0.74rem;font-weight:800;color:#64748b;text-transform:uppercase;">Editing</div>
+                                            <div style="margin-top:6px;font-size:0.9rem;">Inline edit workspace inside the focused comment card. No duplicated hierarchy.</div>
+                                        </div>
+                                        <div style="font-size:0.78rem;font-weight:700;color:#475569;">2h</div>
+                                    </div>
+                                    <div style="display:flex;justify-content:space-between;gap:16px;padding:14px;border-bottom:1px solid #dbe4ef;background:#f4f7fb;">
+                                        <div style="flex:1;min-width:0;">
+                                            <div style="font-size:0.72rem;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;color:#64748b;">Source Context</div>
+                                            <div style="margin-top:8px;padding:10px 12px;border-radius:12px;background:#ffffff;color:#0f172a;line-height:1.5;box-shadow:inset 0 0 0 1px rgba(195,198,215,0.5);">\"adasfakdjfnasdvcnjkasdbvjbc asjdc saj\"</div>
+                                        </div>
+                                        <div style="min-width:132px;">
+                                            <div style="font-size:0.72rem;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;color:#64748b;">Type</div>
+                                            <div style="margin-top:8px;padding:10px 12px;border-radius:12px;background:#ffffff;color:#0f172a;box-shadow:inset 0 0 0 1px rgba(195,198,215,0.5);">TA ▾</div>
+                                        </div>
+                                    </div>
+                                    <div class="composer-tools">
+                                        <span>B</span>
+                                        <span><em>I</em></span>
+                                        <span><u>U</u></span>
+                                        <span>•</span>
+                                        <span>1.</span>
+                                    </div>
+                                    <div class="composer-body">
+                                        Teacher updates the comment inline here. The edit area stays inside the focused card and keeps the source context visible without repeating the full card structure.
+                                    </div>
+                                    <div class="composer-actions">
+                                        <button class="btn">Cancel</button>
+                                        <button class="btn primary">Update Comment</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </aside>
+                </div>
+
+                <div class="footer">
+                    <div>Overall Band <strong>6.5</strong></div>
+                    <div>Finalized visual reference for two-column teacher-shell-contained grading editor</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

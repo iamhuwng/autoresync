@@ -1,0 +1,49 @@
+{
+  "docPath": "patterns/pattern-test-router-must-resolve-render-contract-before-fallback",
+  "currentVersion": 1,
+  "versions": [
+    {
+      "id": "v1",
+      "docPath": "patterns/pattern-test-router-must-resolve-render-contract-before-fallback",
+      "version": 1,
+      "timestamp": "2026-03-29T07:11:36.8005487Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "Pattern: Test Router Must Resolve Render Contract Before Fallback"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "Use all required discriminators before routing to a generic test-delivery page, and guard fallback pages against incompatible payload shapes."
+        },
+        {
+          "field": "tags",
+          "oldValue": null,
+          "newValue": [
+            "pattern",
+            "routing",
+            "test-delivery",
+            "ielts",
+            "bug-prevention",
+            "interaction-boundary"
+          ]
+        }
+      ],
+      "snapshot": {
+        "content": "# Pattern: Test Router Must Resolve Render Contract Before Fallback\n\n## Problem\n\nA router can send a valid payload to the wrong page when it stops at a broad discriminator like `testType` and falls back before resolving the narrower fields that determine the actual render contract.\n\nThis produces a specific class of bug:\n\n- producer emits a valid payload\n- router reads only part of the contract\n- fallback page assumes the wrong shape\n- student or user sees a hard runtime failure instead of a controlled mismatch\n\n### Real-World Bug (2026-03-29)\n\nIn live IELTS Writing delivery:\n\n- published tests stored `testType: 'IELTS'`\n- Writing tests also stored `skill: 'Writing'`\n- the Writing payload used `tasks`\n- the generic IELTS page expected `passages` and `questions`\n\nA router branch that treated the presence of `testType` as enough to choose `generic` sent a valid Writing payload to the wrong page. The page then crashed on `testData.passages.find(...)`.\n\n## Solution\n\nResolve routing in layers that match the data contract.\n\n1. Use the broad discriminator to pick the feature family.\n2. Within that family, resolve the narrower discriminator(s) that determine the concrete page.\n3. Only use a fallback after all required discriminators have been resolved.\n4. Make fallback pages validate required fields before rendering.\n\n### Example\n\n```typescript\nif (testType === 'THCS-THPT') {\n  return \u003cTHCSTestLayout /\u003e;\n}\n\nconst skill = await readSkill(testId);\n\nif (skill === 'Writing') {\n  return \u003cWritingTestPage /\u003e;\n}\n\nreturn \u003cStudentTestPage /\u003e;\n```\n\nThe important point is not the exact component names. The rule is that the router must read enough of the producer contract to choose a page whose render assumptions match the payload.\n\n## Required Rules\n\n- Do not stop at a family discriminator like `testType` when page selection also depends on `skill` or payload shape.\n- Producer and router must agree on the same render contract fields.\n- Generic fallback pages must guard required arrays and fields before consuming them.\n- Add a regression test for each discriminator combination that should reach a skill-specific page.\n- Treat \"wrong page, valid payload\" as an interaction-boundary bug, not just a missing null check.\n\n## Anti-Pattern\n\n```typescript\nif (testType === 'THCS-THPT') {\n  return \u003cTHCSTestLayout /\u003e;\n}\n\nif (!testType) {\n  return routeBySkill();\n}\n\nreturn \u003cGenericPage /\u003e;\n```\n\nThis is unsafe when multiple pages share the same top-level `testType` value but require different payload contracts.\n\n## Self-Check\n\nBefore shipping a router change:\n\n- [ ] Which fields actually define the render contract?\n- [ ] Does publish/store write those same fields?\n- [ ] Does the router read all of them before fallback?\n- [ ] Can the fallback page safely reject incompatible payloads?\n- [ ] Is there a regression test for the exact discriminator combination that used to fail?\n\n## Related\n\n- @doc/architecture/test-system-architecture\n- @doc/sop/ielts-writing-grading-permission-runtime-state\n- @task-nszwf2",
+        "description": "Use all required discriminators before routing to a generic test-delivery page, and guard fallback pages against incompatible payload shapes.",
+        "tags": [
+          "pattern",
+          "routing",
+          "test-delivery",
+          "ielts",
+          "bug-prevention",
+          "interaction-boundary"
+        ],
+        "title": "Pattern: Test Router Must Resolve Render Contract Before Fallback"
+      }
+    }
+  ]
+}

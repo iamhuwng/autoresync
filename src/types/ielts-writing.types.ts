@@ -92,12 +92,17 @@ export interface WritingTestMetadata {
  */
 export interface IELTSWritingTest {
     id: string;
+    type?: 'IELTS';                  // Compatibility mirror for legacy material consumers
     testType: 'IELTS';
     skill: 'Writing';               // Discriminator within IELTS tests
+    title?: string;                 // Compatibility mirror for legacy cards / pickers
+    duration?: number;              // Compatibility mirror for legacy cards / pickers
+    questionCount?: number;         // Compatibility mirror; equals active task count
     metadata: WritingTestMetadata;
     tasks: WritingTask[];            // 1 or 2 tasks based on format
     createdBy: string;               // Teacher UID
     ownerId: string;
+    sourceDraftId?: string;          // Firestore draft used for future edits
     isPublic: boolean;
     createdAt: number;
     updatedAt: number;
@@ -127,6 +132,7 @@ export interface WritingTestDraft {
     metadata: WritingTestMetadata;
     tasks: WritingTask[];
     status: 'editing' | 'review' | 'published';
+    publishedTestId?: string;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -152,7 +158,9 @@ export interface WritingSubmission {
         type: 'live-session' | 'solo-practice' | 'homework';
         sessionCode?: string;          // Live session only
         homeworkId?: string;           // Homework only
+        homeworkSubmissionId?: string; // Homework attempt record in homework_submissions
         assigningTeacherId?: string;   // Homework: auto-assigned teacher
+        isLate?: boolean;              // Homework: submitted after effective due date
         selectedTeacherId?: string;    // Solo: student-chosen teacher
         studentNote?: string;          // Solo: optional message to teacher
         classId?: string;
@@ -181,6 +189,12 @@ export interface WritingSubmission {
 
     // Grading status
     markingStatus: 'pending-review' | 'graded';
+
+    // Canonical published grading artifact
+    publishedGrading?: PublishedWritingGrading | null;
+
+    // Metadata for an unpublished private grading draft
+    gradingDraftMeta?: WritingGradingDraftMeta | null;
 
     // Grading result (populated when teacher grades)
     grading?: WritingGradingResult;
@@ -250,6 +264,119 @@ export interface WritingTaskGradingResult {
     taskBand: number;                // Average of 4 criteria, rounded DOWN to nearest 0.5
 }
 
+export type CommentCategoryId =
+    | 'gra'
+    | 'lr'
+    | 'cc'
+    | 'ta'
+    | 'tr'
+    | 'uncategorized';
+
+export interface CommentCategoryDefinition {
+    id: CommentCategoryId;
+    label: string;
+    color: string;
+}
+
+export const COMMENT_CATEGORIES: Record<CommentCategoryId, CommentCategoryDefinition> = {
+    gra: { id: 'gra', label: 'GRA', color: '#ef4444' },
+    lr: { id: 'lr', label: 'LR', color: '#f97316' },
+    cc: { id: 'cc', label: 'CC', color: '#0ea5e9' },
+    ta: { id: 'ta', label: 'TA', color: '#22c55e' },
+    tr: { id: 'tr', label: 'TR', color: '#22c55e' },
+    uncategorized: { id: 'uncategorized', label: 'General', color: '#64748b' },
+};
+
+export interface QuickCommentPreset {
+    id: string;
+    text: string;
+    categoryId: CommentCategoryId;
+    categoryLabel: string;
+    color: string;
+    isDefault: boolean;
+    createdByTeacherId?: string;
+    createdAt?: number;
+    updatedAt?: number;
+}
+
+export interface GradingComment {
+    id: string;
+    taskNumber: 1 | 2;
+    text: string;
+    categoryId: CommentCategoryId;
+    categoryLabel: string;
+    color: string;
+    status: 'active' | 'resolved' | 'deleted';
+    anchorText: string;
+    from: number;
+    to: number;
+    createdAt: number;
+    updatedAt: number;
+    resolvedAt?: number;
+    deletedAt?: number;
+}
+
+export interface WritingTaskMarkupState {
+    taskNumber: 1 | 2;
+    markedContent: Record<string, any> | null;
+    comments: GradingComment[];
+    isVoided: boolean;
+    voidReason?: string;
+    criteriaScores: {
+        TA?: number;
+        TR?: number;
+        CC?: number;
+        LR?: number;
+        GRA?: number;
+    };
+    taskBand: number | null;
+    taskSummary: string;
+    perCriteriaFeedback: {
+        TA?: string;
+        TR?: string;
+        CC: string;
+        LR: string;
+        GRA: string;
+    };
+}
+
+export interface WritingGradingDraft {
+    submissionId: string;
+    version: number;
+    ownerTeacherId: string;
+    ownerTeacherName: string;
+    basedOnPublishedVersion: number;
+    createdAt: number;
+    updatedAt: number;
+    overallSummary: string;
+    perTask: Partial<Record<1 | 2, WritingTaskMarkupState>>;
+}
+
+export interface WritingGradingDraftMeta {
+    ownerTeacherId: string;
+    ownerTeacherName: string;
+    version: number;
+    basedOnPublishedVersion: number;
+    updatedAt: number;
+}
+
+export interface PublishedWritingGrading {
+    teacherId: string;
+    teacherName: string;
+    gradedAt: number;
+    updatedAt: number;
+    overallBand: number;
+    overallSummary: string;
+    auditVersion: number;
+    perTask: Partial<Record<1 | 2, WritingTaskMarkupState>>;
+}
+
+export interface WritingSubmissionForGrading {
+    submission: WritingSubmission;
+    publishedGrading: PublishedWritingGrading | null;
+    gradingDraft: WritingGradingDraft | null;
+}
+
 // ═══════════════════════════════════════════════════════════════
 // ANNOTATIONS
 // ═══════════════════════════════════════════════════════════════
@@ -293,6 +420,8 @@ export interface WritingGradingAudit {
     version: number;
     gradedAt: number;
     teacherId: string;
+    teacherName?: string;
+    action?: 'published' | 'regraded' | 'discarded-draft';
     reason: string;                  // Required when re-grading
     previousScores: {
         overallBand: number;

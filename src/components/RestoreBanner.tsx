@@ -10,6 +10,11 @@ import { ref, onValue } from 'firebase/database';
 // @ts-ignore - JS service file
 import { database } from '../services/firebase';
 
+function isPermissionDeniedError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    return message.toLowerCase().includes('permission_denied');
+}
+
 const RestoreBanner: React.FC = () => {
     const [isRestoring, setIsRestoring] = useState(false);
 
@@ -24,7 +29,9 @@ const RestoreBanner: React.FC = () => {
                 setIsRestoring(false);
             }
         }, (error) => {
-            console.warn('[RestoreBanner] Failed to listen to restore flag:', error);
+            if (!isPermissionDeniedError(error)) {
+                console.warn('[RestoreBanner] Failed to listen to restore flag:', error);
+            }
             setIsRestoring(false);
         });
 

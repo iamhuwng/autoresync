@@ -19,7 +19,7 @@ import { database } from '../../services/firebase';
 import { getTestResult, TestResultRecord } from '../../services/testResults.service';
 import type { FormativeFeedback } from '../../types/thcs-test.types';
 import { deriveSessionReleaseState, getReleaseVisibility, type ReviewReleaseState } from '../../types/releaseState.types';
-import { useFeedbackAutoTrigger } from '../../hooks/useFeedbackAutoTrigger';
+import { isEligibleForSavedResultFeedback, useFeedbackAutoTrigger } from '../../hooks/useFeedbackAutoTrigger';
 import { useScreenSize } from '@/core/platform';
 import { useTestAttempts } from '../../hooks/useTestAttempts';
 import { AttemptHistory } from './AttemptHistory';
@@ -100,14 +100,31 @@ function getSubtitle(result: TestResultRecord): string {
   return `${section} • ${date} • ${time}`;
 }
 
-function isIeltsResult(result: TestResultRecord): boolean {
-  const type = String(result.testType || '').toLowerCase();
-  const skill = String(result.testSkill || '').toLowerCase();
-  return type.includes('ielts') || skill === 'reading' || skill === 'listening';
-}
-
 function isSessionGovernedSavedResult(result: TestResultRecord): boolean {
   return result.context?.type === 'class_session' && Boolean(result.sessionCode);
+}
+
+function sessionStillGovernsSavedResult(
+  session: Record<string, any> | null | undefined,
+  result: TestResultRecord,
+): boolean {
+  if (!session) {
+    return false;
+  }
+
+  const status = String(session.status || '').toLowerCase();
+  const currentTestId = typeof session.testId === 'string' ? session.testId : null;
+  if (!currentTestId || currentTestId !== result.testId) {
+    return false;
+  }
+
+  return (
+    status === 'in-progress'
+    || status === 'paused'
+    || status === 'active'
+    || status === 'completed'
+    || status === 'ended'
+  );
 }
 
 function sanitizeResultForReleaseState(
@@ -199,6 +216,7 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
   );
   const feedbackAutoTriggerEnabled = !isPotentiallyGovernedSavedResult
     || (releaseGateResolved && effectiveSavedResultReleaseState === 'feedback-released');
+  const isEligibleForAIFeedback = isEligibleForSavedResultFeedback(result);
   const availableTabs = useMemo(() => {
     const tabs = [TABS[0]];
     if (releaseVisibility.showCorrectAnswers) {
@@ -253,11 +271,13 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
     const unsubscribe = onValue(
       sessionRef,
       (snapshot) => {
+        const sessionData = snapshot.exists() ? snapshot.val() : null;
+        const stillGoverned = sessionStillGovernsSavedResult(sessionData, result);
         setSavedResultReleaseGate({
           sessionCode: governedSessionCode,
           resolved: true,
-          isGoverned: true,
-          releaseState: deriveSessionReleaseState(snapshot.exists() ? snapshot.val() : null),
+          isGoverned: stillGoverned,
+          releaseState: stillGoverned ? deriveSessionReleaseState(sessionData) : 'feedback-released',
         });
       },
       (sessionError) => {
@@ -443,9 +463,28 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
   // ── Badge / subtitle derived values ──────────────────────────────────────
   const badge = useMemo(() => (result ? getTypeBadge(result) : null), [result]);
   const subtitle = useMemo(() => (result ? getSubtitle(result) : ''), [result]);
+  const isWritingResult = Boolean(
+    result && (
+      result.testSkill === 'writing'
+      || (result as any).writingData
+      || (result as any).writingSubmission
+    ),
+  );
 
   // ── Tab → section visibility mapping (PRD-0040 Task 2.4) ────────────────
   const tabSections: SharedSavedResultCoreSections = useMemo(() => {
+    if (isWritingResult) {
+      return {
+        scoreSummary: false,
+        answerMap: false,
+        sectionBreakdown: false,
+        questionReview: false,
+        feedbackDisplay: false,
+        teacherFeedback: false,
+        writingPlaceholder: true,
+      };
+    }
+
     switch (activeTab) {
       case 'overview':
         return { scoreSummary: true, answerMap: true, sectionBreakdown: releaseVisibility.showQuestionScoring, questionReview: false, feedbackDisplay: false, teacherFeedback: false, writingPlaceholder: false };
@@ -456,7 +495,7 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
       default:
         return { scoreSummary: false, answerMap: false, sectionBreakdown: false, questionReview: false, feedbackDisplay: false, teacherFeedback: false, writingPlaceholder: false };
     }
-  }, [activeTab, releaseVisibility.showAIFeedback, releaseVisibility.showCorrectAnswers, releaseVisibility.showQuestionScoring]);
+  }, [activeTab, isWritingResult, releaseVisibility.showAIFeedback, releaseVisibility.showCorrectAnswers, releaseVisibility.showQuestionScoring]);
 
   // ── Question navigation: pill click → switch to review tab + highlight ──
   const handleCoreNavigateToQuestion = useCallback((questionNumber: number) => {
@@ -469,8 +508,8 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
 
   // ── Feedback retry handler for core ──────────────────────────────────────
   const handleFeedbackRetry = useCallback(() => {
-    handleGenerateFormativeFeedback(true);
-  }, [handleGenerateFormativeFeedback]);
+    handleGenerateFormativeFeedback(storedFeedbackNeedsUpgrade);
+  }, [handleGenerateFormativeFeedback, storedFeedbackNeedsUpgrade]);
 
   // ── Tab content rendering ───────────────────────────────────────────────
   const renderTabContent = () => {
@@ -564,7 +603,7 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
             feedbackLoading: feedbackAutoTriggerEnabled && formativeFeedbackLoading && !renderedResult.formativeFeedback,
             feedbackError: releaseVisibility.showFeedbackControls ? feedbackError : null,
             needsUpgrade: releaseVisibility.showFeedbackControls ? storedFeedbackNeedsUpgrade : false,
-            isEligibleForAIFeedback: releaseVisibility.showFeedbackControls && (Boolean(result.thcsData?.sectionResults) || isIeltsResult(result)),
+            isEligibleForAIFeedback: releaseVisibility.showFeedbackControls && isEligibleForAIFeedback,
             onRetryFeedback: releaseVisibility.showFeedbackControls ? handleFeedbackRetry : undefined,
           }}
           onNavigateToQuestion={handleCoreNavigateToQuestion}

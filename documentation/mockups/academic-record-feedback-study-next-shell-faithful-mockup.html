@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Academic Record Study Recommendations Shell-Faithful Mockup</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --page-bg: #f3f4f6;
+            --surface: #ffffff;
+            --surface-alt: #f9fafb;
+            --border: #e5e7eb;
+            --text-primary: #111827;
+            --text-body: #374151;
+            --text-muted: #6b7280;
+            --text-dim: #9ca3af;
+            --accent: #4f46e5;
+            --accent-soft: #eef2ff;
+            --green: #059669;
+            --green-soft: #ecfdf5;
+            --amber: #d97706;
+            --amber-soft: #fffbeb;
+            --red: #dc2626;
+            --red-soft: #fef2f2;
+            --blue-soft: #eff6ff;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: 'Inter', system-ui, sans-serif;
+            background: var(--page-bg);
+            color: var(--text-primary);
+        }
+
+        .stage {
+            min-height: 100vh;
+            display: grid;
+            grid-template-columns: 280px 1fr;
+        }
+
+        .ghost-sidebar {
+            background: #eef2f7;
+            border-right: 1px solid #dde4ee;
+        }
+
+        .ghost-sidebar::before {
+            content: "";
+            display: block;
+            width: 72%;
+            height: 14px;
+            margin: 28px 24px 0;
+            border-radius: 999px;
+            background: #d8e0eb;
+            box-shadow:
+                0 44px 0 #d8e0eb,
+                0 88px 0 #d8e0eb,
+                0 132px 0 #d8e0eb,
+                0 176px 0 #d8e0eb;
+        }
+
+        .panel-wrap {
+            position: relative;
+            background: rgba(15, 23, 42, 0.05);
+            overflow: hidden;
+        }
+
+        .backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.06);
+        }
+
+        .slide-panel {
+            position: absolute;
+            inset: 0 0 0 auto;
+            width: calc(100% - 24px);
+            max-width: 1120px;
+            background: var(--surface);
+            border-left: 1px solid var(--border);
+            box-shadow: -8px 0 40px rgba(15, 23, 42, 0.08);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.95);
+        }
+
+        .icon-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            color: #4b5563;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .header-content {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .title-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .title {
+            margin: 0;
+            font-size: 1.05rem;
+            font-weight: 700;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .attempt-pill,
+        .type-badge,
+        .question-chip,
+        .skill-badge,
+        .mini-badge,
+        .position-pill {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .attempt-pill {
+            padding: 7px 11px;
+            font-size: 0.74rem;
+            color: var(--text-body);
+            background: var(--surface-alt);
+            border: 1px solid var(--border);
+        }
+
+        .subtitle-row {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+        }
+
+        .type-badge {
+            padding: 3px 10px;
+            font-size: 0.7rem;
+            color: #7c3aed;
+            background: #ede9fe;
+        }
+
+        .subtitle-text {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .tab-bar {
+            display: flex;
+            gap: 8px;
+            padding: 0 24px;
+            border-bottom: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.96);
+        }
+
+        .tab {
+            position: relative;
+            padding: 13px 0 12px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            border: 0;
+            background: transparent;
+            margin-right: 18px;
+        }
+
+        .tab.active {
+            color: var(--accent);
+        }
+
+        .tab.active::after {
+            content: "";
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: -1px;
+            height: 2px;
+            background: var(--accent);
+            border-radius: 999px;
+        }
+
+        .content {
+            flex: 1;
+            overflow: auto;
+            background: #fbfcfe;
+            padding: 20px 24px 28px;
+        }
+
+        .feedback-layout {
+            display: grid;
+            grid-template-columns: 3fr 2fr;
+            gap: 20px;
+        }
+
+        .stack {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 18px;
+        }
+
+        .card-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 0 0 14px;
+            font-size: 1rem;
+            font-weight: 700;
+        }
+
+        .analysis-summary {
+            margin: 0 0 14px;
+            font-size: 0.85rem;
+            line-height: 1.7;
+            color: var(--text-body);
+        }
+
+        .analysis-block {
+            border-top: 1px solid #f0f2f5;
+            padding-top: 14px;
+            margin-top: 14px;
+        }
+
+        .analysis-block:first-of-type {
+            border-top: 0;
+            padding-top: 0;
+            margin-top: 0;
+        }
+
+        .analysis-heading {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            margin: 0 0 8px;
+            font-size: 0.85rem;
+            font-weight: 700;
+        }
+
+        .analysis-heading.success { color: var(--green); }
+        .analysis-heading.warning { color: var(--amber); }
+        .analysis-heading.practice { color: var(--accent); }
+
+        .analysis-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .analysis-list div {
+            display: flex;
+            gap: 8px;
+            font-size: 0.83rem;
+            color: var(--text-body);
+            line-height: 1.55;
+        }
+
+        .dot {
+            color: inherit;
+            font-size: 0.72rem;
+            line-height: 1.45rem;
+        }
+
+        .study-card {
+            background: linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
+            border-color: #dbe4f0;
+        }
+
+        .study-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .study-header p {
+            margin: 0;
+            color: var(--text-muted);
+            font-size: 0.74rem;
+            line-height: 1.45;
+            max-width: 30ch;
+        }
+
+        .mini-badge {
+            padding: 6px 10px;
+            font-size: 0.72rem;
+            color: var(--accent);
+            background: var(--accent-soft);
+        }
+
+        .recommendation-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .recommendation {
+            background: rgba(255, 255, 255, 0.96);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 10px 12px;
+        }
+
+        .recommendation-row {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 10px;
+            align-items: start;
+        }
+
+        .priority {
+            width: 30px;
+            height: 30px;
+            border-radius: 10px;
+            background: var(--accent);
+            color: #fff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.82rem;
+            font-weight: 800;
+            box-shadow: 0 10px 16px rgba(79, 70, 229, 0.2);
+        }
+
+        .recommendation-head {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 7px;
+            margin-bottom: 6px;
+        }
+
+        .skill-badge {
+            padding: 4px 10px;
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #0369a1;
+            background: #e0f2fe;
+        }
+
+        .question-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .question-chip {
+            padding: 3px 7px;
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            background: #f3f4f6;
+        }
+
+        .why {
+            margin: 0 0 8px;
+            font-size: 0.74rem;
+            color: var(--text-body);
+            line-height: 1.45;
+        }
+
+        .why strong { color: var(--text-primary); }
+
+        .resource {
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            align-items: center;
+            gap: 8px 10px;
+            background: var(--surface-alt);
+            border: 1px solid #e7edf4;
+            border-radius: 10px;
+            padding: 9px 10px;
+        }
+
+        .resource-label {
+            font-size: 0.67rem;
+            font-weight: 800;
+            color: var(--text-dim);
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            margin: 0;
+        }
+
+        .resource-title {
+            margin: 0;
+            font-size: 0.79rem;
+            font-weight: 700;
+            line-height: 1.3;
+        }
+
+        .resource-copy {
+            min-width: 0;
+        }
+
+        .resource-book,
+        .resource-cta {
+            margin: 0;
+            font-size: 0.7rem;
+        }
+
+        .resource-book {
+            color: var(--text-body);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .resource-cta {
+            color: var(--accent);
+            font-weight: 700;
+            text-align: right;
+        }
+
+        details.more {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px dashed #d1d5db;
+        }
+
+        details.more summary {
+            list-style: none;
+            cursor: pointer;
+            color: var(--text-body);
+            font-size: 0.71rem;
+            font-weight: 700;
+        }
+
+        details.more summary::-webkit-details-marker { display: none; }
+
+        .more-items {
+            display: grid;
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .more-item {
+            background: #fcfdff;
+            border: 1px solid #edf2f7;
+            border-radius: 10px;
+            padding: 8px 10px;
+            font-size: 0.71rem;
+            color: var(--text-body);
+            line-height: 1.42;
+        }
+
+        .widget {
+            background: var(--surface-alt);
+        }
+
+        .trend-wrap {
+            display: flex;
+            align-items: end;
+            gap: 12px;
+            height: 106px;
+            margin-top: 4px;
+        }
+
+        .trend-col {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .trend-bar {
+            width: 22px;
+            border-radius: 6px 6px 3px 3px;
+            background: #c7d2fe;
+        }
+
+        .trend-bar.current {
+            background: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+        }
+
+        .trend-score {
+            font-size: 0.7rem;
+            font-weight: 800;
+            color: var(--text-body);
+        }
+
+        .trend-date {
+            font-size: 0.66rem;
+            color: var(--text-muted);
+        }
+
+        .position-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .position-stat {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px;
+        }
+
+        .position-label {
+            font-size: 0.66rem;
+            font-weight: 800;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 6px;
+        }
+
+        .position-value {
+            font-size: 1.28rem;
+            font-weight: 800;
+        }
+
+        .position-pill {
+            margin-top: 12px;
+            padding: 8px 10px;
+            font-size: 0.76rem;
+            color: var(--green);
+            background: #dcfce7;
+        }
+
+        .caption {
+            padding: 12px 24px 0;
+            color: var(--text-muted);
+            font-size: 0.75rem;
+        }
+
+        @media (max-width: 1100px) {
+            .feedback-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="stage">
+        <aside class="ghost-sidebar" aria-hidden="true"></aside>
+
+        <main class="panel-wrap">
+            <div class="backdrop"></div>
+            <section class="slide-panel" aria-label="Academic record result panel mockup">
+                <div class="panel-header">
+                    <button class="icon-btn" aria-hidden="true">←</button>
+                    <div class="header-content">
+                        <div class="title-row">
+                            <h1 class="title">Bài kiểm tra Tiếng Anh 9 · Unit 5</h1>
+                            <div class="attempt-pill">Attempt 3 of 4</div>
+                        </div>
+                        <div class="subtitle-row">
+                            <div class="type-badge">THCS</div>
+                            <div class="subtitle-text">Reading & Vocabulary · 20 Mar 2026 · Saved in Academic Record</div>
+                        </div>
+                    </div>
+                    <button class="icon-btn" aria-hidden="true">×</button>
+                </div>
+
+                <div class="tab-bar">
+                    <div class="tab">Overview</div>
+                    <div class="tab">Review</div>
+                    <div class="tab active">Feedback</div>
+                </div>
+
+                <div class="caption">Shell-faithful mockup: header, tabs, panel proportions, and feedback-tab structure stay aligned with the real result panel. Only the study-recommendations card is materially redesigned.</div>
+
+                <div class="content">
+                    <div class="feedback-layout">
+                        <div class="stack">
+                            <article class="card">
+                                <h2 class="card-title">🤖 AI Performance Analysis</h2>
+                                <p class="analysis-summary">You demonstrated strong reading comprehension overall, but the mistakes are clustering around tense choice, evidence tracking, and sentence transformation. Focus on one weak area at a time instead of trying to revise everything at once.</p>
+
+                                <section class="analysis-block">
+                                    <h3 class="analysis-heading success">✅ Strengths</h3>
+                                    <div class="analysis-list">
+                                        <div><span class="dot">●</span><span>Reading comprehension remained steady at 90% accuracy.</span></div>
+                                        <div><span class="dot">●</span><span>Vocabulary recognition and context-clue use are becoming more reliable.</span></div>
+                                    </div>
+                                </section>
+
+                                <section class="analysis-block">
+                                    <h3 class="analysis-heading warning">⚠️ Areas for Improvement</h3>
+                                    <div class="analysis-list">
+                                        <div><span class="dot">●</span><span>Grammar tense consistency, especially present perfect vs past simple.</span></div>
+                                        <div><span class="dot">●</span><span>Finding textual evidence before choosing an answer in reading items.</span></div>
+                                    </div>
+                                </section>
+
+                                <section class="analysis-block">
+                                    <h3 class="analysis-heading practice">📘 Recommended Practice</h3>
+                                    <div class="analysis-list">
+                                        <div><span class="dot">●</span><span>Review one grammar unit first, then return to reading evidence drills.</span></div>
+                                        <div><span class="dot">●</span><span>Use short sentence-rewrite drills after fixing the grammar gap.</span></div>
+                                    </div>
+                                </section>
+                            </article>
+                        </div>
+
+                        <div class="stack">
+                            <article class="card study-card">
+                                <div class="study-header">
+                                    <div>
+                                        <h2 class="card-title" style="margin-bottom:6px;">📚 What to Study Next</h2>
+                                        <p>Start from the top. One reason, one unit, extras hidden.</p>
+                                    </div>
+                                    <div class="mini-badge">Less overwhelm</div>
+                                </div>
+
+                                <div class="recommendation-list">
+                                    <article class="recommendation">
+                                        <div class="recommendation-row">
+                                            <div class="priority">1</div>
+                                            <div>
+                                                <div class="recommendation-head">
+                                                    <span class="skill-badge">Grammar</span>
+                                                    <div class="question-group">
+                                                        <span class="question-chip">Q5</span>
+                                                        <span class="question-chip">Q6</span>
+                                                        <span class="question-chip">Q7</span>
+                                                    </div>
+                                                </div>
+                                                <p class="why"><strong>Why:</strong> One repeated tense mistake is costing several marks.</p>
+                                                <div class="resource">
+                                                    <div class="resource-label">Start</div>
+                                                    <div class="resource-copy">
+                                                        <p class="resource-title">Unit 11: Present Perfect and Past Simple</p>
+                                                        <p class="resource-book">English Grammar in Use · Raymond Murphy</p>
+                                                    </div>
+                                                    <p class="resource-cta">First</p>
+                                                </div>
+                                                <details class="more">
+                                                    <summary>+1 more resource</summary>
+                                                    <div class="more-items">
+                                                        <div class="more-item"><strong>Unit 3: Present Perfect Review</strong> · Grammar for IELTS. Use this if you want a second pass after finishing the core unit.</div>
+                                                    </div>
+                                                </details>
+                                            </div>
+                                        </div>
+                                    </article>
+
+                                    <article class="recommendation">
+                                        <div class="recommendation-row">
+                                            <div class="priority">2</div>
+                                            <div>
+                                                <div class="recommendation-head">
+                                                    <span class="skill-badge">Reading</span>
+                                                    <div class="question-group">
+                                                        <span class="question-chip">Q12</span>
+                                                        <span class="question-chip">Q13</span>
+                                                    </div>
+                                                </div>
+                                                <p class="why"><strong>Why:</strong> You are rereading before locating the clue sentence.</p>
+                                                <div class="resource">
+                                                    <div class="resource-label">Start</div>
+                                                    <div class="resource-copy">
+                                                        <p class="resource-title">Reading Section: Matching Information</p>
+                                                        <p class="resource-book">Official Cambridge Guide to IELTS · Cullen & French</p>
+                                                    </div>
+                                                    <p class="resource-cta">Next</p>
+                                                </div>
+                                                <details class="more">
+                                                    <summary>+1 more resource</summary>
+                                                    <div class="more-items">
+                                                        <div class="more-item"><strong>Scanning for Key Words</strong> · Use this follow-up if you still keep reading entire passages before deciding.</div>
+                                                    </div>
+                                                </details>
+                                            </div>
+                                        </div>
+                                    </article>
+
+                                    <article class="recommendation">
+                                        <div class="recommendation-row">
+                                            <div class="priority">3</div>
+                                            <div>
+                                                <div class="recommendation-head">
+                                                    <span class="skill-badge">Sentence Rewrite</span>
+                                                    <div class="question-group">
+                                                        <span class="question-chip">Q18</span>
+                                                    </div>
+                                                </div>
+                                                <p class="why"><strong>Why:</strong> Structure control is breaking even when the idea is right.</p>
+                                                <div class="resource">
+                                                    <div class="resource-label">Start</div>
+                                                    <div class="resource-copy">
+                                                        <p class="resource-title">Sentence Transformation Drills</p>
+                                                        <p class="resource-book">THCS English Practice Workbook · Unit 8</p>
+                                                    </div>
+                                                    <p class="resource-cta">Later</p>
+                                                </div>
+                                                <details class="more">
+                                                    <summary>See 2 practice ideas</summary>
+                                                    <div class="more-items">
+                                                        <div class="more-item"><strong>Keyword transformation mini-set</strong> · Focus only on prompts with visible structure cues.</div>
+                                                        <div class="more-item"><strong>Error-check pass</strong> · Compare your draft against a model sentence pattern before moving on.</div>
+                                                    </div>
+                                                </details>
+                                            </div>
+                                        </div>
+                                    </article>
+                                </div>
+                            </article>
+
+                            <article class="card widget">
+                                <h2 class="card-title">📈 Score Trend</h2>
+                                <div class="trend-wrap">
+                                    <div class="trend-col">
+                                        <div class="trend-bar" style="height: 54px;"></div>
+                                        <div class="trend-score">56%</div>
+                                        <div class="trend-date">03/12</div>
+                                    </div>
+                                    <div class="trend-col">
+                                        <div class="trend-bar" style="height: 72px;"></div>
+                                        <div class="trend-score">68%</div>
+                                        <div class="trend-date">03/18</div>
+                                    </div>
+                                    <div class="trend-col">
+                                        <div class="trend-bar current" style="height: 86px;"></div>
+                                        <div class="trend-score">74%</div>
+                                        <div class="trend-date">Today</div>
+                                    </div>
+                                </div>
+                            </article>
+
+                            <article class="card widget">
+                                <h2 class="card-title">🏁 Class Position</h2>
+                                <div class="position-grid">
+                                    <div class="position-stat">
+                                        <div class="position-label">Your Score</div>
+                                        <div class="position-value">74%</div>
+                                    </div>
+                                    <div class="position-stat">
+                                        <div class="position-label">Class Average</div>
+                                        <div class="position-value">67%</div>
+                                    </div>
+                                </div>
+                                <div class="position-pill">Above average in this attempt</div>
+                            </article>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+</body>
+</html>

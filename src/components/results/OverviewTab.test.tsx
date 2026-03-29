@@ -94,6 +94,28 @@ function makeIeltsResult(): TestResultRecord {
   });
 }
 
+function makeIeltsListeningResult(): TestResultRecord {
+  return makeResult({
+    testType: 'listening',
+    testSkill: 'listening',
+    totalScore: 33,
+    maxScore: 40,
+    percentage: 82.5,
+    bandScore: 7.5,
+    correct: 33,
+    totalQuestions: 40,
+    thcsData: undefined,
+    ieltsData: {
+      passageResults: [
+        { passageName: 'Part 1', questionRange: [1, 10], correct: 8, total: 10, percentage: 80 },
+        { passageName: 'Part 2', questionRange: [11, 20], correct: 9, total: 10, percentage: 90 },
+        { passageName: 'Part 3', questionRange: [21, 30], correct: 8, total: 10, percentage: 80 },
+        { passageName: 'Part 4', questionRange: [31, 40], correct: 8, total: 10, percentage: 80 },
+      ],
+    },
+  });
+}
+
 /* ─── Tests ───────────────────────────────────────────────────────────────── */
 
 describe('OverviewTab', () => {
@@ -163,6 +185,13 @@ describe('OverviewTab', () => {
       expect(screen.getByText('The History of Tea')).toBeInTheDocument();
       expect(screen.getByText('Marine Biology')).toBeInTheDocument();
       expect(screen.getByText('Urban Planning')).toBeInTheDocument();
+    });
+
+    it('renders listening breakdown as parts', () => {
+      render(<OverviewTab result={makeIeltsListeningResult()} onTabSwitch={onTabSwitch} onHighlightQuestion={onHighlight} />);
+      expect(screen.getByText('Part Breakdown')).toBeInTheDocument();
+      expect(screen.getByText('Part 1')).toBeInTheDocument();
+      expect(screen.getByText('Part 4')).toBeInTheDocument();
     });
   });
 

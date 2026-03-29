@@ -217,8 +217,8 @@ describe('FeedbackTab', () => {
     render(<FeedbackTab result={resultWithAI} />);
     expect(screen.getByTestId('fb-study-recommendations')).toBeInTheDocument();
     expect(screen.getByTestId('fb-study-card-grammar')).toBeInTheDocument();
-    expect(screen.getByText('Unit 11: Present Perfect and Past Simple')).toBeInTheDocument();
-    expect(screen.getByText('Reading Section: Matching Information')).toBeInTheDocument();
+    expect(screen.getAllByText('Unit 11: Present Perfect and Past Simple').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Reading Section: Matching Information').length).toBeGreaterThan(0);
   });
 
   it('shows the advanced-resource state for a perfect-score result', () => {
@@ -249,8 +249,8 @@ describe('FeedbackTab', () => {
     } as TestResultRecord;
 
     render(<FeedbackTab result={perfectResult} />);
-    expect(screen.getByText(/stretch targets from your approved book library/i)).toBeInTheDocument();
-    expect(screen.getByText('Advanced Verb Patterns')).toBeInTheDocument();
+    expect(screen.getByText('Stretch targets')).toBeInTheDocument();
+    expect(screen.getAllByText('Advanced Verb Patterns').length).toBeGreaterThan(0);
   });
 
   it('renders score trend widget with bars when scores are available', () => {

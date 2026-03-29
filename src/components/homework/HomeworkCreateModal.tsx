@@ -45,6 +45,7 @@ interface Material {
     // THCS-specific
     testType?: string;
     gradeLevel?: number;
+    isPublicLibrary?: boolean;
 }
 
 interface Class {
@@ -62,6 +63,29 @@ interface Student {
 const createDefaultHomeworkAntiCheatConfig = (): AntiCheatConfig => ({
     ...resolvePreset('standard'),
     ...getContextDefaults('homework'),
+});
+
+const isOwnedMaterial = (material: any, userId?: string) => (
+    material.ownerId === userId ||
+    material.createdBy === userId ||
+    (!material.ownerId && !material.createdBy)
+);
+
+const mapMaterialRecord = (material: any, isPublicLibrary: boolean): Material => ({
+    id: material.id,
+    title: material.testType === 'THCS-THPT'
+        ? (material.metadata?.title || material.title || 'Untitled')
+        : (material.title || 'Untitled'),
+    type: material.testType === 'THCS-THPT' ? 'thcs-test' as const : (material.type || 'test'),
+    skill: material.skill || 'reading',
+    questionCount: material.testType === 'THCS-THPT'
+        ? (material.sections || []).reduce((sum: number, section: any) => sum + (section.questions?.length || 0), 0)
+        : (material.questions?.length || 0),
+    duration: material.testType === 'THCS-THPT' ? material.metadata?.duration : material.duration,
+    soloConfig: material.soloConfig,
+    testType: material.testType,
+    gradeLevel: material.metadata?.gradeLevel,
+    isPublicLibrary,
 });
 
 export function HomeworkCreateModal({
@@ -213,24 +237,19 @@ export function HomeworkCreateModal({
                 queryOptimizer.getAllQuizzes(),
             ]);
 
-            const myMaterials = [...tests, ...quizzes]
-                .filter((m: any) => m.ownerId === user?.uid || m.createdBy === user?.uid)
-                .filter((m: any) => m.solo_enabled !== false) // Only show materials enabled for solo
-                .map((m: any) => ({
-                    id: m.id,
-                    title: m.title,
-                    type: m.testType === 'THCS-THPT' ? 'thcs-test' as const : (m.type || 'test'),
-                    skill: m.skill || 'reading',
-                    questionCount: m.testType === 'THCS-THPT'
-                        ? (m.sections || []).reduce((sum: number, s: any) => sum + (s.questions?.length || 0), 0)
-                        : (m.questions?.length || 0),
-                    duration: m.testType === 'THCS-THPT' ? m.metadata?.duration : m.duration,
-                    soloConfig: m.soloConfig,
-                    testType: m.testType,
-                    gradeLevel: m.metadata?.gradeLevel,
-                }));
+            const visibleMaterials = [...tests, ...quizzes]
+                .filter((material: any) => material.solo_enabled !== false) // Only show materials enabled for solo
+                .filter((material: any) => {
+                    const isOwned = isOwnedMaterial(material, user?.uid);
+                    const isPublicLibrary = material.isPublic === true && !isOwned;
+                    return isOwned || isPublicLibrary;
+                })
+                .map((material: any) => mapMaterialRecord(
+                    material,
+                    material.isPublic === true && !isOwnedMaterial(material, user?.uid)
+                ));
 
-            setMaterials(myMaterials);
+            setMaterials(visibleMaterials);
         } catch (err) {
             console.error('Error loading materials:', err);
             setError('Failed to load materials');
@@ -565,6 +584,11 @@ export function HomeworkCreateModal({
                                                 <h4 className="material-title">{material.title}</h4>
                                                 <div className="material-meta">
                                                     <span className="badge">{material.type === 'thcs-test' ? 'THCS-THPT' : material.type}</span>
+                                                    {material.isPublicLibrary && (
+                                                        <span className="badge" style={{ background: '#ede9fe', color: '#6d28d9' }}>
+                                                            Public Library
+                                                        </span>
+                                                    )}
                                                     {material.type !== 'thcs-test' && (
                                                         <span className="badge">{material.skill}</span>
                                                     )}

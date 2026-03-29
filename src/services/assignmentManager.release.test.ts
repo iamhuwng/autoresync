@@ -59,6 +59,7 @@ describe('Release Student Integration Tests', () => {
                 val: () => existingAssignment
             });
             mockUpdate.mockResolvedValueOnce(undefined);
+            mockSet.mockResolvedValueOnce(undefined);
             mockSet.mockResolvedValueOnce(undefined); // History entry
 
             // Act: Release with course unenrollment
@@ -81,8 +82,8 @@ describe('Release Student Integration Tests', () => {
             expect(updateCall.unassignedAt).toBeGreaterThan(0);
 
             // Verify history entry includes unenrollment information
-            expect(mockSet).toHaveBeenCalledTimes(1);
-            const historyCall = mockSet.mock.calls[0][1];
+            expect(mockSet).toHaveBeenCalledTimes(2);
+            const historyCall = mockSet.mock.calls[1][1];
             expect(historyCall).toMatchObject({
                 studentId: mockStudentId,
                 teacherId: mockTeacherId,
@@ -113,6 +114,7 @@ describe('Release Student Integration Tests', () => {
             });
             mockUpdate.mockResolvedValueOnce(undefined);
             mockSet.mockResolvedValueOnce(undefined);
+            mockSet.mockResolvedValueOnce(undefined);
 
             // Act: Release without course unenrollment
             const releaseResult = await removeAssignment(
@@ -124,7 +126,7 @@ describe('Release Student Integration Tests', () => {
             expect(releaseResult.success).toBe(true);
 
             // Verify history shows simple release
-            const historyCall = mockSet.mock.calls[0][1];
+            const historyCall = mockSet.mock.calls[1][1];
             expect(historyCall.reason).toBe('Student completed program');
             expect(historyCall.coursesEnrolled).toBeUndefined();
         });
@@ -183,6 +185,7 @@ describe('Release Student Integration Tests', () => {
             });
             mockUpdate.mockResolvedValueOnce(undefined);
             mockSet.mockResolvedValueOnce(undefined);
+            mockSet.mockResolvedValueOnce(undefined);
 
             // Act: Release and unenroll from all courses WITHOUT custom reason
             // This will trigger auto-generation of reason with course count
@@ -195,7 +198,7 @@ describe('Release Student Integration Tests', () => {
             // Assert
             expect(releaseResult.success).toBe(true);
 
-            const historyCall = mockSet.mock.calls[0][1];
+            const historyCall = mockSet.mock.calls[1][1];
             expect(historyCall.coursesEnrolled).toEqual(manyCourses);
             expect(historyCall.reason).toContain(`${manyCourses.length} course(s)`);
         });
