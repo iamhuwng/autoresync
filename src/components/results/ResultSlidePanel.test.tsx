@@ -348,12 +348,14 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
       expect(screen.getByText('IELTS Reading')).toBeInTheDocument();
     });
 
-    it('renders the writing submission placeholder instead of score summary for writing results', () => {
+    it('renders the Writing pending-review surface instead of the generic score summary for writing results', async () => {
       render(<ResultSlidePanel resultId="res-writing" onClose={mockOnClose} />);
       emitResultSnapshot('res-writing', MOCK_WRITING_RESULT);
 
-      expect(screen.getByText('Writing Submission')).toBeInTheDocument();
-      expect(screen.getByText('Pending Review')).toBeInTheDocument();
+      expect(await screen.findByText('What Happens Next')).toBeInTheDocument();
+      expect(screen.getByText(/your submission is recorded/i)).toBeInTheDocument();
+      expect(screen.getByTestId('rsp-panel').className).toContain('rsp-panel--writing');
+      expect(screen.queryByTestId('rsp-tab-bar')).not.toBeInTheDocument();
       expect(screen.queryByText('No question results available for this test.')).not.toBeInTheDocument();
     });
 

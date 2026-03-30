@@ -89,6 +89,7 @@ interface CommentAnchorPosition {
     anchorTop: number;
     anchorRight: number;
     anchorCenterY: number;
+    anchorViewportTop: number;
 }
 
 const COMMENT_HIGHLIGHT_COLORS = [
@@ -280,6 +281,7 @@ export default function WritingGradingPage() {
     const [editorViewMode, setEditorViewMode] = useState<'marked' | 'original'>('marked');
     const [activeTask, setActiveTask] = useState<1 | 2>(1);
     const [focusedCommentId, setFocusedCommentId] = useState<string | null>(null);
+    const [focusedCommentAnchorViewportTop, setFocusedCommentAnchorViewportTop] = useState<number | null>(null);
     const [hoveredCommentId, setHoveredCommentId] = useState<string | null>(null);
     const [anchorPositions, setAnchorPositions] = useState<CommentAnchorPosition[]>([]);
     const [editorScrollTop, setEditorScrollTop] = useState(0);
@@ -982,6 +984,7 @@ export default function WritingGradingPage() {
                         anchorTop: markRect.top - containerRect.top + editorContainer.scrollTop,
                         anchorRight: markRect.right - containerRect.left,
                         anchorCenterY: (markRect.top - containerRect.top + editorContainer.scrollTop) + (markRect.height / 2),
+                        anchorViewportTop: markRect.top,
                     } satisfies CommentAnchorPosition;
                 })
                 .filter(Boolean) as CommentAnchorPosition[];
@@ -1004,6 +1007,7 @@ export default function WritingGradingPage() {
     const handleTaskChange = useCallback((taskNumber: 1 | 2) => {
         setActiveTask(taskNumber);
         setFocusedCommentId(null);
+        setFocusedCommentAnchorViewportTop(null);
         setHoveredCommentId(null);
         trackAction('switchTask', { submissionId, taskNumber });
     }, [submissionId, trackAction]);
@@ -1014,6 +1018,11 @@ export default function WritingGradingPage() {
         }
         setPanelTab(nextTab);
     }, [panelTab, submissionId, trackAction]);
+
+    const handleFocusComment = useCallback((commentId: string | null) => {
+        setFocusedCommentId(commentId);
+        setFocusedCommentAnchorViewportTop(null);
+    }, []);
 
     const handleViewModeChange = useCallback((viewMode: 'marked' | 'original') => {
         setEditorViewMode(viewMode);
@@ -1562,10 +1571,14 @@ export default function WritingGradingPage() {
                             onAddComment={handleAddComment}
                             onGutterDotClick={(commentId) => {
                                 setFocusedCommentId(commentId);
+                                setFocusedCommentAnchorViewportTop(
+                                    anchorPositions.find((position) => position.commentId === commentId)?.anchorViewportTop ?? null,
+                                );
                                 setPanelTab('comments');
                             }}
-                            onCommentMarkClick={(commentId) => {
+                            onCommentMarkClick={(commentId, anchorViewportTop) => {
                                 setFocusedCommentId(commentId);
+                                setFocusedCommentAnchorViewportTop(anchorViewportTop);
                                 setPanelTab('comments');
                             }}
                             onCommentMarkHover={setHoveredCommentId}
@@ -1644,11 +1657,12 @@ export default function WritingGradingPage() {
                                 comments={activeTaskState.comments}
                                 taskNumber={activeTask}
                                 focusedCommentId={focusedCommentId}
+                                focusedCommentAnchorViewportTop={focusedCommentAnchorViewportTop}
                                 hoveredCommentId={hoveredCommentId}
                                 anchorPositions={anchorPositions}
                                 editorScrollTop={editorScrollTop}
                                 pendingCommentDraft={activePendingCommentDraft}
-                                onFocusComment={setFocusedCommentId}
+                                onFocusComment={handleFocusComment}
                                 onHoverComment={setHoveredCommentId}
                                 onEditComment={handleEditComment}
                                 onResolveComment={handleResolveComment}

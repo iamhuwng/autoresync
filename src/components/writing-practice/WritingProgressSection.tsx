@@ -1,21 +1,18 @@
 /**
- * WritingProgressSection — Academic Record Writing Tab
+ * WritingProgressSection - Academic Record Writing Tab
  * PRD-0030 Phase 8: Notifications & Academic Record
  *
- * Displays the student's writing practice history:
- * - Band score trend chart (placeholder for now)
- * - List of writing submissions with status
- * - Average band score summary
- *
- * NO MANTINE — native HTML/CSS only.
+ * Keeps Writing as a record-first surface with light summary panels
+ * and flat result rows that match the Academic Record system.
  */
-import { useState, useEffect } from 'react';
-import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { useEffect, useMemo, useState } from 'react';
+import { collection, getDocs, orderBy, query, where } from 'firebase/firestore';
+import { AcademicRecordFlatRow, formatAcademicRecordDate } from '../academicRecord/AcademicRecordResultRow';
 import { firestore as db } from '../../services/firebase';
 
-// ── Types ──────────────────────────────────────────────────
 interface WritingProgressSectionProps {
     studentId: string;
+    onResultClick?: (resultId: string) => void;
 }
 
 interface WritingResult {
@@ -24,207 +21,167 @@ interface WritingResult {
     submittedAt: number;
     status: 'pending' | 'graded';
     bandScore?: number;
-    taskScores?: Array<{
-        taskNumber: number;
-        overallBand?: number;
-    }>;
     contextType?: string;
     wordCount?: number;
 }
 
-// ── Styles ──────────────────────────────────────────────────
-const styles = {
-    container: { padding: 0 },
-    header: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 24,
-    },
-    title: {
-        fontSize: '1.25rem',
-        fontWeight: 700 as const,
-        color: '#111827',
-        margin: 0,
-    },
-    summaryRow: {
+const styles: Record<string, React.CSSProperties> = {
+    statsGrid: {
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-        gap: 16,
-        marginBottom: 24,
+        gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+        gap: 12,
+        marginBottom: 20,
     },
-    summaryCard: {
-        background: '#f5f3ff',
-        border: '1px solid #e9d5ff',
-        borderRadius: 12,
-        padding: '16px 20px',
-        textAlign: 'center' as const,
+    statCard: {
+        background: '#f3f4f6',
+        borderRadius: 14,
+        padding: '16px 18px',
     },
-    summaryLabel: {
-        fontSize: '0.75rem',
-        fontWeight: 600 as const,
-        color: '#7c3aed',
-        textTransform: 'uppercase' as const,
+    statLabel: {
+        margin: 0,
+        fontSize: '0.6875rem',
+        fontWeight: 700,
         letterSpacing: '0.05em',
+        textTransform: 'uppercase',
+        color: '#6b7280',
     },
-    summaryValue: {
-        fontSize: '1.5rem',
-        fontWeight: 800 as const,
-        color: '#4c1d95',
-        marginTop: 4,
+    statValue: {
+        margin: '8px 0 0',
+        fontSize: '1.4rem',
+        fontWeight: 800,
+        color: '#111827',
     },
     list: {
         display: 'flex',
-        flexDirection: 'column' as const,
+        flexDirection: 'column',
         gap: 12,
     },
-    item: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        background: 'white',
-        border: '1px solid #e5e7eb',
-        borderRadius: 12,
-        padding: '14px 18px',
-        transition: 'box-shadow 0.15s ease',
-    },
-    itemInfo: {
-        flex: 1,
-        minWidth: 0,
-    },
-    itemTitle: {
-        fontSize: '0.9375rem',
-        fontWeight: 600 as const,
-        color: '#111827',
-        margin: 0,
-        whiteSpace: 'nowrap' as const,
-        overflow: 'hidden' as const,
-        textOverflow: 'ellipsis' as const,
-    },
-    itemMeta: {
-        fontSize: '0.8125rem',
-        color: '#6b7280',
-        marginTop: 4,
-    },
-    bandPill: {
-        padding: '6px 14px',
-        borderRadius: 999,
-        fontWeight: 700 as const,
-        fontSize: '0.875rem',
-    },
-    statusPill: {
-        padding: '4px 10px',
-        borderRadius: 999,
-        fontWeight: 600 as const,
-        fontSize: '0.75rem',
-        textTransform: 'uppercase' as const,
-    },
     empty: {
-        textAlign: 'center' as const,
-        padding: '64px 16px',
+        textAlign: 'center',
+        padding: '48px 16px',
         color: '#6b7280',
+    },
+    emptyHeading: {
+        fontSize: '1.125rem',
+        fontWeight: 700,
+        color: '#111827',
+        margin: '0 0 8px',
+    },
+    spinnerWrap: {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        padding: '64px 16px',
     },
     spinner: {
         width: 32,
         height: 32,
-        border: '3px solid #e2e8f0',
-        borderTopColor: '#8b5cf6',
+        border: '3px solid #e5e7eb',
+        borderTopColor: '#4f46e5',
         borderRadius: '50%',
         animation: 'spin 0.8s linear infinite',
-        margin: '0 auto',
     },
 };
 
-function getBandColor(band: number): { bg: string; text: string } {
-    if (band >= 7) return { bg: '#d1fae5', text: '#059669' };
-    if (band >= 6) return { bg: '#dbeafe', text: '#2563eb' };
-    if (band >= 5) return { bg: '#fef3c7', text: '#d97706' };
-    return { bg: '#fee2e2', text: '#dc2626' };
-}
-
-function getStatusStyle(status: string): { bg: string; text: string } {
-    switch (status) {
-        case 'graded':
-            return { bg: '#d1fae5', text: '#059669' };
-        case 'pending':
-            return { bg: '#fef3c7', text: '#d97706' };
-        default:
-            return { bg: '#f3f4f6', text: '#6b7280' };
+function getWritingTone(result: WritingResult): 'success' | 'primary' | 'warning' | 'muted' {
+    if (result.status === 'pending' || result.bandScore === undefined) {
+        return 'warning';
     }
+    if (result.bandScore >= 7) {
+        return 'success';
+    }
+    if (result.bandScore >= 6) {
+        return 'primary';
+    }
+    return 'warning';
 }
 
-// ── Component ──────────────────────────────────────────────
-export default function WritingProgressSection({ studentId }: WritingProgressSectionProps) {
+function formatContext(value?: string): string | null {
+    if (!value) {
+        return null;
+    }
+    if (value === 'homework') {
+        return 'Homework';
+    }
+    if (value === 'practice') {
+        return 'Practice';
+    }
+    return value.replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+export default function WritingProgressSection({ studentId, onResultClick }: WritingProgressSectionProps) {
     const [results, setResults] = useState<WritingResult[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         let cancelled = false;
+
         async function fetchWritingResults() {
             try {
-                const q = query(
+                const writingQuery = query(
                     collection(db, 'writing_submissions'),
                     where('studentId', '==', studentId),
-                    orderBy('submittedAt', 'desc')
+                    orderBy('submittedAt', 'desc'),
                 );
-                const snap = await getDocs(q);
-                if (cancelled) return;
+                const snapshot = await getDocs(writingQuery);
 
-                const fetched: WritingResult[] = snap.docs.map(doc => {
-                    const d = doc.data();
-                    const markingStatus = d.markingStatus === 'graded' ? 'graded' : 'pending';
+                if (cancelled) {
+                    return;
+                }
+
+                const fetched: WritingResult[] = snapshot.docs.map((doc) => {
+                    const data = doc.data();
                     return {
                         id: doc.id,
-                        testTitle: d.testMeta?.testTitle || d.testMeta?.testId || 'Untitled',
-                        submittedAt: d.submittedAt || d.createdAt || 0,
-                        status: markingStatus,
-                        bandScore: d.grading?.overallBand,
-                        taskScores: d.grading?.perTask?.map((task: any) => ({
-                            taskNumber: task.taskNumber,
-                            overallBand: task.taskBand,
-                        })),
-                        contextType: d.context?.type,
-                        wordCount: d.tasks?.reduce((sum: number, t: any) => sum + (t.wordCount || 0), 0),
+                        testTitle: data.testMeta?.testTitle || data.testMeta?.testId || 'Untitled',
+                        submittedAt: data.submittedAt || data.createdAt || 0,
+                        status: data.markingStatus === 'graded' ? 'graded' : 'pending',
+                        bandScore: data.grading?.overallBand,
+                        contextType: data.context?.type,
+                        wordCount: data.tasks?.reduce((sum: number, task: any) => sum + (task.wordCount || 0), 0),
                     };
                 });
 
                 setResults(fetched);
-            } catch (err) {
-                console.error('[WritingProgressSection] Error fetching:', err);
+            } catch (error) {
+                console.error('[WritingProgressSection] Error fetching:', error);
             } finally {
-                if (!cancelled) setLoading(false);
+                if (!cancelled) {
+                    setLoading(false);
+                }
             }
         }
 
         fetchWritingResults();
-        return () => { cancelled = true; };
+
+        return () => {
+            cancelled = true;
+        };
     }, [studentId]);
+
+    const gradedResults = useMemo(
+        () => results.filter((result) => result.bandScore !== undefined),
+        [results],
+    );
+    const avgBand = gradedResults.length > 0
+        ? (gradedResults.reduce((sum, result) => sum + (result.bandScore || 0), 0) / gradedResults.length).toFixed(1)
+        : '-';
+    const pendingCount = results.filter((result) => result.status === 'pending').length;
 
     if (loading) {
         return (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '64px 16px' }}>
+            <div style={styles.spinnerWrap}>
                 <div style={styles.spinner} />
-                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                <style>{'@keyframes spin { to { transform: rotate(360deg); } }'}</style>
                 <p style={{ color: '#6b7280', marginTop: 16 }}>Loading writing results...</p>
             </div>
         );
     }
 
-    // Summary stats
-    const graded = results.filter(r => r.bandScore !== undefined);
-    const avgBand = graded.length > 0
-        ? (graded.reduce((sum, r) => sum + (r.bandScore || 0), 0) / graded.length).toFixed(1)
-        : '—';
-    const pendingCount = results.filter(r => r.status === 'pending').length;
-    const totalWords = results.reduce((sum, r) => sum + (r.wordCount || 0), 0);
-
     if (results.length === 0) {
         return (
             <div style={styles.empty}>
-                <div style={{ fontSize: 48, marginBottom: 16 }}>✍️</div>
-                <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#111827', margin: '0 0 8px' }}>
-                    No Writing Results Yet
-                </h3>
+                <h3 style={styles.emptyHeading}>No Writing Results Yet</h3>
                 <p style={{ margin: 0 }}>
                     Start a writing practice from the Library to see your progress here.
                 </p>
@@ -233,73 +190,45 @@ export default function WritingProgressSection({ studentId }: WritingProgressSec
     }
 
     return (
-        <div style={styles.container}>
-            <div style={styles.header}>
-                <h2 style={styles.title}>✍️ Writing Progress</h2>
-            </div>
-
-            {/* Summary cards */}
-            <div style={styles.summaryRow}>
-                <div style={styles.summaryCard}>
-                    <div style={styles.summaryLabel}>Avg Band</div>
-                    <div style={styles.summaryValue}>{avgBand}</div>
+        <div>
+            <div style={styles.statsGrid}>
+                <div style={styles.statCard}>
+                    <p style={styles.statLabel}>Average Band</p>
+                    <p style={{ ...styles.statValue, color: '#4f46e5' }}>{avgBand}</p>
                 </div>
-                <div style={styles.summaryCard}>
-                    <div style={styles.summaryLabel}>Submissions</div>
-                    <div style={styles.summaryValue}>{results.length}</div>
+                <div style={styles.statCard}>
+                    <p style={styles.statLabel}>Submissions</p>
+                    <p style={styles.statValue}>{results.length}</p>
                 </div>
-                <div style={styles.summaryCard}>
-                    <div style={styles.summaryLabel}>Pending Review</div>
-                    <div style={styles.summaryValue}>{pendingCount}</div>
-                </div>
-                <div style={styles.summaryCard}>
-                    <div style={styles.summaryLabel}>Total Words</div>
-                    <div style={styles.summaryValue}>{totalWords.toLocaleString()}</div>
+                <div style={styles.statCard}>
+                    <p style={styles.statLabel}>Pending Review</p>
+                    <p style={styles.statValue}>{pendingCount}</p>
                 </div>
             </div>
 
-            {/* Results list */}
             <div style={styles.list}>
-                {results.map(result => {
-                    const bandColor = result.bandScore ? getBandColor(result.bandScore) : null;
-                    const statusStyle = getStatusStyle(result.status);
+                {results.map((result) => {
+                    const metaItems = [
+                        formatContext(result.contextType),
+                        result.wordCount ? `${result.wordCount} words` : null,
+                    ].filter((item): item is string => Boolean(item));
 
                     return (
-                        <div
+                        <AcademicRecordFlatRow
                             key={result.id}
-                            style={styles.item}
-                            onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)')}
-                            onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}
-                        >
-                            <div style={styles.itemInfo}>
-                                <h4 style={styles.itemTitle}>{result.testTitle}</h4>
-                                <div style={styles.itemMeta}>
-                                    {new Date(result.submittedAt).toLocaleDateString(undefined, {
-                                        month: 'short', day: 'numeric', year: 'numeric',
-                                    })}
-                                    {result.contextType && (
-                                        <span style={{ marginLeft: 8 }}>
-                                            • {result.contextType === 'homework' ? '📝 Homework' : '✍️ Practice'}
-                                        </span>
-                                    )}
-                                    {result.wordCount ? (
-                                        <span style={{ marginLeft: 8 }}>• {result.wordCount} words</span>
-                                    ) : null}
-                                </div>
-                            </div>
-
-                            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
-                                {bandColor && result.bandScore !== undefined ? (
-                                    <span style={{ ...styles.bandPill, background: bandColor.bg, color: bandColor.text }}>
-                                        {result.bandScore.toFixed(1)}
-                                    </span>
-                                ) : (
-                                    <span style={{ ...styles.statusPill, background: statusStyle.bg, color: statusStyle.text }}>
-                                        {result.status}
-                                    </span>
-                                )}
-                            </div>
-                        </div>
+                            title={result.testTitle}
+                            metaItems={[
+                                formatAcademicRecordDate(result.submittedAt),
+                                ...metaItems,
+                            ]}
+                            leadingText="WR"
+                            leadingTone={result.status === 'graded' ? 'primary' : 'warning'}
+                            trailingPrimary={result.bandScore !== undefined ? result.bandScore.toFixed(1) : 'Pending'}
+                            trailingSecondary={result.bandScore !== undefined ? 'Band Score' : 'Awaiting Review'}
+                            trailingTone={getWritingTone(result)}
+                            onClick={onResultClick ? () => onResultClick(result.id) : undefined}
+                            ariaLabel={onResultClick ? `Open writing result for ${result.testTitle}` : undefined}
+                        />
                     );
                 })}
             </div>

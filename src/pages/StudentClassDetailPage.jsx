@@ -354,7 +354,6 @@ const StudentClassDetailPage = () => {
       <StudentLayout
         mobileTitle="Loading..."
         sidebar={<StudentSidebar user={user ? { ...user, avatarUrl: profile?.avatarUrl } : undefined} activePage="classes" pendingHomeworkCount={notStarted.length} />}
-        rightPanel={<div />}
       >
         <div style={{ textAlign: 'center', padding: '60px 24px' }}>
           <Loader size="md" />
@@ -369,7 +368,6 @@ const StudentClassDetailPage = () => {
       <StudentLayout
         mobileTitle="Not Found"
         sidebar={<StudentSidebar user={user ? { ...user, avatarUrl: profile?.avatarUrl } : undefined} activePage="classes" pendingHomeworkCount={notStarted.length} />}
-        rightPanel={<div />}
       >
         <div style={{ textAlign: 'center', padding: '60px 24px' }}>
           <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block', margin: '0 auto 16px' }}>
@@ -392,7 +390,6 @@ const StudentClassDetailPage = () => {
     <StudentLayout
       mobileTitle={classData.name || 'Class Details'}
       sidebar={<StudentSidebar user={user ? { ...user, avatarUrl: profile?.avatarUrl } : undefined} activePage="classes" pendingHomeworkCount={notStarted.length} />}
-      rightPanel={<div />}
     >
       <div style={S.feedHeader}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -433,7 +430,7 @@ const StudentClassDetailPage = () => {
       )}
 
       <div style={{ padding: 16 }}>
-        {activeSessions.length > 0 && (
+        {false && activeSessions.length > 0 && (
           <div style={{ marginBottom: 24, animation: 'dashFadeIn 0.3s ease-out' }}>
             <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#111827', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', boxShadow: '0 0 0 3px rgba(239, 68, 68, 0.2)', animation: 'pulse 2s infinite' }}></div>

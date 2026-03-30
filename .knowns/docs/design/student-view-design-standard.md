@@ -1,14 +1,15 @@
 ---
 title: Student View Design Standard
-createdAt: '2026-02-27T15:25:53.999Z'
-updatedAt: '2026-02-27T15:25:55.340Z'
 description: Design standards and patterns for all student-facing pages and views
+createdAt: '2026-02-27T15:25:53.999Z'
+updatedAt: '2026-03-30T03:14:57.676Z'
 tags:
   - design
   - student
   - standards
   - ui
 ---
+
 # Student View Design Standard v1.0
 ## Unified Design Language for All Student-Facing Pages
 
@@ -352,3 +353,27 @@ All 13 existing legacy student files have a banner comment at the top:
 ```
 
 This ensures any AI reading these files sees the deprecation warning **before** the legacy code.
+
+
+## 13. Student Shell Platform Contract
+
+Student shell pages no longer treat the right column as page-owned layout space. `StudentLayout` owns the structural shell and `StudentRightRail` owns the shared right rail.
+
+Updated shell layout contract:
+- desktop grid: `220px / minmax(0, 1fr) / 280px`
+- shell max width: `1440px`
+- horizontal padding: `24px`
+- desktop column gap: `24px`
+- center feed width: `100%` with a page-content cap of `860px`
+- mobile/tablet: feed-first layout with shell-owned off-canvas left and right drawers
+
+Shared right-rail modules:
+- `Live Now`
+- `Up Next`
+- `My Classes`
+
+Page-specific right content is supplemental only. Student pages may still pass `rightPanel`, but that prop now appends modules underneath the shared shell-owned modules instead of replacing the full right column.
+
+Student pages should not pass empty placeholder right panels or render structural right-column wrappers such as sticky shells or fixed-width `aside` containers. The shell owns those concerns.
+
+For architecture details and ownership rules, see @doc/architecture/student-shell-right-rail-architecture.

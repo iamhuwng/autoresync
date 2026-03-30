@@ -218,7 +218,7 @@ const StudentCourseDetailPage: React.FC = () => {
 
     if (loading) {
         return (
-            <StudentLayout mobileTitle="Loading..." sidebar={<StudentSidebar user={user ? { ...user, avatarUrl: profile?.avatarUrl } : undefined} activePage="courses" pendingHomeworkCount={notStarted.length} />} rightPanel={<div />}>
+            <StudentLayout mobileTitle="Loading..." sidebar={<StudentSidebar user={user ? { ...user, avatarUrl: profile?.avatarUrl } : undefined} activePage="courses" pendingHomeworkCount={notStarted.length} />}>
                 <div style={{ textAlign: 'center', padding: '60px 24px' }}>
                     <Loader size="md" color="#4f46e5" />
                     <p style={{ color: '#6b7280', marginTop: 16 }}>Loading course...</p>
@@ -229,7 +229,7 @@ const StudentCourseDetailPage: React.FC = () => {
 
     if (error || !course) {
         return (
-            <StudentLayout mobileTitle="Error" sidebar={<StudentSidebar user={user ? { ...user, avatarUrl: profile?.avatarUrl } : undefined} activePage="courses" pendingHomeworkCount={notStarted.length} />} rightPanel={<div />}>
+            <StudentLayout mobileTitle="Error" sidebar={<StudentSidebar user={user ? { ...user, avatarUrl: profile?.avatarUrl } : undefined} activePage="courses" pendingHomeworkCount={notStarted.length} />}>
                 <div style={{ textAlign: 'center', padding: '60px 24px' }}>
                     <div style={{ fontSize: '3rem', marginBottom: 16 }}>⚠️</div>
                     <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#111827', margin: '0 0 8px' }}>Access Error</h2>
@@ -247,7 +247,6 @@ const StudentCourseDetailPage: React.FC = () => {
         <StudentLayout
             mobileTitle={course.originalName || course.name}
             sidebar={<StudentSidebar user={user ? { ...user, avatarUrl: profile?.avatarUrl } : undefined} activePage="courses" pendingHomeworkCount={notStarted.length} />}
-            rightPanel={<div />}
         >
             {/* ── Sticky Header ── */}
             <div style={S.feedHeader}>

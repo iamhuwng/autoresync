@@ -6,6 +6,7 @@
  */
 
 export { ResultCard } from './ResultCard';
+export { AcademicRecordFlatRow, AcademicRecordResultRow } from './AcademicRecordResultRow';
 export { ResultTimeline } from './ResultTimeline';
 export { ResultsByCourse } from './ResultsByCourse';
 export { ResultsBySkill } from './ResultsBySkill';

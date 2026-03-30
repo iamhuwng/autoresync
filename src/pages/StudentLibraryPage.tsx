@@ -184,7 +184,6 @@ export const StudentLibraryPage: React.FC = () => {
                     pendingHomeworkCount={notStarted.length}
                 />
             }
-            rightPanel={<aside style={{ width: 320, flexShrink: 0 }} />}
         >
             <div style={S.feedHeader}>
                 <h2 style={S.feedHeaderTitle}>Practice Library</h2>

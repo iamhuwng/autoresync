@@ -9,6 +9,15 @@ import { SharedSavedResultCore } from './SharedSavedResultCore';
 import type { FormativeFeedback } from '../../types/thcs-test.types';
 import { isEligibleForSavedResultFeedback, useFeedbackAutoTrigger } from '../../hooks/useFeedbackAutoTrigger';
 import { isPermissionDeniedError, AccessLostState, ACCESS_LOST_INITIAL } from '../../utils/rtdbAccessLost';
+import type { WritingSubmission } from '../../types/ielts-writing.types';
+import { useAuth } from '../../hooks/useAuth';
+import { useNavigation } from '../../hooks/useNavigation';
+import { classifyTeacherResultVisibility } from '../../services/resultVisibility.service';
+import WritingTeacherResultSurface from '../writing-results/WritingTeacherResultSurface';
+import {
+    buildWritingResultSurfaceData,
+    buildWritingSubmissionFallbackFromResult,
+} from '../writing-results/writingResultSurface';
 
 interface ResultDetailModalProps {
     opened: boolean;
@@ -23,9 +32,13 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
     resultId,
     inline = false,
 }) => {
+    const { user } = useAuth();
+    const { navigateTo } = useNavigation('teacher');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [result, setResult] = useState<TestResultRecord | null>(null);
+    const [writingSubmission, setWritingSubmission] = useState<WritingSubmission | null>(null);
+    const [writingSubmissionLoading, setWritingSubmissionLoading] = useState(false);
     // sectionResultsOpen removed — section accordion is now internal to OverviewTab via SharedSavedResultCore
 
     // FR-035: Access-lost state (Task 3.3)
@@ -125,6 +138,56 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
         return () => unsubscribe();
     }, [opened, inline, resultId, loadResult]);
 
+    const isWritingResult = Boolean(
+        result && (
+            result.testSkill === 'writing'
+            || (result as any).writingData
+            || (result as any).writingSubmission
+        ),
+    );
+
+    useEffect(() => {
+        if (!result || !isWritingResult) {
+            setWritingSubmission(null);
+            setWritingSubmissionLoading(false);
+            return;
+        }
+
+        const fallbackSubmission = buildWritingSubmissionFallbackFromResult(result);
+        const submissionId = (result as any).writingData?.submissionId || result.resultId;
+        if (!submissionId) {
+            setWritingSubmission(fallbackSubmission);
+            setWritingSubmissionLoading(false);
+            return;
+        }
+
+        let cancelled = false;
+        setWritingSubmission(fallbackSubmission);
+        setWritingSubmissionLoading(!fallbackSubmission);
+
+        void (async () => {
+            try {
+                const { getSubmission } = await import('../../services/writingSubmissionService');
+                const response = await getSubmission(submissionId);
+                if (cancelled) return;
+                setWritingSubmission(response.success ? response.data || fallbackSubmission : fallbackSubmission);
+            } catch (submissionError) {
+                console.warn('[ResultDetailModal] Failed to load canonical writing submission. Falling back to the saved result snapshot.', submissionError);
+                if (!cancelled) {
+                    setWritingSubmission(fallbackSubmission);
+                }
+            } finally {
+                if (!cancelled) {
+                    setWritingSubmissionLoading(false);
+                }
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [isWritingResult, result]);
+
 
     // formatAnswer removed — answer formatting is now internal to ReviewTab via SharedSavedResultCore
 
@@ -182,7 +245,60 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
             );
         }
 
-        // Delegate content to SharedSavedResultCore (PRD-0040 Task 2.5)
+        if (isWritingResult) {
+            if (writingSubmissionLoading && !writingSubmission) {
+                return (
+                    <div style={{ minHeight: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontWeight: 600 }}>
+                        Loading writing result...
+                    </div>
+                );
+            }
+
+            if (!writingSubmission) {
+                return (
+                    <div style={{ minHeight: 400, display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
+                        <div style={{ fontWeight: 700, fontSize: '1rem', color: '#1e293b' }}>Writing submission unavailable</div>
+                        <div style={{ fontSize: '0.875rem' }}>The saved result row exists, but the canonical Writing submission could not be loaded.</div>
+                    </div>
+                );
+            }
+
+            const verdict = classifyTeacherResultVisibility({
+                result: result as any,
+                teacherId: user?.uid || '',
+                hasAssignmentAccess: true,
+            });
+
+            return (
+                <div style={{ height: inline ? '100%' : 'calc(92vh - 85px)', overflowY: 'auto' }}>
+                    <div style={{ padding: inline ? '0.5rem' : '1rem' }}>
+                        <WritingTeacherResultSurface
+                            data={buildWritingResultSurfaceData(writingSubmission, {
+                                viewerMode: verdict.shouldAllowTeacherActions ? 'teacher-actionable' : 'teacher-read-only',
+                                canRevealPublishedData: true,
+                            })}
+                            submission={writingSubmission}
+                            onClose={onClose}
+                            onOpenGrading={verdict.shouldAllowTeacherActions
+                                ? () => navigateTo(
+                                    'TEACHER_GRADING_DETAIL',
+                                    { submissionId: writingSubmission.id },
+                                    { reason: 'teacher_saved_result_writing_grade' },
+                                )
+                                : undefined}
+                            onReopen={verdict.shouldAllowTeacherActions
+                                ? () => navigateTo(
+                                    'TEACHER_GRADING_DETAIL',
+                                    { submissionId: writingSubmission.id },
+                                    { reason: 'teacher_saved_result_writing_reopen' },
+                                )
+                                : undefined}
+                        />
+                    </div>
+                </div>
+            );
+        }
+
         return (
             <div style={{ height: inline ? '100%' : 'calc(92vh - 85px)', overflowY: 'auto' }}>
                 <div style={{ padding: inline ? '0.5rem' : '1.25rem' }}>
@@ -294,7 +410,5 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
         </div>
     );
 };
-
-// formatScore, cardStyleCompact, cardLabel removed — rendering delegated to SharedSavedResultCore (PRD-0040 Task 2.5)
 
 export default ResultDetailModal;

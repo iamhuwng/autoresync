@@ -31,6 +31,13 @@ import type {
 } from '../../types/results.types';
 import { ResultContextBadge } from './ResultContextBadge';
 import { SharedSavedResultCore } from './SharedSavedResultCore';
+import { useNavigation } from '../../hooks/useNavigation';
+import type { WritingSubmission } from '../../types/ielts-writing.types';
+import WritingTeacherResultSurface from '../writing-results/WritingTeacherResultSurface';
+import {
+    buildWritingResultSurfaceData,
+    buildWritingSubmissionFallbackFromResult,
+} from '../writing-results/writingResultSurface';
 
 interface LegacyResultDetailViewProps {
     resultId: string;
@@ -43,9 +50,12 @@ export const LegacyResultDetailView: React.FC<LegacyResultDetailViewProps> = ({
     onReturn,
 }) => {
     const { user, profile } = useAuth();
+    const { navigateTo } = useNavigation('teacher');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [result, setResult] = useState<TestResultRecord | null>(null);
+    const [writingSubmission, setWritingSubmission] = useState<WritingSubmission | null>(null);
+    const [writingSubmissionLoading, setWritingSubmissionLoading] = useState(false);
     const [pdfAvailable, setPdfAvailable] = useState(false);
     const [accessLost, setAccessLost] = useState(false);
     const hadTeacherDetailAccessRef = useRef(false);
@@ -106,6 +116,13 @@ export const LegacyResultDetailView: React.FC<LegacyResultDetailViewProps> = ({
         visibilityOwnerTeacherId: visibilitySnapshot?.visibilityOwnerTeacherId ?? null,
     });
     const allowTeacherOwnedSections = Boolean(visibilityVerdict?.shouldAllowTeacherActions);
+    const isWritingResult = Boolean(
+        result && (
+            result.testSkill === 'writing'
+            || (result as any).writingData
+            || (result as any).writingSubmission
+        ),
+    );
     const feedbackTiming = result?.context?.configApplied?.feedbackTiming || 'after_completion';
     const {
         feedbackLoading: formativeFeedbackLoading,
@@ -119,6 +136,48 @@ export const LegacyResultDetailView: React.FC<LegacyResultDetailViewProps> = ({
         autoTriggerEnabled: true,
         shellName: 'LegacyResultDetailView',
     });
+
+    useEffect(() => {
+        if (!result || !isWritingResult) {
+            setWritingSubmission(null);
+            setWritingSubmissionLoading(false);
+            return;
+        }
+
+        const fallbackSubmission = buildWritingSubmissionFallbackFromResult(result);
+        const submissionId = (result as any).writingData?.submissionId || result.resultId;
+        if (!submissionId) {
+            setWritingSubmission(fallbackSubmission);
+            setWritingSubmissionLoading(false);
+            return;
+        }
+
+        let cancelled = false;
+        setWritingSubmission(fallbackSubmission);
+        setWritingSubmissionLoading(!fallbackSubmission);
+
+        void (async () => {
+            try {
+                const { getSubmission } = await import('../../services/writingSubmissionService');
+                const response = await getSubmission(submissionId);
+                if (cancelled) return;
+                setWritingSubmission(response.success ? response.data || fallbackSubmission : fallbackSubmission);
+            } catch (submissionError) {
+                console.warn('[LegacyResultDetailView] Failed to load canonical writing submission. Falling back to the saved result snapshot.', submissionError);
+                if (!cancelled) {
+                    setWritingSubmission(fallbackSubmission);
+                }
+            } finally {
+                if (!cancelled) {
+                    setWritingSubmissionLoading(false);
+                }
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [isWritingResult, result]);
     const shouldShowAccessLost = Boolean(
         accessLost
         || (
@@ -464,23 +523,49 @@ export const LegacyResultDetailView: React.FC<LegacyResultDetailViewProps> = ({
             </div>
 
             {/* ── Shared Result Content Body (PRD-0040 Task 2.3) ── */}
-            <SharedSavedResultCore
-                result={result}
-                variant="full-page"
-                sections={{
-                    teacherFeedback: allowTeacherOwnedSections,
-                    writingPlaceholder: allowTeacherOwnedSections,
-                }}
-                feedbackState={{
-                    formativeFeedback: result.formativeFeedback as FormativeFeedback | null | undefined,
-                    feedbackLoading: formativeFeedbackLoading && !result.formativeFeedback,
-                    feedbackError,
-                    needsUpgrade: storedFeedbackNeedsUpgrade,
-                    isEligibleForAIFeedback: isEligibleForSavedResultFeedback(result),
-                    onRetryFeedback: () => handleGenerateFormativeFeedback(storedFeedbackNeedsUpgrade),
-                }}
-                feedbackTiming={feedbackTiming as 'after_completion' | 'after_deadline' | 'never'}
-            />
+            {isWritingResult ? (
+                writingSubmissionLoading ? (
+                    <div style={{ minHeight: 320, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontWeight: 600 }}>
+                        Loading writing result...
+                    </div>
+                ) : writingSubmission ? (
+                    <WritingTeacherResultSurface
+                        data={buildWritingResultSurfaceData(writingSubmission, {
+                            viewerMode: allowTeacherOwnedSections ? 'teacher-actionable' : 'teacher-read-only',
+                            canRevealPublishedData: true,
+                        })}
+                        submission={writingSubmission}
+                        onOpenGrading={allowTeacherOwnedSections
+                            ? () => navigateTo('TEACHER_GRADING_DETAIL', { submissionId: writingSubmission.id }, { reason: 'teacher_result_detail_writing_grade' })
+                            : undefined}
+                        onReopen={allowTeacherOwnedSections
+                            ? () => navigateTo('TEACHER_GRADING_DETAIL', { submissionId: writingSubmission.id }, { reason: 'teacher_result_detail_writing_reopen' })
+                            : undefined}
+                    />
+                ) : (
+                    <div style={{ minHeight: 320, display: 'grid', placeItems: 'center', color: '#64748b' }}>
+                        Canonical Writing submission unavailable.
+                    </div>
+                )
+            ) : (
+                <SharedSavedResultCore
+                    result={result}
+                    variant="full-page"
+                    sections={{
+                        teacherFeedback: allowTeacherOwnedSections,
+                        writingPlaceholder: allowTeacherOwnedSections,
+                    }}
+                    feedbackState={{
+                        formativeFeedback: result.formativeFeedback as FormativeFeedback | null | undefined,
+                        feedbackLoading: formativeFeedbackLoading && !result.formativeFeedback,
+                        feedbackError,
+                        needsUpgrade: storedFeedbackNeedsUpgrade,
+                        isEligibleForAIFeedback: isEligibleForSavedResultFeedback(result),
+                        onRetryFeedback: () => handleGenerateFormativeFeedback(storedFeedbackNeedsUpgrade),
+                    }}
+                    feedbackTiming={feedbackTiming as 'after_completion' | 'after_deadline' | 'never'}
+                />
+            )}
 
             {/* Action Buttons */}
             <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '2rem', flexWrap: 'wrap' }}>

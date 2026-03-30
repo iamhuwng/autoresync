@@ -26,6 +26,9 @@ import { AttemptHistory } from './AttemptHistory';
 import { SharedSavedResultCore } from './SharedSavedResultCore';
 import type { SharedSavedResultCoreSections } from './SharedSavedResultCore';
 import { isPermissionDeniedError, AccessLostState, ACCESS_LOST_INITIAL } from '../../utils/rtdbAccessLost';
+import type { WritingSubmission } from '../../types/ielts-writing.types';
+import WritingResultView from '../writing-results/WritingResultView';
+import { buildWritingSubmissionFallbackFromResult } from '../writing-results/writingResultSurface';
 import './ResultSlidePanel.css';
 
 /* ─── Props ──────────────────────────────────────────────────────────────── */
@@ -60,6 +63,9 @@ function getTypeBadge(result: TestResultRecord): { label: string; className: str
   }
   if (skill === 'listening' || type === 'listening' || (type.includes('ielts') && type.includes('listening'))) {
     return { label: 'IELTS Listening', className: 'rsp-type-badge--listening' };
+  }
+  if (skill === 'writing' || type === 'writing' || (type.includes('ielts') && type.includes('writing'))) {
+    return { label: 'IELTS Writing', className: 'rsp-type-badge--reading' };
   }
   // Fallback for any other type
   return { label: type.toUpperCase() || 'TEST', className: 'rsp-type-badge--thcs' };
@@ -184,6 +190,8 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
   const [savedResultReleaseGate, setSavedResultReleaseGate] = useState<SavedResultReleaseGate>(
     DEFAULT_SAVED_RESULT_RELEASE_GATE,
   );
+  const [writingSubmission, setWritingSubmission] = useState<WritingSubmission | null>(null);
+  const [writingSubmissionLoading, setWritingSubmissionLoading] = useState(false);
 
   // ── Closing animation ────────────────────────────────────────────────────
   const [isClosing, setIsClosing] = useState(false);
@@ -251,6 +259,8 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
     setHighlightedQuestionNumber(null);
     setAccessLost(ACCESS_LOST_INITIAL);
     setSavedResultReleaseGate(DEFAULT_SAVED_RESULT_RELEASE_GATE);
+    setWritingSubmission(null);
+    setWritingSubmissionLoading(false);
   }, [resultId]);
 
   useEffect(() => {
@@ -471,6 +481,56 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
     ),
   );
 
+  useEffect(() => {
+    if (!result || !isWritingResult) {
+      setWritingSubmission(null);
+      setWritingSubmissionLoading(false);
+      return;
+    }
+
+    const fallbackSubmission = buildWritingSubmissionFallbackFromResult(result);
+    const submissionId = result.writingData?.submissionId || result.resultId;
+    if (!submissionId) {
+      setWritingSubmission(fallbackSubmission);
+      setWritingSubmissionLoading(false);
+      return;
+    }
+
+    if (fallbackSubmission && fallbackSubmission.markingStatus !== 'graded') {
+      setWritingSubmission(fallbackSubmission);
+      setWritingSubmissionLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setWritingSubmission(fallbackSubmission);
+    setWritingSubmissionLoading(!fallbackSubmission);
+
+    void (async () => {
+      try {
+        const { getSubmission } = await import('../../services/writingSubmissionService');
+        const response = await getSubmission(submissionId);
+        if (cancelled) {
+          return;
+        }
+        setWritingSubmission(response.success ? response.data || fallbackSubmission : fallbackSubmission);
+      } catch (submissionError) {
+        console.warn('[ResultSlidePanel] Failed to load canonical writing submission. Falling back to the saved result snapshot.', submissionError);
+        if (!cancelled) {
+          setWritingSubmission(fallbackSubmission);
+        }
+      } finally {
+        if (!cancelled) {
+          setWritingSubmissionLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isWritingResult, result]);
+
   // ── Tab → section visibility mapping (PRD-0040 Task 2.4) ────────────────
   const tabSections: SharedSavedResultCoreSections = useMemo(() => {
     if (isWritingResult) {
@@ -591,6 +651,44 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
       </div>
     ) : null;
 
+    if (isWritingResult) {
+      if (writingSubmissionLoading && !writingSubmission) {
+        return (
+          <div className="rsp-loading">
+            <div className="rsp-spinner" />
+            <span>Loading writing result…</span>
+          </div>
+        );
+      }
+
+      if (!writingSubmission) {
+        return (
+          <div className="rsp-error-card">
+            <p>The Writing result record was found, but the canonical submission could not be loaded.</p>
+            <button className="rsp-retry-btn" onClick={handleRetry}>
+              Retry
+            </button>
+          </div>
+        );
+      }
+
+      return (
+        <WritingResultView
+          submission={writingSubmission}
+          variant="panel"
+          forceWidePanelLayout={!isMobile}
+          canRevealPublishedData={effectiveSavedResultReleaseState === 'feedback-released'}
+          releaseNotice={releaseNotice ? {
+            title: effectiveSavedResultReleaseState === 'locked-review' ? 'Detailed review is still locked' : 'Feedback is not released yet',
+            body: effectiveSavedResultReleaseState === 'locked-review'
+              ? 'This saved result is still governed by the live-session release state. Writing feedback will appear here after the teacher publishes and releases it.'
+              : 'Your teacher has released answer review for this live-session result. Writing feedback will appear here once the session reaches feedback release.',
+            tone: effectiveSavedResultReleaseState === 'locked-review' ? 'warning' : 'info',
+          } : null}
+        />
+      );
+    }
+
     return (
       <>
         {releaseNotice}
@@ -637,6 +735,7 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
         ref={panelRef}
         className={[
           'rsp-panel',
+          isWritingResult && !isMobile && 'rsp-panel--writing',
           isMobile && 'rsp-panel--mobile',
           isClosing && 'rsp-panel--closing',
         ]
@@ -710,19 +809,20 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
           </button>
         </div>
 
-        {/* Tab bar (Task 5.8, 5.9) */}
-        <div className="rsp-tab-bar" data-testid="rsp-tab-bar">
-          {availableTabs.map((tab) => (
-            <button
-              key={tab.id}
-              className={`rsp-tab ${activeTab === tab.id ? 'rsp-tab--active' : ''}`}
-              onClick={() => setActiveTab(tab.id)}
-              data-testid={`rsp-tab-${tab.id}`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        {!isWritingResult && (
+          <div className="rsp-tab-bar" data-testid="rsp-tab-bar">
+            {availableTabs.map((tab) => (
+              <button
+                key={tab.id}
+                className={`rsp-tab ${activeTab === tab.id ? 'rsp-tab--active' : ''}`}
+                onClick={() => setActiveTab(tab.id)}
+                data-testid={`rsp-tab-${tab.id}`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Scrollable tab body (Task 5.9) */}
         <div className="rsp-tab-body" data-testid="rsp-tab-body">

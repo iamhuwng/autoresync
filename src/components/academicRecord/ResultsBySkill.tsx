@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
-import { IconChevronDown, IconChevronRight, IconBook, IconHeadphones, IconPencil, IconMicrophone, IconInbox } from '@tabler/icons-react';
-import { ResultCard } from './ResultCard';
+import React, { useEffect, useMemo, useState } from 'react';
+import { IconChevronDown, IconChevronRight, IconInbox } from '@tabler/icons-react';
+import { AcademicRecordResultRow } from './AcademicRecordResultRow';
 import type { EnhancedTestResultRecord } from '../../types/results.types';
 
 interface ResultsBySkillProps {
@@ -10,286 +10,243 @@ interface ResultsBySkillProps {
 }
 
 interface SkillGroup {
-    skill: 'reading' | 'listening' | 'writing' | 'speaking';
+    skill: string;
+    label: string;
     results: EnhancedTestResultRecord[];
     averageScore: number;
     totalTests: number;
-    bestScore: number;
-    worstScore: number;
 }
 
-/**
- * ResultsBySkill Component
- * 
- * Groups test results by skill type (Reading, Listening, Writing, Speaking).
- * Shows skill-specific statistics and performance indicators.
- * 
- * Features:
- * - Groups results by testSkill field
- * - Collapsible skill sections (click to expand/collapse)
- * - Skill header shows:
- *   - Skill icon (book, headphones, pencil, microphone)
- *   - Skill name
- *   - Number of tests taken
- *   - Average score with ring progress indicator
- *   - Best and worst scores
- * - Results sorted by submission date within each skill
- * - Color-coded skill badges
- * - Empty state when no results exist
- * 
- * Part of PRD-0015: Academic Record & Enhanced Profile System - Phase 4
- */
+const skillOrder = ['reading', 'listening', 'writing', 'speaking'];
+
+const styles: Record<string, React.CSSProperties> = {
+    stack: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '1rem',
+    },
+    groupHeader: {
+        width: '100%',
+        border: 'none',
+        borderRadius: 14,
+        padding: '14px 16px',
+        background: '#f9fafb',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 14,
+        textAlign: 'left',
+        cursor: 'pointer',
+    },
+    groupHeaderMain: {
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 12,
+        minWidth: 0,
+        flex: 1,
+    },
+    chevron: {
+        color: '#6b7280',
+        flexShrink: 0,
+        marginTop: 2,
+    },
+    leadingBadge: {
+        minWidth: 38,
+        height: 38,
+        borderRadius: 12,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#e0e7ff',
+        color: '#4338ca',
+        fontSize: '0.8125rem',
+        fontWeight: 800,
+        letterSpacing: '0.04em',
+        flexShrink: 0,
+    },
+    groupTitleWrap: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 4,
+        minWidth: 0,
+    },
+    groupTitle: {
+        margin: 0,
+        color: '#111827',
+        fontSize: '0.95rem',
+        fontWeight: 700,
+    },
+    groupMeta: {
+        margin: 0,
+        color: '#6b7280',
+        fontSize: '0.75rem',
+        lineHeight: 1.5,
+    },
+    groupSummary: {
+        color: '#4f46e5',
+        fontSize: '0.8125rem',
+        fontWeight: 700,
+        whiteSpace: 'nowrap',
+    },
+    groupRows: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.75rem',
+        marginTop: '0.5rem',
+    },
+    emptyWrap: {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '0.75rem',
+        padding: '2rem 0',
+    },
+    emptyHeading: {
+        margin: 0,
+        fontSize: '1.125rem',
+        fontWeight: 700,
+        color: '#374151',
+    },
+    emptyBody: {
+        margin: 0,
+        fontSize: '0.875rem',
+        color: '#6b7280',
+        textAlign: 'center',
+        maxWidth: 400,
+    },
+    summaryText: {
+        margin: '0.5rem 0 0',
+        fontSize: '0.75rem',
+        color: '#6b7280',
+        textAlign: 'center',
+    },
+};
+
+function formatSkillLabel(skill: string): string {
+    return skill
+        .replace(/[_-]+/g, ' ')
+        .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function getSkillBadge(skill: string): string {
+    const normalized = skill.trim().toUpperCase();
+    return normalized.slice(0, 2) || 'OT';
+}
+
 export const ResultsBySkill: React.FC<ResultsBySkillProps> = ({
     results,
     onResultClick,
-    variant = 'glass'
 }) => {
     const [expandedSkills, setExpandedSkills] = useState<Set<string>>(new Set());
 
-    // Skill configuration
-    const skillConfig = {
-        reading: {
-            icon: IconBook,
-            color: 'blue',
-            label: 'Reading'
-        },
-        listening: {
-            icon: IconHeadphones,
-            color: 'grape',
-            label: 'Listening'
-        },
-        writing: {
-            icon: IconPencil,
-            color: 'teal',
-            label: 'Writing'
-        },
-        speaking: {
-            icon: IconMicrophone,
-            color: 'orange',
-            label: 'Speaking'
-        }
-    };
-
-    // Fallback config for unknown/unexpected skill values
-    const fallbackConfig = {
-        icon: IconBook,
-        color: 'gray',
-        label: 'Other'
-    };
-
-    // Group results by skill (normalize to lowercase for consistent matching)
     const skillGroups = useMemo(() => {
         const groups = new Map<string, SkillGroup>();
 
-        results.forEach(result => {
-            // Normalize skill to lowercase to match skillConfig keys
-            const skill = (result.testSkill || 'reading').toLowerCase() as SkillGroup['skill'];
+        results.forEach((result) => {
+            const skill = (result.testSkill || 'other').toLowerCase();
 
             if (!groups.has(skill)) {
                 groups.set(skill, {
                     skill,
+                    label: formatSkillLabel(skill),
                     results: [],
                     averageScore: 0,
                     totalTests: 0,
-                    bestScore: 0,
-                    worstScore: 100
                 });
             }
 
-            const group = groups.get(skill)!;
-            group.results.push(result);
+            groups.get(skill)!.results.push(result);
         });
 
-        // Calculate statistics for each group
-        groups.forEach(group => {
+        groups.forEach((group) => {
             group.totalTests = group.results.length;
-            const scores = group.results.map(r => r.percentage);
-            const totalScore = scores.reduce((sum, score) => sum + score, 0);
-            group.averageScore = group.totalTests > 0 ? totalScore / group.totalTests : 0;
-            group.bestScore = Math.max(...scores, 0);
-            group.worstScore = Math.min(...scores, 100);
-
-            // Sort results by submission date (newest first)
+            const scoredResults = group.results.filter((result) => !result.thcsData && result.markingStatus !== 'pending-review');
+            const totalScore = scoredResults.reduce((sum, result) => sum + result.percentage, 0);
+            group.averageScore = scoredResults.length > 0 ? totalScore / scoredResults.length : 0;
             group.results.sort((a, b) => b.submittedAt - a.submittedAt);
         });
 
-        // Convert to array and sort by skill order (reading, listening, writing, speaking)
-        const skillOrder = ['reading', 'listening', 'writing', 'speaking'];
         return Array.from(groups.values()).sort((a, b) => {
-            return skillOrder.indexOf(a.skill) - skillOrder.indexOf(b.skill);
+            const left = skillOrder.indexOf(a.skill);
+            const right = skillOrder.indexOf(b.skill);
+            if (left === -1 && right === -1) {
+                return a.label.localeCompare(b.label);
+            }
+            if (left === -1) return 1;
+            if (right === -1) return -1;
+            return left - right;
         });
     }, [results]);
 
-    const toggleSkill = (skill: string) => {
-        setExpandedSkills(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(skill)) {
-                newSet.delete(skill);
-            } else {
-                newSet.add(skill);
-            }
-            return newSet;
-        });
-    };
+    useEffect(() => {
+        setExpandedSkills(new Set(skillGroups.map((group) => group.skill)));
+    }, [skillGroups]);
 
-    const isSkillExpanded = (skill: string) => {
-        return expandedSkills.has(skill);
-    };
-
-    // Get color for score
-    const getScoreColor = (score: number): string => {
-        if (score >= 70) return '#10b981'; // green
-        if (score >= 50) return '#f59e0b'; // yellow/amber
-        return '#ef4444'; // red
-    };
-
-    // Empty state
     if (results.length === 0) {
         return (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', padding: '2rem 0' }}>
-                <IconInbox size={64} style={{ color: '#94a3b8', opacity: 0.5 }} />
-                <p style={{ margin: 0, fontSize: '1.125rem', fontWeight: 600, color: '#64748b' }}>
-                    No test results found
-                </p>
-                <p style={{ margin: 0, fontSize: '0.875rem', color: '#64748b', textAlign: 'center', maxWidth: 400 }}>
-                    Your test results will appear here grouped by skill.
-                </p>
+            <div style={styles.emptyWrap}>
+                <IconInbox size={52} style={{ color: '#9ca3af' }} />
+                <p style={styles.emptyHeading}>No skill results found</p>
+                <p style={styles.emptyBody}>Your latest results will appear here grouped by skill.</p>
             </div>
         );
     }
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div style={styles.stack}>
             {skillGroups.map((group) => {
-                const isExpanded = isSkillExpanded(group.skill);
-                const config = skillConfig[group.skill] || fallbackConfig;
-                const SkillIcon = config.icon;
+                const isExpanded = expandedSkills.has(group.skill);
+                const headerMeta = `${group.totalTests} test${group.totalTests !== 1 ? 's' : ''}${group.averageScore > 0 ? ` | avg ${Math.round(group.averageScore)}%` : ''}`;
 
                 return (
-                    <div key={group.skill}>
-                        {/* Skill Header */}
-                        <div
-                            onClick={() => toggleSkill(group.skill)}
-                            style={{
-                                padding: '1rem',
-                                background: 'rgba(255, 255, 255, 0.6)',
-                                backdropFilter: 'blur(10px)',
-                                borderRadius: '12px',
-                                border: '1px solid rgba(226, 232, 240, 0.8)',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s ease',
-                                marginBottom: isExpanded ? '0.75rem' : '0'
+                    <section key={group.skill}>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setExpandedSkills((current) => {
+                                    const next = new Set(current);
+                                    if (next.has(group.skill)) {
+                                        next.delete(group.skill);
+                                    } else {
+                                        next.add(group.skill);
+                                    }
+                                    return next;
+                                });
                             }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.8)';
-                                e.currentTarget.style.transform = 'translateY(-2px)';
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.6)';
-                                e.currentTarget.style.transform = 'translateY(0)';
-                            }}
+                            aria-expanded={isExpanded}
+                            style={styles.groupHeader}
                         >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
-                                    <span style={{ pointerEvents: 'none', color: '#64748b', display: 'inline-flex', alignItems: 'center' }}>
-                                        {isExpanded ? (
-                                            <IconChevronDown size={18} />
-                                        ) : (
-                                            <IconChevronRight size={18} />
-                                        )}
-                                    </span>
-
-                                    <SkillIcon size={24} style={{ color: skillIconColor(config.color) }} />
-
-                                    <div style={{ flex: 1 }}>
-                                        <div style={{ color: '#1e293b', fontWeight: 600, fontSize: '1rem' }}>
-                                            {config.label}
-                                        </div>
-                                        <div style={{ display: 'flex', gap: '0.375rem', marginTop: 4, flexWrap: 'wrap' }}>
-                                            <span style={badgeByColor(config.color)}>
-                                                {group.totalTests} test{group.totalTests !== 1 ? 's' : ''}
-                                            </span>
-                                            <span style={badgeOutline}>
-                                                Best: {Math.round(group.bestScore)}%
-                                            </span>
-                                            <span style={badgeOutline}>
-                                                Worst: {Math.round(group.worstScore)}%
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Ring Progress for Average Score */}
-                                <div style={{ width: 80, height: 80, borderRadius: '50%', background: `conic-gradient(${getScoreColor(group.averageScore)} ${Math.max(0, Math.min(group.averageScore, 100)) * 3.6}deg, #e2e8f0 0deg)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    <div style={{ width: 62, height: 62, borderRadius: '50%', background: '#ffffff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                                        <div style={{ fontSize: '1rem', fontWeight: 700, color: getScoreColor(group.averageScore), lineHeight: 1 }}>
-                                            {Math.round(group.averageScore)}%
-                                        </div>
-                                        <div style={{ fontSize: '0.6875rem', color: '#6b7280', lineHeight: 1.2 }}>
-                                            avg
-                                        </div>
-                                    </div>
+                            <div style={styles.groupHeaderMain}>
+                                <span style={styles.chevron}>
+                                    {isExpanded ? <IconChevronDown size={18} /> : <IconChevronRight size={18} />}
+                                </span>
+                                <span style={styles.leadingBadge}>{getSkillBadge(group.skill)}</span>
+                                <div style={styles.groupTitleWrap}>
+                                    <p style={styles.groupTitle}>{group.label}</p>
+                                    <p style={styles.groupMeta}>{headerMeta}</p>
                                 </div>
                             </div>
-                        </div>
+                            <span style={styles.groupSummary}>Skill view</span>
+                        </button>
 
-                        {/* Collapsible Results List */}
                         {isExpanded && (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.5rem', paddingLeft: '1rem' }}>
+                            <div style={styles.groupRows}>
                                 {group.results.map((result) => (
-                                    <ResultCard
+                                    <AcademicRecordResultRow
                                         key={result.resultId}
                                         result={result}
                                         onClick={onResultClick}
-                                        variant={variant}
                                     />
                                 ))}
                             </div>
                         )}
-                    </div>
+                    </section>
                 );
             })}
 
-            {/* Summary */}
-            <p style={{ margin: '0.5rem 0 0', fontSize: '0.75rem', color: '#64748b', textAlign: 'center' }}>
-                {skillGroups.length} skill{skillGroups.length !== 1 ? 's' : ''} • {results.length} total result{results.length !== 1 ? 's' : ''}
+            <p style={styles.summaryText}>
+                {skillGroups.length} skill{skillGroups.length !== 1 ? 's' : ''} | {results.length} total result{results.length !== 1 ? 's' : ''}
             </p>
         </div>
     );
 };
-
-const badgeBase: React.CSSProperties = {
-    borderRadius: 999,
-    padding: '2px 8px',
-    fontSize: '0.6875rem',
-    fontWeight: 600,
-};
-
-const badgeOutline: React.CSSProperties = {
-    ...badgeBase,
-    border: '1px solid #d1d5db',
-    background: '#ffffff',
-    color: '#6b7280',
-};
-
-function skillIconColor(color: string): string {
-    const map: Record<string, string> = {
-        blue: '#2563eb',
-        grape: '#7c3aed',
-        teal: '#0f766e',
-        orange: '#ea580c',
-        gray: '#64748b',
-    };
-    return map[color] || '#64748b';
-}
-
-function badgeByColor(color: string): React.CSSProperties {
-    const map: Record<string, React.CSSProperties> = {
-        blue: { ...badgeBase, background: '#eff6ff', color: '#1d4ed8' },
-        grape: { ...badgeBase, background: '#f3e8ff', color: '#7e22ce' },
-        teal: { ...badgeBase, background: '#f0fdfa', color: '#0f766e' },
-        orange: { ...badgeBase, background: '#fff7ed', color: '#c2410c' },
-        gray: { ...badgeBase, background: '#f8fafc', color: '#64748b' },
-    };
-    return map[color] || map.gray;
-}

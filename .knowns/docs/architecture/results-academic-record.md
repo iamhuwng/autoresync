@@ -2,7 +2,7 @@
 title: Results Academic Record
 description: Result lifecycle, IELTS bands vs THCS scores, result context system, access points, UX gaps.
 createdAt: '2026-02-27T17:02:41.986Z'
-updatedAt: '2026-03-29T08:41:42.895Z'
+updatedAt: '2026-03-30T14:53:58.041Z'
 tags:
   - architecture
   - results
@@ -96,14 +96,15 @@ Badge colors: 🏫 Live=Blue, 📋 Homework=Orange, 📖 Practice=Green, 📚 Co
 ```
 
 ## Related Docs
-- @doc/sop/enhanced-saved-results-ux — Results UX investigation (teacher nav gap)
+- @doc/architecture/academic-record/academic-record-page-architecture — Academic Record page structure, shell ownership, and interaction contract
+- @doc/architecture/academic-record/academic-record-progression-model — How Academic Record should represent progression instead of raw storage alone
+- @doc/architecture/academic-record/academic-record-analytics-readiness — Analytics and recommendation-readiness contract for future proficiency and material suggestions
 - @doc/prd/prd-academic-record — Academic record PRD
 - @doc/prd/prd-saved-result-system — Enhanced result system PRD
-- @doc/architecture/test-system-architecture — Test system (parent)
+- @doc/architecture/test-system-architecture — Test system parent architecture
 - @doc/architecture/homework-solo-practice-architecture — Result context system
+- @doc/sop/enhanced-saved-results-ux — Results UX investigation and historical issues
 - @doc/sop/test-end-flow-debug-retrospective — Guest result bug
-
-
 ## 2026-03-28 Amendment — Result Persistence Invariants
 
 A result is only product-visible when the canonical result row and its discovery indexes are persisted together. The older architecture summary understated this and made the system look simpler than it really is.
@@ -208,3 +209,70 @@ Current Writing-specific result-surface behavior:
 - `WritingProgressSection` now reads from the live Writing schema (`markingStatus`, `grading`, `testMeta.testTitle`) instead of the earlier stale field names.
 - Saved-result slide panels now recognize Writing result rows and render the Writing placeholder content when `writingSubmission` is present, instead of falling through to generic score-summary/question-review shells that imply an auto-graded question model.
 - This keeps homework and solo-practice Writing entries compatible with the generic saved-result entry points while still respecting the manual-grading contract.
+
+
+## 2026-03-30 Amendment — IELTS Writing Result Surface Implementation
+
+Current source of truth:
+- `specs/ielts-writing-result-surfaces-2026-03-30`
+
+Current feature state:
+- IELTS Writing no longer treats the generic result readers as its target UX.
+- Student and teacher result hosts now delegate Writing rows to dedicated Writing result surfaces.
+- The approved Stitch mockups remain structural guidance only; the shipped UI is expected to fit the app's real teacher shell and student-view language rather than reproducing the mockups literally.
+- The student pending-review state may render from the RTDB saved-result snapshot alone, while published detail and teacher-actionable detail continue to prefer canonical Firestore submission data.
+
+Architectural significance:
+- This keeps unified result-shell governance in place while removing Writing-specific detail from `SharedSavedResultCore` assumptions.
+- It also aligns the result surface with the grading tool's canonical `publishedGrading` artifact instead of legacy score-summary placeholders.
+
+Superseded guidance:
+- Any result-surface guidance that assumes Writing should appear as a generic score/review/feedback result reader should be treated as historical.
+
+
+## 2026-03-30 Amendment — Exact Parallel Comment Repositioning For IELTS Writing Student Results
+
+Current feature state:
+- The IELTS Writing student slide modal now supports an exact essay-to-comment reading interaction in wide split layout.
+- Clicking a highlighted annotation in the essay forces the right rail to `Comments` and moves the matching comment card to the parallel vertical band in the right column.
+- This is stronger than the earlier approximate implementation that only scrolled the comments list toward the selected item.
+
+Architectural significance:
+- The interaction brings the student result surface closer to the grading-tool reading model without exposing grading controls.
+- The selected comment remains part of the normal ordered published-comments list; the UI repositions the focused card visually instead of reordering comments.
+- The contract depends on the published markup renderer providing the clicked annotation's viewport anchor and the student result surface translating the selected card inside the comments rail.
+
+Current scope:
+- Implemented for the published markup path in the Writing result slide modal and shared student Writing surface.
+- Not yet required for legacy annotation fallback renderers.
+
+Live verification:
+- Verified using the student dev account on direct result route `?result=-OosUDrZdaDhAb6vxk34`.
+- The corrected implementation produced near-parallel alignment between clicked text and focused comment card (`deltaCenter ~= -4px`).
+- The normal Academic Record page for that dev account did not expose the Writing widget during live check, so the direct result route was used as the reliable verification path.
+
+## 2026-03-30 Correction — Writing Comment Rail Uses Header-Top Alignment
+
+For the IELTS Writing student result slide panel, the comment rail alignment rule is now explicit:
+
+- The comments rail shifts as a whole block.
+- The selected comment header row is the visual anchor on the right.
+- The clicked essay annotation top line is the visual anchor on the left.
+- The intended steady-state is `selected comment header top` parallel to `clicked annotation top`.
+
+This replaced the previous center-based alignment attempt, which was visually wrong for tall comments and unstable when measured during transform animation.
+
+
+## 2026-03-30 Amendment — Grading Tool Shares The Same Header-Top Alignment Contract
+
+The teacher IELTS Writing grading editor now mirrors the same cross-column reading contract used by the wide student Writing result surface.
+
+For the grading editor:
+- clicking highlighted essay text must force-open the right-side `Comments` tab
+- the comments rail must move as one block
+- the selected comment remains in normal list order
+- the right-side visual anchor is the selected comment header row
+- the left-side visual anchor is the clicked annotation top line
+- the intended steady-state is `selected comment header top == clicked annotation top`
+
+This keeps the published result reader aligned with the authoring tool instead of teaching users two different comment-navigation models.

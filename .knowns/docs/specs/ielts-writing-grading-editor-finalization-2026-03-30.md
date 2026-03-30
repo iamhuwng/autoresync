@@ -2,7 +2,7 @@
 title: IELTS Writing Grading Editor Finalization 2026-03-30
 description: Finalized source of truth for the teacher writing grading editor layout, comment interactions, ordering rules, and containment inside the teacher shell.
 createdAt: '2026-03-29T20:16:53.672Z'
-updatedAt: '2026-03-29T21:51:22.740Z'
+updatedAt: '2026-03-30T03:30:19.251Z'
 tags:
   - spec
   - ielts
@@ -144,3 +144,23 @@ This ordering rule overrides creation timestamp order.
 - Filters in the comments panel should behave like segmented controls inside a shared track rather than isolated oversized pills.
 - Action buttons, tabs, quick-comment trigger, and comment-edit controls should use medium radii that align with the broader page language.
 - The visual target is structured and editorial, not soft consumer-chat styling.
+
+
+## 2026-03-30 Amendment — Header-Top Comment Rail Alignment In Grading Editor
+
+The grading editor now uses the same stable cross-column reading model adopted by the wide student Writing result surface, but with grading controls still enabled.
+
+Current contract:
+- Clicking highlighted commented text in the essay forces the right-side `Comments` tab open.
+- The entire comments rail moves as one block; the UI does not detach or overlay the selected comment above sibling cards.
+- The selected comment remains in its natural essay-order position within the list.
+- The visual anchor on the right is the selected comment header row.
+- The visual anchor on the left is the clicked annotation top line.
+- The intended steady-state is `selected comment header top == clicked annotation top`.
+
+This supersedes earlier looser wording that described the matching comment as merely scrolling into view. The expected behavior is parallel alignment, not approximate proximity.
+
+Implementation note:
+- The grading page provides the clicked annotation viewport top from the essay editor into the comments sidebar.
+- The comments sidebar measures the selected comment header within the natural rail and translates the whole rail from that stable offset.
+- The alignment math must not depend on center-based card positioning or temporary floating-card overlays.

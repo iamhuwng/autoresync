@@ -406,26 +406,24 @@ export const StudentHomeworkListPage: React.FC = () => {
     // ─── RIGHT PANEL WIDGET (SUMMARY) ─────────────────────────────────────────
     const renderRightPanel = () => {
         return (
-            <div style={S.rightSticky}>
-                <div style={S.widget}>
-                    <h3 style={S.widgetTitle}>Summary</h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: '0.875rem', color: '#4b5563', fontWeight: 500 }}>Not Started</span>
-                            <span style={{ fontSize: '1.125rem', fontWeight: 700, color: '#111827' }}>{notStarted.length}</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: '0.875rem', color: '#2563eb', fontWeight: 500 }}>In Progress</span>
-                            <span style={{ fontSize: '1.125rem', fontWeight: 700, color: '#111827' }}>{inProgress.length}</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: '0.875rem', color: '#059669', fontWeight: 500 }}>Completed</span>
-                            <span style={{ fontSize: '1.125rem', fontWeight: 700, color: '#111827' }}>{completed.length}</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8, borderTop: '1px solid #e5e7eb' }}>
-                            <span style={{ fontSize: '0.875rem', color: '#dc2626', fontWeight: 600 }}>Overdue</span>
-                            <span style={{ fontSize: '1.125rem', fontWeight: 700, color: '#dc2626' }}>{overdue.length}</span>
-                        </div>
+            <div style={S.widget}>
+                <h3 style={S.widgetTitle}>Summary</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.875rem', color: '#4b5563', fontWeight: 500 }}>Not Started</span>
+                        <span style={{ fontSize: '1.125rem', fontWeight: 700, color: '#111827' }}>{notStarted.length}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.875rem', color: '#2563eb', fontWeight: 500 }}>In Progress</span>
+                        <span style={{ fontSize: '1.125rem', fontWeight: 700, color: '#111827' }}>{inProgress.length}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.875rem', color: '#059669', fontWeight: 500 }}>Completed</span>
+                        <span style={{ fontSize: '1.125rem', fontWeight: 700, color: '#111827' }}>{completed.length}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8, borderTop: '1px solid #e5e7eb' }}>
+                        <span style={{ fontSize: '0.875rem', color: '#dc2626', fontWeight: 600 }}>Overdue</span>
+                        <span style={{ fontSize: '1.125rem', fontWeight: 700, color: '#dc2626' }}>{overdue.length}</span>
                     </div>
                 </div>
             </div>

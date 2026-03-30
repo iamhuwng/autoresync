@@ -6,7 +6,7 @@
  * NO MANTINE.
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { renderAnnotatedText } from '../../utils/annotationRenderer';
 import type { WritingAnnotation } from '../../types/ielts-writing.types';
 
@@ -17,8 +17,8 @@ interface AnnotatedEssayReadOnlyProps {
 
 interface Tooltip {
     text: string;
-    x: number;
-    y: number;
+    left: number;
+    top: number;
 }
 
 export default function AnnotatedEssayReadOnly({
@@ -26,21 +26,31 @@ export default function AnnotatedEssayReadOnly({
     annotations,
 }: AnnotatedEssayReadOnlyProps) {
     const [tooltip, setTooltip] = useState<Tooltip | null>(null);
+    const containerRef = useRef<HTMLDivElement | null>(null);
 
-    const handleAnnotationClick = useCallback((annotation: WritingAnnotation) => {
+    const handleAnnotationClick = useCallback((annotation: WritingAnnotation, anchorElement?: HTMLElement | null) => {
         if (!annotation.commentText) return;
-        // Position tooltip at cursor
-        const selection = document.getSelection();
-        if (selection && selection.rangeCount > 0) {
-            const rect = selection.getRangeAt(0).getBoundingClientRect();
+        const containerRect = containerRef.current?.getBoundingClientRect();
+        const anchorRect = anchorElement?.getBoundingClientRect();
+
+        if (containerRect && anchorRect) {
+            const tooltipWidth = 280;
+            const centeredLeft = anchorRect.left - containerRect.left + (anchorRect.width / 2);
+            const boundedLeft = Math.min(
+                Math.max(centeredLeft, (tooltipWidth / 2) + 12),
+                Math.max((tooltipWidth / 2) + 12, containerRect.width - (tooltipWidth / 2) - 12),
+            );
+            const relativeTop = Math.max(anchorRect.top - containerRect.top - 56, 12);
+
             setTooltip({
                 text: annotation.commentText,
-                x: rect.left + rect.width / 2,
-                y: rect.top - 10,
+                left: boundedLeft,
+                top: relativeTop,
             });
         } else {
-            setTooltip({ text: annotation.commentText, x: 0, y: 0 });
+            setTooltip({ text: annotation.commentText, left: 160, top: 12 });
         }
+
         // Auto-dismiss after 4s
         setTimeout(() => setTooltip(null), 4000);
     }, []);
@@ -51,7 +61,7 @@ export default function AnnotatedEssayReadOnly({
     });
 
     return (
-        <div style={{ position: 'relative' }}>
+        <div ref={containerRef} style={{ position: 'relative' }}>
             <div
                 style={{
                     padding: '1.5rem',
@@ -74,9 +84,10 @@ export default function AnnotatedEssayReadOnly({
             {tooltip && (
                 <div
                     style={{
-                        position: 'fixed',
-                        left: Math.max(20, tooltip.x - 120),
-                        top: Math.max(20, tooltip.y - 60),
+                        position: 'absolute',
+                        left: tooltip.left,
+                        top: tooltip.top,
+                        transform: 'translate(-50%, -100%)',
                         maxWidth: '280px',
                         padding: '10px 14px',
                         background: '#1e293b',

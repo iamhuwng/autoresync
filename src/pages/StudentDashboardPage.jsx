@@ -1,15 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { enrollStudent, getStudentClasses, subscribeToActiveSessions } from '../services/classManager';
+import { enrollStudent } from '../services/classManager';
 import { getAvailablePublicSessions } from '../services/resultsService';
 import { getPaginatedUserNotifications, markNotificationAsRead, subscribeToNewNotifications } from '../services/notificationService';
 import { sessionService } from '../services/sessionService';
-import { getSession } from '../services/sessionManager';
-import { useStudentHomeworkList } from '../hooks/useHomeworkSubmission';
 import { Loader, Badge } from '@mantine/core';
 import { useNavigation } from '../hooks/useNavigation';
-import { useMediaQuery } from '../hooks/useMediaQuery';
+import { useStudentShellData } from '../hooks/useStudentShellData';
 import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
 import { S } from '../components/layout/studentLayoutStyles';
@@ -98,14 +96,15 @@ const StudentDashboardPage = () => {
     const { navigateTo } = useNavigation('student');
 
     const [classCode, setClassCode] = useState('');
-    const [enrolledClasses, setEnrolledClasses] = useState([]);
     const [isEnrolling, setIsEnrolling] = useState(false);
     const [enrollError, setEnrollError] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [publicSessions, setPublicSessions] = useState([]);
-    const [classLiveSessions, setClassLiveSessions] = useState([]);
-
-    const { notStarted, inProgress, overdue } = useStudentHomeworkList(user?.uid || '');
+    const {
+        enrolledClasses,
+        notStarted,
+        refreshClasses,
+    } = useStudentShellData();
 
     const [activeView, setActiveView] = useState('feed');
     const [feedFilter, setFeedFilter] = useState('all');
@@ -141,9 +140,6 @@ const StudentDashboardPage = () => {
             if (!user?.uid) return;
             setIsLoading(true);
             try {
-                const classes = await getStudentClasses(user.uid);
-                setEnrolledClasses(classes || []);
-
                 const sessions = await getAvailablePublicSessions();
                 setPublicSessions(sessions || []);
             } catch (error) {
@@ -161,49 +157,6 @@ const StudentDashboardPage = () => {
     }, [user]);
 
     // ── Real-time listener: live sessions from enrolled classes ───────────────
-    useEffect(() => {
-        if (!enrolledClasses || enrolledClasses.length === 0) return;
-
-        const unsubscribers = [];
-        // Map: classId -> array of session objects
-        const sessionsMap = {};
-
-        enrolledClasses.forEach(cls => {
-            const unsub = subscribeToActiveSessions(cls.id, async (pointers) => {
-                if (!pointers || Object.keys(pointers).length === 0) {
-                    sessionsMap[cls.id] = [];
-                } else {
-                    const codes = Object.keys(pointers);
-                    const validSessions = [];
-                    for (const code of codes) {
-                        try {
-                            const sessionData = await getSession(code);
-                            if (sessionData &&
-                                sessionData.status !== 'completed' &&
-                                sessionData.status !== 'expired') {
-                                validSessions.push({
-                                    code,
-                                    className: cls.name || cls.classCode || 'Class',
-                                    classId: cls.id,
-                                    ...sessionData
-                                });
-                            }
-                        } catch (e) {
-                            console.warn(`Skipping invalid session ${code}`, e);
-                        }
-                    }
-                    sessionsMap[cls.id] = validSessions;
-                }
-                // Flatten all class sessions into a single array
-                const allSessions = Object.values(sessionsMap).flat();
-                setClassLiveSessions(allSessions);
-            });
-            unsubscribers.push(unsub);
-        });
-
-        return () => unsubscribers.forEach(fn => fn());
-    }, [enrolledClasses]);
-
     // ── Real-time listener: prepend new notifications as they arrive ──────────
     useEffect(() => {
         if (!user?.uid) return;
@@ -255,8 +208,7 @@ const StudentDashboardPage = () => {
             if (result.success) {
                 setJoinSuccessMessage(`✅ Successfully joined ${classCode.trim().toUpperCase()}!`);
                 setClassCode('');
-                const classes = await getStudentClasses(user.uid);
-                setEnrolledClasses(classes || []);
+                await refreshClasses();
                 setTimeout(() => { setJoinSuccessMessage(''); setShowJoinModal(false); }, 3000);
             } else {
                 setEnrollError(result.error || 'Failed to join class');
@@ -280,6 +232,22 @@ const StudentDashboardPage = () => {
         }
         return result;
     }, [allNotifications, feedFilter]);
+
+    const handleJoinPublicSession = (sessionCode) => {
+        if (user) {
+            sessionService.setPlayerData(
+                user.uid,
+                user.displayName || user.email || 'Student',
+                sessionCode,
+            );
+        }
+
+        navigateTo(
+            'STUDENT_WAITING',
+            { gameSessionId: sessionCode },
+            { reason: 'dashboard_public_session_join' },
+        );
+    };
 
     const handleSidebarClick = (view) => {
         setActiveView(view);
@@ -405,7 +373,7 @@ const StudentDashboardPage = () => {
                                 <div key={s.sessionCode} style={{ ...localStyles.article, borderRadius: 12, border: '1px solid #e5e7eb', marginBottom: 8 }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <span style={{ fontWeight: 600 }}>{s.testTitle}</span>
-                                        <button style={{ background: '#111827', color: 'white', padding: '6px 16px', borderRadius: 999, fontSize: '0.875rem', fontWeight: 600, border: 'none', cursor: 'pointer' }} onClick={() => navigateTo('STUDENT_WAITING', { gameSessionId: s.sessionCode })}>Join</button>
+                                        <button style={{ background: '#111827', color: 'white', padding: '6px 16px', borderRadius: 999, fontSize: '0.875rem', fontWeight: 600, border: 'none', cursor: 'pointer' }} onClick={() => handleJoinPublicSession(s.sessionCode)}>Join</button>
                                     </div>
                                 </div>
                             ))}
@@ -462,13 +430,38 @@ const StudentDashboardPage = () => {
     };
 
     const renderRightPanel = () => {
-        const combinedHomework = [...notStarted, ...inProgress, ...overdue];
-        const sortedAssignments = combinedHomework.sort((a, b) =>
-            (a.homework?.scheduling?.dueDate || Infinity) - (b.homework?.scheduling?.dueDate || Infinity)
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                {publicSessions.length > 0 && (
+                    <div style={S.widget}>
+                        <h3 style={S.widgetTitle}>Live Now ðŸ”¥</h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            {[...publicSessions]
+                                .sort((a, b) => b.playerCount - a.playerCount || a.createdAt - b.createdAt)
+                                .slice(0, 5)
+                                .map(session => (
+                                    <div key={session.sessionCode} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div>
+                                            <p style={localStyles.widgetItemTitle}>{session.testTitle}</p>
+                                            <p style={localStyles.widgetItemSub}>{session.playerCount} playing</p>
+                                        </div>
+                                        <button
+                                            style={{ background: '#111827', color: 'white', padding: '4px 12px', borderRadius: 999, fontSize: '0.75rem', fontWeight: 600, border: 'none', cursor: 'pointer' }}
+                                            onClick={() => handleJoinPublicSession(session.sessionCode)}
+                                        >
+                                            Join
+                                        </button>
+                                    </div>
+                                ))}
+                        </div>
+                    </div>
+                )}
+                <PendingReviewsWidget />
+            </div>
         );
 
         return (
-            <div style={S.rightSticky}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                 {/* Search Box */}
                 <div style={{ position: 'relative', background: '#e5e7eb', borderRadius: 999, display: 'flex', alignItems: 'center', marginBottom: 24 }}>
                     <div style={{ paddingLeft: 16, color: '#6b7280' }}>🔍</div>
@@ -646,7 +639,6 @@ const StudentDashboardPage = () => {
         <>
             <StudentLayout
                 mobileTitle={mobileTitle}
-                mobileRightAction={<span style={{ cursor: 'pointer', fontSize: '1.25rem' }}>🗓️</span>}
                 sidebar={
                     <StudentSidebar
                         user={user ? { ...user, avatarUrl: profile?.avatarUrl } : undefined}

@@ -17,6 +17,7 @@ export interface CommentCardProps {
     onDelete: (commentId: string) => void;
     onRecover: (commentId: string) => void;
     onCategoryChange: (commentId: string, categoryId: CommentCategoryId) => void;
+    onHeaderRefChange?: (node: HTMLDivElement | null) => void;
     readOnly?: boolean;
 }
 
@@ -48,6 +49,7 @@ const CommentCard: React.FC<CommentCardProps> = ({
     onDelete,
     onRecover,
     onCategoryChange,
+    onHeaderRefChange,
     readOnly = false,
 }) => {
     const [showMenu, setShowMenu] = useState(false);
@@ -119,7 +121,11 @@ const CommentCard: React.FC<CommentCardProps> = ({
             data-comment-id={comment.id}
             id={`comment-card-${comment.id}`}
         >
-            <div className="comment-card-header">
+            <div
+                className="comment-card-header"
+                data-comment-header-id={comment.id}
+                ref={onHeaderRefChange}
+            >
                 <div className="comment-card-category">
                     <span
                         className="category-dot-inline"

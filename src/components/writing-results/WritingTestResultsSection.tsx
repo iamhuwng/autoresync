@@ -8,6 +8,7 @@ import { getSessionResults, type TestResultRecord } from '../../services/testRes
 import { classifyTeacherResultVisibility } from '../../services/resultVisibility.service';
 import type { WritingSubmission } from '../../types/ielts-writing.types';
 import WritingResultDetailModal from './WritingResultDetailModal';
+import { buildWritingResultSurfaceData } from './writingResultSurface';
 
 interface WritingTestResultsSectionProps {
   sessionCode: string;
@@ -35,9 +36,10 @@ interface WritingResultRow {
   studentId: string;
   studentName: string;
   overallBand: number | null;
-  task1Band: number | 'Voided' | null;
-  task2Band: number | 'Voided' | null;
-  markingStatus: 'pending-review' | 'published' | 'draft-in-progress' | 'lock conflict';
+  phase: 'pending-review' | 'published';
+  draftState: 'owned' | 'locked' | null;
+  viewerMode: 'teacher-actionable' | 'teacher-read-only';
+  taskBands: Array<{ label: string; value: string }>;
   submittedAt: number;
   submission: WritingSubmission | null;
 }
@@ -52,25 +54,38 @@ function buildViewerTeacherId(result: CanonicalWritingResult, viewerRole: Viewer
 function buildRow(
   result: CanonicalWritingResult,
   submission: WritingSubmission | null,
+  verdict: ReturnType<typeof classifyTeacherResultVisibility>,
   viewerTeacherId: string,
 ): WritingResultRow {
-  const rawMarkingStatus = submission?.markingStatus || result.writingData?.markingStatus || result.markingStatus || 'pending-review';
-  const markingStatus: WritingResultRow['markingStatus'] = submission?.gradingDraftMeta?.ownerTeacherId
-    ? (submission.gradingDraftMeta.ownerTeacherId === viewerTeacherId ? 'draft-in-progress' : 'lock conflict')
-    : (rawMarkingStatus === 'graded' || rawMarkingStatus === 'reviewed' ? 'published' : 'pending-review');
-  const isResolved = markingStatus === 'published' || markingStatus === 'draft-in-progress' || markingStatus === 'lock conflict';
-  const task1 = submission?.grading?.perTask.find((task) => task.taskNumber === 1);
-  const task2 = submission?.grading?.perTask.find((task) => task.taskNumber === 2);
+  const canAct = verdict.shouldAllowTeacherActions ?? !verdict.excludeFromAnalytics;
+  const surfaceData = submission
+    ? buildWritingResultSurfaceData(submission, {
+        viewerMode: canAct ? 'teacher-actionable' : 'teacher-read-only',
+        canRevealPublishedData: true,
+      })
+    : null;
+  const phase: WritingResultRow['phase'] = surfaceData?.phase
+    ?? ((submission?.markingStatus === 'graded' || result.writingData?.markingStatus === 'graded' || result.markingStatus === 'graded' || result.markingStatus === 'reviewed') ? 'published' : 'pending-review');
+  const draftState: WritingResultRow['draftState'] = submission?.gradingDraftMeta?.ownerTeacherId
+    ? (submission.gradingDraftMeta.ownerTeacherId === viewerTeacherId ? 'owned' : 'locked')
+    : null;
+  const taskBands = surfaceData
+    ? surfaceData.tasks.map((task) => ({
+        label: `Task ${task.taskNumber}`,
+        value: task.isVoided ? 'Voided' : task.taskBand !== null ? task.taskBand.toFixed(1) : '—',
+      }))
+    : [];
 
   return {
     resultId: result.resultId,
     submissionId: result.writingData?.submissionId || result.resultId,
     studentId: result.studentId,
     studentName: result.studentName,
-    overallBand: isResolved ? (submission?.grading?.overallBand ?? result.writingData?.overallBand ?? result.bandScore ?? null) : null,
-    task1Band: isResolved ? (task1?.isVoided ? 'Voided' : task1?.taskBand ?? null) : null,
-    task2Band: isResolved ? (task2?.isVoided ? 'Voided' : task2?.taskBand ?? null) : null,
-    markingStatus,
+    overallBand: phase === 'published' ? (surfaceData?.overallBand ?? result.writingData?.overallBand ?? result.bandScore ?? null) : null,
+    phase,
+    draftState,
+    viewerMode: canAct ? 'teacher-actionable' : 'teacher-read-only',
+    taskBands,
     submittedAt: submission?.submittedAt || result.submittedAt,
     submission,
   };
@@ -129,10 +144,20 @@ export default function WritingTestResultsSection({
         const submissionId = result.writingData?.submissionId || result.resultId;
         try {
           const response = await getSubmission(submissionId);
-          return buildRow(result, response.success ? response.data || null : null, viewerTeacherId);
+          const verdict = classifyTeacherResultVisibility({
+            result: result as any,
+            teacherId: buildViewerTeacherId(result, viewerRole, viewerTeacherId),
+            hasAssignmentAccess: true,
+          });
+          return buildRow(result, response.success ? response.data || null : null, verdict, viewerTeacherId);
         } catch (error) {
           console.warn('[WritingTestResultsSection] Failed to load submission detail', submissionId, error);
-          return buildRow(result, null, viewerTeacherId);
+          const verdict = classifyTeacherResultVisibility({
+            result: result as any,
+            teacherId: buildViewerTeacherId(result, viewerRole, viewerTeacherId),
+            hasAssignmentAccess: true,
+          });
+          return buildRow(result, null, verdict, viewerTeacherId);
         }
       }),
     );
@@ -165,8 +190,8 @@ export default function WritingTestResultsSection({
         rightValue = right.overallBand ?? -1;
         break;
       case 'status':
-        leftValue = left.markingStatus;
-        rightValue = right.markingStatus;
+        leftValue = `${left.phase}:${left.draftState || 'none'}:${left.viewerMode}`;
+        rightValue = `${right.phase}:${right.draftState || 'none'}:${right.viewerMode}`;
         break;
       case 'date':
         leftValue = left.submittedAt;
@@ -181,7 +206,7 @@ export default function WritingTestResultsSection({
     return 0;
   });
 
-  const gradedCount = analyticsRows.filter((row) => row.markingStatus === 'published').length;
+  const gradedCount = analyticsRows.filter((row) => row.phase === 'published').length;
   const avgBand = gradedCount > 0
     ? analyticsRows
       .filter((row) => row.overallBand !== null)
@@ -199,11 +224,11 @@ export default function WritingTestResultsSection({
   };
 
   const openGrading = (row: WritingResultRow) => {
-    trackAction('openWritingGrading', {
+      trackAction('openWritingGrading', {
       source: 'teacher_test_results_writing',
       resultId: row.resultId,
       submissionId: row.submissionId,
-      status: row.markingStatus,
+      status: row.phase,
     });
     navigateTo(
       'TEACHER_GRADING_DETAIL',
@@ -260,9 +285,7 @@ export default function WritingTestResultsSection({
               <thead>
                 <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
                   <th style={{ padding: '12px 16px', textAlign: 'left', cursor: 'pointer' }} onClick={() => handleSort('name')}>Student</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'center', cursor: 'pointer' }} onClick={() => handleSort('band')}>Overall Band</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'center' }}>T1 Band</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'center' }}>T2 Band</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'center', cursor: 'pointer' }} onClick={() => handleSort('band')}>Band Summary</th>
                   <th style={{ padding: '12px 16px', textAlign: 'center', cursor: 'pointer' }} onClick={() => handleSort('status')}>Status</th>
                   <th style={{ padding: '12px 16px', textAlign: 'center', cursor: 'pointer' }} onClick={() => handleSort('date')}>Submitted</th>
                   <th style={{ padding: '12px 16px', textAlign: 'center' }}>Actions</th>
@@ -276,15 +299,48 @@ export default function WritingTestResultsSection({
                     style={{ borderBottom: '1px solid #f1f5f9', cursor: row.submission ? 'pointer' : 'default' }}
                   >
                     <td style={{ padding: '12px 16px', fontWeight: 600 }}>{row.studentName}</td>
-                    <td style={{ padding: '12px 16px', textAlign: 'center' }}>{row.overallBand !== null ? row.overallBand.toFixed(1) : '-'}</td>
-                    <td style={{ padding: '12px 16px', textAlign: 'center' }}>{row.task1Band ?? '-'}</td>
-                    <td style={{ padding: '12px 16px', textAlign: 'center' }}>{row.task2Band ?? '-'}</td>
                     <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                      {row.markingStatus}
+                      <div style={{ display: 'grid', gap: '4px', justifyItems: 'center' }}>
+                        <strong style={{ color: '#0f172a' }}>
+                          {row.overallBand !== null ? row.overallBand.toFixed(1) : '—'}
+                        </strong>
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                          {row.taskBands.map((taskBand) => (
+                            <span
+                              key={`${row.resultId}-${taskBand.label}`}
+                              style={{
+                                borderRadius: '999px',
+                                background: '#f8fafc',
+                                border: '1px solid #e2e8f0',
+                                color: '#475569',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                padding: '2px 8px',
+                              }}
+                            >
+                              {taskBand.label}: {taskBand.value}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                      <div style={{ display: 'grid', gap: '4px' }}>
+                        <span>{row.phase === 'published' ? 'Published' : 'Pending Review'}</span>
+                        {row.draftState === 'owned' && (
+                          <span style={{ fontSize: '0.72rem', color: '#4f46e5', fontWeight: 700 }}>draft-in-progress</span>
+                        )}
+                        {row.draftState === 'locked' && (
+                          <span style={{ fontSize: '0.72rem', color: '#b45309', fontWeight: 700 }}>lock conflict</span>
+                        )}
+                        {row.viewerMode === 'teacher-read-only' && (
+                          <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 700 }}>Read only</span>
+                        )}
+                      </div>
                     </td>
                     <td style={{ padding: '12px 16px', textAlign: 'center' }}>{new Date(row.submittedAt).toLocaleDateString()}</td>
                     <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                      {(row.markingStatus === 'pending-review' || row.markingStatus === 'draft-in-progress' || row.markingStatus === 'lock conflict') && (
+                      {row.phase === 'pending-review' && row.viewerMode === 'teacher-actionable' && (
                         <button
                           onClick={(event) => {
                             event.stopPropagation();
@@ -292,9 +348,9 @@ export default function WritingTestResultsSection({
                           }}
                           style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #3b82f6', background: '#eff6ff', color: '#1d4ed8', cursor: 'pointer' }}
                         >
-                          {row.markingStatus === 'draft-in-progress'
+                          {row.draftState === 'owned'
                             ? 'Resume Draft'
-                            : row.markingStatus === 'lock conflict'
+                            : row.draftState === 'locked'
                               ? 'View Conflict'
                               : 'Grade'}
                         </button>
@@ -314,44 +370,20 @@ export default function WritingTestResultsSection({
         </div>
       </div>
 
-      {selectedSubmission && (
+      {selectedSubmission && (() => {
+        const selectedRow = rows.find((row) => row.submissionId === selectedSubmission.id);
+
+        return (
         <WritingResultDetailModal
           submission={selectedSubmission}
           onClose={() => setSelectedSubmission(null)}
-          onEditGrades={() => openGrading(buildRow(
-            {
-              resultId: selectedSubmission.id,
-              sessionCode,
-              testId: selectedSubmission.testMeta.testId,
-              studentId: selectedSubmission.studentId,
-              studentName: selectedSubmission.studentName,
-              totalScore: 0,
-              maxScore: 0,
-              percentage: 0,
-              bandScore: selectedSubmission.grading?.overallBand || 0,
-              questionResults: [],
-              correct: 0,
-              incorrect: 0,
-              partialCredit: 0,
-              totalQuestions: 0,
-              submittedAt: selectedSubmission.submittedAt,
-              timeElapsed: selectedSubmission.totalElapsedTimeSeconds,
-              testDuration: selectedSubmission.testMeta.duration,
-              createdAt: selectedSubmission.submittedAt,
-              testTitle,
-              testType: 'test',
-              testSkill: 'writing',
-              writingData: {
-                submissionId: selectedSubmission.id,
-                overallBand: selectedSubmission.grading?.overallBand || null,
-                markingStatus: selectedSubmission.markingStatus,
-              },
-            } as CanonicalWritingResult,
-            selectedSubmission,
-            viewerTeacherId,
-          ))}
+          viewerMode={selectedRow?.viewerMode ?? 'teacher-read-only'}
+          onEditGrades={selectedRow && selectedRow.viewerMode === 'teacher-actionable'
+            ? () => openGrading(selectedRow)
+            : undefined}
         />
-      )}
+        );
+      })()}
     </div>
   );
 }

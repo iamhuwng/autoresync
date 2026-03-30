@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { StudentRightRail } from './StudentRightRail';
 import { S } from './studentLayoutStyles';
 
 export interface StudentLayoutProps {
@@ -23,16 +24,22 @@ export const StudentLayout: React.FC<StudentLayoutProps> = ({
     const isMobile = useMediaQuery('(max-width: 768px)');
     const isTablet = useMediaQuery('(max-width: 1024px)');
 
+    const defaultMobileRightAction = (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <line x1="4" y1="6" x2="20" y2="6" />
+            <line x1="8" y1="12" x2="20" y2="12" />
+            <line x1="12" y1="18" x2="20" y2="18" />
+        </svg>
+    );
+
     const toggleLeft = () => {
-        setShowMobileLeft(!showMobileLeft);
+        setShowMobileLeft((current) => !current);
         setShowMobileRight(false);
     };
 
     const toggleRight = () => {
-        if (mobileRightAction) {
-            setShowMobileRight(!showMobileRight);
-            setShowMobileLeft(false);
-        }
+        setShowMobileRight((current) => !current);
+        setShowMobileLeft(false);
     };
 
     const closeAll = () => {
@@ -42,12 +49,11 @@ export const StudentLayout: React.FC<StudentLayoutProps> = ({
 
     return (
         <div className="student-view-root" style={S.root}>
-            {/* Centralized Head additions */}
             <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
             <style>{`
         * { box-sizing: border-box; }
-        body { 
-          background: #f3f4f6 !important; 
+        body {
+          background: #f3f4f6 !important;
           background-image: none !important;
           margin: 0;
           padding: 0;
@@ -62,85 +68,99 @@ export const StudentLayout: React.FC<StudentLayoutProps> = ({
         }
       `}</style>
 
-            {/* Mobile + Tablet Header */}
             {(isMobile || isTablet) && (
                 <div style={S.mobileHeader}>
-                    <button style={S.mobileBtn} onClick={toggleLeft} aria-label="Open navigation">
+                    <button type="button" style={S.mobileBtn} onClick={toggleLeft} aria-label="Open navigation">
                         ☰
                     </button>
                     <span style={{ fontWeight: 700, fontSize: '1.125rem', color: '#111827' }}>
                         {mobileTitle}
                     </span>
-                    {mobileRightAction ? (
-                        <div onClick={toggleRight}>{mobileRightAction}</div>
-                    ) : (
-                        <div style={{ width: 40 }} /> /* Spacer for centering */
-                    )}
+                    <button type="button" style={S.mobileBtn} onClick={toggleRight} aria-label="Open right rail">
+                        {mobileRightAction || defaultMobileRightAction}
+                    </button>
                 </div>
             )}
 
-            {/* Mobile + Tablet Backdrops */}
             {(isMobile || isTablet) && (showMobileLeft || showMobileRight) && (
                 <div style={S.backdrop} onClick={closeAll} />
             )}
 
-            {/* Main 3-Column Container */}
-            <div style={{
-                ...S.container,
-                ...(isMobile ? { flexDirection: 'column' } : {}),
-            }}>
-
-                {/* ── LEFT SIDEBAR ── */}
-                <header style={{
-                    ...S.sidebar,
-                    ...((isMobile || isTablet) ? {
-                        position: 'fixed',
-                        top: 0,
-                        left: 0,
-                        width: 280,
-                        height: '100vh',
-                        background: 'white',
-                        zIndex: 1000,
-                        padding: 24,
-                        transform: showMobileLeft ? 'translateX(0)' : 'translateX(-100%)',
-                        transition: 'transform 0.3s ease-in-out',
-                        boxShadow: showMobileLeft ? '4px 0 20px rgba(0,0,0,0.1)' : 'none',
-                    } : {}),
-                }}>
+            <div
+                data-testid="student-layout-container"
+                style={{
+                    ...S.container,
+                    ...((isMobile || isTablet)
+                        ? {
+                            display: 'block',
+                            padding: 0,
+                        }
+                        : {}),
+                }}
+            >
+                <header
+                    style={{
+                        ...S.sidebar,
+                        ...((isMobile || isTablet)
+                            ? {
+                                position: 'fixed',
+                                top: 0,
+                                left: 0,
+                                width: 280,
+                                height: '100vh',
+                                background: 'white',
+                                zIndex: 1000,
+                                padding: 24,
+                                transform: showMobileLeft ? 'translateX(0)' : 'translateX(-100%)',
+                                transition: 'transform 0.3s ease-in-out',
+                                boxShadow: showMobileLeft ? '4px 0 20px rgba(0,0,0,0.1)' : 'none',
+                            }
+                            : {}),
+                    }}
+                >
                     {sidebar}
                 </header>
 
-                {/* ── CENTER FEED ── */}
-                <main style={{
-                    ...S.feed,
-                    ...((isMobile || isTablet) ? { marginTop: 56, borderLeft: 'none', borderRight: 'none', maxWidth: '100%' } : {}),
-                }}>
+                <main
+                    style={{
+                        ...S.feed,
+                        ...((isMobile || isTablet)
+                            ? {
+                                marginTop: 56,
+                                borderLeft: 'none',
+                                borderRight: 'none',
+                                maxWidth: '100%',
+                            }
+                            : {}),
+                    }}
+                >
                     {children}
                 </main>
 
-                {/* ── RIGHT PANEL ── */}
-                {rightPanel && (
-                    <aside style={{
+                <aside
+                    data-testid="student-layout-right-rail"
+                    style={{
                         ...S.rightPanel,
-                        ...(isMobile ? {
-                            position: 'fixed',
-                            top: 0,
-                            right: 0,
-                            width: 320,
-                            height: '100vh',
-                            background: 'white',
-                            zIndex: 1000,
-                            padding: 24,
-                            overflowY: 'auto',
-                            transform: showMobileRight ? 'translateX(0)' : 'translateX(100%)',
-                            transition: 'transform 0.3s ease-in-out',
-                            boxShadow: showMobileRight ? '-4px 0 20px rgba(0,0,0,0.1)' : 'none',
-                        } : {}),
-                        ...(isTablet && !isMobile ? { display: 'none' } : {}), // Hidden on tablet
-                    }}>
-                        {rightPanel}
-                    </aside>
-                )}
+                        ...((isMobile || isTablet)
+                            ? {
+                                position: 'fixed',
+                                top: 0,
+                                right: 0,
+                                width: 320,
+                                height: '100vh',
+                                background: 'white',
+                                zIndex: 1000,
+                                padding: 24,
+                                overflowY: 'auto',
+                                transform: showMobileRight ? 'translateX(0)' : 'translateX(100%)',
+                                transition: 'transform 0.3s ease-in-out',
+                                boxShadow: showMobileRight ? '-4px 0 20px rgba(0,0,0,0.1)' : 'none',
+                            }
+                            : {}),
+                    }}
+                >
+                    <StudentRightRail supplementalContent={rightPanel} />
+                </aside>
             </div>
         </div>
     );

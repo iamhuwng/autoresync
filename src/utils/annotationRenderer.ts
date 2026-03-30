@@ -10,7 +10,7 @@ import type { WritingAnnotation } from '../types/ielts-writing.types';
 
 interface RenderOptions {
     readOnly: boolean;
-    onAnnotationClick?: (annotation: WritingAnnotation) => void;
+    onAnnotationClick?: (annotation: WritingAnnotation, anchorElement?: HTMLElement | null) => void;
     onAnnotationDelete?: (id: string) => void;
 }
 
@@ -101,9 +101,9 @@ export function renderAnnotatedText(
                 key: `a-${i}`,
                 style,
                 onClick: hasComment && options.onAnnotationClick
-                    ? () => {
+                    ? (event: React.MouseEvent<HTMLSpanElement>) => {
                         const commentAnnotation = overlapping.find(a => a.type === 'comment');
-                        if (commentAnnotation) options.onAnnotationClick!(commentAnnotation);
+                        if (commentAnnotation) options.onAnnotationClick!(commentAnnotation, event.currentTarget);
                     }
                     : undefined,
                 title: hasComment

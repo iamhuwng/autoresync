@@ -1,0 +1,99 @@
+# IELTS Writing Lifecycle And Surfaces
+
+## Lifecycle
+
+```text
+Teacher creates/publishes writing test
+  -> student writes in live session, homework, or solo practice
+  -> submission stored in Firestore writing_submissions
+  -> student sees acknowledgement / pending-review state
+  -> teacher reviews in grading queue/editor
+  -> teacher publishes feedback
+  -> student and teacher read the published result through Writing-specific result surfaces
+```
+
+## Core Lifecycle Rules
+
+- Writing is teacher-graded.
+- Pending-review and published are the only public result phases.
+- Draft ownership, lock conflicts, and reopen flows are teacher operational states, not public student phases.
+- Pure Writing submit does not route students into the generic immediate-review modal.
+
+## Canonical Active Surfaces
+
+### Student
+- `SubmissionCompletePage`  
+  Acknowledgement-only front door immediately after pure Writing submit.
+- `StudentTestResultsPage`  
+  Full-page Writing result reader.
+- `ResultSlidePanel`  
+  Saved-result shell that delegates Writing rows to the Writing-specific student surface.
+- `WritingStudentResultSurface` / `WritingResultView`  
+  Dedicated student Writing result body.
+
+### Teacher
+- `WritingGradingQueuePage`  
+  Operational front door for pending-review work.
+- `WritingGradingPage`  
+  Canonical grading editor.
+- `TeacherTestResultsPage` + `WritingTestResultsSection`  
+  Session-result bridge into Writing results.
+- `WritingResultDetailModal` / teacher Writing result surface  
+  Published and pending-review teacher-facing result reader with re-entry capability.
+
+## Student Result Surface Contract
+
+### Pending-review
+- no published scores
+- no published comments
+- no published markup
+- show submission snapshot and waiting guidance only
+
+### Published
+- compact, task-aware band strip
+- essay / marked response in the main column
+- right rail for Writing-specific support modules
+- result content comes from `publishedGrading` first, legacy fallback second
+
+### Comment-Rail Interaction
+
+In the wide student slide modal:
+- clicking highlighted essay text forces `Comments` open
+- the whole comments rail moves as one block
+- the selected comment remains in normal list order
+- the alignment rule is `selected comment header top == clicked annotation top`
+
+## Teacher Result Surface Contract
+
+### Pending-review
+- show submission facts, source metadata, essay preview, and the appropriate action state
+- `Grade now` when there is no draft
+- `Resume draft` when a teacher-private draft exists
+
+### Published
+- compact band strip
+- task-aware summaries and criteria feedback
+- published markup and ordered comments
+- audit metadata and re-open path when permissions allow
+
+## Superseded Surface Assumptions
+
+Do not treat the following as current architecture:
+- Writing as a generic score-summary/question-review shell
+- a public three-state student result model
+- immediate post-submit Writing result review
+- center-based or focused-card-overlay descriptions for the student comment rail
+
+## 2026-03-30 Amendment - Grading Editor Comment-Rail Alignment
+
+The teacher grading editor now follows the same stable cross-column reading model as the wide student Writing result surface.
+
+Current contract:
+- clicking highlighted essay text forces the right-side `Comments` tab open
+- the whole comments rail moves as one block
+- the selected comment stays in normal essay-order list position
+- the right-side visual anchor is the selected comment header row
+- the left-side visual anchor is the clicked annotation top line
+- the intended steady-state is `selected comment header top == clicked annotation top`
+
+This supersedes any looser wording that implied the matching comment only scrolls nearby in the sidebar.

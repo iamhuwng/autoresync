@@ -474,7 +474,7 @@ export function ProfilePage() {
                 />
             }
             rightPanel={
-                <aside style={{ width: 320, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                     {profile?.role === 'student' && (
                         <div style={localStyles.card}>
                             <Title order={5} mb="md" c="#111827">Teacher Invitation</Title>
@@ -535,7 +535,7 @@ export function ProfilePage() {
                             )}
                         </div>
                     )}
-                </aside>
+                </div>
             }
         >
             <div style={S.feedHeader}>

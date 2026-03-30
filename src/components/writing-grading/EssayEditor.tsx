@@ -65,7 +65,7 @@ export interface EssayEditorProps {
     /** Callback when a comment gutter dot is clicked */
     onGutterDotClick: (commentId: string) => void;
     /** Callback when a highlighted comment mark is clicked in the essay */
-    onCommentMarkClick: (commentId: string) => void;
+    onCommentMarkClick: (commentId: string, anchorViewportTop: number | null) => void;
     /** Callback when a highlighted comment mark is hovered in the essay */
     onCommentMarkHover?: (commentId: string | null) => void;
     /** Callback when Original/Marked view changes — parent disables Comments tab */
@@ -181,7 +181,8 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                 if (commentEl) {
                     const commentId = commentEl.getAttribute('data-comment-id');
                     if (commentId) {
-                        onCommentMarkClick(commentId);
+                        const rect = (commentEl as HTMLElement).getBoundingClientRect();
+                        onCommentMarkClick(commentId, rect.top);
                         return true;
                     }
                 }

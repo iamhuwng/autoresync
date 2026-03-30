@@ -37,6 +37,8 @@ import { FeedbackDisplay } from '../components/feedback/FeedbackDisplay';
 import { getSubmissionsBySession } from '../services/writingSubmissionService';
 import type { WritingSubmission } from '../types/ielts-writing.types';
 import { deriveSessionReleaseState, getReleaseVisibility } from '../types/releaseState.types';
+import { FEATURE_IDS } from '../config/featureRegistry';
+import { useFeatureTracking } from '../hooks/useFeatureTracking';
 
 
 // PRD-0030 Task 6.1.1: Lazy-load WritingResultView for Writing tests
@@ -66,6 +68,7 @@ export const StudentTestResultsPage: React.FC = () => {
   const { sessionCode } = useParams<{ sessionCode: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const { trackAction } = useFeatureTracking(FEATURE_IDS.results);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -542,65 +545,137 @@ export const StudentTestResultsPage: React.FC = () => {
     );
   }
 
+  const effectiveReleaseState = deriveSessionReleaseState(session);
+  const visibility = getReleaseVisibility(effectiveReleaseState);
+  const canRevealWritingPublishedData = effectiveReleaseState === 'feedback-released';
+  const writingReleaseNotice = writingSubmission && effectiveReleaseState !== 'feedback-released'
+    ? {
+        tone: effectiveReleaseState === 'locked-review' ? 'warning' as const : 'info' as const,
+        title: effectiveReleaseState === 'locked-review' ? 'Detailed review is still locked' : 'Feedback is not released yet',
+        body: effectiveReleaseState === 'locked-review'
+          ? 'This session result is still governed by the live-session release state. Writing feedback will appear here after the teacher publishes and releases it.'
+          : 'The teacher has released result access, but detailed Writing feedback is still pending release.',
+      }
+    : null;
+
   // PRD-0030 Task 6.1.1: Writing test — render WritingResultView
   if (writingSubmission && testData.skill === 'Writing') {
     return (
-      <div
-        style={{
-          minHeight: '100vh',
-          background: 'linear-gradient(135deg, rgba(250, 245, 255, 0.95) 0%, rgba(240, 249, 255, 0.95) 50%, rgba(240, 253, 250, 0.95) 100%)',
-          padding: '2rem',
-        }}
-      >
-        <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
-          {/* Header */}
-          <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
-            <h1
-              style={{
-                margin: 0,
-                fontSize: '2.5rem',
-                fontWeight: 800,
-                background: 'linear-gradient(135deg, #8b5cf6 0%, #06b6d4 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-                marginBottom: '0.5rem',
-              }}
-            >
-              Writing Test Results
-            </h1>
-            <div style={{ fontSize: '1.125rem', color: '#64748b', fontWeight: 500 }}>
-              {testData.title}
-            </div>
-          </div>
-
-          {/* WritingResultView — lazy loaded with CSS spinner */}
-          <Suspense
-            fallback={
-              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '3rem 0', gap: '0.5rem' }}>
-                <div style={{
-                  width: '2rem', height: '2rem',
-                  border: '3px solid #e2e8f0',
-                  borderTop: '3px solid #8b5cf6',
-                  borderRadius: '50%',
-                  animation: 'spin 0.8s linear infinite',
-                }} />
-                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-              </div>
-            }
+      <div className="student-view-root" style={{ background: '#f3f4f6', minHeight: '100vh' }}>
+        <div
+          style={{
+            maxWidth: '1280px',
+            margin: '0 auto',
+            display: 'grid',
+            gridTemplateColumns: '256px minmax(0, 980px) 1fr',
+            gap: '24px',
+            padding: '24px 16px 40px',
+          }}
+        >
+          <aside
+            style={{
+              position: 'sticky',
+              top: 24,
+              alignSelf: 'start',
+              display: 'grid',
+              gap: '16px',
+            }}
           >
-            <WritingResultView submission={writingSubmission} />
-          </Suspense>
+            <div style={{ background: '#ffffff', borderRadius: '20px', border: '1px solid #e5e7eb', padding: '18px' }}>
+              <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#6b7280', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                Writing Result
+              </div>
+              <h1 style={{ margin: '8px 0 0', fontSize: '1.45rem', fontWeight: 800, color: '#111827' }}>
+                {testData.title}
+              </h1>
+              <div style={{ marginTop: '8px', color: '#6b7280', fontSize: '0.9rem', lineHeight: 1.6 }}>
+                Review the published Writing feedback here once your teacher releases it.
+              </div>
+            </div>
 
-          {/* Action Buttons */}
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '2rem', flexWrap: 'wrap' }}>
-            <Button variant="primary" onClick={() => navigate('/')}>
-              🏠 Return to Home
-            </Button>
-            <Button variant="glass" onClick={() => window.print()}>
-              🖨️ Print Results
-            </Button>
-          </div>
+            <div style={{ background: '#ffffff', borderRadius: '20px', border: '1px solid #e5e7eb', padding: '18px', display: 'grid', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  trackAction('returnToDashboard', { source: 'student_writing_result_page' });
+                  navigate('/');
+                }}
+                style={{
+                  border: 'none',
+                  borderRadius: '999px',
+                  background: '#111827',
+                  color: '#ffffff',
+                  padding: '12px 16px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Return to Home
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  trackAction('printWritingResults', {
+                    source: 'student_writing_result_page',
+                    submissionId: writingSubmission.id,
+                  });
+                  window.print();
+                }}
+                style={{
+                  border: '1px solid #d1d5db',
+                  borderRadius: '999px',
+                  background: '#ffffff',
+                  color: '#374151',
+                  padding: '12px 16px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Print Result
+              </button>
+            </div>
+          </aside>
+
+          <main style={{ minWidth: 0 }}>
+            <Suspense
+              fallback={
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '3rem 0', gap: '0.5rem' }}>
+                  <div style={{
+                    width: '2rem', height: '2rem',
+                    border: '3px solid #e2e8f0',
+                    borderTop: '3px solid #4f46e5',
+                    borderRadius: '50%',
+                    animation: 'spin 0.8s linear infinite',
+                  }} />
+                  <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                </div>
+              }
+            >
+              <WritingResultView
+                submission={writingSubmission}
+                canRevealPublishedData={canRevealWritingPublishedData}
+                releaseNotice={writingReleaseNotice}
+                variant="page"
+                onMarkupViewChange={(taskNumber, mode) => {
+                  trackAction('switchWritingMarkupMode', {
+                    source: 'student_writing_result_page',
+                    submissionId: writingSubmission.id,
+                    taskNumber,
+                    mode,
+                  });
+                }}
+                onCriteriaToggle={(expanded) => {
+                  trackAction('toggleWritingCriteriaFeedback', {
+                    source: 'student_writing_result_page',
+                    submissionId: writingSubmission.id,
+                    expanded,
+                  });
+                }}
+              />
+            </Suspense>
+          </main>
+
+          <aside aria-hidden="true" />
         </div>
       </div>
     );
@@ -615,9 +690,6 @@ export const StudentTestResultsPage: React.FC = () => {
   const feedback = storedFeedback || generatePerformanceFeedback(safeResults.percentage);
 
   // PRD-0040 Task 4.4: Release-state governance for session-scoped results
-  const effectiveReleaseState = deriveSessionReleaseState(session);
-  const visibility = getReleaseVisibility(effectiveReleaseState);
-
   return (
     <div
       style={{

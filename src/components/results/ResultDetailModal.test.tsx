@@ -41,6 +41,19 @@ vi.mock('../../services/resultFeedbackGeneration.service', () => ({
     mockGenerateFormativeFeedbackForSavedResult(...args),
 }));
 
+vi.mock('../../hooks/useAuth', () => ({
+  useAuth: () => ({
+    user: { uid: 'teacher-1', email: 'teacher@example.com' },
+    profile: { role: 'teacher' },
+  }),
+}));
+
+vi.mock('../../hooks/useNavigation', () => ({
+  useNavigation: () => ({
+    navigateTo: vi.fn(),
+  }),
+}));
+
 vi.mock('./ResultContextBadge', () => ({
   ResultContextBadge: ({ contextType }: { contextType?: string }) => (
     <div data-testid="result-context-badge">{contextType || 'self_study'}</div>

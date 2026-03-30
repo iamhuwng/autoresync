@@ -14,6 +14,8 @@ This pack covers:
 
 This pack does not re-specify session orchestration, grading internals, or unrelated monitor workflows.
 
+For the Writing domain specifically, use the dedicated packet at `../ielts-writing/README.md`.
+
 ## Reading Order
 
 1. `surface-map.md`

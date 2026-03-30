@@ -1,0 +1,246 @@
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import WritingStudentResultSurface from './WritingStudentResultSurface';
+import type { WritingResultSurfaceData } from './writingResultSurface';
+
+vi.mock('./WritingPublishedMarkupViewer', () => ({
+  __esModule: true,
+  default: ({ onCommentSelect }: { onCommentSelect?: (commentId: string, anchorViewportTop: number | null) => void }) => (
+    <button type="button" onClick={() => onCommentSelect?.('comment-2', 180)}>
+      Focus comment 2
+    </button>
+  ),
+}));
+
+const scrollIntoViewMock = vi.fn();
+
+const surfaceData: WritingResultSurfaceData = {
+  submissionId: 'submission-1',
+  phase: 'published',
+  viewerMode: 'student',
+  testTitle: 'IELTS Writing',
+  formatLabel: 'IELTS Academic',
+  contextLabel: 'Saved Result',
+  studentName: 'Student One',
+  studentId: 'student-1',
+  submittedAt: Date.UTC(2026, 2, 30),
+  totalElapsedTimeSeconds: 2400,
+  totalWordCount: 420,
+  teacherName: 'Teacher One',
+  teacherId: 'teacher-1',
+  gradedAt: Date.UTC(2026, 2, 30),
+  updatedAt: Date.UTC(2026, 2, 30),
+  overallBand: 6.5,
+  overallSummary: '<p>Overall summary</p>',
+  auditVersion: 2,
+  activeTaskCount: 2,
+  hasPublishedMarkup: true,
+  hasAnyFeedback: true,
+  usesLegacyProjection: false,
+  draftOwnerTeacherId: null,
+  bandSummaryItems: [
+    { key: 'overall', label: 'Overall', band: 6.5, tone: 'overall' },
+    { key: 'task-1', label: 'Task 1', band: 6, tone: 'task' },
+    { key: 'task-2', label: 'Task 2', band: 7, tone: 'task' },
+  ],
+  tasks: [
+    {
+      taskNumber: 1,
+      taskType: 'report',
+      promptText: 'Summarize the chart.',
+      wordMinimum: 150,
+      essayText: 'Essay text',
+      wordCount: 190,
+      activeTimeSeconds: 900,
+      isVoided: false,
+      taskBand: 6,
+      criteriaScores: { TA: 6, CC: 6, LR: 6, GRA: 6 },
+      taskSummary: '<p>Task summary</p>',
+      criteriaFeedback: { TA: '<p>TA feedback</p>' },
+      markedContent: { type: 'doc', content: [] },
+      comments: [
+        {
+          id: 'comment-1',
+          text: '<p>First comment</p>',
+          color: '#4f46e5',
+          anchorText: 'first phrase',
+          from: 1,
+          to: 5,
+          status: 'active',
+          categoryLabel: 'Task Response',
+        },
+        {
+          id: 'comment-2',
+          text: '<p>Second comment</p>',
+          color: '#4f46e5',
+          anchorText: 'second phrase',
+          from: 6,
+          to: 10,
+          status: 'active',
+          categoryLabel: 'Grammar',
+        },
+      ],
+      fallbackAnnotations: [],
+      usesLegacyProjection: false,
+    },
+    {
+      taskNumber: 2,
+      taskType: 'essay',
+      promptText: 'Discuss both views.',
+      wordMinimum: 250,
+      essayText: 'Essay text 2',
+      wordCount: 230,
+      activeTimeSeconds: 1200,
+      isVoided: false,
+      taskBand: 7,
+      criteriaScores: { TR: 7, CC: 7, LR: 7, GRA: 7 },
+      taskSummary: '<p>Task 2 summary</p>',
+      criteriaFeedback: { TR: '<p>TR feedback</p>' },
+      markedContent: null,
+      comments: [],
+      fallbackAnnotations: [],
+      usesLegacyProjection: false,
+    },
+  ],
+};
+
+describe('WritingStudentResultSurface', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    scrollIntoViewMock.mockClear();
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoViewMock,
+    });
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
+      configurable: true,
+      get() {
+        if (this?.getAttribute?.('data-comment-header-id') === 'comment-2') {
+          return 20;
+        }
+        return 80;
+      },
+    });
+    Object.defineProperty(HTMLElement.prototype, 'scrollTop', {
+      configurable: true,
+      writable: true,
+      value: 0,
+    });
+    Object.defineProperty(HTMLElement.prototype, 'getBoundingClientRect', {
+      configurable: true,
+      value() {
+        if (this?.getAttribute?.('data-comments-viewport') === 'true') {
+          return {
+            x: 0,
+            y: 100,
+            width: 480,
+            height: 400,
+            top: 100,
+            left: 0,
+            right: 480,
+            bottom: 500,
+            toJSON() {
+              return this;
+            },
+          };
+        }
+
+        if (this?.getAttribute?.('data-comments-stack') === 'true') {
+          return {
+            x: 0,
+            y: 140,
+            width: 480,
+            height: 320,
+            top: 140,
+            left: 0,
+            right: 480,
+            bottom: 460,
+            toJSON() {
+              return this;
+            },
+          };
+        }
+
+        if (this?.getAttribute?.('data-comment-header-id') === 'comment-2') {
+          return {
+            x: 0,
+            y: 260,
+            width: 420,
+            height: 20,
+            top: 260,
+            left: 24,
+            right: 444,
+            bottom: 280,
+            toJSON() {
+              return this;
+            },
+          };
+        }
+
+        if (this?.getAttribute?.('data-comment-card-id') === 'comment-2') {
+          return {
+            x: 0,
+            y: 244,
+            width: 440,
+            height: 96,
+            top: 244,
+            left: 20,
+            right: 460,
+            bottom: 340,
+            toJSON() {
+              return this;
+            },
+          };
+        }
+
+        return {
+          x: 0,
+          y: 0,
+          width: 480,
+          height: 320,
+          top: 0,
+          left: 0,
+          right: 480,
+          bottom: 320,
+          toJSON() {
+            return this;
+          },
+        };
+      },
+    });
+  });
+
+  it('opens the comments tab and highlights the matching comment when essay markup is clicked', async () => {
+    render(
+      <WritingStudentResultSurface
+        data={surfaceData}
+        variant="panel"
+        forceWidePanelLayout
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Prompt' })).toBeInTheDocument();
+    expect(screen.queryByText('Second comment')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Focus comment 2' }));
+
+    const highlightedComment = await screen.findByText('Second comment');
+    const highlightedCard = highlightedComment.closest('article');
+    const shiftedCommentsStack = highlightedCard?.parentElement;
+
+    expect(screen.getByRole('button', { name: 'Comments' })).toBeInTheDocument();
+    expect(highlightedCard).toHaveAttribute('data-highlighted', 'true');
+    expect(highlightedCard).toHaveStyle({
+      background: '#eef2ff',
+      border: '1px solid #818cf8',
+    });
+    expect(shiftedCommentsStack).toHaveAttribute('data-comments-shifted', 'true');
+
+    await waitFor(() => {
+      expect(shiftedCommentsStack).toHaveStyle({
+        transform: 'translateY(-40px)',
+      });
+      expect(scrollIntoViewMock).not.toHaveBeenCalled();
+    });
+  });
+});

@@ -2,7 +2,7 @@
 title: Grading Editor Redesign
 description: Specification for redesigning the IELTS Writing grading editor with TipTap rich essay editor, Google Docs-style comments, and 3-tab right panel
 createdAt: '2026-03-01T05:40:45.441Z'
-updatedAt: '2026-03-29T21:51:22.769Z'
+updatedAt: '2026-03-29T23:39:01.083Z'
 tags:
   - spec
   - approved
@@ -469,3 +469,8 @@ When this document conflicts with the latest teacher writing grading editor beha
 - If any section in this redesign spec conflicts with the finalization doc, follow the finalization doc.
 
 - Additional finalized UI delta: existing-comment edit mode now uses a compact inline edit workspace with a single source-context row and reduced-radius controls, instead of reusing the full new-comment composer hierarchy inside the focused card.
+
+
+## Superseded Result-Surface Note 2026-03-30
+
+Any student-result-view guidance in this grading-editor spec is now subordinate to `specs/ielts-writing-result-surfaces-2026-03-30`. The grading-editor spec remains authoritative for teacher editing interactions and published grading shape, but not for the standalone student or teacher result-reader layout.

@@ -1,10 +1,8 @@
 ---
 title: Student Experience Architecture
+description: 'Student-facing system overview: 20 pages, design standard, adaptive layout, UX patterns, color/typography system.'
 createdAt: '2026-02-27T16:18:36.604Z'
-updatedAt: '2026-02-27T16:18:44.236Z'
-description: >-
-  Student-facing system overview: 20 pages, design standard, adaptive layout, UX
-  patterns, color/typography system.
+updatedAt: '2026-03-30T03:15:29.339Z'
 tags:
   - architecture
   - student
@@ -12,6 +10,7 @@ tags:
   - ux
   - core
 ---
+
 # Student Experience Architecture
 
 ## Overview
@@ -55,35 +54,36 @@ The student experience spans 20 pages covering dashboard, courses, classes, test
 
 ## Design Standard Summary
 
-All student pages follow @doc/design/student-view-design-standard:
+All student pages follow the shared student design system documented in @doc/design/student-view-design-standard.
 
-### Layout: 3-Column Social Feed
-```
+### Layout: Shared Student Shell
+```text
 Desktop (≥1025px):
-┌──────────┬──────────────────────────┬───────────────────┐
-│  LEFT    │      CENTER FEED         │   RIGHT PANEL     │
-│  256px   │      max-width: 600px    │   320px           │
-│  sticky  │      border-left/right   │   sticky          │
-│  nav     │      content scrolls     │   widgets         │
-└──────────┴──────────────────────────┴───────────────────┘
+┌──────────┬──────────────────────────────┬───────────────┐
+│  LEFT    │         CENTER FEED          │   RIGHT RAIL  │
+│  220px   │ minmax(0, 1fr), max 860px    │    280px      │
+│  sticky  │ shell-owned center column    │ shell-owned   │
+│  nav     │ content scrolls              │ global modules│
+└──────────┴──────────────────────────────┴───────────────┘
 
-Tablet (769-1024px): Feed only, sidebars hidden
-Mobile (≤768px): Feed + off-canvas sidebars
+Shell max width: 1440px
+Desktop gap: 24px
+Tablet/mobile: feed-first with shell-owned off-canvas drawers
 ```
 
 ### Color System
-- **Backgrounds:** Light gray (`#f3f4f6`) page, white (`#ffffff`) cards
-- **Text:** Dark (`#111827`) headings, gray body/muted
-- **Accent:** Indigo (`#4f46e5`) for primary actions
-- **NO gradients, NO glassmorphism, NO purple**
-- CSS override layer: `student-view-override.css` auto-neutralizes legacy patterns
+- page background: `#f3f4f6`
+- surfaces: `#ffffff`
+- text: `#111827` headings and `#6b7280` metadata
+- accent: `#4f46e5`
+- banned: gradients, glassmorphism, purple-primary styling
 
 ### Enforcement Mechanism
-1. Root class: `className="student-view-root"` activates CSS overrides
-2. Legacy files have deprecation banners at top
-3. CSS custom properties: `--sv-bg-page`, `--sv-accent`, `--sv-text-primary`, etc.
-4. Reference implementation: `StudentDashboardPage.jsx`
-
+1. Root class: `className="student-view-root"` activates CSS overrides.
+2. `StudentLayout` owns the shell structure and responsive drawer behavior.
+3. `StudentRightRail` owns shared right-rail modules for live sessions, homework, and class summaries.
+4. `rightPanel` is supplemental-only and appends page-specific widgets under the shared shell-owned modules.
+5. Reference implementation: `StudentLayout`, `StudentRightRail`, and `StudentDashboardPage.jsx`.
 ## Key Patterns
 
 ### Adaptive Layout (Quiz Views)
@@ -127,6 +127,32 @@ Mobile (≤768px): Feed + off-canvas sidebars
 
 ## Related Docs
 - @doc/design/student-view-design-standard — Full design spec
+- @doc/sop/student-view-adaptive-layout — Adaptive layout implementation
+- @doc/sop/student-ux-improvements — UX improvements (Feb 2026)
+- @doc/sop/adaptive-layout-implementation — Original layout implementation
+- @doc/prd/prd-student-dashboard — Dashboard PRD
+- @doc/prd/prd-academic-record — Academic record PRD
+- @doc/architecture/test-system-architecture — Test system (cross-ref)
+
+
+## Student Shell Platform
+
+The student shell is now a shared layout platform rather than a dashboard-only composition. `StudentLayout` owns the structural 3-column shell and the global right rail across dashboard, homework, records, courses, course detail, class detail, library, and profile.
+
+Updated shell contract:
+- desktop grid: `220px / minmax(0, 1fr) / 280px`
+- shell max width: `1440px`
+- center feed cap: `860px`
+- desktop column gap: `24px`
+- mobile/tablet: feed-first with shell-owned off-canvas left and right drawers
+
+The right rail is also platform-owned. `StudentRightRail` always renders shell modules for live sessions, upcoming homework, and enrolled classes. Individual pages may append supplemental widgets through `rightPanel`, but they should not own the right-column structure.
+
+See @doc/architecture/student-shell-right-rail-architecture for the detailed shell contract, data ownership model, and extension pattern.
+
+## Related Docs
+- @doc/design/student-view-design-standard — Full design spec
+- @doc/architecture/student-shell-right-rail-architecture — Shared student shell and right-rail contract
 - @doc/sop/student-view-adaptive-layout — Adaptive layout implementation
 - @doc/sop/student-ux-improvements — UX improvements (Feb 2026)
 - @doc/sop/adaptive-layout-implementation — Original layout implementation

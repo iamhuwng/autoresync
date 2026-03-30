@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CommentCategoryId, GradingComment } from '../../types/ielts-writing.types';
 import CommentCard from './CommentCard';
 import CommentComposer from './CommentComposer';
@@ -11,6 +11,7 @@ interface CommentAnchorPosition {
     anchorTop: number;
     anchorRight: number;
     anchorCenterY: number;
+    anchorViewportTop: number;
 }
 
 export interface PendingCommentDraft {
@@ -27,6 +28,7 @@ export interface CommentSidebarProps {
     comments: GradingComment[];
     taskNumber: 1 | 2;
     focusedCommentId: string | null;
+    focusedCommentAnchorViewportTop?: number | null;
     hoveredCommentId: string | null;
     anchorPositions: CommentAnchorPosition[];
     editorScrollTop: number;
@@ -50,6 +52,7 @@ export default function CommentSidebar({
     comments,
     taskNumber,
     focusedCommentId,
+    focusedCommentAnchorViewportTop = null,
     hoveredCommentId,
     anchorPositions,
     editorScrollTop: _editorScrollTop,
@@ -70,7 +73,11 @@ export default function CommentSidebar({
 }: CommentSidebarProps) {
     const [filter, setFilter] = useState<FilterMode>('open');
     const sidebarRef = useRef<HTMLDivElement>(null);
+    const commentsViewportRef = useRef<HTMLDivElement>(null);
+    const commentsRailRef = useRef<HTMLDivElement>(null);
+    const commentHeaderRefs = useRef<Record<string, HTMLDivElement | null>>({});
     const pendingComposerRef = useRef<HTMLDivElement>(null);
+    const [commentsStackTranslateY, setCommentsStackTranslateY] = useState(0);
 
     useEffect(() => {
         if (pendingCommentDraft && filter !== 'open' && filter !== 'all') {
@@ -135,16 +142,45 @@ export default function CommentSidebar({
         deleted: comments.filter((comment) => comment.status === 'deleted').length,
     }), [comments]);
 
-    useEffect(() => {
-        if (!focusedCommentId || !sidebarRef.current) {
+    useLayoutEffect(() => {
+        if (!focusedCommentId) {
+            setCommentsStackTranslateY(0);
             return;
         }
 
-        const cardElement = sidebarRef.current.querySelector(`[data-comment-id="${focusedCommentId}"]`);
-        if (cardElement) {
-            cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        const viewportElement = commentsViewportRef.current;
+        const railElement = commentsRailRef.current;
+        const selectedCommentHeaderElement = commentHeaderRefs.current[focusedCommentId] ?? null;
+        const selectedCommentPosition = positionLookup.get(focusedCommentId);
+        const selectedCommentCard = sidebarRef.current?.querySelector(`[data-comment-id="${focusedCommentId}"]`) as HTMLElement | null;
+        const anchorViewportTop = focusedCommentAnchorViewportTop ?? selectedCommentPosition?.anchorViewportTop ?? null;
+
+        if (!selectedCommentCard) {
+            setCommentsStackTranslateY(0);
+            return;
         }
-    }, [focusedCommentId]);
+
+        if (viewportElement && railElement && selectedCommentHeaderElement && anchorViewportTop !== null) {
+            const viewportRect = viewportElement.getBoundingClientRect();
+            const railRect = railElement.getBoundingClientRect();
+            const headerRect = selectedCommentHeaderElement.getBoundingClientRect();
+            const headerHeight = headerRect.height || selectedCommentHeaderElement.offsetHeight || 0;
+            const viewportStyles = window.getComputedStyle(viewportElement);
+            const viewportPaddingTop = Number.parseFloat(viewportStyles.paddingTop || '0') || 0;
+            const viewportPaddingBottom = Number.parseFloat(viewportStyles.paddingBottom || '0') || 0;
+            const desiredHeaderTop = Math.min(
+                Math.max(anchorViewportTop, viewportRect.top + viewportPaddingTop),
+                viewportRect.bottom - viewportPaddingBottom - headerHeight,
+            );
+            const headerOffsetWithinRail = headerRect.top - railRect.top;
+            const desiredHeaderTopWithinViewport = desiredHeaderTop - viewportRect.top - viewportPaddingTop;
+            setCommentsStackTranslateY(desiredHeaderTopWithinViewport - headerOffsetWithinRail);
+            return;
+        }
+
+        setCommentsStackTranslateY(0);
+        selectedCommentCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, [focusedCommentAnchorViewportTop, focusedCommentId, positionLookup]);
 
     useEffect(() => {
         if (!pendingCommentDraft || !pendingComposerRef.current) {
@@ -156,7 +192,11 @@ export default function CommentSidebar({
 
     const handleSidebarClick = useCallback((event: React.MouseEvent) => {
         const target = event.target as HTMLElement;
-        if (target.classList.contains('comment-sidebar-cards') || target.classList.contains('comment-sidebar')) {
+        if (
+            target.classList.contains('comment-sidebar-cards')
+            || target.classList.contains('comment-sidebar')
+            || target.classList.contains('comment-sidebar-rail-viewport')
+        ) {
             onFocusComment(null);
         }
     }, [onFocusComment]);
@@ -168,92 +208,113 @@ export default function CommentSidebar({
             onClick={handleSidebarClick}
             id="comment-sidebar"
         >
-            <div className="comment-sidebar-filters" id="comment-sidebar-filters">
-                <button
-                    className={`filter-pill ${filter === 'all' ? 'active' : ''}`}
-                    onClick={() => setFilter('all')}
-                    id="filter-all"
-                    type="button"
-                >
-                    All ({counts.all})
-                </button>
-                <button
-                    className={`filter-pill ${filter === 'open' ? 'active' : ''}`}
-                    onClick={() => setFilter('open')}
-                    id="filter-open"
-                    type="button"
-                >
-                    Open ({counts.open})
-                </button>
-                <button
-                    className={`filter-pill ${filter === 'resolved' ? 'active' : ''}`}
-                    onClick={() => setFilter('resolved')}
-                    id="filter-resolved"
-                    type="button"
-                >
-                    Resolved ({counts.resolved})
-                </button>
-                <button
-                    className={`filter-pill ${filter === 'deleted' ? 'active' : ''}`}
-                    onClick={() => setFilter('deleted')}
-                    id="filter-deleted"
-                    type="button"
-                >
-                    Deleted ({counts.deleted})
-                </button>
-            </div>
-
             <div className="comment-sidebar-cards">
-                {filteredComments.length === 0 && !pendingCommentDraft ? (
-                    <div className="comment-sidebar-empty">
-                        {filter === 'open' && 'No open comments'}
-                        {filter === 'resolved' && 'No resolved comments'}
-                        {filter === 'deleted' && 'No deleted comments'}
-                        {filter === 'all' && 'No comments yet'}
-                    </div>
-                ) : (
-                    filteredComments.map((comment) => {
-                        return (
-                            <div key={comment.id} className="comment-sidebar-card-row">
-                                <CommentCard
-                                    comment={comment}
-                                    isFocused={focusedCommentId === comment.id}
-                                    isHovered={hoveredCommentId === comment.id}
-                                    taskNumber={taskNumber}
-                                    onFocus={onFocusComment}
-                                    onHover={onHoverComment}
-                                    onEdit={onEditComment}
-                                    onResolve={onResolveComment}
-                                    onReopen={onReopenComment}
-                                    onDelete={onDeleteComment}
-                                    onRecover={onRecoverComment}
-                                    onCategoryChange={onCategoryChange}
-                                    readOnly={readOnly}
-                                />
-                            </div>
-                        );
-                    })
-                )}
-
-                {pendingCommentDraft && !readOnly && (
+                <div
+                    ref={commentsViewportRef}
+                    className="comment-sidebar-rail-viewport"
+                    data-comments-viewport="true"
+                >
                     <div
-                        ref={pendingComposerRef}
-                        className="comment-sidebar-pending"
+                        ref={commentsRailRef}
+                        className="comment-sidebar-rail"
+                        data-comments-stack="true"
+                        style={{
+                            transform: `translateY(${commentsStackTranslateY}px)`,
+                            transition: 'transform 0.22s ease',
+                        }}
                     >
-                        <div className="comment-sidebar-pending-label">New comment</div>
-                        <CommentComposer
-                            value={pendingCommentDraft.html}
-                            anchorText={pendingCommentDraft.anchorText}
-                            taskNumber={taskNumber}
-                            categoryId={pendingCommentDraft.categoryId}
-                            autoFocus
-                            onChange={onPendingCommentChange}
-                            onCategoryChange={onPendingCommentCategoryChange}
-                            onCancel={onCancelPendingComment}
-                            onSave={(html) => onSavePendingComment?.(html, pendingCommentDraft.categoryId)}
-                        />
+                        <div className="comment-sidebar-filters" id="comment-sidebar-filters">
+                            <button
+                                className={`filter-pill ${filter === 'all' ? 'active' : ''}`}
+                                onClick={() => setFilter('all')}
+                                id="filter-all"
+                                type="button"
+                            >
+                                All ({counts.all})
+                            </button>
+                            <button
+                                className={`filter-pill ${filter === 'open' ? 'active' : ''}`}
+                                onClick={() => setFilter('open')}
+                                id="filter-open"
+                                type="button"
+                            >
+                                Open ({counts.open})
+                            </button>
+                            <button
+                                className={`filter-pill ${filter === 'resolved' ? 'active' : ''}`}
+                                onClick={() => setFilter('resolved')}
+                                id="filter-resolved"
+                                type="button"
+                            >
+                                Resolved ({counts.resolved})
+                            </button>
+                            <button
+                                className={`filter-pill ${filter === 'deleted' ? 'active' : ''}`}
+                                onClick={() => setFilter('deleted')}
+                                id="filter-deleted"
+                                type="button"
+                            >
+                                Deleted ({counts.deleted})
+                            </button>
+                        </div>
+
+                        <div className="comment-sidebar-card-list">
+                            {filteredComments.length === 0 && !pendingCommentDraft ? (
+                                <div className="comment-sidebar-empty">
+                                    {filter === 'open' && 'No open comments'}
+                                    {filter === 'resolved' && 'No resolved comments'}
+                                    {filter === 'deleted' && 'No deleted comments'}
+                                    {filter === 'all' && 'No comments yet'}
+                                </div>
+                            ) : (
+                                filteredComments.map((comment) => {
+                                    return (
+                                        <div key={comment.id} className="comment-sidebar-card-row">
+                                            <CommentCard
+                                                comment={comment}
+                                                isFocused={focusedCommentId === comment.id}
+                                                isHovered={hoveredCommentId === comment.id}
+                                                taskNumber={taskNumber}
+                                                onFocus={onFocusComment}
+                                                onHover={onHoverComment}
+                                                onEdit={onEditComment}
+                                                onResolve={onResolveComment}
+                                                onReopen={onReopenComment}
+                                                onDelete={onDeleteComment}
+                                                onRecover={onRecoverComment}
+                                                onCategoryChange={onCategoryChange}
+                                                onHeaderRefChange={(node) => {
+                                                    commentHeaderRefs.current[comment.id] = node;
+                                                }}
+                                                readOnly={readOnly}
+                                            />
+                                        </div>
+                                    );
+                                })
+                            )}
+
+                            {pendingCommentDraft && !readOnly && (
+                                <div
+                                    ref={pendingComposerRef}
+                                    className="comment-sidebar-pending"
+                                >
+                                    <div className="comment-sidebar-pending-label">New comment</div>
+                                    <CommentComposer
+                                        value={pendingCommentDraft.html}
+                                        anchorText={pendingCommentDraft.anchorText}
+                                        taskNumber={taskNumber}
+                                        categoryId={pendingCommentDraft.categoryId}
+                                        autoFocus
+                                        onChange={onPendingCommentChange}
+                                        onCategoryChange={onPendingCommentCategoryChange}
+                                        onCancel={onCancelPendingComment}
+                                        onSave={(html) => onSavePendingComment?.(html, pendingCommentDraft.categoryId)}
+                                    />
+                                </div>
+                            )}
+                        </div>
                     </div>
-                )}
+                </div>
             </div>
         </div>
     );

@@ -45,18 +45,21 @@ export const S: Record<string, React.CSSProperties> = {
         color: '#111827',
     },
     container: {
-        display: 'flex',
-        maxWidth: 1400,
+        display: 'grid',
+        gridTemplateColumns: '220px minmax(0, 1fr) 280px',
+        columnGap: 24,
+        maxWidth: 1440,
         margin: '0 auto',
         minHeight: '100vh',
-        justifyContent: 'center',
+        width: '100%',
+        padding: '0 24px',
     },
 
     // Left Sidebar
     sidebar: {
-        width: 256,
-        flexShrink: 0,
-        padding: '24px 16px',
+        width: '100%',
+        minWidth: 0,
+        padding: '24px 0',
         display: 'flex',
         flexDirection: 'column',
         position: 'sticky',
@@ -139,15 +142,16 @@ export const S: Record<string, React.CSSProperties> = {
 
     // Center Feed
     feed: {
-        flex: 1,
-        maxWidth: 600,
-        margin: 0,
+        width: '100%',
+        maxWidth: 860,
+        margin: '0 auto',
         borderLeft: '1px solid #e5e7eb',
         borderRight: '1px solid #e5e7eb',
         background: '#f9fafb',
         minHeight: '100vh',
         display: 'flex',
         flexDirection: 'column',
+        minWidth: 0,
     },
     feedHeader: {
         position: 'sticky',
@@ -199,9 +203,9 @@ export const S: Record<string, React.CSSProperties> = {
 
     // Right Panel
     rightPanel: {
-        width: 320,
-        flexShrink: 0,
-        padding: '24px 0 24px 32px',
+        width: '100%',
+        minWidth: 0,
+        padding: '24px 0',
     },
     rightSticky: {
         position: 'sticky',

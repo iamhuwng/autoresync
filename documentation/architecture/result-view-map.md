@@ -176,5 +176,5 @@ Note: runtime removal is real, and the stale demo residue in `src/config/routeSe
 ### Retained active surfaces (2)
 | Surface | Consumer | Reason |
 |---|---|---|
-| `WritingResultView` | `StudentTestResultsPage` (lazy-loaded) | Active student-facing writing result viewer |
+| `WritingResultView` | `StudentTestResultsPage` (lazy-loaded) | Active student-facing writing result viewer. In the wide student result slide modal, published markup clicks force-open `Comments` and align the whole comment rail by `selected comment header top == clicked annotation top`. |
 | `WritingTestResultsSection` | `TeacherTestResultsPage` (direct import) | Active teacher-facing writing session results |

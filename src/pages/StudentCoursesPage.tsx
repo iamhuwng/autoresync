@@ -341,7 +341,6 @@ const StudentCoursesPage: React.FC = () => {
         <StudentLayout
             mobileTitle="My Courses"
             sidebar={<StudentSidebar user={user ? { ...user, avatarUrl: profile?.avatarUrl } : undefined} activePage="courses" pendingHomeworkCount={notStarted.length} />}
-            rightPanel={<div />}
         >
             <div style={S.feedHeader}>
                 <h2 style={S.feedHeaderTitle}>My Courses</h2>
