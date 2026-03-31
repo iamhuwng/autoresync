@@ -56,7 +56,7 @@ These metrics are mature enough for lightweight Academic Record use now:
 - course-grouped latest-result browsing
 - progressive-feedback narrative windows
 - lightweight THCS summary metrics
-- lightweight writing summary metrics
+- lightweight writing-aware IELTS summary metrics
 
 These are suitable because they are explainable and easy to verify against the result history.
 
@@ -86,7 +86,7 @@ Safe to expose today:
 - Course grouping over latest results
 - progressive feedback summaries
 - THCS dedicated progression surface
-- Writing dedicated progression surface
+- integrated writing review and band metrics inside the IELTS surface
 
 ### Next Phase
 
@@ -132,3 +132,4 @@ Any future system that uses Academic Record as input should:
 - distinguish between practice frequency and mastery
 - avoid high-confidence recommendations on sparse histories
 - preserve traceability back to concrete results and lenses
+

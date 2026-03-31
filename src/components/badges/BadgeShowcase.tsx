@@ -34,12 +34,15 @@ interface BadgeShowcaseProps {
 }
 
 /**
- * Badge Showcase Component
+ * Badge Showcase Component.
+ *
+ * This widget is self-framed. Parent student pages should not wrap it inside
+ * another bordered section card or duplicate its heading.
  */
 export const BadgeShowcase: React.FC<BadgeShowcaseProps> = ({
     studentId,
     showLocked = true,
-    title = '🏆 Badges',
+    title = 'Badges',
 }) => {
     const [badges, setBadges] = useState<Badge[]>([]);
     const [loading, setLoading] = useState(true);

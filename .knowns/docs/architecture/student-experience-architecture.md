@@ -2,7 +2,7 @@
 title: Student Experience Architecture
 description: 'Student-facing system overview: 20 pages, design standard, adaptive layout, UX patterns, color/typography system.'
 createdAt: '2026-02-27T16:18:36.604Z'
-updatedAt: '2026-03-31T00:44:24.064Z'
+updatedAt: '2026-03-31T06:17:03.179Z'
 tags:
   - architecture
   - student
@@ -189,3 +189,14 @@ Required contract:
 - `getStudentClasses()` may use a legacy broad `classes` scan only as a temporary compatibility fallback for older rows that have not been projected yet
 - enrollment, approval, removal, and class delete flows own projection maintenance
 - student pages are consumers of that projection and must not mutate or backfill it on mount
+
+## Self-Framed Widget Rule
+
+Student pages must preserve a single framing owner per surface.
+
+Required rule:
+- if a child component already renders its own card, border, title row, or progress shell, the parent page must provide spacing only
+- do not nest a self-framed widget inside another bordered section or duplicate its heading
+- before shipping a student page, scan for repeated titles or repeated frames that make one module look double-boxed
+
+This rule applies across profile, results, homework, academic record, and right-rail supplements.

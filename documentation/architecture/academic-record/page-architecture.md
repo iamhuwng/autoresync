@@ -1,4 +1,4 @@
-﻿# Academic Record Page Architecture
+# Academic Record Page Architecture
 
 ## Purpose
 
@@ -30,7 +30,7 @@ Academic Record participates in the persistent student shell provider defined in
 
 Required ownership split:
 - the shared student shell owns shell-global summaries such as enrolled classes, live-session summaries, and shared homework summary groups
-- `AcademicRecordPage` owns the page-primary academic-record dataset for overview, THCS, IELTS, Writing, and Course surfaces
+- `AcademicRecordPage` owns the page-primary academic-record dataset for overview, THCS, IELTS, and Course surfaces, including integrated writing results inside IELTS
 - entering or leaving Academic Record must not recreate shell-owned loaders already owned by the shell provider
 
 This keeps shell navigation responsive while preserving Academic Record as the canonical host for record history.
@@ -53,6 +53,8 @@ Approved overview blocks in the current implementation:
 - progressive feedback summary
 - recent results timeline
 
+Overview blocks use a single clear heading per section. Helper subtitles are intentionally omitted.
+
 Course, skill, and type are no longer rendered as overview browse modules in the current page implementation.
 
 ### Current Top-Level Views
@@ -61,13 +63,11 @@ Academic Record currently exposes these top-level center-column views:
 - Overview
 - THCS
 - IELTS
-- Writing
 - Course
 
 Rules:
 - THCS remains a focused progression workspace
-- Writing remains a first-class center-column surface
-- IELTS is currently promoted as a top-level skill-organized browsing surface
+- IELTS is the skill-organized browsing surface and now contains the writing progression and pending-review workflow inside its writing group
 - Course is currently promoted as a top-level course-organized browsing surface
 - the historical By Type browse lens is removed from the current page IA
 
@@ -93,10 +93,13 @@ Primary views are major learning surfaces. They belong in the center feed and ar
 All main Academic Record views should use one native record presentation language.
 
 Current UI rules:
-- use flat full-width rows for result items
-- use quiet tonal section headers instead of glassy cards
-- use tonal panels for lightweight summary statistics
+- use calm white summary cards with subtle top accents for lightweight statistics
+- use white bordered full-width rows for grouped browsing and result items
+- rely on spacing, badges, and short action labels for hierarchy instead of helper text
+- visual distinction comes from role and density, not from separate design systems
+- do not place helper text under section headings
 - avoid nested bordered boxes inside bordered boxes
+- self-framed widgets must not be wrapped in another bordered section shell or duplicate heading; the parent should provide spacing only
 - avoid chart-heavy wrappers unless a metric contract requires them
 
 Academic Record should not rely on the generic glass `ResultCard` pattern for its center-column result surfaces.
@@ -106,10 +109,10 @@ Academic Record should not rely on the generic glass `ResultCard` pattern for it
 Specialized tabs may keep their own progression semantics, but they should still express them with the shared record language.
 
 Current expectations:
-- THCS uses simple stats, lightweight skill summary, and flat history rows
-- IELTS uses grouped skill sections with flat rows
-- Writing uses lightweight summary panels and flat writing rows
-- Course uses grouped course sections with flat rows
+- Overview, THCS, and IELTS follow the same summary-first visual system established by Course
+- THCS uses the same calm summary-card treatment, lightweight skill cards, and flat history rows
+- IELTS uses the same summary-card treatment in two tiers, then grouped skill rows, with writing-specific review states inside the writing group
+- Course remains the reference browse pattern for grouped row surfaces in Academic Record
 
 ### Avoid Dashboard Sprawl
 
@@ -134,7 +137,6 @@ Current major surface components:
 - `ResultsByCourse`
 - `ResultsBySkill`
 - `THCSProgressTab`
-- `WritingProgressSection`
 - `ResultSlidePanel`
 
 `ResultCard` remains available elsewhere in the codebase, but it is not the intended center-column rendering primitive for Academic Record.
@@ -158,14 +160,9 @@ THCS should answer:
 
 IELTS should answer:
 - How do my latest results look when grouped by reading, listening, writing, and speaking?
+- What is my current IELTS summary at a glance?
+- Which writing submissions are still pending review?
 - Which skill area should I open next?
-
-### Writing
-
-Writing should answer:
-- What writing work has been reviewed?
-- Which submissions are still pending review?
-- Which writing result should I reopen first?
 
 ### Course
 

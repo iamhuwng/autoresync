@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import {
@@ -21,13 +21,10 @@ import { ResultSlidePanel } from '../components/results/ResultSlidePanel';
 import AIMaintenanceBanner from '../components/ai/AIMaintenanceBanner';
 import { useAIStatus } from '../hooks/useAIStatus';
 
-const WritingProgressSection = lazy(() => import('../components/writing-practice/WritingProgressSection'));
-
 const MAIN_VIEW_OPTIONS = [
     { value: 'overview', label: 'Overview' },
     { value: 'thcs', label: 'THCS' },
     { value: 'ielts', label: 'IELTS' },
-    { value: 'writing', label: 'Writing' },
     { value: 'course', label: 'Course' },
 ] as const;
 
@@ -147,14 +144,20 @@ const localStyles: Record<string, React.CSSProperties> = {
     },
     statsGrid: {
         display: 'grid',
-        gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
         gap: 12,
         marginBottom: 8,
     },
     statCard: {
-        background: '#f3f4f6',
-        borderRadius: 14,
+        background: '#ffffff',
+        borderRadius: 16,
         padding: '16px 18px',
+        border: '1px solid #e5e7eb',
+        borderTopWidth: 4,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+        minHeight: 108,
     },
     statLabel: {
         fontSize: '0.6875rem',
@@ -170,16 +173,13 @@ const localStyles: Record<string, React.CSSProperties> = {
         color: '#111827',
         lineHeight: 1.1,
     },
-    statHint: {
-        fontSize: '0.75rem',
-        color: '#6b7280',
-        marginTop: 4,
-    },
     feedbackCard: {
-        background: '#f9fafb',
-        borderRadius: 14,
+        background: '#ffffff',
+        borderRadius: 16,
         padding: '18px 20px',
-        borderLeft: '4px solid #c7d2fe',
+        border: '1px solid #e5e7eb',
+        borderTopWidth: 4,
+        borderTopColor: '#d1d5db',
     },
     feedbackTop: {
         display: 'flex',
@@ -246,19 +246,13 @@ const localStyles: Record<string, React.CSSProperties> = {
     sectionHeader: {
         display: 'flex',
         flexDirection: 'column',
-        gap: 4,
+        gap: 6,
     },
     sectionTitle: {
         margin: 0,
         fontSize: '1.05rem',
         fontWeight: 700,
         color: '#111827',
-    },
-    sectionDescription: {
-        margin: '4px 0 0',
-        fontSize: '0.8125rem',
-        lineHeight: 1.5,
-        color: '#6b7280',
     },
     sectionBody: {
         display: 'flex',
@@ -297,17 +291,15 @@ export const AcademicRecordPage: React.FC = () => {
 
     const latestResults = useMemo(() => getLatestResultPerTest(results), [results]);
     const ieltsResults = useMemo(
-        () => latestResults.filter((result) => !(result as any).thcsData),
+        () => latestResults.filter((result) => {
+            if ((result as any).thcsData) {
+                return false;
+            }
+
+            const skill = String(result.testSkill || '').toLowerCase();
+            return ['reading', 'listening', 'writing', 'speaking'].includes(skill);
+        }),
         [latestResults],
-    );
-    const writingResults = useMemo(
-        () =>
-            results.filter((result) => (
-                Boolean(result.writingData)
-                || Boolean(result.writingSubmission)
-                || result.testSkill === 'writing'
-            )),
-        [results],
     );
 
     const fetchResults = useCallback(async () => {
@@ -546,20 +538,17 @@ export const AcademicRecordPage: React.FC = () => {
         return (
             <>
                 <div style={localStyles.statsGrid}>
-                    <div style={localStyles.statCard}>
+                    <div style={{ ...localStyles.statCard, borderTopColor: '#d1d5db' }}>
                         <div style={localStyles.statLabel}>Total Tests</div>
                         <div style={localStyles.statValue}>{results.length}</div>
-                        <div style={localStyles.statHint}>Recorded attempts</div>
                     </div>
-                    <div style={localStyles.statCard}>
+                    <div style={{ ...localStyles.statCard, borderTopColor: '#d1d5db' }}>
                         <div style={localStyles.statLabel}>Average Score</div>
                         <div style={{ ...localStyles.statValue, color: '#4f46e5' }}>{averageScore}%</div>
-                        <div style={localStyles.statHint}>Across visible results</div>
                     </div>
-                    <div style={localStyles.statCard}>
+                    <div style={{ ...localStyles.statCard, borderTopColor: '#d1d5db' }}>
                         <div style={localStyles.statLabel}>Best Score</div>
-                        <div style={localStyles.statValue}>{bestScore}%</div>
-                        <div style={localStyles.statHint}>Highest performance</div>
+                        <div style={{ ...localStyles.statValue, color: '#047857' }}>{bestScore}%</div>
                     </div>
                 </div>
 
@@ -608,9 +597,6 @@ export const AcademicRecordPage: React.FC = () => {
                 <section style={localStyles.viewSection}>
                     <div style={localStyles.sectionHeader}>
                         <h2 style={localStyles.sectionTitle}>Recent Results</h2>
-                        <p style={localStyles.sectionDescription}>
-                            Start from the latest attempt for each test instead of using the THCS workspace as the default main surface.
-                        </p>
                     </div>
                     <div style={localStyles.sectionBody}>
                         <ResultTimeline
@@ -635,9 +621,6 @@ export const AcademicRecordPage: React.FC = () => {
             <section style={localStyles.viewSection}>
                 <div style={localStyles.sectionHeader}>
                     <h2 style={localStyles.sectionTitle}>IELTS Progress</h2>
-                    <p style={localStyles.sectionDescription}>
-                        Group IELTS results by skill so students can read Reading, Listening, Writing, and Speaking progress without mixing that surface into THCS.
-                    </p>
                 </div>
                 <div style={localStyles.sectionBody}>
                     <ResultsBySkill results={ieltsResults} onResultClick={handleOpenResult} />
@@ -655,9 +638,6 @@ export const AcademicRecordPage: React.FC = () => {
             <section style={localStyles.viewSection}>
                 <div style={localStyles.sectionHeader}>
                     <h2 style={localStyles.sectionTitle}>THCS Progress</h2>
-                    <p style={localStyles.sectionDescription}>
-                        Preserve the current THCS workspace, but keep it as one focused view rather than the default for the whole academic record page.
-                    </p>
                 </div>
                 <div style={localStyles.sectionBody}>
                     <THCSProgressTab
@@ -670,35 +650,6 @@ export const AcademicRecordPage: React.FC = () => {
         );
     };
 
-    const renderWritingView = () => {
-        return user?.uid ? (
-            <section style={localStyles.viewSection}>
-                <div style={localStyles.sectionHeader}>
-                    <h2 style={localStyles.sectionTitle}>Writing Progress</h2>
-                    <p style={localStyles.sectionDescription}>
-                        Give writing its own center-column surface so it is no longer compressed into a supplemental module.
-                    </p>
-                </div>
-                <div style={localStyles.sectionBody}>
-                    <Suspense
-                        fallback={(
-                            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '64px 16px' }}>
-                                <div style={{ width: 32, height: 32, border: '3px solid #e2e8f0', borderTopColor: '#4f46e5', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-                                <style>{'@keyframes spin { to { transform: rotate(360deg); } }'}</style>
-                            </div>
-                        )}
-                    >
-                        <WritingProgressSection
-                            results={writingResults}
-                            loading={loading && writingResults.length === 0}
-                            onResultClick={handleOpenResult}
-                        />
-                    </Suspense>
-                </div>
-            </section>
-        ) : null;
-    };
-
     const renderCourseView = () => {
         if (loading && results.length === 0) {
             return renderOverviewView();
@@ -708,9 +659,6 @@ export const AcademicRecordPage: React.FC = () => {
             <section style={localStyles.viewSection}>
                 <div style={localStyles.sectionHeader}>
                     <h2 style={localStyles.sectionTitle}>Course Results</h2>
-                    <p style={localStyles.sectionDescription}>
-                        Browse the latest result surface by course without keeping a second course lens in the overview.
-                    </p>
                 </div>
                 <div style={localStyles.sectionBody}>
                     <ResultsByCourse results={latestResults} onResultClick={handleOpenResult} />
@@ -776,7 +724,6 @@ export const AcademicRecordPage: React.FC = () => {
                 {activeView === 'overview' && renderOverviewView()}
                 {activeView === 'thcs' && renderThcsView()}
                 {activeView === 'ielts' && renderIeltsView()}
-                {activeView === 'writing' && renderWritingView()}
                 {activeView === 'course' && renderCourseView()}
             </div>
 

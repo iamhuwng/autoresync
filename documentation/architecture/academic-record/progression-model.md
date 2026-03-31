@@ -1,4 +1,4 @@
-﻿# Academic Record Progression Model
+# Academic Record Progression Model
 
 ## Purpose
 
@@ -42,7 +42,7 @@ Current approved lenses in the domain:
 - course
 - skill
 - THCS-specific progression
-- writing-specific progression
+- writing-aware IELTS progression
 
 The `type` lens remains a valid derived lens conceptually, but it is not currently surfaced in the main page IA.
 
@@ -80,11 +80,11 @@ Used for:
 
 ### 4. Track-Specific Progression
 
-Specialized domains such as THCS and Writing may define dedicated progression surfaces when a generic lens is insufficient.
+Specialized domains such as THCS and manual-review writing states may define dedicated progression interpretations when a generic lens is insufficient.
 
 Used for:
 - THCS-specific interpretation
-- writing review and performance history
+- writing review and performance history inside the IELTS surface
 
 ## Score Normalization Guardrails
 
@@ -114,11 +114,7 @@ THCS progression remains specialized because the domain has its own reading patt
 
 ### IELTS
 
-IELTS is currently expressed as a skill-organized progression view over latest meaningful results.
-
-### Writing
-
-Writing progression remains specialized because manual review, teacher feedback, and pending-review states behave differently from auto-graded history.
+IELTS is currently expressed as a skill-organized progression view over latest meaningful results, with writing-specific review and band semantics integrated into the writing skill group.
 
 ### Course
 
@@ -129,8 +125,10 @@ Course is currently expressed as a course-organized progression view over latest
 Progression surfaces should expose their derived meaning through a consistent record-reading pattern.
 
 Current UI contract:
-- progression results are presented as flat rows with quiet metadata
-- grouped views use tonal section headers rather than nested result cards
+- progression surfaces use a two-layer hierarchy: calm summary cards first, stronger browse rows second
+- the Course browse treatment is the reference pattern for grouped progression views
+- secondary explanatory copy is avoided unless it carries actual result data
+- small secondary lines inside IELTS skill cards may show real data such as highest band or test count; instructional helper text is not part of the pattern
 - specialized tabs may add lightweight summary panels, but they should not turn into analytics dashboards
 
 ## Progressive Feedback
@@ -157,3 +155,4 @@ This progression model is expected to support:
 - teacher and student study prioritization
 
 Those systems should consume stable derived metrics, not page-local UI state.
+

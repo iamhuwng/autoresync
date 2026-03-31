@@ -169,6 +169,11 @@ padding: 16px;
 - Widget card: `background: #f9fafb; border-radius: 16px; border: 1px solid #e5e7eb; padding: 16px`
 - "Show more" link: `color: #4f46e5; font-size: 0.875rem`
 
+### 5.5.1 No Double-Framed Widgets
+- Self-framed widgets must not be nested inside another bordered card or section shell.
+- If a child component already includes its own card, border, radius, title row, or progress shell, the parent should provide spacing only, not another framed wrapper.
+- Use either a parent section shell with unframed child content, or a self-framed child widget directly. Never both.
+- Before shipping a student page, scan for any section where the same title or frame appears twice. If a component is visually complete on its own, do not wrap it in another card.
 ### 5.6 Modal Dialog
 - Backdrop: `rgba(0,0,0,0.3)`
 - Card: `background: white; border-radius: 16px; padding: 24px; box-shadow: 0 20px 60px rgba(0,0,0,0.15)`

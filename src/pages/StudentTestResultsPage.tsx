@@ -867,25 +867,15 @@ export const StudentTestResultsPage: React.FC = () => {
 
         {/* Teacher Overall Feedback — gated by release state */}
         {visibility.showTeacherFeedback && permanentResultRecord?.overallFeedback && (
-          <Card variant="glass" style={{ marginBottom: '2rem' }}>
-            <CardBody style={{ padding: '2rem' }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem' }}>
-                <div style={{ fontSize: '2.5rem' }}>💬</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: '1.125rem', fontWeight: 700, color: '#1e293b', marginBottom: '1rem' }}>
-                    Teacher's Feedback
-                  </div>
-                  <FeedbackDisplay
-                    feedback={permanentResultRecord.overallFeedback}
-                    teacherName={permanentResultRecord.feedbackUpdatedBy || 'Your Teacher'}
-                    updatedAt={permanentResultRecord.feedbackUpdatedAt || Date.now()}
-                    isOverall={true}
-                    variant="highlighted"
-                  />
-                </div>
-              </div>
-            </CardBody>
-          </Card>
+          <div style={{ marginBottom: '2rem' }}>
+            <FeedbackDisplay
+              feedback={permanentResultRecord.overallFeedback}
+              teacherName={permanentResultRecord.feedbackUpdatedBy || 'Your Teacher'}
+              updatedAt={permanentResultRecord.feedbackUpdatedAt || Date.now()}
+              isOverall={true}
+              variant="highlighted"
+            />
+          </div>
         )}
 
         {/* Question-by-Question Review */}

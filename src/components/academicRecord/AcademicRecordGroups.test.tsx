@@ -37,7 +37,7 @@ function createResult(overrides: Record<string, unknown> = {}) {
 }
 
 describe('Academic Record grouped views', () => {
-    it('renders and toggles course groups while keeping result rows clickable', async () => {
+    it('keeps course groups collapsed by default and toggles them while keeping rows clickable', async () => {
         const handleClick = vi.fn();
         render(
             <ResultsByCourse
@@ -54,6 +54,12 @@ describe('Academic Record grouped views', () => {
             />,
         );
 
+        expect(screen.getByText('Courses')).toBeInTheDocument();
+        expect(screen.getByText('Strongest Course')).toBeInTheDocument();
+        expect(screen.queryByText('Course Test 1')).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: /Course Alpha/i }));
+
         await waitFor(() => {
             expect(screen.getByText('Course Test 1')).toBeInTheDocument();
         });
@@ -68,31 +74,55 @@ describe('Academic Record grouped views', () => {
         expect(screen.getByText('Course Test 1')).toBeInTheDocument();
     });
 
-    it('renders and toggles skill groups with the shared row primitive', async () => {
+    it('keeps skill groups collapsed by default and renders writing rows inside IELTS skill groups', async () => {
         render(
             <ResultsBySkill
                 results={[
-                    createResult({ testSkill: 'reading', testTitle: 'Reading Task' }),
+                    createResult({ testSkill: 'reading', testTitle: 'Reading Task', bandScore: 7 }),
                     createResult({
                         resultId: 'result-2',
                         testId: 'test-2',
                         testSkill: 'writing',
                         testTitle: 'Writing Task',
                         submittedAt: 1700001000000,
+                        markingStatus: 'pending-review',
+                        writingData: {
+                            submissionId: 'writing-1',
+                            overallBand: null,
+                            markingStatus: 'pending-review',
+                            tasks: [{ taskNumber: 1, wordCount: 260, activeTimeSeconds: 900 }],
+                        },
+                        context: { type: 'solo_practice' },
                     }),
                 ]}
             />,
         );
 
+        const pendingReviewCard = screen.getByText('Pending Review');
+        const readingBandCard = screen.getByText('Reading Band');
+        expect(
+            pendingReviewCard.compareDocumentPosition(readingBandCard) & Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+
+        expect(screen.queryByText('Reading Task')).not.toBeInTheDocument();
+        expect(screen.queryByText('Writing Task')).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: /Reading/i }));
+
         await waitFor(() => {
             expect(screen.getByText('Reading Task')).toBeInTheDocument();
-            expect(screen.getByText('Writing Task')).toBeInTheDocument();
+            expect(screen.getAllByText('7.0').length).toBeGreaterThan(0);
         });
 
         fireEvent.click(screen.getByRole('button', { name: /Reading/i }));
         expect(screen.queryByText('Reading Task')).not.toBeInTheDocument();
 
-        fireEvent.click(screen.getByRole('button', { name: /Reading/i }));
-        expect(screen.getByText('Reading Task')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: /Writing/i }));
+
+        await waitFor(() => {
+            expect(screen.getByText('Writing Task')).toBeInTheDocument();
+            expect(screen.getByText('Pending')).toBeInTheDocument();
+            expect(screen.getByText('Awaiting Review')).toBeInTheDocument();
+        });
     });
 });

@@ -4,10 +4,12 @@ import { IconMessageCircle, IconClock, IconUser } from '@tabler/icons-react';
 
 /**
  * FeedbackDisplay Component
- * 
+ *
  * Read-only display of teacher feedback on student test results.
  * Shows feedback with timestamp and teacher information in a styled callout design.
- * 
+ * This widget is self-framed. Parent student pages should not wrap it in
+ * another bordered section card or duplicate its heading.
+ *
  * Part of PRD-0015: Academic Record & Enhanced Profile System - Phase 5
  */
 

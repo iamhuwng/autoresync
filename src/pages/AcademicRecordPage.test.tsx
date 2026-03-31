@@ -25,6 +25,32 @@ const { mockResults } = vi.hoisted(() => ({
             questionResults: [],
         },
         {
+            resultId: 'res-writing-1',
+            testTitle: 'Writing Task 1',
+            testType: 'writing',
+            testSkill: 'writing',
+            percentage: 0,
+            totalScore: 0,
+            maxScore: 0,
+            submittedAt: 1700000000500,
+            correct: 0,
+            incorrect: 0,
+            partialCredit: 0,
+            totalQuestions: 2,
+            bandScore: 0,
+            courseName: 'IELTS Prep',
+            className: 'Class A',
+            questionResults: [],
+            markingStatus: 'pending-review',
+            writingData: {
+                submissionId: 'writing-submission-1',
+                overallBand: null,
+                markingStatus: 'pending-review',
+                tasks: [{ taskNumber: 1, wordCount: 280, activeTimeSeconds: 900 }],
+            },
+            context: { type: 'solo_practice' },
+        },
+        {
             resultId: 'res-2',
             testTitle: 'Listening Test 1',
             testType: 'listening',
@@ -177,20 +203,6 @@ vi.mock('@/components/academicRecord/THCSProgressTab', () => ({
     ),
 }));
 
-vi.mock('../components/writing-practice/WritingProgressSection', () => ({
-    default: ({ onResultClick }: any) => (
-        <div data-testid="writing-progress">
-            <button
-                type="button"
-                data-testid="writing-result-res-writing-1"
-                onClick={() => onResultClick?.('res-writing-1')}
-            >
-                Open Writing Result
-            </button>
-        </div>
-    ),
-}));
-
 vi.mock('../components/results/ResultSlidePanel', () => ({
     ResultSlidePanel: ({ resultId, onClose }: any) => (
         <div data-testid="result-slide-panel" data-result-id={resultId}>
@@ -259,7 +271,7 @@ describe('AcademicRecordPage query-param management', () => {
         vi.clearAllMocks();
     });
 
-    it('shows the Course tab and removes the overview browse section', async () => {
+    it('shows the Course tab, removes the Writing tab, and keeps overview browse sections removed', async () => {
         renderPage();
 
         await waitFor(() => {
@@ -268,6 +280,7 @@ describe('AcademicRecordPage query-param management', () => {
 
         expect(screen.getByRole('button', { name: 'IELTS' })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Course' })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Writing' })).not.toBeInTheDocument();
         expect(screen.queryByText('Browse Your Record')).not.toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'By Course' })).not.toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'By Skill' })).not.toBeInTheDocument();
@@ -295,16 +308,17 @@ describe('AcademicRecordPage query-param management', () => {
         expect(screen.getByTestId('result-slide-panel')).toHaveAttribute('data-result-id', 'res-1');
     });
 
-    it('sets ?result when a writing result is clicked from the writing view', async () => {
+    it('keeps writing results inside the IELTS view and opens them from there', async () => {
         renderPage();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Writing' }));
+        fireEvent.click(screen.getByRole('button', { name: 'IELTS' }));
 
         await waitFor(() => {
-            expect(screen.getByTestId('writing-progress')).toBeInTheDocument();
+            expect(screen.getByTestId('results-by-skill')).toBeInTheDocument();
         });
 
-        fireEvent.click(screen.getByTestId('writing-result-res-writing-1'));
+        expect(screen.getByText('Writing Task 1')).toBeInTheDocument();
+        fireEvent.click(screen.getByTestId('skill-result-res-writing-1'));
 
         await waitFor(() => {
             expect(screen.getByTestId('url-inspector').dataset.search).toContain('result=res-writing-1');

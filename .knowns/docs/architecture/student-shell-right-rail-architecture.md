@@ -2,7 +2,7 @@
 title: Student Shell Right Rail Architecture
 description: Architecture contract for the shared student shell layout, global right rail, shared data hook, and page-level extension pattern.
 createdAt: '2026-03-30T03:14:40.723Z'
-updatedAt: '2026-03-31T04:02:24.325Z'
+updatedAt: '2026-03-31T06:17:03.156Z'
 tags:
   - architecture
   - student
@@ -172,3 +172,14 @@ Rules:
 - right-rail data stays owned by the persistent shell provider
 - route warmup may prepare page-owned caches for shell pages, but it must not re-own right-rail summaries
 - first-entry warmup should reduce page cold starts without adding another right-rail loader
+
+## Framing Responsibility
+
+Right-rail supplements may be self-framed widgets.
+
+Required rule:
+- if a page-owned module already includes its own card, border, radius, title row, or progress shell, `StudentLayout` and the page host must provide placement and spacing only
+- do not wrap a self-framed widget in a second bordered section shell
+- do not repeat the same heading in both the host page and the child widget
+
+Use one framing owner per surface: either the host page frames plain content, or the child widget renders as a visually complete module.
