@@ -5,14 +5,10 @@
  * The reporting system must never throw errors that affect the host application.
  */
 
-import { logEvent } from 'firebase/analytics';
 import type { Auth, User } from 'firebase/auth';
-import { onAuthStateChanged } from 'firebase/auth';
 import type { Database } from 'firebase/database';
-import { onValue, push, ref, set, update } from 'firebase/database';
 import { resolveFeatureFromRoute, validateFeatureId } from '../config/featureRegistry';
 import { getBreadcrumbs } from '../hooks/useBreadcrumbs';
-import { analytics } from './firebase';
 
 interface QueuedEvent {
   type: 'error' | 'event';
@@ -58,13 +54,45 @@ interface RateLimitEntry {
   resetTimer: ReturnType<typeof setTimeout>;
 }
 
+async function loadReportingRuntime() {
+  const [authModule, databaseModule, analyticsModule, firebaseModule] = await Promise.all([
+    import('firebase/auth'),
+    import('firebase/database'),
+    import('firebase/analytics'),
+    import('./firebase'),
+  ]);
+
+  return {
+    onAuthStateChanged: authModule.onAuthStateChanged,
+    onValue: databaseModule.onValue,
+    push: databaseModule.push,
+    ref: databaseModule.ref,
+    set: databaseModule.set,
+    update: databaseModule.update,
+    logEvent: analyticsModule.logEvent,
+    analytics: firebaseModule.analytics,
+  };
+}
+
+type ReportingRuntime = Awaited<ReturnType<typeof loadReportingRuntime>>;
+
 export class ReportingService {
   private static instance: ReportingService;
 
   private database: Database | null = null;
+  private runtime: ReportingRuntime | null = null;
+  private runtimePromise: Promise<ReportingRuntime> | null = null;
+  private authenticatedInitPromise: Promise<void> | null = null;
   private currentUser: User | null = null;
   private currentUserRole = 'unknown';
+  private isCoreInitialized = false;
   private isInitialized = false;
+
+  private authUnsubscribe: (() => void) | null = null;
+  private roleUnsubscribe: (() => void) | null = null;
+  private modeUnsubscribe: (() => void) | null = null;
+  private categoriesUnsubscribe: (() => void) | null = null;
+  private beforeUnloadHandler: (() => void) | null = null;
 
   private eventQueue: QueuedEvent[] = [];
   private _flushIntervalId: ReturnType<typeof setInterval> | null = null;
@@ -99,6 +127,26 @@ export class ReportingService {
     return ReportingService.instance;
   }
 
+  private async getRuntime(): Promise<ReportingRuntime> {
+    if (this.runtime) {
+      return this.runtime;
+    }
+
+    if (!this.runtimePromise) {
+      this.runtimePromise = loadReportingRuntime()
+        .then((runtime) => {
+          this.runtime = runtime;
+          return runtime;
+        })
+        .catch((error) => {
+          this.runtimePromise = null;
+          throw error;
+        });
+    }
+
+    return this.runtimePromise;
+  }
+
   private findQueuedErrorEvent(errorId: string): QueuedEvent | undefined {
     return this.eventQueue.find(
       (event) => event.type === 'error' && event.data.id === errorId
@@ -117,37 +165,80 @@ export class ReportingService {
       return;
     }
 
-    if (!this.database || !recordPath || !this.persistedErrorPaths.has(recordPath)) {
+    if (!this.runtime || !this.database || !recordPath || !this.persistedErrorPaths.has(recordPath)) {
       return;
     }
 
-    update(ref(this.database, recordPath), patch).catch((error) => {
+    this.runtime.update(this.runtime.ref(this.database, recordPath), patch).catch((error) => {
       console.warn('[ReportingService] Error record update failed:', error);
     });
   }
 
-  init(auth: Auth, database: Database): void {
+  initCore(): void {
     try {
-      if (this.isInitialized) {
-        console.warn('[ReportingService] Already initialized');
+      if (this.isCoreInitialized) {
         return;
       }
 
+      this.setupGlobalErrorHandlers();
+
+      if (typeof window !== 'undefined') {
+        this.beforeUnloadHandler = () => {
+          this.flush();
+        };
+        window.addEventListener('beforeunload', this.beforeUnloadHandler);
+      }
+
+      this.isCoreInitialized = true;
+    } catch (e) {
+      console.warn('[ReportingService] Core init error:', e);
+    }
+  }
+
+  async initAuthenticated(auth: Auth, database: Database): Promise<void> {
+    if (this.isInitialized) {
+      return;
+    }
+
+    if (this.authenticatedInitPromise) {
+      return this.authenticatedInitPromise;
+    }
+
+    this.authenticatedInitPromise = this.initAuthenticatedInternal(auth, database)
+      .finally(() => {
+        this.authenticatedInitPromise = null;
+      });
+
+    return this.authenticatedInitPromise;
+  }
+
+  private async initAuthenticatedInternal(auth: Auth, database: Database): Promise<void> {
+    try {
+      this.initCore();
+
+      const runtime = await this.getRuntime();
       this.database = database;
 
-      onAuthStateChanged(auth, (user) => {
+      this.authUnsubscribe?.();
+      this.roleUnsubscribe?.();
+      this.modeUnsubscribe?.();
+      this.categoriesUnsubscribe?.();
+
+      this.authUnsubscribe = runtime.onAuthStateChanged(auth, (user) => {
         try {
           this.currentUser = user;
+          this.roleUnsubscribe?.();
+          this.roleUnsubscribe = null;
 
           if (user) {
-            const roleRef = ref(database, `users/${user.uid}/role`);
-            onValue(roleRef, (snapshot) => {
+            const roleRef = runtime.ref(database, `users/${user.uid}/role`);
+            this.roleUnsubscribe = runtime.onValue(roleRef, (snapshot) => {
               this.currentUserRole = snapshot.val() || 'unknown';
             });
 
             if (!this.canarySent) {
               this.canarySent = true;
-              this.sendCanaryEvent();
+              void this.sendCanaryEvent();
             }
           } else {
             this.currentUserRole = 'unknown';
@@ -157,8 +248,8 @@ export class ReportingService {
         }
       });
 
-      const modeRef = ref(database, '/reports/config/mode');
-      onValue(modeRef, (snapshot) => {
+      const modeRef = runtime.ref(database, '/reports/config/mode');
+      this.modeUnsubscribe = runtime.onValue(modeRef, (snapshot) => {
         const value = snapshot.val();
         if (value === 'full' || value === 'errors-only' || value === 'off') {
           const previousMode = this.currentMode;
@@ -169,8 +260,8 @@ export class ReportingService {
         }
       });
 
-      const categoriesRef = ref(database, '/reports/config/categories');
-      onValue(categoriesRef, (snapshot) => {
+      const categoriesRef = runtime.ref(database, '/reports/config/categories');
+      this.categoriesUnsubscribe = runtime.onValue(categoriesRef, (snapshot) => {
         const value = snapshot.val();
         if (value && typeof value === 'object') {
           this.categories = {
@@ -182,20 +273,17 @@ export class ReportingService {
         }
       });
 
-      this.setupGlobalErrorHandlers();
-
-      this._flushIntervalId = setInterval(() => {
-        this.flush();
-      }, 5000);
-
-      window.addEventListener('beforeunload', () => {
-        this.flush();
-      });
+      if (!this._flushIntervalId) {
+        this._flushIntervalId = setInterval(() => {
+          this.flush();
+        }, 5000);
+      }
 
       this.isInitialized = true;
-      console.log('[ReportingService] Initialized');
+      this.flush();
+      console.log('[ReportingService] Authenticated reporting initialized');
     } catch (e) {
-      console.warn('[ReportingService] Init error:', e);
+      console.warn('[ReportingService] Authenticated init error:', e);
     }
   }
 
@@ -239,15 +327,15 @@ export class ReportingService {
 
   private async sendCanaryEvent(): Promise<void> {
     try {
-      if (!this.database) return;
+      if (!this.runtime || !this.database) return;
 
       const todayDate = new Date().toISOString().split('T')[0];
-      const canaryRef = ref(
+      const canaryRef = this.runtime.ref(
         this.database,
         `/reports/events/${todayDate}/canary_${Date.now()}`
       );
 
-      await set(canaryRef, {
+      await this.runtime.set(canaryRef, {
         type: 'canary',
         timestamp: Date.now(),
         message: 'Reporting pipeline active',
@@ -288,8 +376,8 @@ export class ReportingService {
       const pathPrefix = `/reports/errors/${todayDate}`;
       let errorRecordPath: string | undefined;
 
-      if (this.database) {
-        const pushKey = push(ref(this.database, pathPrefix)).key;
+      if (this.runtime && this.database) {
+        const pushKey = this.runtime.push(this.runtime.ref(this.database, pathPrefix)).key;
         if (pushKey) {
           errorRecordPath = `${pathPrefix}/${pushKey}`;
         }
@@ -432,9 +520,15 @@ export class ReportingService {
   }
 
   setMode(mode: 'full' | 'errors-only' | 'off'): void {
+    void this.setModeAsync(mode);
+  }
+
+  private async setModeAsync(mode: 'full' | 'errors-only' | 'off'): Promise<void> {
     try {
       if (!this.database) return;
-      set(ref(this.database, '/reports/config/mode'), mode);
+
+      const runtime = await this.getRuntime();
+      await runtime.set(runtime.ref(this.database, '/reports/config/mode'), mode);
     } catch (e) {
       console.warn('[ReportingService] setMode internal error:', e);
     }
@@ -467,8 +561,16 @@ export class ReportingService {
   }
 
   flush(): void {
+    void this.flushInternal();
+  }
+
+  private async flushInternal(): Promise<void> {
     try {
       if (!this.database || this.eventQueue.length === 0) return;
+
+      if (!this.runtime) {
+        return;
+      }
 
       if (this.currentMode === 'off') {
         this.eventQueue = [];
@@ -499,7 +601,7 @@ export class ReportingService {
 
         let databasePath = event.databasePath;
         if (!databasePath) {
-          const pushKey = push(ref(this.database, pathPrefix)).key;
+          const pushKey = this.runtime.push(this.runtime.ref(this.database, pathPrefix)).key;
           if (!pushKey) {
             continue;
           }
@@ -512,7 +614,7 @@ export class ReportingService {
 
       if (Object.keys(updates).length === 0) return;
 
-      update(ref(this.database), updates)
+      this.runtime.update(this.runtime.ref(this.database), updates)
         .then(() => {
           for (const event of events) {
             if (event.type === 'error' && event.databasePath) {
@@ -552,23 +654,23 @@ export class ReportingService {
 
   private sendAnalyticsEvents(events: QueuedEvent[]): void {
     try {
-      if (this.currentMode === 'off' || !analytics) return;
+      if (this.currentMode === 'off' || !this.runtime?.analytics) return;
 
       for (const event of events) {
         try {
           if (event.type === 'error') {
-            logEvent(analytics, 'error_occurred', {
+            this.runtime.logEvent(this.runtime.analytics, 'error_occurred', {
               feature: String(event.data.feature || ''),
               severity: String(event.data.severity || ''),
               error_code: String(event.data.message || '').substring(0, 40),
             });
           } else if (event.data.type === 'pageView') {
-            logEvent(analytics, 'screen_view', {
+            this.runtime.logEvent(this.runtime.analytics, 'screen_view', {
               firebase_screen: String(event.data.page || ''),
               firebase_screen_class: String(event.data.feature || ''),
             });
           } else if (event.data.type === 'action') {
-            logEvent(analytics, 'feature_used', {
+            this.runtime.logEvent(this.runtime.analytics, 'feature_used', {
               feature: String(event.data.feature || ''),
               action: String(event.data.action || ''),
             });

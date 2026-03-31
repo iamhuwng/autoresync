@@ -2,7 +2,7 @@
 title: Academic Record Page Architecture
 description: Source of truth for the student Academic Record page structure, view hierarchy, shell ownership, and interaction contracts.
 createdAt: '2026-03-30T14:53:47.266Z'
-updatedAt: '2026-03-31T04:02:24.276Z'
+updatedAt: '2026-03-31T08:59:42.172Z'
 tags:
   - architecture
   - academic-record
@@ -240,3 +240,15 @@ Rules:
 - shell prefetch only removes first-entry cold-start cost
 - the page host still owns result history, THCS progress, and progressive-feedback cache policy
 - warmup must not pull Academic Record ownership into the shell provider
+
+## Startup Segmentation Boundary
+
+Academic Record participates in student-first startup optimization only at the page-entry boundary.
+
+Rules:
+- shell warmup may preload the Academic Record route and page-owned cache
+- result panels and deeper writing-result internals load on demand when a result is opened
+- base Academic Record entry must stay free of `chart-vendor`, PDF, and export-only runtime cost during default student login
+
+Related startup contract:
+- @doc/architecture/student-startup-bundle-segmentation

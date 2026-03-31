@@ -6,23 +6,10 @@
  */
 
 import { useState } from 'react';
-import {
-    Container,
-    Title,
-    TextInput,
-    Button,
-    Stack,
-    Paper,
-    Text,
-    Group,
-    Alert,
-    Loader,
-    Center,
-    Divider
-} from '@mantine/core';
 import { IconSearch, IconInfoCircle, IconLogin, IconUserPlus } from '@tabler/icons-react';
 import { getGuestResults } from '../services/guestResultsService';
 import { ResultCard } from '../components/academicRecord/ResultCard';
+import { Button, Card, CardBody, Input, VanillaLoader } from '../components/modern';
 import type { EnhancedTestResultRecord } from '../types/results.types';
 import { useNavigate } from 'react-router-dom';
 
@@ -56,144 +43,188 @@ export function GuestResultsPage() {
         }
     };
 
-    const handleKeyPress = (event: React.KeyboardEvent) => {
+    const handleKeyPress = (event: React.KeyboardEvent<HTMLInputElement>) => {
         if (event.key === 'Enter') {
             handleSearch();
         }
     };
 
     return (
-        <Container size="lg" py="xl">
-            <Stack gap="xl">
-                {/* Header */}
+        <div
+            style={{
+                minHeight: '100vh',
+                padding: '2.5rem 1.25rem 3rem',
+                background: 'linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%)',
+            }}
+        >
+            <div style={{ maxWidth: '960px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                 <div>
-                    <Title order={1}>Guest Results</Title>
-                    <Text c="dimmed" size="lg" mt="xs">
-                        Enter your guest name to view your test results
-                    </Text>
+                    <h1 style={{ margin: 0, color: '#0f172a', fontSize: '2rem', fontWeight: 800 }}>
+                        Guest Results
+                    </h1>
+                    <p style={{ margin: '0.5rem 0 0', color: '#475569', fontSize: '1rem' }}>
+                        Enter your guest name to view your test results.
+                    </p>
                 </div>
 
-                {/* Info Alert */}
-                <Alert icon={<IconInfoCircle size={16} />} title="About Guest Results" color="blue">
-                    <Stack gap="xs">
-                        <Text size="sm">
-                            Guest results are stored separately and can be claimed when you create an account.
-                        </Text>
-                        <Text size="sm">
-                            Your guest name was automatically generated when you first joined a test session.
-                        </Text>
-                    </Stack>
-                </Alert>
+                <div
+                    role="note"
+                    style={{
+                        borderRadius: '1rem',
+                        border: '1px solid rgba(59, 130, 246, 0.16)',
+                        background: 'rgba(239, 246, 255, 0.95)',
+                        padding: '1rem 1.1rem',
+                        boxShadow: '0 16px 40px rgba(59, 130, 246, 0.08)',
+                    }}
+                >
+                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
+                        <IconInfoCircle size={20} style={{ color: '#2563eb', flexShrink: 0, marginTop: '0.1rem' }} />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                            <div style={{ color: '#1d4ed8', fontWeight: 700, fontSize: '0.95rem' }}>
+                                About Guest Results
+                            </div>
+                            <p style={{ margin: 0, color: '#1e3a8a', fontSize: '0.9rem', lineHeight: 1.55 }}>
+                                Guest results are stored separately and can be claimed when you create an account.
+                            </p>
+                            <p style={{ margin: 0, color: '#1e3a8a', fontSize: '0.9rem', lineHeight: 1.55 }}>
+                                Your guest name was automatically generated when you first joined a test session.
+                            </p>
+                        </div>
+                    </div>
+                </div>
 
-                {/* Search Box */}
-                <Paper shadow="sm" p="lg" radius="md" withBorder>
-                    <Stack gap="md">
-                        <TextInput
-                            label="Guest Name"
-                            placeholder="Enter your guest name (e.g., John, Sarah_1)"
-                            value={guestName}
-                            onChange={(e) => setGuestName(e.currentTarget.value)}
-                            onKeyPress={handleKeyPress}
-                            leftSection={<IconSearch size={16} />}
-                            size="md"
-                            error={error}
-                        />
+                <Card variant="glass">
+                    <CardBody>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <Input
+                                label="Guest Name"
+                                placeholder="Enter your guest name (e.g., John, Sarah_1)"
+                                value={guestName}
+                                onChange={(event) => setGuestName(event.currentTarget.value)}
+                                onKeyDown={handleKeyPress}
+                                icon={<IconSearch size={16} />}
+                                error={error ?? undefined}
+                                fullWidth
+                            />
 
-                        <Button
-                            onClick={handleSearch}
-                            loading={loading}
-                            leftSection={<IconSearch size={18} />}
-                            size="md"
-                            fullWidth
-                        >
-                            Search Results
-                        </Button>
-                    </Stack>
-                </Paper>
+                            <Button
+                                onClick={handleSearch}
+                                loading={loading}
+                                leftSection={<IconSearch size={18} />}
+                                size="md"
+                                fullWidth
+                            >
+                                Search Results
+                            </Button>
+                        </div>
+                    </CardBody>
+                </Card>
 
-                {/* Results Display */}
                 {loading && (
-                    <Center py="xl">
-                        <Loader size="lg" />
-                    </Center>
+                    <div style={{ display: 'flex', justifyContent: 'center', padding: '2.5rem 0' }}>
+                        <VanillaLoader size="lg" />
+                    </div>
                 )}
 
                 {!loading && searched && results.length === 0 && (
-                    <Paper shadow="sm" p="xl" radius="md" withBorder>
-                        <Stack align="center" gap="md">
-                            <IconInfoCircle size={48} stroke={1.5} color="gray" />
-                            <Text size="lg" fw={500}>No results found</Text>
-                            <Text c="dimmed" ta="center">
-                                No test results were found for guest name "{guestName}".
-                                <br />
-                                Please check your guest name and try again.
-                            </Text>
-                        </Stack>
-                    </Paper>
+                    <Card variant="glass">
+                        <CardBody>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.85rem', textAlign: 'center' }}>
+                                <IconInfoCircle size={42} stroke={1.5} style={{ color: '#94a3b8' }} />
+                                <div style={{ color: '#0f172a', fontSize: '1.05rem', fontWeight: 700 }}>
+                                    No results found
+                                </div>
+                                <p style={{ margin: 0, color: '#64748b', lineHeight: 1.6 }}>
+                                    No test results were found for guest name "{guestName}".
+                                    <br />
+                                    Please check your guest name and try again.
+                                </p>
+                            </div>
+                        </CardBody>
+                    </Card>
                 )}
 
                 {!loading && results.length > 0 && (
                     <>
-                        <Paper shadow="sm" p="md" radius="md" withBorder>
-                            <Group justify="space-between">
-                                <div>
-                                    <Text fw={600} size="lg">Found {results.length} result{results.length !== 1 ? 's' : ''}</Text>
-                                    <Text size="sm" c="dimmed">Guest: {guestName}</Text>
-                                </div>
-                                <Button
-                                    variant="light"
-                                    leftSection={<IconUserPlus size={18} />}
-                                    onClick={() => navigate('/')}
+                        <Card variant="glass">
+                            <CardBody>
+                                <div
+                                    style={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        gap: '1rem',
+                                        flexWrap: 'wrap',
+                                    }}
                                 >
-                                    Create Account to Claim
-                                </Button>
-                            </Group>
-                        </Paper>
+                                    <div>
+                                        <div style={{ color: '#0f172a', fontSize: '1.05rem', fontWeight: 700 }}>
+                                            Found {results.length} result{results.length !== 1 ? 's' : ''}
+                                        </div>
+                                        <div style={{ color: '#64748b', fontSize: '0.9rem', marginTop: '0.2rem' }}>
+                                            Guest: {guestName}
+                                        </div>
+                                    </div>
+                                    <Button
+                                        variant="secondary"
+                                        leftSection={<IconUserPlus size={18} />}
+                                        onClick={() => navigate('/')}
+                                    >
+                                        Create Account to Claim
+                                    </Button>
+                                </div>
+                            </CardBody>
+                        </Card>
 
-                        <Stack gap="md">
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                             {results.map((result) => (
                                 <ResultCard
                                     key={result.resultId}
                                     result={result}
                                     onClick={() => {
-                                        // Navigate to result detail page if needed
                                         console.log('Result clicked:', result.resultId);
                                     }}
                                 />
                             ))}
-                        </Stack>
+                        </div>
                     </>
                 )}
 
-                <Divider />
+                <div
+                    aria-hidden="true"
+                    style={{ height: '1px', background: 'linear-gradient(90deg, rgba(148,163,184,0) 0%, rgba(148,163,184,0.45) 50%, rgba(148,163,184,0) 100%)' }}
+                />
 
-                {/* Login/Register Links */}
-                <Paper shadow="sm" p="lg" radius="md" withBorder bg="gray.0">
-                    <Stack gap="md" align="center">
-                        <Text fw={500} size="lg">Want to keep your results permanently?</Text>
-                        <Text c="dimmed" ta="center">
-                            Create an account to claim your guest results and track your progress over time.
-                        </Text>
-                        <Group>
-                            <Button
-                                variant="light"
-                                leftSection={<IconUserPlus size={18} />}
-                                onClick={() => navigate('/')}
-                            >
-                                Create Account
-                            </Button>
-                            <Button
-                                variant="subtle"
-                                leftSection={<IconLogin size={18} />}
-                                onClick={() => navigate('/')}
-                            >
-                                Already have an account? Login
-                            </Button>
-                        </Group>
-                    </Stack>
-                </Paper>
-            </Stack>
-        </Container>
+                <Card variant="glass">
+                    <CardBody>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.9rem', textAlign: 'center' }}>
+                            <div style={{ color: '#0f172a', fontSize: '1.05rem', fontWeight: 700 }}>
+                                Want to keep your results permanently?
+                            </div>
+                            <p style={{ margin: 0, color: '#64748b', lineHeight: 1.6, maxWidth: '560px' }}>
+                                Create an account to claim your guest results and track your progress over time.
+                            </p>
+                            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+                                <Button
+                                    variant="secondary"
+                                    leftSection={<IconUserPlus size={18} />}
+                                    onClick={() => navigate('/')}
+                                >
+                                    Create Account
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    leftSection={<IconLogin size={18} />}
+                                    onClick={() => navigate('/')}
+                                >
+                                    Already have an account? Login
+                                </Button>
+                            </div>
+                        </div>
+                    </CardBody>
+                </Card>
+            </div>
+        </div>
     );
 }
 

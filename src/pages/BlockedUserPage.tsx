@@ -13,19 +13,7 @@
 
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-    Container,
-    Title,
-    Text,
-    Button,
-    Group,
-    Stack,
-    Paper,
-    ThemeIcon,
-    List,
-    useMantineTheme,
-    useComputedColorScheme,
-} from '@mantine/core';
+import { Button, Card, CardBody } from '../components/modern';
 import { IconBan, IconLogout, IconMail } from '@tabler/icons-react';
 import { useAuth } from '../hooks/useAuth';
 
@@ -42,16 +30,13 @@ const BlockedUserPage: React.FC<BlockedUserPageProps> = ({
 }) => {
     const navigate = useNavigate();
     const { logout, user } = useAuth();
-    const theme = useMantineTheme();
-    const colorScheme = useComputedColorScheme('light');
 
     const handleLogout = async () => {
         try {
             await logout();
-            navigate('/login', { replace: true });
+            navigate('/', { replace: true });
         } catch (error) {
             console.error('Logout failed:', error);
-            // Force navigation anyway
             navigate('/', { replace: true });
         }
     };
@@ -77,118 +62,102 @@ Thank you.
     };
 
     return (
-        <Container size="sm" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center' }}>
-            <Paper
-                p="xl"
-                radius="lg"
-                withBorder
+        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem', background: 'linear-gradient(180deg, #fef2f2 0%, #fff7ed 100%)' }}>
+            <Card
+                variant="glass"
                 style={{
+                    maxWidth: '620px',
                     width: '100%',
-                    background: colorScheme === 'dark'
-                        ? 'linear-gradient(145deg, rgba(37, 38, 43, 0.9), rgba(26, 27, 30, 0.95))'
-                        : 'linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(248, 249, 250, 0.9))',
-                    backdropFilter: 'blur(10px)',
-                    borderColor: colorScheme === 'dark' ? theme.colors.dark[4] : theme.colors.gray[3],
                 }}
             >
-                <Stack align="center" gap="lg">
-                    {/* Ban Icon */}
-                    <ThemeIcon
-                        size={80}
-                        radius="xl"
-                        variant="gradient"
-                        gradient={{ from: 'red.7', to: 'red.5', deg: 135 }}
-                    >
-                        <IconBan size={40} stroke={1.5} />
-                    </ThemeIcon>
-
-                    {/* Title */}
-                    <Title
-                        order={1}
-                        ta="center"
-                        style={{
-                            background: 'linear-gradient(135deg, #c92a2a 0%, #e03131 100%)',
-                            WebkitBackgroundClip: 'text',
-                            WebkitTextFillColor: 'transparent',
-                        }}
-                    >
-                        Account Blocked
-                    </Title>
-
-                    {/* Main Message */}
-                    <Text size="lg" c="dimmed" ta="center" maw={400}>
-                        {message || reason}
-                    </Text>
-
-                    {/* User Info */}
-                    {user?.email && (
-                        <Paper
-                            p="sm"
-                            radius="md"
-                            withBorder
+                <CardBody>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', alignItems: 'center', textAlign: 'center' }}>
+                        <div
                             style={{
-                                backgroundColor: colorScheme === 'dark'
-                                    ? 'rgba(0, 0, 0, 0.2)'
-                                    : 'rgba(0, 0, 0, 0.02)',
+                                width: '5rem',
+                                height: '5rem',
+                                borderRadius: '999px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                background: 'linear-gradient(135deg, #dc2626 0%, #f97316 100%)',
+                                color: '#ffffff',
+                                boxShadow: '0 18px 42px rgba(220, 38, 38, 0.24)',
                             }}
                         >
-                            <Text size="sm" c="dimmed">
+                            <IconBan size={40} stroke={1.5} />
+                        </div>
+
+                        <div>
+                            <h1
+                                style={{
+                                    margin: 0,
+                                    fontSize: '2rem',
+                                    fontWeight: 800,
+                                    background: 'linear-gradient(135deg, #b91c1c 0%, #ef4444 100%)',
+                                    WebkitBackgroundClip: 'text',
+                                    WebkitTextFillColor: 'transparent',
+                                }}
+                            >
+                                Account Blocked
+                            </h1>
+                            <p style={{ margin: '0.75rem auto 0', maxWidth: '430px', color: '#64748b', lineHeight: 1.65 }}>
+                                {message || reason}
+                            </p>
+                        </div>
+
+                        {user?.email && (
+                            <div
+                                style={{
+                                    borderRadius: '1rem',
+                                    padding: '0.9rem 1rem',
+                                    background: 'rgba(15, 23, 42, 0.03)',
+                                    border: '1px solid rgba(148, 163, 184, 0.22)',
+                                    color: '#475569',
+                                    width: '100%',
+                                }}
+                            >
                                 <strong>Account:</strong> {user.email}
-                            </Text>
-                        </Paper>
-                    )}
+                            </div>
+                        )}
 
-                    {/* Possible Reasons List */}
-                    <Paper
-                        p="md"
-                        radius="md"
-                        withBorder
-                        style={{
-                            width: '100%',
-                            backgroundColor: colorScheme === 'dark'
-                                ? 'rgba(0, 0, 0, 0.2)'
-                                : 'rgba(0, 0, 0, 0.02)',
-                        }}
-                    >
-                        <Text size="sm" fw={500} mb="xs">
-                            This could happen for several reasons:
-                        </Text>
-                        <List size="sm" spacing="xs" c="dimmed">
-                            <List.Item>Violation of terms of service</List.Item>
-                            <List.Item>Security concerns with your account</List.Item>
-                            <List.Item>Administrative action</List.Item>
-                            <List.Item>Suspicious activity detected</List.Item>
-                        </List>
-                    </Paper>
-
-                    {/* Action Buttons */}
-                    <Group gap="md" mt="md">
-                        <Button
-                            variant="light"
-                            color="blue"
-                            leftSection={<IconMail size={18} />}
-                            onClick={handleContactSupport}
+                        <div
+                            style={{
+                                width: '100%',
+                                borderRadius: '1rem',
+                                padding: '1rem 1.1rem',
+                                background: 'rgba(15, 23, 42, 0.03)',
+                                border: '1px solid rgba(148, 163, 184, 0.22)',
+                                textAlign: 'left',
+                            }}
                         >
-                            Contact Support
-                        </Button>
+                            <div style={{ color: '#0f172a', fontSize: '0.92rem', fontWeight: 700, marginBottom: '0.5rem' }}>
+                                This could happen for several reasons:
+                            </div>
+                            <ul style={{ margin: 0, paddingLeft: '1.1rem', color: '#64748b', lineHeight: 1.75 }}>
+                                <li>Violation of terms of service</li>
+                                <li>Security concerns with your account</li>
+                                <li>Administrative action</li>
+                                <li>Suspicious activity detected</li>
+                            </ul>
+                        </div>
 
-                        <Button
-                            variant="gradient"
-                            gradient={{ from: 'red.6', to: 'orange.5', deg: 135 }}
-                            leftSection={<IconLogout size={18} />}
-                            onClick={handleLogout}
-                        >
-                            Log Out
-                        </Button>
-                    </Group>
+                        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+                            <Button variant="outline" leftSection={<IconMail size={18} />} onClick={handleContactSupport}>
+                                Contact Support
+                            </Button>
+                            <Button variant="primary" leftSection={<IconLogout size={18} />} onClick={handleLogout}>
+                                Log Out
+                            </Button>
+                        </div>
 
-                    {/* Footer Note */}
-                    <Text size="xs" c="dimmed" ta="center" mt="md">
-                        If you believe this is an error, please contact the administrator for assistance.
-                    </Text>
-                </Stack>
-            </Paper>
-        </Container>
+                        <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.8rem', lineHeight: 1.6 }}>
+                            If you believe this is an error, please contact the administrator for assistance.
+                        </p>
+                    </div>
+                </CardBody>
+            </Card>
+        </div>
     );
 };
 

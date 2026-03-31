@@ -12,7 +12,7 @@
  * Data-loading: RTDB onValue listener → fallback to getTestResult → inline error
  */
 
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { Suspense, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ref, onValue } from 'firebase/database';
 // @ts-ignore
 import { database } from '../../services/firebase';
@@ -27,8 +27,7 @@ import { SharedSavedResultCore } from './SharedSavedResultCore';
 import type { SharedSavedResultCoreSections } from './SharedSavedResultCore';
 import { isPermissionDeniedError, AccessLostState, ACCESS_LOST_INITIAL } from '../../utils/rtdbAccessLost';
 import type { WritingSubmission } from '../../types/ielts-writing.types';
-import WritingResultView from '../writing-results/WritingResultView';
-import { buildWritingSubmissionFallbackFromResult } from '../writing-results/writingResultSurface';
+import { lazyWithRetry } from '../../utils/lazyWithRetry';
 import './ResultSlidePanel.css';
 
 /* ─── Props ──────────────────────────────────────────────────────────────── */
@@ -36,6 +35,20 @@ import './ResultSlidePanel.css';
 export interface ResultSlidePanelProps {
   resultId: string;
   onClose: () => void;
+}
+
+const LazyWritingResultView = lazyWithRetry(
+  () => import('../writing-results/WritingResultView'),
+);
+
+let writingResultSurfaceModulePromise: Promise<typeof import('../writing-results/writingResultSurface')> | null = null;
+
+function loadWritingResultSurfaceModule() {
+  if (!writingResultSurfaceModulePromise) {
+    writingResultSurfaceModulePromise = import('../writing-results/writingResultSurface');
+  }
+
+  return writingResultSurfaceModulePromise;
 }
 
 /* ─── Tab Type ───────────────────────────────────────────────────────────── */
@@ -488,26 +501,33 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
       return;
     }
 
-    const fallbackSubmission = buildWritingSubmissionFallbackFromResult(result);
-    const submissionId = result.writingData?.submissionId || result.resultId;
-    if (!submissionId) {
-      setWritingSubmission(fallbackSubmission);
-      setWritingSubmissionLoading(false);
-      return;
-    }
-
-    if (fallbackSubmission && fallbackSubmission.markingStatus !== 'graded') {
-      setWritingSubmission(fallbackSubmission);
-      setWritingSubmissionLoading(false);
-      return;
-    }
-
     let cancelled = false;
-    setWritingSubmission(fallbackSubmission);
-    setWritingSubmissionLoading(!fallbackSubmission);
+    setWritingSubmission(null);
+    setWritingSubmissionLoading(true);
 
     void (async () => {
       try {
+        const { buildWritingSubmissionFallbackFromResult } = await loadWritingResultSurfaceModule();
+        if (cancelled) {
+          return;
+        }
+
+        const fallbackSubmission = buildWritingSubmissionFallbackFromResult(result);
+        const submissionId = result.writingData?.submissionId || result.resultId;
+        if (!submissionId) {
+          setWritingSubmission(fallbackSubmission);
+          setWritingSubmissionLoading(false);
+          return;
+        }
+
+        if (fallbackSubmission && fallbackSubmission.markingStatus !== 'graded') {
+          setWritingSubmission(fallbackSubmission);
+          setWritingSubmissionLoading(false);
+          return;
+        }
+
+        setWritingSubmission(fallbackSubmission);
+        setWritingSubmissionLoading(!fallbackSubmission);
         const { getSubmission } = await import('../../services/writingSubmissionService');
         const response = await getSubmission(submissionId);
         if (cancelled) {
@@ -673,19 +693,28 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
       }
 
       return (
-        <WritingResultView
-          submission={writingSubmission}
-          variant="panel"
-          forceWidePanelLayout={!isMobile}
-          canRevealPublishedData={effectiveSavedResultReleaseState === 'feedback-released'}
-          releaseNotice={releaseNotice ? {
-            title: effectiveSavedResultReleaseState === 'locked-review' ? 'Detailed review is still locked' : 'Feedback is not released yet',
-            body: effectiveSavedResultReleaseState === 'locked-review'
-              ? 'This saved result is still governed by the live-session release state. Writing feedback will appear here after the teacher publishes and releases it.'
-              : 'Your teacher has released answer review for this live-session result. Writing feedback will appear here once the session reaches feedback release.',
-            tone: effectiveSavedResultReleaseState === 'locked-review' ? 'warning' : 'info',
-          } : null}
-        />
+        <Suspense
+          fallback={(
+            <div className="rsp-loading">
+              <div className="rsp-spinner" />
+              <span>Loading writing result…</span>
+            </div>
+          )}
+        >
+          <LazyWritingResultView
+            submission={writingSubmission}
+            variant="panel"
+            forceWidePanelLayout={!isMobile}
+            canRevealPublishedData={effectiveSavedResultReleaseState === 'feedback-released'}
+            releaseNotice={releaseNotice ? {
+              title: effectiveSavedResultReleaseState === 'locked-review' ? 'Detailed review is still locked' : 'Feedback is not released yet',
+              body: effectiveSavedResultReleaseState === 'locked-review'
+                ? 'This saved result is still governed by the live-session release state. Writing feedback will appear here after the teacher publishes and releases it.'
+                : 'Your teacher has released answer review for this live-session result. Writing feedback will appear here once the session reaches feedback release.',
+              tone: effectiveSavedResultReleaseState === 'locked-review' ? 'warning' : 'info',
+            } : null}
+          />
+        </Suspense>
       );
     }
 

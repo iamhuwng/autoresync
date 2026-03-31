@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader } from '@mantine/core';
 import { useMaterialLibrary, preloadMaterialLibraryData } from '../hooks/useMaterialLibrary';
 import { useAuth } from '../hooks/useAuth';
 
@@ -34,8 +33,25 @@ const localStyles = {
     historyBoxItem: { display: 'flex', flexDirection: 'column' as const, gap: 2 },
     historyBoxLabel: { fontSize: '0.75rem', color: '#6b7280', fontWeight: 500, textTransform: 'uppercase' as const, letterSpacing: '0.05em' },
     historyBoxValue: { fontSize: '1rem', fontWeight: 700, color: '#111827' },
-    historyBoxValueAccent: { fontSize: '1rem', fontWeight: 700, color: '#4f46e5' }
+    historyBoxValueAccent: { fontSize: '1rem', fontWeight: 700, color: '#4f46e5' },
+    loaderWrap: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: '50%', border: '3px solid #e0e7ff', borderTopColor: '#4f46e5', animation: 'studentSpinner 0.8s linear infinite' },
 };
+
+function InlineLoader({ label, size = 32 }: { label?: string; size?: number }) {
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+            <div
+                aria-hidden="true"
+                style={{
+                    ...localStyles.loaderWrap,
+                    width: size,
+                    height: size,
+                }}
+            />
+            {label ? <p style={{ color: '#6b7280', margin: 0, fontWeight: 500 }}>{label}</p> : null}
+        </div>
+    );
+}
 
 const FILTER_TABS = [
     { key: 'my_courses', label: 'My Courses' },
@@ -185,6 +201,12 @@ export const StudentLibraryPage: React.FC = () => {
                 />
             }
         >
+            <style>{`
+                @keyframes studentSpinner {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
+                }
+            `}</style>
             <div style={S.feedHeader}>
                 <h2 style={S.feedHeaderTitle}>Practice Library</h2>
             </div>
@@ -284,8 +306,7 @@ export const StudentLibraryPage: React.FC = () => {
 
                 {isLoading && (
                     <div style={{ textAlign: 'center', padding: '60px 0' }}>
-                        <Loader size="md" />
-                        <p style={{ color: '#6b7280', marginTop: 16, fontWeight: 500 }}>Loading materials...</p>
+                        <InlineLoader label="Loading materials..." />
                     </div>
                 )}
 

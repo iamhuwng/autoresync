@@ -1,0 +1,49 @@
+{
+  "docPath": "architecture/student-startup-bundle-segmentation",
+  "currentVersion": 1,
+  "versions": [
+    {
+      "id": "v1",
+      "docPath": "architecture/student-startup-bundle-segmentation",
+      "version": 1,
+      "timestamp": "2026-03-31T08:59:42.0857304Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "Student Startup Bundle Segmentation"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "Startup-bundle contract for the public and student-first paths: thin public bootstrap, lazy authenticated route groups, deferred reporting bootstrap, route-module warmup, and bundle guardrails."
+        },
+        {
+          "field": "tags",
+          "oldValue": null,
+          "newValue": [
+            "architecture",
+            "student",
+            "performance",
+            "startup",
+            "routing",
+            "bundles"
+          ]
+        }
+      ],
+      "snapshot": {
+        "content": "# Student Startup Bundle Segmentation\n\n## Purpose\n\nThis document defines the startup-bundle contract for the public and student-first paths.\n\nThe core rule is:\n- the public bootstrap loads only public and auth-critical code\n- authenticated role trees, student shell warm routes, and optional heavy student features stay behind explicit lazy boundaries\n\n## Problem This Solves\n\nAfter the 2026-03-31 student shell data-loading repair, the main remaining bottleneck was startup JavaScript cost rather than repeated tab-owned data reads.\n\nThe root app shell still owned too much authenticated routing and startup behavior, and warmed student routes still leaked optional UI/runtime code into first login.\n\n## Canonical Bootstrap Model\n\nCurrent repo shape:\n- `src/main.jsx` mounts a minimal root path\n- `src/App.jsx` is a thin bootstrapper\n- `src/routes/PublicRoutes.tsx` owns the eager public path\n- `src/routes/AuthenticatedRoutes.tsx` owns the authenticated gate and deferred authenticated bootstrap\n- role trees load through lazy route groups:\n  - `src/routes/StudentRoleRoutes.tsx`\n  - `src/routes/TeacherRoleRoutes.tsx`\n  - `src/routes/AdminRoleRoutes.tsx`\n\nThis keeps public entry from importing student, teacher, or admin route trees just to reach login.\n\n## Authenticated Bootstrap Split\n\nAuthenticated startup is split into two phases.\n\nImmediate phase:\n- auth gate\n- route resolution\n- global error capture\n\nDeferred authenticated phase:\n- analytics wiring\n- auth-bound reporting listeners\n- RTDB reporting config listeners\n- canary and flush timers\n\nCurrent anchors:\n- `src/routes/AuthenticatedRoutes.tsx`\n- `src/core/platform/hooks/useDeferredIdleTask.ts`\n- `src/services/reportingService.ts`\n\n## Student Warmup Boundary\n\nStudent shell warmup has two separate layers:\n- shell-shared data warmup\n- route-module and page-cache warmup\n\nRules:\n- shell-shared data stays owned by the persistent student shell provider\n- route warmup may preload selected student shell pages and their page-owned caches\n- warmup must not create a second owner for shell-shared summaries\n- Courses should warm only after shell-owned class membership is ready so it stays on the student-safe read path\n\nCurrent anchors:\n- `src/context/StudentShellDataContext.tsx`\n- `src/context/studentShellPrefetch.ts`\n\n## Optional Feature Boundary\n\nHeavy optional student features must stay below the warmed route entry boundary.\n\nCurrent examples:\n- `DeferredResultSlidePanel` wraps the result slide panel entry\n- writing-result internals in `ResultSlidePanel` load lazily on demand\n- warmed student shell pages no longer import Mantine loader, badge, progress, or modal primitives for first login\n\nCurrent anchors:\n- `src/components/results/DeferredResultSlidePanel.tsx`\n- `src/components/results/ResultSlidePanel.tsx`\n- `src/components/test/SoloResumeModal.tsx`\n- `src/pages/StudentDashboardPage.jsx`\n- `src/pages/StudentCoursesPage.tsx`\n- `src/pages/StudentLibraryPage.tsx`\n\n## Bundle Guardrail Contract\n\nStartup performance is protected by explicit build checks, not convention.\n\nCurrent anchors:\n- `scripts/check-bundle-budget.mjs`\n- `vite.config.js`\n- `package.json`\n\nRequired guardrails:\n- root entry stays below the enforced budget\n- public login does not fetch teacher/admin/test bundles\n- authenticated student login does not fetch `chart-vendor`, `pdf`, `jspdf`, or `html2canvas` before explicit navigation to those features\n\n## Verification Standard\n\nWhen startup segmentation changes, verify with production build output and a live browser run.\n\nMinimum pass condition:\n- build passes\n- bundle budget passes\n- public `/` fetches only public/auth-critical chunks\n- student login does not fetch `chart-vendor`, `pdf`, `jspdf`, or `html2canvas`\n- warmed first entry into Courses, Library, and Records avoids blocking loaders in the sampled window\n\nCurrent evidence anchor:\n- `output/student-startup-bundle-verification.json`\n\n## Related Docs\n\n- @doc/architecture/student-shell-data-loading-architecture\n- @doc/architecture/academic-record/academic-record-page-architecture\n- @doc/architecture/auth-rbac-architecture",
+        "description": "Startup-bundle contract for the public and student-first paths: thin public bootstrap, lazy authenticated route groups, deferred reporting bootstrap, route-module warmup, and bundle guardrails.",
+        "tags": [
+          "architecture",
+          "student",
+          "performance",
+          "startup",
+          "routing",
+          "bundles"
+        ],
+        "title": "Student Startup Bundle Segmentation"
+      }
+    }
+  ]
+}

@@ -11,4 +11,3 @@ export { ResultTimeline } from './ResultTimeline';
 export { ResultsByCourse } from './ResultsByCourse';
 export { ResultsBySkill } from './ResultsBySkill';
 export { ResultsByTestType } from './ResultsByTestType';
-export { StatisticsDashboard } from './StatisticsDashboard';

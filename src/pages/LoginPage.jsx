@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 
 import { Card, CardBody, Button } from '../components/modern';
-import { Text, Alert } from '@mantine/core';
 import { IconBrandGoogle } from '@tabler/icons-react';
 
 const LoginPage = () => {
@@ -82,7 +81,9 @@ const LoginPage = () => {
         alignItems: 'center',
         justifyContent: 'center'
       }}>
-        <Text>Loading...</Text>
+        <p style={{ margin: 0, color: '#334155', fontSize: '1rem', fontWeight: 600 }}>
+          Loading...
+        </p>
       </div>
     );
   }
@@ -152,14 +153,50 @@ const LoginPage = () => {
           </div>
 
           {loginError && (
-            <Alert color="red" title="Error" mb="md" onClose={() => setLoginError(null)} withCloseButton>
-              {loginError}
-            </Alert>
+            <div
+              role="alert"
+              style={{
+                marginBottom: '1rem',
+                borderRadius: '1rem',
+                border: '1px solid rgba(239, 68, 68, 0.18)',
+                background: 'rgba(254, 242, 242, 0.95)',
+                color: '#991b1b',
+                padding: '0.875rem 1rem',
+                boxShadow: '0 12px 30px rgba(239, 68, 68, 0.08)'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 700, letterSpacing: '0.02em', marginBottom: '0.2rem' }}>
+                    Error
+                  </div>
+                  <div style={{ fontSize: '0.875rem', lineHeight: 1.5 }}>
+                    {loginError}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Dismiss login error"
+                  onClick={() => setLoginError(null)}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    color: '#991b1b',
+                    fontSize: '1.1rem',
+                    lineHeight: 1,
+                    cursor: 'pointer',
+                    padding: 0
+                  }}
+                >
+                  x
+                </button>
+              </div>
+            </div>
           )}
 
           {user ? (
             <div style={{ textAlign: 'center', padding: '1rem 0' }}>
-              <Text size="sm" c="dimmed">Redirecting...</Text>
+              <p style={{ margin: 0, color: '#64748b', fontSize: '0.875rem' }}>Redirecting...</p>
             </div>
           ) : (
             <div>

@@ -9,19 +9,7 @@
 
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import {
-    Container,
-    Title,
-    Text,
-    Button,
-    Group,
-    Stack,
-    Paper,
-    ThemeIcon,
-    List,
-    useMantineTheme,
-    useComputedColorScheme,
-} from '@mantine/core';
+import { Button, Card, CardBody } from '../components/modern';
 import { IconLock, IconHome, IconLogout, IconArrowLeft } from '@tabler/icons-react';
 import { useAuth } from '../hooks/useAuth';
 
@@ -68,8 +56,6 @@ const AccessDeniedPage: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { profile, logout } = useAuth();
-    const theme = useMantineTheme();
-    const colorScheme = useComputedColorScheme('light');
 
     const state = location.state as LocationState | undefined;
     const attemptedPath = state?.from || 'this page';
@@ -102,110 +88,92 @@ const AccessDeniedPage: React.FC = () => {
     };
 
     return (
-        <Container size="sm" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center' }}>
-            <Paper
-                p="xl"
-                radius="lg"
-                withBorder
+        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem', background: 'linear-gradient(180deg, #fff7ed 0%, #f8fafc 100%)' }}>
+            <Card
+                variant="glass"
                 style={{
+                    maxWidth: '620px',
                     width: '100%',
-                    background: colorScheme === 'dark'
-                        ? 'linear-gradient(145deg, rgba(37, 38, 43, 0.9), rgba(26, 27, 30, 0.95))'
-                        : 'linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(248, 249, 250, 0.9))',
-                    backdropFilter: 'blur(10px)',
-                    borderColor: colorScheme === 'dark' ? theme.colors.dark[4] : theme.colors.gray[3],
                 }}
             >
-                <Stack align="center" gap="lg">
-                    {/* Lock Icon */}
-                    <ThemeIcon
-                        size={80}
-                        radius="xl"
-                        variant="gradient"
-                        gradient={{ from: 'red.6', to: 'orange.5', deg: 135 }}
-                    >
-                        <IconLock size={40} stroke={1.5} />
-                    </ThemeIcon>
-
-                    {/* Title */}
-                    <Title
-                        order={1}
-                        ta="center"
-                        style={{
-                            background: 'linear-gradient(135deg, #fa5252 0%, #fd7e14 100%)',
-                            WebkitBackgroundClip: 'text',
-                            WebkitTextFillColor: 'transparent',
-                        }}
-                    >
-                        Access Denied
-                    </Title>
-
-                    {/* Main Message */}
-                    <Text size="lg" c="dimmed" ta="center" maw={400}>
-                        {reasonText}
-                    </Text>
-
-                    {/* Possible Reasons List */}
-                    <Paper
-                        p="md"
-                        radius="md"
-                        withBorder
-                        style={{
-                            width: '100%',
-                            backgroundColor: colorScheme === 'dark'
-                                ? 'rgba(0, 0, 0, 0.2)'
-                                : 'rgba(0, 0, 0, 0.02)',
-                        }}
-                    >
-                        <Text size="sm" fw={500} mb="xs">
-                            This could be because:
-                        </Text>
-                        <List size="sm" spacing="xs" c="dimmed">
-                            <List.Item>You're trying to access an admin-only or teacher-only page</List.Item>
-                            <List.Item>You're trying to view data that belongs to someone else</List.Item>
-                            <List.Item>Your session has expired and needs to be refreshed</List.Item>
-                            <List.Item>Your account permissions have been recently changed</List.Item>
-                        </List>
-                    </Paper>
-
-                    {/* Action Buttons */}
-                    <Group gap="md" mt="md">
-                        <Button
-                            variant="light"
-                            leftSection={<IconArrowLeft size={18} />}
-                            onClick={handleGoBack}
+                <CardBody>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', alignItems: 'center', textAlign: 'center' }}>
+                        <div
+                            style={{
+                                width: '5rem',
+                                height: '5rem',
+                                borderRadius: '999px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                background: 'linear-gradient(135deg, #fb7185 0%, #f97316 100%)',
+                                color: '#ffffff',
+                                boxShadow: '0 18px 40px rgba(249, 115, 22, 0.28)',
+                            }}
                         >
-                            Go Back
-                        </Button>
+                            <IconLock size={40} stroke={1.5} />
+                        </div>
 
-                        <Button
-                            variant="gradient"
-                            gradient={{ from: 'blue.6', to: 'cyan.5', deg: 135 }}
-                            leftSection={<IconHome size={18} />}
-                            onClick={handleGoToDashboard}
+                        <div>
+                            <h1
+                                style={{
+                                    margin: 0,
+                                    fontSize: '2rem',
+                                    fontWeight: 800,
+                                    background: 'linear-gradient(135deg, #ef4444 0%, #f97316 100%)',
+                                    WebkitBackgroundClip: 'text',
+                                    WebkitTextFillColor: 'transparent',
+                                }}
+                            >
+                                Access Denied
+                            </h1>
+                            <p style={{ margin: '0.75rem auto 0', maxWidth: '430px', color: '#64748b', lineHeight: 1.65 }}>
+                                {reasonText}
+                            </p>
+                        </div>
+
+                        <div
+                            style={{
+                                width: '100%',
+                                borderRadius: '1rem',
+                                padding: '1rem 1.1rem',
+                                background: 'rgba(15, 23, 42, 0.03)',
+                                border: '1px solid rgba(148, 163, 184, 0.22)',
+                                textAlign: 'left',
+                            }}
                         >
-                            Go to Dashboard
-                        </Button>
+                            <div style={{ color: '#0f172a', fontSize: '0.92rem', fontWeight: 700, marginBottom: '0.5rem' }}>
+                                This could be because:
+                            </div>
+                            <ul style={{ margin: 0, paddingLeft: '1.1rem', color: '#64748b', lineHeight: 1.75 }}>
+                                <li>You're trying to access an admin-only or teacher-only page</li>
+                                <li>You're trying to view data that belongs to someone else</li>
+                                <li>Your session has expired and needs to be refreshed</li>
+                                <li>Your account permissions have been recently changed</li>
+                            </ul>
+                        </div>
 
-                        <Button
-                            variant="subtle"
-                            color="gray"
-                            leftSection={<IconLogout size={18} />}
-                            onClick={handleLogout}
-                        >
-                            Log Out
-                        </Button>
-                    </Group>
+                        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+                            <Button variant="outline" leftSection={<IconArrowLeft size={18} />} onClick={handleGoBack}>
+                                Go Back
+                            </Button>
+                            <Button variant="primary" leftSection={<IconHome size={18} />} onClick={handleGoToDashboard}>
+                                Go to Dashboard
+                            </Button>
+                            <Button variant="glass" leftSection={<IconLogout size={18} />} onClick={handleLogout}>
+                                Log Out
+                            </Button>
+                        </div>
 
-                    {/* Debug Info (development only) */}
-                    {process.env.NODE_ENV === 'development' && (
-                        <Text size="xs" c="dimmed" ta="center" mt="md">
-                            <strong>Debug:</strong> Attempted: {attemptedPath}, Reason: {reason}, Role: {profile?.role || 'none'}
-                        </Text>
-                    )}
-                </Stack>
-            </Paper>
-        </Container>
+                        {process.env.NODE_ENV === 'development' && (
+                            <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.75rem', lineHeight: 1.5 }}>
+                                <strong>Debug:</strong> Attempted: {attemptedPath}, Reason: {reason}, Role: {profile?.role || 'none'}
+                            </p>
+                        )}
+                    </div>
+                </CardBody>
+            </Card>
+        </div>
     );
 };
 

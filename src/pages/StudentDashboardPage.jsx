@@ -5,14 +5,13 @@ import { enrollStudent } from '../services/classManager';
 import { getAvailablePublicSessions } from '../services/resultsService';
 import { getPaginatedUserNotifications, markNotificationAsRead, subscribeToNewNotifications } from '../services/notificationService';
 import { sessionService } from '../services/sessionService';
-import { Loader, Badge } from '@mantine/core';
 import { useNavigation } from '../hooks/useNavigation';
 import { useResolvedStudentShellData } from '../context/StudentShellDataContext';
 import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
 import { S } from '../components/layout/studentLayoutStyles';
 import { IconCheck, IconBriefcase } from '../components/layout/StudentIcons';
-import { ResultSlidePanel } from '../components/results/ResultSlidePanel';
+import { DeferredResultSlidePanel } from '../components/results/DeferredResultSlidePanel';
 import { cleanupExpiredProgress } from '../hooks/solo/useSoloAutoSave';
 import { PendingReviewsWidget } from '../components/dashboard/PendingReviewsWidget';
 
@@ -31,8 +30,49 @@ const localStyles = {
     widgetItemSubRed: { fontSize: '0.75rem', color: '#ef4444', margin: 0, fontWeight: 500 },
     showMoreLink: { color: '#4f46e5', fontSize: '0.875rem', fontWeight: 600, background: 'none', border: 'none', padding: 0, cursor: 'pointer', marginTop: 8 },
     classRow: { display: 'flex', alignItems: 'center', gap: 12 },
-    classIcon: { width: 36, height: 36, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '1rem', flexShrink: 0 }
+    classIcon: { width: 36, height: 36, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '1rem', flexShrink: 0 },
+    loaderWrap: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: '50%', border: '3px solid #e0e7ff', borderTopColor: '#4f46e5', animation: 'studentSpinner 0.8s linear infinite' },
 };
+
+function InlineLoader({ size = 32 }) {
+    return (
+        <div
+            aria-hidden="true"
+            style={{
+                ...localStyles.loaderWrap,
+                width: size,
+                height: size,
+            }}
+        />
+    );
+}
+
+function InlineBadge({ children, tone = 'neutral' }) {
+    const palette = {
+        neutral: { background: '#f3f4f6', color: '#374151' },
+        alert: { background: '#fee2e2', color: '#b91c1c' },
+        accent: { background: '#ede9fe', color: '#7c3aed' },
+    }[tone];
+
+    return (
+        <span
+            style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                padding: '4px 8px',
+                borderRadius: 999,
+                fontSize: '0.6875rem',
+                fontWeight: 700,
+                letterSpacing: '0.04em',
+                background: palette.background,
+                color: palette.color,
+                textTransform: 'uppercase',
+            }}
+        >
+            {children}
+        </span>
+    );
+}
 
 // ─── Utility: Relative time ─────────────────────────────────────────────────
 function timeAgo(dateInput) {
@@ -325,7 +365,9 @@ const StudentDashboardPage = () => {
                             <h3 style={localStyles.articleTitle}>{notif.title}</h3>
                             {/* Task 12.2: THCS badge */}
                             {notif.metadata?.materialType === 'thcs-test' && (
-                                <Badge size="xs" color="violet" variant="light" ml={4}>THCS-THPT</Badge>
+                                <span style={{ marginLeft: 4 }}>
+                                    <InlineBadge tone="accent">THCS-THPT</InlineBadge>
+                                </span>
                             )}
                             <span style={localStyles.articleTime}>· {timeAgo(notif.createdAt)}</span>
                         </div>
@@ -415,7 +457,7 @@ const StudentDashboardPage = () => {
         if (activeView === 'classes') {
             return (
                 <div style={{ padding: 16 }}>
-                    {isLoading ? <div style={{ textAlign: 'center', padding: 32 }}><Loader size="sm" /></div> :
+                    {isLoading ? <div style={{ textAlign: 'center', padding: 32 }}><InlineLoader size={24} /></div> :
                         enrolledClasses.length === 0 ? <p style={{ color: '#6b7280', textAlign: 'center', padding: 32 }}>No classes yet.</p> : (
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
                                 {enrolledClasses.map((cls, idx) => {
@@ -563,7 +605,7 @@ const StudentDashboardPage = () => {
                                     <div key={assignment.id} style={{ borderLeft: assignment.materialType === 'thcs-test' ? '3px solid #7c3aed' : 'none', paddingLeft: assignment.materialType === 'thcs-test' ? 8 : 0 }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 4 }}>
                                             <p style={{ ...localStyles.widgetItemTitle, margin: 0 }}>{assignment.title || assignment.materialTitle || 'Untitled'}</p>
-                                            {isOverdue && <Badge color="red" size="sm" variant="light">Overdue</Badge>}
+                                            {isOverdue && <InlineBadge tone="alert">Overdue</InlineBadge>}
                                         </div>
                                         <p style={isOverdue ? localStyles.widgetItemSubRed : localStyles.widgetItemSub}>
                                             {isOverdue ? `Overdue ${classNameStr}` : `${dueStr} ${classNameStr}`}
@@ -659,6 +701,12 @@ const StudentDashboardPage = () => {
                 }
                 rightPanel={renderRightPanel()}
             >
+                <style>{`
+                    @keyframes studentSpinner {
+                        from { transform: rotate(0deg); }
+                        to { transform: rotate(360deg); }
+                    }
+                `}</style>
                 <div style={S.feedHeader}>
                     <h2 style={S.feedHeaderTitle}>{mobileTitle}</h2>
                 </div>
@@ -682,12 +730,12 @@ const StudentDashboardPage = () => {
                 </div>
 
                 {isLoading && activeView !== 'feed' && (
-                    <div style={{ textAlign: 'center', padding: 48 }}><Loader /></div>
+                    <div style={{ textAlign: 'center', padding: 48 }}><InlineLoader /></div>
                 )}
             </StudentLayout>
             {renderJoinModal()}
             {selectedResultId && (
-                <ResultSlidePanel
+                <DeferredResultSlidePanel
                     resultId={selectedResultId}
                     onClose={() => setSelectedResultId(null)}
                 />

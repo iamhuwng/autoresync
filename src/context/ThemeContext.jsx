@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import '@mantine/core/styles.css';
 import { MantineProvider, createTheme } from '@mantine/core';
 import { AuroraThemeProvider } from '../components/theme/AuroraThemeProvider.jsx';
 

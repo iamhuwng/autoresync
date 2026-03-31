@@ -71,8 +71,8 @@ vi.mock('../components/layout/studentLayoutStyles', () => ({
   },
 }));
 
-vi.mock('../components/results/ResultSlidePanel', () => ({
-  ResultSlidePanel: ({ resultId, onClose }: any) => (
+vi.mock('../components/results/DeferredResultSlidePanel', () => ({
+  DeferredResultSlidePanel: ({ resultId, onClose }: any) => (
     <div data-testid="result-slide-panel" data-result-id={resultId}>
       <button onClick={onClose}>Close Panel</button>
     </div>

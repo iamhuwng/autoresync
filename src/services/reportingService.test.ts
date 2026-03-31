@@ -45,9 +45,18 @@ import { ReportingService, reportingService } from './reportingService';
 function resetReportingServiceState() {
   const service = ReportingService.getInstance() as unknown as {
     database: unknown;
+    runtime: unknown;
+    runtimePromise: Promise<unknown> | null;
+    authenticatedInitPromise: Promise<void> | null;
     currentUser: unknown;
     currentUserRole: string;
+    isCoreInitialized: boolean;
     isInitialized: boolean;
+    authUnsubscribe: (() => void) | null;
+    roleUnsubscribe: (() => void) | null;
+    modeUnsubscribe: (() => void) | null;
+    categoriesUnsubscribe: (() => void) | null;
+    beforeUnloadHandler: (() => void) | null;
     eventQueue: unknown[];
     _flushIntervalId: ReturnType<typeof setInterval> | null;
     currentMode: 'full' | 'errors-only' | 'off';
@@ -76,9 +85,21 @@ function resetReportingServiceState() {
   }
 
   service.database = null;
+  service.runtime = null;
+  service.runtimePromise = null;
+  service.authenticatedInitPromise = null;
   service.currentUser = null;
   service.currentUserRole = 'unknown';
+  service.isCoreInitialized = false;
   service.isInitialized = false;
+  service.authUnsubscribe = null;
+  service.roleUnsubscribe = null;
+  service.modeUnsubscribe = null;
+  service.categoriesUnsubscribe = null;
+  if (service.beforeUnloadHandler) {
+    window.removeEventListener('beforeunload', service.beforeUnloadHandler);
+  }
+  service.beforeUnloadHandler = null;
   service.eventQueue = [];
   service._flushIntervalId = null;
   service.currentMode = 'full';
@@ -98,6 +119,23 @@ function resetReportingServiceState() {
   service.canarySent = false;
 }
 
+function bindRuntimeMocks() {
+  const service = ReportingService.getInstance() as unknown as {
+    runtime: unknown;
+  };
+
+  service.runtime = {
+    analytics: mockAnalyticsInstance,
+    logEvent: mockLogEvent,
+    onAuthStateChanged: mockOnAuthStateChanged,
+    onValue: mockOnValue,
+    push: mockPush,
+    ref: mockRef,
+    set: mockSet,
+    update: mockUpdate,
+  };
+}
+
 describe('ReportingService', () => {
   beforeEach(() => {
     let pushCounter = 0;
@@ -115,6 +153,7 @@ describe('ReportingService', () => {
     mockSet.mockImplementation(() => Promise.resolve());
     mockOnAuthStateChanged.mockImplementation(() => () => {});
     mockLogEvent.mockImplementation(() => {});
+    bindRuntimeMocks();
   });
 
   afterEach(() => {
@@ -141,6 +180,19 @@ describe('ReportingService', () => {
     expect(() => {
       service.trackPageView('testTaking', '/student-test/ABC123');
     }).not.toThrow();
+  });
+
+  it('initializes global reporting handlers without requiring authenticated runtime setup', () => {
+    const service = ReportingService.getInstance() as unknown as {
+      isCoreInitialized: boolean;
+      isInitialized: boolean;
+      initCore: () => void;
+    };
+
+    service.initCore();
+
+    expect(service.isCoreInitialized).toBe(true);
+    expect(service.isInitialized).toBe(false);
   });
 
   it('adds an action event to the internal queue', () => {
@@ -187,6 +239,7 @@ describe('ReportingService', () => {
 
     service.flush();
     await Promise.resolve();
+    await Promise.resolve();
 
     const todayDate = new Date().toISOString().split('T')[0];
     const updatesArgument = mockUpdate.mock.calls[0]?.[1] as Record<string, unknown>;
@@ -221,6 +274,7 @@ describe('ReportingService', () => {
 
     service.flush();
     await Promise.resolve();
+    await Promise.resolve();
 
     const todayDate = new Date().toISOString().split('T')[0];
     const updatesArgument = mockUpdate.mock.calls[0]?.[1] as Record<string, unknown>;
@@ -231,7 +285,7 @@ describe('ReportingService', () => {
     expect(mockPush).toHaveBeenCalledTimes(1);
   });
 
-  it('clears queued events and falls back to analytics when the circuit is open', () => {
+  it('clears queued events and falls back to analytics when the circuit is open', async () => {
     const service = ReportingService.getInstance() as unknown as {
       database: unknown;
       eventQueue: Array<{ type: string }>;
@@ -250,6 +304,8 @@ describe('ReportingService', () => {
     const analyticsSpy = vi.spyOn(service, 'sendAnalyticsEvents');
 
     service.flush();
+    await Promise.resolve();
+    await Promise.resolve();
 
     expect(service.eventQueue).toHaveLength(0);
     expect(mockUpdate).not.toHaveBeenCalled();

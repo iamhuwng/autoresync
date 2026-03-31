@@ -2,7 +2,7 @@
 title: Student Shell Data Loading Architecture
 description: 'Canonical ownership and loading contract for student shell routes: one persistent shell data owner, shared consumers, and route-safe page loading boundaries.'
 createdAt: '2026-03-31T02:54:47.750Z'
-updatedAt: '2026-03-31T04:02:24.265Z'
+updatedAt: '2026-03-31T08:59:42.186Z'
 tags:
   - architecture
   - student
@@ -148,3 +148,13 @@ Rules:
 Verification contract:
 - revisits stay stale-while-revalidate
 - after fresh login plus the warmup window, first entry into warmed student shell pages should avoid blocking loaders
+
+## Startup Bundle Boundary
+
+Student shell data-loading and student startup segmentation are separate but adjacent contracts.
+
+Rules:
+- shell-owned data preload may warm shared student summaries
+- route-module warmup may preload selected shell pages and page-owned caches
+- startup optimization must not reintroduce a second owner for shell-shared data
+- startup-sensitive changes should also satisfy the bundle guardrails in @doc/architecture/student-startup-bundle-segmentation

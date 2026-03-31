@@ -49,8 +49,8 @@ vi.mock('../components/dashboard/PendingReviewsWidget', () => ({
     PendingReviewsWidget: () => <div data-testid="pending-reviews-widget">Pending reviews</div>,
 }));
 
-vi.mock('../components/results/ResultSlidePanel', () => ({
-    ResultSlidePanel: ({ resultId, onClose }) => (
+vi.mock('../components/results/DeferredResultSlidePanel', () => ({
+    DeferredResultSlidePanel: ({ resultId, onClose }) => (
         <div data-testid="result-slide-panel" data-result-id={resultId}>
             <button onClick={onClose}>Close Panel</button>
         </div>

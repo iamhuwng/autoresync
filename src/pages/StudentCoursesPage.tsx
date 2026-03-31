@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Badge, Progress, Loader } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigation } from '../hooks/useNavigation';
 import { getEnrollmentsByStudent, unenrollStudent } from '../services/enrollmentManager';
 import { getCourse, getMaterialsByCourse, getStudentCourseProgress } from '../services/courseManager';
 import { getUserById } from '../services/userService';
 import { getRequestsByStudent, cancelCourseRequest } from '../services/courseRequestManager';
+import { toast } from '../components/modern/ToastNotification';
 import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
 import { S } from '../components/layout/studentLayoutStyles';
@@ -112,8 +111,94 @@ const localStyles = {
     ghostBtnRed: { background: 'transparent', color: '#ef4444', border: '1px solid transparent', borderRadius: 999, padding: '8px 16px', fontWeight: 600, cursor: 'pointer', fontSize: '0.875rem', width: '100%' },
     ghostBtnGray: { background: 'transparent', color: '#6b7280', border: '1px solid transparent', borderRadius: 999, padding: '8px 16px', fontWeight: 600, cursor: 'pointer', fontSize: '0.875rem', width: '100%' },
     modalOverlay: { position: 'fixed' as const, top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.3)', zIndex: 1000 },
-    modalContent: { position: 'fixed' as const, top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'white', borderRadius: 16, padding: 24, width: 400, maxWidth: '90vw', zIndex: 1001, boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }
+    modalContent: { position: 'fixed' as const, top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'white', borderRadius: 16, padding: 24, width: 400, maxWidth: '90vw', zIndex: 1001, boxShadow: '0 20px 60px rgba(0,0,0,0.15)' },
+    loaderWrap: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: '50%', border: '3px solid #e0e7ff', borderTopColor: '#4f46e5', animation: 'studentSpinner 0.8s linear infinite' },
+    progressTrack: { width: '100%', height: 8, borderRadius: 999, background: '#f3f4f6', overflow: 'hidden' as const },
+    progressFill: { height: '100%', borderRadius: 999, background: '#4f46e5', transition: 'width 0.2s ease-out' },
 };
+
+function showCourseToast(tone: 'success' | 'error' | 'info', title: string, message: string) {
+    toast.show({ tone, title, message });
+}
+
+function InlineLoader({ label, size = 32 }: { label?: string; size?: number }) {
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+            <div
+                aria-hidden="true"
+                style={{
+                    ...localStyles.loaderWrap,
+                    width: size,
+                    height: size,
+                }}
+            />
+            {label ? <p style={{ color: '#6b7280', margin: 0 }}>{label}</p> : null}
+        </div>
+    );
+}
+
+function StatusBadge({
+    children,
+    tone = 'neutral',
+    dot = false,
+}: {
+    children: React.ReactNode;
+    tone?: 'success' | 'error' | 'info' | 'neutral';
+    dot?: boolean;
+}) {
+    const palette = {
+        success: { background: '#dcfce7', color: '#166534', dot: '#22c55e' },
+        error: { background: '#fee2e2', color: '#b91c1c', dot: '#ef4444' },
+        info: { background: '#dbeafe', color: '#1d4ed8', dot: '#3b82f6' },
+        neutral: { background: '#f3f4f6', color: '#374151', dot: '#6b7280' },
+    }[tone];
+
+    return (
+        <span
+            style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: dot ? 6 : 0,
+                padding: '5px 10px',
+                borderRadius: 999,
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                background: palette.background,
+                color: palette.color,
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+            }}
+        >
+            {dot ? (
+                <span
+                    aria-hidden="true"
+                    style={{
+                        width: 7,
+                        height: 7,
+                        borderRadius: '50%',
+                        background: palette.dot,
+                    }}
+                />
+            ) : null}
+            {children}
+        </span>
+    );
+}
+
+function ProgressBar({ value }: { value: number }) {
+    const safeValue = Math.max(0, Math.min(100, value || 0));
+    return (
+        <div
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={safeValue}
+            style={localStyles.progressTrack}
+        >
+            <div style={{ ...localStyles.progressFill, width: `${safeValue}%` }} />
+        </div>
+    );
+}
 
 const StudentCoursesPage: React.FC = () => {
     const { user, profile } = useAuth();
@@ -193,24 +278,12 @@ const StudentCoursesPage: React.FC = () => {
                     }
                     return nextRequests;
                 });
-                notifications.show({
-                    title: 'Request Cancelled',
-                    message: 'Your course request has been cancelled',
-                    color: 'green',
-                });
+                showCourseToast('success', 'Request Cancelled', 'Your course request has been cancelled');
             } else {
-                notifications.show({
-                    title: 'Error',
-                    message: res.error || 'Failed to cancel request',
-                    color: 'red',
-                });
+                showCourseToast('error', 'Error', res.error || 'Failed to cancel request');
             }
         } catch (err) {
-            notifications.show({
-                title: 'Error',
-                message: 'Failed to cancel request. Please try again.',
-                color: 'red',
-            });
+            showCourseToast('error', 'Error', 'Failed to cancel request. Please try again.');
         } finally {
             setCancelRequestConfirm(null);
         }
@@ -232,44 +305,28 @@ const StudentCoursesPage: React.FC = () => {
             if (res.success) {
                 setUnenrollConfirm(null);
                 loadEnrollments();
-                notifications.show({
-                    title: 'Successfully Unenrolled',
-                    message: `You have been unenrolled from "${unenrollConfirm.name}"`,
-                    color: 'green',
-                });
+                showCourseToast('success', 'Successfully Unenrolled', `You have been unenrolled from "${unenrollConfirm.name}"`);
             } else {
-                notifications.show({
-                    title: 'Unenrollment Failed',
-                    message: res.error || 'Failed to unenroll from this course',
-                    color: 'red',
-                });
+                showCourseToast('error', 'Unenrollment Failed', res.error || 'Failed to unenroll from this course');
             }
         } catch (error) {
             console.error('Unenroll error:', error);
-            notifications.show({
-                title: 'Error',
-                message: 'Failed to unenroll. Please try again later.',
-                color: 'red',
-            });
+            showCourseToast('error', 'Error', 'Failed to unenroll. Please try again later.');
         } finally {
             setProcessing(false);
         }
     };
 
     const handleUnenrollRequest = (enrollment: PopulatedEnrollment) => {
-        notifications.show({
-            title: 'Request Sent',
-            message: `Your request to unenroll from "${enrollment.course?.name}" has been sent to the teacher/admin.`,
-            color: 'blue',
-        });
+        showCourseToast('info', 'Request Sent', `Your request to unenroll from "${enrollment.course?.name}" has been sent to the teacher/admin.`);
     };
 
-    const getStatusColor = (status: string) => {
+    const getStatusTone = (status: string) => {
         switch (status) {
-            case 'active': return 'green';
-            case 'expired': return 'red';
-            case 'archived': return 'gray';
-            default: return 'blue';
+            case 'active': return 'success';
+            case 'expired': return 'error';
+            case 'archived': return 'neutral';
+            default: return 'info';
         }
     };
 
@@ -279,8 +336,7 @@ const StudentCoursesPage: React.FC = () => {
         if (loading && !hasVisibleContent) {
             return (
                 <div style={{ textAlign: 'center', padding: '60px 24px' }}>
-                    <Loader size="md" color="#4f46e5" />
-                    <p style={{ color: '#6b7280', marginTop: 16 }}>Loading your courses...</p>
+                    <InlineLoader label="Loading your courses..." />
                 </div>
             );
         }
@@ -356,9 +412,9 @@ const StudentCoursesPage: React.FC = () => {
                 {filteredEnrollments.map((enrollment) => (
                     <div key={enrollment.id} style={localStyles.card} onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'} onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Badge color={getStatusColor(enrollment.status)} variant="light">
+                            <StatusBadge tone={getStatusTone(enrollment.status)}>
                                 {enrollment.status.toUpperCase()}
-                            </Badge>
+                            </StatusBadge>
                             {enrollment.expiresAt > 0 && (
                                 <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
                                     Expires: {new Date(enrollment.expiresAt).toLocaleDateString()}
@@ -378,13 +434,13 @@ const StudentCoursesPage: React.FC = () => {
                                 <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#4f46e5' }}>Progress</span>
                                 <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#4f46e5' }}>{enrollment.progress}%</span>
                             </div>
-                            <Progress value={enrollment.progress || 0} size="sm" radius="xl" color="#4f46e5" style={{ background: '#f3f4f6' }} />
+                            <ProgressBar value={enrollment.progress || 0} />
                         </div>
 
                         <div>
-                            <Badge variant="dot" color="blue" size="sm">
+                            <StatusBadge tone="info" dot>
                                 {enrollment.enrollmentType === 'class-based' ? 'Class Enrollment' : 'Individual'}
-                            </Badge>
+                            </StatusBadge>
                         </div>
 
                         <div style={{ marginTop: 'auto', paddingTop: 16, borderTop: '1px solid #f3f4f6', display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -426,6 +482,12 @@ const StudentCoursesPage: React.FC = () => {
             mobileTitle="My Courses"
             sidebar={<StudentSidebar user={user ? { ...user, avatarUrl: profile?.avatarUrl } : undefined} activePage="courses" pendingHomeworkCount={notStarted.length} />}
         >
+            <style>{`
+                @keyframes studentSpinner {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
+                }
+            `}</style>
             <div style={S.feedHeader}>
                 <h2 style={S.feedHeaderTitle}>My Courses</h2>
             </div>

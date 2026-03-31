@@ -7,8 +7,31 @@ import {
   createUserWithEmailAndPassword
 } from 'firebase/auth';
 import { ref, get, set, serverTimestamp, onValue, remove } from 'firebase/database';
-import { auth, database, googleProvider } from '../services/firebase';
-import { logSecurityEvent } from '../services/auditService';
+import { auth, database, googleProvider } from '../services/firebaseCore';
+
+let securityLoggerPromise = null;
+
+const getSecurityLogger = async () => {
+  if (!securityLoggerPromise) {
+    securityLoggerPromise = import('../services/auditService')
+      .then((module) => module.logSecurityEvent)
+      .catch((error) => {
+        console.warn('[Audit] Failed to load security logger:', error);
+        return null;
+      });
+  }
+
+  return securityLoggerPromise;
+};
+
+const logSecurityEventAsync = (eventName, ...args) => {
+  void getSecurityLogger().then((logger) => {
+    const logEvent = logger?.[eventName];
+    if (typeof logEvent === 'function') {
+      logEvent(...args);
+    }
+  });
+};
 
 const AuthContext = createContext();
 
@@ -232,7 +255,7 @@ export function AuthProvider({ children }) {
 
       // Log successful login (Task 6.8)
       const userRole = snapshot.exists() ? snapshot.val().role : 'student';
-      logSecurityEvent.login(authUser.uid, userRole, authUser.email);
+      logSecurityEventAsync('login', authUser.uid, userRole, authUser.email);
 
       return result;
     } catch (err) {
@@ -273,7 +296,7 @@ export function AuthProvider({ children }) {
         await remove(ref(database, `users/${authUser.uid}/forceReauth`)).catch(() => { });
 
         // Log successful login (Task 6.8)
-        logSecurityEvent.login(authUser.uid, userData.role, authUser.email);
+        logSecurityEventAsync('login', authUser.uid, userData.role, authUser.email);
       }
 
       return result;
@@ -300,7 +323,7 @@ export function AuthProvider({ children }) {
 
       // Log logout event before signing out (Task 6.9)
       if (user?.uid && profile?.role) {
-        logSecurityEvent.logout(user.uid, profile.role, 'manual');
+        logSecurityEventAsync('logout', user.uid, profile.role, 'manual');
       }
 
       await firebaseSignOut(auth);
@@ -414,7 +437,8 @@ export function AuthProvider({ children }) {
     setActiveRoleState(newRole);
 
     // Task 7.9: Log role switch event
-    logSecurityEvent.roleChange(
+    logSecurityEventAsync(
+      'roleChange',
       { uid: profile.uid, role: getEffectiveRole() },
       profile.uid,
       getEffectiveRole(),

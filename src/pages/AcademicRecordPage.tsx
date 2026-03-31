@@ -17,7 +17,7 @@ import { S } from '../components/layout/studentLayoutStyles';
 import { IconAlertCircle } from '../components/layout/StudentIcons';
 import { getProgressiveFeedback, refreshProgressiveFeedback } from '../services/progressiveFeedback.service';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
-import { ResultSlidePanel } from '../components/results/ResultSlidePanel';
+import { DeferredResultSlidePanel } from '../components/results/DeferredResultSlidePanel';
 import AIMaintenanceBanner from '../components/ai/AIMaintenanceBanner';
 import { useAIStatus } from '../hooks/useAIStatus';
 
@@ -728,7 +728,7 @@ export const AcademicRecordPage: React.FC = () => {
             </div>
 
             {selectedResultId && (
-                <ResultSlidePanel
+                <DeferredResultSlidePanel
                     resultId={selectedResultId}
                     onClose={handleClosePanel}
                 />

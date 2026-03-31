@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { Center, Loader } from '@mantine/core';
+import { VanillaLoader } from './modern';
 import { hasPermission } from '../config/roleHierarchy';
 import { logSecurityEvent } from '../services/auditService';
 
@@ -31,14 +31,19 @@ const PrivateRoute = ({ children, allowedRoles = [] }) => {
   // Show loading state while checking auth
   if (loading) {
     return (
-      <Center
-        style={{ height: '100vh' }}
+      <div
+        style={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
         role="status"
         aria-label="Loading protected route"
         aria-live="polite"
       >
-        <Loader size="xl" />
-      </Center>
+        <VanillaLoader size="xl" />
+      </div>
     );
   }
 

@@ -68,7 +68,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigation } from '../hooks/useNavigation';
 import { getTestFromFirebase, TestData } from '../services/testStorage';
 import { Card, CardBody, Button } from '../components/modern';
-import { ResultSlidePanel } from '../components/results/ResultSlidePanel';
+import { DeferredResultSlidePanel } from '../components/results/DeferredResultSlidePanel';
 import { buildRoute } from '../constants/routes';
 
 
@@ -854,7 +854,7 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                 }
             `}</style>
             {selectedResultId && (
-                <ResultSlidePanel
+                <DeferredResultSlidePanel
                     resultId={selectedResultId}
                     onClose={() => setSelectedResultId(null)}
                 />

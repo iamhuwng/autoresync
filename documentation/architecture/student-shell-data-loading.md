@@ -125,6 +125,7 @@ For future student shell work:
 - add new shell-global student summaries to the provider, not to arbitrary pages
 - keep page hosts responsible only for page-primary datasets
 - prefer stale-while-revalidate for page hosts after the first successful load
+- keep student shell warmup split between shell-owned data preload and page-owned route/cache preload
 - do not backfill, repair, or persist data during page mount or tab switch
 - do not let convenience helpers hide duplicate reads of shell-owned data
 
@@ -137,8 +138,13 @@ The minimum pass condition for sibling shell navigation is:
 - no repeated expired-session hydration noise from tab changes
 - no new shell-level listeners started by pages that only consume shell-owned summaries
 
+For startup-sensitive changes on the student path, also verify:
+- first authenticated student entry does not fetch optional heavy bundles before explicit navigation
+- warmed student shell routes avoid blocking loaders after the warmup window
+
 ## Related Docs
 
+- `documentation/architecture/student-startup-bundle-segmentation.md`
 - `documentation/architecture/academic-record/page-architecture.md`
 - `documentation/architecture/course-class-management.md`
 - `documentation/architecture/homework-solo-practice-architecture.md`

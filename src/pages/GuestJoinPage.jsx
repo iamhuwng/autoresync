@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useNavigation } from '../hooks/useNavigation';
 import { ref, set, get, onDisconnect, runTransaction } from 'firebase/database';
 import { database } from '../services/firebase';
-import { useForm } from '@mantine/form';
 import { Card, CardBody } from '../components/modern';
 import { Button } from '../components/modern';
 import { Input } from '../components/modern';
@@ -15,6 +14,14 @@ const GuestJoinPage = () => {
   const [sessionError, setSessionError] = useState('');
   const [validatingSession, setValidatingSession] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
+  const [formValues, setFormValues] = useState({
+    sessionCode: '',
+    name: '',
+  });
+  const [fieldErrors, setFieldErrors] = useState({
+    sessionCode: '',
+    name: '',
+  });
 
   useEffect(() => {
     if (!isJoining) {
@@ -104,36 +111,42 @@ const GuestJoinPage = () => {
     }
   };
 
-  const form = useForm({
-    initialValues: {
+  const validateForm = (values) => {
+    const errors = {
       sessionCode: '',
       name: '',
-    },
-    validate: {
-      sessionCode: (value) => {
-        const normalized = normalizeCode(value);
-        if (!normalized || normalized.length === 0) {
-          return 'Session code is required';
-        }
-        if (normalized.length !== 6) {
-          return 'Session code must be 6 characters';
-        }
-        if (!/^[A-Z0-9]+$/.test(normalized)) {
-          return 'Session code can only contain letters and numbers';
-        }
-        return null;
-      },
-      name: (value) => (value.trim().length > 0 ? null : 'Name is required'),
-    },
-  });
+    };
 
-  const handleGuestJoin = async (values) => {
+    const normalized = normalizeCode(values.sessionCode);
+    if (!normalized || normalized.length === 0) {
+      errors.sessionCode = 'Session code is required';
+    } else if (normalized.length !== 6) {
+      errors.sessionCode = 'Session code must be 6 characters';
+    } else if (!/^[A-Z0-9]+$/.test(normalized)) {
+      errors.sessionCode = 'Session code can only contain letters and numbers';
+    }
+
+    if (values.name.trim().length === 0) {
+      errors.name = 'Name is required';
+    }
+
+    setFieldErrors(errors);
+    return !errors.sessionCode && !errors.name;
+  };
+
+  const handleGuestJoin = async (event) => {
+    event.preventDefault();
+
+    if (!validateForm(formValues)) {
+      return;
+    }
+
     setDuplicateNameError(false);
     setSessionError('');
     setValidatingSession(true);
     setIsJoining(true);
 
-    const sessionCode = normalizeCode(values.sessionCode);
+    const sessionCode = normalizeCode(formValues.sessionCode);
     
     const validation = await validateGuestJoin(sessionCode);
     if (!validation.valid) {
@@ -143,7 +156,7 @@ const GuestJoinPage = () => {
       return;
     }
 
-    const normalizedName = values.name.trim().toLowerCase();
+    const normalizedName = formValues.name.trim().toLowerCase();
 
     try {
       let ip = 'unknown';
@@ -199,14 +212,14 @@ const GuestJoinPage = () => {
         
         const updatedPlayers = currentPlayers || {};
         updatedPlayers[uniqueId] = {
-          name: values.name.trim(),
+          name: formValues.name.trim(),
           score: 0,
           ip: ip,
           isGuest: true // Mark as guest user
         };
 
         sessionStorage.setItem('playerId', uniqueId);
-        sessionStorage.setItem('playerName', values.name.trim());
+        sessionStorage.setItem('playerName', formValues.name.trim());
 
         return updatedPlayers;
       });
@@ -337,7 +350,7 @@ const GuestJoinPage = () => {
             </div>
           )}
 
-          <form onSubmit={form.onSubmit(handleGuestJoin)}>
+          <form onSubmit={handleGuestJoin}>
             <div style={{ marginBottom: '1.5rem' }}>
               <Input
                 label="Session Code"
@@ -347,11 +360,12 @@ const GuestJoinPage = () => {
                 fullWidth
                 required
                 maxLength={6}
-                error={form.errors.sessionCode}
-                {...form.getInputProps('sessionCode')}
+                value={formValues.sessionCode}
+                error={fieldErrors.sessionCode || undefined}
                 onChange={(e) => {
                   const value = e.target.value.toUpperCase();
-                  form.setFieldValue('sessionCode', value);
+                  setFormValues((current) => ({ ...current, sessionCode: value }));
+                  setFieldErrors((current) => ({ ...current, sessionCode: '' }));
                 }}
                 style={{ 
                   fontFamily: 'monospace',
@@ -369,8 +383,12 @@ const GuestJoinPage = () => {
               size="lg"
               fullWidth
               required
-              error={form.errors.name}
-              {...form.getInputProps('name')}
+              value={formValues.name}
+              error={fieldErrors.name || undefined}
+              onChange={(e) => {
+                setFormValues((current) => ({ ...current, name: e.target.value }));
+                setFieldErrors((current) => ({ ...current, name: '' }));
+              }}
             />
             
             <Button 

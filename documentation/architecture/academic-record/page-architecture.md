@@ -178,3 +178,25 @@ When future capabilities are added, keep these rules:
 - add recommendation modules only when they can explain their evidence
 - prefer progressive disclosure over a single overloaded dashboard
 - only restore additional browse surfaces when they simplify the page instead of fragmenting it
+
+## Data Ownership And Loading Contract
+
+Academic Record remains page-owned for its center-column history dataset even inside the shared student shell.
+
+Required split:
+- the student shell provider owns shell-global summaries and route-safe warmup orchestration
+- `AcademicRecordPage` owns the academic-record dataset and view state
+- route warmup may preload the page module and page-owned cache, but it must not move record-history ownership into the shell provider
+
+## Startup Segmentation Contract
+
+Academic Record participates in student-first startup optimization, but only at the page-entry boundary.
+
+Rules:
+- the student shell may warm the Academic Record route after login
+- the warmed Academic Record route must not pull `chart-vendor`, PDF, export, or other optional-heavy bundles into default student login
+- result slide panels and deeper writing-result internals load on demand when the user opens a specific result
+- chart-only runtime cost must stay behind chart-requiring surfaces instead of leaking into default Academic Record entry
+
+Related startup architecture:
+- `documentation/architecture/student-startup-bundle-segmentation.md`

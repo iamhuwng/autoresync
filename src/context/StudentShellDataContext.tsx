@@ -3,6 +3,9 @@ import { useAuth } from '../hooks/useAuth';
 import { useStudentShellData, type StudentShellData } from '../hooks/useStudentShellData';
 import { useStudentHomeworkList, type UseStudentHomeworkListReturn } from '../hooks/useHomeworkSubmission';
 import {
+    preloadStudentAcademicRecordRouteModule,
+    preloadStudentCoursesRouteModule,
+    preloadStudentLibraryRouteModule,
     prefetchStudentAcademicRecordRouteData,
     prefetchStudentCoursesRouteData,
     prefetchStudentLibraryRouteData,
@@ -17,9 +20,37 @@ interface StudentShellDataProviderProps {
 export const StudentShellDataProvider: React.FC<StudentShellDataProviderProps> = ({ children }) => {
     const { user } = useAuth();
     const shellData = useStudentShellData();
+    const prefetchedRouteModulesRef = useRef<Set<string>>(new Set());
     const prefetchedLibraryRef = useRef<Set<string>>(new Set());
     const prefetchedAcademicRecordRef = useRef<Set<string>>(new Set());
     const prefetchedCoursesRef = useRef<Set<string>>(new Set());
+
+    useEffect(() => {
+        if (import.meta.env.MODE === 'test') {
+            return;
+        }
+
+        if (!user?.uid) {
+            return;
+        }
+
+        if (prefetchedRouteModulesRef.current.has(user.uid)) {
+            return;
+        }
+
+        prefetchedRouteModulesRef.current.add(user.uid);
+        const studentId = user.uid;
+        const timer = setTimeout(() => {
+            void preloadStudentCoursesRouteModule()
+                .then(() => preloadStudentLibraryRouteModule())
+                .then(() => preloadStudentAcademicRecordRouteModule())
+                .catch(() => {
+                    prefetchedRouteModulesRef.current.delete(studentId);
+                });
+        }, 250);
+
+        return () => clearTimeout(timer);
+    }, [user?.uid]);
 
     useEffect(() => {
         if (import.meta.env.MODE === 'test') {

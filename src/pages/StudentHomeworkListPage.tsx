@@ -7,7 +7,7 @@ import { createSubmission } from '../services/homeworkSubmissionService';
 import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
 import { S } from '../components/layout/studentLayoutStyles';
-import { ResultSlidePanel } from '../components/results/ResultSlidePanel';
+import { DeferredResultSlidePanel } from '../components/results/DeferredResultSlidePanel';
 import { buildRoute } from '../constants/routes';
 import { useResolvedStudentHomeworkList } from '../context/StudentShellDataContext';
 
@@ -690,7 +690,7 @@ export const StudentHomeworkListPage: React.FC = () => {
             <div>{renderCenterContent()}</div>
 
             {selectedResultId ? (
-                <ResultSlidePanel
+                <DeferredResultSlidePanel
                     resultId={selectedResultId}
                     onClose={() => setSelectedResultId(null)}
                 />

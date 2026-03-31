@@ -47,14 +47,10 @@ export default defineConfig({
         manualChunks: {
           // Split React and React-DOM into separate chunk
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          // Split Mantine UI library
-          'mantine-vendor': ['@mantine/core', '@mantine/hooks'],
           // Split Firebase
           'firebase-vendor': ['firebase/app', 'firebase/database', 'firebase/auth'],
           // Split chart libraries
           'chart-vendor': ['recharts'],
-          // Split other heavy dependencies
-          'misc-vendor': ['react-confetti', 'react-resizable'],
         },
       },
     },

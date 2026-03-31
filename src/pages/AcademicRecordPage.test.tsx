@@ -203,8 +203,8 @@ vi.mock('@/components/academicRecord/THCSProgressTab', () => ({
     ),
 }));
 
-vi.mock('../components/results/ResultSlidePanel', () => ({
-    ResultSlidePanel: ({ resultId, onClose }: any) => (
+vi.mock('../components/results/DeferredResultSlidePanel', () => ({
+    DeferredResultSlidePanel: ({ resultId, onClose }: any) => (
         <div data-testid="result-slide-panel" data-result-id={resultId}>
             <button type="button" data-testid="close-panel-btn" onClick={onClose}>
                 Close
