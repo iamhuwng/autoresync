@@ -2,7 +2,7 @@
 title: Student Shell Right Rail Architecture
 description: Architecture contract for the shared student shell layout, global right rail, shared data hook, and page-level extension pattern.
 createdAt: '2026-03-30T03:14:40.723Z'
-updatedAt: '2026-03-31T00:26:19.014Z'
+updatedAt: '2026-03-31T00:44:24.056Z'
 tags:
   - architecture
   - student
@@ -154,3 +154,15 @@ This means the dashboard and the right rail no longer instantiate overlapping sh
 
 Follow-up note:
 - other student shell pages still rely on the connected fallback until they are migrated to an explicit shared owner or provider
+
+## Student Class Membership Read Path
+
+Canonical membership path for shell-owned enrolled classes:
+- `getStudentClasses()` reads `student_classes/{studentId}/{classId}` first
+- each index entry identifies a bounded set of class ids for that student shell surface
+- top-level `classes` scans remain legacy fallback only for records that predate the projection
+
+Ownership rules:
+- class enrollment, approval, removal, and delete flows maintain `student_classes`
+- the shell consumes that projection through `useStudentShellData`
+- shell pages must not repair or backfill missing student membership rows during page load

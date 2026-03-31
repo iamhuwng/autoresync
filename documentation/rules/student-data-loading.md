@@ -102,6 +102,11 @@ Required rules:
 
 Broad scans that happen to work for a tiny dataset are still defects.
 
+Current repo anchor for student class surfaces:
+- `getStudentClasses()` should read `student_classes/{studentId}/{classId}` as the student-owned membership projection
+- fallback scans of top-level `classes` are legacy compatibility behavior only and must not be the long-term steady-state design
+- class enrollment, approval, removal, and delete flows own projection maintenance; student page loads must not repair missing membership rows
+
 ## 7. Bulk Enrichment, Never Per Card
 
 Secondary data such as history, progress, or attempts is fetched once and joined in memory. It is never fetched once per card.

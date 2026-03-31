@@ -2,7 +2,7 @@
 title: Student Experience Architecture
 description: 'Student-facing system overview: 20 pages, design standard, adaptive layout, UX patterns, color/typography system.'
 createdAt: '2026-02-27T16:18:36.604Z'
-updatedAt: '2026-03-30T23:52:44.955Z'
+updatedAt: '2026-03-31T00:44:24.064Z'
 tags:
   - architecture
   - student
@@ -179,3 +179,13 @@ Required governance companions for future student data-loading work:
 - @doc/patterns/pattern-student-shell-single-data-owner
 - @doc/patterns/pattern-summary-first-detail-on-demand
 - @doc/patterns/pattern-bulk-enrichment-from-shared-student-history
+
+## Student Class Membership Projection
+
+Student-facing class list surfaces now have a canonical bounded membership read path.
+
+Required contract:
+- student class membership is read from `student_classes/{studentId}/{classId}`
+- `getStudentClasses()` may use a legacy broad `classes` scan only as a temporary compatibility fallback for older rows that have not been projected yet
+- enrollment, approval, removal, and class delete flows own projection maintenance
+- student pages are consumers of that projection and must not mutate or backfill it on mount

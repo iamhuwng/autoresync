@@ -296,6 +296,16 @@
                 "createdBy"
             ]
         },
+        "student_classes": {
+            ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+            "$studentId": {
+                ".read": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                "$classId": {
+                    ".write": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && root.child('classes').child($classId).child('createdBy').val() === auth.uid)",
+                    ".validate": "!newData.exists() || (newData.hasChildren(['joinedAt']) && newData.child('joinedAt').isNumber() && (!newData.child('status').exists() || newData.child('status').isString()))"
+                }
+            }
+        },
         "game_sessions": {
             ".read": "auth != null",
             ".write": "auth != null",

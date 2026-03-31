@@ -145,6 +145,7 @@ vi.mock('firebase/database', () => {
   const remove = vi.fn(async (target: { path: string }) => {
     removeValueAtPath(target.path);
   });
+  const serverTimestamp = vi.fn(() => ({ '.sv': 'timestamp' }));
 
   const update = vi.fn(async (target: { path: string }, updates: Record<string, unknown>) => {
     for (const [key, value] of Object.entries(updates)) {
@@ -170,6 +171,7 @@ vi.mock('firebase/database', () => {
     orderByChild,
     equalTo,
     remove,
+    serverTimestamp,
     onValue,
     off,
   };
@@ -184,6 +186,8 @@ import {
   addStudent,
   assignTestToClass,
   removeStudentFromClass,
+  approveClassStudent,
+  deleteClass,
   updateClassStatus,
 } from '../../services/classManager';
 import { database } from '../../services/firebase';
@@ -568,6 +572,24 @@ describe('Class Manager - Student Access Control', () => {
     expect(studentClasses).toEqual([]);
   });
 
+  it('should prefer student_classes projection over scanning root classes', async () => {
+    vi.mocked(get).mockClear();
+
+    await set(ref(database, `student_classes/${TEST_STUDENT_UID}/${class1Id}`), {
+      joinedAt: Date.now(),
+      status: 'pending_approval',
+    });
+
+    const studentClasses = await getStudentClasses(TEST_STUDENT_UID);
+
+    expect(studentClasses.map((cls) => cls.id)).toContain(class1Id);
+    const rootClassReads = vi
+      .mocked(get)
+      .mock.calls
+      .filter(([target]) => target.path === 'classes');
+    expect(rootClassReads).toHaveLength(0);
+  });
+
   it('should verify student can only access enrolled classes', async () => {
     const class1Data = await getClass(class1Id);
     const class2Data = await getClass(class2Id);
@@ -637,6 +659,72 @@ describe('Class Manager - Guest Students', () => {
     
     // Guest student should NOT have UID
     expect(classData?.students[guestResult.studentId!].uid).toBeUndefined();
+  });
+
+  it('should write student class projection for authenticated enrollments', async () => {
+    await enrollStudent(
+      testClassId,
+      TEST_STUDENT_UID,
+      'Auth Student',
+      'auth@test.com'
+    );
+
+    const projectionSnapshot = await get(ref(database, `student_classes/${TEST_STUDENT_UID}/${testClassId}`));
+    expect(projectionSnapshot.exists()).toBe(true);
+    expect(projectionSnapshot.val()).toMatchObject({
+      status: 'pending_approval',
+    });
+  });
+});
+
+describe('Class Manager - Student Membership Projection', () => {
+  let testClassId: string;
+
+  beforeEach(async () => {
+    await cleanupTestData();
+
+    const result = await createClass(
+      { name: 'Projected Class' },
+      TEST_TEACHER_UID
+    );
+    testClassId = result.classId!;
+  });
+
+  afterEach(async () => {
+    await cleanupTestData();
+  });
+
+  it('should promote projection status when a student is approved', async () => {
+    await enrollStudent(testClassId, TEST_STUDENT_UID, 'Projected Student', 'student@test.com');
+
+    const result = await approveClassStudent(testClassId, TEST_STUDENT_UID, TEST_TEACHER_UID);
+
+    expect(result.success).toBe(true);
+    const projectionSnapshot = await get(ref(database, `student_classes/${TEST_STUDENT_UID}/${testClassId}`));
+    expect(projectionSnapshot.val()).toMatchObject({
+      status: 'active',
+    });
+  });
+
+  it('should remove student projection when a student is removed from class', async () => {
+    await enrollStudent(testClassId, TEST_STUDENT_UID, 'Projected Student', 'student@test.com');
+
+    const result = await removeStudentFromClass(testClassId, TEST_STUDENT_UID);
+
+    expect(result.success).toBe(true);
+    const projectionSnapshot = await get(ref(database, `student_classes/${TEST_STUDENT_UID}/${testClassId}`));
+    expect(projectionSnapshot.exists()).toBe(false);
+  });
+
+  it('should remove student projections when a class is deleted', async () => {
+    await enrollStudent(testClassId, TEST_STUDENT_UID, 'Projected Student', 'student@test.com');
+    await enrollStudent(testClassId, TEST_STUDENT_UID_2, 'Projected Student 2', 'student2@test.com');
+
+    const deleted = await deleteClass(testClassId);
+
+    expect(deleted).toBe(true);
+    expect((await get(ref(database, `student_classes/${TEST_STUDENT_UID}/${testClassId}`))).exists()).toBe(false);
+    expect((await get(ref(database, `student_classes/${TEST_STUDENT_UID_2}/${testClassId}`))).exists()).toBe(false);
   });
 });
 

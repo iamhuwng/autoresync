@@ -11,7 +11,7 @@
  */
 
 import { database } from './firebase';
-import { ref, set, get, update, onValue, off, query, orderByChild, equalTo, remove } from 'firebase/database';
+import { ref, set, get, update, onValue, off, query, orderByChild, equalTo } from 'firebase/database';
 import type {
   ClassSession,
   ClassStudent,
@@ -32,6 +32,12 @@ import type {
 
 const CLASSES_REF = 'classes';
 const GAME_SESSIONS_REF = 'game_sessions'; // For backward compatibility
+const STUDENT_CLASSES_REF = 'student_classes';
+
+interface StudentClassMembershipRow {
+  joinedAt: number;
+  status?: ClassStudent['status'];
+}
 
 /**
  * Generate a unique class code (6 alphanumeric characters)
@@ -112,6 +118,103 @@ async function updateEnrollmentStatsIfAuthorized(
     // Stats are derived/auxiliary; enrollment should still succeed if this fails.
     console.warn(`[ClassManager] Failed to update enrollment stats for class ${classId}:`, error);
   }
+}
+
+function buildClassSummary(classId: string, cls: ClassSession): ClassSummary {
+  return {
+    id: cls.id || classId,
+    classCode: cls.classCode || classId,
+    name: cls.name,
+    status: cls.status,
+    createdAt: cls.createdAt,
+    studentCount: Object.keys(cls.students || {}).length,
+    activeAssignments: Object.values(cls.assignments || {}).filter(
+      (assignment) => assignment.status === 'available' || assignment.status === 'in_progress'
+    ).length,
+    completedAssignments: Object.values(cls.assignments || {}).filter(
+      (assignment) => assignment.status === 'completed' || assignment.status === 'graded'
+    ).length,
+  };
+}
+
+function buildStudentClassMembershipRow(student: Pick<ClassStudent, 'joinedAt' | 'status'>): StudentClassMembershipRow {
+  return {
+    joinedAt: student.joinedAt || Date.now(),
+    ...(student.status ? { status: student.status } : {}),
+  };
+}
+
+async function getStudentClassesFromMembershipIndex(studentUid: string): Promise<ClassSummary[] | null> {
+  const membershipRef = ref(database, `${STUDENT_CLASSES_REF}/${studentUid}`);
+  const membershipSnapshot = await get(membershipRef);
+
+  if (!membershipSnapshot.exists()) {
+    return null;
+  }
+
+  const membershipMap = membershipSnapshot.val() as Record<string, StudentClassMembershipRow | true> | null;
+  const classIds = Object.keys(membershipMap || {});
+
+  if (!classIds.length) {
+    return [];
+  }
+
+  const classSnapshots = await Promise.all(
+    classIds.map(async (classId) => {
+      const classData = await getClass(classId);
+      if (!classData || classData.status === 'deleted') {
+        return null;
+      }
+
+      return buildClassSummary(classId, classData);
+    })
+  );
+
+  return classSnapshots
+    .filter((summary): summary is ClassSummary => summary !== null)
+    .sort((left, right) => right.createdAt - left.createdAt);
+}
+
+async function getStudentClassesByLegacyScan(studentUid: string): Promise<ClassSummary[]> {
+  const classesRef = ref(database, CLASSES_REF);
+  const snapshot = await get(classesRef);
+
+  if (!snapshot.exists()) {
+    console.log(`[Courses DEBUG] getStudentClasses: no classes found in DB at all`);
+    return [];
+  }
+
+  const enrolledClasses: ClassSummary[] = [];
+  const data = snapshot.val();
+  const classKeys = Object.keys(data);
+  console.log(`[Courses DEBUG] getStudentClasses: scanning ${classKeys.length} total classes for uid="${studentUid}"`);
+
+  for (const [id, classData] of Object.entries(data)) {
+    const cls = classData as ClassSession;
+    const studentEntries = Object.entries(cls.students || {});
+
+    const isEnrolled = studentEntries.some(
+      ([key, student]) => student.uid === studentUid || key === studentUid
+    );
+
+    if (!isEnrolled) {
+      const uidsInClass = studentEntries.map(([key, student]) => ({ key, uid: student.uid }));
+      if (studentEntries.length > 0) {
+        console.log(`[Courses DEBUG]   class "${cls.name}" (${id}) - not enrolled. Students:`, uidsInClass);
+      }
+      continue;
+    }
+
+    if (cls.status === 'deleted') {
+      console.log(`[Courses DEBUG]   class "${cls.name}" skipped (deleted)`);
+      continue;
+    }
+
+    console.log(`[Courses DEBUG]   ✅ ENROLLED in class "${cls.name}" (${id})`);
+    enrolledClasses.push(buildClassSummary(id, cls));
+  }
+
+  return enrolledClasses.sort((left, right) => right.createdAt - left.createdAt);
 }
 
 // ============================================================================
@@ -233,11 +336,16 @@ export async function removeStudentFromClass(
 
     const now = Date.now();
 
-    // Remove from class roster
-    await remove(ref(database, `${CLASSES_REF}/${classId}/students/${studentId}`));
+    const membershipUpdates: Record<string, unknown> = {
+      [`${CLASSES_REF}/${classId}/students/${studentId}`]: null,
+      [`${GAME_SESSIONS_REF}/${classId}/players/${studentId}`]: null,
+    };
 
-    // Remove from legacy game session players for backward compatibility
-    await remove(ref(database, `${GAME_SESSIONS_REF}/${classId}/players/${studentId}`));
+    if (student.uid) {
+      membershipUpdates[`${STUDENT_CLASSES_REF}/${student.uid}/${classId}`] = null;
+    }
+
+    await update(ref(database), membershipUpdates);
 
     // Clean up class-based course enrollments for this student
     try {
@@ -351,20 +459,7 @@ export async function getClasses(teacherId?: string): Promise<ClassSummary[]> {
         continue;
       }
 
-      classes.push({
-        id: cls.id,
-        classCode: cls.classCode,
-        name: cls.name,
-        status: cls.status,
-        createdAt: cls.createdAt,
-        studentCount: Object.keys(cls.students || {}).length,
-        activeAssignments: Object.values(cls.assignments || {}).filter(
-          (a) => a.status === 'available' || a.status === 'in_progress'
-        ).length,
-        completedAssignments: Object.values(cls.assignments || {}).filter(
-          (a) => a.status === 'completed' || a.status === 'graded'
-        ).length,
-      });
+      classes.push(buildClassSummary(id, cls));
     }
 
     // Sort by creation date (newest first)
@@ -405,7 +500,30 @@ export async function updateClassStatus(classId: string, status: ClassStatus): P
  */
 export async function deleteClass(classId: string): Promise<boolean> {
   try {
-    return await updateClassStatus(classId, 'deleted');
+    const classData = await getClass(classId);
+
+    if (!classData) {
+      return false;
+    }
+
+    const legacyStatus = 'waiting';
+    const updates: Record<string, unknown> = {
+      [`${CLASSES_REF}/${classId}/status`]: 'deleted',
+      [`${CLASSES_REF}/${classId}/updatedAt`]: Date.now(),
+      [`${GAME_SESSIONS_REF}/${classId}/status`]: legacyStatus,
+    };
+
+    for (const [studentId, student] of Object.entries(classData.students || {})) {
+      const membershipStudentId = student.uid || studentId;
+      if (!student.uid || membershipStudentId !== studentId) {
+        continue;
+      }
+
+      updates[`${STUDENT_CLASSES_REF}/${membershipStudentId}/${classId}`] = null;
+    }
+
+    await update(ref(database), updates);
+    return true;
   } catch (error) {
     console.error('Error deleting class:', error);
     return false;
@@ -659,21 +777,19 @@ export async function enrollStudent(
       assignments: {},
     };
 
-    // Add student to class
-    const studentRef = ref(database, `${CLASSES_REF}/${classCode}/students/${studentUid}`);
-    await set(studentRef, student);
+    await update(ref(database), {
+      [`${CLASSES_REF}/${classCode}/students/${studentUid}`]: student,
+      [`${GAME_SESSIONS_REF}/${classCode}/players/${studentUid}`]: {
+        name: studentName,
+        score: 0,
+        joinedAt: now,
+        uid: studentUid,
+      },
+      [`${STUDENT_CLASSES_REF}/${studentUid}/${classCode}`]: buildStudentClassMembershipRow(student),
+    });
 
     // Update class stats
     await updateEnrollmentStatsIfAuthorized(classCode, classData, now);
-
-    // Also add to legacy session for backward compatibility
-    const legacyRef = ref(database, `${GAME_SESSIONS_REF}/${classCode}/players/${studentUid}`);
-    await set(legacyRef, {
-      name: studentName,
-      score: 0,
-      joinedAt: now,
-      uid: studentUid,
-    });
 
     // Auto-enroll in class courses
     try {
@@ -750,9 +866,13 @@ export async function approveClassStudent(
       return { success: false, error: 'Student not found in this class' };
     }
 
-    // Update student status to active
-    const statusRef = ref(database, `${CLASSES_REF}/${classCode}/students/${studentId}/status`);
-    await set(statusRef, 'active');
+    await update(ref(database), {
+      [`${CLASSES_REF}/${classCode}/students/${studentId}/status`]: 'active',
+      [`${STUDENT_CLASSES_REF}/${studentId}/${classCode}`]: buildStudentClassMembershipRow({
+        joinedAt: student.joinedAt,
+        status: 'active',
+      }),
+    });
 
     // Create student-teacher assignment (teacher is the authenticated user, so they have write permission)
     try {
@@ -811,13 +931,11 @@ export async function rejectClassStudent(
       return { success: false, error: 'Student not found in this class' };
     }
 
-    // Remove student from class
-    const studentRef = ref(database, `${CLASSES_REF}/${classCode}/students/${studentId}`);
-    await set(studentRef, null);
-
-    // Remove from legacy session
-    const legacyRef = ref(database, `${GAME_SESSIONS_REF}/${classCode}/players/${studentId}`);
-    await set(legacyRef, null);
+    await update(ref(database), {
+      [`${CLASSES_REF}/${classCode}/students/${studentId}`]: null,
+      [`${GAME_SESSIONS_REF}/${classCode}/players/${studentId}`]: null,
+      [`${STUDENT_CLASSES_REF}/${studentId}/${classCode}`]: null,
+    });
 
     // Notify the student
     try {
@@ -848,63 +966,13 @@ export async function rejectClassStudent(
  */
 export async function getStudentClasses(studentUid: string): Promise<ClassSummary[]> {
   try {
-    const classesRef = ref(database, CLASSES_REF);
-    const snapshot = await get(classesRef);
-
-    if (!snapshot.exists()) {
-      console.log(`[Courses DEBUG] getStudentClasses: no classes found in DB at all`);
-      return [];
+    const indexedClasses = await getStudentClassesFromMembershipIndex(studentUid);
+    if (indexedClasses !== null) {
+      console.log(`[Courses DEBUG] getStudentClasses: using student_classes index for uid="${studentUid}" (${indexedClasses.length} classes)`);
+      return indexedClasses;
     }
 
-    const enrolledClasses: ClassSummary[] = [];
-    const data = snapshot.val();
-    const classKeys = Object.keys(data);
-    console.log(`[Courses DEBUG] getStudentClasses: scanning ${classKeys.length} total classes for uid="${studentUid}"`);
-
-    for (const [id, classData] of Object.entries(data)) {
-      const cls = classData as ClassSession;
-      const studentEntries = Object.entries(cls.students || {});
-
-      // Check if student is enrolled in this class
-      const isEnrolled = studentEntries.some(
-        ([key, s]) => s.uid === studentUid || key === studentUid
-      );
-
-      if (!isEnrolled) {
-        const uidsInClass = studentEntries.map(([key, s]) => ({ key, uid: s.uid }));
-        if (studentEntries.length > 0) {
-          console.log(`[Courses DEBUG]   class "${cls.name}" (${id}) - not enrolled. Students:`, uidsInClass);
-        }
-        continue;
-      }
-
-      // Skip deleted or archived classes
-      if (cls.status === 'deleted') {
-        console.log(`[Courses DEBUG]   class "${cls.name}" skipped (deleted)`);
-        continue;
-      }
-
-      console.log(`[Courses DEBUG]   ✅ ENROLLED in class "${cls.name}" (${id})`);
-
-      enrolledClasses.push({
-        id: cls.id,
-        classCode: cls.classCode,
-        name: cls.name,
-        status: cls.status,
-        createdAt: cls.createdAt,
-        studentCount: Object.keys(cls.students || {}).length,
-        activeAssignments: Object.values(cls.assignments || {}).filter(
-          (a) => a.status === 'available' || a.status === 'in_progress'
-        ).length,
-        completedAssignments: Object.values(cls.assignments || {}).filter(
-          (a) => a.status === 'completed' || a.status === 'graded'
-        ).length,
-      });
-    }
-
-    // Sort by creation date (newest first)
-    enrolledClasses.sort((a, b) => b.createdAt - a.createdAt);
-
+    const enrolledClasses = await getStudentClassesByLegacyScan(studentUid);
     console.log(`[Courses DEBUG] getStudentClasses: found ${enrolledClasses.length} enrolled classes`);
     return enrolledClasses;
   } catch (error) {
