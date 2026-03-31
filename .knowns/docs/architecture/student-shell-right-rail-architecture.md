@@ -1,8 +1,8 @@
 ---
 title: Student Shell Right Rail Architecture
-description: Architecture contract for the shared student shell layout, global right rail, shared data hook, and page-level extension pattern.
+description: Architecture contract for the shared student shell layout, right rail ownership, and dashboard-specific rail override pattern.
 createdAt: '2026-03-30T03:14:40.723Z'
-updatedAt: '2026-03-31T22:26:47.378Z'
+updatedAt: '2026-03-31T22:29:56.068Z'
 tags:
   - architecture
   - student
@@ -12,78 +12,126 @@ tags:
 
 # Student Shell Right Rail Architecture
 
-## Purpose
+## Overview
 
-This document defines the structural and ownership contract for the right side of the shared student shell.
+The student shell is a shared platform feature owned by `StudentLayout`, not by any individual page. Every page that uses the student shell gets the same desktop 3-column structure, the same mobile and tablet drawer pattern, and the same shell-owned right-rail data boundary.
 
-It exists to keep shell pages aligned on one persistent right-rail model while still allowing approved page-specific rail compositions such as the dashboard.
+This architecture applies to:
+- `StudentDashboardPage`
+- `StudentHomeworkListPage`
+- `AcademicRecordPage`
+- `StudentCoursesPage`
+- `StudentCourseDetailPage`
+- `StudentClassDetailPage`
+- `StudentLibraryPage`
+- `ProfilePage`
 
-## Shared Shell Contract
+## Layout Contract
 
-The student shell always preserves three structural regions:
-- left navigation rail
-- center editorial canvas
-- right contextual rail
+### Desktop
 
-The right rail is not optional on shell pages. It must remain part of the shared workspace even when a page uses a quieter or more page-shaped rail presentation.
+The shared student desktop shell uses a fixed left rail with an editorial center canvas and a contextual right rail:
+- left rail: fixed visual anchor owned by `StudentLayout`
+- center canvas: `minmax(0, 1fr)` with page content capped by page-class width rules
+- right rail: fixed-width contextual column rendered by the shell or by an approved page-specific override
+- shell composition should feel like one workspace, not three hard boxed columns
+- horizontal padding and gutters should support long-form reading rhythm rather than dashboard density
 
-## Ownership
+The center canvas is intentionally wider than the old `600px` cap so Academic Record and Dashboard can share the same editorial reading model.
 
-The shell owns the right-rail platform:
-- structure and placement belong to `StudentLayout`
-- shell-global data remains owned by the student shell data provider
-- fallback generic rail rendering belongs to `StudentRightRail`
+### Tablet and Mobile
 
-Pages may own the visible composition inside that region when there is an approved page-specific contract.
+Tablet and mobile remain shell-first layouts. The left navigation and right rail move into off-canvas drawers owned by `StudentLayout`. Pages should rely on the shell toggle behavior instead of implementing their own mobile right-rail trigger unless they need a deliberate override.
 
-## Shell-Owned Data
+## Right Rail Ownership
 
-The shell remains the canonical owner for:
-- enrolled class summaries
-- active live-session summaries
-- homework urgency and upcoming summary groups
+The global right rail is rendered by `StudentRightRail` and always appears on student shell pages unless a page-specific override is explicitly approved.
 
-Page-specific rails may restate those summaries, but they must not create duplicate loaders for them.
+Shell-owned modules:
+- live session summaries
+- upcoming homework summaries
+- enrolled-class summary groups
 
-## Dashboard Override Pattern
-
-Dashboard is the canonical right-rail override.
-
-Current implementation anchors:
-- `src/pages/StudentDashboardPage.jsx`
-- `src/components/dashboard/StudentDashboardRightRail.jsx`
+Page-owned modules are supplemental only unless a page has an approved full override contract.
 
 Rules:
-- the dashboard rail should read as one grouped editorial aside rather than a stack of reusable widgets
+- pages should not render structural rail wrappers such as sticky containers, fixed widths, or empty placeholder columns
+- shell-owned summaries remain shell-owned even when a page-specific rail restates them differently
+- page surfaces may reshape shell summaries, but must not re-own or reacquire them
+
+## Extension Pattern
+
+Current page supplements and overrides:
+- dashboard: full page-owned right rail override rendered through `rightPanel`; this replaces the generic widget stack with a dashboard-specific editorial aside
+- homework: homework summary supplement
+- records: overview and right-module selector
+- profile: teacher invitation card
+
+Current shell-only pages:
+- courses
+- course detail
+- class detail
+- library
+
+Rules:
+- if a page only needs a small supplement, append it through `rightPanel`
+- if a page has an approved page-specific rail contract, pass a full page-owned rail override through `rightPanel` instead of rebuilding shell data ownership
+- dashboard is the canonical example of a full page-owned rail override while still consuming shell-owned summaries from the provider
+
+## Dashboard Override Contract
+
+Dashboard right rail is intentionally narrative and page-shaped.
+
+Required rules:
 - `Feed Snapshot` is the primary summary surface
-- `Up Next` stays within that visual family
-- `Public Sessions` is a quieter supporting list
-- dashboard-specific presentation may derive from shell-owned summaries plus page-owned feed data, but the shell remains the owner for shell-global right-rail data
+- `Weekly Focus` and `Up Next` belong to one composition family
+- `Public Sessions` is a sparse secondary section rather than a heavy widget column
+- shell right-rail governance does not force dashboard to look like every other student page
+
+## Shared Data Contract
+
+`useStudentShellData` remains the canonical shell data model, but the ownership boundary is route-scoped rather than page-scoped.
+
+Shared sources:
+- enrolled classes from `getStudentClasses`
+- live class sessions from `subscribeToActiveSessions` plus `getSession`
+- homework summary groups from the shared student homework pipeline
+
+The canonical shell owner lives in `StudentShellDataProvider`, mounted above the student shell route tree.
+
+Consumers use resolver hooks when they are inside the shell route tree:
+- `useResolvedStudentShellData()`
+- `useResolvedStudentHomeworkList()`
+
+## Navigation And Tracking
+
+The shell live-session CTA must keep the existing student waiting-room flow:
+- call `sessionService.setPlayerData(...)`
+- navigate to `STUDENT_WAITING`
+
+Shell-level tracking should use direct action tracking rather than page-view tracking hooks because the rail is shared across multiple pages.
 
 ## Framing Responsibility
 
-Use one framing owner per surface.
+Right-rail supplements may be self-framed or host-framed, but not both.
 
-Required rules:
-- if a page-specific rail component already frames itself, the shell provides placement and spacing only
-- do not wrap self-framed rail content in another bordered shell
-- avoid repeated headings and repeated card shells that make the right rail read as stacked widgets
+Required rule:
+- if a page-owned module already includes its own card, border, radius, title row, or progress shell, `StudentLayout` and the page host must provide placement and spacing only
+- do not wrap a self-framed widget in a second bordered section shell
+- do not repeat the same heading in both the host page and the child widget
 
-## Mobile and Tablet
+Use one framing owner per surface: either the host page frames plain content, or the child widget renders as a visually complete module.
 
-On smaller breakpoints the right rail remains part of the shell contract, but it moves into the shared drawer pattern.
+## Implementation Notes
 
-Rules:
-- preserve mutual exclusion between the left and right drawers
-- do not create page-local mobile rail drawers
-- keep the same editorial tone rather than reverting to louder widget styling
-
-## Verification Standard
-
-When right-rail work changes:
-- verify shell pages still share one structural right-rail region
-- verify page-specific overrides do not create duplicate shell-data ownership
-- verify the dashboard rail remains grouped and editorial rather than widget-stacked
+Key files:
+- `src/App.jsx`
+- `src/context/StudentShellDataContext.tsx`
+- `src/components/layout/StudentLayout.tsx`
+- `src/components/layout/studentLayoutStyles.ts`
+- `src/components/layout/StudentRightRail.tsx`
+- `src/components/dashboard/StudentDashboardRightRail.jsx`
+- `src/hooks/useStudentShellData.ts`
 
 ## Related Docs
 

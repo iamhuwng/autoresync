@@ -1,8 +1,8 @@
 ---
 title: Student Experience Architecture
-description: 'Student-facing system overview: 20 pages, design standard, adaptive layout, UX patterns, color/typography system.'
+description: Student-facing system overview with shell, dashboard, and academic-record architecture contracts.
 createdAt: '2026-02-27T16:18:36.604Z'
-updatedAt: '2026-03-31T22:26:05.084Z'
+updatedAt: '2026-03-31T22:28:52.254Z'
 tags:
   - architecture
   - student
@@ -15,9 +15,9 @@ tags:
 
 ## Purpose
 
-This document defines the architectural contract for the student-facing workspace after the 2026-03-31 overhaul.
+This document defines the architectural contract for the student-facing workspace after the 2026-03-31 overhaul and dashboard parity follow-up.
 
-It exists to keep implementation, review, and future UI work aligned to the approved Stitch direction instead of drifting back toward the older social-feed or boxed-dashboard patterns.
+It exists to keep implementation, review, and future UI work aligned to the approved Stitch direction instead of drifting back toward older social-feed, boxed-dashboard, or generic-widget patterns.
 
 ## Scope
 
@@ -60,52 +60,50 @@ The key rule is that these regions must read as one composed workspace rather th
 
 ## Dashboard Feed Contract
 
-Dashboard is no longer treated as a social feed clone.
+Dashboard is not treated as a social feed clone.
 
-It must use the approved Stitch dashboard anchor in `.stitch/designs/student-overhaul-from-academic-record-20260331/dashboard.html` as the feed-specific reference.
+It must use the approved Stitch dashboard anchor in `.stitch/designs/student-overhaul-from-academic-record-20260331/dashboard.html` as the feed-specific reference, while preserving the real student route structure and information architecture.
 
-Required anatomy:
-- sticky workspace masthead with light utilities and search
+Required center-canvas order:
+- sticky workspace masthead with light utilities
 - frameless metric strip using typographic columns rather than boxed KPI cards
 - slim editorial tab row
-- vertical activity timeline with a left icon or node rail and quiet separators
-- inline actions rather than nested CTA cards
+- vertical academic timeline feed
 
-Required sequence:
-- masthead
-- metric strip
-- tab row
-- timeline feed
+Required feel:
+- lighter masthead utilities such as search, unread filter, and academic-history action
+- whitespace-led grouping instead of nested cards
+- concise metadata-derived body copy instead of raw notification dumps
+- restrained inline actions instead of nested CTA blocks
 
-Disallowed anatomy:
-- toolbar-heavy headers
-- widget-first center columns
+Disallowed feel:
+- toolbar-heavy mastheads
 - stacked card dashboards
 - nested widget boxes inside each feed item
-- one generic event-card renderer for all dashboard activity types
+- generic event-card rendering that erases event-specific row anatomy
 - heavy column borders that make the shell feel boxed
 
 ## Dashboard Right Rail Contract
 
-Dashboard keeps the shared shell structure but uses a page-owned dashboard rail composition.
+Dashboard uses a page-shaped right rail rather than the generic shared shell widget stack.
 
 Rules:
-- the rail must read as one grouped editorial aside, not as a stack of reusable dashboard widgets
+- the rail is an editorial aside, not a set of reusable dashboard widgets
 - `Feed Snapshot` is the primary summary surface
-- `Up Next` belongs to the same visual family as that summary rather than standing alone as a separate widget card
-- `Public Sessions` is a quieter supporting list
-- dashboard-specific rail presentation may restate shell-owned summaries, but it must not re-own the underlying shell data
+- `Weekly Focus` and `Up Next` belong to the same narrative composition
+- `Public Sessions` is a quieter supporting section
+- the sidebar and route structure must preserve the real app IA even when the visual tone follows Stitch
 
 ## Dashboard Variant Mapping
 
-Dashboard activity is intentionally composed from explicit row variants rather than one generic renderer.
+Dashboard feed rows are intentionally composed from explicit row variants instead of one generic renderer.
 
-Current row families:
-- result or test updates
-- homework updates
-- class updates
+Expected variants:
+- result/test rows: sparse, score-led, timeline-first composition
+- homework rows: one quiet inset excerpt or meta surface with restrained support text
+- class-update rows: mostly textual update with one restrained action
 
-These families may share a timeline frame, but they should not collapse into the same dense card anatomy.
+This protects parity with the approved dashboard anchor while staying connected to real product data.
 
 ## Academic Record Contract
 

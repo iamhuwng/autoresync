@@ -2,7 +2,7 @@
 title: Student View Design Standard
 description: Design standards and patterns for all student-facing pages and views
 createdAt: '2026-02-27T15:25:53.999Z'
-updatedAt: '2026-03-31T22:25:44.967Z'
+updatedAt: '2026-03-31T22:28:26.209Z'
 tags:
   - design
   - student
@@ -23,7 +23,7 @@ tags:
 
 ## 1. Design Philosophy
 
-The student interface now follows a calm editorial academic workspace model derived from the approved Academic Record direction.
+The student interface follows a calm editorial academic workspace model derived from the approved Academic Record direction, with Dashboard using the approved Stitch dashboard export as its feed-specific companion anchor.
 
 It prioritizes:
 - Composure - the UI should feel analytical, intentional, and quiet
@@ -42,6 +42,7 @@ These remain mandatory even under the overhaul:
 - Preserve mobile drawer behavior and mutual exclusion between left/right drawers
 - Preserve page information architecture and interaction contracts from the real app
 - Preserve the right rail as part of the shell; it is not optional for shell pages
+- Preserve the real app information architecture even when following Stitch visual anchors
 - Preserve the ban on `AppShell`, glassmorphism, gradients, decorative hover-lift, and emoji navigation
 - Preserve Inter as the UI typeface
 - Preserve student-safe flat HTML/CSS patterns over new Mantine additions
@@ -129,16 +130,16 @@ font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 ### Hierarchy
 | Role | Size | Weight | Notes |
 |---|---|---|---|
-| Page title | `1.875rem` to `2rem` | 700-800 | tight, editorial |
+| Page title | `1.875rem` to `2.25rem` | 700-800 | tight, editorial |
 | Section title | `1rem` to `1.125rem` | 600-700 | compact and clear |
-| Metric value | `1.75rem` to `2.25rem` | 700-800 | high-contrast, sparse use |
+| Metric value | `1.75rem` to `2.7rem` | 300-800 | high-contrast, sparse use |
 | Body | `0.875rem` to `0.938rem` | 400-500 | calm readable density |
 | Metadata | `0.75rem` to `0.8125rem` | 500-600 | subdued |
 | Micro-label | `0.625rem` to `0.75rem` | 700 | uppercase with letter spacing |
 
 ### Rules
 - Inter only by default
-- Use uppercase micro-labels for tabs, metrics, metadata labels, and small headings
+- Use uppercase micro-labels for sidebar labels, tabs, metrics, metadata labels, and small headings
 - Favor strong title hierarchy over oversized button styling
 - Avoid friendly-app typography tricks or playful oversized labels
 
@@ -177,15 +178,17 @@ The old rigid `max-width: 600px` center rule is replaced with page-class widths:
 
 ### Navigation
 - Navigation should feel integrated into the shell, not like a stack of pills
-- Navigation labels should stay compact, uppercase, and editorial rather than product-app loud
-- Active state should be calm and precise: tonal highlight, thin accent-edge cue, or restrained inset
-- Sidebar utility actions such as `Join Class` should read as supporting shell utilities, not primary hero CTAs
+- Sidebar labels should be smaller uppercase editorial labels, not large product-nav copy
+- Active state should be calm and precise: a tonal highlight plus a thin accent-edge cue, not a heavy pill treatment
+- `Join Class` is a utility action, not a dominant dashboard CTA block
+- Preserve the real route set and sidebar IA; do not literal-copy placeholder Stitch nav labels
 - No emoji icons
 - Use SVG icons only
 
 ### Headers
 - Sticky page headers are still allowed, but should feel lighter and more editorial
 - Prefer soft bottom separators or tonal contrast over heavy header boxes
+- Dashboard utility controls should stay visually light: search, unread filter, and academic-history action live in the masthead without turning it into a toolbar
 
 ### Tabs
 - Tabs should be slim and editorial
@@ -208,10 +211,20 @@ The old rigid `max-width: 600px` center rule is replaced with page-class widths:
 - Use soft separators and whitespace instead of loud borders
 - Rows should read cleanly and support quick scanning
 - High-density tables may use very faint lines only
+- Dashboard timeline rows must use concise metadata-derived copy rather than raw notification-body dumps
+- Homework timeline metadata should read as quiet microtext, not stacked chip rows
+- Test/result rows should stay sparse and spacious, with score-led hierarchy and restrained actions
 
 ### Metrics
 - Large metric numerals are encouraged for summary strips and record views
 - Pair metrics with uppercase micro-labels and quiet metadata
+- Dashboard summary values should read as a frameless strip above tabs, not boxed KPI widgets
+
+### Right Rail
+- Right rails should read as quiet contextual composition, not a stack of reusable widgets
+- On dashboard, `Feed Snapshot` is the primary summary surface
+- `Up Next` should sit inside the same visual family as the primary summary, not as a second unrelated widget stack
+- `Public Sessions` should be a sparse supporting list, not another heavy card column
 
 ---
 
@@ -220,14 +233,14 @@ The old rigid `max-width: 600px` center rule is replaced with page-class widths:
 ### Dashboard
 - The dashboard is an editorial academic activity workspace, not a social feed clone or KPI dashboard
 - Use the approved Stitch dashboard export in `.stitch/designs/student-overhaul-from-academic-record-20260331/dashboard.html` as the feed companion anchor to Academic Record
-- Required center-column order: sticky workspace masthead with light utilities and search, frameless typographic metric strip, slim editorial tab row, then the vertical academic timeline feed
-- The top utility zone should stay light: underline-style search, unread/filter controls, and academic-history access only
-- Activity items should read as explicit timeline/editorial row variants with a left node rail, quiet metadata, strong titles, and restrained inline actions
-- Test and result rows should stay sparse and score-led rather than turning into dense mini cards
-- Homework rows may use one quiet inset excerpt surface plus a compressed metadata line, not pill-heavy tag stacks
-- Class rows should be mostly text with one restrained inline action
-- The dashboard right rail should read as one narrative aside: `Feed Snapshot` as the primary summary surface, `Up Next` nested into the same visual family, and `Public Sessions` as a sparse supporting list
-- Avoid nested CTA cards, stacked widget boxes, boxed three-column emphasis, and generic event-card renderers; keep the shell soft and composed
+- The center column should follow this sequence:
+  `masthead with light utilities/search -> frameless metric strip -> slim editorial tabs -> timeline feed`
+- The metric strip sits above the tab row
+- Activity items should read as timeline/editorial rows with a left node rail, quiet metadata, strong titles, and restrained inline actions
+- Tests should be score-led timeline rows
+- Homework rows should use one quiet inset excerpt or meta surface
+- Class updates should stay mostly textual with one restrained action
+- Avoid nested CTA cards, stacked widget boxes, and boxed three-column emphasis; keep the shell soft and composed
 
 ### Homework
 - List-first workboard
@@ -269,6 +282,8 @@ The old rigid `max-width: 600px` center rule is replaced with page-class widths:
 - Mantine `Tabs`
 - Hard center-column left/right border framing as the default shell treatment
 - Treating the right rail as optional on shell pages
+- Reintroducing generic event-card renderers for dashboard feed rows
+- Reintroducing dashboard widget stacks as separate boxed modules
 
 ---
 
@@ -280,7 +295,7 @@ Primary Stitch anchors:
 
 What they govern:
 - Academic Record is the primary tonal, spacing, and hierarchy anchor for the whole student system
-- Dashboard is the feed-specific companion anchor for the editorial activity timeline, metric strip, and softer shell treatment
+- Dashboard is the feed-specific companion anchor for the editorial activity timeline, metric strip, lighter masthead utilities, and softer shell treatment
 
 Implementation anchors:
 - `src/components/layout/StudentLayout.tsx`
@@ -305,10 +320,10 @@ Before considering a student page complete under v2.0:
 - [ ] Uses softer shell treatment instead of boxed three-column framing
 - [ ] Avoids gradients, glass, AppShell, emoji icons, and decorative hover lift
 - [ ] Keeps tabs, buttons, metrics, and lists inside the same visual family as Academic Record
-- [ ] Dashboard metric strip sits above the tab row and reads as typographic columns, not widget cards
-- [ ] Dashboard right rail reads as a grouped editorial aside rather than a widget stack
-- [ ] Dashboard feed rows read as editorial timeline variants rather than generic event cards
-- [ ] Dashboard search and utility controls remain masthead-light rather than toolbar-heavy
+- [ ] Dashboard metric strip sits above tabs
+- [ ] Dashboard masthead utilities remain light instead of becoming a heavy toolbar
+- [ ] Dashboard right rail does not regress into a widget stack
+- [ ] Dashboard feed rows read as editorial timeline rows rather than generic cards
 
 ---
 
@@ -332,4 +347,4 @@ Required CSS custom properties:
 --sv-radius-panel: 12px;
 ```
 
-The override layer should neutralize legacy glass/gradient patterns and set the v2 shell colors automatically when `.student-view-root` is active.
+The override layer should neutralize legacy glass and gradient patterns and set the v2 shell colors automatically when `.student-view-root` is active.
