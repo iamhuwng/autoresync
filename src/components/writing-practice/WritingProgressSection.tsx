@@ -5,13 +5,13 @@
  * Keeps Writing as a record-first surface with light summary panels
  * and flat result rows that match the Academic Record system.
  */
-import { useEffect, useMemo, useState } from 'react';
-import { collection, getDocs, orderBy, query, where } from 'firebase/firestore';
+import { useMemo } from 'react';
 import { AcademicRecordFlatRow, formatAcademicRecordDate } from '../academicRecord/AcademicRecordResultRow';
-import { firestore as db } from '../../services/firebase';
+import type { EnhancedTestResultRecord } from '../../types/results.types';
 
 interface WritingProgressSectionProps {
-    studentId: string;
+    results: EnhancedTestResultRecord[];
+    loading?: boolean;
     onResultClick?: (resultId: string) => void;
 }
 
@@ -109,66 +109,52 @@ function formatContext(value?: string): string | null {
     return value.replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-export default function WritingProgressSection({ studentId, onResultClick }: WritingProgressSectionProps) {
-    const [results, setResults] = useState<WritingResult[]>([]);
-    const [loading, setLoading] = useState(true);
+function isWritingResult(result: EnhancedTestResultRecord): boolean {
+    return Boolean(
+        result.writingData
+        || result.writingSubmission
+        || result.testSkill === 'writing',
+    );
+}
 
-    useEffect(() => {
-        let cancelled = false;
+function mapWritingResult(result: EnhancedTestResultRecord): WritingResult {
+    const isGraded = result.markingStatus === 'graded' || result.markingStatus === 'reviewed';
+    const wordCount = result.writingData?.tasks?.reduce(
+        (sum, task) => sum + (task.wordCount || 0),
+        0,
+    ) || result.writingSubmission?.wordCount;
 
-        async function fetchWritingResults() {
-            try {
-                const writingQuery = query(
-                    collection(db, 'writing_submissions'),
-                    where('studentId', '==', studentId),
-                    orderBy('submittedAt', 'desc'),
-                );
-                const snapshot = await getDocs(writingQuery);
+    return {
+        id: result.resultId,
+        testTitle: result.testTitle || result.testId || 'Untitled',
+        submittedAt: result.submittedAt || result.createdAt || 0,
+        status: isGraded ? 'graded' : 'pending',
+        bandScore: isGraded ? (result.writingData?.overallBand ?? result.bandScore) : undefined,
+        contextType: result.context?.type,
+        wordCount,
+    };
+}
 
-                if (cancelled) {
-                    return;
-                }
-
-                const fetched: WritingResult[] = snapshot.docs.map((doc) => {
-                    const data = doc.data();
-                    return {
-                        id: doc.id,
-                        testTitle: data.testMeta?.testTitle || data.testMeta?.testId || 'Untitled',
-                        submittedAt: data.submittedAt || data.createdAt || 0,
-                        status: data.markingStatus === 'graded' ? 'graded' : 'pending',
-                        bandScore: data.grading?.overallBand,
-                        contextType: data.context?.type,
-                        wordCount: data.tasks?.reduce((sum: number, task: any) => sum + (task.wordCount || 0), 0),
-                    };
-                });
-
-                setResults(fetched);
-            } catch (error) {
-                console.error('[WritingProgressSection] Error fetching:', error);
-            } finally {
-                if (!cancelled) {
-                    setLoading(false);
-                }
-            }
-        }
-
-        fetchWritingResults();
-
-        return () => {
-            cancelled = true;
-        };
-    }, [studentId]);
+export default function WritingProgressSection({
+    results,
+    loading = false,
+    onResultClick,
+}: WritingProgressSectionProps) {
+    const writingResults = useMemo(
+        () => results.filter(isWritingResult).map(mapWritingResult).sort((a, b) => b.submittedAt - a.submittedAt),
+        [results],
+    );
 
     const gradedResults = useMemo(
-        () => results.filter((result) => result.bandScore !== undefined),
-        [results],
+        () => writingResults.filter((result) => result.bandScore !== undefined),
+        [writingResults],
     );
     const avgBand = gradedResults.length > 0
         ? (gradedResults.reduce((sum, result) => sum + (result.bandScore || 0), 0) / gradedResults.length).toFixed(1)
         : '-';
-    const pendingCount = results.filter((result) => result.status === 'pending').length;
+    const pendingCount = writingResults.filter((result) => result.status === 'pending').length;
 
-    if (loading) {
+    if (loading && writingResults.length === 0) {
         return (
             <div style={styles.spinnerWrap}>
                 <div style={styles.spinner} />
@@ -178,7 +164,7 @@ export default function WritingProgressSection({ studentId, onResultClick }: Wri
         );
     }
 
-    if (results.length === 0) {
+    if (writingResults.length === 0) {
         return (
             <div style={styles.empty}>
                 <h3 style={styles.emptyHeading}>No Writing Results Yet</h3>
@@ -198,7 +184,7 @@ export default function WritingProgressSection({ studentId, onResultClick }: Wri
                 </div>
                 <div style={styles.statCard}>
                     <p style={styles.statLabel}>Submissions</p>
-                    <p style={styles.statValue}>{results.length}</p>
+                    <p style={styles.statValue}>{writingResults.length}</p>
                 </div>
                 <div style={styles.statCard}>
                     <p style={styles.statLabel}>Pending Review</p>
@@ -207,7 +193,7 @@ export default function WritingProgressSection({ studentId, onResultClick }: Wri
             </div>
 
             <div style={styles.list}>
-                {results.map((result) => {
+                {writingResults.map((result) => {
                     const metaItems = [
                         formatContext(result.contextType),
                         result.wordCount ? `${result.wordCount} words` : null,

@@ -102,7 +102,9 @@ const StudentDashboardPage = () => {
     const [publicSessions, setPublicSessions] = useState([]);
     const {
         enrolledClasses,
+        classLiveSessions,
         notStarted,
+        sortedAssignments,
         refreshClasses,
     } = useStudentShellData();
 
@@ -232,6 +234,12 @@ const StudentDashboardPage = () => {
         }
         return result;
     }, [allNotifications, feedFilter]);
+
+    const shellData = useMemo(() => ({
+        classLiveSessions,
+        enrolledClasses,
+        sortedAssignments,
+    }), [classLiveSessions, enrolledClasses, sortedAssignments]);
 
     const handleJoinPublicSession = (sessionCode) => {
         if (user) {
@@ -639,6 +647,7 @@ const StudentDashboardPage = () => {
         <>
             <StudentLayout
                 mobileTitle={mobileTitle}
+                shellData={shellData}
                 sidebar={
                     <StudentSidebar
                         user={user ? { ...user, avatarUrl: profile?.avatarUrl } : undefined}

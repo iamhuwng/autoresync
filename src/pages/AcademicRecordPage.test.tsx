@@ -70,6 +70,7 @@ vi.mock('../components/ai/AIMaintenanceBanner', () => ({
 vi.mock('@/services/academicRecordService', () => ({
     getFilteredResults: vi.fn().mockResolvedValue(mockResults),
     getLatestResultPerTest: vi.fn().mockImplementation((results: any[]) => results),
+    getThcsProgress: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock('../services/progressiveFeedback.service', () => ({
@@ -214,6 +215,7 @@ const UrlInspector: React.FC = () => {
 };
 
 import { AcademicRecordPage } from './AcademicRecordPage';
+import * as progressiveFeedbackService from '../services/progressiveFeedback.service';
 
 interface RenderOptions {
     initialPath?: string;
@@ -364,5 +366,24 @@ describe('AcademicRecordPage query-param management', () => {
         });
 
         expect(screen.getByTestId('result-slide-panel')).toHaveAttribute('data-result-id', 'res-1');
+    });
+
+    it('does not auto-refresh progressive feedback when cached feedback is still fresh', async () => {
+        vi.mocked(progressiveFeedbackService.getProgressiveFeedback).mockResolvedValueOnce({
+            generatedAt: Date.now() - 1000,
+            nextScheduledRefreshAt: Date.now() + 60_000,
+            nextEligibleManualRefreshAt: Date.now() + 60_000,
+            narrative: {
+                summary: 'Fresh feedback',
+            },
+        } as any);
+
+        renderPage();
+
+        await waitFor(() => {
+            expect(screen.getByText('Fresh feedback')).toBeInTheDocument();
+        });
+
+        expect(progressiveFeedbackService.refreshProgressiveFeedback).not.toHaveBeenCalled();
     });
 });

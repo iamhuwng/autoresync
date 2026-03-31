@@ -1,7 +1,12 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { getFilteredResults, getLatestResultPerTest } from '@/services/academicRecordService';
+import {
+    getFilteredResults,
+    getLatestResultPerTest,
+    getThcsProgress,
+    type ThcsProgressData,
+} from '@/services/academicRecordService';
 import { ResultTimeline, ResultsByCourse, ResultsBySkill } from '@/components/academicRecord';
 import { THCSProgressTab } from '@/components/academicRecord/THCSProgressTab';
 import type { EnhancedTestResultRecord } from '@/types/results.types';
@@ -211,6 +216,8 @@ export const AcademicRecordPage: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [progressiveFeedback, setProgressiveFeedback] = useState<ProgressiveFeedbackRecord | null>(null);
     const [progressiveFeedbackLoading, setProgressiveFeedbackLoading] = useState(false);
+    const [thcsProgress, setThcsProgress] = useState<ThcsProgressData | null>(null);
+    const [thcsLoading, setThcsLoading] = useState(true);
     const [dateRange, setDateRange] = useState<string>('all');
     const [activeView, setActiveView] = useState<MainView>('overview');
 
@@ -218,6 +225,15 @@ export const AcademicRecordPage: React.FC = () => {
     const ieltsResults = useMemo(
         () => latestResults.filter((result) => !(result as any).thcsData),
         [latestResults],
+    );
+    const writingResults = useMemo(
+        () =>
+            results.filter((result) => (
+                Boolean(result.writingData)
+                || Boolean(result.writingSubmission)
+                || result.testSkill === 'writing'
+            )),
+        [results],
     );
 
     const fetchResults = useCallback(async () => {
@@ -259,6 +275,38 @@ export const AcademicRecordPage: React.FC = () => {
     }, [fetchResults]);
 
     useEffect(() => {
+        if (!user?.uid) {
+            setThcsProgress(null);
+            setThcsLoading(false);
+            return;
+        }
+
+        let cancelled = false;
+
+        const loadThcsProgress = async () => {
+            try {
+                setThcsLoading(true);
+                const nextProgress = await getThcsProgress(user.uid);
+                if (!cancelled) {
+                    setThcsProgress(nextProgress);
+                }
+            } catch (err) {
+                console.error('Failed to load THCS progress:', err);
+            } finally {
+                if (!cancelled) {
+                    setThcsLoading(false);
+                }
+            }
+        };
+
+        loadThcsProgress();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [user?.uid]);
+
+    useEffect(() => {
         if (!user?.uid) return;
 
         let cancelled = false;
@@ -271,9 +319,15 @@ export const AcademicRecordPage: React.FC = () => {
                     setProgressiveFeedback(existing);
                 }
 
-                const refreshed = await refreshProgressiveFeedback(user.uid);
-                if (!cancelled && refreshed) {
-                    setProgressiveFeedback(refreshed);
+                const shouldRefresh = !existing
+                    || !existing.nextScheduledRefreshAt
+                    || Date.now() >= existing.nextScheduledRefreshAt;
+
+                if (shouldRefresh) {
+                    const refreshed = await refreshProgressiveFeedback(user.uid);
+                    if (!cancelled && refreshed) {
+                        setProgressiveFeedback(refreshed);
+                    }
                 }
             } catch (err) {
                 console.error('Failed to load progressive feedback:', err);
@@ -508,7 +562,11 @@ export const AcademicRecordPage: React.FC = () => {
                     </p>
                 </div>
                 <div style={localStyles.sectionBody}>
-                    <THCSProgressTab userId={user?.uid || ''} onResultClick={handleThcsHistoryClick} />
+                    <THCSProgressTab
+                        data={thcsProgress}
+                        loading={thcsLoading}
+                        onResultClick={handleThcsHistoryClick}
+                    />
                 </div>
             </section>
         );
@@ -532,7 +590,11 @@ export const AcademicRecordPage: React.FC = () => {
                             </div>
                         )}
                     >
-                        <WritingProgressSection studentId={user.uid} onResultClick={handleOpenResult} />
+                        <WritingProgressSection
+                            results={writingResults}
+                            loading={loading && writingResults.length === 0}
+                            onResultClick={handleOpenResult}
+                        />
                     </Suspense>
                 </div>
             </section>

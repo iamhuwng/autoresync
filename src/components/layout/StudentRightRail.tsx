@@ -1,12 +1,18 @@
 import React from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useNavigation } from '../../hooks/useNavigation';
-import { useStudentShellData } from '../../hooks/useStudentShellData';
+import { useStudentShellData, type StudentShellData } from '../../hooks/useStudentShellData';
 import { reportingService } from '../../services/reportingService';
 import { sessionService } from '../../services/sessionService';
 import { S } from './studentLayoutStyles';
 
+export type StudentRightRailShellData = Pick<
+    StudentShellData,
+    'classLiveSessions' | 'enrolledClasses' | 'sortedAssignments'
+>;
+
 interface StudentRightRailProps {
+    shellData: StudentRightRailShellData;
     supplementalContent?: React.ReactNode;
 }
 
@@ -100,10 +106,10 @@ function getLiveBadgeStyles(mode: string) {
     return { ...localStyles.liveBadge, background: '#e0e7ff', color: '#4338ca' };
 }
 
-export const StudentRightRail: React.FC<StudentRightRailProps> = ({ supplementalContent }) => {
+export const StudentRightRail: React.FC<StudentRightRailProps> = ({ shellData, supplementalContent }) => {
     const { user } = useAuth();
     const { navigateTo } = useNavigation('student');
-    const { classLiveSessions, enrolledClasses, sortedAssignments } = useStudentShellData();
+    const { classLiveSessions, enrolledClasses, sortedAssignments } = shellData;
 
     const handleJoinLiveSession = (sessionCode: string, status: string, classId: string) => {
         if (user) {
@@ -248,5 +254,20 @@ export const StudentRightRail: React.FC<StudentRightRailProps> = ({ supplemental
                 {supplementalContent}
             </div>
         </div>
+    );
+};
+
+interface ConnectedStudentRightRailProps {
+    supplementalContent?: React.ReactNode;
+}
+
+export const ConnectedStudentRightRail: React.FC<ConnectedStudentRightRailProps> = ({ supplementalContent }) => {
+    const { classLiveSessions, enrolledClasses, sortedAssignments } = useStudentShellData();
+
+    return (
+        <StudentRightRail
+            shellData={{ classLiveSessions, enrolledClasses, sortedAssignments }}
+            supplementalContent={supplementalContent}
+        />
     );
 };

@@ -2,7 +2,7 @@
 title: Student Shell Right Rail Architecture
 description: Architecture contract for the shared student shell layout, global right rail, shared data hook, and page-level extension pattern.
 createdAt: '2026-03-30T03:14:40.723Z'
-updatedAt: '2026-03-30T03:14:40.723Z'
+updatedAt: '2026-03-31T00:26:19.014Z'
 tags:
   - architecture
   - student
@@ -115,3 +115,42 @@ Key files:
 Related docs:
 - @doc/architecture/student-experience-architecture
 - @doc/design/student-view-design-standard
+
+
+## Data-Loading Governance
+
+The shell data contract is intentionally stricter than the visual layout contract.
+
+Required rules:
+- shell-shared student datasets have exactly one owner
+- that owner lives in `StudentLayout` or a dedicated shell provider consumed by `StudentLayout`
+- `StudentRightRail` and shell pages consume the same owner; they must not instantiate overlapping loaders for enrolled classes, live sessions, homework summaries, or future shell-global student data
+- page-specific widgets may derive selectors from shell-owned data, but they must not broaden the read scope or create page-local copies of the same loading pipeline
+- shell refresh policy belongs to the owner, including stale-while-revalidate, retry, and cache invalidation behavior
+
+Future student shell work must explicitly state:
+- whether the surface consumes summary/read-model data or full detail
+- why the chosen owner is the canonical one
+- which governance rule and pattern doc the change follows
+
+Required companion docs for student shell data-loading work:
+- @doc/architecture/student-experience-architecture
+- @doc/architecture/student-shell-right-rail-architecture
+- @doc/patterns/pattern-student-shell-single-data-owner
+- @doc/patterns/pattern-summary-first-detail-on-demand
+- @doc/patterns/pattern-bulk-enrichment-from-shared-student-history
+
+
+## Current Implementation Status
+
+As of 2026-03-31, the dashboard/right-rail duplication path is removed.
+
+Current implementation anchor:
+- `StudentDashboardPage` owns the shared shell dataset for that surface through one `useStudentShellData()` call
+- `StudentLayout` accepts an optional `shellData` prop so a page owner can pass shell-owned data downward
+- `StudentRightRail` now supports a pure-consumer mode via `shellData` and keeps a connected fallback only for pages that have not been migrated yet
+
+This means the dashboard and the right rail no longer instantiate overlapping shell loaders for classes, live sessions, and upcoming homework on the same page.
+
+Follow-up note:
+- other student shell pages still rely on the connected fallback until they are migrated to an explicit shared owner or provider

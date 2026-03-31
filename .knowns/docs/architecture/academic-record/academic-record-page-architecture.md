@@ -2,7 +2,7 @@
 title: Academic Record Page Architecture
 description: Source of truth for the student Academic Record page structure, view hierarchy, shell ownership, and interaction contracts.
 createdAt: '2026-03-30T14:53:47.266Z'
-updatedAt: '2026-03-30T16:13:42.288Z'
+updatedAt: '2026-03-31T00:26:19.029Z'
 tags:
   - architecture
   - academic-record
@@ -190,3 +190,39 @@ When future capabilities are added, keep these rules:
 - @doc/architecture/academic-record/academic-record-progression-model
 - @doc/architecture/academic-record/academic-record-analytics-readiness
 - @doc/prd/prd-academic-record
+
+
+## Data Ownership And Loading Contract
+
+Academic Record is the host owner for center-column record data.
+
+Required rules:
+- `AcademicRecordPage` owns the base dataset for overview, THCS, IELTS, Writing, and Course surfaces
+- top-level views and tab panels are selectors or presentational surfaces over host-owned data; they do not independently query list data on mount
+- summary/read-model payloads are the default list input; full result detail loads only after an explicit detail interaction
+- after the first successful load, revisits keep prior content visible and refresh in the background instead of returning to a full blocking spinner
+- page mount, tab switch, and list load must not perform repair, backfill, or other persistent writes
+
+Any future Academic Record browse lens or widget must state:
+- whether it consumes summaries or full detail
+- which host owns the underlying data
+- which governance rule and pattern doc justify the loading shape
+
+Required companion docs:
+- @doc/architecture/results-academic-record
+- @doc/architecture/student-shell-right-rail-architecture
+- @doc/patterns/pattern-summary-first-detail-on-demand
+- @doc/patterns/pattern-bulk-enrichment-from-shared-student-history
+
+
+## Current Loading Implementation
+
+As of 2026-03-31, Academic Record follows the host-owned loading contract in the current implementation.
+
+Current implementation anchors:
+- `AcademicRecordPage` owns the canonical results list for overview, IELTS, Writing, and Course surfaces
+- THCS progression is loaded once by the host via `getThcsProgress(...)` and passed into `THCSProgressTab` as data props
+- `WritingProgressSection` is now a presentational surface over host-owned writing results rather than a Firestore-owning tab component
+- progressive feedback uses a stale-first read on mount and only auto-refreshes when the stored record is already due
+
+This removes independent tab-mounted list reads from THCS and Writing and keeps tab switches in the center column as view changes rather than new ownership boundaries.

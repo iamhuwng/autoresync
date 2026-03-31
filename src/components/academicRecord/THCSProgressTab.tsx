@@ -1,28 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { get, ref } from 'firebase/database';
+import React, { useMemo } from 'react';
 import { AcademicRecordFlatRow, formatAcademicRecordDate } from './AcademicRecordResultRow';
-// @ts-ignore
-import { database } from '../../services/firebase';
-
-interface ScoreHistoryEntry {
-    testId: string;
-    testTitle: string;
-    scaledScore: number;
-    gradeLevel: number;
-    examType: string;
-    date: number;
-}
-
-interface ThcsProgressData {
-    testsCompleted: number;
-    averageScore: number;
-    scoreHistory: ScoreHistoryEntry[];
-    skillBreakdown: Record<string, { correct: number; total: number }>;
-    lastUpdated: number;
-}
+import type { ThcsProgressData } from '../../services/academicRecordService';
 
 interface THCSProgressTabProps {
-    userId: string;
+    data: ThcsProgressData | null;
+    loading?: boolean;
     onResultClick?: (resultId: string) => void;
 }
 
@@ -157,44 +139,13 @@ function getHistoryTone(score: number): 'success' | 'primary' | 'warning' | 'dan
     return 'danger';
 }
 
-export const THCSProgressTab: React.FC<THCSProgressTabProps> = ({ userId, onResultClick }) => {
-    const [data, setData] = useState<ThcsProgressData | null>(null);
-    const [loading, setLoading] = useState(true);
+function getEntryDate(entry: ThcsProgressData['scoreHistory'][number]): number {
+    return entry.completedAt ?? entry.date ?? 0;
+}
 
-    useEffect(() => {
-        if (!userId) {
-            setLoading(false);
-            return;
-        }
-
-        let mounted = true;
-
-        async function fetchData() {
-            try {
-                const snapshot = await get(ref(database, `academic_records/${userId}`));
-                if (!mounted) {
-                    return;
-                }
-
-                setData(snapshot.exists() ? snapshot.val().thcsProgress || null : null);
-            } catch (error) {
-                console.error('Failed to load THCS progress:', error);
-            } finally {
-                if (mounted) {
-                    setLoading(false);
-                }
-            }
-        }
-
-        fetchData();
-
-        return () => {
-            mounted = false;
-        };
-    }, [userId]);
-
+export const THCSProgressTab: React.FC<THCSProgressTabProps> = ({ data, loading = false, onResultClick }) => {
     const sortedHistory = useMemo(
-        () => [...(data?.scoreHistory || [])].sort((a, b) => b.date - a.date),
+        () => [...(data?.scoreHistory || [])].sort((a, b) => getEntryDate(b) - getEntryDate(a)),
         [data?.scoreHistory],
     );
 
@@ -203,7 +154,7 @@ export const THCSProgressTab: React.FC<THCSProgressTabProps> = ({ userId, onResu
         [data?.scoreHistory],
     );
 
-    if (loading) {
+    if (loading && !data) {
         return (
             <div style={styles.loadingWrap}>
                 <div style={styles.spinner} />
@@ -269,7 +220,7 @@ export const THCSProgressTab: React.FC<THCSProgressTabProps> = ({ userId, onResu
                 <div style={styles.sectionBody}>
                     {sortedHistory.map((entry) => (
                         <AcademicRecordFlatRow
-                            key={`${entry.testId}-${entry.date}`}
+                            key={`${entry.testId}-${getEntryDate(entry)}`}
                             title={entry.testTitle}
                             metaItems={[
                                 `Grade ${entry.gradeLevel}`,
@@ -278,7 +229,7 @@ export const THCSProgressTab: React.FC<THCSProgressTabProps> = ({ userId, onResu
                             leadingText={`G${entry.gradeLevel}`}
                             leadingTone="muted"
                             trailingPrimary={`${entry.scaledScore.toFixed(1)}/10`}
-                            trailingSecondary={formatAcademicRecordDate(entry.date)}
+                            trailingSecondary={formatAcademicRecordDate(getEntryDate(entry))}
                             trailingTone={getHistoryTone(entry.scaledScore)}
                             onClick={entry.testId && onResultClick ? () => onResultClick(entry.testId) : undefined}
                             ariaLabel={entry.testId && onResultClick ? `Open THCS result for ${entry.testTitle}` : undefined}

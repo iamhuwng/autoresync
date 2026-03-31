@@ -16,6 +16,53 @@ import type { TestData } from './testStorage';
 import type { LibraryFilters, LibraryMaterial } from '../types/solo.types';
 import { getStudentResults as getCanonicalStudentResults } from './testResults.service';
 
+type StudentMaterialHistory = NonNullable<LibraryMaterial['studentHistory']>;
+
+function buildStudentMaterialHistoryMap(results: Awaited<ReturnType<typeof getCanonicalStudentResults>>): Map<string, StudentMaterialHistory> {
+    const historyByMaterialId = new Map<string, StudentMaterialHistory>();
+
+    for (const result of results) {
+        if (result.context?.type !== 'self_study' || !result.testId) {
+            continue;
+        }
+
+        const materialId = result.testId;
+        const percentage = result.percentage || 0;
+        const submittedAt = result.submittedAt || 0;
+        const existing = historyByMaterialId.get(materialId);
+
+        if (!existing) {
+            historyByMaterialId.set(materialId, {
+                attemptCount: 1,
+                bestScore: percentage,
+                lastScore: percentage,
+                lastPracticed: submittedAt,
+            });
+            continue;
+        }
+
+        existing.attemptCount += 1;
+        existing.bestScore = Math.max(existing.bestScore, percentage);
+
+        if (submittedAt >= existing.lastPracticed) {
+            existing.lastPracticed = submittedAt;
+            existing.lastScore = percentage;
+        }
+    }
+
+    return historyByMaterialId;
+}
+
+async function getStudentMaterialHistoryMap(studentId: string): Promise<Map<string, StudentMaterialHistory>> {
+    try {
+        const allResults = await getCanonicalStudentResults(studentId);
+        return buildStudentMaterialHistoryMap(allResults);
+    } catch (error) {
+        console.error('❌ Error fetching student material history map:', error);
+        return new Map();
+    }
+}
+
 /**
  * Get materials for the student library with filters
  * 
@@ -222,37 +269,8 @@ export async function getStudentMaterialHistory(
     studentId: string,
     materialId: string
 ): Promise<LibraryMaterial['studentHistory']> {
-    try {
-        const allResults = await getCanonicalStudentResults(studentId);
-
-        // Filter results for this student and material
-        const materialResults = allResults.filter(result =>
-            result.studentId === studentId &&
-            result.testId === materialId &&
-            result.context?.type === 'self_study' // Only self-study attempts
-        );
-
-        if (materialResults.length === 0) {
-            return undefined;
-        }
-
-        // Calculate statistics
-        const scores = materialResults.map(r => r.percentage || 0);
-        const bestScore = Math.max(...scores);
-        const lastScore = scores[scores.length - 1];
-        const lastPracticed = Math.max(...materialResults.map(r => r.submittedAt || 0));
-
-        return {
-            attemptCount: materialResults.length,
-            bestScore,
-            lastScore,
-            lastPracticed
-        };
-
-    } catch (error) {
-        console.error('❌ Error fetching student material history:', error);
-        return undefined;
-    }
+    const historyByMaterialId = await getStudentMaterialHistoryMap(studentId);
+    return historyByMaterialId.get(materialId);
 }
 
 /**
@@ -267,15 +285,11 @@ export async function enrichWithStudentHistory(
     studentId: string
 ): Promise<LibraryMaterial[]> {
     try {
-        const enrichedMaterials = await Promise.all(
-            materials.map(async (material) => {
-                const history = await getStudentMaterialHistory(studentId, material.id);
-                return {
-                    ...material,
-                    studentHistory: history
-                };
-            })
-        );
+        const historyByMaterialId = await getStudentMaterialHistoryMap(studentId);
+        const enrichedMaterials = materials.map((material) => ({
+            ...material,
+            studentHistory: historyByMaterialId.get(material.id),
+        }));
 
         return enrichedMaterials;
     } catch (error) {

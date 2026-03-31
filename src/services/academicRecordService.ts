@@ -8,7 +8,7 @@
  * Part of PRD-0015: Academic Record & Enhanced Profile System - Phase 3
  */
 
-import { ref, runTransaction } from 'firebase/database';
+import { get, ref, runTransaction } from 'firebase/database';
 // @ts-ignore
 import { database } from './firebase';
 import { EnhancedTestResultRecord } from '../types/results.types';
@@ -21,6 +21,24 @@ import {
     ResultPreview,
     AcademicRecordFilters
 } from '../types/academicRecord.types';
+
+export interface ThcsScoreHistoryEntry {
+    testId: string;
+    testTitle: string;
+    scaledScore: number;
+    gradeLevel: number;
+    examType: string;
+    completedAt?: number;
+    date?: number;
+}
+
+export interface ThcsProgressData {
+    testsCompleted: number;
+    averageScore: number;
+    scoreHistory: ThcsScoreHistoryEntry[];
+    skillBreakdown: Record<string, { correct: number; total: number }>;
+    lastUpdated: number;
+}
 
 // ============================================
 // HELPER FUNCTIONS
@@ -729,6 +747,16 @@ export async function updateThcsProgress(
     } catch (error) {
         console.error('Error updating THCS progress:', error);
         // Non-blocking — don't throw, just log
+    }
+}
+
+export async function getThcsProgress(studentId: string): Promise<ThcsProgressData | null> {
+    try {
+        const snapshot = await get(ref(database, `academic_records/${studentId}/thcsProgress`));
+        return snapshot.exists() ? snapshot.val() as ThcsProgressData : null;
+    } catch (error) {
+        console.error('Error fetching THCS progress:', error);
+        return null;
     }
 }
 

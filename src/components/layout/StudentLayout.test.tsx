@@ -106,6 +106,33 @@ describe('StudentLayout', () => {
         expect(screen.getByText('Supplemental Widget')).toBeInTheDocument();
     });
 
+    it('uses provided shell data instead of the connected shell-data hook', () => {
+        const providedShellData = makeShellData({
+            sortedAssignments: [{
+                status: 'not_started',
+                homework: {
+                    id: 'hw-2',
+                    title: 'Provided Practice',
+                    scheduling: { dueDate: Date.now() + 86400000 },
+                    target: { className: 'IELTS Class' },
+                },
+            }],
+        });
+
+        render(
+            <StudentLayout
+                mobileTitle="Dashboard"
+                sidebar={<div>Sidebar</div>}
+                shellData={providedShellData}
+            >
+                <div>Main Content</div>
+            </StudentLayout>,
+        );
+
+        expect(studentShellHooks.useStudentShellData).not.toHaveBeenCalled();
+        expect(screen.getByText('Provided Practice')).toBeInTheDocument();
+    });
+
     it('renders empty shared rail states when there is no live work', () => {
         render(
             <StudentLayout mobileTitle="Dashboard" sidebar={<div>Sidebar</div>}>

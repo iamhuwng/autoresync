@@ -123,6 +123,7 @@ describe('materialDiscoveryService', () => {
 
         const enriched = await enrichWithStudentHistory(materials, 'student-1');
 
+        expect(getCanonicalStudentResults).toHaveBeenCalledTimes(1);
         expect(enriched[0].studentHistory).toEqual({
             attemptCount: 1,
             bestScore: 82,

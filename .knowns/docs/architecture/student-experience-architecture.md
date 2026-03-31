@@ -2,7 +2,7 @@
 title: Student Experience Architecture
 description: 'Student-facing system overview: 20 pages, design standard, adaptive layout, UX patterns, color/typography system.'
 createdAt: '2026-02-27T16:18:36.604Z'
-updatedAt: '2026-03-30T03:15:29.339Z'
+updatedAt: '2026-03-30T23:52:44.955Z'
 tags:
   - architecture
   - student
@@ -159,3 +159,23 @@ See @doc/architecture/student-shell-right-rail-architecture for the detailed she
 - @doc/prd/prd-student-dashboard — Dashboard PRD
 - @doc/prd/prd-academic-record — Academic record PRD
 - @doc/architecture/test-system-architecture — Test system (cross-ref)
+
+
+## Student Data-Loading Contract
+
+Student-facing list, tab, and widget work follows the same ownership rules across the app.
+
+Required rules:
+- every student surface must declare its canonical data owner
+- every student list surface must declare whether it consumes summary/read-model data or full detail
+- shell-shared data must be owned once and reused across shell consumers
+- tab hosts own base datasets; child panels remain selectors or presentational surfaces
+- page mount and list load must not perform write-on-read repairs or backfills
+- secondary student history or progress data must be bulk-fetched and joined in memory rather than fetched once per card
+
+Required governance companions for future student data-loading work:
+- @doc/architecture/student-shell-right-rail-architecture
+- @doc/architecture/academic-record/academic-record-page-architecture
+- @doc/patterns/pattern-student-shell-single-data-owner
+- @doc/patterns/pattern-summary-first-detail-on-demand
+- @doc/patterns/pattern-bulk-enrichment-from-shared-student-history

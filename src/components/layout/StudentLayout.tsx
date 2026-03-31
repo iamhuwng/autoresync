@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
-import { StudentRightRail } from './StudentRightRail';
+import { ConnectedStudentRightRail, StudentRightRail, type StudentRightRailShellData } from './StudentRightRail';
 import { S } from './studentLayoutStyles';
 
 export interface StudentLayoutProps {
     children: React.ReactNode;
     sidebar: React.ReactNode;
     rightPanel?: React.ReactNode;
+    shellData?: StudentRightRailShellData;
     mobileTitle: string;
     mobileRightAction?: React.ReactNode;
 }
@@ -15,6 +16,7 @@ export const StudentLayout: React.FC<StudentLayoutProps> = ({
     children,
     sidebar,
     rightPanel,
+    shellData,
     mobileTitle,
     mobileRightAction,
 }) => {
@@ -159,7 +161,11 @@ export const StudentLayout: React.FC<StudentLayoutProps> = ({
                             : {}),
                     }}
                 >
-                    <StudentRightRail supplementalContent={rightPanel} />
+                    {shellData ? (
+                        <StudentRightRail shellData={shellData} supplementalContent={rightPanel} />
+                    ) : (
+                        <ConnectedStudentRightRail supplementalContent={rightPanel} />
+                    )}
                 </aside>
             </div>
         </div>
