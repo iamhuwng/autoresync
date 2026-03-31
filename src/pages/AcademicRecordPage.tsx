@@ -105,10 +105,9 @@ const localStyles: Record<string, React.CSSProperties> = {
     headerRow: {
         ...S.feedHeader,
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'flex-end',
         justifyContent: 'space-between',
-        gap: 12,
-        flexWrap: 'wrap',
+        gap: 24,
     },
     controlsRow: {
         display: 'flex',
@@ -116,30 +115,32 @@ const localStyles: Record<string, React.CSSProperties> = {
         justifyContent: 'flex-end',
         alignItems: 'center',
         gap: 8,
+        flexShrink: 0,
     },
     datePillGroup: {
         display: 'inline-flex',
         alignItems: 'center',
-        gap: 4,
+        gap: 0,
         background: studentTokens.bgSurfaceAlt,
-        borderRadius: 10,
+        borderRadius: 8,
         padding: 4,
     },
     dateRangeButton: {
         border: 'none',
         background: 'transparent',
-        borderRadius: studentTokens.radiusSoft,
-        padding: '9px 14px',
+        borderRadius: 6,
+        padding: '6px 16px',
         fontSize: '0.75rem',
-        fontWeight: 700,
+        fontWeight: 600,
         color: studentTokens.textMuted,
         cursor: 'pointer',
         fontFamily: 'inherit',
+        transition: 'color 0.15s ease',
     },
     dateRangeButtonActive: {
-        background: studentTokens.bgSurface,
+        background: '#ffffff',
         color: studentTokens.accent,
-        boxShadow: '0 1px 2px rgba(43, 52, 55, 0.05)',
+        boxShadow: '0 1px 2px rgba(43, 52, 55, 0.06)',
     },
     alertBox: {
         marginTop: 28,
@@ -172,18 +173,18 @@ const localStyles: Record<string, React.CSSProperties> = {
     },
     statsGrid: {
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-        gap: 24,
-        marginBottom: 8,
+        gridTemplateColumns: 'repeat(3, 1fr)',
+        gap: 32,
+        marginBottom: 0,
     },
     statCard: {
-        background: studentTokens.bgSurface,
+        background: '#ffffff',
         borderRadius: 0,
         padding: '24px 24px',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
-        gap: 8,
+        gap: 0,
         minHeight: 128,
     },
     statLabel: {
@@ -192,18 +193,28 @@ const localStyles: Record<string, React.CSSProperties> = {
         letterSpacing: '0.14em',
         textTransform: 'uppercase',
         color: studentTokens.textMuted,
-        marginBottom: 6,
+        marginBottom: 0,
+    },
+    statValueRow: {
+        display: 'flex',
+        alignItems: 'baseline',
+        gap: 8,
     },
     statValue: {
-        fontSize: '2.4rem',
+        fontSize: '2.25rem',
         fontWeight: 800,
         color: studentTokens.textPrimary,
         lineHeight: 1.1,
     },
+    statHint: {
+        fontSize: '0.75rem',
+        fontWeight: 500,
+        color: studentTokens.textMuted,
+    },
     feedbackCard: {
         background: studentTokens.bgSurfaceAlt,
         borderRadius: 0,
-        padding: '28px 28px',
+        padding: '32px 32px',
         position: 'relative',
         overflow: 'hidden',
     },
@@ -228,8 +239,8 @@ const localStyles: Record<string, React.CSSProperties> = {
     },
     feedbackTitle: {
         margin: 0,
-        fontSize: '1.3rem',
-        fontWeight: 700,
+        fontSize: '1.25rem',
+        fontWeight: 600,
         color: studentTokens.textPrimary,
     },
     feedbackMeta: {
@@ -284,7 +295,7 @@ const localStyles: Record<string, React.CSSProperties> = {
     },
     sectionTitle: {
         margin: 0,
-        fontSize: '0.75rem',
+        fontSize: '0.875rem',
         fontWeight: 700,
         color: studentTokens.textMuted,
         textTransform: 'uppercase',
@@ -297,16 +308,16 @@ const localStyles: Record<string, React.CSSProperties> = {
     },
     pageTabBar: {
         display: 'flex',
-        gap: 28,
+        gap: 32,
         overflowX: 'auto',
-        padding: '0 0 16px',
-        marginTop: 28,
-        borderBottom: `1px solid ${studentTokens.borderWhisper}`,
+        padding: '0 0 0',
+        marginTop: 0,
+        borderBottom: `1px solid rgba(171, 179, 183, 0.1)`,
     },
     pageTab: {
-        padding: '0 0 14px',
-        fontWeight: 600,
-        fontSize: '0.95rem',
+        padding: '0 0 16px',
+        fontWeight: 500,
+        fontSize: '0.875rem',
         color: studentTokens.textMuted,
         cursor: 'pointer',
         border: 'none',
@@ -314,9 +325,11 @@ const localStyles: Record<string, React.CSSProperties> = {
         borderBottom: '2px solid transparent',
         transition: 'color 0.15s ease, border-color 0.15s ease',
         whiteSpace: 'nowrap',
+        fontFamily: 'inherit',
     },
     pageTabActive: {
         color: studentTokens.accent,
+        fontWeight: 600,
         borderBottom: `2px solid ${studentTokens.accent}`,
     },
     feedbackDecoration: {
@@ -611,15 +624,22 @@ export const AcademicRecordPage: React.FC = () => {
                 <div style={localStyles.statsGrid}>
                     <div style={localStyles.statCard}>
                         <div style={localStyles.statLabel}>Total Tests</div>
-                        <div style={localStyles.statValue}>{results.length}</div>
+                        <div style={localStyles.statValueRow}>
+                            <span style={localStyles.statValue}>{results.length}</span>
+                            <span style={localStyles.statHint}>Recorded</span>
+                        </div>
                     </div>
                     <div style={localStyles.statCard}>
                         <div style={localStyles.statLabel}>Average Score</div>
-                        <div style={{ ...localStyles.statValue, color: studentTokens.accent }}>{averageScore}%</div>
+                        <div style={localStyles.statValueRow}>
+                            <span style={{ ...localStyles.statValue, color: studentTokens.accent }}>{averageScore}%</span>
+                        </div>
                     </div>
                     <div style={localStyles.statCard}>
                         <div style={localStyles.statLabel}>Best Score</div>
-                        <div style={{ ...localStyles.statValue, color: '#4c5458' }}>{bestScore}%</div>
+                        <div style={localStyles.statValueRow}>
+                            <span style={{ ...localStyles.statValue, color: '#4c5458' }}>{bestScore}%</span>
+                        </div>
                     </div>
                 </div>
 
@@ -747,10 +767,10 @@ export const AcademicRecordPage: React.FC = () => {
     return (
         <StudentLayout mobileTitle={mobileTitle} sidebar={renderSidebar()} rightRailVariant="academic-record">
             <div style={localStyles.headerRow}>
-                <div style={S.feedHeaderText}>
+                <div style={{ ...S.feedHeaderText, flex: 1 }}>
                     <h1 style={S.feedHeaderTitle}>Academic Record</h1>
-                    <p style={S.feedHeaderSubtitle}>
-                        Review recent results, long-term progression, and AI-generated feedback inside the shared academic workspace.
+                    <p style={{ ...S.feedHeaderSubtitle, maxWidth: 420 }}>
+                        Holistic performance tracking and feedback synthesis.
                     </p>
                 </div>
                 <div style={localStyles.controlsRow}>
@@ -769,18 +789,6 @@ export const AcademicRecordPage: React.FC = () => {
                                 {option.label}
                             </button>
                         ))}
-                    </div>
-                </div>
-            </div>
-
-            <div style={localStyles.defaultBanner}>
-                <IconAlertCircle />
-                <div>
-                    <div style={{ fontSize: '0.875rem', fontWeight: 700, color: studentTokens.accentHover }}>
-                        System Update: Progressive Feedback Layer
-                    </div>
-                    <div style={{ fontSize: '0.875rem', lineHeight: 1.55, color: studentTokens.textBody }}>
-                        Review the refreshed synthesis below before drilling into individual results. This page now prioritizes summary-first reading, then detail on demand.
                     </div>
                 </div>
             </div>

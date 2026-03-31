@@ -45,32 +45,38 @@ const styles: Record<string, React.CSSProperties> = {
     },
     statsGrid: {
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-        gap: 12,
+        gridTemplateColumns: 'repeat(3, 1fr)',
+        gap: 32,
     },
     statCard: {
-        background: studentTokens.bgSurface,
-        borderRadius: 12,
-        padding: '16px 18px',
-        border: `1px solid ${studentTokens.borderWhisper}`,
+        background: '#ffffff',
+        borderRadius: 0,
+        padding: '24px 24px',
         display: 'flex',
         flexDirection: 'column',
-        gap: 8,
-        minHeight: 108,
+        justifyContent: 'space-between',
+        gap: 0,
+        minHeight: 128,
     },
     statLabel: {
         margin: 0,
-        fontSize: '0.6875rem',
+        fontSize: '0.625rem',
         fontWeight: 700,
-        letterSpacing: '0.05em',
+        letterSpacing: '0.14em',
         textTransform: 'uppercase',
         color: studentTokens.textMuted,
     },
+    statValueRow: {
+        display: 'flex',
+        alignItems: 'baseline',
+        gap: 8,
+    },
     statValue: {
-        margin: '8px 0 0',
-        fontSize: '1.4rem',
+        margin: 0,
+        fontSize: '2.25rem',
         fontWeight: 800,
         color: studentTokens.textPrimary,
+        lineHeight: 1.1,
     },
     section: {
         display: 'flex',
@@ -84,9 +90,11 @@ const styles: Record<string, React.CSSProperties> = {
     },
     sectionTitle: {
         margin: 0,
-        fontSize: '1rem',
+        fontSize: '0.875rem',
         fontWeight: 700,
-        color: studentTokens.textPrimary,
+        color: studentTokens.textMuted,
+        textTransform: 'uppercase',
+        letterSpacing: '0.14em',
     },
     sectionBody: {
         display: 'flex',
@@ -96,16 +104,15 @@ const styles: Record<string, React.CSSProperties> = {
     skillGrid: {
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-        gap: 12,
+        gap: 16,
     },
     skillRow: {
-        background: studentTokens.bgSurface,
-        borderRadius: 12,
-        padding: '14px 16px',
+        background: '#ffffff',
+        borderRadius: 0,
+        padding: '16px 20px',
         display: 'flex',
         flexDirection: 'column',
         gap: 10,
-        border: `1px solid ${studentTokens.borderWhisper}`,
     },
     skillTop: {
         display: 'flex',
@@ -215,15 +222,21 @@ export const THCSProgressTab: React.FC<THCSProgressTabProps> = ({ data, loading 
             <div style={styles.statsGrid}>
                 <div style={styles.statCard}>
                     <p style={{ ...styles.statLabel, color: statCardVisuals[0].labelColor }}>Tests Completed</p>
-                    <p style={{ ...styles.statValue, color: statCardVisuals[0].valueColor }}>{data.testsCompleted}</p>
+                    <div style={styles.statValueRow}>
+                        <span style={{ ...styles.statValue, color: statCardVisuals[0].valueColor }}>{data.testsCompleted}</span>
+                    </div>
                 </div>
                 <div style={styles.statCard}>
                     <p style={{ ...styles.statLabel, color: statCardVisuals[1].labelColor }}>Average Score</p>
-                    <p style={{ ...styles.statValue, color: statCardVisuals[1].valueColor }}>{data.averageScore.toFixed(1)}/10</p>
+                    <div style={styles.statValueRow}>
+                        <span style={{ ...styles.statValue, color: statCardVisuals[1].valueColor }}>{data.averageScore.toFixed(1)}/10</span>
+                    </div>
                 </div>
                 <div style={styles.statCard}>
                     <p style={{ ...styles.statLabel, color: statCardVisuals[2].labelColor }}>Best Score</p>
-                    <p style={{ ...styles.statValue, color: statCardVisuals[2].valueColor }}>{maxScore.toFixed(1)}/10</p>
+                    <div style={styles.statValueRow}>
+                        <span style={{ ...styles.statValue, color: statCardVisuals[2].valueColor }}>{maxScore.toFixed(1)}/10</span>
+                    </div>
                 </div>
             </div>
 

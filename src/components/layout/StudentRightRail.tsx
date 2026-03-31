@@ -15,7 +15,7 @@ export type StudentRightRailShellData = Pick<
 interface StudentRightRailProps {
     shellData: StudentRightRailShellData;
     supplementalContent?: React.ReactNode;
-    variant?: 'default' | 'academic-record';
+    variant?: 'default' | 'academic-record' | 'dashboard';
 }
 
 const localStyles = {
@@ -185,6 +185,23 @@ function formatDueDateBadge(dateValue?: number | string) {
     };
 }
 
+const ADVISOR_NAMES = [
+    'Ms. Nguyen', 'Mr. Tran', 'Ms. Le', 'Mr. Pham',
+    'Ms. Hoang', 'Mr. Vo', 'Ms. Dang', 'Mr. Do',
+    'Ms. Bui', 'Mr. Ngo',
+];
+
+function pickAdvisor(enrolledClasses: StudentRightRailShellData['enrolledClasses'], uid?: string) {
+    const seed = (uid || '').split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+    const idx = seed % ADVISOR_NAMES.length;
+    const name = ADVISOR_NAMES[idx] ?? ADVISOR_NAMES[0];
+    const className = enrolledClasses.length > 0
+        ? enrolledClasses[seed % enrolledClasses.length]?.name || enrolledClasses[0]?.classCode || 'Academic Workspace'
+        : 'Academic Workspace';
+    const safeName = name || 'Ms. Nguyen';
+    return { name: safeName, className, initial: safeName.split('. ')[1]?.[0] || safeName[0] || 'T' };
+}
+
 export const StudentRightRail: React.FC<StudentRightRailProps> = ({ shellData, supplementalContent, variant = 'default' }) => {
     const { user } = useAuth();
     const { navigateTo } = useNavigation('student');
@@ -329,17 +346,19 @@ export const StudentRightRail: React.FC<StudentRightRailProps> = ({ shellData, s
         </>
     );
 
+    const advisor = pickAdvisor(enrolledClasses, user?.uid);
+
     const renderAcademicRecordRail = () => (
         <>
             <section style={localStyles.section}>
                 <h3 style={S.widgetTitle}>Academic Advisor</h3>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <div style={{ ...localStyles.classIcon, width: 48, height: 48, borderRadius: 999, background: studentTokens.bgSurface, color: studentTokens.accent }}>
-                        {(user?.displayName || user?.email || 'S').slice(0, 1).toUpperCase()}
+                        {advisor.initial}
                     </div>
                     <div>
-                        <p style={{ ...localStyles.cardTitle, marginBottom: 2 }}>Learning Advisor</p>
-                        <p style={localStyles.cardSubtle}>Shared academic workspace</p>
+                        <p style={{ ...localStyles.cardTitle, marginBottom: 2 }}>{advisor.name}</p>
+                        <p style={localStyles.cardSubtle}>{advisor.className}</p>
                     </div>
                 </div>
                 <button
@@ -373,11 +392,13 @@ export const StudentRightRail: React.FC<StudentRightRailProps> = ({ shellData, s
     return (
         <div style={S.rightSticky}>
             <div style={localStyles.sectionStack}>
-                {variant === 'academic-record' ? renderAcademicRecordRail() : renderDefaultRail()}
+                {variant === 'dashboard' ? null : variant === 'academic-record' ? renderAcademicRecordRail() : renderDefaultRail()}
 
-                <p style={localStyles.footnote}>
-                    Student shell data is shared between page content and the right rail.
-                </p>
+                {variant !== 'dashboard' && (
+                    <p style={localStyles.footnote}>
+                        Student shell data is shared between page content and the right rail.
+                    </p>
+                )}
 
                 {supplementalContent}
             </div>
@@ -387,7 +408,7 @@ export const StudentRightRail: React.FC<StudentRightRailProps> = ({ shellData, s
 
 interface ConnectedStudentRightRailProps {
     supplementalContent?: React.ReactNode;
-    variant?: 'default' | 'academic-record';
+    variant?: 'default' | 'academic-record' | 'dashboard';
 }
 
 export const ConnectedStudentRightRail: React.FC<ConnectedStudentRightRailProps> = ({ supplementalContent, variant = 'default' }) => {

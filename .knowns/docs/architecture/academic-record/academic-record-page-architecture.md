@@ -2,7 +2,7 @@
 title: Academic Record Page Architecture
 description: Source of truth for the student Academic Record page structure, view hierarchy, shell ownership, and interaction contracts.
 createdAt: '2026-03-30T14:53:47.266Z'
-updatedAt: '2026-03-31T08:59:42.172Z'
+updatedAt: '2026-03-31T23:52:08.923Z'
 tags:
   - architecture
   - academic-record
@@ -252,3 +252,16 @@ Rules:
 
 Related startup contract:
 - @doc/architecture/student-startup-bundle-segmentation
+
+
+## 2026-04-01 Design Alignment Amendment
+
+All four Academic Record tabs (Overview, THCS, IELTS, Course) now share unified design tokens. See "Concrete Design Tokens (established 2026-04-01)" subsection in the filesystem copy at `documentation/architecture/academic-record/page-architecture.md`.
+
+Key changes:
+- Stat cards: white bg, no border/radius, 2.25rem values, 0.625rem uppercase labels with 0.14em tracking
+- Section headers: 0.875rem uppercase with wide tracking
+- Tab bar: 0.875rem, lighter borders, accent underline for active
+- Group headers: flat bottom-border dividers (not bordered cards)
+- Page header: time range pill group on right via flex items-end, no wrap
+- Academic Advisor (right rail): deterministic random teacher from ADVISOR_NAMES list per user UID

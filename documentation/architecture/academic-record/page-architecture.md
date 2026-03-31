@@ -104,15 +104,34 @@ Current UI rules:
 
 Academic Record should not rely on the generic glass `ResultCard` pattern for its center-column result surfaces.
 
+#### Concrete Design Tokens (established 2026-04-01)
+
+Summary stat cards across all tabs use these shared tokens:
+- background: `#ffffff` (pure white), no border, no border-radius
+- padding: `24px`, minHeight: `128px`
+- label: `0.625rem`, `fontWeight: 700`, `letterSpacing: 0.14em`, uppercase, `textMuted` color
+- value: `2.25rem`, `fontWeight: 800`, `lineHeight: 1.1`
+- value row: flex baseline layout with optional inline hint (`0.75rem`, `fontWeight: 500`, `textMuted`)
+- grid: fixed column count per tab (Overview: 3-col, IELTS/Course: 4-col), gap `32px`
+
+Section headers use: `0.875rem`, `fontWeight: 700`, uppercase, `letterSpacing: 0.14em`, `textMuted` color.
+
+Tab bar uses: `0.875rem`, `fontWeight: 500` (600 when active), accent-colored bottom border, light separator (`rgba(171, 179, 183, 0.1)`).
+
+Group headers (IELTS skill groups, Course groups) use flat bottom-border dividers, not bordered card containers.
+
+Page header uses `flex justify-between items-end` with the time range pill group on the right, never wrapping below the title.
+
 ### Track-Specific Simplification
 
 Specialized tabs may keep their own progression semantics, but they should still express them with the shared record language.
 
-Current expectations:
-- Overview, THCS, and IELTS follow the same summary-first visual system established by Course
-- THCS uses the same calm summary-card treatment, lightweight skill cards, and flat history rows
-- IELTS uses the same summary-card treatment in two tiers, then grouped skill rows, with writing-specific review states inside the writing group
-- Course remains the reference browse pattern for grouped row surfaces in Academic Record
+Current expectations (aligned 2026-04-01):
+- Overview, THCS, IELTS, and Course now share identical stat card, section header, and typography tokens
+- THCS uses the shared summary-card treatment, flat skill cards (white, no border-radius), and flat history rows
+- IELTS uses the shared summary-card treatment in a 4-column grid, then grouped skill rows with pill badges, with writing-specific review states inside the writing group
+- Course uses the shared summary-card treatment in a 4-column grid, then grouped course rows with flat bottom-border dividers
+- Overview remains the 3-column stat grid plus progressive feedback card plus recent results timeline
 
 ### Avoid Dashboard Sprawl
 

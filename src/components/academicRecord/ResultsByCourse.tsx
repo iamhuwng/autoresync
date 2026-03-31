@@ -28,30 +28,35 @@ const styles: Record<string, React.CSSProperties> = {
     },
     summaryGrid: {
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-        gap: 12,
+        gridTemplateColumns: 'repeat(4, 1fr)',
+        gap: 32,
     },
     summaryCard: {
-        background: studentTokens.bgSurface,
-        borderRadius: 10,
-        padding: '12px 14px',
-        border: `1px solid ${studentTokens.borderWhisper}`,
+        background: '#ffffff',
+        borderRadius: 0,
+        padding: '24px 24px',
         display: 'flex',
         flexDirection: 'column',
-        gap: 6,
-        minHeight: 92,
+        justifyContent: 'space-between',
+        gap: 0,
+        minHeight: 128,
     },
     summaryLabel: {
         margin: 0,
-        fontSize: '0.65625rem',
+        fontSize: '0.625rem',
         fontWeight: 700,
-        letterSpacing: '0.05em',
+        letterSpacing: '0.14em',
         textTransform: 'uppercase',
         color: studentTokens.textMuted,
     },
+    summaryValueRow: {
+        display: 'flex',
+        alignItems: 'baseline',
+        gap: 8,
+    },
     summaryValue: {
         margin: 0,
-        fontSize: '1.25rem',
+        fontSize: '2.25rem',
         fontWeight: 800,
         color: studentTokens.textPrimary,
         lineHeight: 1.1,
@@ -59,15 +64,17 @@ const styles: Record<string, React.CSSProperties> = {
     summaryHint: {
         margin: 0,
         fontSize: '0.75rem',
+        fontWeight: 500,
         lineHeight: 1.5,
         color: studentTokens.textMuted,
     },
     groupHeader: {
         width: '100%',
-        border: `1px solid ${studentTokens.borderWhisper}`,
-        borderRadius: 10,
-        padding: '12px 14px',
-        background: studentTokens.bgSurface,
+        border: 'none',
+        borderBottom: `1px solid rgba(171, 179, 183, 0.1)`,
+        borderRadius: 0,
+        padding: '0 0 14px',
+        background: 'transparent',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -88,15 +95,17 @@ const styles: Record<string, React.CSSProperties> = {
         marginTop: 2,
     },
     leadingBadge: {
-        minWidth: 38,
-        height: 38,
-        borderRadius: 12,
+        minWidth: 0,
+        height: 'auto',
+        borderRadius: 999,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        fontSize: '0.8125rem',
+        padding: '3px 8px',
+        fontSize: '0.6875rem',
         fontWeight: 800,
-        letterSpacing: '0.04em',
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
         flexShrink: 0,
         background: studentTokens.bgShell,
     },
@@ -109,7 +118,7 @@ const styles: Record<string, React.CSSProperties> = {
     groupTitle: {
         margin: 0,
         color: studentTokens.textPrimary,
-        fontSize: '0.95rem',
+        fontSize: '0.875rem',
         fontWeight: 700,
     },
     groupMeta: {
@@ -325,21 +334,29 @@ export const ResultsByCourse: React.FC<ResultsByCourseProps> = ({
             <div style={styles.summaryGrid}>
                 <div style={styles.summaryCard}>
                     <p style={{ ...styles.summaryLabel, color: summaryCardVisuals[0].labelColor }}>Courses</p>
-                    <p style={{ ...styles.summaryValue, color: summaryCardVisuals[0].valueColor }}>{courseSummary.totalCourses}</p>
+                    <div style={styles.summaryValueRow}>
+                        <span style={{ ...styles.summaryValue, color: summaryCardVisuals[0].valueColor }}>{courseSummary.totalCourses}</span>
+                    </div>
                 </div>
                 <div style={styles.summaryCard}>
                     <p style={{ ...styles.summaryLabel, color: summaryCardVisuals[1].labelColor }}>Latest Results</p>
-                    <p style={{ ...styles.summaryValue, color: summaryCardVisuals[1].valueColor }}>{courseSummary.totalResults}</p>
+                    <div style={styles.summaryValueRow}>
+                        <span style={{ ...styles.summaryValue, color: summaryCardVisuals[1].valueColor }}>{courseSummary.totalResults}</span>
+                    </div>
                 </div>
                 <div style={styles.summaryCard}>
                     <p style={{ ...styles.summaryLabel, color: summaryCardVisuals[2].labelColor }}>Average Score</p>
-                    <p style={{ ...styles.summaryValue, color: summaryCardVisuals[2].valueColor }}>{Math.round(courseSummary.averageScore)}%</p>
+                    <div style={styles.summaryValueRow}>
+                        <span style={{ ...styles.summaryValue, color: summaryCardVisuals[2].valueColor }}>{Math.round(courseSummary.averageScore)}%</span>
+                    </div>
                 </div>
                 <div style={styles.summaryCard}>
                     <p style={{ ...styles.summaryLabel, color: summaryCardVisuals[3].labelColor }}>Strongest Course</p>
-                    <p style={{ ...styles.summaryValue, color: summaryCardVisuals[3].valueColor, fontSize: '1.1rem' }}>
-                        {courseSummary.strongestCourse?.courseName || 'Not enough data'}
-                    </p>
+                    <div style={styles.summaryValueRow}>
+                        <span style={{ ...styles.summaryValue, color: summaryCardVisuals[3].valueColor, fontSize: '1.25rem' }}>
+                            {courseSummary.strongestCourse?.courseName || 'Not enough data'}
+                        </span>
+                    </div>
                 </div>
             </div>
 

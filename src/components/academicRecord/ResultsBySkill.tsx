@@ -80,40 +80,46 @@ const styles: Record<string, React.CSSProperties> = {
     },
     summaryStack: {
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(165px, 1fr))',
-        gap: 12,
+        gridTemplateColumns: 'repeat(4, 1fr)',
+        gap: 32,
     },
     prioritySummaryGrid: {
         display: 'contents',
     },
     summaryCard: {
-        background: studentTokens.bgShell,
-        borderRadius: 12,
-        padding: '14px 16px',
-        border: `1px solid ${studentTokens.borderWhisper}`,
+        background: '#ffffff',
+        borderRadius: 0,
+        padding: '24px 24px',
         display: 'flex',
         flexDirection: 'column',
-        gap: 6,
-        minHeight: 92,
+        justifyContent: 'space-between',
+        gap: 0,
+        minHeight: 128,
     },
     summaryLabel: {
         margin: 0,
-        fontSize: '0.6875rem',
+        fontSize: '0.625rem',
         fontWeight: 700,
-        letterSpacing: '0.05em',
+        letterSpacing: '0.14em',
         textTransform: 'uppercase',
         color: studentTokens.textMuted,
     },
+    summaryValueRow: {
+        display: 'flex',
+        alignItems: 'baseline',
+        gap: 8,
+    },
     summaryValue: {
         margin: 0,
-        fontSize: '1.5rem',
+        fontSize: '2.25rem',
         fontWeight: 800,
         color: studentTokens.textPrimary,
-        lineHeight: 1.05,
+        lineHeight: 1.1,
     },
     summaryHint: {
         margin: 0,
         fontSize: '0.75rem',
+        fontWeight: 500,
         color: studentTokens.textMuted,
         lineHeight: 1.5,
     },
@@ -125,9 +131,9 @@ const styles: Record<string, React.CSSProperties> = {
     groupHeader: {
         width: '100%',
         border: 'none',
-        borderBottom: `1px solid ${studentTokens.borderWhisper}`,
+        borderBottom: `1px solid rgba(171, 179, 183, 0.1)`,
         borderRadius: 0,
-        padding: '0 0 12px',
+        padding: '0 0 14px',
         background: 'transparent',
         display: 'flex',
         alignItems: 'flex-start',
@@ -475,31 +481,39 @@ export const ResultsBySkill: React.FC<ResultsBySkillProps> = ({
             <div style={styles.summaryStack}>
                 <div style={styles.summaryCard}>
                     <p style={{ ...styles.summaryLabel, color: summaryCardVisuals.neutral.labelColor }}>Tests Completed</p>
-                    <p style={{ ...styles.summaryValue, color: summaryCardVisuals.neutral.valueColor }}>{overallSummary.testsCompleted}</p>
-                    <p style={styles.summaryHint}>
-                        {overallSummary.trackedSkills} skill{overallSummary.trackedSkills !== 1 ? 's' : ''} with recorded activity
-                    </p>
+                    <div style={styles.summaryValueRow}>
+                        <span style={{ ...styles.summaryValue, color: summaryCardVisuals.neutral.valueColor }}>{overallSummary.testsCompleted}</span>
+                        <span style={styles.summaryHint}>
+                            {overallSummary.trackedSkills} skill{overallSummary.trackedSkills !== 1 ? 's' : ''} with recorded activity
+                        </span>
+                    </div>
                 </div>
                 <div style={styles.summaryCard}>
                     <p style={{ ...styles.summaryLabel, color: summaryCardVisuals.warning.labelColor }}>Pending Review</p>
-                    <p style={{ ...styles.summaryValue, color: summaryCardVisuals.warning.valueColor }}>{overallSummary.pendingWritingReview}</p>
-                    <p style={styles.summaryHint}>
-                        {overallSummary.pendingWritingReview > 0 ? 'Writing work awaiting review' : 'Nothing waiting for review'}
-                    </p>
+                    <div style={styles.summaryValueRow}>
+                        <span style={{ ...styles.summaryValue, color: summaryCardVisuals.warning.valueColor }}>{overallSummary.pendingWritingReview}</span>
+                        <span style={styles.summaryHint}>
+                            {overallSummary.pendingWritingReview > 0 ? 'Writing work awaiting review' : 'Nothing waiting'}
+                        </span>
+                    </div>
                 </div>
                 <div style={styles.summaryCard}>
                     <p style={{ ...styles.summaryLabel, color: summaryCardVisuals.primary.labelColor }}>Average Overall Band</p>
-                    <p style={{ ...styles.summaryValue, color: summaryCardVisuals.primary.valueColor }}>{formatBand(overallSummary.averageOverallBand)}</p>
-                    <p style={styles.summaryHint}>
-                        {overallSummary.gradedResultsCount > 0
-                            ? `Across ${overallSummary.gradedResultsCount} graded result${overallSummary.gradedResultsCount !== 1 ? 's' : ''}`
-                            : 'No graded results yet'}
-                    </p>
+                    <div style={styles.summaryValueRow}>
+                        <span style={{ ...styles.summaryValue, color: summaryCardVisuals.primary.valueColor }}>{formatBand(overallSummary.averageOverallBand)}</span>
+                        <span style={styles.summaryHint}>
+                            {overallSummary.gradedResultsCount > 0
+                                ? `Across ${overallSummary.gradedResultsCount} graded result${overallSummary.gradedResultsCount !== 1 ? 's' : ''}`
+                                : 'No graded results yet'}
+                        </span>
+                    </div>
                 </div>
                 <div style={styles.summaryCard}>
                     <p style={{ ...styles.summaryLabel, color: summaryCardVisuals.success.labelColor }}>Highest Overall Band</p>
-                    <p style={{ ...styles.summaryValue, color: summaryCardVisuals.success.valueColor }}>{formatBand(overallSummary.highestOverallBand)}</p>
-                    <p style={styles.summaryHint}>Best completed performance so far</p>
+                    <div style={styles.summaryValueRow}>
+                        <span style={{ ...styles.summaryValue, color: summaryCardVisuals.success.valueColor }}>{formatBand(overallSummary.highestOverallBand)}</span>
+                        <span style={styles.summaryHint}>Best completed performance so far</span>
+                    </div>
                 </div>
             </div>
 
