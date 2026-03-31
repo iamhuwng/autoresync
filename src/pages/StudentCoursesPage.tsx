@@ -7,10 +7,10 @@ import { getEnrollmentsByStudent, unenrollStudent } from '../services/enrollment
 import { getCourse, getMaterialsByCourse, getStudentCourseProgress } from '../services/courseManager';
 import { getUserById } from '../services/userService';
 import { getRequestsByStudent, cancelCourseRequest } from '../services/courseRequestManager';
-import { useStudentHomeworkList } from '../hooks/useHomeworkSubmission';
 import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
 import { S } from '../components/layout/studentLayoutStyles';
+import { useResolvedStudentHomeworkList, useResolvedStudentShellData } from '../context/StudentShellDataContext';
 import type { CourseEnrollment, Course, CourseVisibility, CourseRequest } from '../types/course.types';
 
 interface PopulatedEnrollment extends CourseEnrollment {
@@ -18,6 +18,90 @@ interface PopulatedEnrollment extends CourseEnrollment {
     teacherName?: string;
     progress?: number;
     visibility?: CourseVisibility;
+}
+
+interface StudentCoursesCacheEntry {
+    enrollments: PopulatedEnrollment[];
+    requests: CourseRequest[];
+}
+
+type StudentClassesOption = NonNullable<Parameters<typeof getEnrollmentsByStudent>[1]>['studentClasses'];
+
+const studentCoursesCache = new Map<string, StudentCoursesCacheEntry>();
+
+function getStudentCoursesCache(studentId?: string | null): StudentCoursesCacheEntry | null {
+    if (!studentId) return null;
+    return studentCoursesCache.get(studentId) ?? null;
+}
+
+async function fetchStudentCoursesData(
+    studentId: string,
+    studentClasses: StudentClassesOption = []
+): Promise<StudentCoursesCacheEntry> {
+    const [data, reqData] = await Promise.all([
+        getEnrollmentsByStudent(studentId, { studentClasses }),
+        getRequestsByStudent(studentId)
+    ]);
+
+    const teacherCache = new Map<string, string>();
+
+    const populated = (await Promise.all(
+        data.map(async (enrollment) => {
+            const course = await getCourse(enrollment.courseId);
+            if (!course) return null;
+
+            let teacherName = 'Unknown Teacher';
+            if (course.ownerId) {
+                if (teacherCache.has(course.ownerId)) {
+                    teacherName = teacherCache.get(course.ownerId)!;
+                } else {
+                    const teacher = await getUserById(course.ownerId);
+                    teacherName = teacher?.displayName || teacher?.email || 'Unknown Teacher';
+                    teacherCache.set(course.ownerId, teacherName);
+                }
+            }
+
+            const [materials, studentProgress] = await Promise.all([
+                getMaterialsByCourse(enrollment.courseId),
+                getStudentCourseProgress(studentId, enrollment.courseId)
+            ]);
+
+            let progress = 0;
+            if (materials.length > 0 && studentProgress?.completedMaterials) {
+                const completedCount = Object.keys(studentProgress.completedMaterials).length;
+                progress = Math.round((completedCount / materials.length) * 100);
+            }
+
+            return {
+                ...enrollment,
+                course,
+                teacherName,
+                progress,
+                visibility: course.visibility || 'private'
+            };
+        })
+    )).filter(Boolean) as PopulatedEnrollment[];
+
+    return {
+        enrollments: populated,
+        requests: reqData.filter(r => r.status === 'pending'),
+    };
+}
+
+export async function preloadStudentCoursesPageData(
+    studentId: string,
+    studentClasses: StudentClassesOption = []
+): Promise<StudentCoursesCacheEntry | null> {
+    if (!studentId) return null;
+
+    const cachedEntry = getStudentCoursesCache(studentId);
+    if (cachedEntry) {
+        return cachedEntry;
+    }
+
+    const nextEntry = await fetchStudentCoursesData(studentId, studentClasses);
+    studentCoursesCache.set(studentId, nextEntry);
+    return nextEntry;
 }
 
 const localStyles = {
@@ -34,11 +118,14 @@ const localStyles = {
 const StudentCoursesPage: React.FC = () => {
     const { user, profile } = useAuth();
     const { navigateTo } = useNavigation('student');
-    const { notStarted } = useStudentHomeworkList(user?.uid || '');
+    const { notStarted } = useResolvedStudentHomeworkList(user?.uid || '');
+    const { enrolledClasses } = useResolvedStudentShellData();
+    const initialCacheEntry = getStudentCoursesCache(user?.uid);
 
-    const [enrollments, setEnrollments] = useState<PopulatedEnrollment[]>([]);
-    const [requests, setRequests] = useState<CourseRequest[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [enrollments, setEnrollments] = useState<PopulatedEnrollment[]>(() => initialCacheEntry?.enrollments ?? []);
+    const [requests, setRequests] = useState<CourseRequest[]>(() => initialCacheEntry?.requests ?? []);
+    const [loading, setLoading] = useState(() => Boolean(user?.uid) && !initialCacheEntry);
+    const [error, setError] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<string>('active');
 
     const [unenrollConfirm, setUnenrollConfirm] = useState<{ id: string, name: string, courseId: string } | null>(null);
@@ -47,66 +134,41 @@ const StudentCoursesPage: React.FC = () => {
 
     useEffect(() => {
         if (user?.uid) {
-            loadEnrollments();
+            const cachedEntry = getStudentCoursesCache(user.uid);
+            if (cachedEntry) {
+                setEnrollments(cachedEntry.enrollments);
+                setRequests(cachedEntry.requests);
+                setLoading(false);
+            }
+
+            void loadEnrollments();
+            return;
         }
-    }, [user]);
+
+        setEnrollments([]);
+        setRequests([]);
+        setLoading(false);
+        setError(null);
+    }, [enrolledClasses, user?.uid]);
 
     const loadEnrollments = async () => {
         if (!user?.uid) return;
-        setLoading(true);
+        const cachedEntry = getStudentCoursesCache(user.uid);
+        if (cachedEntry) {
+            setEnrollments(cachedEntry.enrollments);
+            setRequests(cachedEntry.requests);
+        }
+
+        setLoading(!cachedEntry);
+        setError(null);
         try {
-            // Fetch enrollments and requests in parallel
-            const [data, reqData] = await Promise.all([
-                getEnrollmentsByStudent(user.uid),
-                getRequestsByStudent(user.uid)
-            ]);
-
-            // Cache teacher lookups to avoid duplicate calls for same ownerId
-            const teacherCache = new Map<string, string>();
-
-            const populated = (await Promise.all(
-                data.map(async (enrollment) => {
-                    const course = await getCourse(enrollment.courseId);
-                    // Skip phantom enrollments where the course was deleted
-                    if (!course) return null;
-
-                    let teacherName = 'Unknown Teacher';
-                    if (course.ownerId) {
-                        if (teacherCache.has(course.ownerId)) {
-                            teacherName = teacherCache.get(course.ownerId)!;
-                        } else {
-                            const teacher = await getUserById(course.ownerId);
-                            teacherName = teacher?.displayName || teacher?.email || 'Unknown Teacher';
-                            teacherCache.set(course.ownerId, teacherName);
-                        }
-                    }
-
-                    // Calculate progress
-                    const [materials, studentProgress] = await Promise.all([
-                        getMaterialsByCourse(enrollment.courseId),
-                        getStudentCourseProgress(user.uid, enrollment.courseId)
-                    ]);
-
-                    let progress = 0;
-                    if (materials.length > 0 && studentProgress?.completedMaterials) {
-                        const completedCount = Object.keys(studentProgress.completedMaterials).length;
-                        progress = Math.round((completedCount / materials.length) * 100);
-                    }
-
-                    return {
-                        ...enrollment,
-                        course,
-                        teacherName,
-                        progress,
-                        visibility: course.visibility || 'private'
-                    };
-                })
-            )).filter(Boolean) as PopulatedEnrollment[];
-
-            setEnrollments(populated);
-            setRequests(reqData.filter(r => r.status === 'pending'));
+            const nextEntry = await fetchStudentCoursesData(user.uid, enrolledClasses);
+            setEnrollments(nextEntry.enrollments);
+            setRequests(nextEntry.requests);
+            studentCoursesCache.set(user.uid, nextEntry);
         } catch (error) {
             console.error('Error loading student enrollments:', error);
+            setError('Failed to load your courses. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -121,7 +183,16 @@ const StudentCoursesPage: React.FC = () => {
         try {
             const res = await cancelCourseRequest(cancelRequestConfirm);
             if (res.success) {
-                setRequests(prev => prev.filter(r => r.id !== cancelRequestConfirm));
+                setRequests(prev => {
+                    const nextRequests = prev.filter(r => r.id !== cancelRequestConfirm);
+                    if (user?.uid) {
+                        studentCoursesCache.set(user.uid, {
+                            enrollments,
+                            requests: nextRequests,
+                        });
+                    }
+                    return nextRequests;
+                });
                 notifications.show({
                     title: 'Request Cancelled',
                     message: 'Your course request has been cancelled',
@@ -203,11 +274,24 @@ const StudentCoursesPage: React.FC = () => {
     };
 
     const renderContent = () => {
-        if (loading) {
+        const hasVisibleContent = enrollments.length > 0 || requests.length > 0;
+
+        if (loading && !hasVisibleContent) {
             return (
                 <div style={{ textAlign: 'center', padding: '60px 24px' }}>
                     <Loader size="md" color="#4f46e5" />
                     <p style={{ color: '#6b7280', marginTop: 16 }}>Loading your courses...</p>
+                </div>
+            );
+        }
+
+        if (error && !hasVisibleContent) {
+            return (
+                <div style={{ textAlign: 'center', padding: '60px 24px' }}>
+                    <div style={{ fontSize: '3rem', marginBottom: 16 }}>⚠️</div>
+                    <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#111827', margin: '0 0 8px' }}>Unable to load courses</h2>
+                    <p style={{ color: '#6b7280', fontSize: '1rem', margin: '0 0 24px' }}>{error}</p>
+                    <button style={{ ...localStyles.primaryBtn, width: 'auto' }} onClick={() => void loadEnrollments()}>Try Again</button>
                 </div>
             );
         }

@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader } from '@mantine/core';
-import { useMaterialLibrary } from '../hooks/useMaterialLibrary';
+import { useMaterialLibrary, preloadMaterialLibraryData } from '../hooks/useMaterialLibrary';
 import { useAuth } from '../hooks/useAuth';
 
-import { useStudentHomeworkList } from '../hooks/useHomeworkSubmission';
 import { clearSoloProgress } from '../hooks/solo/useSoloAutoSave';
 import { SoloResumeModal } from '../components/test/SoloResumeModal';
 import type { LibrarySource } from '../types/solo.types';
@@ -12,6 +11,7 @@ import type { LibrarySource } from '../types/solo.types';
 import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
 import { S } from '../components/layout/studentLayoutStyles';
+import { useResolvedStudentHomeworkList } from '../context/StudentShellDataContext';
 
 /* ── Inline SVG Icons (24×24, currentColor) ─────────────────────── */
 const SvgBook = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>;
@@ -47,7 +47,7 @@ const FILTER_TABS = [
 export const StudentLibraryPage: React.FC = () => {
     const { user, profile } = useAuth();
     const navigate = useNavigate();
-    const { notStarted = [] } = useStudentHomeworkList(user?.uid || '');
+    const { notStarted = [] } = useResolvedStudentHomeworkList(user?.uid || '');
     const [activeTab, setActiveTab] = useState<LibrarySource>('my_courses');
     const [showFilters, setShowFilters] = useState(false);
 
@@ -373,5 +373,7 @@ export const StudentLibraryPage: React.FC = () => {
         </StudentLayout>
     );
 };
+
+export const preloadStudentLibraryPageData = preloadMaterialLibraryData;
 
 export default StudentLibraryPage;

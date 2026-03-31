@@ -24,6 +24,17 @@ Host rules:
 
 The right rail must not become the page's primary navigation or main content container.
 
+## Shell Ownership Boundary
+
+Academic Record participates in the persistent student shell provider defined in `documentation/architecture/student-shell-data-loading.md`.
+
+Required ownership split:
+- the shared student shell owns shell-global summaries such as enrolled classes, live-session summaries, and shared homework summary groups
+- `AcademicRecordPage` owns the page-primary academic-record dataset for overview, THCS, IELTS, Writing, and Course surfaces
+- entering or leaving Academic Record must not recreate shell-owned loaders already owned by the shell provider
+
+This keeps shell navigation responsive while preserving Academic Record as the canonical host for record history.
+
 ## Current Page Hierarchy
 
 ### Default Main Surface

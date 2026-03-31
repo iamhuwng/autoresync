@@ -2,7 +2,7 @@
 title: Academic Record Page Architecture
 description: Source of truth for the student Academic Record page structure, view hierarchy, shell ownership, and interaction contracts.
 createdAt: '2026-03-30T14:53:47.266Z'
-updatedAt: '2026-03-31T00:26:19.029Z'
+updatedAt: '2026-03-31T04:02:24.276Z'
 tags:
   - architecture
   - academic-record
@@ -36,6 +36,17 @@ Host rules:
 - may use the right rail only for supplemental content through shell extension points
 
 The right rail must not become the page's primary navigation or main content container.
+
+## Shell Ownership Boundary
+
+Academic Record participates in the persistent student shell provider defined in @doc/architecture/student-shell-data-loading-architecture.
+
+Required ownership split:
+- the shared student shell owns shell-global summaries such as enrolled classes, live-session summaries, and shared homework summary groups
+- `AcademicRecordPage` owns the page-primary academic-record dataset for overview, THCS, IELTS, Writing, and Course surfaces
+- entering or leaving Academic Record must not recreate shell-owned loaders already owned by the shell provider
+
+This keeps shell navigation responsive while preserving Academic Record as the canonical host for record history.
 
 ## Current Page Hierarchy
 
@@ -184,14 +195,6 @@ When future capabilities are added, keep these rules:
 - prefer progressive disclosure over a single overloaded dashboard
 - only restore additional browse surfaces when they simplify the page instead of fragmenting it
 
-## Related Docs
-
-- @doc/architecture/results-academic-record
-- @doc/architecture/academic-record/academic-record-progression-model
-- @doc/architecture/academic-record/academic-record-analytics-readiness
-- @doc/prd/prd-academic-record
-
-
 ## Data Ownership And Loading Contract
 
 Academic Record is the host owner for center-column record data.
@@ -202,6 +205,7 @@ Required rules:
 - summary/read-model payloads are the default list input; full result detail loads only after an explicit detail interaction
 - after the first successful load, revisits keep prior content visible and refresh in the background instead of returning to a full blocking spinner
 - page mount, tab switch, and list load must not perform repair, backfill, or other persistent writes
+- shell entry into Academic Record must reuse the persistent shell provider instead of recreating shell-global summary loaders
 
 Any future Academic Record browse lens or widget must state:
 - whether it consumes summaries or full detail
@@ -211,9 +215,9 @@ Any future Academic Record browse lens or widget must state:
 Required companion docs:
 - @doc/architecture/results-academic-record
 - @doc/architecture/student-shell-right-rail-architecture
+- @doc/architecture/student-shell-data-loading-architecture
 - @doc/patterns/pattern-summary-first-detail-on-demand
 - @doc/patterns/pattern-bulk-enrichment-from-shared-student-history
-
 
 ## Current Loading Implementation
 
@@ -224,5 +228,15 @@ Current implementation anchors:
 - THCS progression is loaded once by the host via `getThcsProgress(...)` and passed into `THCSProgressTab` as data props
 - `WritingProgressSection` is now a presentational surface over host-owned writing results rather than a Firestore-owning tab component
 - progressive feedback uses a stale-first read on mount and only auto-refreshes when the stored record is already due
+- shell-level classes, live-session summaries, and homework summary groups remain owned by the persistent student shell provider across route switches
 
-This removes independent tab-mounted list reads from THCS and Writing and keeps tab switches in the center column as view changes rather than new ownership boundaries.
+This keeps tab switches in the center column as view changes rather than new ownership boundaries and prevents shell remount work from leaking into Academic Record.
+
+## First-Entry Warmup Contract
+
+Academic Record remains page-owned for its center-column record dataset even when the student shell prefetches the route.
+
+Rules:
+- shell prefetch only removes first-entry cold-start cost
+- the page host still owns result history, THCS progress, and progressive-feedback cache policy
+- warmup must not pull Academic Record ownership into the shell provider

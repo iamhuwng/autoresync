@@ -2,7 +2,7 @@
 title: Student Shell Right Rail Architecture
 description: Architecture contract for the shared student shell layout, global right rail, shared data hook, and page-level extension pattern.
 createdAt: '2026-03-30T03:14:40.723Z'
-updatedAt: '2026-03-31T00:44:24.056Z'
+updatedAt: '2026-03-31T04:02:24.325Z'
 tags:
   - architecture
   - student
@@ -61,24 +61,20 @@ Pages should not render structural rail wrappers such as sticky containers, fixe
 
 ## Shared Data Contract
 
-`useStudentShellData` centralizes shell data that used to be duplicated in page components.
+`useStudentShellData` remains the canonical shell data model, but the ownership boundary is now route-scoped rather than page-scoped.
 
 Shared sources:
 - enrolled classes from `getStudentClasses`
 - live class sessions from `subscribeToActiveSessions` plus `getSession`
 - homework summary groups from `useStudentHomeworkList`
 
-The shell data hook exposes:
-- `enrolledClasses`
-- `classLiveSessions`
-- `notStarted`
-- `inProgress`
-- `overdue`
-- `sortedAssignments`
-- `isClassesLoading`
-- `refreshClasses()`
+The canonical shell owner now lives in `StudentShellDataProvider`, mounted above the student shell route tree.
 
-Pages may consume the hook when they need the same shared data for first-class page behavior, but the shell owns the global presentation.
+Consumers use resolver hooks:
+- `useResolvedStudentShellData()`
+- `useResolvedStudentHomeworkList()`
+
+These hooks consume provider-owned data inside the student shell route tree and only fall back to direct hook ownership outside that boundary.
 
 ## Extension Pattern
 
@@ -107,6 +103,8 @@ Shell-level tracking should use direct action tracking rather than page-view tra
 ## Implementation Notes
 
 Key files:
+- `src/App.jsx`
+- `src/context/StudentShellDataContext.tsx`
 - `src/components/layout/StudentLayout.tsx`
 - `src/components/layout/studentLayoutStyles.ts`
 - `src/components/layout/StudentRightRail.tsx`
@@ -114,8 +112,8 @@ Key files:
 
 Related docs:
 - @doc/architecture/student-experience-architecture
+- @doc/architecture/student-shell-data-loading-architecture
 - @doc/design/student-view-design-standard
-
 
 ## Data-Loading Governance
 
@@ -136,24 +134,23 @@ Future student shell work must explicitly state:
 Required companion docs for student shell data-loading work:
 - @doc/architecture/student-experience-architecture
 - @doc/architecture/student-shell-right-rail-architecture
+- @doc/architecture/student-shell-data-loading-architecture
 - @doc/patterns/pattern-student-shell-single-data-owner
 - @doc/patterns/pattern-summary-first-detail-on-demand
 - @doc/patterns/pattern-bulk-enrichment-from-shared-student-history
 
-
 ## Current Implementation Status
 
-As of 2026-03-31, the dashboard/right-rail duplication path is removed.
+As of 2026-03-31, the shared student shell uses one persistent shell-data owner across sibling student shell routes.
 
 Current implementation anchor:
-- `StudentDashboardPage` owns the shared shell dataset for that surface through one `useStudentShellData()` call
-- `StudentLayout` accepts an optional `shellData` prop so a page owner can pass shell-owned data downward
-- `StudentRightRail` now supports a pure-consumer mode via `shellData` and keeps a connected fallback only for pages that have not been migrated yet
+- `StudentShellRoute` wraps the main student shell route group
+- `StudentShellDataProvider` owns shared shell data above dashboard, homework, courses, course detail, class detail, library, and academic-record routes
+- `StudentRightRail` consumes resolved shell data instead of creating a second owner on those routes
+- shell pages that only need homework counters or shell summaries now consume resolver hooks instead of instantiating duplicate loaders
+- enrollment-oriented course surfaces reuse shell-owned class membership summaries when enriching enrollments
 
-This means the dashboard and the right rail no longer instantiate overlapping shell loaders for classes, live sessions, and upcoming homework on the same page.
-
-Follow-up note:
-- other student shell pages still rely on the connected fallback until they are migrated to an explicit shared owner or provider
+This means sibling left-column navigation no longer replays the shell-level class scan and live-session hydration path on every tab change.
 
 ## Student Class Membership Read Path
 
@@ -166,3 +163,12 @@ Ownership rules:
 - class enrollment, approval, removal, and delete flows maintain `student_classes`
 - the shell consumes that projection through `useStudentShellData`
 - shell pages must not repair or backfill missing student membership rows during page load
+
+## Warmup Boundary
+
+Right-rail performance work must preserve the distinction between shell-owned summaries and page-owned route caches.
+
+Rules:
+- right-rail data stays owned by the persistent shell provider
+- route warmup may prepare page-owned caches for shell pages, but it must not re-own right-rail summaries
+- first-entry warmup should reduce page cold starts without adding another right-rail loader

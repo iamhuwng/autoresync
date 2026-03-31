@@ -5,6 +5,7 @@ import type {
     CourseEnrollment,
     Course,
 } from '../types/course.types';
+import type { ClassSummary } from '../types/class.types';
 import {
     getCourse,
     getModulesByCourse,
@@ -265,7 +266,14 @@ async function _getRawEnrollments(studentId: string): Promise<CourseEnrollment[]
  * Get enrollments by student (enriched with class-linked courses).
  * Use this for read/display operations. For write checks, use _getRawEnrollments.
  */
-export async function getEnrollmentsByStudent(studentId: string): Promise<CourseEnrollment[]> {
+interface GetEnrollmentsByStudentOptions {
+    studentClasses?: ClassSummary[];
+}
+
+export async function getEnrollmentsByStudent(
+    studentId: string,
+    options: GetEnrollmentsByStudentOptions = {},
+): Promise<CourseEnrollment[]> {
     try {
         const explicitEnrollments = await _getRawEnrollments(studentId);
 
@@ -273,8 +281,10 @@ export async function getEnrollmentsByStudent(studentId: string): Promise<Course
         // NOTE: isAutoEnroll controls whether enrollment records are auto-written on class join.
         // It does NOT control visibility — any student in a class can see ALL courses linked to it.
         try {
-            const { getStudentClasses } = await import('./classManager');
-            const classes = await getStudentClasses(studentId);
+            const classes = options.studentClasses ?? await (async () => {
+                const { getStudentClasses } = await import('./classManager');
+                return getStudentClasses(studentId);
+            })();
             for (const cls of classes) {
                 const links = await getLinkedCourses(cls.id);
                 for (const link of links) {

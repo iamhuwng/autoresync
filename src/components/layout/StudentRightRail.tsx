@@ -1,7 +1,8 @@
 import React from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useNavigation } from '../../hooks/useNavigation';
-import { useStudentShellData, type StudentShellData } from '../../hooks/useStudentShellData';
+import type { StudentShellData } from '../../hooks/useStudentShellData';
+import { useResolvedStudentShellData } from '../../context/StudentShellDataContext';
 import { reportingService } from '../../services/reportingService';
 import { sessionService } from '../../services/sessionService';
 import { S } from './studentLayoutStyles';
@@ -262,7 +263,7 @@ interface ConnectedStudentRightRailProps {
 }
 
 export const ConnectedStudentRightRail: React.FC<ConnectedStudentRightRailProps> = ({ supplementalContent }) => {
-    const { classLiveSessions, enrolledClasses, sortedAssignments } = useStudentShellData();
+    const { classLiveSessions, enrolledClasses, sortedAssignments } = useResolvedStudentShellData();
 
     return (
         <StudentRightRail

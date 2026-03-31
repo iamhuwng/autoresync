@@ -7,7 +7,7 @@ import { getPaginatedUserNotifications, markNotificationAsRead, subscribeToNewNo
 import { sessionService } from '../services/sessionService';
 import { Loader, Badge } from '@mantine/core';
 import { useNavigation } from '../hooks/useNavigation';
-import { useStudentShellData } from '../hooks/useStudentShellData';
+import { useResolvedStudentShellData } from '../context/StudentShellDataContext';
 import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
 import { S } from '../components/layout/studentLayoutStyles';
@@ -106,7 +106,7 @@ const StudentDashboardPage = () => {
         notStarted,
         sortedAssignments,
         refreshClasses,
-    } = useStudentShellData();
+    } = useResolvedStudentShellData();
 
     const [activeView, setActiveView] = useState('feed');
     const [feedFilter, setFeedFilter] = useState('all');

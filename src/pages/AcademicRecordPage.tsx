@@ -33,6 +33,71 @@ const MAIN_VIEW_OPTIONS = [
 
 type MainView = (typeof MAIN_VIEW_OPTIONS)[number]['value'];
 
+const academicRecordResultsCache = new Map<string, EnhancedTestResultRecord[]>();
+const academicRecordFeedbackCache = new Map<string, ProgressiveFeedbackRecord | null>();
+const academicRecordThcsCache = new Map<string, ThcsProgressData | null>();
+
+function getAcademicRecordResultsCacheKey(studentId: string, dateRange: string): string {
+    return `${studentId}:${dateRange}`;
+}
+
+async function fetchAcademicRecordResults(
+    studentId: string,
+    dateRange: string
+): Promise<EnhancedTestResultRecord[]> {
+    const appliedFilters: AcademicRecordFilters = {};
+
+    if (dateRange !== 'all') {
+        const now = Date.now();
+        const ranges: Record<string, number> = {
+            week: 7 * 24 * 60 * 60 * 1000,
+            month: 30 * 24 * 60 * 60 * 1000,
+            quarter: 90 * 24 * 60 * 60 * 1000,
+            year: 365 * 24 * 60 * 60 * 1000,
+        };
+
+        if (ranges[dateRange]) {
+            appliedFilters.dateFrom = now - ranges[dateRange];
+            appliedFilters.dateTo = now;
+        }
+    }
+
+    return getFilteredResults(studentId, appliedFilters);
+}
+
+export async function preloadAcademicRecordPageData(studentId: string): Promise<void> {
+    if (!studentId) return;
+
+    const resultsKey = getAcademicRecordResultsCacheKey(studentId, 'all');
+    const tasks: Promise<unknown>[] = [];
+
+    if (!academicRecordResultsCache.has(resultsKey)) {
+        tasks.push(
+            fetchAcademicRecordResults(studentId, 'all').then((results) => {
+                academicRecordResultsCache.set(resultsKey, results);
+            })
+        );
+    }
+
+    if (!academicRecordThcsCache.has(studentId)) {
+        tasks.push(
+            getThcsProgress(studentId).then((progress) => {
+                academicRecordThcsCache.set(studentId, progress);
+            })
+        );
+    }
+
+    if (!academicRecordFeedbackCache.has(studentId)) {
+        tasks.push(
+            getProgressiveFeedback(studentId).then((feedback) => {
+                academicRecordFeedbackCache.set(studentId, feedback);
+            })
+        );
+    }
+
+    await Promise.allSettled(tasks);
+}
+
 const localStyles: Record<string, React.CSSProperties> = {
     headerRow: {
         ...S.feedHeader,
@@ -208,16 +273,25 @@ export const AcademicRecordPage: React.FC = () => {
     const [searchParams, setSearchParams] = useSearchParams();
     const { trackAction } = useFeatureTracking('academicRecords');
     const [{ maintenance: aiMaintenance, loaded: aiStatusLoaded }] = useAIStatus();
+    const initialResultsCache = user?.uid
+        ? academicRecordResultsCache.get(getAcademicRecordResultsCacheKey(user.uid, 'all')) ?? null
+        : null;
+    const initialFeedbackCache = user?.uid && academicRecordFeedbackCache.has(user.uid)
+        ? academicRecordFeedbackCache.get(user.uid) ?? null
+        : null;
+    const initialThcsCache = user?.uid && academicRecordThcsCache.has(user.uid)
+        ? academicRecordThcsCache.get(user.uid) ?? null
+        : null;
 
     const selectedResultId = searchParams.get('result');
 
-    const [results, setResults] = useState<EnhancedTestResultRecord[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [results, setResults] = useState<EnhancedTestResultRecord[]>(() => initialResultsCache ?? []);
+    const [loading, setLoading] = useState(() => Boolean(user?.uid) && !initialResultsCache);
     const [error, setError] = useState<string | null>(null);
-    const [progressiveFeedback, setProgressiveFeedback] = useState<ProgressiveFeedbackRecord | null>(null);
-    const [progressiveFeedbackLoading, setProgressiveFeedbackLoading] = useState(false);
-    const [thcsProgress, setThcsProgress] = useState<ThcsProgressData | null>(null);
-    const [thcsLoading, setThcsLoading] = useState(true);
+    const [progressiveFeedback, setProgressiveFeedback] = useState<ProgressiveFeedbackRecord | null>(() => initialFeedbackCache);
+    const [progressiveFeedbackLoading, setProgressiveFeedbackLoading] = useState(() => Boolean(user?.uid) && !(user?.uid && academicRecordFeedbackCache.has(user.uid)));
+    const [thcsProgress, setThcsProgress] = useState<ThcsProgressData | null>(() => initialThcsCache);
+    const [thcsLoading, setThcsLoading] = useState(() => Boolean(user?.uid) && !(user?.uid && academicRecordThcsCache.has(user.uid)));
     const [dateRange, setDateRange] = useState<string>('all');
     const [activeView, setActiveView] = useState<MainView>('overview');
 
@@ -239,28 +313,21 @@ export const AcademicRecordPage: React.FC = () => {
     const fetchResults = useCallback(async () => {
         if (!user?.uid) return;
 
-        setLoading(true);
+        const cacheKey = getAcademicRecordResultsCacheKey(user.uid, dateRange);
+        const cachedResults = academicRecordResultsCache.get(cacheKey) ?? null;
+
+        if (cachedResults) {
+            setResults(cachedResults);
+        } else {
+            setResults([]);
+        }
+
+        setLoading(!cachedResults);
         setError(null);
 
         try {
-            const appliedFilters: AcademicRecordFilters = {};
-
-            if (dateRange !== 'all') {
-                const now = Date.now();
-                const ranges: Record<string, number> = {
-                    week: 7 * 24 * 60 * 60 * 1000,
-                    month: 30 * 24 * 60 * 60 * 1000,
-                    quarter: 90 * 24 * 60 * 60 * 1000,
-                    year: 365 * 24 * 60 * 60 * 1000,
-                };
-
-                if (ranges[dateRange]) {
-                    appliedFilters.dateFrom = now - ranges[dateRange];
-                    appliedFilters.dateTo = now;
-                }
-            }
-
-            const fetchedResults = await getFilteredResults(user.uid, appliedFilters);
+            const fetchedResults = await fetchAcademicRecordResults(user.uid, dateRange);
+            academicRecordResultsCache.set(cacheKey, fetchedResults);
             setResults(fetchedResults);
         } catch (err) {
             console.error('Error fetching academic records:', err);
@@ -271,7 +338,20 @@ export const AcademicRecordPage: React.FC = () => {
     }, [dateRange, user?.uid]);
 
     useEffect(() => {
-        fetchResults();
+        if (!user?.uid) {
+            setResults([]);
+            setLoading(false);
+            setError(null);
+            return;
+        }
+
+        const cachedResults = academicRecordResultsCache.get(getAcademicRecordResultsCacheKey(user.uid, dateRange));
+        if (cachedResults) {
+            setResults(cachedResults);
+            setLoading(false);
+        }
+
+        void fetchResults();
     }, [fetchResults]);
 
     useEffect(() => {
@@ -281,14 +361,20 @@ export const AcademicRecordPage: React.FC = () => {
             return;
         }
 
+        if (academicRecordThcsCache.has(user.uid)) {
+            setThcsProgress(academicRecordThcsCache.get(user.uid) ?? null);
+            setThcsLoading(false);
+        }
+
         let cancelled = false;
 
         const loadThcsProgress = async () => {
             try {
-                setThcsLoading(true);
+                setThcsLoading(!academicRecordThcsCache.has(user.uid));
                 const nextProgress = await getThcsProgress(user.uid);
                 if (!cancelled) {
                     setThcsProgress(nextProgress);
+                    academicRecordThcsCache.set(user.uid, nextProgress);
                 }
             } catch (err) {
                 console.error('Failed to load THCS progress:', err);
@@ -307,16 +393,26 @@ export const AcademicRecordPage: React.FC = () => {
     }, [user?.uid]);
 
     useEffect(() => {
-        if (!user?.uid) return;
+        if (!user?.uid) {
+            setProgressiveFeedback(null);
+            setProgressiveFeedbackLoading(false);
+            return;
+        }
+
+        if (academicRecordFeedbackCache.has(user.uid)) {
+            setProgressiveFeedback(academicRecordFeedbackCache.get(user.uid) ?? null);
+            setProgressiveFeedbackLoading(false);
+        }
 
         let cancelled = false;
 
         const loadProgressiveFeedback = async () => {
             try {
-                setProgressiveFeedbackLoading(true);
+                setProgressiveFeedbackLoading(!academicRecordFeedbackCache.has(user.uid));
                 const existing = await getProgressiveFeedback(user.uid);
                 if (!cancelled) {
                     setProgressiveFeedback(existing);
+                    academicRecordFeedbackCache.set(user.uid, existing);
                 }
 
                 const shouldRefresh = !existing
@@ -327,6 +423,7 @@ export const AcademicRecordPage: React.FC = () => {
                     const refreshed = await refreshProgressiveFeedback(user.uid);
                     if (!cancelled && refreshed) {
                         setProgressiveFeedback(refreshed);
+                        academicRecordFeedbackCache.set(user.uid, refreshed);
                     }
                 }
             } catch (err) {
@@ -396,6 +493,7 @@ export const AcademicRecordPage: React.FC = () => {
             setProgressiveFeedbackLoading(true);
             const refreshed = await refreshProgressiveFeedback(user.uid, { manual: true, force: true });
             setProgressiveFeedback(refreshed);
+            academicRecordFeedbackCache.set(user.uid, refreshed);
         } catch (err) {
             console.error('Failed to manually refresh progressive feedback:', err);
         } finally {

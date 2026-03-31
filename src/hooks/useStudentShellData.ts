@@ -22,12 +22,21 @@ export interface StudentShellLiveSession {
 export interface StudentShellData {
     enrolledClasses: ClassSummary[];
     classLiveSessions: StudentShellLiveSession[];
+    homeworkItems: StudentHomeworkItem[];
     notStarted: StudentHomeworkItem[];
     inProgress: StudentHomeworkItem[];
+    completed: StudentHomeworkItem[];
     overdue: StudentHomeworkItem[];
     sortedAssignments: StudentHomeworkItem[];
+    isHomeworkLoading: boolean;
+    homeworkError: string | null;
     isClassesLoading: boolean;
     refreshClasses: () => Promise<void>;
+    refreshHomeworkData: () => Promise<void>;
+}
+
+interface UseStudentShellDataOptions {
+    enabled?: boolean;
 }
 
 function getLiveSessionWeight(status: string): number {
@@ -36,15 +45,25 @@ function getLiveSessionWeight(status: string): number {
     return 2;
 }
 
-export function useStudentShellData(): StudentShellData {
+export function useStudentShellData(options: UseStudentShellDataOptions = {}): StudentShellData {
+    const enabled = options.enabled ?? true;
     const { user } = useAuth();
     const [enrolledClasses, setEnrolledClasses] = useState<ClassSummary[]>([]);
     const [classLiveSessions, setClassLiveSessions] = useState<StudentShellLiveSession[]>([]);
-    const [isClassesLoading, setIsClassesLoading] = useState(true);
-    const { notStarted = [], inProgress = [], overdue = [] } = useStudentHomeworkList(user?.uid || '');
+    const [isClassesLoading, setIsClassesLoading] = useState(enabled && Boolean(user?.uid));
+    const {
+        homeworkItems = [],
+        isLoading: isHomeworkLoading,
+        error: homeworkError,
+        refreshData: refreshHomeworkData,
+        notStarted = [],
+        inProgress = [],
+        completed = [],
+        overdue = [],
+    } = useStudentHomeworkList(user?.uid || '', { enabled });
 
     const refreshClasses = useCallback(async () => {
-        if (!user?.uid) {
+        if (!enabled || !user?.uid) {
             setEnrolledClasses([]);
             setIsClassesLoading(false);
             return;
@@ -60,14 +79,21 @@ export function useStudentShellData(): StudentShellData {
         } finally {
             setIsClassesLoading(false);
         }
-    }, [user?.uid]);
+    }, [enabled, user?.uid]);
 
     useEffect(() => {
-        void refreshClasses();
-    }, [refreshClasses]);
+        if (enabled) {
+            void refreshClasses();
+            return;
+        }
+
+        setEnrolledClasses([]);
+        setClassLiveSessions([]);
+        setIsClassesLoading(false);
+    }, [enabled, refreshClasses]);
 
     useEffect(() => {
-        if (!enrolledClasses.length) {
+        if (!enabled || !enrolledClasses.length) {
             setClassLiveSessions([]);
             return;
         }
@@ -152,7 +178,7 @@ export function useStudentShellData(): StudentShellData {
             isCancelled = true;
             unsubscribers.forEach((unsubscribe) => unsubscribe());
         };
-    }, [enrolledClasses]);
+    }, [enabled, enrolledClasses]);
 
     const sortedAssignments = useMemo(
         () =>
@@ -167,11 +193,16 @@ export function useStudentShellData(): StudentShellData {
     return {
         enrolledClasses,
         classLiveSessions,
+        homeworkItems,
         notStarted,
         inProgress,
+        completed,
         overdue,
         sortedAssignments,
+        isHomeworkLoading,
+        homeworkError,
         isClassesLoading,
         refreshClasses,
+        refreshHomeworkData,
     };
 }

@@ -300,16 +300,29 @@ export interface UseStudentHomeworkListReturn {
     overdue: StudentHomeworkItem[];
 }
 
+export interface UseStudentHomeworkListOptions {
+    enabled?: boolean;
+}
+
 export function useStudentHomeworkList(
-    studentId: string
+    studentId: string,
+    options: UseStudentHomeworkListOptions = {}
 ): UseStudentHomeworkListReturn {
     const [homeworkItems, setHomeworkItems] = useState<StudentHomeworkItem[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const enabled = options.enabled ?? true;
+    const [isLoading, setIsLoading] = useState(Boolean(studentId) && enabled);
     const [error, setError] = useState<string | null>(null);
     const isMounted = useRef(true);
 
     const loadData = useCallback(async () => {
-        if (!studentId) return;
+        if (!enabled || !studentId) {
+            if (isMounted.current) {
+                setHomeworkItems([]);
+                setError(null);
+                setIsLoading(false);
+            }
+            return;
+        }
 
         try {
             setIsLoading(true);
@@ -371,16 +384,22 @@ export function useStudentHomeworkList(
                 setIsLoading(false);
             }
         }
-    }, [studentId]);
+    }, [enabled, studentId]);
 
     useEffect(() => {
         isMounted.current = true;
-        loadData();
+        if (enabled && studentId) {
+            void loadData();
+        } else {
+            setHomeworkItems([]);
+            setError(null);
+            setIsLoading(false);
+        }
 
         return () => {
             isMounted.current = false;
         };
-    }, [loadData]);
+    }, [enabled, loadData, studentId]);
 
     // Categorized lists
     const notStarted = homeworkItems.filter(i => i.status === 'not_started');

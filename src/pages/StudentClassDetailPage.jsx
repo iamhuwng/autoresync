@@ -5,7 +5,6 @@ import { useAuth } from '../hooks/useAuth';
 import { getClass, subscribeToClass, subscribeToActiveSessions } from '../services/classManager';
 import { getSession } from '../services/sessionManager';
 import { sessionService } from '../services/sessionService';
-import { useStudentHomeworkList } from '../hooks/useHomeworkSubmission';
 import { buildRoute } from '../constants/routes';
 import { Loader } from '@mantine/core';
 import { StudentLayout } from '../components/layout/StudentLayout';
@@ -13,6 +12,7 @@ import { StudentSidebar } from '../components/layout/StudentSidebar';
 import { S } from '../components/layout/studentLayoutStyles';
 import { database } from '../services/firebase';
 import { getStudentResults } from '../services/testResults.service';
+import { useResolvedStudentHomeworkList } from '../context/StudentShellDataContext';
 
 const localStyles = {
   card: { background: 'white', borderRadius: 16, border: '1px solid #e5e7eb', padding: 24, marginBottom: 16 },
@@ -60,7 +60,7 @@ const StudentClassDetailPage = () => {
   const [, setSelfStudyContent] = useState({ tests: [], quizzes: [] });
   const [, setIsLoadingSelfStudy] = useState(false);
   const [activeSessions, setActiveSessions] = useState([]);
-  const { notStarted } = useStudentHomeworkList(user?.uid || '');
+  const { notStarted } = useResolvedStudentHomeworkList(user?.uid || '');
   const repairAttemptedRef = useRef(new Set());
 
   // Subscribe to active sessions (Live Sessions)

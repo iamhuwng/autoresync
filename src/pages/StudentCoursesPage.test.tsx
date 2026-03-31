@@ -8,12 +8,16 @@ import { useAuth } from '../hooks/useAuth';
 import { getEnrollmentsByStudent } from '../services/enrollmentManager';
 import { getCourse, getMaterialsByCourse, getStudentCourseProgress } from '../services/courseManager';
 import { getUserById } from '../services/userService';
+import { getRequestsByStudent } from '../services/courseRequestManager';
+import { useResolvedStudentHomeworkList, useResolvedStudentShellData } from '../context/StudentShellDataContext';
 
 // Mock dependencies
 vi.mock('../hooks/useAuth');
 vi.mock('../services/enrollmentManager');
 vi.mock('../services/courseManager');
 vi.mock('../services/userService');
+vi.mock('../services/courseRequestManager');
+vi.mock('../context/StudentShellDataContext');
 
 const mockEnrollments = [
     {
@@ -49,6 +53,33 @@ const mockTeacher = {
     email: 'john@test.com'
 };
 
+const mockShellData = {
+    enrolledClasses: [],
+    classLiveSessions: [],
+    sortedAssignments: [],
+    notStarted: [],
+    inProgress: [],
+    overdue: [],
+    homeworkItems: [],
+    completed: [],
+    isClassesLoading: false,
+    isHomeworkLoading: false,
+    homeworkError: null,
+    refreshClasses: vi.fn(),
+    refreshHomeworkData: vi.fn(),
+};
+
+const mockHomeworkList = {
+    homeworkItems: [],
+    notStarted: [],
+    inProgress: [],
+    completed: [],
+    overdue: [],
+    isLoading: false,
+    error: null,
+    refreshData: vi.fn(),
+};
+
 describe('StudentCoursesPage', () => {
     beforeEach(() => {
         vi.clearAllMocks();
@@ -57,6 +88,7 @@ describe('StudentCoursesPage', () => {
             logout: vi.fn()
         });
         (getEnrollmentsByStudent as any).mockResolvedValue(mockEnrollments);
+        (getRequestsByStudent as any).mockResolvedValue([]);
         (getCourse as any).mockImplementation((id: string) => {
             if (id === 'c1') return Promise.resolve(mockCourse1);
             return Promise.resolve({ id, name: 'Other Course', ownerId: 't1' });
@@ -64,6 +96,8 @@ describe('StudentCoursesPage', () => {
         (getMaterialsByCourse as any).mockResolvedValue([]);
         (getStudentCourseProgress as any).mockResolvedValue(null);
         (getUserById as any).mockResolvedValue(mockTeacher);
+        (useResolvedStudentHomeworkList as any).mockReturnValue(mockHomeworkList);
+        (useResolvedStudentShellData as any).mockReturnValue(mockShellData);
     });
 
     const renderPage = () => {
@@ -79,7 +113,7 @@ describe('StudentCoursesPage', () => {
     it('should load and display student enrollments', async () => {
         renderPage();
 
-        expect(screen.getByText(/Your Learning Journey/i)).toBeInTheDocument();
+        expect(screen.getByText('My Courses')).toBeInTheDocument();
 
         await waitFor(() => {
             expect(screen.getByText('Intro to Math')).toBeInTheDocument();

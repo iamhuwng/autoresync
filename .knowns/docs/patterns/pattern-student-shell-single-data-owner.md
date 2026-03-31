@@ -2,7 +2,7 @@
 title: 'Pattern: Student Shell Single Data Owner'
 description: 'Canonical data-loading pattern for student shell pages: one owner for shared shell datasets, consumers reuse that owner, and page widgets stay presentational.'
 createdAt: '2026-03-30T23:50:55.586Z'
-updatedAt: '2026-03-31T00:26:19.058Z'
+updatedAt: '2026-03-31T04:02:24.319Z'
 tags:
   - pattern
   - student
@@ -43,8 +43,8 @@ For shell-shared student data:
 ## Good Shape
 
 ```tsx
-function StudentShellDataProvider({ studentId, children }: Props) {
-  const shellData = useStudentShellDataOwner(studentId);
+function StudentShellDataProvider({ children }: Props) {
+  const shellData = useStudentShellData();
 
   return (
     <StudentShellDataContext.Provider value={shellData}>
@@ -53,22 +53,17 @@ function StudentShellDataProvider({ studentId, children }: Props) {
   );
 }
 
-function StudentLayout() {
-  const shellData = useStudentShellData();
-
+function StudentShellRoute() {
   return (
-    <>
-      <StudentRightRail data={shellData} />
-      <PageContent />
-    </>
+    <StudentShellDataProvider>
+      <Outlet />
+    </StudentShellDataProvider>
   );
 }
 
-function StudentDashboardPage() {
-  const { enrolledClasses, classLiveSessions } = useStudentShellData();
-  const featuredClasses = enrolledClasses.slice(0, 3);
-
-  return <DashboardWidgets classes={featuredClasses} sessions={classLiveSessions} />;
+function StudentCoursesPage() {
+  const { enrolledClasses } = useResolvedStudentShellData();
+  return <CoursesContent classes={enrolledClasses} />;
 }
 ```
 
@@ -76,6 +71,7 @@ Why this is correct:
 - one fetch owner
 - one refresh policy
 - consumers only derive or present data
+- sibling route changes preserve shell-owned data
 
 ## Bad Shape
 
@@ -102,15 +98,24 @@ useEffect(() => {
 
 inside both the shell and the page.
 
+A subtler bad shape is service-level duplication:
+
+```tsx
+const enrollments = await getEnrollmentsByStudent(studentId);
+```
+
+when the page already has shell-owned `studentClasses` and the service could accept them.
+
 That shape duplicates ownership, duplicates loading states, and makes later changes unsafe.
 
 ## Review Checklist
 
-Block the change if any answer is "yes":
+Block the change if any answer is `yes`:
 - Does the page instantiate a loader for data already owned by the shell?
 - Do two surfaces refresh the same shell dataset independently?
 - Does a page widget broaden the read scope instead of reusing shell data?
 - Is there no single place to define stale-while-revalidate or retry behavior?
+- Does a helper service hide a second read of shell-owned membership or summary data?
 
 ## When To Use Another Pattern Instead
 
@@ -121,17 +126,29 @@ Use @doc/patterns/pattern-bulk-enrichment-from-shared-student-history when the i
 ## Related Docs
 
 - @doc/architecture/student-shell-right-rail-architecture
+- @doc/architecture/student-shell-data-loading-architecture
 - @doc/architecture/student-experience-architecture
 - @doc/patterns/pattern-summary-first-detail-on-demand
 
-
 ## Current Repo Anchor
 
-As of 2026-03-31, the student dashboard is the primary implementation anchor for this pattern.
+As of 2026-03-31, the student shell route group is the primary implementation anchor for this pattern.
 
 Current implementation shape:
-- `StudentDashboardPage` owns one shell-data read
-- `StudentLayout` receives that shared shell data through props
-- `StudentRightRail` consumes the provided shell data instead of creating a second owner on the same page
+- `StudentShellRoute` mounts a persistent `StudentShellDataProvider` above the main student shell routes
+- `StudentRightRail` and student shell pages consume `useResolvedStudentShellData()` or `useResolvedStudentHomeworkList()`
+- dashboard, homework, courses, course detail, class detail, library, and academic-record route changes reuse the same shell owner instead of remounting duplicate shell loaders
+- enrollment enrichment on course surfaces accepts shell-owned `studentClasses` instead of rereading student membership
 
 Use this anchor when reviewing future student shell pages for duplicate ownership drift.
+
+## Extension: Single Owner Plus Route Warmup
+
+A single owner does not forbid route warmup.
+
+Allowed extension:
+- the shell may prefetch a route chunk and the page-owned cache for a shell page
+- warmup must stop at the ownership boundary
+- shell-owned summaries stay in the shell provider, while page-owned center-column datasets stay in the page host
+
+This pattern keeps ownership clean while removing first-entry cold starts.

@@ -1,5 +1,5 @@
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
-import { useEffect, useState, Suspense } from 'react';
+import { BrowserRouter, Routes, Route, Link, Outlet } from 'react-router-dom';
+import { useEffect, Suspense } from 'react';
 import { lazyWithRetry } from './utils/lazyWithRetry.ts';
 import { ToastContainer, VanillaLoader } from './components/modern';
 import { TrackedRoute } from './components/TrackedRoute.tsx';
@@ -88,9 +88,9 @@ import PrivateRoute from './components/PrivateRoute.jsx';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { ProfileCompletionGuard } from './components/ProfileCompletionGuard.tsx';
 // import { LogProvider } from './context/LogContext.jsx'; // DISABLED FOR TESTING
-import AdminLoginModal from './components/AdminLoginModal.jsx';
 import { ConfirmDialog } from './components/modals/ConfirmDialog.tsx';
 import RestoreBanner from './components/RestoreBanner.tsx';
+import { StudentShellDataProvider } from './context/StudentShellDataContext.tsx';
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -130,11 +130,15 @@ const withTrackedRoute = (children, featureName) => (
   <TrackedRoute featureName={featureName}>{children}</TrackedRoute>
 );
 
+const StudentShellRoute = () => (
+  <StudentShellDataProvider>
+    <Outlet />
+  </StudentShellDataProvider>
+);
+
 
 
 function App() {
-  const [showAdminLogin, setShowAdminLogin] = useState(false);
-
   useEffect(() => {
     reportingService.init(auth, database);
     initBreadcrumbs();
@@ -323,28 +327,32 @@ function App() {
           <Route path="/teacher/grading/writing/:submissionId" element={<PrivateRoute allowedRoles={['teacher', 'super_admin']}>{withTrackedRoute(<ErrorBoundary><WritingGradingPage /></ErrorBoundary>, 'grading')}</PrivateRoute>} />
 
           {/* Student Routes */}
-          <Route path="/student" element={
-            <PrivateRoute allowedRoles={['student']}>
-              {withTrackedRoute(
-                <ProfileCompletionGuard>
-                  <StudentDashboardPage />
-                </ProfileCompletionGuard>
-              )}
-            </PrivateRoute>
-          } />
-          <Route path="/student/dashboard" element={
-            <PrivateRoute allowedRoles={['student']}>
-              {withTrackedRoute(
-                <ProfileCompletionGuard>
-                  <StudentDashboardPage />
-                </ProfileCompletionGuard>
-              )}
-            </PrivateRoute>
-          } />
-          <Route path="/student/courses" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentCoursesPage />, 'courses')}</PrivateRoute>} />
-          <Route path="/student/courses/:courseId" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentCourseDetailPage />, 'courses')}</PrivateRoute>} />
-          <Route path="/student/courses/catalog" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentCourseCatalogPage />, 'courses')}</PrivateRoute>} />
-          <Route path="/student/classes/:classId" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentClassDetailPage />, 'classes')}</PrivateRoute>} />
+          <Route element={<StudentShellRoute />}>
+            <Route path="/student" element={
+              <PrivateRoute allowedRoles={['student']}>
+                {withTrackedRoute(
+                  <ProfileCompletionGuard>
+                    <StudentDashboardPage />
+                  </ProfileCompletionGuard>
+                )}
+              </PrivateRoute>
+            } />
+            <Route path="/student/dashboard" element={
+              <PrivateRoute allowedRoles={['student']}>
+                {withTrackedRoute(
+                  <ProfileCompletionGuard>
+                    <StudentDashboardPage />
+                  </ProfileCompletionGuard>
+                )}
+              </PrivateRoute>
+            } />
+            <Route path="/student/courses" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentCoursesPage />, 'courses')}</PrivateRoute>} />
+            <Route path="/student/courses/:courseId" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentCourseDetailPage />, 'courses')}</PrivateRoute>} />
+            <Route path="/student/classes/:classId" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentClassDetailPage />, 'classes')}</PrivateRoute>} />
+            <Route path="/student/library" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentLibraryPage />, 'materials')}</PrivateRoute>} />
+            <Route path="/student/homework" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentHomeworkListPage />, 'homework')}</PrivateRoute>} />
+            <Route path="/student/academic-record" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<AcademicRecordPage />, 'academicRecords')}</PrivateRoute>} />
+          </Route>
           {/* Student Session Routes - PROTECTED (PRD-0016) */}
           <Route path="/student-wait/:gameSessionId" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentWaitingRoomPage />, 'liveSessions')}</PrivateRoute>} />
           <Route path="/student-quiz/:gameSessionId" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentQuizPage />, 'liveSessions')}</PrivateRoute>} />
@@ -354,25 +362,20 @@ function App() {
           <Route path="/student-results/:gameSessionId" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentResultsPage />, 'results')}</PrivateRoute>} />
           {/* Legacy student result entry path: supports older links while StudentTestResultsPage redirects resultId deep-links to /result/:resultId */}
           <Route path="/student/results/:sessionCode" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentTestResultsPage />, 'results')}</PrivateRoute>} />
-          {/* PRD-0016: Solo Study & Homework System */}
-          <Route path="/student/library" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentLibraryPage />, 'materials')}</PrivateRoute>} />
           {/* PRD-0025: Unified Solo Practice Mode - NEW canonical route */}
           <Route path="/student/practice/:materialId" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentPracticePage />, 'testTaking')}</PrivateRoute>} />
           {/* PRD-0025: Legacy redirect - old solo-test URLs still work */}
           <Route path="/student/solo-test/:materialId" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentPracticePage />, 'testTaking')}</PrivateRoute>} />
+          <Route path="/student/courses/catalog" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentCourseCatalogPage />, 'courses')}</PrivateRoute>} />
           {/* PRD-0016: Student Homework Routes */}
-          <Route path="/student/homework" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentHomeworkListPage />, 'homework')}</PrivateRoute>} />
           <Route path="/student/homework/:homeworkId" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentHomeworkDetailPage />, 'homework')}</PrivateRoute>} />
           <Route path="/student/homework/:homeworkId/test" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<StudentPracticePage />, 'testTaking')}</PrivateRoute>} />
-          <Route path="/student/academic-record" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<AcademicRecordPage />, 'academicRecords')}</PrivateRoute>} />
           {/* PRD-0019: Post-submission confirmation for Writing tests */}
           <Route path="/submission-complete" element={<PrivateRoute allowedRoles={['student']}>{withTrackedRoute(<SubmissionCompletePage />, 'results')}</PrivateRoute>} />
           <Route path="/result/:resultId" element={<PrivateRoute allowedRoles={['student', 'teacher', 'super_admin']}>{withTrackedRoute(<ResultDetailPage />, 'results')}</PrivateRoute>} />
 
 
         </Routes>
-        <AdminLoginModal show={showAdminLogin} handleClose={() => setShowAdminLogin(false)} />
-
         <ConfirmDialog />
       </Suspense>
       <ToastContainer />

@@ -5,7 +5,6 @@ import { useAuth } from '../hooks/useAuth';
 import { getCourse, getModulesByCourse, getMaterialsByCourse, getStudentCourseProgress } from '../services/courseManager';
 import { getEnrollmentsByStudent } from '../services/enrollmentManager';
 import { getClass } from '../services/classManager';
-import { useStudentHomeworkList } from '../hooks/useHomeworkSubmission';
 import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
 import { S } from '../components/layout/studentLayoutStyles';
@@ -19,6 +18,7 @@ import { SoloResumeModal } from '../components/test/SoloResumeModal';
 import { notifications } from '@mantine/notifications';
 import type { Course, Module, CourseMaterial } from '../types/course.types';
 import type { ClassSession } from '../types/class.types';
+import { useResolvedStudentHomeworkList, useResolvedStudentShellData } from '../context/StudentShellDataContext';
 
 interface TestMeta { title: string; type: string; duration?: number; testType?: string; metadata?: any; }
 
@@ -26,6 +26,22 @@ interface PopulatedModule extends Module {
     materials: CourseMaterial[];
     status: 'locked' | 'available' | 'completed';
     completionCount: number;
+}
+
+interface StudentCourseDetailCacheEntry {
+    course: Course;
+    classData: ClassSession | null;
+    modules: PopulatedModule[];
+    overallProgress: number;
+    expandedModule: string | null;
+    testMeta: Record<string, TestMeta>;
+}
+
+const studentCourseDetailCache = new Map<string, StudentCourseDetailCacheEntry>();
+
+function getStudentCourseDetailCache(studentId?: string | null, courseId?: string): StudentCourseDetailCacheEntry | null {
+    if (!studentId || !courseId) return null;
+    return studentCourseDetailCache.get(`${studentId}:${courseId}`) ?? null;
 }
 
 const localStyles = {
@@ -67,34 +83,67 @@ const StudentCourseDetailPage: React.FC = () => {
     const { courseId } = useParams<{ courseId: string }>();
     const navigate = useNavigate();
     const { user, profile } = useAuth();
-    const { notStarted } = useStudentHomeworkList(user?.uid || '');
+    const { notStarted } = useResolvedStudentHomeworkList(user?.uid || '');
+    const { enrolledClasses } = useResolvedStudentShellData();
+    const initialCacheEntry = getStudentCourseDetailCache(user?.uid, courseId);
 
-    const [course, setCourse] = useState<Course | null>(null);
-    const [classData, setClassData] = useState<ClassSession | null>(null);
-    const [modules, setModules] = useState<PopulatedModule[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [course, setCourse] = useState<Course | null>(() => initialCacheEntry?.course ?? null);
+    const [classData, setClassData] = useState<ClassSession | null>(() => initialCacheEntry?.classData ?? null);
+    const [modules, setModules] = useState<PopulatedModule[]>(() => initialCacheEntry?.modules ?? []);
+    const [loading, setLoading] = useState(() => Boolean(user?.uid && courseId) && !initialCacheEntry);
     const [error, setError] = useState<string | null>(null);
-    const [overallProgress, setOverallProgress] = useState(0);
-    const [expandedModule, setExpandedModule] = useState<string | null>(null);
-    const [testMeta, setTestMeta] = useState<Record<string, TestMeta>>({}); // materialId → { title, type }
+    const [overallProgress, setOverallProgress] = useState(() => initialCacheEntry?.overallProgress ?? 0);
+    const [expandedModule, setExpandedModule] = useState<string | null>(() => initialCacheEntry?.expandedModule ?? null);
+    const [testMeta, setTestMeta] = useState<Record<string, TestMeta>>(() => initialCacheEntry?.testMeta ?? {});
 
     const [resumeModalOpen, setResumeModalOpen] = useState(false);
     const [pendingMaterial, setPendingMaterial] = useState<{ materialId: string; moduleId: string; duration?: number } | null>(null);
 
     useEffect(() => {
         if (user?.uid && courseId) {
-            loadCourseData();
+            const cachedEntry = getStudentCourseDetailCache(user.uid, courseId);
+            if (cachedEntry) {
+                setCourse(cachedEntry.course);
+                setClassData(cachedEntry.classData);
+                setModules(cachedEntry.modules);
+                setOverallProgress(cachedEntry.overallProgress);
+                setExpandedModule(cachedEntry.expandedModule);
+                setTestMeta(cachedEntry.testMeta);
+                setLoading(false);
+            }
+
+            void loadCourseData();
+            return;
         }
-    }, [user, courseId]);
+
+        setCourse(null);
+        setClassData(null);
+        setModules([]);
+        setOverallProgress(0);
+        setExpandedModule(null);
+        setTestMeta({});
+        setLoading(false);
+        setError(null);
+    }, [courseId, enrolledClasses, user?.uid]);
 
     const loadCourseData = async () => {
         if (!user?.uid || !courseId) return;
-        setLoading(true);
+        const cachedEntry = getStudentCourseDetailCache(user.uid, courseId);
+        if (cachedEntry) {
+            setCourse(cachedEntry.course);
+            setClassData(cachedEntry.classData);
+            setModules(cachedEntry.modules);
+            setOverallProgress(cachedEntry.overallProgress);
+            setExpandedModule(cachedEntry.expandedModule);
+            setTestMeta(cachedEntry.testMeta);
+        }
+
+        setLoading(!cachedEntry);
         setError(null);
         try {
             const [courseRes, allEnrollments, modulesRes, materialsRes, progressRes] = await Promise.all([
                 getCourse(courseId),
-                getEnrollmentsByStudent(user.uid),
+                getEnrollmentsByStudent(user.uid, { studentClasses: enrolledClasses }),
                 getModulesByCourse(courseId),
                 getMaterialsByCourse(courseId),
                 getStudentCourseProgress(user.uid, courseId)
@@ -114,6 +163,7 @@ const StudentCourseDetailPage: React.FC = () => {
             }
 
             // Enrich materials with real test titles and types
+            let nextTestMeta: Record<string, TestMeta> = {};
             if (materialsRes.length > 0) {
                 const uniqueIds = [...new Set(materialsRes.map(m => m.materialId))];
                 const entries = await Promise.all(uniqueIds.map(async (tid) => {
@@ -130,8 +180,9 @@ const StudentCourseDetailPage: React.FC = () => {
                         metadata: data?.metadata,
                     }] as [string, TestMeta];
                 }));
-                setTestMeta(Object.fromEntries(entries));
+                nextTestMeta = Object.fromEntries(entries);
             }
+            setTestMeta(nextTestMeta);
 
             // Populate modules with materials and status
             const populated = modulesRes.map(mod => {
@@ -147,18 +198,40 @@ const StudentCourseDetailPage: React.FC = () => {
             });
 
             setModules(populated);
-            if (populated.length > 0) {
-                const firstAvail = populated.find(m => m.status === 'available');
-                setExpandedModule(firstAvail?.id ?? populated[0]?.id ?? null);
-            }
+            const nextExpandedModule = populated.length > 0
+                ? populated.find(m => m.status === 'available')?.id ?? populated[0]?.id ?? null
+                : null;
+            setExpandedModule(nextExpandedModule);
 
+            let nextOverallProgress = 0;
             if (materialsRes.length > 0) {
                 const totalCompleted = materialsRes.filter(m => progressRes?.completedMaterials?.[m.materialId]).length;
-                setOverallProgress(Math.round((totalCompleted / materialsRes.length) * 100));
+                nextOverallProgress = Math.round((totalCompleted / materialsRes.length) * 100);
             }
+            setOverallProgress(nextOverallProgress);
+
+            studentCourseDetailCache.set(`${user.uid}:${courseId}`, {
+                course: courseRes,
+                classData: currentClass,
+                modules: populated,
+                overallProgress: nextOverallProgress,
+                expandedModule: nextExpandedModule,
+                testMeta: nextTestMeta,
+            });
 
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to load course details');
+            const nextError = err instanceof Error ? err.message : 'Failed to load course details';
+            setError(nextError);
+
+            if (/course not found|not enrolled|archived/i.test(nextError)) {
+                studentCourseDetailCache.delete(`${user.uid}:${courseId}`);
+                setCourse(null);
+                setClassData(null);
+                setModules([]);
+                setOverallProgress(0);
+                setExpandedModule(null);
+                setTestMeta({});
+            }
         } finally {
             setLoading(false);
         }
@@ -216,7 +289,7 @@ const StudentCourseDetailPage: React.FC = () => {
 
 
 
-    if (loading) {
+    if (loading && !course) {
         return (
             <StudentLayout mobileTitle="Loading..." sidebar={<StudentSidebar user={user ? { ...user, avatarUrl: profile?.avatarUrl } : undefined} activePage="courses" pendingHomeworkCount={notStarted.length} />}>
                 <div style={{ textAlign: 'center', padding: '60px 24px' }}>
@@ -227,7 +300,7 @@ const StudentCourseDetailPage: React.FC = () => {
         );
     }
 
-    if (error || !course) {
+    if (!course) {
         return (
             <StudentLayout mobileTitle="Error" sidebar={<StudentSidebar user={user ? { ...user, avatarUrl: profile?.avatarUrl } : undefined} activePage="courses" pendingHomeworkCount={notStarted.length} />}>
                 <div style={{ textAlign: 'center', padding: '60px 24px' }}>
@@ -268,6 +341,12 @@ const StudentCourseDetailPage: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            {error && (
+                <div style={{ margin: '0 16px 16px', padding: '12px 16px', background: '#fef2f2', color: '#b91c1c', borderRadius: 12, border: '1px solid #fecaca' }}>
+                    {error}
+                </div>
+            )}
 
             <div style={{ padding: 16 }}>
 

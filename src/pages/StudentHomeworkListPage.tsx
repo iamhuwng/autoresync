@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useStudentHomeworkList, StudentHomeworkItem } from '../hooks/useHomeworkSubmission';
+import { type StudentHomeworkItem } from '../hooks/useHomeworkSubmission';
 import { useAuth } from '../hooks/useAuth';
 import { createSubmission } from '../services/homeworkSubmissionService';
 import { Loader } from '@mantine/core';
@@ -9,6 +9,7 @@ import { StudentSidebar } from '../components/layout/StudentSidebar';
 import { S } from '../components/layout/studentLayoutStyles';
 import { ResultSlidePanel } from '../components/results/ResultSlidePanel';
 import { buildRoute } from '../constants/routes';
+import { useResolvedStudentHomeworkList } from '../context/StudentShellDataContext';
 
 // ─── Utility: Date Formatting & Status ──────────────────────────────────────
 const formatDate = (timestamp: number): string => {
@@ -177,7 +178,7 @@ export const StudentHomeworkListPage: React.FC = () => {
         inProgress,
         completed,
         overdue
-    } = useStudentHomeworkList(user?.uid || '');
+    } = useResolvedStudentHomeworkList(user?.uid || '');
 
     // Navigate directly to test-taking interface, creating submission inline
     const handleStartHomework = async (item: StudentHomeworkItem, e?: React.MouseEvent) => {

@@ -15,6 +15,93 @@ import {
 } from '../services/materialDiscoveryService';
 import type { LibraryFilters, LibraryMaterial, LibrarySource } from '../types/solo.types';
 
+interface MaterialLibraryCacheEntry {
+    materials: LibraryMaterial[];
+    cachedAt: number;
+}
+
+const materialLibraryCache = new Map<string, MaterialLibraryCacheEntry>();
+
+function getMaterialLibraryCacheKey(studentId: string, filters: LibraryFilters): string {
+    return JSON.stringify({
+        studentId,
+        source: filters.source ?? 'my_courses',
+        skill: filters.skill ?? null,
+        type: filters.type ?? null,
+        difficulty: filters.difficulty ?? null,
+    });
+}
+
+function getCachedMaterialLibraryEntry(studentId: string, filters: LibraryFilters): MaterialLibraryCacheEntry | null {
+    if (!studentId) return null;
+    return materialLibraryCache.get(getMaterialLibraryCacheKey(studentId, filters)) ?? null;
+}
+
+async function fetchMaterialLibraryData(studentId: string, filters: LibraryFilters): Promise<LibraryMaterial[]> {
+    let fetchedMaterials: LibraryMaterial[] = [];
+
+    switch (filters.source) {
+        case 'my_courses':
+            fetchedMaterials = await getLibraryMaterials({
+                ...filters,
+                source: 'my_courses'
+            });
+            break;
+
+        case 'public':
+            fetchedMaterials = await getPublicMaterials();
+            break;
+
+        case 'recommended':
+            fetchedMaterials = await getRecommendedMaterials(studentId);
+            break;
+
+        case 'recent': {
+            const allMaterials = await getLibraryMaterials(filters);
+            const withHistory = await enrichWithStudentHistory(allMaterials, studentId);
+
+            fetchedMaterials = withHistory
+                .filter(m => m.studentHistory?.lastPracticed)
+                .sort((a, b) => {
+                    const aTime = a.studentHistory?.lastPracticed || 0;
+                    const bTime = b.studentHistory?.lastPracticed || 0;
+                    return bTime - aTime;
+                });
+            break;
+        }
+
+        default:
+            fetchedMaterials = await getLibraryMaterials(filters);
+    }
+
+    if (filters.source !== 'recent' && filters.source !== 'recommended') {
+        fetchedMaterials = await enrichWithStudentHistory(fetchedMaterials, studentId);
+    }
+
+    return fetchedMaterials;
+}
+
+export async function preloadMaterialLibraryData(
+    studentId: string,
+    filters: LibraryFilters = { source: 'my_courses' }
+): Promise<MaterialLibraryCacheEntry | null> {
+    if (!studentId) return null;
+
+    const cachedEntry = getCachedMaterialLibraryEntry(studentId, filters);
+    if (cachedEntry) {
+        return cachedEntry;
+    }
+
+    const materials = await fetchMaterialLibraryData(studentId, filters);
+    const cacheEntry = {
+        materials,
+        cachedAt: Date.now(),
+    };
+
+    materialLibraryCache.set(getMaterialLibraryCacheKey(studentId, filters), cacheEntry);
+    return cacheEntry;
+}
+
 interface UseMaterialLibraryOptions {
     /** Student ID for fetching personalized data */
     studentId: string;
@@ -71,16 +158,17 @@ export function useMaterialLibrary({
     itemsPerPage = 12,
     autoFetch = true
 }: UseMaterialLibraryOptions): UseMaterialLibraryReturn {
+    const initialCacheEntry = getCachedMaterialLibraryEntry(studentId, { source: initialSource });
 
     // State
-    const [materials, setMaterials] = useState<LibraryMaterial[]>([]);
+    const [materials, setMaterials] = useState<LibraryMaterial[]>(() => initialCacheEntry?.materials ?? []);
     const [filters, setFilters] = useState<LibraryFilters>({
         source: initialSource
     });
     const [searchQuery, setSearchQuery] = useState('');
     const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
-    const [isLoading, setIsLoading] = useState(false);
+    const [isLoading, setIsLoading] = useState(() => autoFetch && Boolean(studentId) && !initialCacheEntry);
     const [error, setError] = useState<string | null>(null);
 
     /**
@@ -99,62 +187,36 @@ export function useMaterialLibrary({
      * Fetch materials based on current source filter
      */
     const fetchMaterials = useCallback(async () => {
-        setIsLoading(true);
+        if (!studentId) {
+            setMaterials([]);
+            setError(null);
+            setIsLoading(false);
+            return;
+        }
+
+        const cachedEntry = getCachedMaterialLibraryEntry(studentId, filters);
+        if (cachedEntry) {
+            setMaterials(cachedEntry.materials);
+        }
+
+        setIsLoading(!cachedEntry);
         setError(null);
 
         try {
-            let fetchedMaterials: LibraryMaterial[] = [];
-
-            switch (filters.source) {
-                case 'my_courses':
-                    // Get materials from all enrolled courses
-                    // TODO: Get actual enrolled courses for the student
-                    // For now, fetch all course materials
-                    fetchedMaterials = await getLibraryMaterials({
-                        ...filters,
-                        source: 'my_courses'
-                    });
-                    break;
-
-                case 'public':
-                    fetchedMaterials = await getPublicMaterials();
-                    break;
-
-                case 'recommended':
-                    fetchedMaterials = await getRecommendedMaterials(studentId);
-                    break;
-
-                case 'recent':
-                    // Get all materials and sort by last practiced
-                    const allMaterials = await getLibraryMaterials(filters);
-                    const withHistory = await enrichWithStudentHistory(allMaterials, studentId);
-
-                    // Filter to only materials that have been practiced
-                    fetchedMaterials = withHistory
-                        .filter(m => m.studentHistory?.lastPracticed)
-                        .sort((a, b) => {
-                            const aTime = a.studentHistory?.lastPracticed || 0;
-                            const bTime = b.studentHistory?.lastPracticed || 0;
-                            return bTime - aTime; // Most recent first
-                        });
-                    break;
-
-                default:
-                    fetchedMaterials = await getLibraryMaterials(filters);
-            }
-
-            // Enrich with student history if not already done
-            if (filters.source !== 'recent' && filters.source !== 'recommended') {
-                fetchedMaterials = await enrichWithStudentHistory(fetchedMaterials, studentId);
-            }
-
+            const fetchedMaterials = await fetchMaterialLibraryData(studentId, filters);
             setMaterials(fetchedMaterials);
+            materialLibraryCache.set(
+                getMaterialLibraryCacheKey(studentId, filters),
+                { materials: fetchedMaterials, cachedAt: Date.now() }
+            );
             setCurrentPage(1); // Reset to first page when data changes
 
         } catch (err) {
             console.error('Error fetching materials:', err);
             setError(err instanceof Error ? err.message : 'Failed to fetch materials');
-            setMaterials([]);
+            if (!cachedEntry) {
+                setMaterials([]);
+            }
         } finally {
             setIsLoading(false);
         }
@@ -234,9 +296,28 @@ export function useMaterialLibrary({
      */
     useEffect(() => {
         if (autoFetch) {
-            fetchMaterials();
+            void fetchMaterials();
         }
     }, [autoFetch, fetchMaterials]);
+
+    useEffect(() => {
+        if (!studentId) {
+            setMaterials([]);
+            setError(null);
+            setIsLoading(false);
+            return;
+        }
+
+        const cachedEntry = getCachedMaterialLibraryEntry(studentId, filters);
+        if (cachedEntry) {
+            setMaterials(cachedEntry.materials);
+            setError(null);
+            setIsLoading(false);
+            return;
+        }
+
+        setMaterials([]);
+    }, [filters, studentId]);
 
     /**
      * Reset to page 1 when filters change

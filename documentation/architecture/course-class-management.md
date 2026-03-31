@@ -1,4 +1,4 @@
-# Course Class Management
+﻿# Course Class Management
 
 Canonical result visibility governance for course and class contexts lives in:
 - `documentation/architecture/result-visibility-ownership-governance.md`
@@ -20,3 +20,16 @@ Canonical result visibility governance for course and class contexts lives in:
 - `student_teacher_assignments` remains the outer access gate only.
 - `assignmentId` remains secondary metadata under the canonical snapshot.
 - Assignment metadata must never become a top-level visibility tier in Phase 1.
+
+## Student Enrollment Read Contract
+
+Student shell course and class surfaces follow the shared shell ownership rules in `documentation/architecture/student-shell-data-loading.md`.
+
+Required rules:
+- the shell provider owns the canonical student class membership summary for shell routes
+- enrollment-oriented page helpers must accept shell-owned class membership summaries when available instead of rereading the same membership set
+- top-level `classes` scans remain legacy fallback only when the canonical `student_classes/{studentId}` projection is unavailable
+- page mount and tab switch must not perform hidden membership backfill or duplicate class scans
+
+Current repo anchor:
+- enrollment enrichment accepts `getEnrollmentsByStudent(studentId, { studentClasses })`

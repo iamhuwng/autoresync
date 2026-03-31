@@ -1,4 +1,4 @@
-# Homework Solo Practice Architecture
+﻿# Homework Solo Practice Architecture
 
 Canonical visibility governance for homework and solo-practice results lives in:
 - `documentation/architecture/result-visibility-ownership-governance.md`
@@ -22,3 +22,13 @@ Canonical visibility governance for homework and solo-practice results lives in:
 
 - Producers must persist the canonical `result.visibility` snapshot.
 - Consumers must not promote `selectedTeacherId`, `assigningTeacherId`, or assignment status into ownership.
+
+## Student Shell Homework Summary Contract
+
+Homework summary groups that are reused across student shell pages belong to the shared student shell provider documented in `documentation/architecture/student-shell-data-loading.md`.
+
+Required rules:
+- shell-level homework summaries are loaded once for the shell route tree and reused by shell consumers and page consumers
+- homework list, courses, library, and other shell pages may derive counters and urgency selectors from that shared summary owner
+- dedicated homework detail or submission surfaces may own additional page-specific detail loads when those loads are not shell-global
+- student shell navigation must not recreate overlapping homework summary loaders when only the page host changes
