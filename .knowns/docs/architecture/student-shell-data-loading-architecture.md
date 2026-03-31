@@ -2,7 +2,7 @@
 title: Student Shell Data Loading Architecture
 description: 'Canonical ownership and loading contract for student shell routes: one persistent shell data owner, shared consumers, and route-safe page loading boundaries.'
 createdAt: '2026-03-31T02:54:47.750Z'
-updatedAt: '2026-03-31T08:59:42.186Z'
+updatedAt: '2026-03-31T22:26:32.147Z'
 tags:
   - architecture
   - student
@@ -19,21 +19,21 @@ This document defines the canonical data-loading model for student shell pages.
 
 It exists to keep student navigation fast, resource usage predictable, and future feature work composable.
 
-The core rule is simple:
+The key rule is simple:
 - shell-shared student data gets one persistent owner per student shell route tree
 - shell consumers and page consumers reuse that owner instead of mounting overlapping loaders
 
 ## Problem This Solves
 
-Before the 2026-03-31 repair, the student shell had drifted into duplicate ownership.
+The student shell had drifted into duplicate ownership.
 
-Symptoms:
-- sibling tab changes remounted shell-level class, live-session, and homework loaders
-- shell pages paid repeated Firestore listen and hydration cost on left-column navigation
-- page helpers reread student class membership even when the shell already had that projection
-- small datasets still felt slow because the architecture repeated the same work
+Symptoms before the 2026-03-31 repair:
+- sibling tab changes remounted shell-level class, session, and homework loaders
+- student shell pages paid repeated Firestore listen and hydration cost on left-column navigation
+- helper services on page surfaces performed second membership reads even when the shell already had the same student class projection
+- small datasets still felt slow because the architecture kept repeating the same work
 
-This was not mainly a database-size issue. It was an ownership and read-path issue.
+This was not primarily a database-size problem. It was an ownership and read-path problem.
 
 ## Scope
 
@@ -47,7 +47,12 @@ This architecture applies to student shell routes rendered inside the shared stu
 - `/student/library`
 - `/student/academic-record`
 
-Routes outside that shared shell host may use different owners because they are different host surfaces.
+This architecture does not automatically apply to routes outside the shared shell host, such as:
+- course catalog
+- homework detail and test-taking flows
+- practice and session routes
+
+Those routes may use different loading owners because they are different host surfaces.
 
 ## Canonical Ownership Model
 
@@ -59,21 +64,22 @@ Current repo shape:
 - `StudentLayout`, `StudentRightRail`, and shell pages consume resolved shell data from the provider
 - fallback hook ownership is allowed only when a surface is truly outside the provider boundary
 
-This means left-column navigation between shell pages preserves shell-owned data instead of recreating it.
+This means left-column navigation between shell pages should preserve shell-owned data instead of recreating it.
 
 ## Shell-Owned Datasets
 
 The shared shell owner is responsible for:
 - enrolled class membership summaries
 - active live-session summaries derived from enrolled classes
-- homework summary groups used by shell widgets and page-level counters
+- homework summary groups used by shell widgets and badge-like page widgets
+- right-rail ready upcoming, live-session, and enrolled-class summary projections even when a page-specific rail restates them differently
 
-Current repo anchors:
-- `src/App.jsx`
+Current implementation anchors:
 - `src/context/StudentShellDataContext.tsx`
 - `src/hooks/useStudentShellData.ts`
 - `src/hooks/useHomeworkSubmission.ts`
 - `src/components/layout/StudentRightRail.tsx`
+- `src/App.jsx`
 
 ## Consumer Rules
 
@@ -90,9 +96,11 @@ Student shell pages may consume shell-owned summaries when they need the same in
 Allowed:
 - deriving counters, filters, urgency groups, or CTA state from shell-owned summaries
 - passing shell-owned projections into helper services so those services do not reread the same source
+- deriving dashboard metric-strip values, weekly-focus summaries, `Up Next`, public-session excerpts, and unread or feed filter presentation from shell-owned summaries plus page-owned notification data
 
 Not allowed:
 - calling another page-local loader for enrolled classes, active sessions, or homework summaries when the shell provider already owns them
+- creating page-local widget loaders for right-rail summaries that already belong to the shell owner
 - broadening a page helper into a second shell owner
 - turning tab switches into new shell ownership boundaries
 
@@ -118,43 +126,43 @@ The ownership split is therefore:
 - `AcademicRecordPage` owns record-history data
 - both owners coexist without duplicating each other
 
+## Homework Boundary
+
+Homework list and related shell pages may read homework summaries from the shared shell owner for:
+- upcoming work modules
+- sidebar counters
+- urgency selectors used outside the dedicated homework center-column host
+
+The detailed homework page host may still own additional page-specific detail loads that the shell does not need.
+
 ## Future Growth Rules
 
 For future student shell work:
 - add new shell-global student summaries to the provider, not to arbitrary pages
 - keep page hosts responsible only for page-primary datasets
 - prefer stale-while-revalidate for page hosts after the first successful load
+- keep student shell warmup split between shell-owned data preload and page-owned route/cache preload
 - do not backfill, repair, or persist data during page mount or tab switch
 - do not let convenience helpers hide duplicate reads of shell-owned data
 
+## Verification Standard
+
+When student shell loading changes, verify with a live browser run.
+
+The minimum pass condition for sibling shell navigation is:
+- no repeated shell membership scan on left-column tab changes
+- no repeated expired-session hydration noise from tab changes
+- no new shell-level listeners started by pages that only consume shell-owned summaries
+- dashboard parity refactors do not reintroduce duplicate reads for the metric strip or right-rail summaries
+
+For startup-sensitive changes on the student path, also verify:
+- first authenticated student entry does not fetch optional heavy bundles before explicit navigation
+- warmed student shell routes avoid blocking loaders after the warmup window
+
 ## Related Docs
 
+- @doc/architecture/student-dashboard-architecture
+- @doc/architecture/student-experience-architecture
 - @doc/architecture/student-shell-right-rail-architecture
-- @doc/architecture/academic-record/academic-record-page-architecture
-- @doc/patterns/pattern-student-shell-single-data-owner
-- @doc/patterns/pattern-summary-first-detail-on-demand
-- @doc/patterns/pattern-bulk-enrichment-from-shared-student-history
-
-## First-Entry Warmup
-
-The student shell now uses route-owned warmup in addition to the persistent shell data owner.
-
-Rules:
-- the shell provider may prefetch selected student shell routes after login
-- prefetch may warm route chunks and page-owned caches, but it must not create a second owner for shell-shared data
-- Library and Academic Record can warm immediately after shell entry
-- Courses warms after shell-owned class membership is ready so it can reuse the student-safe class projection instead of a broader fallback read
-
-Verification contract:
-- revisits stay stale-while-revalidate
-- after fresh login plus the warmup window, first entry into warmed student shell pages should avoid blocking loaders
-
-## Startup Bundle Boundary
-
-Student shell data-loading and student startup segmentation are separate but adjacent contracts.
-
-Rules:
-- shell-owned data preload may warm shared student summaries
-- route-module warmup may preload selected shell pages and page-owned caches
-- startup optimization must not reintroduce a second owner for shell-shared data
-- startup-sensitive changes should also satisfy the bundle guardrails in @doc/architecture/student-startup-bundle-segmentation
+- @doc/architecture/student-startup-bundle-segmentation
+- @doc/design/student-view-design-standard

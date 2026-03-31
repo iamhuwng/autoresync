@@ -2,7 +2,7 @@
 title: Student View Design Standard
 description: Design standards and patterns for all student-facing pages and views
 createdAt: '2026-02-27T15:25:53.999Z'
-updatedAt: '2026-03-31T20:50:44.249Z'
+updatedAt: '2026-03-31T22:25:44.967Z'
 tags:
   - design
   - student
@@ -177,7 +177,9 @@ The old rigid `max-width: 600px` center rule is replaced with page-class widths:
 
 ### Navigation
 - Navigation should feel integrated into the shell, not like a stack of pills
-- Active state should be calm and precise: tonal highlight, subtle inset, or restrained accent cue
+- Navigation labels should stay compact, uppercase, and editorial rather than product-app loud
+- Active state should be calm and precise: tonal highlight, thin accent-edge cue, or restrained inset
+- Sidebar utility actions such as `Join Class` should read as supporting shell utilities, not primary hero CTAs
 - No emoji icons
 - Use SVG icons only
 
@@ -218,9 +220,14 @@ The old rigid `max-width: 600px` center rule is replaced with page-class widths:
 ### Dashboard
 - The dashboard is an editorial academic activity workspace, not a social feed clone or KPI dashboard
 - Use the approved Stitch dashboard export in `.stitch/designs/student-overhaul-from-academic-record-20260331/dashboard.html` as the feed companion anchor to Academic Record
-- The center column should use a sticky workspace masthead, frameless typographic metric columns, a slim editorial tab row, and a vertical academic timeline feed
-- Activity items should read as timeline/editorial rows with a left node rail, quiet metadata, strong titles, and restrained inline actions
-- Avoid nested CTA cards, stacked widget boxes, and boxed three-column emphasis; keep the shell soft and composed
+- Required center-column order: sticky workspace masthead with light utilities and search, frameless typographic metric strip, slim editorial tab row, then the vertical academic timeline feed
+- The top utility zone should stay light: underline-style search, unread/filter controls, and academic-history access only
+- Activity items should read as explicit timeline/editorial row variants with a left node rail, quiet metadata, strong titles, and restrained inline actions
+- Test and result rows should stay sparse and score-led rather than turning into dense mini cards
+- Homework rows may use one quiet inset excerpt surface plus a compressed metadata line, not pill-heavy tag stacks
+- Class rows should be mostly text with one restrained inline action
+- The dashboard right rail should read as one narrative aside: `Feed Snapshot` as the primary summary surface, `Up Next` nested into the same visual family, and `Public Sessions` as a sparse supporting list
+- Avoid nested CTA cards, stacked widget boxes, boxed three-column emphasis, and generic event-card renderers; keep the shell soft and composed
 
 ### Homework
 - List-first workboard
@@ -282,6 +289,8 @@ Implementation anchors:
 - `src/components/layout/studentLayoutStyles.ts`
 - `src/pages/AcademicRecordPage.tsx`
 - `src/pages/StudentDashboardPage.jsx`
+- `src/components/dashboard/StudentDashboardFeedView.jsx`
+- `src/components/dashboard/StudentDashboardRightRail.jsx`
 
 ---
 
@@ -296,6 +305,10 @@ Before considering a student page complete under v2.0:
 - [ ] Uses softer shell treatment instead of boxed three-column framing
 - [ ] Avoids gradients, glass, AppShell, emoji icons, and decorative hover lift
 - [ ] Keeps tabs, buttons, metrics, and lists inside the same visual family as Academic Record
+- [ ] Dashboard metric strip sits above the tab row and reads as typographic columns, not widget cards
+- [ ] Dashboard right rail reads as a grouped editorial aside rather than a widget stack
+- [ ] Dashboard feed rows read as editorial timeline variants rather than generic event cards
+- [ ] Dashboard search and utility controls remain masthead-light rather than toolbar-heavy
 
 ---
 

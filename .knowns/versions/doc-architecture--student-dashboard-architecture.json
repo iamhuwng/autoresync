@@ -1,0 +1,71 @@
+{
+  "docPath": "architecture/student-dashboard-architecture",
+  "currentVersion": 2,
+  "versions": [
+    {
+      "id": "v1",
+      "docPath": "architecture/student-dashboard-architecture",
+      "version": 1,
+      "timestamp": "2026-03-31T22:18:34.3367557Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "Student Dashboard Architecture"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "Source of truth for the student dashboard host, feed, right rail, data ownership, and approved Stitch parity rules."
+        },
+        {
+          "field": "tags",
+          "oldValue": null,
+          "newValue": [
+            "architecture",
+            "student",
+            "dashboard",
+            "ui",
+            "stitch"
+          ]
+        }
+      ],
+      "snapshot": {
+        "description": "Source of truth for the student dashboard host, feed, right rail, data ownership, and approved Stitch parity rules.",
+        "tags": [
+          "architecture",
+          "student",
+          "dashboard",
+          "ui",
+          "stitch"
+        ],
+        "title": "Student Dashboard Architecture"
+      }
+    },
+    {
+      "id": "v2",
+      "docPath": "architecture/student-dashboard-architecture",
+      "version": 2,
+      "timestamp": "2026-03-31T22:27:08.4156131Z",
+      "changes": [
+        {
+          "field": "content",
+          "oldValue": null,
+          "newValue": "# Student Dashboard Architecture\n\n## Purpose\n\nThis document defines the implementation contract for the student dashboard after the Stitch-guided overhaul.\n\nIt exists to keep the dashboard aligned to the approved editorial feed anatomy instead of drifting back toward a generic widget board or social-feed clone.\n\n## Stitch Boundary\n\nThe approved visual anchor is:\n- `.stitch/designs/student-overhaul-from-academic-record-20260331/dashboard.html`\n\nThat anchor governs:\n- center-column sequence\n- feed row anatomy\n- dashboard-specific right-rail grouping\n- the lighter editorial shell tone\n\nIt does not govern:\n- placeholder information architecture\n- placeholder labels or routes from Stitch\n- fake utility behaviors or decorative-only controls\n\n## Ownership Model\n\nThe dashboard is split across three layers:\n- `src/pages/StudentDashboardPage.jsx`: route host, data ownership, action wiring, and derived dashboard view models\n- `src/components/dashboard/StudentDashboardFeedView.jsx`: center-column presentation for masthead, metric strip, tabs, and feed rows\n- `src/components/dashboard/StudentDashboardRightRail.jsx`: page-owned dashboard rail presentation layered inside the shared student shell\n\nThe shared shell still owns shell-global data and structure:\n- `src/components/layout/StudentLayout.tsx`\n- `src/components/layout/StudentSidebar.tsx`\n- `src/components/layout/StudentRightRail.tsx`\n\n## Required Center-Column Sequence\n\nDashboard center content must render in this order:\n1. light workspace masthead with search and utility controls\n2. frameless metric strip\n3. slim editorial tab row\n4. timeline activity feed\n\nRequired rules:\n- the masthead should read as a workspace header, not a toolbar\n- the metric strip uses typographic columns rather than boxed KPI cards\n- tabs stay slim and editorial\n- the feed reads vertically with quiet separators and strong hierarchy\n\n## Feed Row Variant Taxonomy\n\nDashboard activity must be composed from explicit row variants, not one generic event-card renderer.\n\nCurrent families:\n- result or test rows\n- homework rows\n- class update rows\n\nShared rules:\n- keep the left node or icon rail consistent\n- prefer concise metadata-derived copy over raw notification dumps\n- keep actions inline and restrained\n- use whitespace and hierarchy before adding containers\n\nVariant-specific rules:\n- result or test rows should stay sparse and score-led\n- homework rows may use one quiet inset excerpt surface and one compressed metadata line\n- class update rows should be mostly text plus one restrained inline action\n\n## Right-Rail Grouping Contract\n\nDashboard does not use the generic shell widget stack as its visible rail anatomy.\n\nInstead, it uses one grouped editorial aside:\n- `Feed Snapshot` is the primary summary surface\n- `Up Next` belongs to that same visual family rather than living as a separate boxed widget\n- `Public Sessions` is a quieter supporting list\n\nRules:\n- avoid repeated card shells for every section\n- avoid loud section boxing that turns the rail into stacked widgets\n- visual restatement of shell-owned summaries is allowed\n- re-owning shell-global rail data is not allowed\n\n## Data Boundary\n\nDashboard owns page-primary data such as:\n- notifications and feed pagination\n- unread and search state\n- public-session discovery rows\n- result-detail selection state\n\nDashboard consumes shell-owned summaries for:\n- enrolled class projections\n- active live-session summaries\n- homework summary groups used in the metric strip and right rail\n\nThe dashboard must derive presentation from those shared summaries instead of creating duplicate loaders.\n\n## Sidebar Parity Boundary\n\nThe dashboard feel depends on the shared sidebar as well as the center column.\n\nRules:\n- sidebar labels remain compact and editorial\n- active state uses restrained emphasis, not loud product-navigation pills\n- shell utility actions such as `Join Class` remain present but visually demoted\n- preserve real application routes instead of copying Stitch placeholder navigation literally\n\n## Verification Standard\n\nDashboard parity work is not complete unless all of the following hold:\n- the center column follows the required sequence\n- feed rows read as editorial timeline variants rather than generic cards\n- the right rail reads as one grouped aside rather than a widget stack\n- the dashboard does not introduce duplicate shell-data loaders\n- search and utility controls remain light and connected to real behavior\n\n## Related Docs\n\n- @doc/design/student-view-design-standard\n- @doc/architecture/student-experience-architecture\n- @doc/architecture/student-shell-data-loading-architecture\n- @doc/architecture/student-shell-right-rail-architecture"
+        }
+      ],
+      "snapshot": {
+        "content": "# Student Dashboard Architecture\n\n## Purpose\n\nThis document defines the implementation contract for the student dashboard after the Stitch-guided overhaul.\n\nIt exists to keep the dashboard aligned to the approved editorial feed anatomy instead of drifting back toward a generic widget board or social-feed clone.\n\n## Stitch Boundary\n\nThe approved visual anchor is:\n- `.stitch/designs/student-overhaul-from-academic-record-20260331/dashboard.html`\n\nThat anchor governs:\n- center-column sequence\n- feed row anatomy\n- dashboard-specific right-rail grouping\n- the lighter editorial shell tone\n\nIt does not govern:\n- placeholder information architecture\n- placeholder labels or routes from Stitch\n- fake utility behaviors or decorative-only controls\n\n## Ownership Model\n\nThe dashboard is split across three layers:\n- `src/pages/StudentDashboardPage.jsx`: route host, data ownership, action wiring, and derived dashboard view models\n- `src/components/dashboard/StudentDashboardFeedView.jsx`: center-column presentation for masthead, metric strip, tabs, and feed rows\n- `src/components/dashboard/StudentDashboardRightRail.jsx`: page-owned dashboard rail presentation layered inside the shared student shell\n\nThe shared shell still owns shell-global data and structure:\n- `src/components/layout/StudentLayout.tsx`\n- `src/components/layout/StudentSidebar.tsx`\n- `src/components/layout/StudentRightRail.tsx`\n\n## Required Center-Column Sequence\n\nDashboard center content must render in this order:\n1. light workspace masthead with search and utility controls\n2. frameless metric strip\n3. slim editorial tab row\n4. timeline activity feed\n\nRequired rules:\n- the masthead should read as a workspace header, not a toolbar\n- the metric strip uses typographic columns rather than boxed KPI cards\n- tabs stay slim and editorial\n- the feed reads vertically with quiet separators and strong hierarchy\n\n## Feed Row Variant Taxonomy\n\nDashboard activity must be composed from explicit row variants, not one generic event-card renderer.\n\nCurrent families:\n- result or test rows\n- homework rows\n- class update rows\n\nShared rules:\n- keep the left node or icon rail consistent\n- prefer concise metadata-derived copy over raw notification dumps\n- keep actions inline and restrained\n- use whitespace and hierarchy before adding containers\n\nVariant-specific rules:\n- result or test rows should stay sparse and score-led\n- homework rows may use one quiet inset excerpt surface and one compressed metadata line\n- class update rows should be mostly text plus one restrained inline action\n\n## Right-Rail Grouping Contract\n\nDashboard does not use the generic shell widget stack as its visible rail anatomy.\n\nInstead, it uses one grouped editorial aside:\n- `Feed Snapshot` is the primary summary surface\n- `Up Next` belongs to that same visual family rather than living as a separate boxed widget\n- `Public Sessions` is a quieter supporting list\n\nRules:\n- avoid repeated card shells for every section\n- avoid loud section boxing that turns the rail into stacked widgets\n- visual restatement of shell-owned summaries is allowed\n- re-owning shell-global rail data is not allowed\n\n## Data Boundary\n\nDashboard owns page-primary data such as:\n- notifications and feed pagination\n- unread and search state\n- public-session discovery rows\n- result-detail selection state\n\nDashboard consumes shell-owned summaries for:\n- enrolled class projections\n- active live-session summaries\n- homework summary groups used in the metric strip and right rail\n\nThe dashboard must derive presentation from those shared summaries instead of creating duplicate loaders.\n\n## Sidebar Parity Boundary\n\nThe dashboard feel depends on the shared sidebar as well as the center column.\n\nRules:\n- sidebar labels remain compact and editorial\n- active state uses restrained emphasis, not loud product-navigation pills\n- shell utility actions such as `Join Class` remain present but visually demoted\n- preserve real application routes instead of copying Stitch placeholder navigation literally\n\n## Verification Standard\n\nDashboard parity work is not complete unless all of the following hold:\n- the center column follows the required sequence\n- feed rows read as editorial timeline variants rather than generic cards\n- the right rail reads as one grouped aside rather than a widget stack\n- the dashboard does not introduce duplicate shell-data loaders\n- search and utility controls remain light and connected to real behavior\n\n## Related Docs\n\n- @doc/design/student-view-design-standard\n- @doc/architecture/student-experience-architecture\n- @doc/architecture/student-shell-data-loading-architecture\n- @doc/architecture/student-shell-right-rail-architecture",
+        "description": "Source of truth for the student dashboard host, feed, right rail, data ownership, and approved Stitch parity rules.",
+        "tags": [
+          "architecture",
+          "student",
+          "dashboard",
+          "ui",
+          "stitch"
+        ],
+        "title": "Student Dashboard Architecture"
+      }
+    }
+  ]
+}

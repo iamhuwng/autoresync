@@ -4,7 +4,6 @@ import { useAuth } from '../../hooks/useAuth';
 import { S, studentTokens } from './studentLayoutStyles';
 import {
     IconHome,
-    IconClasses,
     IconHomework,
     IconCourses,
     IconLibrary,
@@ -12,7 +11,7 @@ import {
     IconProfile,
 } from './StudentIcons';
 
-export type StudentActivePage = 'feed' | 'classes' | 'homework' | 'courses' | 'library' | 'records' | 'profile';
+export type StudentActivePage = 'feed' | 'homework' | 'courses' | 'library' | 'records' | 'profile';
 
 export interface StudentSidebarProps {
     activePage: StudentActivePage;
@@ -117,6 +116,96 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
     const [menuOpen, setMenuOpen] = useState(false);
     const [hoveredMenuItem, setHoveredMenuItem] = useState<string | null>(null);
     const menuRef = useRef<HTMLDivElement>(null);
+    const localStyles = {
+        root: {
+            display: 'flex',
+            flexDirection: 'column' as const,
+            height: '100%',
+            background: studentTokens.bgShell,
+        },
+        brandBlock: {
+            padding: '0 8px 18px',
+        },
+        brandTitle: {
+            margin: 0,
+            color: studentTokens.textPrimary,
+            fontSize: '1.08rem',
+            fontWeight: 700,
+            letterSpacing: '0.12em',
+            lineHeight: 1.05,
+            textTransform: 'uppercase' as const,
+        },
+        brandSubtitle: {
+            margin: '4px 0 0',
+            color: studentTokens.textMuted,
+            fontSize: '0.625rem',
+            letterSpacing: '0.18em',
+            textTransform: 'uppercase' as const,
+            opacity: 0.8,
+        },
+        navWrap: {
+            display: 'flex',
+            flexDirection: 'column' as const,
+            gap: 6,
+            flex: 1,
+        },
+        navDivider: {
+            height: 10,
+        },
+        footer: {
+            marginTop: 'auto',
+            padding: '0 6px 0',
+        },
+        joinBtn: {
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: 48,
+            padding: '12px 16px',
+            borderRadius: 14,
+            border: `1px solid ${studentTokens.borderSoft}`,
+            background: studentTokens.bgSurface,
+            color: studentTokens.textPrimary,
+            fontSize: '0.75rem',
+            fontWeight: 700,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase' as const,
+            cursor: 'pointer',
+            transition: 'background 0.14s ease, border-color 0.14s ease, transform 0.14s ease',
+            boxShadow: 'none',
+        },
+        profileWrap: {
+            position: 'relative' as const,
+            marginTop: 16,
+            paddingTop: 14,
+            borderTop: `1px solid ${studentTokens.borderWhisper}`,
+        },
+        profileRow: {
+            ...S.profileRow,
+            minHeight: 58,
+            padding: '10px 10px 10px 8px',
+            borderRadius: 14,
+            transition: 'background 0.14s ease',
+        },
+        profileName: {
+            fontWeight: 700,
+            fontSize: '0.8rem',
+            margin: 0,
+            color: studentTokens.textPrimary,
+            whiteSpace: 'nowrap' as const,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+        },
+        profileEmail: {
+            color: studentTokens.textMuted,
+            fontSize: '0.72rem',
+            margin: '2px 0 0',
+            whiteSpace: 'nowrap' as const,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+        },
+    };
 
     const handleClickOutside = useCallback((e: MouseEvent) => {
         if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -142,8 +231,7 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
     }, [menuOpen]);
 
     const group1 = [
-        { id: 'feed', route: '/student/dashboard?view=feed', label: 'Feed', icon: <IconHome /> },
-        { id: 'classes', route: '/student/dashboard?view=classes', label: 'Classes', icon: <IconClasses /> },
+        { id: 'feed', route: '/student/dashboard', label: 'Feed', icon: <IconHome /> },
     ];
 
     const group2 = [
@@ -155,7 +243,7 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
     ];
 
     const handleNavClick = (item: { id: string; route: string }) => {
-        if (['feed', 'classes'].includes(item.id) && onViewSwitch) {
+        if (item.id === 'feed' && onViewSwitch) {
             onViewSwitch(item.id);
             return;
         }
@@ -207,8 +295,17 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
                 style={{
                     ...S.navItem,
                     ...(isActive ? S.navItemActive : {}),
-                    background: isHovered ? studentTokens.bgSurfaceStrong : isActive ? studentTokens.bgSurface : 'transparent',
+                    background: isHovered ? studentTokens.bgSurfaceStrong : isActive ? 'rgba(255, 255, 255, 0.55)' : 'transparent',
+                    borderRight: isActive ? `2px solid ${studentTokens.accent}` : '2px solid transparent',
+                    color: isActive ? studentTokens.accent : studentTokens.textMuted,
                     outline: 'none',
+                    padding: '10px 10px 10px 12px',
+                    borderRadius: 0,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                    fontSize: '0.625rem',
+                    fontWeight: 700,
+                    minHeight: 40,
                 }}
             >
                 {item.icon}
@@ -219,44 +316,45 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
     };
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: studentTokens.bgShell }}>
+        <div style={localStyles.root}>
             <style>{`
                 @keyframes fadeSlideUp {
                     from { opacity: 0; transform: translateY(6px); }
                     to { opacity: 1; transform: translateY(0); }
                 }
             `}</style>
-
-            <div>
-                <div style={S.sidebarLogo}>The Scholar</div>
-                <p style={{ margin: '-18px 0 20px', padding: '0 10px', color: studentTokens.textMuted, fontSize: '0.625rem', letterSpacing: '0.16em', textTransform: 'uppercase', opacity: 0.7 }}>
+            <div style={localStyles.brandBlock}>
+                <div style={localStyles.brandTitle}>The Scholar</div>
+                <p style={localStyles.brandSubtitle}>
                     Academic Workspace
                 </p>
             </div>
 
-            <nav style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
+            <nav style={localStyles.navWrap}>
                 {group1.map(renderNavButton)}
-                <div style={{ height: 10 }} />
+                <div style={localStyles.navDivider} />
                 {group2.map(renderNavButton)}
             </nav>
 
-            <div style={{ marginTop: 'auto', padding: '0 8px' }}>
+            <div style={localStyles.footer}>
                 <button
-                    style={S.joinBtn}
+                    style={localStyles.joinBtn}
                     onClick={handleJoinClassClick}
                     onMouseEnter={(e) => {
                         e.currentTarget.style.background = studentTokens.bgSurfaceStrong;
                         e.currentTarget.style.borderColor = studentTokens.outlineSoft;
+                        e.currentTarget.style.transform = 'translateY(-1px)';
                     }}
                     onMouseLeave={(e) => {
                         e.currentTarget.style.background = studentTokens.bgSurface;
                         e.currentTarget.style.borderColor = studentTokens.borderSoft;
+                        e.currentTarget.style.transform = 'translateY(0)';
                     }}
                 >
                     Join Class
                 </button>
 
-                <div ref={menuRef} style={{ position: 'relative', marginTop: 18, paddingTop: 14, borderTop: `1px solid ${studentTokens.borderWhisper}` }}>
+                <div ref={menuRef} style={localStyles.profileWrap}>
                     {menuOpen ? (
                         <div style={menuStyles.container} role="menu" aria-label="User menu">
                             <button
@@ -292,7 +390,7 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
 
                     <div
                         style={{
-                            ...S.profileRow,
+                            ...localStyles.profileRow,
                             background: menuOpen ? studentTokens.bgSurfaceStrong : 'transparent',
                         }}
                         onClick={() => setMenuOpen(!menuOpen)}
@@ -308,19 +406,19 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
                                 setMenuOpen(!menuOpen);
                             }
                         }}
-                    >
-                        <div style={S.profileAvatar}>
-                            {avatarSrc ? (
-                                <img src={avatarSrc} alt={displayName} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
-                            ) : (
-                                displayName[0]?.toUpperCase() || '?'
-                            )}
-                        </div>
-                        <div style={{ flex: 1, overflow: 'hidden' }}>
-                            <p style={{ fontWeight: 700, fontSize: '0.8125rem', margin: 0, color: studentTokens.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        >
+                            <div style={S.profileAvatar}>
+                                {avatarSrc ? (
+                                    <img src={avatarSrc} alt={displayName} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                                ) : (
+                                    displayName[0]?.toUpperCase() || '?'
+                                )}
+                            </div>
+                            <div style={{ flex: 1, overflow: 'hidden' }}>
+                            <p style={localStyles.profileName}>
                                 {displayName}
                             </p>
-                            <p style={{ color: studentTokens.textMuted, fontSize: '0.75rem', margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            <p style={localStyles.profileEmail}>
                                 {email}
                             </p>
                         </div>

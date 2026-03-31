@@ -2,9 +2,9 @@
 
 ## Purpose
 
-This document defines the architectural contract for the student-facing workspace after the 2026-03-31 overhaul.
+This document defines the architectural contract for the student-facing workspace after the 2026-03-31 overhaul and dashboard parity follow-up.
 
-It exists to keep implementation, review, and future UI work aligned to the approved Stitch direction instead of drifting back toward the older social-feed or boxed-dashboard patterns.
+It exists to keep implementation, review, and future UI work aligned to the approved Stitch direction instead of drifting back toward older social-feed, boxed-dashboard, or generic-widget patterns.
 
 ## Scope
 
@@ -47,21 +47,50 @@ The key rule is that these regions must read as one composed workspace rather th
 
 ## Dashboard Feed Contract
 
-Dashboard is no longer treated as a social feed clone.
+Dashboard is not treated as a social feed clone.
 
-It must use the approved Stitch dashboard anchor in `.stitch/designs/student-overhaul-from-academic-record-20260331/dashboard.html` as the feed-specific reference.
+It must use the approved Stitch dashboard anchor in `.stitch/designs/student-overhaul-from-academic-record-20260331/dashboard.html` as the feed-specific reference, while preserving the real student route structure and information architecture.
 
-Required anatomy:
-- sticky workspace masthead
+Required center-canvas order:
+- sticky workspace masthead with light utilities
 - frameless metric strip using typographic columns rather than boxed KPI cards
 - slim editorial tab row
-- vertical activity timeline with a left icon or node rail and quiet separators
-- inline actions rather than nested CTA cards
+- vertical academic timeline feed
 
-Disallowed anatomy:
+Required feel:
+- lighter masthead utilities such as search, unread filter, and academic-history action
+- whitespace-led grouping instead of nested cards
+- concise metadata-derived body copy instead of raw notification dumps
+- restrained inline actions instead of nested CTA blocks
+
+Disallowed feel:
+- toolbar-heavy mastheads
 - stacked card dashboards
 - nested widget boxes inside each feed item
+- generic event-card rendering that erases event-specific row anatomy
 - heavy column borders that make the shell feel boxed
+
+## Dashboard Right Rail Contract
+
+Dashboard uses a page-shaped right rail rather than the generic shared shell widget stack.
+
+Rules:
+- the rail is an editorial aside, not a set of reusable dashboard widgets
+- `Feed Snapshot` is the primary summary surface
+- `Weekly Focus` and `Up Next` belong to the same narrative composition
+- `Public Sessions` is a quieter supporting section
+- the sidebar and route structure must preserve the real app IA even when the visual tone follows Stitch
+
+## Dashboard Variant Mapping
+
+Dashboard feed rows are intentionally composed from explicit row variants instead of one generic renderer.
+
+Expected variants:
+- result/test rows: sparse, score-led, timeline-first composition
+- homework rows: one quiet inset excerpt or meta surface with restrained support text
+- class-update rows: mostly textual update with one restrained action
+
+This protects parity with the approved dashboard anchor while staying connected to real product data.
 
 ## Academic Record Contract
 
@@ -85,9 +114,13 @@ Key implementation files:
 - `src/components/layout/studentLayoutStyles.ts`
 - `src/pages/AcademicRecordPage.tsx`
 - `src/pages/StudentDashboardPage.jsx`
+- `src/components/dashboard/StudentDashboardFeedView.jsx`
+- `src/components/dashboard/StudentDashboardRightRail.jsx`
 
 ## Related Docs
 
 - `documentation/design/student-view-design-standard.md`
+- `documentation/architecture/student-dashboard-architecture.md`
+- `documentation/architecture/student-shell-right-rail-architecture.md`
 - `documentation/architecture/student-shell-data-loading.md`
 - `documentation/rules/student-data-loading.md`

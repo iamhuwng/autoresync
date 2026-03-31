@@ -60,6 +60,8 @@ The shared shell owner is responsible for:
 - active live-session summaries derived from enrolled classes
 - homework summary groups used by shell widgets and badge-like page widgets
 
+Right-rail upcoming, live-session, and class summary projections remain shell-owned even when dashboard-specific components restate them in a page-shaped composition.
+
 Current implementation anchors:
 - `src/context/StudentShellDataContext.tsx`
 - `src/hooks/useStudentShellData.ts`
@@ -81,12 +83,14 @@ Student shell pages may consume shell-owned summaries when they need the same in
 
 Allowed:
 - deriving counters, filters, urgency groups, or CTA state from shell-owned summaries
+- deriving dashboard metric-strip values, weekly-focus summaries, `Up Next`, public-session excerpts, and unread or feed filters from shell-owned summaries plus page-owned notification data
 - passing shell-owned projections into helper services so those services do not reread the same source
 
 Not allowed:
 - calling another page-local loader for enrolled classes, active sessions, or homework summaries when the shell provider already owns them
 - broadening a page helper into a second shell owner
 - turning tab switches into new shell ownership boundaries
+- introducing page-local widget loaders for rail summaries that the shell already owns
 
 ## Service Integration Rule
 
@@ -109,6 +113,29 @@ The ownership split is therefore:
 - shell provider owns shell-global summaries
 - `AcademicRecordPage` owns record-history data
 - both owners coexist without duplicating each other
+
+## Dashboard-Owned Dataset Boundary
+
+Dashboard is inside the persistent student shell, but it still owns page-primary datasets that are not part of the shell provider.
+
+Dashboard-owned datasets:
+- paginated student notifications
+- unread and search interaction state
+- public-session discovery rows and expansion state
+- join-class modal state
+- selected result panel state
+
+Dashboard must consume shell-owned summaries instead of recreating them:
+- enrolled class membership summaries
+- class live-session summaries
+- homework summary groups used for dashboard metrics and urgency queues
+
+Derived view models should be assembled in the page host before being passed down.
+
+This yields the intended split:
+- shell provider owns reusable student shell summaries
+- `StudentDashboardPage.jsx` owns dashboard-primary activity and public-session data
+- `StudentDashboardFeedView.jsx` and `StudentDashboardRightRail.jsx` stay presentational and receive derived view models from the page host
 
 ## Homework Boundary
 
@@ -137,6 +164,7 @@ The minimum pass condition for sibling shell navigation is:
 - no repeated shell membership scan on left-column tab changes
 - no repeated expired-session hydration noise from tab changes
 - no new shell-level listeners started by pages that only consume shell-owned summaries
+- dashboard parity refactors do not reintroduce duplicate reads for the right rail or metric strip
 
 For startup-sensitive changes on the student path, also verify:
 - first authenticated student entry does not fetch optional heavy bundles before explicit navigation
@@ -144,6 +172,8 @@ For startup-sensitive changes on the student path, also verify:
 
 ## Related Docs
 
+- `documentation/architecture/student-dashboard-architecture.md`
+- `documentation/architecture/student-shell-right-rail-architecture.md`
 - `documentation/architecture/student-startup-bundle-segmentation.md`
 - `documentation/architecture/academic-record/page-architecture.md`
 - `documentation/architecture/course-class-management.md`
