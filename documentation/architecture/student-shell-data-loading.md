@@ -1,4 +1,4 @@
-﻿# Student Shell Data Loading Architecture
+# Student Shell Data Loading Architecture
 
 ## Purpose
 
@@ -149,3 +149,4 @@ For startup-sensitive changes on the student path, also verify:
 - `documentation/architecture/course-class-management.md`
 - `documentation/architecture/homework-solo-practice-architecture.md`
 - `documentation/rules/student-data-loading.md`
+- `documentation/architecture/student-experience-architecture.md`

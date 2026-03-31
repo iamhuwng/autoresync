@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { S } from './studentLayoutStyles';
+import { S, studentTokens } from './studentLayoutStyles';
 import {
     IconHome,
     IconClasses,
@@ -19,27 +19,20 @@ export interface StudentSidebarProps {
     onViewSwitch?: (view: string) => void;
     onJoinClass?: () => void;
     pendingHomeworkCount?: number;
-    /** @deprecated — sidebar now reads user/profile from useAuth() internally. This prop is ignored. */
     user?: unknown;
 }
 
-// ─── Profile Menu Styles ────────────────────────────────────────────────────
 const menuStyles = {
-    overlay: {
-        position: 'fixed' as const,
-        inset: 0,
-        zIndex: 998,
-    },
     container: {
         position: 'absolute' as const,
         bottom: 'calc(100% + 8px)',
         left: 0,
         right: 0,
-        background: 'white',
-        borderRadius: 12,
-        border: '1px solid #e5e7eb',
-        boxShadow: '0 4px 24px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.06)',
-        padding: '6px',
+        background: studentTokens.bgSurface,
+        borderRadius: studentTokens.radiusPanel,
+        border: `1px solid ${studentTokens.borderSoft}`,
+        boxShadow: '0 10px 30px rgba(43, 52, 55, 0.08)',
+        padding: 6,
         zIndex: 999,
         animation: 'fadeSlideUp 0.15s ease-out',
     },
@@ -49,22 +42,23 @@ const menuStyles = {
         gap: 10,
         width: '100%',
         padding: '10px 12px',
-        borderRadius: 8,
+        borderRadius: studentTokens.radiusSoft,
         border: 'none',
         background: 'transparent',
         cursor: 'pointer',
-        fontSize: '0.875rem',
-        fontWeight: 500,
-        color: '#374151',
+        fontSize: '0.8125rem',
+        fontWeight: 600,
+        color: studentTokens.textBody,
         transition: 'background 0.12s ease',
         textAlign: 'left' as const,
+        letterSpacing: '0.01em',
     },
     itemDanger: {
-        color: '#dc2626',
+        color: '#9e3f4e',
     },
     divider: {
         height: 1,
-        background: '#f3f4f6',
+        background: studentTokens.borderWhisper,
         margin: '4px 0',
     },
     iconWrap: {
@@ -82,12 +76,11 @@ const menuStyles = {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        color: '#9ca3af',
+        color: studentTokens.textDim,
         transition: 'transform 0.2s ease',
     },
 };
 
-// ─── SVG Icons for the menu ─────────────────────────────────────────────────
 const SettingsIcon = () => (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="3" />
@@ -125,7 +118,6 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
     const [hoveredMenuItem, setHoveredMenuItem] = useState<string | null>(null);
     const menuRef = useRef<HTMLDivElement>(null);
 
-    // Close menu on outside click
     const handleClickOutside = useCallback((e: MouseEvent) => {
         if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
             setMenuOpen(false);
@@ -139,7 +131,6 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [menuOpen, handleClickOutside]);
 
-    // Close menu on Escape key
     useEffect(() => {
         const handleEscape = (e: KeyboardEvent) => {
             if (e.key === 'Escape') setMenuOpen(false);
@@ -164,25 +155,18 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
     ];
 
     const handleNavClick = (item: { id: string; route: string }) => {
-        // 1. If it's a dashboard view switcher and the dashboard passed the onViewSwitch handler
         if (['feed', 'classes'].includes(item.id) && onViewSwitch) {
             onViewSwitch(item.id);
             return;
         }
 
-        // 2. Allow Records to reset its view even when already active
         if (item.id === activePage) {
             if (item.id === 'records') {
-                navigate(item.route, {
-                    state: {
-                        resetRecordsView: true,
-                    },
-                });
+                navigate(item.route, { state: { resetRecordsView: true } });
             }
             return;
         }
 
-        // 3. Standard navigation
         navigate(item.route);
     };
 
@@ -190,7 +174,7 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
         if (onJoinClass) {
             onJoinClass();
         } else {
-            navigate('/student/dashboard'); // Fallback to go to dashboard which has the join modal
+            navigate('/student/dashboard');
         }
     };
 
@@ -209,9 +193,33 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
         }
     };
 
+    const renderNavButton = (item: { id: string; route: string; label: string; icon: React.ReactNode; badge?: number | null }) => {
+        const isActive = activePage === item.id;
+        const isHovered = hoveredNav === item.id && !isActive;
+
+        return (
+            <button
+                key={item.id}
+                aria-current={isActive ? 'page' : undefined}
+                onClick={() => handleNavClick(item)}
+                onMouseEnter={() => setHoveredNav(item.id)}
+                onMouseLeave={() => setHoveredNav(null)}
+                style={{
+                    ...S.navItem,
+                    ...(isActive ? S.navItemActive : {}),
+                    background: isHovered ? studentTokens.bgSurfaceStrong : isActive ? studentTokens.bgSurface : 'transparent',
+                    outline: 'none',
+                }}
+            >
+                {item.icon}
+                {item.label}
+                {item.badge ? <span style={S.navBadge}>{item.badge}</span> : null}
+            </button>
+        );
+    };
+
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            {/* Keyframe animation for menu */}
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: studentTokens.bgShell }}>
             <style>{`
                 @keyframes fadeSlideUp {
                     from { opacity: 0; transform: translateY(6px); }
@@ -219,82 +227,43 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
                 }
             `}</style>
 
-            {/* Logo */}
-            <div style={S.sidebarLogo}>StudentDash</div>
+            <div>
+                <div style={S.sidebarLogo}>The Scholar</div>
+                <p style={{ margin: '-18px 0 20px', padding: '0 10px', color: studentTokens.textMuted, fontSize: '0.625rem', letterSpacing: '0.16em', textTransform: 'uppercase', opacity: 0.7 }}>
+                    Academic Workspace
+                </p>
+            </div>
 
-            {/* Group 1: View switchers */}
             <nav style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
-                {group1.map(item => {
-                    const isActive = activePage === item.id;
-                    return (
-                        <button
-                            key={item.id}
-                            aria-current={isActive ? 'page' : undefined}
-                            onClick={() => handleNavClick(item)}
-                            onMouseEnter={() => setHoveredNav(item.id)}
-                            onMouseLeave={() => setHoveredNav(null)}
-                            style={{
-                                ...S.navItem,
-                                ...(isActive ? S.navItemActive : {}),
-                                background: hoveredNav === item.id && !isActive ? '#e5e7eb' : 'transparent',
-                                outline: 'none',
-                            }}
-                        >
-                            {item.icon}
-                            {item.label}
-                        </button>
-                    );
-                })}
-
-                {/* Navigation links */}
-
-                {/* Group 2: Navigation links */}
-                {group2.map(item => {
-                    const isActive = activePage === item.id;
-                    return (
-                        <button
-                            key={item.id}
-                            aria-current={isActive ? 'page' : undefined}
-                            onClick={() => handleNavClick(item)}
-                            onMouseEnter={() => setHoveredNav(item.id)}
-                            onMouseLeave={() => setHoveredNav(null)}
-                            style={{
-                                ...S.navItem,
-                                ...(isActive ? S.navItemActive : {}),
-                                background: hoveredNav === item.id && !isActive ? '#e5e7eb' : 'transparent',
-                                outline: 'none',
-                            }}
-                        >
-                            {item.icon}
-                            {item.label}
-                            {item.badge && <span style={S.navBadge}>{item.badge}</span>}
-                        </button>
-                    );
-                })}
-
+                {group1.map(renderNavButton)}
+                <div style={{ height: 10 }} />
+                {group2.map(renderNavButton)}
             </nav>
 
-            {/* Bottom section */}
             <div style={{ marginTop: 'auto', padding: '0 8px' }}>
                 <button
                     style={S.joinBtn}
                     onClick={handleJoinClassClick}
-                    onMouseEnter={e => e.currentTarget.style.background = '#4338ca'}
-                    onMouseLeave={e => e.currentTarget.style.background = '#4f46e5'}
+                    onMouseEnter={(e) => {
+                        e.currentTarget.style.background = studentTokens.bgSurfaceStrong;
+                        e.currentTarget.style.borderColor = studentTokens.outlineSoft;
+                    }}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.background = studentTokens.bgSurface;
+                        e.currentTarget.style.borderColor = studentTokens.borderSoft;
+                    }}
                 >
                     Join Class
                 </button>
 
-                {/* Profile row with popover menu */}
-                <div ref={menuRef} style={{ position: 'relative' }}>
-                    {/* Popover Menu */}
-                    {menuOpen && (
+                <div ref={menuRef} style={{ position: 'relative', marginTop: 18, paddingTop: 14, borderTop: `1px solid ${studentTokens.borderWhisper}` }}>
+                    {menuOpen ? (
                         <div style={menuStyles.container} role="menu" aria-label="User menu">
                             <button
                                 role="menuitem"
                                 style={{
                                     ...menuStyles.item,
-                                    background: hoveredMenuItem === 'settings' ? '#f3f4f6' : 'transparent',
+                                    background: hoveredMenuItem === 'settings' ? studentTokens.bgSurfaceAlt : 'transparent',
                                 }}
                                 onClick={handleSettingsClick}
                                 onMouseEnter={() => setHoveredMenuItem('settings')}
@@ -309,7 +278,7 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
                                 style={{
                                     ...menuStyles.item,
                                     ...menuStyles.itemDanger,
-                                    background: hoveredMenuItem === 'signout' ? '#fef2f2' : 'transparent',
+                                    background: hoveredMenuItem === 'signout' ? '#fff2f2' : 'transparent',
                                 }}
                                 onClick={handleSignOut}
                                 onMouseEnter={() => setHoveredMenuItem('signout')}
@@ -319,22 +288,26 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
                                 Sign Out
                             </button>
                         </div>
-                    )}
+                    ) : null}
 
-                    {/* Clickable profile row */}
                     <div
                         style={{
                             ...S.profileRow,
-                            background: menuOpen ? '#e5e7eb' : 'transparent',
+                            background: menuOpen ? studentTokens.bgSurfaceStrong : 'transparent',
                         }}
                         onClick={() => setMenuOpen(!menuOpen)}
-                        onMouseEnter={e => { if (!menuOpen) e.currentTarget.style.background = '#e5e7eb'; }}
-                        onMouseLeave={e => { if (!menuOpen) e.currentTarget.style.background = 'transparent'; }}
+                        onMouseEnter={(e) => { if (!menuOpen) e.currentTarget.style.background = studentTokens.bgSurfaceStrong; }}
+                        onMouseLeave={(e) => { if (!menuOpen) e.currentTarget.style.background = 'transparent'; }}
                         role="button"
                         tabIndex={0}
                         aria-haspopup="menu"
                         aria-expanded={menuOpen}
-                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setMenuOpen(!menuOpen); } }}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                setMenuOpen(!menuOpen);
+                            }
+                        }}
                     >
                         <div style={S.profileAvatar}>
                             {avatarSrc ? (
@@ -344,17 +317,14 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
                             )}
                         </div>
                         <div style={{ flex: 1, overflow: 'hidden' }}>
-                            <p style={{ fontWeight: 700, fontSize: '0.875rem', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            <p style={{ fontWeight: 700, fontSize: '0.8125rem', margin: 0, color: studentTokens.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                 {displayName}
                             </p>
-                            <p style={{ color: '#6b7280', fontSize: '0.875rem', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            <p style={{ color: studentTokens.textMuted, fontSize: '0.75rem', margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                 {email}
                             </p>
                         </div>
-                        <div style={{
-                            ...menuStyles.chevron,
-                            transform: menuOpen ? 'rotate(0deg)' : 'rotate(180deg)',
-                        }}>
+                        <div style={{ ...menuStyles.chevron, transform: menuOpen ? 'rotate(0deg)' : 'rotate(180deg)' }}>
                             <ChevronUpIcon />
                         </div>
                     </div>

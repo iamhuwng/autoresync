@@ -9,7 +9,7 @@ import type { LibrarySource } from '../types/solo.types';
 
 import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
-import { S } from '../components/layout/studentLayoutStyles';
+import { S, studentTokens } from '../components/layout/studentLayoutStyles';
 import { useResolvedStudentHomeworkList } from '../context/StudentShellDataContext';
 
 /* ── Inline SVG Icons (24×24, currentColor) ─────────────────────── */
@@ -20,21 +20,21 @@ const SvgX = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" s
 const SvgSearch = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>;
 const SvgChevronRight = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>;
 const SvgAlertTriangle = ({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>;
-const SvgBookLarge = ({ size = 48, color = '#6b7280' }: { size?: number; color?: string }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>;
+const SvgBookLarge = ({ size = 48, color = studentTokens.textMuted }: { size?: number; color?: string }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>;
 const SvgPen = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>;
 
 const localStyles = {
-    card: { background: 'white', border: '1px solid #e5e7eb', borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'column' as const, height: '100%', transition: 'box-shadow 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' },
+    card: { background: studentTokens.bgSurface, border: `1px solid ${studentTokens.borderWhisper}`, borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column' as const, height: '100%', transition: 'box-shadow 0.2s' },
     cardBody: { padding: '20px', flex: 1, display: 'flex', flexDirection: 'column' as const, gap: 16 },
-    cardFooter: { padding: '16px 20px', borderTop: '1px solid #e5e7eb', background: '#f9fafb' },
-    badge: { display: 'inline-block', padding: '4px 10px', borderRadius: 999, fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' as const },
-    statRow: { display: 'flex', gap: 16, fontSize: '0.875rem', color: '#6b7280', fontWeight: 500 },
-    historyBox: { background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 12, padding: 12, display: 'flex', justifyContent: 'space-between', marginTop: 'auto' },
+    cardFooter: { padding: '16px 20px', borderTop: `1px solid ${studentTokens.borderWhisper}`, background: studentTokens.bgShell },
+    badge: { display: 'inline-block', padding: '4px 10px', borderRadius: studentTokens.radiusPill, fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const },
+    statRow: { display: 'flex', gap: 16, fontSize: '0.875rem', color: studentTokens.textBody, fontWeight: 500 },
+    historyBox: { background: studentTokens.bgShell, border: `1px solid ${studentTokens.borderWhisper}`, borderRadius: 12, padding: 12, display: 'flex', justifyContent: 'space-between', marginTop: 'auto' },
     historyBoxItem: { display: 'flex', flexDirection: 'column' as const, gap: 2 },
-    historyBoxLabel: { fontSize: '0.75rem', color: '#6b7280', fontWeight: 500, textTransform: 'uppercase' as const, letterSpacing: '0.05em' },
-    historyBoxValue: { fontSize: '1rem', fontWeight: 700, color: '#111827' },
-    historyBoxValueAccent: { fontSize: '1rem', fontWeight: 700, color: '#4f46e5' },
-    loaderWrap: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: '50%', border: '3px solid #e0e7ff', borderTopColor: '#4f46e5', animation: 'studentSpinner 0.8s linear infinite' },
+    historyBoxLabel: { fontSize: '0.6875rem', color: studentTokens.textMuted, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.08em' },
+    historyBoxValue: { fontSize: '1rem', fontWeight: 700, color: studentTokens.textPrimary },
+    historyBoxValueAccent: { fontSize: '1rem', fontWeight: 700, color: studentTokens.accent },
+    loaderWrap: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: '50%', border: '3px solid #e2dfff', borderTopColor: studentTokens.accent, animation: 'studentSpinner 0.8s linear infinite' },
 };
 
 function InlineLoader({ label, size = 32 }: { label?: string; size?: number }) {
@@ -48,7 +48,7 @@ function InlineLoader({ label, size = 32 }: { label?: string; size?: number }) {
                     height: size,
                 }}
             />
-            {label ? <p style={{ color: '#6b7280', margin: 0, fontWeight: 500 }}>{label}</p> : null}
+            {label ? <p style={{ color: studentTokens.textMuted, margin: 0, fontWeight: 500 }}>{label}</p> : null}
         </div>
     );
 }
@@ -118,29 +118,28 @@ export const StudentLibraryPage: React.FC = () => {
         const history = material.studentHistory;
         const hasAttempted = history && history.attemptCount > 0;
 
-        const diffColor = material.difficulty === 'easy' ? { bg: '#d1fae5', text: '#059669' } : material.difficulty === 'medium' ? { bg: '#fef3c7', text: '#d97706' } : material.difficulty === 'hard' ? { bg: '#fee2e2', text: '#dc2626' } : { bg: '#f3f4f6', text: '#374151' };
+        const diffColor = material.difficulty === 'easy' ? { bg: '#edf5f9', text: '#4c5458' } : material.difficulty === 'medium' ? { bg: '#f4ede4', text: '#9a6427' } : material.difficulty === 'hard' ? { bg: '#fff2f2', text: '#9e3f4e' } : { bg: studentTokens.bgSurfaceAlt, text: studentTokens.textBody };
 
         return (
             <div
                 key={material.id}
                 style={{ ...localStyles.card, animation: `dashFadeIn 0.3s ease-out ${index * 0.05}s backwards` }}
-                onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'}
-                onMouseLeave={e => e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)'}
+                onMouseEnter={e => e.currentTarget.style.boxShadow = '0 10px 24px rgba(43, 52, 55, 0.06)'}
+                onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
             >
                 <div style={localStyles.cardBody}>
                     <div>
-                        <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#111827', margin: '0 0 12px', letterSpacing: '-0.01em', lineHeight: 1.3 }}>{material.title}</h3>
+                        <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: studentTokens.textPrimary, margin: '0 0 12px', letterSpacing: '-0.01em', lineHeight: 1.3 }}>{material.title}</h3>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                            <span style={{ ...localStyles.badge, background: material.skill === 'writing' ? '#f5f3ff' : '#e0e7ff', color: material.skill === 'writing' ? '#7c3aed' : '#4338ca' }}>
-                                {material.skill === 'writing' && <span style={{ marginRight: 4 }}>✍️</span>}
+                            <span style={{ ...localStyles.badge, background: material.skill === 'writing' ? studentTokens.accentSoft : '#edf5f9', color: material.skill === 'writing' ? studentTokens.accentHover : '#4c5458' }}>
                                 {material.skill}
                             </span>
-                            <span style={{ ...localStyles.badge, background: '#f3f4f6', color: '#374151' }}>{material.type}</span>
+                            <span style={{ ...localStyles.badge, background: studentTokens.bgSurfaceAlt, color: studentTokens.textBody }}>{material.type}</span>
                             {material.difficulty && (
                                 <span style={{ ...localStyles.badge, background: diffColor.bg, color: diffColor.text }}>{material.difficulty}</span>
                             )}
                             {material.skill === 'writing' && material.format && (
-                                <span style={{ ...localStyles.badge, background: '#faf5ff', color: '#7c3aed', border: '1px solid #e9d5ff' }}>
+                                <span style={{ ...localStyles.badge, background: studentTokens.accentSoft, color: studentTokens.accentHover, border: `1px solid ${studentTokens.borderSoft}` }}>
                                     {material.format === 'full-test' ? 'Full Test' : material.format === 'task1-only' ? 'Task 1' : 'Task 2'}
                                 </span>
                             )}
@@ -162,12 +161,12 @@ export const StudentLibraryPage: React.FC = () => {
                                 <span style={localStyles.historyBoxLabel}>Best Score</span>
                                 <span style={localStyles.historyBoxValueAccent}>{history.bestScore}%</span>
                             </div>
-                            <div style={{ width: 1, background: '#e5e7eb' }} />
+                            <div style={{ width: 1, background: studentTokens.borderWhisper }} />
                             <div style={localStyles.historyBoxItem}>
                                 <span style={localStyles.historyBoxLabel}>Attempts</span>
                                 <span style={localStyles.historyBoxValue}>{history.attemptCount}</span>
                             </div>
-                            <div style={{ width: 1, background: '#e5e7eb' }} />
+                            <div style={{ width: 1, background: studentTokens.borderWhisper }} />
                             <div style={localStyles.historyBoxItem}>
                                 <span style={localStyles.historyBoxLabel}>Last Practice</span>
                                 <span style={{ ...localStyles.historyBoxValue, fontSize: '0.875rem', marginTop: 2 }}>{new Date(history.lastPracticed).toLocaleDateString()}</span>
@@ -179,9 +178,9 @@ export const StudentLibraryPage: React.FC = () => {
                 <div style={localStyles.cardFooter}>
                     <button
                         onClick={() => handlePractice(material.id, material.title)}
-                        style={{ width: '100%', padding: '10px', borderRadius: 999, border: 'none', background: hasAttempted ? '#111827' : '#4f46e5', color: 'white', fontWeight: 700, cursor: 'pointer', fontSize: '0.938rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, transition: 'background 0.2s' }}
-                        onMouseEnter={e => e.currentTarget.style.background = hasAttempted ? '#374151' : '#4338ca'}
-                        onMouseLeave={e => e.currentTarget.style.background = hasAttempted ? '#111827' : '#4f46e5'}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: studentTokens.radiusSoft, border: 'none', background: hasAttempted ? studentTokens.bgSurfaceStrong : studentTokens.accent, color: hasAttempted ? studentTokens.textPrimary : '#faf6ff', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, transition: 'background 0.2s' }}
+                        onMouseEnter={e => e.currentTarget.style.background = hasAttempted ? studentTokens.bgSurfaceAlt : studentTokens.accentHover}
+                        onMouseLeave={e => e.currentTarget.style.background = hasAttempted ? studentTokens.bgSurfaceStrong : studentTokens.accent}
                     >
                         {hasAttempted ? 'Practice Again' : 'Start Practice'} <SvgChevronRight />
                     </button>
@@ -208,7 +207,10 @@ export const StudentLibraryPage: React.FC = () => {
                 }
             `}</style>
             <div style={S.feedHeader}>
-                <h2 style={S.feedHeaderTitle}>Practice Library</h2>
+                <div style={S.feedHeaderText}>
+                    <h2 style={S.feedHeaderTitle}>Practice Library</h2>
+                    <p style={S.feedHeaderSubtitle}>Browse course materials, public resources, and recent practice using the same restrained academic visual language.</p>
+                </div>
             </div>
 
             <div style={S.filterBar}>
@@ -223,27 +225,27 @@ export const StudentLibraryPage: React.FC = () => {
                 ))}
             </div>
 
-            <div style={{ padding: '24px 16px', animation: 'dashFadeIn 200ms ease-out forwards' }}>
-                <div style={{ background: 'white', borderRadius: 16, padding: '16px 20px', border: '1px solid #e5e7eb', marginBottom: 24 }}>
+            <div style={{ padding: '18px 0 0', animation: 'dashFadeIn 200ms ease-out forwards' }}>
+                <div style={{ background: studentTokens.bgSurface, borderRadius: 12, padding: '16px 20px', border: `1px solid ${studentTokens.borderWhisper}`, marginBottom: 24 }}>
                     <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                         <div style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                            <label style={{ fontSize: '0.875rem', fontWeight: 600, color: '#374151' }}>Search</label>
-                            <div style={{ position: 'relative', background: '#f3f4f6', borderRadius: 12, display: 'flex', alignItems: 'center' }}>
-                                <div style={{ paddingLeft: 16, color: '#6b7280', display: 'flex' }}><SvgSearch /></div>
+                            <label style={{ fontSize: '0.75rem', fontWeight: 700, color: studentTokens.textMuted, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Search</label>
+                            <div style={{ position: 'relative', background: studentTokens.bgShell, borderRadius: 12, display: 'flex', alignItems: 'center', border: `1px solid ${studentTokens.borderWhisper}` }}>
+                                <div style={{ paddingLeft: 16, color: studentTokens.textMuted, display: 'flex' }}><SvgSearch /></div>
                                 <input
                                     placeholder="Search materials..."
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
-                                    style={{ background: 'transparent', width: '100%', padding: '10px 16px', outline: 'none', border: 'none', color: '#111827', fontSize: '0.938rem', fontFamily: 'inherit' }}
+                                    style={{ background: 'transparent', width: '100%', padding: '10px 16px', outline: 'none', border: 'none', color: studentTokens.textPrimary, fontSize: '0.938rem', fontFamily: 'inherit' }}
                                 />
                             </div>
                         </div>
 
                         <button
                             onClick={() => setShowFilters(!showFilters)}
-                            style={{ padding: '10px 16px', borderRadius: 12, border: '1px solid #e5e7eb', background: showFilters ? '#f3f4f6' : 'white', color: '#111827', fontWeight: 600, cursor: 'pointer', display: 'flex', gap: 8, alignItems: 'center', fontSize: '0.875rem', fontFamily: 'inherit', transition: 'background 0.2s' }}
-                            onMouseEnter={e => e.currentTarget.style.background = '#f3f4f6'}
-                            onMouseLeave={e => e.currentTarget.style.background = showFilters ? '#f3f4f6' : 'white'}
+                            style={{ padding: '10px 16px', borderRadius: 8, border: `1px solid ${studentTokens.borderSoft}`, background: showFilters ? studentTokens.bgShell : studentTokens.bgSurface, color: studentTokens.textPrimary, fontWeight: 700, cursor: 'pointer', display: 'flex', gap: 8, alignItems: 'center', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'inherit', transition: 'background 0.2s' }}
+                            onMouseEnter={e => e.currentTarget.style.background = studentTokens.bgShell}
+                            onMouseLeave={e => e.currentTarget.style.background = showFilters ? studentTokens.bgShell : studentTokens.bgSurface}
                         >
                             <SvgFilter /> Filters
                         </button>
@@ -251,7 +253,7 @@ export const StudentLibraryPage: React.FC = () => {
                         {(searchQuery || filters.skill || filters.type || filters.difficulty) && (
                             <button
                                 onClick={clearFilters}
-                                style={{ padding: '10px 16px', borderRadius: 12, border: 'none', background: 'transparent', color: '#dc2626', fontWeight: 600, cursor: 'pointer', display: 'flex', gap: 8, alignItems: 'center', fontSize: '0.875rem', fontFamily: 'inherit' }}
+                                style={{ padding: '10px 16px', borderRadius: 8, border: 'none', background: 'transparent', color: '#9e3f4e', fontWeight: 700, cursor: 'pointer', display: 'flex', gap: 8, alignItems: 'center', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'inherit' }}
                             >
                                 <SvgX /> Clear
                             </button>
@@ -259,10 +261,10 @@ export const StudentLibraryPage: React.FC = () => {
                     </div>
 
                     {showFilters && (
-                        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 16, paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
+                        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 16, paddingTop: 16, borderTop: `1px solid ${studentTokens.borderWhisper}` }}>
                             <div style={{ flex: '1 1 200px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                <label style={{ fontSize: '0.875rem', fontWeight: 600, color: '#374151' }}>Skill</label>
-                                <select value={filters.skill || ''} onChange={e => updateFilter('skill', e.target.value as any)} style={{ padding: '10px 16px', borderRadius: 12, border: '1px solid #e5e7eb', background: 'white', color: '#111827', fontSize: '0.938rem', outline: 'none', fontFamily: 'inherit' }}>
+                                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: studentTokens.textMuted, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Skill</label>
+                                <select value={filters.skill || ''} onChange={e => updateFilter('skill', e.target.value as any)} style={{ padding: '10px 16px', borderRadius: 8, border: `1px solid ${studentTokens.borderSoft}`, background: studentTokens.bgSurface, color: studentTokens.textPrimary, fontSize: '0.938rem', outline: 'none', fontFamily: 'inherit' }}>
                                     <option value="">All Skills</option>
                                     <option value="reading">Reading</option>
                                     <option value="listening">Listening</option>
@@ -272,8 +274,8 @@ export const StudentLibraryPage: React.FC = () => {
                             </div>
 
                             <div style={{ flex: '1 1 200px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                <label style={{ fontSize: '0.875rem', fontWeight: 600, color: '#374151' }}>Type</label>
-                                <select value={filters.type || ''} onChange={e => updateFilter('type', e.target.value as any)} style={{ padding: '10px 16px', borderRadius: 12, border: '1px solid #e5e7eb', background: 'white', color: '#111827', fontSize: '0.938rem', outline: 'none', fontFamily: 'inherit' }}>
+                                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: studentTokens.textMuted, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Type</label>
+                                <select value={filters.type || ''} onChange={e => updateFilter('type', e.target.value as any)} style={{ padding: '10px 16px', borderRadius: 8, border: `1px solid ${studentTokens.borderSoft}`, background: studentTokens.bgSurface, color: studentTokens.textPrimary, fontSize: '0.938rem', outline: 'none', fontFamily: 'inherit' }}>
                                     <option value="">All Types</option>
                                     <option value="quiz">Quiz</option>
                                     <option value="test">Test</option>
@@ -281,8 +283,8 @@ export const StudentLibraryPage: React.FC = () => {
                             </div>
 
                             <div style={{ flex: '1 1 200px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                <label style={{ fontSize: '0.875rem', fontWeight: 600, color: '#374151' }}>Difficulty</label>
-                                <select value={filters.difficulty || ''} onChange={e => updateFilter('difficulty', e.target.value as any)} style={{ padding: '10px 16px', borderRadius: 12, border: '1px solid #e5e7eb', background: 'white', color: '#111827', fontSize: '0.938rem', outline: 'none', fontFamily: 'inherit' }}>
+                                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: studentTokens.textMuted, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Difficulty</label>
+                                <select value={filters.difficulty || ''} onChange={e => updateFilter('difficulty', e.target.value as any)} style={{ padding: '10px 16px', borderRadius: 8, border: `1px solid ${studentTokens.borderSoft}`, background: studentTokens.bgSurface, color: studentTokens.textPrimary, fontSize: '0.938rem', outline: 'none', fontFamily: 'inherit' }}>
                                     <option value="">All Difficulties</option>
                                     <option value="easy">Easy</option>
                                     <option value="medium">Medium</option>
@@ -294,11 +296,11 @@ export const StudentLibraryPage: React.FC = () => {
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-                    <span style={{ color: '#6b7280', fontSize: '0.875rem', fontWeight: 500 }}>
+                    <span style={{ color: studentTokens.textMuted, fontSize: '0.875rem', fontWeight: 500 }}>
                         {filteredMaterials.length} material{filteredMaterials.length !== 1 ? 's' : ''} found
                     </span>
                     {totalPages > 1 && (
-                        <span style={{ color: '#6b7280', fontSize: '0.875rem', fontWeight: 500 }}>
+                        <span style={{ color: studentTokens.textMuted, fontSize: '0.875rem', fontWeight: 500 }}>
                             Page {currentPage} of {totalPages}
                         </span>
                     )}
@@ -311,21 +313,21 @@ export const StudentLibraryPage: React.FC = () => {
                 )}
 
                 {error && (
-                    <div style={{ textAlign: 'center', padding: '60px 0', background: 'white', border: '1px solid #e5e7eb', borderRadius: 16 }}>
-                        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}><SvgAlertTriangle size={48} color="#dc2626" /></div>
-                        <p style={{ fontSize: '1.25rem', fontWeight: 700, color: '#dc2626', margin: 0 }}>{error}</p>
+                    <div style={{ textAlign: 'center', padding: '60px 0', background: studentTokens.bgSurface, border: `1px solid ${studentTokens.borderWhisper}`, borderRadius: 12 }}>
+                        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}><SvgAlertTriangle size={48} color="#9e3f4e" /></div>
+                        <p style={{ fontSize: '1.25rem', fontWeight: 700, color: '#9e3f4e', margin: 0 }}>{error}</p>
                     </div>
                 )}
 
                 {!isLoading && !error && paginatedMaterials.length === 0 && (
-                    <div style={{ textAlign: 'center', padding: '80px 20px', background: 'white', border: '1px solid #e5e7eb', borderRadius: 16 }}>
+                    <div style={{ textAlign: 'center', padding: '80px 20px', background: studentTokens.bgSurface, border: `1px solid ${studentTokens.borderWhisper}`, borderRadius: 12 }}>
                         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}><SvgBookLarge /></div>
-                        <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#111827', margin: '0 0 8px' }}>No materials found</h3>
-                        <p style={{ color: '#6b7280', margin: '0 0 24px', fontSize: '0.938rem' }}>Try adjusting your filters or search query</p>
+                        <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: studentTokens.textPrimary, margin: '0 0 8px' }}>No materials found</h3>
+                        <p style={{ color: studentTokens.textMuted, margin: '0 0 24px', fontSize: '0.938rem' }}>Try adjusting your filters or search query.</p>
                         {(searchQuery || filters.skill || filters.type || filters.difficulty) && (
                             <button
                                 onClick={clearFilters}
-                                style={{ padding: '10px 24px', borderRadius: 999, border: 'none', background: '#4f46e5', color: 'white', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.938rem' }}
+                                style={{ padding: '10px 24px', borderRadius: 8, border: 'none', background: studentTokens.accent, color: '#faf6ff', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase' }}
                             >
                                 Clear Filters
                             </button>
@@ -344,17 +346,17 @@ export const StudentLibraryPage: React.FC = () => {
                                 <button
                                     onClick={prevPage}
                                     disabled={currentPage === 1}
-                                    style={{ padding: '8px 20px', borderRadius: 999, border: '1px solid #e5e7eb', background: 'white', color: currentPage === 1 ? '#9ca3af' : '#111827', fontWeight: 600, cursor: currentPage === 1 ? 'default' : 'pointer', fontSize: '0.875rem', fontFamily: 'inherit' }}
+                                    style={{ padding: '8px 20px', borderRadius: 8, border: `1px solid ${studentTokens.borderSoft}`, background: studentTokens.bgSurface, color: currentPage === 1 ? studentTokens.textDim : studentTokens.textPrimary, fontWeight: 700, cursor: currentPage === 1 ? 'default' : 'pointer', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'inherit' }}
                                 >
                                     Previous
                                 </button>
-                                <span style={{ fontSize: '0.875rem', color: '#6b7280', fontWeight: 500 }}>
+                                <span style={{ fontSize: '0.875rem', color: studentTokens.textMuted, fontWeight: 500 }}>
                                     Page {currentPage} of {totalPages}
                                 </span>
                                 <button
                                     onClick={nextPage}
                                     disabled={currentPage === totalPages}
-                                    style={{ padding: '8px 20px', borderRadius: 999, border: '1px solid #e5e7eb', background: 'white', color: currentPage === totalPages ? '#9ca3af' : '#111827', fontWeight: 600, cursor: currentPage === totalPages ? 'default' : 'pointer', fontSize: '0.875rem', fontFamily: 'inherit' }}
+                                    style={{ padding: '8px 20px', borderRadius: 8, border: `1px solid ${studentTokens.borderSoft}`, background: studentTokens.bgSurface, color: currentPage === totalPages ? studentTokens.textDim : studentTokens.textPrimary, fontWeight: 700, cursor: currentPage === totalPages ? 'default' : 'pointer', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'inherit' }}
                                 >
                                     Next
                                 </button>

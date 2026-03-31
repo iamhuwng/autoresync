@@ -1,5 +1,6 @@
 import React from 'react';
 import type { EnhancedTestResultRecord } from '../../types/results.types';
+import { studentTokens } from '../layout/studentLayoutStyles';
 
 type RowTone = 'default' | 'primary' | 'success' | 'warning' | 'danger' | 'muted';
 
@@ -20,13 +21,80 @@ interface AcademicRecordResultRowProps {
     onClick?: (resultId: string) => void;
 }
 
+const tableRowStyles: Record<string, React.CSSProperties> = {
+    row: {
+        width: '100%',
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1.8fr) 108px 96px 120px 32px',
+        alignItems: 'center',
+        gap: 12,
+        padding: '18px 20px',
+        border: 'none',
+        borderBottom: `1px solid ${studentTokens.borderWhisper}`,
+        background: studentTokens.bgSurface,
+        textAlign: 'left',
+        cursor: 'pointer',
+        transition: 'background 150ms ease',
+    },
+    titleWrap: {
+        minWidth: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 4,
+    },
+    titleText: {
+        margin: 0,
+        color: studentTokens.textPrimary,
+        fontSize: '0.9375rem',
+        fontWeight: 700,
+        lineHeight: 1.3,
+    },
+    metaText: {
+        margin: 0,
+        color: studentTokens.textMuted,
+        fontSize: '0.75rem',
+        lineHeight: 1.45,
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+    },
+    centeredText: {
+        fontSize: '0.8125rem',
+        color: studentTokens.textBody,
+        fontWeight: 600,
+    },
+    scoreText: {
+        fontSize: '0.875rem',
+        color: studentTokens.textPrimary,
+        fontWeight: 800,
+    },
+    pill: {
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '4px 10px',
+        borderRadius: studentTokens.radiusPill,
+        fontSize: '0.625rem',
+        fontWeight: 700,
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
+    },
+    arrow: {
+        color: studentTokens.textMuted,
+        fontSize: '1rem',
+        fontWeight: 700,
+        textAlign: 'right',
+    },
+};
+
 const rowStyles: Record<string, React.CSSProperties> = {
     row: {
         width: '100%',
         border: 'none',
-        borderRadius: 14,
-        background: '#f3f4f6',
-        padding: '14px 16px',
+        borderBottom: `1px solid ${studentTokens.borderWhisper}`,
+        borderRadius: 0,
+        background: studentTokens.bgSurface,
+        padding: '18px 20px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -38,9 +106,9 @@ const rowStyles: Record<string, React.CSSProperties> = {
         cursor: 'pointer',
     },
     leadingBox: {
-        width: 44,
-        height: 44,
-        borderRadius: 12,
+        width: 42,
+        height: 42,
+        borderRadius: 8,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -58,14 +126,14 @@ const rowStyles: Record<string, React.CSSProperties> = {
     },
     title: {
         margin: 0,
-        color: '#111827',
+        color: studentTokens.textPrimary,
         fontSize: '0.9375rem',
         fontWeight: 700,
         lineHeight: 1.3,
     },
     meta: {
         margin: 0,
-        color: '#6b7280',
+        color: studentTokens.textMuted,
         fontSize: '0.75rem',
         lineHeight: 1.5,
         whiteSpace: 'nowrap',
@@ -73,7 +141,7 @@ const rowStyles: Record<string, React.CSSProperties> = {
         textOverflow: 'ellipsis',
     },
     trailing: {
-        minWidth: 96,
+        minWidth: 110,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'flex-end',
@@ -86,22 +154,20 @@ const rowStyles: Record<string, React.CSSProperties> = {
         lineHeight: 1.1,
     },
     trailingSecondary: {
-        color: '#6b7280',
+        color: studentTokens.textMuted,
         fontSize: '0.6875rem',
-        fontWeight: 700,
-        letterSpacing: '0.05em',
-        textTransform: 'uppercase',
+        fontWeight: 600,
         lineHeight: 1.2,
     },
 };
 
 const toneStyles: Record<RowTone, { background: string; color: string }> = {
-    default: { background: '#e5e7eb', color: '#374151' },
-    primary: { background: '#e0e7ff', color: '#4338ca' },
-    success: { background: '#d1fae5', color: '#059669' },
-    warning: { background: '#fef3c7', color: '#d97706' },
-    danger: { background: '#fee2e2', color: '#dc2626' },
-    muted: { background: '#f9fafb', color: '#6b7280' },
+    default: { background: studentTokens.bgSurfaceAlt, color: studentTokens.textBody },
+    primary: { background: studentTokens.accentSoft, color: studentTokens.accentHover },
+    success: { background: '#edf5f9', color: '#4c5458' },
+    warning: { background: '#f4ede4', color: '#9a6427' },
+    danger: { background: '#fff3f3', color: '#9e3f4e' },
+    muted: { background: studentTokens.bgShell, color: studentTokens.textMuted },
 };
 
 export function formatAcademicRecordDate(timestamp: number): string {
@@ -206,6 +272,43 @@ function getScoreLabel(result: EnhancedTestResultRecord): string {
     return `${Math.round(result.percentage)}%`;
 }
 
+function getStatusLabel(result: EnhancedTestResultRecord): string {
+    if (result.markingStatus === 'pending-review') {
+        return 'Awaiting Review';
+    }
+
+    if (result.thcsData?.scaledScore !== undefined) {
+        const score = result.thcsData.scaledScore;
+        if (score >= 8) return 'Distinction';
+        if (score >= 6.5) return 'High Merit';
+        if (score >= 5) return 'Passed';
+        return 'Review';
+    }
+
+    if (result.percentage >= 80) return 'Distinction';
+    if (result.percentage >= 65) return 'High Merit';
+    if (result.percentage >= 50) return 'Passed';
+    return 'Review';
+}
+
+function getStatusPillStyle(result: EnhancedTestResultRecord): React.CSSProperties {
+    const label = getStatusLabel(result);
+    if (label === 'Awaiting Review') {
+        return { ...tableRowStyles.pill, background: '#f4ede4', color: '#9a6427' };
+    }
+    if (label === 'Distinction') {
+        return { ...tableRowStyles.pill, background: studentTokens.accentSoft, color: studentTokens.accentHover };
+    }
+    if (label === 'High Merit') {
+        return { ...tableRowStyles.pill, background: '#edf5f9', color: '#4c5458' };
+    }
+    if (label === 'Passed') {
+        return { ...tableRowStyles.pill, background: studentTokens.bgSurfaceAlt, color: studentTokens.textBody };
+    }
+
+    return { ...tableRowStyles.pill, background: '#fff2f2', color: '#9e3f4e' };
+}
+
 function formatLabel(value?: string | null): string | null {
     if (!value) {
         return null;
@@ -217,7 +320,7 @@ function formatLabel(value?: string | null): string | null {
 }
 
 function applyInteractiveBackground(event: React.MouseEvent<HTMLButtonElement>, active: boolean) {
-    event.currentTarget.style.background = active ? '#e5e7eb' : '#f3f4f6';
+    event.currentTarget.style.background = active ? studentTokens.bgSurfaceMuted : studentTokens.bgSurface;
 }
 
 export const AcademicRecordFlatRow: React.FC<AcademicRecordFlatRowProps> = ({
@@ -290,17 +393,31 @@ export const AcademicRecordResultRow: React.FC<AcademicRecordResultRowProps> = (
     const metaItems = buildMetaItems(result, hasFeedback);
     const handleClick = onClick ? () => onClick(result.resultId) : undefined;
 
+    if (!handleClick) {
+        return null;
+    }
+
     return (
-        <AcademicRecordFlatRow
-            title={result.testTitle}
-            metaItems={metaItems}
-            leadingText={getLeadingText(result)}
-            leadingTone={getLeadingTone(result)}
-            trailingPrimary={getScoreLabel(result)}
-            trailingSecondary={formatAcademicRecordDate(result.submittedAt)}
-            trailingTone={getScoreTone(result)}
+        <button
+            type="button"
             onClick={handleClick}
-            ariaLabel={handleClick ? `Open result for ${result.testTitle}` : undefined}
-        />
+            style={tableRowStyles.row}
+            aria-label={`Open result for ${result.testTitle}`}
+            onMouseEnter={(event) => {
+                event.currentTarget.style.background = studentTokens.bgSurfaceMuted;
+            }}
+            onMouseLeave={(event) => {
+                event.currentTarget.style.background = studentTokens.bgSurface;
+            }}
+        >
+            <div style={tableRowStyles.titleWrap}>
+                <p style={tableRowStyles.titleText}>{result.testTitle}</p>
+                <p style={tableRowStyles.metaText}>{metaItems.join(' | ')}</p>
+            </div>
+            <span style={tableRowStyles.centeredText}>{formatAcademicRecordDate(result.submittedAt)}</span>
+            <span style={{ ...tableRowStyles.scoreText, color: toneStyles[getScoreTone(result)].color }}>{getScoreLabel(result)}</span>
+            <span style={getStatusPillStyle(result)}>{getStatusLabel(result)}</span>
+            <span style={tableRowStyles.arrow} aria-hidden="true">›</span>
+        </button>
     );
 };

@@ -7,7 +7,7 @@ import { getEnrollmentsByStudent } from '../services/enrollmentManager';
 import { getClass } from '../services/classManager';
 import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
-import { S } from '../components/layout/studentLayoutStyles';
+import { S, studentTokens } from '../components/layout/studentLayoutStyles';
 import { ref, get } from 'firebase/database';
 // @ts-ignore
 import { database } from '../services/firebase';
@@ -45,9 +45,9 @@ function getStudentCourseDetailCache(studentId?: string | null, courseId?: strin
 }
 
 const localStyles = {
-    card: { background: 'white', borderRadius: 16, border: '1px solid #e5e7eb', padding: 24, marginBottom: 16 },
+    card: { background: studentTokens.bgSurface, borderRadius: 12, border: `1px solid ${studentTokens.borderWhisper}`, padding: 24, marginBottom: 16 },
     moduleCard: {
-        background: 'white', borderRadius: 12, border: '1px solid #e5e7eb', marginBottom: 12, overflow: 'hidden' as const
+        background: studentTokens.bgSurface, borderRadius: 12, border: `1px solid ${studentTokens.borderWhisper}`, marginBottom: 12, overflow: 'hidden' as const
     },
     moduleHeader: {
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -55,27 +55,27 @@ const localStyles = {
     },
     materialRow: {
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        padding: '14px 20px', borderTop: '1px solid #f3f4f6',
-        background: '#fafafa', transition: 'background 0.15s'
+        padding: '14px 20px', borderTop: `1px solid ${studentTokens.borderWhisper}`,
+        background: studentTokens.bgShell, transition: 'background 0.15s'
     },
     startBtn: {
-        background: '#4f46e5', color: 'white', border: 'none', borderRadius: 999,
-        padding: '8px 18px', fontWeight: 700, cursor: 'pointer', fontSize: '0.8125rem',
+        background: studentTokens.accent, color: 'white', border: 'none', borderRadius: 8,
+        padding: '8px 18px', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase' as const,
         transition: 'background 0.2s', whiteSpace: 'nowrap' as const
     },
     completedBtn: {
-        background: '#d1fae5', color: '#059669', border: 'none', borderRadius: 999,
-        padding: '8px 18px', fontWeight: 700, cursor: 'pointer', fontSize: '0.8125rem',
+        background: '#edf5f9', color: '#4c5458', border: 'none', borderRadius: 8,
+        padding: '8px 18px', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase' as const,
         whiteSpace: 'nowrap' as const
     },
     disabledBtn: {
-        background: '#f3f4f6', color: '#9ca3af', border: 'none', borderRadius: 999,
-        padding: '8px 18px', fontWeight: 700, cursor: 'not-allowed', fontSize: '0.8125rem',
+        background: studentTokens.bgSurfaceAlt, color: studentTokens.textDim, border: 'none', borderRadius: 8,
+        padding: '8px 18px', fontWeight: 700, cursor: 'not-allowed', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase' as const,
         whiteSpace: 'nowrap' as const
     },
     outlineBtn: {
-        background: 'white', color: '#374151', border: '1px solid #d1d5db', borderRadius: 999,
-        padding: '8px 16px', fontWeight: 700, cursor: 'pointer', fontSize: '0.875rem'
+        background: 'transparent', color: studentTokens.textBody, border: `1px solid ${studentTokens.borderSoft}`, borderRadius: 8,
+        padding: '8px 16px', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase' as const
     },
 };
 
@@ -293,8 +293,8 @@ const StudentCourseDetailPage: React.FC = () => {
         return (
             <StudentLayout mobileTitle="Loading..." sidebar={<StudentSidebar user={user ? { ...user, avatarUrl: profile?.avatarUrl } : undefined} activePage="courses" pendingHomeworkCount={notStarted.length} />}>
                 <div style={{ textAlign: 'center', padding: '60px 24px' }}>
-                    <Loader size="md" color="#4f46e5" />
-                    <p style={{ color: '#6b7280', marginTop: 16 }}>Loading course...</p>
+                    <Loader size="md" color={studentTokens.accent} />
+                    <p style={{ color: studentTokens.textMuted, marginTop: 16 }}>Loading course...</p>
                 </div>
             </StudentLayout>
         );
@@ -305,8 +305,8 @@ const StudentCourseDetailPage: React.FC = () => {
             <StudentLayout mobileTitle="Error" sidebar={<StudentSidebar user={user ? { ...user, avatarUrl: profile?.avatarUrl } : undefined} activePage="courses" pendingHomeworkCount={notStarted.length} />}>
                 <div style={{ textAlign: 'center', padding: '60px 24px' }}>
                     <div style={{ fontSize: '3rem', marginBottom: 16 }}>⚠️</div>
-                    <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#111827', margin: '0 0 8px' }}>Access Error</h2>
-                    <p style={{ color: '#6b7280', fontSize: '1rem', margin: '0 0 24px' }}>{error || 'An unexpected error occurred.'}</p>
+                    <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: studentTokens.textPrimary, margin: '0 0 8px' }}>Access Error</h2>
+                    <p style={{ color: studentTokens.textMuted, fontSize: '1rem', margin: '0 0 24px' }}>{error || 'An unexpected error occurred.'}</p>
                     <button style={localStyles.outlineBtn} onClick={() => navigate('/student/courses')}>Back to My Courses</button>
                 </div>
             </StudentLayout>
@@ -326,8 +326,8 @@ const StudentCourseDetailPage: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <button
                         onClick={() => navigate('/student/courses')}
-                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', padding: 8, borderRadius: '50%', color: '#6b7280' }}
-                        onMouseEnter={e => e.currentTarget.style.background = '#e5e7eb'}
+                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', padding: 8, borderRadius: 8, color: studentTokens.textMuted }}
+                        onMouseEnter={e => e.currentTarget.style.background = studentTokens.bgSurfaceStrong}
                         onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                         aria-label="Back to courses"
                     >
@@ -335,9 +335,9 @@ const StudentCourseDetailPage: React.FC = () => {
                             <path d="M19 12H5M12 19l-7-7 7-7" />
                         </svg>
                     </button>
-                    <div>
+                    <div style={S.feedHeaderText}>
                         <h2 style={{ ...S.feedHeaderTitle, margin: 0 }}>{course.originalName || course.name}</h2>
-                        <p style={{ fontSize: '0.8125rem', color: '#6b7280', margin: 0 }}>{course.type}</p>
+                        <p style={S.feedHeaderSubtitle}>{course.type}</p>
                     </div>
                 </div>
             </div>
@@ -355,35 +355,35 @@ const StudentCourseDetailPage: React.FC = () => {
                     {/* Circular progress ring */}
                     <div style={{ position: 'relative', width: 72, height: 72, flexShrink: 0 }}>
                         <svg width="72" height="72" viewBox="0 0 72 72">
-                            <circle cx="36" cy="36" r="30" fill="none" stroke="#e5e7eb" strokeWidth="6" />
+                            <circle cx="36" cy="36" r="30" fill="none" stroke={studentTokens.bgSurfaceAlt} strokeWidth="6" />
                             <circle
-                                cx="36" cy="36" r="30" fill="none" stroke="#4f46e5" strokeWidth="6"
+                                cx="36" cy="36" r="30" fill="none" stroke={studentTokens.accent} strokeWidth="6"
                                 strokeDasharray={`${2 * Math.PI * 30}`}
                                 strokeDashoffset={`${2 * Math.PI * 30 * (1 - overallProgress / 100)}`}
                                 strokeLinecap="round"
                                 style={{ transform: 'rotate(-90deg)', transformOrigin: 'center', transition: 'stroke-dashoffset 0.5s ease' }}
                             />
                         </svg>
-                        <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.9rem', color: '#4f46e5' }}>
+                        <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.9rem', color: studentTokens.accent }}>
                             {overallProgress}%
                         </span>
                     </div>
                     <div style={{ flex: 1 }}>
-                        <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#111827', margin: '0 0 4px' }}>Your Progress</h3>
-                        <p style={{ fontSize: '0.875rem', color: '#6b7280', margin: '0 0 10px' }}>
+                        <h3 style={{ fontSize: '1rem', fontWeight: 700, color: studentTokens.textPrimary, margin: '0 0 4px' }}>Your Progress</h3>
+                        <p style={{ fontSize: '0.875rem', color: studentTokens.textMuted, margin: '0 0 10px' }}>
                             {completedMaterials} of {totalMaterials} materials completed
                         </p>
-                        <Progress value={overallProgress} size="sm" radius="xl" color="#4f46e5" style={{ background: '#e5e7eb' }} />
+                        <Progress value={overallProgress} size="sm" radius="xl" color={studentTokens.accent} style={{ background: studentTokens.bgSurfaceAlt }} />
                     </div>
                 </div>
 
                 {/* ── Class banner ── */}
                 {classData && (
                     <div style={{ background: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: 12, padding: '12px 16px', marginBottom: 16, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4338ca" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 2 }}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={studentTokens.accentHover} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 2 }}>
                             <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
                         </svg>
-                        <p style={{ fontSize: '0.875rem', color: '#4338ca', margin: 0, lineHeight: 1.5 }}>
+                        <p style={{ fontSize: '0.875rem', color: studentTokens.accentHover, margin: 0, lineHeight: 1.5 }}>
                             Linked to class: <strong>{classData.name}</strong> — your teacher controls which modules are unlocked.
                         </p>
                     </div>
@@ -393,8 +393,8 @@ const StudentCourseDetailPage: React.FC = () => {
                 {modules.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '48px 24px' }}>
                         <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>📂</div>
-                        <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#111827', margin: '0 0 8px' }}>No modules yet</h3>
-                        <p style={{ color: '#6b7280', fontSize: '0.9375rem', margin: 0 }}>Your teacher hasn't added any modules to this course yet.</p>
+                        <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: studentTokens.textPrimary, margin: '0 0 8px' }}>No modules yet</h3>
+                        <p style={{ color: studentTokens.textMuted, fontSize: '0.9375rem', margin: 0 }}>Your teacher hasn't added any modules to this course yet.</p>
                     </div>
                 ) : (
                     <div>
@@ -404,7 +404,7 @@ const StudentCourseDetailPage: React.FC = () => {
                             const isCompleted = module.status === 'completed';
 
                             const iconBg = isLocked ? '#f3f4f6' : isCompleted ? '#d1fae5' : '#eef2ff';
-                            const iconColor = isLocked ? '#9ca3af' : isCompleted ? '#059669' : '#4f46e5';
+                            const iconColor = isLocked ? studentTokens.textDim : isCompleted ? '#4c5458' : studentTokens.accent;
 
                             return (
                                 <div key={module.id} style={localStyles.moduleCard}>
@@ -431,8 +431,8 @@ const StudentCourseDetailPage: React.FC = () => {
                                                 )}
                                             </div>
                                             <div>
-                                                <p style={{ fontWeight: 700, color: isLocked ? '#9ca3af' : '#111827', margin: 0, fontSize: '0.9375rem' }}>{module.name}</p>
-                                                <p style={{ fontSize: '0.8125rem', color: '#6b7280', margin: 0 }}>
+                                                <p style={{ fontWeight: 700, color: isLocked ? studentTokens.textDim : studentTokens.textPrimary, margin: 0, fontSize: '0.9375rem' }}>{module.name}</p>
+                                                <p style={{ fontSize: '0.8125rem', color: studentTokens.textMuted, margin: 0 }}>
                                                     {module.materials.length} material{module.materials.length !== 1 ? 's' : ''}
                                                     {!isLocked && ` · ${module.completionCount} done`}
                                                 </p>
@@ -462,7 +462,7 @@ const StudentCourseDetailPage: React.FC = () => {
                                     {isExpanded && !isLocked && (
                                         <div>
                                             {module.materials.length === 0 ? (
-                                                <div style={{ padding: '20px 20px', borderTop: '1px solid #f3f4f6', color: '#9ca3af', fontSize: '0.875rem', fontStyle: 'italic', textAlign: 'center' }}>
+                                                <div style={{ padding: '20px 20px', borderTop: `1px solid ${studentTokens.borderWhisper}`, color: studentTokens.textDim, fontSize: '0.875rem', fontStyle: 'italic', textAlign: 'center' }}>
                                                     No materials added to this module yet.
                                                 </div>
                                             ) : (
@@ -477,13 +477,13 @@ const StudentCourseDetailPage: React.FC = () => {
                                                         >
                                                             {/* Material Info */}
                                                             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
-                                                                <div style={{ width: 34, height: 34, borderRadius: 8, background: '#eef2ff', color: '#4f46e5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                                <div style={{ width: 34, height: 34, borderRadius: 8, background: studentTokens.accentSoft, color: studentTokens.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                                                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                                                         <polygon points="5 3 19 12 5 21 5 3" />
                                                                     </svg>
                                                                 </div>
                                                                 <div style={{ minWidth: 0 }}>
-                                                                    <p style={{ fontWeight: 600, color: '#111827', margin: '0 0 2px', fontSize: '0.875rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                                    <p style={{ fontWeight: 600, color: studentTokens.textPrimary, margin: '0 0 2px', fontSize: '0.875rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                                                         {testMeta[material.materialId]?.title || 'Untitled'}
                                                                     </p>
                                                                     {/* Phase 3 Task 5.2: THCS badge */}
@@ -503,8 +503,8 @@ const StudentCourseDetailPage: React.FC = () => {
                                                             <button
                                                                 style={localStyles.startBtn}
                                                                 onClick={() => handleStartMaterial(material, module.id)}
-                                                                onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = '#4338ca'}
-                                                                onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = '#4f46e5'}
+                                                                onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = studentTokens.accentHover}
+                                                                onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = studentTokens.accent}
                                                             >
                                                                 Start →
                                                             </button>
@@ -518,10 +518,10 @@ const StudentCourseDetailPage: React.FC = () => {
                                     {/* Locked placeholder */}
                                     {isExpanded && isLocked && (
                                         <div style={{ padding: '24px 20px', borderTop: '1px solid #f3f4f6', textAlign: 'center' }}>
-                                            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 auto 10px', display: 'block' }}>
+                                            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke={studentTokens.outlineSoft} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 auto 10px', display: 'block' }}>
                                                 <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
                                             </svg>
-                                            <p style={{ color: '#9ca3af', fontSize: '0.9rem', margin: 0, fontWeight: 500 }}>
+                                            <p style={{ color: studentTokens.textDim, fontSize: '0.9rem', margin: 0, fontWeight: 500 }}>
                                                 This module is locked by your teacher.
                                             </p>
                                         </div>

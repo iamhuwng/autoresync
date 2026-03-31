@@ -2,7 +2,7 @@
 title: Student Shell Right Rail Architecture
 description: Architecture contract for the shared student shell layout, global right rail, shared data hook, and page-level extension pattern.
 createdAt: '2026-03-30T03:14:40.723Z'
-updatedAt: '2026-03-31T06:17:03.156Z'
+updatedAt: '2026-03-31T20:43:48.723Z'
 tags:
   - architecture
   - student
@@ -30,20 +30,25 @@ This architecture applies to:
 
 ### Desktop
 
-The shared student desktop shell uses a fixed 3-column grid:
-- left rail: `220px`
-- center feed: `minmax(0, 1fr)` with page content capped at `860px`
-- right rail: `280px`
-- shell max width: `1440px`
-- column gap: `24px`
-- horizontal padding: `24px`
+The shared student desktop shell uses a fixed left rail with an editorial center canvas and a contextual right rail:
+- left rail: fixed visual anchor owned by `StudentLayout`
+- center canvas: `minmax(0, 1fr)` with page content capped around `960px`
+- right rail: fixed-width contextual column rendered by the shell
+- shell composition should feel like one workspace, not three hard boxed columns
+- horizontal padding and gutters should support long-form reading rhythm rather than dashboard density
 
-The center feed is allowed to expand beyond the older `600px` cap so feed pages can use the available viewport more effectively.
+The center canvas is intentionally wider than the old `600px` cap so Academic Record and Dashboard can share the same editorial reading model.
+
+The dashboard feed must preserve the same center-column language as the approved Stitch dashboard export:
+- sticky workspace masthead
+- frameless metric strip using typographic columns instead of KPI cards
+- slim editorial tab row
+- timeline-style activity rows with a left icon rail and quiet dividers
+- no nested CTA cards inside feed rows
 
 ### Tablet and Mobile
 
 Tablet and mobile remain feed-first layouts. The left navigation and right rail move into off-canvas drawers owned by `StudentLayout`. Pages should rely on the shell toggle behavior instead of implementing their own mobile right-rail trigger unless they need a deliberate override.
-
 ## Right Rail Ownership
 
 The global right rail is rendered by `StudentRightRail` and always appears on student shell pages.

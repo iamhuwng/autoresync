@@ -8,7 +8,7 @@ import { getRequestsByStudent, cancelCourseRequest } from '../services/courseReq
 import { toast } from '../components/modern/ToastNotification';
 import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
-import { S } from '../components/layout/studentLayoutStyles';
+import { S, studentTokens } from '../components/layout/studentLayoutStyles';
 import { useResolvedStudentHomeworkList, useResolvedStudentShellData } from '../context/StudentShellDataContext';
 import type { CourseEnrollment, Course, CourseVisibility, CourseRequest } from '../types/course.types';
 
@@ -104,17 +104,17 @@ export async function preloadStudentCoursesPageData(
 }
 
 const localStyles = {
-    card: { background: 'white', borderRadius: 16, border: '1px solid #e5e7eb', padding: 20, display: 'flex', flexDirection: 'column' as const, gap: 16 },
-    primaryBtn: { background: '#4f46e5', color: 'white', border: 'none', borderRadius: 999, padding: '10px 16px', fontWeight: 700, cursor: 'pointer', fontSize: '0.875rem', width: '100%', transition: 'background 0.2s' },
-    disabledBtn: { background: '#f3f4f6', color: '#9ca3af', border: 'none', borderRadius: 999, padding: '10px 16px', fontWeight: 700, cursor: 'not-allowed', fontSize: '0.875rem', width: '100%' },
-    outlineBtn: { background: 'white', color: '#374151', border: '1px solid #d1d5db', borderRadius: 999, padding: '10px 16px', fontWeight: 700, cursor: 'pointer', fontSize: '0.875rem', width: '100%' },
-    ghostBtnRed: { background: 'transparent', color: '#ef4444', border: '1px solid transparent', borderRadius: 999, padding: '8px 16px', fontWeight: 600, cursor: 'pointer', fontSize: '0.875rem', width: '100%' },
-    ghostBtnGray: { background: 'transparent', color: '#6b7280', border: '1px solid transparent', borderRadius: 999, padding: '8px 16px', fontWeight: 600, cursor: 'pointer', fontSize: '0.875rem', width: '100%' },
-    modalOverlay: { position: 'fixed' as const, top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.3)', zIndex: 1000 },
-    modalContent: { position: 'fixed' as const, top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'white', borderRadius: 16, padding: 24, width: 400, maxWidth: '90vw', zIndex: 1001, boxShadow: '0 20px 60px rgba(0,0,0,0.15)' },
-    loaderWrap: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: '50%', border: '3px solid #e0e7ff', borderTopColor: '#4f46e5', animation: 'studentSpinner 0.8s linear infinite' },
-    progressTrack: { width: '100%', height: 8, borderRadius: 999, background: '#f3f4f6', overflow: 'hidden' as const },
-    progressFill: { height: '100%', borderRadius: 999, background: '#4f46e5', transition: 'width 0.2s ease-out' },
+    card: { background: studentTokens.bgSurface, borderRadius: 12, border: `1px solid ${studentTokens.borderWhisper}`, padding: 20, display: 'flex', flexDirection: 'column' as const, gap: 16 },
+    primaryBtn: { background: studentTokens.accent, color: 'white', border: 'none', borderRadius: 8, padding: '10px 16px', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase' as const, width: '100%', transition: 'background 0.2s' },
+    disabledBtn: { background: studentTokens.bgSurfaceAlt, color: studentTokens.textDim, border: 'none', borderRadius: 8, padding: '10px 16px', fontWeight: 700, cursor: 'not-allowed', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase' as const, width: '100%' },
+    outlineBtn: { background: 'transparent', color: studentTokens.textBody, border: `1px solid ${studentTokens.borderSoft}`, borderRadius: 8, padding: '10px 16px', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase' as const, width: '100%' },
+    ghostBtnRed: { background: 'transparent', color: '#9e3f4e', border: '1px solid transparent', borderRadius: 8, padding: '8px 16px', fontWeight: 600, cursor: 'pointer', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase' as const, width: '100%' },
+    ghostBtnGray: { background: 'transparent', color: studentTokens.textMuted, border: '1px solid transparent', borderRadius: 8, padding: '8px 16px', fontWeight: 600, cursor: 'pointer', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase' as const, width: '100%' },
+    modalOverlay: { position: 'fixed' as const, top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(12,15,16,0.24)', zIndex: 1000 },
+    modalContent: { position: 'fixed' as const, top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: studentTokens.bgSurface, borderRadius: 12, padding: 24, width: 400, maxWidth: '90vw', zIndex: 1001, boxShadow: '0 20px 60px rgba(43,52,55,0.12)' },
+    loaderWrap: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: '50%', border: '3px solid #e2dfff', borderTopColor: studentTokens.accent, animation: 'studentSpinner 0.8s linear infinite' },
+    progressTrack: { width: '100%', height: 6, borderRadius: 999, background: studentTokens.bgSurfaceAlt, overflow: 'hidden' as const },
+    progressFill: { height: '100%', borderRadius: 999, background: studentTokens.accent, transition: 'width 0.2s ease-out' },
 };
 
 function showCourseToast(tone: 'success' | 'error' | 'info', title: string, message: string) {
@@ -132,7 +132,7 @@ function InlineLoader({ label, size = 32 }: { label?: string; size?: number }) {
                     height: size,
                 }}
             />
-            {label ? <p style={{ color: '#6b7280', margin: 0 }}>{label}</p> : null}
+            {label ? <p style={{ color: studentTokens.textMuted, margin: 0 }}>{label}</p> : null}
         </div>
     );
 }
@@ -150,7 +150,7 @@ function StatusBadge({
         success: { background: '#dcfce7', color: '#166534', dot: '#22c55e' },
         error: { background: '#fee2e2', color: '#b91c1c', dot: '#ef4444' },
         info: { background: '#dbeafe', color: '#1d4ed8', dot: '#3b82f6' },
-        neutral: { background: '#f3f4f6', color: '#374151', dot: '#6b7280' },
+        neutral: { background: studentTokens.bgSurfaceAlt, color: studentTokens.textBody, dot: studentTokens.textMuted },
     }[tone];
 
     return (
@@ -345,8 +345,8 @@ const StudentCoursesPage: React.FC = () => {
             return (
                 <div style={{ textAlign: 'center', padding: '60px 24px' }}>
                     <div style={{ fontSize: '3rem', marginBottom: 16 }}>⚠️</div>
-                    <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#111827', margin: '0 0 8px' }}>Unable to load courses</h2>
-                    <p style={{ color: '#6b7280', fontSize: '1rem', margin: '0 0 24px' }}>{error}</p>
+                    <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: studentTokens.textPrimary, margin: '0 0 8px' }}>Unable to load courses</h2>
+                    <p style={{ color: studentTokens.textMuted, fontSize: '1rem', margin: '0 0 24px' }}>{error}</p>
                     <button style={{ ...localStyles.primaryBtn, width: 'auto' }} onClick={() => void loadEnrollments()}>Try Again</button>
                 </div>
             );
@@ -357,8 +357,8 @@ const StudentCoursesPage: React.FC = () => {
                 return (
                     <div style={{ textAlign: 'center', padding: '60px 24px' }}>
                         <div style={{ fontSize: '3rem', marginBottom: 16 }}>⏳</div>
-                        <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#111827', margin: '0 0 8px' }}>No pending requests</h2>
-                        <p style={{ color: '#6b7280', fontSize: '1rem', margin: 0 }}>You have no outstanding enrollment or unenrollment requests.</p>
+                        <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: studentTokens.textPrimary, margin: '0 0 8px' }}>No pending requests</h2>
+                        <p style={{ color: studentTokens.textMuted, fontSize: '1rem', margin: 0 }}>You have no outstanding enrollment or unenrollment requests.</p>
                     </div>
                 );
             }
@@ -369,16 +369,16 @@ const StudentCoursesPage: React.FC = () => {
                         <div key={req.id} style={localStyles.card}>
                             <div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-                                    <span style={{ padding: '4px 10px', borderRadius: 999, fontSize: '0.75rem', fontWeight: 700, background: '#dbeafe', color: '#1e40af' }}>
+                                    <span style={{ padding: '4px 10px', borderRadius: studentTokens.radiusSoft, fontSize: '0.75rem', fontWeight: 700, background: studentTokens.accentSoft, color: studentTokens.accentHover }}>
                                         {req.type === 'join' ? 'Enrollment' : 'Unenrollment'}
                                     </span>
-                                    <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                                    <span style={{ fontSize: '0.75rem', color: studentTokens.textMuted }}>
                                         Requested {new Date(req.requestedAt).toLocaleDateString()}
                                     </span>
                                 </div>
-                                <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#111827', margin: '0 0 4px' }}>{req.courseName}</h3>
-                                <p style={{ fontSize: '0.875rem', color: '#6b7280', margin: '0 0 4px' }}>Status: <strong>{req.status}</strong></p>
-                                <p style={{ fontSize: '0.75rem', color: '#9ca3af', margin: 0 }}>Expires: {new Date(req.expiresAt).toLocaleDateString()}</p>
+                                <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: studentTokens.textPrimary, margin: '0 0 4px' }}>{req.courseName}</h3>
+                                <p style={{ fontSize: '0.875rem', color: studentTokens.textMuted, margin: '0 0 4px' }}>Status: <strong>{req.status}</strong></p>
+                                <p style={{ fontSize: '0.75rem', color: studentTokens.textDim, margin: 0 }}>Expires: {new Date(req.expiresAt).toLocaleDateString()}</p>
                             </div>
                             <div style={{ marginTop: 'auto' }}>
                                 <button
@@ -398,8 +398,8 @@ const StudentCoursesPage: React.FC = () => {
             return (
                 <div style={{ textAlign: 'center', padding: '60px 24px' }}>
                     <div style={{ fontSize: '3rem', marginBottom: 16 }}>📚</div>
-                    <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#111827', margin: '0 0 8px' }}>No courses found</h2>
-                    <p style={{ color: '#6b7280', fontSize: '1rem', margin: '0 0 24px' }}>You haven't been enrolled in any {activeTab} courses yet.</p>
+                    <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: studentTokens.textPrimary, margin: '0 0 8px' }}>No courses found</h2>
+                    <p style={{ color: studentTokens.textMuted, fontSize: '1rem', margin: '0 0 24px' }}>You haven't been enrolled in any {activeTab} courses yet.</p>
                     <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
                         <button style={{ ...localStyles.primaryBtn, width: 'auto' }} onClick={() => navigateTo('STUDENT_COURSE_CATALOG')}>Browse Course Catalog</button>
                     </div>
@@ -416,23 +416,23 @@ const StudentCoursesPage: React.FC = () => {
                                 {enrollment.status.toUpperCase()}
                             </StatusBadge>
                             {enrollment.expiresAt > 0 && (
-                                <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                                <span style={{ fontSize: '0.75rem', color: studentTokens.textMuted }}>
                                     Expires: {new Date(enrollment.expiresAt).toLocaleDateString()}
                                 </span>
                             )}
                         </div>
 
                         <div>
-                            <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#111827', margin: '0 0 4px' }}>
+                            <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: studentTokens.textPrimary, margin: '0 0 4px' }}>
                                 {enrollment.course?.originalName || enrollment.course?.name || 'Untitled Course'}
                             </h3>
-                            <p style={{ fontSize: '0.875rem', color: '#6b7280', margin: 0 }}>by {enrollment.teacherName}</p>
+                            <p style={{ fontSize: '0.875rem', color: studentTokens.textMuted, margin: 0 }}>by {enrollment.teacherName}</p>
                         </div>
 
                         <div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#4f46e5' }}>Progress</span>
-                                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#4f46e5' }}>{enrollment.progress}%</span>
+                                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: studentTokens.accent }}>Progress</span>
+                                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: studentTokens.accent }}>{enrollment.progress}%</span>
                             </div>
                             <ProgressBar value={enrollment.progress || 0} />
                         </div>
@@ -489,7 +489,10 @@ const StudentCoursesPage: React.FC = () => {
                 }
             `}</style>
             <div style={S.feedHeader}>
-                <h2 style={S.feedHeaderTitle}>My Courses</h2>
+                <div style={S.feedHeaderText}>
+                    <h2 style={S.feedHeaderTitle}>My Courses</h2>
+                    <p style={S.feedHeaderSubtitle}>Manage active study paths, review pending approvals, and continue learning without switching shells.</p>
+                </div>
             </div>
 
             <div style={S.filterBar}>
@@ -525,7 +528,7 @@ const StudentCoursesPage: React.FC = () => {
                 <>
                     <div style={localStyles.modalOverlay} onClick={() => !processing && setUnenrollConfirm(null)} />
                     <div style={localStyles.modalContent}>
-                        <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0 0 16px', color: '#111827' }}>Confirm Unenrollment</h2>
+                        <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0 0 16px', color: studentTokens.textPrimary }}>Confirm Unenrollment</h2>
                         <p style={{ fontSize: '0.938rem', color: '#374151', margin: '0 0 24px', lineHeight: 1.5 }}>
                             Are you sure you want to unenroll from <strong>{unenrollConfirm.name}</strong>?
                             This will remove your access to all materials and modules in this course.
@@ -544,7 +547,7 @@ const StudentCoursesPage: React.FC = () => {
                 <>
                     <div style={localStyles.modalOverlay} onClick={() => setCancelRequestConfirm(null)} />
                     <div style={localStyles.modalContent}>
-                        <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0 0 16px', color: '#111827' }}>Cancel Course Request</h2>
+                        <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0 0 16px', color: studentTokens.textPrimary }}>Cancel Course Request</h2>
                         <p style={{ fontSize: '0.938rem', color: '#374151', margin: '0 0 24px', lineHeight: 1.5 }}>
                             Are you sure you want to cancel your course enrollment request?
                             You can always request enrollment again later.

@@ -6,7 +6,7 @@ import { useAuth } from '../hooks/useAuth';
 import { createSubmission } from '../services/homeworkSubmissionService';
 import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
-import { S } from '../components/layout/studentLayoutStyles';
+import { S, studentTokens } from '../components/layout/studentLayoutStyles';
 import { DeferredResultSlidePanel } from '../components/results/DeferredResultSlidePanel';
 import { buildRoute } from '../constants/routes';
 import { useResolvedStudentHomeworkList } from '../context/StudentShellDataContext';
@@ -57,32 +57,32 @@ const getTimeRemaining = (dueDate: number): { text: string; urgent: boolean } =>
 const getStatusVisual = (status: string): { bg: string; text: string; border: string } => {
     switch (status) {
         case 'not_started':
-            return { bg: '#f3f4f6', text: '#374151', border: '#d1d5db' };
+            return { bg: studentTokens.bgSurfaceAlt, text: studentTokens.textBody, border: studentTokens.outlineSoft };
         case 'in_progress':
-            return { bg: '#dbeafe', text: '#2563eb', border: '#bfdbfe' };
+            return { bg: studentTokens.accentSoft, text: studentTokens.accentHover, border: studentTokens.outlineSoft };
         case 'submitted':
-            return { bg: '#d1fae5', text: '#059669', border: '#a7f3d0' };
+            return { bg: '#edf5f9', text: '#4c5458', border: studentTokens.outlineSoft };
         case 'graded':
-            return { bg: '#dcfce7', text: '#166534', border: '#86efac' };
+            return { bg: '#dce4e8', text: '#2b3437', border: studentTokens.outlineSoft };
         case 'overdue':
-            return { bg: '#fef2f2', text: '#dc2626', border: '#fecaca' };
+            return { bg: '#fff2f2', text: '#9e3f4e', border: '#d7b7bd' };
         default:
-            return { bg: '#f3f4f6', text: '#374151', border: '#d1d5db' };
+            return { bg: studentTokens.bgSurfaceAlt, text: studentTokens.textBody, border: studentTokens.outlineSoft };
     }
 };
 
 const getSkillColor = (skill: string): { bg: string; text: string } => {
     switch (skill.toLowerCase()) {
         case 'reading':
-            return { bg: '#dbeafe', text: '#2563eb' };
+            return { bg: '#edf5f9', text: '#4c5458' };
         case 'listening':
-            return { bg: '#e0e7ff', text: '#4f46e5' };
+            return { bg: studentTokens.accentSoft, text: studentTokens.accentHover };
         case 'writing':
-            return { bg: '#ffedd5', text: '#c2410c' };
+            return { bg: '#f7efe4', text: '#9a5c2d' };
         case 'speaking':
-            return { bg: '#ccfbf1', text: '#0f766e' };
+            return { bg: '#dce4e8', text: '#586064' };
         default:
-            return { bg: '#f3f4f6', text: '#374151' };
+            return { bg: studentTokens.bgSurfaceAlt, text: studentTokens.textBody };
     }
 };
 
@@ -97,8 +97,8 @@ const localStyles: Record<string, React.CSSProperties> = {
     contentStack: {
         display: 'flex',
         flexDirection: 'column',
-        gap: 16,
-        padding: '12px 16px 16px',
+        gap: 18,
+        padding: '18px 0 0',
     },
     summaryGrid: {
         display: 'grid',
@@ -106,15 +106,14 @@ const localStyles: Record<string, React.CSSProperties> = {
         gap: 12,
     },
     summaryCard: {
-        background: '#ffffff',
-        borderRadius: 16,
-        padding: '16px 18px',
-        border: '1px solid #e5e7eb',
-        borderTopWidth: 4,
+        background: studentTokens.bgSurface,
+        borderRadius: 12,
+        padding: '18px 20px',
+        border: `1px solid ${studentTokens.borderWhisper}`,
         display: 'flex',
         flexDirection: 'column',
         gap: 8,
-        minHeight: 108,
+        minHeight: 116,
     },
     summaryLabel: {
         margin: 0,
@@ -122,13 +121,13 @@ const localStyles: Record<string, React.CSSProperties> = {
         fontWeight: 700,
         letterSpacing: '0.05em',
         textTransform: 'uppercase',
-        color: '#6b7280',
+        color: studentTokens.textMuted,
     },
     summaryValue: {
         margin: 0,
-        fontSize: '1.45rem',
+        fontSize: '2rem',
         fontWeight: 800,
-        color: '#111827',
+        color: studentTokens.textPrimary,
         lineHeight: 1.05,
     },
     listStack: {
@@ -137,11 +136,10 @@ const localStyles: Record<string, React.CSSProperties> = {
         gap: 12,
     },
     rowCard: {
-        background: '#ffffff',
-        border: '1px solid #e5e7eb',
-        borderRadius: 16,
-        borderTopWidth: 4,
-        padding: '16px 18px',
+        background: studentTokens.bgSurface,
+        border: `1px solid ${studentTokens.borderWhisper}`,
+        borderRadius: 12,
+        padding: '18px 20px',
         display: 'flex',
         flexDirection: 'column',
         gap: 14,
@@ -161,10 +159,10 @@ const localStyles: Record<string, React.CSSProperties> = {
         flex: 1,
     },
     title: {
-        fontSize: '1.05rem',
+        fontSize: '1rem',
         fontWeight: 700,
         margin: 0,
-        color: '#111827',
+        color: studentTokens.textPrimary,
         lineHeight: 1.35,
     },
     pillRow: {
@@ -174,10 +172,10 @@ const localStyles: Record<string, React.CSSProperties> = {
     },
     pill: {
         padding: '4px 10px',
-        borderRadius: 999,
-        fontSize: '0.75rem',
-        fontWeight: 600,
-        letterSpacing: '0.05em',
+        borderRadius: studentTokens.radiusPill,
+        fontSize: '0.6875rem',
+        fontWeight: 700,
+        letterSpacing: '0.08em',
         textTransform: 'uppercase',
     },
     metaRow: {
@@ -185,13 +183,13 @@ const localStyles: Record<string, React.CSSProperties> = {
         flexWrap: 'wrap',
         gap: 14,
         fontSize: '0.875rem',
-        color: '#6b7280',
+        color: studentTokens.textBody,
     },
     resultPanel: {
-        background: '#f9fafb',
+        background: studentTokens.bgShell,
         padding: '12px 14px',
-        borderRadius: 14,
-        border: '1px solid #e5e7eb',
+        borderRadius: 12,
+        border: `1px solid ${studentTokens.borderWhisper}`,
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -202,7 +200,7 @@ const localStyles: Record<string, React.CSSProperties> = {
         fontWeight: 700,
         letterSpacing: '0.05em',
         textTransform: 'uppercase',
-        color: '#6b7280',
+        color: studentTokens.textMuted,
     },
     resultValue: {
         fontSize: '1.125rem',
@@ -213,45 +211,49 @@ const localStyles: Record<string, React.CSSProperties> = {
         justifyContent: 'space-between',
         alignItems: 'center',
         gap: 12,
-        borderTop: '1px solid #e5e7eb',
+        borderTop: `1px solid ${studentTokens.borderWhisper}`,
         paddingTop: 14,
     },
     sourceText: {
         fontSize: '0.75rem',
-        color: '#6b7280',
+        color: studentTokens.textMuted,
     },
     emptyState: {
         padding: '48px 24px',
         textAlign: 'center',
-        background: '#ffffff',
-        borderRadius: 16,
-        border: '1px solid #e5e7eb',
+        background: studentTokens.bgSurface,
+        borderRadius: 12,
+        border: `1px solid ${studentTokens.borderWhisper}`,
     },
     primaryBtn: {
-        background: '#4f46e5',
+        background: studentTokens.accent,
         color: '#ffffff',
         border: 'none',
-        borderRadius: 999,
-        padding: '8px 16px',
+        borderRadius: 8,
+        padding: '9px 16px',
         fontWeight: 700,
-        fontSize: '0.875rem',
+        fontSize: '0.75rem',
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
         cursor: 'pointer',
     },
     outlineBtn: {
         background: 'transparent',
-        color: '#374151',
-        border: '1px solid #d1d5db',
-        borderRadius: 999,
-        padding: '8px 16px',
+        color: studentTokens.textBody,
+        border: `1px solid ${studentTokens.borderSoft}`,
+        borderRadius: 8,
+        padding: '9px 16px',
         fontWeight: 600,
-        fontSize: '0.875rem',
+        fontSize: '0.75rem',
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
         cursor: 'pointer',
     },
     rightWidgetCard: {
-        background: '#ffffff',
-        borderRadius: 16,
+        background: studentTokens.bgSurface,
+        borderRadius: 12,
         padding: 16,
-        border: '1px solid #e5e7eb',
+        border: `1px solid ${studentTokens.borderWhisper}`,
         display: 'flex',
         flexDirection: 'column',
         gap: 12,
@@ -264,18 +266,18 @@ const localStyles: Record<string, React.CSSProperties> = {
     },
     rightMetricLabel: {
         fontSize: '0.875rem',
-        color: '#374151',
+        color: studentTokens.textBody,
         fontWeight: 600,
     },
     rightMetricValue: {
         fontSize: '1rem',
-        color: '#111827',
+        color: studentTokens.textPrimary,
         fontWeight: 700,
     },
     rightCallout: {
-        background: '#f9fafb',
-        borderRadius: 14,
-        border: '1px solid #e5e7eb',
+        background: studentTokens.bgShell,
+        borderRadius: 12,
+        border: `1px solid ${studentTokens.borderWhisper}`,
         padding: 12,
         display: 'flex',
         flexDirection: 'column',
@@ -286,17 +288,17 @@ const localStyles: Record<string, React.CSSProperties> = {
         fontWeight: 700,
         letterSpacing: '0.05em',
         textTransform: 'uppercase',
-        color: '#6b7280',
+        color: studentTokens.textMuted,
     },
     rightCalloutTitle: {
         fontSize: '0.875rem',
         fontWeight: 700,
-        color: '#111827',
+        color: studentTokens.textPrimary,
         margin: 0,
     },
     rightCalloutMeta: {
         fontSize: '0.75rem',
-        color: '#6b7280',
+        color: studentTokens.textMuted,
         margin: 0,
     },
 };
@@ -306,14 +308,14 @@ function getHomeworkResultDisplay(
     canViewFeedback: boolean,
 ): { label: string; value: string; valueColor: string } {
     if (!latestSubmission) {
-        return { label: 'Result', value: '--', valueColor: '#9ca3af' };
+        return { label: 'Result', value: '--', valueColor: studentTokens.textDim };
     }
 
     if (canViewFeedback && typeof latestSubmission.percentage === 'number') {
         return {
             label: 'Your Score',
             value: `${latestSubmission.percentage.toFixed(0)}%`,
-            valueColor: '#4f46e5',
+            valueColor: studentTokens.accent,
         };
     }
 
@@ -321,7 +323,7 @@ function getHomeworkResultDisplay(
         return {
             label: 'Your Band',
             value: `Band ${latestSubmission.bandScore.toFixed(1)}`,
-            valueColor: '#4f46e5',
+            valueColor: studentTokens.accent,
         };
     }
 
@@ -329,14 +331,14 @@ function getHomeworkResultDisplay(
         return {
             label: canViewFeedback ? 'Grade Ready' : 'Result Locked',
             value: canViewFeedback ? 'Open Result' : 'Awaiting release',
-            valueColor: canViewFeedback ? '#4f46e5' : '#9ca3af',
+            valueColor: canViewFeedback ? studentTokens.accent : studentTokens.textDim,
         };
     }
 
     return {
         label: 'Pending Review',
         value: 'Awaiting teacher',
-        valueColor: '#9ca3af',
+        valueColor: studentTokens.textDim,
     };
 }
 
@@ -447,11 +449,11 @@ export const StudentHomeworkListPage: React.FC = () => {
         .filter((item) => item.homework.scheduling?.dueDate && item.status !== 'submitted' && item.status !== 'graded')
         .sort((left, right) => left.homework.scheduling.dueDate - right.homework.scheduling.dueDate)[0] || null;
     const summaryCards = [
-        { label: 'Assignments', value: homeworkItems.length, color: '#111827' },
-        { label: 'Not Started', value: notStarted.length, color: '#111827' },
-        { label: 'In Progress', value: inProgress.length, color: '#2563eb' },
-        { label: 'Completed', value: completed.length, color: '#059669' },
-        { label: 'Overdue', value: overdue.length, color: '#dc2626' },
+        { label: 'Assignments', value: homeworkItems.length, color: studentTokens.textPrimary },
+        { label: 'Not Started', value: notStarted.length, color: studentTokens.textPrimary },
+        { label: 'In Progress', value: inProgress.length, color: studentTokens.accent },
+        { label: 'Completed', value: completed.length, color: '#4c5458' },
+        { label: 'Overdue', value: overdue.length, color: '#9e3f4e' },
     ];
 
     const renderCenterContent = () => {
@@ -467,7 +469,7 @@ export const StudentHomeworkListPage: React.FC = () => {
             return (
                 <div style={localStyles.contentStack}>
                     <div style={localStyles.emptyState}>
-                        <h2 style={{ fontSize: '1.25rem', color: '#dc2626', margin: '0 0 16px' }}>{error}</h2>
+                        <h2 style={{ fontSize: '1.25rem', color: '#9e3f4e', margin: '0 0 16px' }}>{error}</h2>
                         <button type="button" style={localStyles.primaryBtn} onClick={refreshData}>
                             Try Again
                         </button>
@@ -482,7 +484,7 @@ export const StudentHomeworkListPage: React.FC = () => {
                     {summaryCards.map((card) => (
                         <div
                             key={card.label}
-                            style={{ ...localStyles.summaryCard, borderTopColor: '#d1d5db' }}
+                            style={localStyles.summaryCard}
                         >
                             <p style={localStyles.summaryLabel}>{card.label}</p>
                             <p style={{ ...localStyles.summaryValue, color: card.color }}>{card.value}</p>
@@ -492,8 +494,8 @@ export const StudentHomeworkListPage: React.FC = () => {
 
                 {tabItems.length === 0 ? (
                     <div style={localStyles.emptyState}>
-                        <h2 style={{ fontSize: '1.25rem', color: '#111827', margin: '0 0 8px' }}>No homework found</h2>
-                        <p style={{ color: '#6b7280', margin: 0 }}>
+                        <h2 style={{ fontSize: '1.25rem', color: studentTokens.textPrimary, margin: '0 0 8px' }}>No homework found</h2>
+                        <p style={{ color: studentTokens.textMuted, margin: 0 }}>
                             {activeTab === 'all'
                                 ? "Your teachers haven't assigned any homework yet."
                                 : 'No homework in this category.'}
@@ -543,7 +545,7 @@ export const StudentHomeworkListPage: React.FC = () => {
                                     </div>
 
                                     <div style={localStyles.metaRow}>
-                                        <span style={{ fontWeight: 600, color: timeInfo.urgent ? '#dc2626' : '#6b7280' }}>
+                                        <span style={{ fontWeight: 600, color: timeInfo.urgent ? '#9e3f4e' : studentTokens.textMuted }}>
                                             Due: {formatDate(homework.scheduling.dueDate)}
                                         </span>
                                         <span>{timeInfo.text}</span>
@@ -623,16 +625,16 @@ export const StudentHomeworkListPage: React.FC = () => {
                         <span style={localStyles.rightMetricValue}>{notStarted.length}</span>
                     </div>
                     <div style={localStyles.rightMetricRow}>
-                        <span style={{ ...localStyles.rightMetricLabel, color: '#2563eb' }}>In Progress</span>
+                        <span style={{ ...localStyles.rightMetricLabel, color: studentTokens.accent }}>In Progress</span>
                         <span style={localStyles.rightMetricValue}>{inProgress.length}</span>
                     </div>
                     <div style={localStyles.rightMetricRow}>
-                        <span style={{ ...localStyles.rightMetricLabel, color: '#059669' }}>Completed</span>
+                        <span style={{ ...localStyles.rightMetricLabel, color: '#4c5458' }}>Completed</span>
                         <span style={localStyles.rightMetricValue}>{completed.length}</span>
                     </div>
-                    <div style={{ ...localStyles.rightMetricRow, paddingTop: 8, borderTop: '1px solid #e5e7eb' }}>
-                        <span style={{ ...localStyles.rightMetricLabel, color: '#dc2626' }}>Overdue</span>
-                        <span style={{ ...localStyles.rightMetricValue, color: '#dc2626' }}>{overdue.length}</span>
+                    <div style={{ ...localStyles.rightMetricRow, paddingTop: 8, borderTop: `1px solid ${studentTokens.borderWhisper}` }}>
+                        <span style={{ ...localStyles.rightMetricLabel, color: '#9e3f4e' }}>Overdue</span>
+                        <span style={{ ...localStyles.rightMetricValue, color: '#9e3f4e' }}>{overdue.length}</span>
                     </div>
                 </div>
 
@@ -662,7 +664,10 @@ export const StudentHomeworkListPage: React.FC = () => {
             rightPanel={renderRightPanel()}
         >
             <div style={S.feedHeader}>
-                <h2 style={S.feedHeaderTitle}>My Homework</h2>
+                <div style={S.feedHeaderText}>
+                    <h2 style={S.feedHeaderTitle}>My Homework</h2>
+                    <p style={S.feedHeaderSubtitle}>Track upcoming assignments, review progress, and continue active work without losing the calm academic workspace.</p>
+                </div>
             </div>
 
             <div style={{ ...S.filterBar, overflowX: 'auto', whiteSpace: 'nowrap' }}>

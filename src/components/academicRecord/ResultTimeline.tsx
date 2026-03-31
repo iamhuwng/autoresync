@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { IconInbox } from '@tabler/icons-react';
 import { AcademicRecordResultRow } from './AcademicRecordResultRow';
 import type { EnhancedTestResultRecord } from '../../types/results.types';
+import { studentTokens } from '../layout/studentLayoutStyles';
 
 interface ResultTimelineProps {
     results: EnhancedTestResultRecord[];
@@ -27,15 +28,15 @@ const styles: Record<string, React.CSSProperties> = {
     spinner: {
         width: 28,
         height: 28,
-        border: '3px solid #e5e7eb',
-        borderTopColor: '#4f46e5',
+        border: `3px solid ${studentTokens.accentSoft}`,
+        borderTopColor: studentTokens.accent,
         borderRadius: '50%',
         animation: 'timelineSpin 0.8s linear infinite',
     },
     helperText: {
         margin: 0,
         fontSize: '0.875rem',
-        color: '#6b7280',
+        color: studentTokens.textMuted,
     },
     emptyWrap: {
         display: 'flex',
@@ -53,40 +54,58 @@ const styles: Record<string, React.CSSProperties> = {
         margin: 0,
         fontSize: '1.125rem',
         fontWeight: 700,
-        color: '#374151',
+        color: studentTokens.textPrimary,
         textAlign: 'center',
     },
     emptyBody: {
         margin: 0,
         fontSize: '0.875rem',
-        color: '#6b7280',
+        color: studentTokens.textMuted,
         textAlign: 'center',
         lineHeight: 1.5,
     },
     list: {
         display: 'flex',
         flexDirection: 'column',
-        gap: '0.75rem',
+        gap: 0,
+        background: studentTokens.bgSurface,
+        overflow: 'hidden',
+    },
+    tableHeader: {
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1.8fr) 108px 96px 120px 32px',
+        alignItems: 'center',
+        gap: 12,
+        padding: '16px 20px',
+        background: studentTokens.bgSurfaceAlt,
+        color: studentTokens.textMuted,
+        fontSize: '0.75rem',
+        fontWeight: 700,
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
+        borderBottom: `1px solid ${studentTokens.borderWhisper}`,
     },
     footerWrap: {
         display: 'flex',
         justifyContent: 'center',
-        marginTop: '0.5rem',
+        marginTop: '1rem',
     },
     loadMoreButton: {
-        border: 'none',
-        borderRadius: 999,
+        border: `1px solid ${studentTokens.borderSoft}`,
+        borderRadius: studentTokens.radiusSoft,
         padding: '0.625rem 0.95rem',
-        background: '#e5e7eb',
-        color: '#374151',
-        fontSize: '0.8125rem',
+        background: studentTokens.bgSurfaceAlt,
+        color: studentTokens.textPrimary,
+        fontSize: '0.75rem',
         fontWeight: 700,
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
         cursor: 'pointer',
     },
     countText: {
-        margin: '0.25rem 0 0',
+        margin: '0.5rem 0 0',
         fontSize: '0.75rem',
-        color: '#6b7280',
+        color: studentTokens.textMuted,
         textAlign: 'center',
     },
 };
@@ -128,7 +147,7 @@ export const ResultTimeline: React.FC<ResultTimelineProps> = ({
         return (
             <div style={styles.emptyWrap}>
                 <div style={styles.emptyInner}>
-                    <IconInbox size={52} style={{ color: '#9ca3af' }} />
+                    <IconInbox size={52} style={{ color: studentTokens.textDim }} />
                     <p style={styles.emptyHeading}>{emptyMessage}</p>
                     <p style={styles.emptyBody}>
                         Your test results will appear here once you complete a test.
@@ -140,6 +159,13 @@ export const ResultTimeline: React.FC<ResultTimelineProps> = ({
 
     return (
         <div style={styles.list}>
+            <div style={styles.tableHeader}>
+                <span>Assessment Name</span>
+                <span>Date</span>
+                <span>Score</span>
+                <span>Status</span>
+                <span />
+            </div>
             {displayedResults.map((result) => (
                 <AcademicRecordResultRow
                     key={result.resultId}

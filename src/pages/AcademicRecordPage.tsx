@@ -13,7 +13,7 @@ import type { EnhancedTestResultRecord } from '@/types/results.types';
 import type { AcademicRecordFilters, ProgressiveFeedbackRecord } from '@/types/academicRecord.types';
 import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
-import { S } from '../components/layout/studentLayoutStyles';
+import { S, studentTokens } from '../components/layout/studentLayoutStyles';
 import { IconAlertCircle } from '../components/layout/StudentIcons';
 import { getProgressiveFeedback, refreshProgressiveFeedback } from '../services/progressiveFeedback.service';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
@@ -26,6 +26,12 @@ const MAIN_VIEW_OPTIONS = [
     { value: 'thcs', label: 'THCS' },
     { value: 'ielts', label: 'IELTS' },
     { value: 'course', label: 'Course' },
+] as const;
+
+const DATE_RANGE_OPTIONS = [
+    { value: 'quarter', label: 'Last 3 Months' },
+    { value: 'year', label: 'YTD' },
+    { value: 'all', label: 'All Time' },
 ] as const;
 
 type MainView = (typeof MAIN_VIEW_OPTIONS)[number]['value'];
@@ -109,77 +115,97 @@ const localStyles: Record<string, React.CSSProperties> = {
         flexDirection: 'row',
         justifyContent: 'flex-end',
         alignItems: 'center',
-        gap: 12,
+        gap: 8,
     },
-    selectBox: {
-        background: '#e5e7eb',
+    datePillGroup: {
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        background: studentTokens.bgSurfaceAlt,
+        borderRadius: 10,
+        padding: 4,
+    },
+    dateRangeButton: {
         border: 'none',
-        borderRadius: 999,
-        padding: '8px 16px',
-        fontSize: '0.875rem',
-        fontWeight: 500,
-        color: '#374151',
-        outline: 'none',
+        background: 'transparent',
+        borderRadius: studentTokens.radiusSoft,
+        padding: '9px 14px',
+        fontSize: '0.75rem',
+        fontWeight: 700,
+        color: studentTokens.textMuted,
         cursor: 'pointer',
         fontFamily: 'inherit',
     },
+    dateRangeButtonActive: {
+        background: studentTokens.bgSurface,
+        color: studentTokens.accent,
+        boxShadow: '0 1px 2px rgba(43, 52, 55, 0.05)',
+    },
     alertBox: {
-        margin: '16px',
-        padding: '12px 16px',
-        background: '#fee2e2',
-        color: '#b91c1c',
-        borderRadius: 8,
+        marginTop: 28,
+        padding: '18px 20px',
+        background: 'rgba(226, 223, 255, 0.42)',
+        color: studentTokens.textPrimary,
+        borderRadius: 0,
         display: 'flex',
-        alignItems: 'center',
-        gap: 12,
+        alignItems: 'flex-start',
+        gap: 14,
         fontSize: '0.875rem',
-        border: '1px solid #fca5a5',
+        borderLeft: `4px solid ${studentTokens.accent}`,
+    },
+    defaultBanner: {
+        marginTop: 28,
+        padding: '18px 20px',
+        background: 'rgba(226, 223, 255, 0.42)',
+        color: studentTokens.textPrimary,
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 14,
+        borderLeft: `4px solid ${studentTokens.accent}`,
     },
     feedSection: {
-        padding: '12px 16px 16px',
+        padding: '32px 0 0',
         animation: 'dashFadeIn 200ms ease-out forwards',
         display: 'flex',
         flexDirection: 'column',
-        gap: 24,
+        gap: 40,
     },
     statsGrid: {
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-        gap: 12,
+        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+        gap: 24,
         marginBottom: 8,
     },
     statCard: {
-        background: '#ffffff',
-        borderRadius: 16,
-        padding: '16px 18px',
-        border: '1px solid #e5e7eb',
-        borderTopWidth: 4,
+        background: studentTokens.bgSurface,
+        borderRadius: 0,
+        padding: '24px 24px',
         display: 'flex',
         flexDirection: 'column',
+        justifyContent: 'space-between',
         gap: 8,
-        minHeight: 108,
+        minHeight: 128,
     },
     statLabel: {
-        fontSize: '0.6875rem',
+        fontSize: '0.625rem',
         fontWeight: 700,
-        letterSpacing: '0.05em',
+        letterSpacing: '0.14em',
         textTransform: 'uppercase',
-        color: '#6b7280',
-        marginBottom: 8,
+        color: studentTokens.textMuted,
+        marginBottom: 6,
     },
     statValue: {
-        fontSize: '1.4rem',
+        fontSize: '2.4rem',
         fontWeight: 800,
-        color: '#111827',
+        color: studentTokens.textPrimary,
         lineHeight: 1.1,
     },
     feedbackCard: {
-        background: '#ffffff',
-        borderRadius: 16,
-        padding: '18px 20px',
-        border: '1px solid #e5e7eb',
-        borderTopWidth: 4,
-        borderTopColor: '#d1d5db',
+        background: studentTokens.bgSurfaceAlt,
+        borderRadius: 0,
+        padding: '28px 28px',
+        position: 'relative',
+        overflow: 'hidden',
     },
     feedbackTop: {
         display: 'flex',
@@ -193,24 +219,31 @@ const localStyles: Record<string, React.CSSProperties> = {
         flexDirection: 'column',
         gap: 4,
     },
+    feedbackEyebrow: {
+        fontSize: '0.625rem',
+        fontWeight: 700,
+        letterSpacing: '0.14em',
+        textTransform: 'uppercase',
+        color: studentTokens.accent,
+    },
     feedbackTitle: {
         margin: 0,
-        fontSize: '1rem',
+        fontSize: '1.3rem',
         fontWeight: 700,
-        color: '#111827',
+        color: studentTokens.textPrimary,
     },
     feedbackMeta: {
         fontSize: '0.75rem',
-        color: '#6b7280',
+        color: studentTokens.textMuted,
     },
     refreshButton: {
-        minWidth: 74,
-        height: 34,
-        padding: '0 14px',
-        borderRadius: 999,
+        minWidth: 126,
+        height: 38,
+        padding: '0 16px',
+        borderRadius: studentTokens.radiusSoft,
         border: 'none',
-        background: '#e5e7eb',
-        color: '#374151',
+        background: studentTokens.accent,
+        color: '#faf6ff',
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -218,23 +251,24 @@ const localStyles: Record<string, React.CSSProperties> = {
         flexShrink: 0,
         fontSize: '0.7rem',
         fontWeight: 700,
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
     },
     refreshButtonDisabled: {
-        background: '#f3f4f6',
-        color: '#9ca3af',
+        background: studentTokens.bgSurfaceStrong,
+        color: studentTokens.textDim,
         cursor: 'not-allowed',
     },
     feedbackBody: {
         fontSize: '0.875rem',
         lineHeight: 1.6,
-        color: '#374151',
+        color: studentTokens.textBody,
         whiteSpace: 'pre-wrap',
-        fontStyle: 'italic',
     },
     feedbackList: {
         margin: '10px 0 0',
         paddingLeft: 18,
-        color: '#4b5563',
+        color: studentTokens.textBody,
         fontSize: '0.8125rem',
         lineHeight: 1.6,
     },
@@ -250,14 +284,51 @@ const localStyles: Record<string, React.CSSProperties> = {
     },
     sectionTitle: {
         margin: 0,
-        fontSize: '1.05rem',
+        fontSize: '0.75rem',
         fontWeight: 700,
-        color: '#111827',
+        color: studentTokens.textMuted,
+        textTransform: 'uppercase',
+        letterSpacing: '0.14em',
     },
     sectionBody: {
         display: 'flex',
         flexDirection: 'column',
         gap: 12,
+    },
+    pageTabBar: {
+        display: 'flex',
+        gap: 28,
+        overflowX: 'auto',
+        padding: '0 0 16px',
+        marginTop: 28,
+        borderBottom: `1px solid ${studentTokens.borderWhisper}`,
+    },
+    pageTab: {
+        padding: '0 0 14px',
+        fontWeight: 600,
+        fontSize: '0.95rem',
+        color: studentTokens.textMuted,
+        cursor: 'pointer',
+        border: 'none',
+        background: 'transparent',
+        borderBottom: '2px solid transparent',
+        transition: 'color 0.15s ease, border-color 0.15s ease',
+        whiteSpace: 'nowrap',
+    },
+    pageTabActive: {
+        color: studentTokens.accent,
+        borderBottom: `2px solid ${studentTokens.accent}`,
+    },
+    feedbackDecoration: {
+        position: 'absolute',
+        right: -18,
+        bottom: -16,
+        fontSize: '5rem',
+        fontWeight: 800,
+        letterSpacing: '-0.06em',
+        color: 'rgba(43, 52, 55, 0.05)',
+        pointerEvents: 'none',
+        userSelect: 'none',
     },
 };
 
@@ -523,14 +594,14 @@ export const AcademicRecordPage: React.FC = () => {
                         style={{
                             width: 32,
                             height: 32,
-                            border: '3px solid #e2e8f0',
-                            borderTopColor: '#4f46e5',
+                            border: `3px solid ${studentTokens.accentSoft}`,
+                            borderTopColor: studentTokens.accent,
                             borderRadius: '50%',
                             animation: 'spin 0.8s linear infinite',
                         }}
                     />
                     <style>{'@keyframes spin { to { transform: rotate(360deg); } }'}</style>
-                    <p style={{ color: '#6b7280', marginTop: 16 }}>Loading your academic records...</p>
+                    <p style={{ color: studentTokens.textMuted, marginTop: 16 }}>Loading your academic records...</p>
                 </div>
             );
         }
@@ -538,24 +609,25 @@ export const AcademicRecordPage: React.FC = () => {
         return (
             <>
                 <div style={localStyles.statsGrid}>
-                    <div style={{ ...localStyles.statCard, borderTopColor: '#d1d5db' }}>
+                    <div style={localStyles.statCard}>
                         <div style={localStyles.statLabel}>Total Tests</div>
                         <div style={localStyles.statValue}>{results.length}</div>
                     </div>
-                    <div style={{ ...localStyles.statCard, borderTopColor: '#d1d5db' }}>
+                    <div style={localStyles.statCard}>
                         <div style={localStyles.statLabel}>Average Score</div>
-                        <div style={{ ...localStyles.statValue, color: '#4f46e5' }}>{averageScore}%</div>
+                        <div style={{ ...localStyles.statValue, color: studentTokens.accent }}>{averageScore}%</div>
                     </div>
-                    <div style={{ ...localStyles.statCard, borderTopColor: '#d1d5db' }}>
+                    <div style={localStyles.statCard}>
                         <div style={localStyles.statLabel}>Best Score</div>
-                        <div style={{ ...localStyles.statValue, color: '#047857' }}>{bestScore}%</div>
+                        <div style={{ ...localStyles.statValue, color: '#4c5458' }}>{bestScore}%</div>
                     </div>
                 </div>
 
                 <div style={localStyles.feedbackCard}>
                     <div style={localStyles.feedbackTop}>
                         <div style={localStyles.feedbackTitleWrap}>
-                            <h2 style={localStyles.feedbackTitle}>Progressive Feedback</h2>
+                            <span style={localStyles.feedbackEyebrow}>Progressive Feedback</span>
+                            <h2 style={localStyles.feedbackTitle}>Recent Progress Synthesis</h2>
                         </div>
                         <button
                             type="button"
@@ -592,11 +664,12 @@ export const AcademicRecordPage: React.FC = () => {
                             </ul>
                         </>
                     )}
+                    <div style={localStyles.feedbackDecoration}>AI</div>
                 </div>
 
                 <section style={localStyles.viewSection}>
                     <div style={localStyles.sectionHeader}>
-                        <h2 style={localStyles.sectionTitle}>Recent Results</h2>
+                        <h2 style={localStyles.sectionTitle}>Recent Assessment Results</h2>
                     </div>
                     <div style={localStyles.sectionBody}>
                         <ResultTimeline
@@ -672,22 +745,43 @@ export const AcademicRecordPage: React.FC = () => {
     );
 
     return (
-        <StudentLayout mobileTitle={mobileTitle} sidebar={renderSidebar()}>
+        <StudentLayout mobileTitle={mobileTitle} sidebar={renderSidebar()} rightRailVariant="academic-record">
             <div style={localStyles.headerRow}>
-                <h1 style={S.feedHeaderTitle}>Academic Record</h1>
+                <div style={S.feedHeaderText}>
+                    <h1 style={S.feedHeaderTitle}>Academic Record</h1>
+                    <p style={S.feedHeaderSubtitle}>
+                        Review recent results, long-term progression, and AI-generated feedback inside the shared academic workspace.
+                    </p>
+                </div>
                 <div style={localStyles.controlsRow}>
-                    <select
-                        value={dateRange}
-                        onChange={(event) => setDateRange(event.target.value)}
-                        style={localStyles.selectBox}
-                        aria-label="Filter by time period"
-                    >
-                        <option value="all">All Time</option>
-                        <option value="week">Last 7 Days</option>
-                        <option value="month">Last 30 Days</option>
-                        <option value="quarter">Last 3 Months</option>
-                        <option value="year">Last Year</option>
-                    </select>
+                    <div style={localStyles.datePillGroup} aria-label="Filter by time period" role="tablist">
+                        {DATE_RANGE_OPTIONS.map((option) => (
+                            <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => setDateRange(option.value)}
+                                style={{
+                                    ...localStyles.dateRangeButton,
+                                    ...(dateRange === option.value ? localStyles.dateRangeButtonActive : {}),
+                                }}
+                                aria-pressed={dateRange === option.value}
+                            >
+                                {option.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
+            <div style={localStyles.defaultBanner}>
+                <IconAlertCircle />
+                <div>
+                    <div style={{ fontSize: '0.875rem', fontWeight: 700, color: studentTokens.accentHover }}>
+                        System Update: Progressive Feedback Layer
+                    </div>
+                    <div style={{ fontSize: '0.875rem', lineHeight: 1.55, color: studentTokens.textBody }}>
+                        Review the refreshed synthesis below before drilling into individual results. This page now prioritizes summary-first reading, then detail on demand.
+                    </div>
                 </div>
             </div>
 
@@ -700,7 +794,7 @@ export const AcademicRecordPage: React.FC = () => {
 
             <AIMaintenanceBanner />
 
-            <div style={S.filterBar}>
+            <div style={localStyles.pageTabBar}>
                 {MAIN_VIEW_OPTIONS.map((option) => (
                     <button
                         key={option.value}
@@ -710,8 +804,8 @@ export const AcademicRecordPage: React.FC = () => {
                             trackAction('switchResultTab', { tab: option.value, surface: 'main_view' });
                         }}
                         style={{
-                            ...S.filterTab,
-                            ...(activeView === option.value ? S.filterTabActive : {}),
+                            ...localStyles.pageTab,
+                            ...(activeView === option.value ? localStyles.pageTabActive : {}),
                         }}
                         aria-pressed={activeView === option.value}
                     >

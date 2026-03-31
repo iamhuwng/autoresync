@@ -10,6 +10,7 @@ export interface StudentLayoutProps {
     shellData?: StudentRightRailShellData;
     mobileTitle: string;
     mobileRightAction?: React.ReactNode;
+    rightRailVariant?: 'default' | 'academic-record';
 }
 
 export const StudentLayout: React.FC<StudentLayoutProps> = ({
@@ -19,12 +20,21 @@ export const StudentLayout: React.FC<StudentLayoutProps> = ({
     shellData,
     mobileTitle,
     mobileRightAction,
+    rightRailVariant = 'default',
 }) => {
     const [showMobileLeft, setShowMobileLeft] = useState(false);
     const [showMobileRight, setShowMobileRight] = useState(false);
 
     const isMobile = useMediaQuery('(max-width: 768px)');
     const isTablet = useMediaQuery('(max-width: 1024px)');
+
+    const defaultMobileLeftAction = (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+            <line x1="4" y1="7" x2="20" y2="7" />
+            <line x1="4" y1="12" x2="16" y2="12" />
+            <line x1="4" y1="17" x2="20" y2="17" />
+        </svg>
+    );
 
     const defaultMobileRightAction = (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -55,7 +65,7 @@ export const StudentLayout: React.FC<StudentLayoutProps> = ({
             <style>{`
         * { box-sizing: border-box; }
         body {
-          background: #f3f4f6 !important;
+          background: #f8f9fa !important;
           background-image: none !important;
           margin: 0;
           padding: 0;
@@ -73,9 +83,9 @@ export const StudentLayout: React.FC<StudentLayoutProps> = ({
             {(isMobile || isTablet) && (
                 <div style={S.mobileHeader}>
                     <button type="button" style={S.mobileBtn} onClick={toggleLeft} aria-label="Open navigation">
-                        ☰
+                        {defaultMobileLeftAction}
                     </button>
-                    <span style={{ fontWeight: 700, fontSize: '1.125rem', color: '#111827' }}>
+                    <span style={{ fontWeight: 700, fontSize: '1rem', color: '#2b3437', letterSpacing: '-0.02em' }}>
                         {mobileTitle}
                     </span>
                     <button type="button" style={S.mobileBtn} onClick={toggleRight} aria-label="Open right rail">
@@ -100,7 +110,7 @@ export const StudentLayout: React.FC<StudentLayoutProps> = ({
                         : {}),
                 }}
             >
-                <header
+                <aside
                     style={{
                         ...S.sidebar,
                         ...((isMobile || isTablet)
@@ -110,63 +120,72 @@ export const StudentLayout: React.FC<StudentLayoutProps> = ({
                                 left: 0,
                                 width: 280,
                                 height: '100vh',
-                                background: 'white',
+                                background: '#f1f4f6',
                                 zIndex: 1000,
                                 padding: 24,
                                 transform: showMobileLeft ? 'translateX(0)' : 'translateX(-100%)',
                                 transition: 'transform 0.3s ease-in-out',
-                                boxShadow: showMobileLeft ? '4px 0 20px rgba(0,0,0,0.1)' : 'none',
+                                boxShadow: showMobileLeft ? '12px 0 32px rgba(43, 52, 55, 0.12)' : 'none',
                             }
                             : {}),
                     }}
                 >
                     {sidebar}
-                </header>
-
-                <main
-                    style={{
-                        ...S.feed,
-                        ...((isMobile || isTablet)
-                            ? {
-                                marginTop: 56,
-                                borderLeft: 'none',
-                                borderRight: 'none',
-                                maxWidth: '100%',
-                            }
-                            : {}),
-                    }}
-                >
-                    {children}
-                </main>
-
-                <aside
-                    data-testid="student-layout-right-rail"
-                    style={{
-                        ...S.rightPanel,
-                        ...((isMobile || isTablet)
-                            ? {
-                                position: 'fixed',
-                                top: 0,
-                                right: 0,
-                                width: 320,
-                                height: '100vh',
-                                background: 'white',
-                                zIndex: 1000,
-                                padding: 24,
-                                overflowY: 'auto',
-                                transform: showMobileRight ? 'translateX(0)' : 'translateX(100%)',
-                                transition: 'transform 0.3s ease-in-out',
-                                boxShadow: showMobileRight ? '-4px 0 20px rgba(0,0,0,0.1)' : 'none',
-                            }
-                            : {}),
-                    }}
-                >
-                    {shellData ? (
-                        <StudentRightRail shellData={shellData} supplementalContent={rightPanel} />
-                    ) : (
-                        <ConnectedStudentRightRail supplementalContent={rightPanel} />
-                    )}
                 </aside>
+
+                <div
+                    style={{
+                        ...((isMobile || isTablet)
+                            ? {}
+                            : S.bodyFrame),
+                    }}
+                >
+                    <main
+                        style={{
+                            ...S.feed,
+                            ...((isMobile || isTablet)
+                                ? {
+                                    marginTop: 56,
+                                    maxWidth: '100%',
+                                    width: '100%',
+                                    boxShadow: 'none',
+                                }
+                                : {}),
+                        }}
+                    >
+                        {children}
+                    </main>
+
+                    <aside
+                        data-testid="student-layout-right-rail"
+                        style={{
+                            ...S.rightPanel,
+                            ...((isMobile || isTablet)
+                                ? {
+                                    position: 'fixed',
+                                    top: 0,
+                                    right: 0,
+                                    width: 320,
+                                    minWidth: 320,
+                                    height: '100vh',
+                                    background: '#f1f4f6',
+                                    zIndex: 1000,
+                                    padding: 24,
+                                    overflowY: 'auto',
+                                    transform: showMobileRight ? 'translateX(0)' : 'translateX(100%)',
+                                    transition: 'transform 0.3s ease-in-out',
+                                    boxShadow: showMobileRight ? '-12px 0 32px rgba(43, 52, 55, 0.12)' : 'none',
+                                }
+                                : {}),
+                        }}
+                    >
+                        {shellData ? (
+                            <StudentRightRail shellData={shellData} supplementalContent={rightPanel} variant={rightRailVariant} />
+                        ) : (
+                            <ConnectedStudentRightRail supplementalContent={rightPanel} variant={rightRailVariant} />
+                        )}
+                    </aside>
+                </div>
             </div>
         </div>
     );

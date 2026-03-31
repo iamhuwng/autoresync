@@ -22,6 +22,7 @@ export const FEATURE_IDS = {
   antiCheat: 'antiCheat',
   grading: 'grading',
   results: 'results',
+  studentDashboard: 'studentDashboard',
 } as const;
 
 // ─── Registry ───────────────────────────────────────────────────────────────
@@ -242,6 +243,30 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       'viewReports',
     ],
     description: 'Super admin management panel',
+  },
+  {
+    id: FEATURE_IDS.studentDashboard,
+    name: 'Student Dashboard',
+    routes: [
+      '/student',
+      '/student/dashboard',
+    ],
+    actions: [
+      'switchDashboardView',
+      'filterFeed',
+      'loadMoreFeed',
+      'openJoinClassModal',
+      'closeJoinClassModal',
+      'submitJoinClass',
+      'joinPublicSession',
+      'openFeedResult',
+      'openSessionNotification',
+      'openFeedLink',
+      'openClassCard',
+      'openHomeworkList',
+      'closeResultSlidePanel',
+    ],
+    description: 'Student dashboard feed, activity, class access, and join-class workflows',
   },
   {
     id: 'academicRecords',

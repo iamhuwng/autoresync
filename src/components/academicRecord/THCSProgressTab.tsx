@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { AcademicRecordFlatRow, formatAcademicRecordDate } from './AcademicRecordResultRow';
 import type { ThcsProgressData } from '../../services/academicRecordService';
+import { studentTokens } from '../layout/studentLayoutStyles';
 
 interface THCSProgressTabProps {
     data: ThcsProgressData | null;
@@ -16,8 +17,8 @@ const styles: Record<string, React.CSSProperties> = {
     spinner: {
         width: 28,
         height: 28,
-        border: '3px solid #e5e7eb',
-        borderTopColor: '#4f46e5',
+        border: `3px solid ${studentTokens.accentSoft}`,
+        borderTopColor: studentTokens.accent,
         borderRadius: '50%',
         margin: '0 auto',
         animation: 'thcsSpin 0.8s linear infinite',
@@ -28,12 +29,12 @@ const styles: Record<string, React.CSSProperties> = {
     },
     emptyHeading: {
         fontWeight: 700,
-        color: '#111827',
+        color: studentTokens.textPrimary,
         margin: '0 0 8px',
         fontSize: '1.125rem',
     },
     emptyBody: {
-        color: '#6b7280',
+        color: studentTokens.textMuted,
         fontSize: '0.875rem',
         margin: 0,
     },
@@ -48,11 +49,10 @@ const styles: Record<string, React.CSSProperties> = {
         gap: 12,
     },
     statCard: {
-        background: '#ffffff',
-        borderRadius: 16,
+        background: studentTokens.bgSurface,
+        borderRadius: 12,
         padding: '16px 18px',
-        border: '1px solid #e5e7eb',
-        borderTopWidth: 4,
+        border: `1px solid ${studentTokens.borderWhisper}`,
         display: 'flex',
         flexDirection: 'column',
         gap: 8,
@@ -64,13 +64,13 @@ const styles: Record<string, React.CSSProperties> = {
         fontWeight: 700,
         letterSpacing: '0.05em',
         textTransform: 'uppercase',
-        color: '#6b7280',
+        color: studentTokens.textMuted,
     },
     statValue: {
         margin: '8px 0 0',
         fontSize: '1.4rem',
         fontWeight: 800,
-        color: '#111827',
+        color: studentTokens.textPrimary,
     },
     section: {
         display: 'flex',
@@ -86,7 +86,7 @@ const styles: Record<string, React.CSSProperties> = {
         margin: 0,
         fontSize: '1rem',
         fontWeight: 700,
-        color: '#111827',
+        color: studentTokens.textPrimary,
     },
     sectionBody: {
         display: 'flex',
@@ -99,14 +99,13 @@ const styles: Record<string, React.CSSProperties> = {
         gap: 12,
     },
     skillRow: {
-        background: '#ffffff',
-        borderRadius: 16,
+        background: studentTokens.bgSurface,
+        borderRadius: 12,
         padding: '14px 16px',
         display: 'flex',
         flexDirection: 'column',
         gap: 10,
-        border: '1px solid #e5e7eb',
-        borderTopWidth: 4,
+        border: `1px solid ${studentTokens.borderWhisper}`,
     },
     skillTop: {
         display: 'flex',
@@ -118,13 +117,13 @@ const styles: Record<string, React.CSSProperties> = {
         margin: 0,
         fontSize: '0.875rem',
         fontWeight: 700,
-        color: '#111827',
+        color: studentTokens.textPrimary,
         textTransform: 'capitalize',
     },
     skillMeta: {
         margin: 0,
         fontSize: '0.75rem',
-        color: '#6b7280',
+        color: studentTokens.textMuted,
     },
     skillValue: {
         margin: 0,
@@ -135,32 +134,32 @@ const styles: Record<string, React.CSSProperties> = {
     skillMeter: {
         height: 6,
         borderRadius: 999,
-        background: '#e5e7eb',
+        background: studentTokens.bgSurfaceAlt,
         overflow: 'hidden',
     },
     skillFill: {
         height: '100%',
         borderRadius: 999,
-        background: '#4f46e5',
+        background: studentTokens.accent,
     },
     updateText: {
         margin: 0,
         fontSize: '0.75rem',
-        color: '#6b7280',
+        color: studentTokens.textMuted,
     },
 };
 
 const statCardVisuals = [
-    { labelColor: '#6b7280', valueColor: '#111827' },
-    { labelColor: '#6b7280', valueColor: '#4338ca' },
-    { labelColor: '#6b7280', valueColor: '#047857' },
+    { labelColor: studentTokens.textMuted, valueColor: studentTokens.textPrimary },
+    { labelColor: studentTokens.textMuted, valueColor: studentTokens.accent },
+    { labelColor: studentTokens.textMuted, valueColor: '#4c5458' },
 ] as const;
 
 const skillVisuals = [
-    { color: '#4338ca' },
-    { color: '#1d4ed8' },
-    { color: '#047857' },
-    { color: '#b45309' },
+    { color: studentTokens.accentHover },
+    { color: '#4c5458' },
+    { color: '#586064' },
+    { color: '#9a6427' },
 ] as const;
 
 function formatExamType(value: string): string {
@@ -214,15 +213,15 @@ export const THCSProgressTab: React.FC<THCSProgressTabProps> = ({ data, loading 
     return (
         <div style={styles.stack}>
             <div style={styles.statsGrid}>
-                <div style={{ ...styles.statCard, borderTopColor: '#d1d5db' }}>
+                <div style={styles.statCard}>
                     <p style={{ ...styles.statLabel, color: statCardVisuals[0].labelColor }}>Tests Completed</p>
                     <p style={{ ...styles.statValue, color: statCardVisuals[0].valueColor }}>{data.testsCompleted}</p>
                 </div>
-                <div style={{ ...styles.statCard, borderTopColor: '#d1d5db' }}>
+                <div style={styles.statCard}>
                     <p style={{ ...styles.statLabel, color: statCardVisuals[1].labelColor }}>Average Score</p>
                     <p style={{ ...styles.statValue, color: statCardVisuals[1].valueColor }}>{data.averageScore.toFixed(1)}/10</p>
                 </div>
-                <div style={{ ...styles.statCard, borderTopColor: '#d1d5db' }}>
+                <div style={styles.statCard}>
                     <p style={{ ...styles.statLabel, color: statCardVisuals[2].labelColor }}>Best Score</p>
                     <p style={{ ...styles.statValue, color: statCardVisuals[2].valueColor }}>{maxScore.toFixed(1)}/10</p>
                 </div>
@@ -237,13 +236,10 @@ export const THCSProgressTab: React.FC<THCSProgressTabProps> = ({ data, loading 
                         <div style={styles.skillGrid}>
                             {skillEntries.map(([skill, summary], index) => {
                                 const percentage = summary.total > 0 ? Math.round((summary.correct / summary.total) * 100) : 0;
-                                const visual = skillVisuals[index % skillVisuals.length];
+                                const visual = skillVisuals[index % skillVisuals.length] ?? skillVisuals[0];
 
                                 return (
-                                    <div
-                                        key={skill}
-                                        style={{ ...styles.skillRow, borderTopColor: '#d1d5db' }}
-                                    >
+                                    <div key={skill} style={styles.skillRow}>
                                         <div style={styles.skillTop}>
                                             <p style={styles.skillLabel}>{skill}</p>
                                             <p style={styles.skillMeta}>{summary.correct}/{summary.total} correct</p>

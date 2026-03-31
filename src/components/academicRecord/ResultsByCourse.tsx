@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { IconChevronDown, IconChevronRight, IconInbox } from '@tabler/icons-react';
-import { AcademicRecordResultRow } from './AcademicRecordResultRow';
+import { AcademicRecordFlatRow, formatAcademicRecordDate } from './AcademicRecordResultRow';
 import type { EnhancedTestResultRecord } from '../../types/results.types';
+import { studentTokens } from '../layout/studentLayoutStyles';
 
 interface ResultsByCourseProps {
     results: EnhancedTestResultRecord[];
@@ -31,43 +32,42 @@ const styles: Record<string, React.CSSProperties> = {
         gap: 12,
     },
     summaryCard: {
-        background: '#ffffff',
-        borderRadius: 16,
-        padding: '16px 18px',
-        border: '1px solid #e5e7eb',
-        borderTopWidth: 4,
+        background: studentTokens.bgSurface,
+        borderRadius: 10,
+        padding: '12px 14px',
+        border: `1px solid ${studentTokens.borderWhisper}`,
         display: 'flex',
         flexDirection: 'column',
-        gap: 8,
-        minHeight: 108,
+        gap: 6,
+        minHeight: 92,
     },
     summaryLabel: {
         margin: 0,
-        fontSize: '0.6875rem',
+        fontSize: '0.65625rem',
         fontWeight: 700,
         letterSpacing: '0.05em',
         textTransform: 'uppercase',
-        color: '#6b7280',
+        color: studentTokens.textMuted,
     },
     summaryValue: {
         margin: 0,
-        fontSize: '1.45rem',
+        fontSize: '1.25rem',
         fontWeight: 800,
-        color: '#111827',
-        lineHeight: 1.05,
+        color: studentTokens.textPrimary,
+        lineHeight: 1.1,
     },
     summaryHint: {
         margin: 0,
         fontSize: '0.75rem',
         lineHeight: 1.5,
-        color: '#6b7280',
+        color: studentTokens.textMuted,
     },
     groupHeader: {
         width: '100%',
-        border: '1px solid transparent',
-        borderRadius: 16,
-        padding: '14px 16px',
-        background: '#ffffff',
+        border: `1px solid ${studentTokens.borderWhisper}`,
+        borderRadius: 10,
+        padding: '12px 14px',
+        background: studentTokens.bgSurface,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -83,7 +83,7 @@ const styles: Record<string, React.CSSProperties> = {
         flex: 1,
     },
     chevron: {
-        color: '#6b7280',
+        color: studentTokens.textMuted,
         flexShrink: 0,
         marginTop: 2,
     },
@@ -98,7 +98,7 @@ const styles: Record<string, React.CSSProperties> = {
         fontWeight: 800,
         letterSpacing: '0.04em',
         flexShrink: 0,
-        background: '#ffffff',
+        background: studentTokens.bgShell,
     },
     groupTitleWrap: {
         display: 'flex',
@@ -108,13 +108,13 @@ const styles: Record<string, React.CSSProperties> = {
     },
     groupTitle: {
         margin: 0,
-        color: '#111827',
+        color: studentTokens.textPrimary,
         fontSize: '0.95rem',
         fontWeight: 700,
     },
     groupMeta: {
         margin: 0,
-        color: '#6b7280',
+        color: studentTokens.textMuted,
         fontSize: '0.75rem',
         lineHeight: 1.5,
     },
@@ -126,7 +126,7 @@ const styles: Record<string, React.CSSProperties> = {
     groupRows: {
         display: 'flex',
         flexDirection: 'column',
-        gap: '0.75rem',
+        gap: '0.5rem',
         marginTop: '0.5rem',
     },
     groupsDivider: {
@@ -145,42 +145,39 @@ const styles: Record<string, React.CSSProperties> = {
         margin: 0,
         fontSize: '1.125rem',
         fontWeight: 700,
-        color: '#374151',
+        color: studentTokens.textPrimary,
     },
     emptyBody: {
         margin: 0,
         fontSize: '0.875rem',
-        color: '#6b7280',
+        color: studentTokens.textMuted,
         textAlign: 'center',
         maxWidth: 400,
     },
 };
 
 const summaryCardVisuals = [
-    { borderTopColor: '#d1d5db', labelColor: '#6b7280', valueColor: '#111827' },
-    { borderTopColor: '#d1d5db', labelColor: '#6b7280', valueColor: '#4338ca' },
-    { borderTopColor: '#d1d5db', labelColor: '#6b7280', valueColor: '#047857' },
-    { borderTopColor: '#d1d5db', labelColor: '#6b7280', valueColor: '#b45309' },
+    { labelColor: studentTokens.textMuted, valueColor: studentTokens.textPrimary },
+    { labelColor: studentTokens.textMuted, valueColor: studentTokens.accent },
+    { labelColor: studentTokens.textMuted, valueColor: '#4c5458' },
+    { labelColor: studentTokens.textMuted, valueColor: '#9a6427' },
 ] as const;
 
 const courseVisuals = [
-    { accent: '#4338ca', accentSoft: '#e0e7ff' },
-    { accent: '#1d4ed8', accentSoft: '#dbeafe' },
-    { accent: '#047857', accentSoft: '#d1fae5' },
-    { accent: '#b45309', accentSoft: '#fef3c7' },
+    { accent: studentTokens.accentHover, accentSoft: studentTokens.accentSoft },
+    { accent: '#4c5458', accentSoft: '#edf5f9' },
+    { accent: '#586064', accentSoft: '#dce4e8' },
+    { accent: '#9a6427', accentSoft: '#f4ede4' },
 ] as const;
 
-function formatAcademicRecordDate(timestamp: number): string {
-    if (!timestamp) {
-        return 'No recent activity';
+function formatLabel(value?: string | null): string | null {
+    if (!value) {
+        return null;
     }
 
-    const date = new Date(timestamp);
-    return date.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: date.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined,
-    });
+    return value
+        .replace(/[_-]+/g, ' ')
+        .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function getCourseBadge(courseName: string | null): string {
@@ -189,13 +186,70 @@ function getCourseBadge(courseName: string | null): string {
         .filter(Boolean);
 
     if (words.length === 1) {
-        return words[0].slice(0, 2).toUpperCase();
+        return (words[0] || 'UN').slice(0, 2).toUpperCase();
     }
 
     return words
         .slice(0, 2)
         .map((word) => word[0]?.toUpperCase() || '')
         .join('');
+}
+
+function getResultLeadingTone(result: EnhancedTestResultRecord): 'default' | 'primary' | 'success' | 'warning' | 'danger' | 'muted' {
+    if (result.markingStatus === 'pending-review') {
+        return 'warning';
+    }
+
+    if (result.thcsData) {
+        return 'muted';
+    }
+
+    if (result.percentage >= 80) return 'success';
+    if (result.percentage >= 65) return 'primary';
+    if (result.percentage >= 50) return 'warning';
+    return 'danger';
+}
+
+function getResultStatusLabel(result: EnhancedTestResultRecord): string {
+    if (result.markingStatus === 'pending-review') {
+        return 'Awaiting review';
+    }
+
+    if (result.overallFeedback || result.questionResults?.some((question) => question.teacherFeedback)) {
+        return 'Feedback';
+    }
+
+    return 'Completed';
+}
+
+function buildCourseRow(
+    result: EnhancedTestResultRecord,
+    onResultClick?: (resultId: string) => void,
+) {
+    const leadingTone = getResultLeadingTone(result);
+    const leadingText = (formatLabel(result.testSkill || result.testType) || 'RT').slice(0, 2).toUpperCase();
+    const metaItems = [
+        formatAcademicRecordDate(result.submittedAt),
+        formatLabel(result.testSkill || result.testType),
+        result.attemptSummary?.totalAttempts && result.attemptSummary.totalAttempts > 1
+            ? `Attempt ${result.attemptSummary.attemptNumber}/${result.attemptSummary.totalAttempts}`
+            : null,
+    ].filter((item): item is string => Boolean(item));
+
+    return (
+        <AcademicRecordFlatRow
+            key={result.resultId}
+            title={result.testTitle}
+            metaItems={metaItems}
+            leadingText={leadingText}
+            leadingTone={leadingTone}
+            trailingPrimary={`${Math.round(result.percentage)}%`}
+            trailingSecondary={getResultStatusLabel(result)}
+            trailingTone={leadingTone}
+            onClick={onResultClick ? () => onResultClick(result.resultId) : undefined}
+            ariaLabel={onResultClick ? `Open result for ${result.testTitle}` : undefined}
+        />
+    );
 }
 
 export const ResultsByCourse: React.FC<ResultsByCourseProps> = ({
@@ -259,7 +313,7 @@ export const ResultsByCourse: React.FC<ResultsByCourseProps> = ({
     if (results.length === 0) {
         return (
             <div style={styles.emptyWrap}>
-                <IconInbox size={52} style={{ color: '#9ca3af' }} />
+                <IconInbox size={52} style={{ color: studentTokens.textDim }} />
                 <p style={styles.emptyHeading}>No course results found</p>
                 <p style={styles.emptyBody}>Your latest results will appear here grouped by course.</p>
             </div>
@@ -269,19 +323,19 @@ export const ResultsByCourse: React.FC<ResultsByCourseProps> = ({
     return (
         <div style={styles.stack}>
             <div style={styles.summaryGrid}>
-                <div style={{ ...styles.summaryCard, borderTopColor: summaryCardVisuals[0].borderTopColor }}>
+                <div style={styles.summaryCard}>
                     <p style={{ ...styles.summaryLabel, color: summaryCardVisuals[0].labelColor }}>Courses</p>
                     <p style={{ ...styles.summaryValue, color: summaryCardVisuals[0].valueColor }}>{courseSummary.totalCourses}</p>
                 </div>
-                <div style={{ ...styles.summaryCard, borderTopColor: summaryCardVisuals[1].borderTopColor }}>
+                <div style={styles.summaryCard}>
                     <p style={{ ...styles.summaryLabel, color: summaryCardVisuals[1].labelColor }}>Latest Results</p>
                     <p style={{ ...styles.summaryValue, color: summaryCardVisuals[1].valueColor }}>{courseSummary.totalResults}</p>
                 </div>
-                <div style={{ ...styles.summaryCard, borderTopColor: summaryCardVisuals[2].borderTopColor }}>
+                <div style={styles.summaryCard}>
                     <p style={{ ...styles.summaryLabel, color: summaryCardVisuals[2].labelColor }}>Average Score</p>
                     <p style={{ ...styles.summaryValue, color: summaryCardVisuals[2].valueColor }}>{Math.round(courseSummary.averageScore)}%</p>
                 </div>
-                <div style={{ ...styles.summaryCard, borderTopColor: summaryCardVisuals[3].borderTopColor }}>
+                <div style={styles.summaryCard}>
                     <p style={{ ...styles.summaryLabel, color: summaryCardVisuals[3].labelColor }}>Strongest Course</p>
                     <p style={{ ...styles.summaryValue, color: summaryCardVisuals[3].valueColor, fontSize: '1.1rem' }}>
                         {courseSummary.strongestCourse?.courseName || 'Not enough data'}
@@ -298,7 +352,7 @@ export const ResultsByCourse: React.FC<ResultsByCourseProps> = ({
                         group.averageScore > 0 ? `avg ${Math.round(group.averageScore)}%` : null,
                         `latest ${formatAcademicRecordDate(group.latestSubmittedAt)}`,
                     ].filter((item): item is string => Boolean(item)).join(' | ');
-                    const visual = courseVisuals[index % courseVisuals.length];
+                    const visual = courseVisuals[index % courseVisuals.length] ?? courseVisuals[0];
 
                     return (
                         <section key={key}>
@@ -318,7 +372,7 @@ export const ResultsByCourse: React.FC<ResultsByCourseProps> = ({
                                 aria-expanded={isExpanded}
                                 style={{
                                     ...styles.groupHeader,
-                                    borderColor: '#e5e7eb',
+                                    borderColor: studentTokens.borderWhisper,
                                 }}
                             >
                                 <div style={styles.groupHeaderMain}>
@@ -340,13 +394,7 @@ export const ResultsByCourse: React.FC<ResultsByCourseProps> = ({
 
                             {isExpanded && (
                                 <div style={styles.groupRows}>
-                                    {group.results.map((result) => (
-                                        <AcademicRecordResultRow
-                                            key={result.resultId}
-                                            result={result}
-                                            onClick={onResultClick}
-                                        />
-                                    ))}
+                                    {group.results.map((result) => buildCourseRow(result, onResultClick))}
                                 </div>
                             )}
                         </section>

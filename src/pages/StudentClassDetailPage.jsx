@@ -9,23 +9,23 @@ import { buildRoute } from '../constants/routes';
 import { Loader } from '@mantine/core';
 import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
-import { S } from '../components/layout/studentLayoutStyles';
+import { S, studentTokens } from '../components/layout/studentLayoutStyles';
 import { database } from '../services/firebase';
 import { getStudentResults } from '../services/testResults.service';
 import { useResolvedStudentHomeworkList } from '../context/StudentShellDataContext';
 
 const localStyles = {
-  card: { background: 'white', borderRadius: 16, border: '1px solid #e5e7eb', padding: 24, marginBottom: 16 },
-  badgeSuccess: { background: '#d1fae5', color: '#059669', border: '1px solid #a7f3d0' },
-  badgeProgress: { background: '#dbeafe', color: '#1e40af', border: '1px solid #bfdbfe' },
-  badgeAvailable: { background: '#e0e7ff', color: '#4338ca', border: '1px solid #c7d2fe' },
-  badgeDefault: { background: '#f3f4f6', color: '#374151', border: '1px solid #e5e7eb' },
-  primaryBtn: { background: '#4f46e5', color: 'white', border: 'none', borderRadius: 999, padding: '8px 16px', fontWeight: 700, cursor: 'pointer', fontSize: '0.875rem' },
-  successBtn: { background: '#059669', color: 'white', border: 'none', borderRadius: 999, padding: '8px 16px', fontWeight: 700, cursor: 'pointer', fontSize: '0.875rem' },
-  disabledBtn: { background: '#f3f4f6', color: '#9ca3af', border: 'none', borderRadius: 999, padding: '8px 16px', fontWeight: 700, cursor: 'not-allowed', fontSize: '0.875rem' },
-  liveSessionCard: { background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 16, padding: '16px 24px', marginBottom: 16 },
-  testTag: { background: '#d1fae5', color: '#059669', padding: '4px 12px', borderRadius: 999, fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase' },
-  quizTag: { background: '#e0e7ff', color: '#4338ca', padding: '4px 12px', borderRadius: 999, fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase' }
+  card: { background: studentTokens.bgSurface, borderRadius: 12, border: `1px solid ${studentTokens.borderWhisper}`, padding: 24, marginBottom: 16 },
+  badgeSuccess: { background: '#edf5f9', color: '#4c5458', border: `1px solid ${studentTokens.borderWhisper}` },
+  badgeProgress: { background: studentTokens.accentSoft, color: studentTokens.accentHover, border: `1px solid ${studentTokens.borderWhisper}` },
+  badgeAvailable: { background: '#dce4e8', color: studentTokens.textPrimary, border: `1px solid ${studentTokens.borderWhisper}` },
+  badgeDefault: { background: studentTokens.bgSurfaceAlt, color: studentTokens.textBody, border: `1px solid ${studentTokens.borderWhisper}` },
+  primaryBtn: { background: studentTokens.accent, color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase' },
+  successBtn: { background: '#4c5458', color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase' },
+  disabledBtn: { background: studentTokens.bgSurfaceAlt, color: studentTokens.textDim, border: 'none', borderRadius: 8, padding: '8px 16px', fontWeight: 700, cursor: 'not-allowed', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase' },
+  liveSessionCard: { background: studentTokens.bgSurface, border: `1px solid ${studentTokens.borderWhisper}`, borderRadius: 12, padding: '16px 24px', marginBottom: 16 },
+  testTag: { background: studentTokens.accentSoft, color: studentTokens.accentHover, padding: '4px 12px', borderRadius: 999, fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase' },
+  quizTag: { background: '#edf5f9', color: '#4c5458', padding: '4px 12px', borderRadius: 999, fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase' }
 };
 
 const getResolvedAssignmentResult = (assignment, progress, results) => {
@@ -357,7 +357,7 @@ const StudentClassDetailPage = () => {
       >
         <div style={{ textAlign: 'center', padding: '60px 24px' }}>
           <Loader size="md" />
-          <p style={{ color: '#6b7280', marginTop: 16 }}>Loading class...</p>
+          <p style={{ color: studentTokens.textMuted, marginTop: 16 }}>Loading class...</p>
         </div>
       </StudentLayout>
     );
@@ -375,8 +375,8 @@ const StudentClassDetailPage = () => {
             <line x1="15" y1="9" x2="9" y2="15"></line>
             <line x1="9" y1="9" x2="15" y2="15"></line>
           </svg>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#111827', margin: '0 0 8px' }}>Class Not Found</h2>
-          <p style={{ color: '#6b7280', fontSize: '1rem', margin: '0 0 24px' }}>This class doesn't exist or you don't have access to it.</p>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: studentTokens.textPrimary, margin: '0 0 8px' }}>Class Not Found</h2>
+          <p style={{ color: studentTokens.textMuted, fontSize: '1rem', margin: '0 0 24px' }}>This class doesn't exist or you don't have access to it.</p>
           <button style={localStyles.primaryBtn} onClick={() => navigate('/student/dashboard')}>Back to Dashboard</button>
         </div>
       </StudentLayout>
@@ -395,19 +395,19 @@ const StudentClassDetailPage = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <button
             onClick={() => navigate('/student/dashboard?view=classes')}
-            style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', padding: 8, borderRadius: '50%', color: '#6b7280' }}
-            onMouseEnter={e => e.currentTarget.style.background = '#e5e7eb'}
+            style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', padding: 8, borderRadius: 8, color: studentTokens.textMuted }}
+            onMouseEnter={e => e.currentTarget.style.background = studentTokens.bgSurfaceStrong}
             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
           </button>
-          <div>
+          <div style={S.feedHeaderText}>
             <h2 style={{ ...S.feedHeaderTitle, display: 'flex', alignItems: 'center', gap: 8 }}>
               {classData.name}
             </h2>
-            <p style={{ fontSize: '0.875rem', color: '#6b7280', margin: 0, fontFamily: 'monospace', paddingTop: 2 }}>Code: {classData.classCode}</p>
+            <p style={S.feedHeaderSubtitle}>Code: {classData.classCode}</p>
           </div>
         </div>
       </div>
@@ -432,7 +432,7 @@ const StudentClassDetailPage = () => {
       <div style={{ padding: 16 }}>
         {false && activeSessions.length > 0 && (
           <div style={{ marginBottom: 24, animation: 'dashFadeIn 0.3s ease-out' }}>
-            <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#111827', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: studentTokens.textPrimary, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', boxShadow: '0 0 0 3px rgba(239, 68, 68, 0.2)', animation: 'pulse 2s infinite' }}></div>
               Live Sessions Happening Now
             </h3>
@@ -442,15 +442,15 @@ const StudentClassDetailPage = () => {
                   <span style={session.mode === 'test' ? localStyles.testTag : localStyles.quizTag}>
                     {session.mode === 'test' ? 'Test' : 'Quiz'}
                   </span>
-                  <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#111827', fontSize: '0.875rem' }}>
+                  <span style={{ fontFamily: 'monospace', fontWeight: 700, color: studentTokens.textPrimary, fontSize: '0.875rem' }}>
                     Code: {session.code}
                   </span>
                 </div>
                 <div style={{ marginBottom: 16 }}>
-                  <h4 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#111827', margin: '0 0 4px' }}>
+                  <h4 style={{ fontSize: '1.125rem', fontWeight: 700, color: studentTokens.textPrimary, margin: '0 0 4px' }}>
                     {session.status === 'in-progress' ? 'Session In Progress' : 'Waiting for Players'}
                   </h4>
-                  <p style={{ fontSize: '0.875rem', color: '#6b7280', margin: 0 }}>Join now to participate!</p>
+                  <p style={{ fontSize: '0.875rem', color: studentTokens.textMuted, margin: 0 }}>Join now to participate.</p>
                 </div>
                 <button
                   style={{ ...localStyles.primaryBtn, width: '100%', padding: '10px' }}
@@ -479,8 +479,8 @@ const StudentClassDetailPage = () => {
                   <line x1="16" y1="17" x2="8" y2="17"></line>
                   <polyline points="10 9 9 9 8 9"></polyline>
                 </svg>
-                <h4 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#111827', margin: '0 0 8px' }}>No Assignments Yet</h4>
-                <p style={{ color: '#6b7280', fontSize: '1rem', margin: 0 }}>Your teacher hasn't assigned any tests yet. Check back later!</p>
+                <h4 style={{ fontSize: '1.25rem', fontWeight: 600, color: studentTokens.textPrimary, margin: '0 0 8px' }}>No Assignments Yet</h4>
+                <p style={{ color: studentTokens.textMuted, fontSize: '1rem', margin: 0 }}>Your teacher hasn't assigned any tests yet. Check back later.</p>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -500,7 +500,7 @@ const StudentClassDetailPage = () => {
                               {statusBadge.text}
                             </span>
                             {deadline && (
-                              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: deadline.urgent ? '#dc2626' : '#6b7280', display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: deadline.urgent ? '#9e3f4e' : studentTokens.textMuted, display: 'flex', alignItems: 'center', gap: 4 }}>
                                 {deadline.urgent && (
                                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
                                 )}
@@ -508,12 +508,12 @@ const StudentClassDetailPage = () => {
                               </span>
                             )}
                           </div>
-                          <h4 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#111827', margin: '0 0 8px' }}>{assignment.testTitle}</h4>
-                          <div style={{ display: 'flex', gap: 16, fontSize: '0.875rem', color: '#6b7280', flexWrap: 'wrap' }}>
+                          <h4 style={{ fontSize: '1.125rem', fontWeight: 700, color: studentTokens.textPrimary, margin: '0 0 8px' }}>{assignment.testTitle}</h4>
+                          <div style={{ display: 'flex', gap: 16, fontSize: '0.875rem', color: studentTokens.textMuted, flexWrap: 'wrap' }}>
                             {assignment.timeLimit && <span>{assignment.timeLimit} minutes</span>}
                             {assignment.maxAttempts && <span>{assignment.maxAttempts} {assignment.maxAttempts === 1 ? 'attempt' : 'attempts'}</span>}
                             {assignment.studentProgress?.percentage !== undefined && (
-                              <span style={{ fontWeight: 700, color: '#059669' }}>Score: {assignment.studentProgress.percentage}%</span>
+                              <span style={{ fontWeight: 700, color: '#4c5458' }}>Score: {assignment.studentProgress.percentage}%</span>
                             )}
                           </div>
                         </div>
@@ -547,8 +547,8 @@ const StudentClassDetailPage = () => {
               <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
               <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
             </svg>
-            <h4 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#111827', margin: '0 0 8px' }}>Self-Study Materials Coming Soon</h4>
-            <p style={{ color: '#6b7280', fontSize: '1rem', margin: 0 }}>Your teacher will enable access to practice materials here</p>
+            <h4 style={{ fontSize: '1.25rem', fontWeight: 600, color: studentTokens.textPrimary, margin: '0 0 8px' }}>Self-Study Materials Coming Soon</h4>
+            <p style={{ color: studentTokens.textMuted, fontSize: '1rem', margin: 0 }}>Your teacher will enable access to practice materials here.</p>
           </div>
         )}
       </div>

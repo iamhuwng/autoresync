@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>The Scholar | Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "surface-variant": "#dbe4e7",
+            "on-secondary-fixed-variant": "#555d61",
+            "tertiary-dim": "#4c5458",
+            "surface-container-low": "#f1f4f6",
+            "surface-tint": "#4d44e3",
+            "inverse-on-surface": "#9b9d9e",
+            "error-dim": "#4f0116",
+            "error-container": "#ff8b9a",
+            "secondary-fixed": "#dce4e8",
+            "on-primary-fixed-variant": "#4a40e0",
+            "primary-dim": "#4035d7",
+            "surface-container-high": "#e3e9ec",
+            "on-tertiary-fixed": "#434b4e",
+            "secondary": "#586064",
+            "on-secondary-container": "#4b5357",
+            "on-surface-variant": "#586064",
+            "surface-container": "#eaeff1",
+            "on-secondary": "#f2faff",
+            "inverse-surface": "#0c0f10",
+            "surface-container-highest": "#dbe4e7",
+            "outline": "#737c7f",
+            "primary-fixed-dim": "#d2d0ff",
+            "outline-variant": "#abb3b7",
+            "tertiary-fixed": "#edf5f9",
+            "surface-bright": "#f8f9fa",
+            "on-primary": "#faf6ff",
+            "primary": "#4d44e3",
+            "on-primary-fixed": "#2a13c5",
+            "primary-fixed": "#e2dfff",
+            "surface-container-lowest": "#ffffff",
+            "secondary-dim": "#4c5458",
+            "inverse-primary": "#8582ff",
+            "on-error": "#fff7f7",
+            "surface": "#f8f9fa",
+            "on-error-container": "#782232",
+            "on-primary-container": "#3f34d6",
+            "tertiary-container": "#edf5f9",
+            "surface-dim": "#d1dce0",
+            "tertiary-fixed-dim": "#dfe7eb",
+            "on-surface": "#2b3437",
+            "on-tertiary-fixed-variant": "#5f676b",
+            "on-tertiary-container": "#555d61",
+            "primary-container": "#e2dfff",
+            "on-tertiary": "#f2fafe",
+            "on-background": "#2b3437",
+            "secondary-fixed-dim": "#ced6da",
+            "error": "#9e3f4e",
+            "on-secondary-fixed": "#394044",
+            "tertiary": "#586064",
+            "secondary-container": "#dce4e8",
+            "background": "#f8f9fa"
+          },
+          fontFamily: {
+            "headline": ["Inter"],
+            "body": ["Inter"],
+            "label": ["Inter"]
+          },
+          borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+        },
+      },
+    }
+  </script>
+<style>
+    body { font-family: 'Inter', sans-serif; }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #abb3b733; border-radius: 10px; }
+  </style>
+</head>
+<body class="bg-background text-on-background min-h-screen flex">
+<!-- SideNavBar (Left Rail) -->
+<aside class="fixed left-0 top-0 h-full flex flex-col py-6 px-4 bg-[#f1f4f6] dark:bg-slate-900 h-screen w-64 border-r border-[#abb3b7]/20 z-50">
+<div class="mb-10 px-2 flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-on-primary">
+<span class="material-symbols-outlined text-sm">school</span>
+</div>
+<div class="flex flex-col">
+<span class="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight">The Scholar</span>
+<span class="text-[10px] uppercase tracking-[0.05em] font-semibold text-secondary">Academic Workspace</span>
+</div>
+</div>
+<nav class="flex-1 space-y-1">
+<!-- Active: Feed -->
+<a class="flex items-center gap-3 px-3 py-2 text-[#4d44e3] dark:text-[#6366f1] border-r-2 border-[#4d44e3] bg-white/50 dark:bg-slate-800/50 transition-colors opacity-80 duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="dynamic_feed">dynamic_feed</span>
+<span class="font-inter text-[10px] tracking-[0.05em] font-semibold uppercase">Feed</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:bg-[#eaeff1] dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="local_library">local_library</span>
+<span class="font-inter text-[10px] tracking-[0.05em] font-semibold uppercase">Library</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:bg-[#eaeff1] dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+<span class="font-inter text-[10px] tracking-[0.05em] font-semibold uppercase">Analytics</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:bg-[#eaeff1] dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span class="font-inter text-[10px] tracking-[0.05em] font-semibold uppercase">Sessions</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:bg-[#eaeff1] dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-inter text-[10px] tracking-[0.05em] font-semibold uppercase">Settings</span>
+</a>
+</nav>
+<div class="mt-auto px-2 flex items-center gap-3 pt-6 border-t border-[#abb3b7]/10">
+<img alt="Student Profile Avatar" class="w-10 h-10 rounded-full object-cover" data-alt="portrait of a young student with glasses in a library setting, warm ambient lighting, intellectual mood" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCG2zoIuij253pV6zTnjXD7fB953Bv1bIyTRs-Ivu7l5LaDz2RSTIRvHMg6HAMCdbDyrsVo9QAOQn6hXYSBjFsIcPjrC7cYn8EICKrdagke3K0VLishCcQWxDAT5xgJKsJNu2fSqXqASqZWLC7geYmtR-500SPhWz4Fmg--FWjf6dfXRNkQh1SwZyUhtsfnAGY3bOlhi_3e8MG86Qjobd1mCUqP_eXZxgRqCZKtQJwfxjWm797LBqQWQu-mLjhVQfqOPQfdOKTVllJ4"/>
+<div class="flex flex-col">
+<span class="text-xs font-bold text-on-surface">Alex Rivera</span>
+<span class="text-[10px] uppercase text-secondary">Grad Student</span>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 ml-64 flex min-h-screen">
+<!-- Center Editorial Canvas -->
+<section class="flex-1 max-w-4xl border-r border-[#abb3b7]/10 bg-surface">
+<!-- TopAppBar (Mapped from JSON logic) -->
+<header class="flex justify-between items-center w-full px-12 py-8 sticky top-0 bg-[#f8f9fa] z-40 transition-all">
+<div class="flex flex-col">
+<h1 class="text-3xl font-bold text-slate-900 tracking-[-0.02em] font-headline">Dashboard</h1>
+<p class="text-secondary text-sm font-body mt-1">Review your latest academic activity and upcoming milestones.</p>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-sm">search</span>
+<input class="bg-surface-container-lowest border-none border-b-2 border-outline-variant/40 focus:border-primary focus:ring-0 text-[10px] tracking-widest uppercase pl-10 pr-4 py-2 w-48 transition-all" placeholder="RESEARCH FEED" type="text"/>
+</div>
+<button class="material-symbols-outlined text-outline hover:text-primary transition-all p-1" data-icon="notifications">notifications</button>
+<button class="material-symbols-outlined text-outline hover:text-primary transition-all p-1" data-icon="history">history</button>
+</div>
+</header>
+<!-- Stat Region -->
+<div class="px-12 grid grid-cols-3 gap-8 py-6 mb-8">
+<div class="flex flex-col border-r border-outline-variant/10">
+<span class="text-[10px] font-semibold uppercase tracking-[0.05em] text-secondary mb-1">GPA AVG</span>
+<span class="text-4xl font-light text-on-surface tracking-tight">3.92</span>
+</div>
+<div class="flex flex-col border-r border-outline-variant/10">
+<span class="text-[10px] font-semibold uppercase tracking-[0.05em] text-secondary mb-1">CREDITS</span>
+<span class="text-4xl font-light text-on-surface tracking-tight">114</span>
+</div>
+<div class="flex flex-col">
+<span class="text-[10px] font-semibold uppercase tracking-[0.05em] text-secondary mb-1">STREAK</span>
+<span class="text-4xl font-light text-primary tracking-tight">14D</span>
+</div>
+</div>
+<!-- Filter Bar -->
+<div class="px-12 mb-10">
+<nav class="flex gap-8 border-b border-outline-variant/10">
+<button class="pb-3 text-[10px] font-semibold uppercase tracking-[0.05em] text-primary border-b-2 border-primary">All</button>
+<button class="pb-3 text-[10px] font-semibold uppercase tracking-[0.05em] text-secondary hover:text-primary transition-colors">Homework</button>
+<button class="pb-3 text-[10px] font-semibold uppercase tracking-[0.05em] text-secondary hover:text-primary transition-colors">Tests</button>
+<button class="pb-3 text-[10px] font-semibold uppercase tracking-[0.05em] text-secondary hover:text-primary transition-colors">Classes</button>
+</nav>
+</div>
+<!-- Main Feed -->
+<div class="px-12 space-y-12 pb-20">
+<!-- Activity Item: Test Result -->
+<article class="group relative flex gap-6">
+<div class="flex flex-col items-center pt-1">
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-on-surface">
+<span class="material-symbols-outlined" data-icon="grade">grade</span>
+</div>
+<div class="flex-1 w-px bg-outline-variant/10 mt-4"></div>
+</div>
+<div class="flex-1 pb-12 border-b border-outline-variant/10">
+<div class="flex justify-between items-start mb-2">
+<span class="text-[10px] font-semibold uppercase tracking-[0.05em] text-secondary">Test Results • Computational Logic</span>
+<span class="text-[10px] text-outline">2 HOURS AGO</span>
+</div>
+<h3 class="text-xl font-medium text-on-surface mb-3">Midterm Evaluation: Discrete Structures</h3>
+<div class="flex items-center gap-4">
+<span class="text-3xl font-light text-primary">96%</span>
+<div class="h-8 w-px bg-outline-variant/20"></div>
+<p class="text-sm text-secondary leading-relaxed max-w-md">Outstanding performance on graph theory sections. Recommendation: Continue exploring isomorphic mapping.</p>
+</div>
+</div>
+</article>
+<!-- Activity Item: Homework -->
+<article class="group relative flex gap-6">
+<div class="flex flex-col items-center pt-1">
+<div class="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined" data-icon="assignment">assignment</span>
+</div>
+<div class="flex-1 w-px bg-outline-variant/10 mt-4"></div>
+</div>
+<div class="flex-1 pb-12 border-b border-outline-variant/10">
+<div class="flex justify-between items-start mb-2">
+<span class="text-[10px] font-semibold uppercase tracking-[0.05em] text-secondary">Assignment Due • 18 Oct</span>
+<span class="text-[10px] text-outline">5 HOURS AGO</span>
+</div>
+<h3 class="text-xl font-medium text-on-surface mb-3">Comparative Literature Thesis Proposal</h3>
+<div class="bg-surface-container-low p-4 rounded-lg border border-outline-variant/10">
+<p class="text-sm text-on-surface font-medium italic">"The intersection of digital identity and mid-century existentialism."</p>
+<div class="mt-4 flex gap-2">
+<span class="px-2 py-0.5 rounded-full bg-secondary-container text-secondary text-[9px] uppercase font-bold tracking-wider">Research</span>
+<span class="px-2 py-0.5 rounded-full bg-secondary-container text-secondary text-[9px] uppercase font-bold tracking-wider">Drafting</span>
+</div>
+</div>
+</div>
+</article>
+<!-- Activity Item: Class Notice -->
+<article class="group relative flex gap-6">
+<div class="flex flex-col items-center pt-1">
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-on-surface">
+<span class="material-symbols-outlined" data-icon="event_note">event_note</span>
+</div>
+<div class="flex-1 w-px bg-outline-variant/10 mt-4"></div>
+</div>
+<div class="flex-1 pb-12 border-b border-outline-variant/10">
+<div class="flex justify-between items-start mb-2">
+<span class="text-[10px] font-semibold uppercase tracking-[0.05em] text-secondary">Class Update • Advanced Statistics</span>
+<span class="text-[10px] text-outline">YESTERDAY</span>
+</div>
+<h3 class="text-xl font-medium text-on-surface mb-2">Seminar Room Relocation</h3>
+<p class="text-sm text-secondary mb-4">Monday's lecture has been moved to the <span class="text-on-surface font-semibold">East Wing Annex, Room 402</span>. Ensure your laptops are fully charged for the workshop.</p>
+<div class="flex items-center gap-2 text-primary">
+<span class="material-symbols-outlined text-sm">map</span>
+<span class="text-[10px] font-bold uppercase tracking-wider">View Campus Map</span>
+</div>
+</div>
+</article>
+<!-- Load More -->
+<div class="flex justify-center pt-4">
+<button class="px-8 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-secondary border border-outline-variant/20 hover:border-primary hover:text-primary transition-all">Load more activities</button>
+</div>
+</div>
+</section>
+<!-- Right Contextual Rail -->
+<aside class="w-80 bg-surface-container-low p-8 hidden lg:block sticky top-0 h-screen overflow-y-auto custom-scrollbar">
+<!-- Feed Snapshot -->
+<section class="mb-12">
+<header class="mb-6 flex justify-between items-center">
+<h4 class="text-[10px] font-extrabold uppercase tracking-[0.1em] text-on-surface">Feed Snapshot</h4>
+<span class="material-symbols-outlined text-outline text-lg">info</span>
+</header>
+<div class="space-y-4">
+<div class="bg-surface-container-lowest p-5 rounded border border-outline-variant/5">
+<div class="flex justify-between items-center mb-1">
+<span class="text-[10px] font-semibold text-secondary uppercase">Weekly Focus</span>
+<span class="text-[10px] font-bold text-primary">82%</span>
+</div>
+<div class="w-full bg-surface-container h-1 overflow-hidden">
+<div class="bg-primary h-full w-[82%]"></div>
+</div>
+<p class="text-[11px] text-secondary mt-3 leading-relaxed">Most of your time was spent on <span class="text-on-surface font-medium">Cognitive Psychology</span> research this week.</p>
+</div>
+<div class="bg-surface-container-lowest p-5 rounded border border-outline-variant/5">
+<span class="text-[10px] font-semibold text-secondary uppercase block mb-3">Upcoming</span>
+<div class="space-y-3">
+<div class="flex items-center gap-3">
+<div class="w-1.5 h-1.5 rounded-full bg-error"></div>
+<span class="text-xs text-on-surface font-medium">Final Paper Draft</span>
+<span class="text-[10px] text-outline ml-auto">TOMORROW</span>
+</div>
+<div class="flex items-center gap-3">
+<div class="w-1.5 h-1.5 rounded-full bg-primary"></div>
+<span class="text-xs text-on-surface font-medium">Bio-Ethics Debate</span>
+<span class="text-[10px] text-outline ml-auto">FRI, 10:00</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Public Sessions -->
+<section>
+<header class="mb-6">
+<h4 class="text-[10px] font-extrabold uppercase tracking-[0.1em] text-on-surface">Public Sessions</h4>
+</header>
+<div class="space-y-6">
+<div class="flex gap-4 group cursor-pointer">
+<div class="w-12 h-12 rounded bg-surface-container-highest flex-shrink-0 overflow-hidden">
+<img class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all" data-alt="birds-eye view of a modern university study hall with students working on laptops" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDpFsyCD1OP8V2QLwjqMZXsyLhuzxwSn2PVMwPM95pYcIO9gtX1aOgONPkDc0ab_zdVBc6pE9ZH9KfTGwvslR9I--sDZRULK3a4rbXXUOkC1clFTnc3gTa4dWyNEpkdvk-7wfU5JouZ5RUtnFNSYHUvngxXRSOoBgLjNjPSbd6t-aYP3k3E3DExaLwCek_YXkGXJ91vPToSzS432Sb1QoOYTSdWIvCyCFrS7Bl0Sn7mF4MmNOlqM5Gg2l9Wd_6lnOqx8jK5RlVEfpzV"/>
+</div>
+<div class="flex flex-col justify-center">
+<span class="text-xs font-semibold text-on-surface line-clamp-1">Open Logic Workshop</span>
+<span class="text-[10px] text-secondary uppercase tracking-tight">8 Students • Room 204</span>
+</div>
+</div>
+<div class="flex gap-4 group cursor-pointer">
+<div class="w-12 h-12 rounded bg-surface-container-highest flex-shrink-0 overflow-hidden">
+<img class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all" data-alt="close up of old books stacked in a dark oak bookshelf, moody library atmosphere" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDE93uc9thfZypQ28PLbAtd8bMDtXw_Zv5ul8agSk-Mo_Yl8T4oivZbceogmd0j7BZjonZjCxSBEewlP1Nq9HiXHveBRDkvfZsKZe2rqqfnaBk7HLTMTpw0DqYB3bftn0zSTBDnDxHSBdWoba7_3_F--7DLk5lc9Oc5HbSGWrlhrgC_1XCteg4tvcrKPKom3OGQ9jx6lEy1n7n62Dln76oQQKtULNvR6NeDgcd8SK1T5TwlGkWuB36qI_jwBi7uibfb5WvOkv_PGDYz"/>
+</div>
+<div class="flex flex-col justify-center">
+<span class="text-xs font-semibold text-on-surface line-clamp-1">Dante's Inferno Reading</span>
+<span class="text-[10px] text-secondary uppercase tracking-tight">12 Students • Virtual</span>
+</div>
+</div>
+<div class="flex gap-4 group cursor-pointer">
+<div class="w-12 h-12 rounded bg-surface-container-highest flex-shrink-0 overflow-hidden">
+<img class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all" data-alt="blurred photo of university campus building with traditional brick architecture" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCg-n0IbZZLtEDMM1n_LhNPKnzokurKQAwLmK4zFp9B9o3RoA5ckJFQD_qFWYVY6XqExSXltikMqOc82cW9lEE54cpW8cbMQcL8CKCA9plQF3tgg76YXDR5YpRAPNLHwvfDVM1K-a-Z5YtPcAdxhdP8iCi0bgXombSLnlEyfAzn2KFrfP1_pNslg8wqjWDqH6MlCsoWAMeQ0TxscJ9ijTFTRC7hLInxTGhTJnh94bYxP0DqGp-fJEEro0kwuIGzXCvpcEzZbn42gnZA"/>
+</div>
+<div class="flex flex-col justify-center">
+<span class="text-xs font-semibold text-on-surface line-clamp-1">Thesis Soundboard</span>
+<span class="text-[10px] text-secondary uppercase tracking-tight">3 Students • Courtyard</span>
+</div>
+</div>
+</div>
+<button class="w-full mt-8 py-3 text-[9px] font-bold uppercase tracking-[0.1em] text-on-surface bg-surface-container-high hover:bg-surface-container-highest transition-colors">Find a session</button>
+</section>
+</aside>
+</main>
+<!-- FAB: Suppressed per "Contextual FAB Suppression" rule on Dashboard -->
+</body></html>

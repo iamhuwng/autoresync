@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { IconChevronDown, IconChevronRight, IconInbox } from '@tabler/icons-react';
 import { AcademicRecordFlatRow, formatAcademicRecordDate } from './AcademicRecordResultRow';
 import type { EnhancedTestResultRecord } from '../../types/results.types';
+import { studentTokens } from '../layout/studentLayoutStyles';
 
 interface ResultsBySkillProps {
     results: EnhancedTestResultRecord[];
@@ -39,34 +40,34 @@ const skillOrder = ['reading', 'listening', 'writing', 'speaking'];
 const defaultSkillVisual: SkillVisual = {
     badge: 'OT',
     leadingTone: 'muted',
-    accent: '#4b5563',
-    accentSoft: '#f3f4f6',
+    accent: studentTokens.textBody,
+    accentSoft: studentTokens.bgShell,
 };
 
 const skillVisuals: Record<string, SkillVisual> = {
     reading: {
         badge: 'RD',
         leadingTone: 'primary',
-        accent: '#4338ca',
-        accentSoft: '#e0e7ff',
+        accent: studentTokens.accentHover,
+        accentSoft: studentTokens.accentSoft,
     },
     listening: {
         badge: 'LS',
         leadingTone: 'default',
-        accent: '#1d4ed8',
-        accentSoft: '#dbeafe',
+        accent: '#4c5458',
+        accentSoft: '#edf5f9',
     },
     writing: {
         badge: 'WR',
         leadingTone: 'warning',
-        accent: '#b45309',
-        accentSoft: '#fef3c7',
+        accent: '#9a6427',
+        accentSoft: '#f4ede4',
     },
     speaking: {
         badge: 'SP',
         leadingTone: 'success',
-        accent: '#047857',
-        accentSoft: '#d1fae5',
+        accent: '#586064',
+        accentSoft: '#dce4e8',
     },
     other: defaultSkillVisual,
 };
@@ -78,30 +79,22 @@ const styles: Record<string, React.CSSProperties> = {
         gap: '1rem',
     },
     summaryStack: {
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 14,
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(165px, 1fr))',
+        gap: 12,
     },
     prioritySummaryGrid: {
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-        gap: 12,
-    },
-    skillSummaryGrid: {
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-        gap: 12,
+        display: 'contents',
     },
     summaryCard: {
-        background: '#ffffff',
-        borderRadius: 16,
-        padding: '16px 18px',
-        border: '1px solid #e5e7eb',
-        borderTopWidth: 4,
+        background: studentTokens.bgShell,
+        borderRadius: 12,
+        padding: '14px 16px',
+        border: `1px solid ${studentTokens.borderWhisper}`,
         display: 'flex',
         flexDirection: 'column',
-        gap: 8,
-        minHeight: 108,
+        gap: 6,
+        minHeight: 92,
     },
     summaryLabel: {
         margin: 0,
@@ -109,61 +102,64 @@ const styles: Record<string, React.CSSProperties> = {
         fontWeight: 700,
         letterSpacing: '0.05em',
         textTransform: 'uppercase',
-        color: '#6b7280',
+        color: studentTokens.textMuted,
     },
     summaryValue: {
         margin: 0,
         fontSize: '1.5rem',
         fontWeight: 800,
-        color: '#111827',
+        color: studentTokens.textPrimary,
         lineHeight: 1.05,
     },
     summaryHint: {
         margin: 0,
         fontSize: '0.75rem',
-        color: '#6b7280',
+        color: studentTokens.textMuted,
         lineHeight: 1.5,
     },
     stackDivider: {
         display: 'flex',
         flexDirection: 'column',
-        gap: 12,
+        gap: 18,
     },
     groupHeader: {
         width: '100%',
-        border: '1px solid #e5e7eb',
-        borderRadius: 16,
-        padding: '14px 16px',
-        background: '#ffffff',
+        border: 'none',
+        borderBottom: `1px solid ${studentTokens.borderWhisper}`,
+        borderRadius: 0,
+        padding: '0 0 12px',
+        background: 'transparent',
         display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: 14,
+        alignItems: 'flex-start',
+        justifyContent: 'flex-start',
+        gap: 12,
         textAlign: 'left',
         cursor: 'pointer',
     },
     groupHeaderMain: {
         display: 'flex',
-        alignItems: 'flex-start',
-        gap: 12,
+        alignItems: 'center',
+        gap: 10,
         minWidth: 0,
         flex: 1,
     },
     chevron: {
-        color: '#6b7280',
+        color: studentTokens.textMuted,
         flexShrink: 0,
-        marginTop: 2,
+        marginTop: 1,
     },
     leadingBadge: {
-        minWidth: 38,
-        height: 38,
-        borderRadius: 12,
+        minWidth: 0,
+        height: 'auto',
+        borderRadius: 999,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        fontSize: '0.8125rem',
+        padding: '3px 8px',
+        fontSize: '0.6875rem',
         fontWeight: 800,
-        letterSpacing: '0.04em',
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
         flexShrink: 0,
     },
     groupTitleWrap: {
@@ -174,26 +170,24 @@ const styles: Record<string, React.CSSProperties> = {
     },
     groupTitle: {
         margin: 0,
-        color: '#111827',
-        fontSize: '0.95rem',
+        color: studentTokens.textPrimary,
+        fontSize: '0.875rem',
         fontWeight: 700,
     },
     groupMeta: {
         margin: 0,
-        color: '#6b7280',
-        fontSize: '0.75rem',
+        color: studentTokens.textMuted,
+        fontSize: '0.8125rem',
         lineHeight: 1.5,
     },
     groupSummary: {
-        fontSize: '0.8125rem',
-        fontWeight: 700,
-        whiteSpace: 'nowrap',
+        display: 'none',
     },
     groupRows: {
         display: 'flex',
         flexDirection: 'column',
         gap: '0.75rem',
-        marginTop: '0.5rem',
+        marginTop: '0.75rem',
     },
     emptyWrap: {
         display: 'flex',
@@ -206,23 +200,22 @@ const styles: Record<string, React.CSSProperties> = {
         margin: 0,
         fontSize: '1.125rem',
         fontWeight: 700,
-        color: '#374151',
+        color: studentTokens.textPrimary,
     },
     emptyBody: {
         margin: 0,
         fontSize: '0.875rem',
-        color: '#6b7280',
+        color: studentTokens.textMuted,
         textAlign: 'center',
         maxWidth: 400,
     },
 };
 
 const summaryCardVisuals = {
-    neutral: { labelColor: '#6b7280', valueColor: '#111827' },
-    primary: { labelColor: '#6b7280', valueColor: '#4338ca' },
-    info: { labelColor: '#6b7280', valueColor: '#1d4ed8' },
-    warning: { labelColor: '#6b7280', valueColor: '#b45309' },
-    success: { labelColor: '#6b7280', valueColor: '#047857' },
+    neutral: { labelColor: studentTokens.textMuted, valueColor: studentTokens.textPrimary },
+    primary: { labelColor: studentTokens.textMuted, valueColor: studentTokens.accent },
+    warning: { labelColor: studentTokens.textMuted, valueColor: '#9a6427' },
+    success: { labelColor: studentTokens.textMuted, valueColor: '#586064' },
 } as const;
 
 function formatSkillLabel(skill: string): string {
@@ -462,14 +455,15 @@ export const ResultsBySkill: React.FC<ResultsBySkillProps> = ({
                 : null,
             highestOverallBand: completedBands.length > 0 ? Math.max(...completedBands) : null,
             pendingWritingReview: writingPending,
-            skillSummaries: skillOrder.map((skill) => skillSummaries.get(skill) || buildEmptySummary(skill)),
+            trackedSkills: skillOrder.filter((skill) => skillSummaries.has(skill)).length,
+            gradedResultsCount: completedBands.length,
         };
     }, [results, skillGroups]);
 
     if (results.length === 0) {
         return (
             <div style={styles.emptyWrap}>
-                <IconInbox size={52} style={{ color: '#9ca3af' }} />
+                <IconInbox size={52} style={{ color: studentTokens.textDim }} />
                 <p style={styles.emptyHeading}>No skill results found</p>
                 <p style={styles.emptyBody}>Your latest results will appear here grouped by skill.</p>
             </div>
@@ -479,45 +473,33 @@ export const ResultsBySkill: React.FC<ResultsBySkillProps> = ({
     return (
         <div style={styles.stack}>
             <div style={styles.summaryStack}>
-                <div style={styles.prioritySummaryGrid}>
-                    <div style={{ ...styles.summaryCard, borderTopColor: '#d1d5db' }}>
-                        <p style={{ ...styles.summaryLabel, color: summaryCardVisuals.neutral.labelColor }}>Tests Completed</p>
-                        <p style={{ ...styles.summaryValue, color: summaryCardVisuals.neutral.valueColor }}>{overallSummary.testsCompleted}</p>
-                    </div>
-                    <div style={{ ...styles.summaryCard, borderTopColor: '#d1d5db' }}>
-                        <p style={{ ...styles.summaryLabel, color: summaryCardVisuals.warning.labelColor }}>Pending Review</p>
-                        <p style={{ ...styles.summaryValue, color: summaryCardVisuals.warning.valueColor }}>{overallSummary.pendingWritingReview}</p>
-                    </div>
-                    <div style={{ ...styles.summaryCard, borderTopColor: '#d1d5db' }}>
-                        <p style={{ ...styles.summaryLabel, color: summaryCardVisuals.primary.labelColor }}>Average Overall Band</p>
-                        <p style={{ ...styles.summaryValue, color: summaryCardVisuals.primary.valueColor }}>{formatBand(overallSummary.averageOverallBand)}</p>
-                    </div>
-                    <div style={{ ...styles.summaryCard, borderTopColor: '#d1d5db' }}>
-                        <p style={{ ...styles.summaryLabel, color: summaryCardVisuals.success.labelColor }}>Highest Overall Band</p>
-                        <p style={{ ...styles.summaryValue, color: summaryCardVisuals.success.valueColor }}>{formatBand(overallSummary.highestOverallBand)}</p>
-                    </div>
+                <div style={styles.summaryCard}>
+                    <p style={{ ...styles.summaryLabel, color: summaryCardVisuals.neutral.labelColor }}>Tests Completed</p>
+                    <p style={{ ...styles.summaryValue, color: summaryCardVisuals.neutral.valueColor }}>{overallSummary.testsCompleted}</p>
+                    <p style={styles.summaryHint}>
+                        {overallSummary.trackedSkills} skill{overallSummary.trackedSkills !== 1 ? 's' : ''} with recorded activity
+                    </p>
                 </div>
-
-                <div style={styles.skillSummaryGrid}>
-                    {overallSummary.skillSummaries.map((summary) => {
-                        const visual = getSkillVisual(summary.skill);
-                        return (
-                            <div
-                                key={summary.skill}
-                                style={{ ...styles.summaryCard, borderTopColor: '#d1d5db' }}
-                            >
-                                <p style={styles.summaryLabel}>{summary.label} Band</p>
-                                <p style={{ ...styles.summaryValue, color: visual.accent }}>{formatBand(summary.averageBand)}</p>
-                                <p style={styles.summaryHint}>
-                                    {summary.highestBand === null
-                                        ? summary.totalTests > 0
-                                            ? 'No graded results yet'
-                                            : 'No results yet'
-                                        : `High ${formatBand(summary.highestBand)} · ${summary.totalTests} test${summary.totalTests !== 1 ? 's' : ''}`}
-                                </p>
-                            </div>
-                        );
-                    })}
+                <div style={styles.summaryCard}>
+                    <p style={{ ...styles.summaryLabel, color: summaryCardVisuals.warning.labelColor }}>Pending Review</p>
+                    <p style={{ ...styles.summaryValue, color: summaryCardVisuals.warning.valueColor }}>{overallSummary.pendingWritingReview}</p>
+                    <p style={styles.summaryHint}>
+                        {overallSummary.pendingWritingReview > 0 ? 'Writing work awaiting review' : 'Nothing waiting for review'}
+                    </p>
+                </div>
+                <div style={styles.summaryCard}>
+                    <p style={{ ...styles.summaryLabel, color: summaryCardVisuals.primary.labelColor }}>Average Overall Band</p>
+                    <p style={{ ...styles.summaryValue, color: summaryCardVisuals.primary.valueColor }}>{formatBand(overallSummary.averageOverallBand)}</p>
+                    <p style={styles.summaryHint}>
+                        {overallSummary.gradedResultsCount > 0
+                            ? `Across ${overallSummary.gradedResultsCount} graded result${overallSummary.gradedResultsCount !== 1 ? 's' : ''}`
+                            : 'No graded results yet'}
+                    </p>
+                </div>
+                <div style={styles.summaryCard}>
+                    <p style={{ ...styles.summaryLabel, color: summaryCardVisuals.success.labelColor }}>Highest Overall Band</p>
+                    <p style={{ ...styles.summaryValue, color: summaryCardVisuals.success.valueColor }}>{formatBand(overallSummary.highestOverallBand)}</p>
+                    <p style={styles.summaryHint}>Best completed performance so far</p>
                 </div>
             </div>
 
@@ -559,7 +541,7 @@ export const ResultsBySkill: React.FC<ResultsBySkillProps> = ({
                                     <span
                                         style={{
                                             ...styles.leadingBadge,
-                                            background: '#ffffff',
+                                            background: visual.accentSoft,
                                             color: visual.accent,
                                         }}
                                     >

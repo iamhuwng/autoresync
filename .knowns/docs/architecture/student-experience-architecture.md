@@ -2,7 +2,7 @@
 title: Student Experience Architecture
 description: 'Student-facing system overview: 20 pages, design standard, adaptive layout, UX patterns, color/typography system.'
 createdAt: '2026-02-27T16:18:36.604Z'
-updatedAt: '2026-03-31T06:17:03.179Z'
+updatedAt: '2026-03-31T20:45:00.700Z'
 tags:
   - architecture
   - student
@@ -15,8 +15,15 @@ tags:
 
 ## Overview
 
-The student experience spans 20 pages covering dashboard, courses, classes, test-taking, practice, homework, results, and academic records. All student-facing pages follow the Student View Design Standard v1.0 — a Twitter/X-inspired social feed paradigm.
+The student experience spans dashboard, homework, courses, classes, library, results, academic record, practice, and profile surfaces.
 
+The current student-facing system follows the editorial academic workspace model defined in @doc/design/student-view-design-standard, not the older social-feed paradigm.
+
+Shared architectural intent:
+- one composed student shell across shell-hosted pages
+- a quieter right rail owned by the shell
+- center-column layouts that favor hierarchy, spacing, and typographic rhythm over widget/card density
+- dashboard and academic record sharing the same editorial center-canvas language, even though their data models differ
 ## Student Pages Map
 
 ```
@@ -58,32 +65,31 @@ All student pages follow the shared student design system documented in @doc/des
 
 ### Layout: Shared Student Shell
 ```text
-Desktop (≥1025px):
-┌──────────┬──────────────────────────────┬───────────────┐
-│  LEFT    │         CENTER FEED          │   RIGHT RAIL  │
-│  220px   │ minmax(0, 1fr), max 860px    │    280px      │
-│  sticky  │ shell-owned center column    │ shell-owned   │
-│  nav     │ content scrolls              │ global modules│
-└──────────┴──────────────────────────────┴───────────────┘
+Desktop:
+- fixed left rail
+- editorial center canvas capped around 960px
+- contextual right rail owned by the shell
+- the shell should feel like one workspace, not three boxed columns
 
-Shell max width: 1440px
-Desktop gap: 24px
-Tablet/mobile: feed-first with shell-owned off-canvas drawers
+Tablet/mobile:
+- feed-first layout with shell-owned off-canvas drawers
 ```
 
-### Color System
-- page background: `#f3f4f6`
-- surfaces: `#ffffff`
-- text: `#111827` headings and `#6b7280` metadata
-- accent: `#4f46e5`
-- banned: gradients, glassmorphism, purple-primary styling
+### Dashboard Feed Pattern
+- sticky workspace masthead
+- frameless metric strip using typographic columns
+- slim editorial tab row
+- timeline-style activity feed with left node rail, quiet metadata line, strong title, and one restrained content treatment per row
+
+### Academic Record Pattern
+- primary visual anchor for tonal layering, section hierarchy, and flatter data presentation
+- dashboard and records intentionally share the same center-column visual family
 
 ### Enforcement Mechanism
-1. Root class: `className="student-view-root"` activates CSS overrides.
-2. `StudentLayout` owns the shell structure and responsive drawer behavior.
-3. `StudentRightRail` owns shared right-rail modules for live sessions, homework, and class summaries.
-4. `rightPanel` is supplemental-only and appends page-specific widgets under the shared shell-owned modules.
-5. Reference implementation: `StudentLayout`, `StudentRightRail`, and `StudentDashboardPage.jsx`.
+- `student-view-root` activates the override layer
+- `StudentLayout` owns the shell composition and drawer behavior
+- `StudentRightRail` owns the shared right rail
+- `StudentDashboardPage.jsx` and `AcademicRecordPage.tsx` are implementation anchors for the two primary center-column patterns
 ## Key Patterns
 
 ### Adaptive Layout (Quiz Views)
@@ -100,11 +106,13 @@ Tablet/mobile: feed-first with shell-owned off-canvas drawers
 - Mobile: hamburger → off-canvas slide from left
 
 ### Feed Articles
-- Avatar (48×48, round, colored bg per type) + title + timestamp
-- Body text + optional nested action card
-- Hover: light background change
+- Feed pages now follow an editorial timeline model rather than social-feed cards
+- Each activity row uses a left icon/node rail, a quiet uppercase meta line, a strong title, and one content treatment beneath it
+- Test-result rows should favor score + insight composition instead of nested action panels
+- Homework rows may use one restrained inset quote/detail treatment, not stacked helper cards
+- Class/update rows should read as plain body copy with a small inline action when needed
+- Hover remains a light background shift only
 - Used for: notifications, assignments, live sessions, scores
-
 ### Empty States
 - Center-aligned, large emoji (3.5rem), bold heading, muted subtitle
 - Primary CTA button guiding to next action

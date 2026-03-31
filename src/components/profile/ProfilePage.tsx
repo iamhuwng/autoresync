@@ -31,15 +31,15 @@ import {
 import { redeemTeacherInvite } from '@/services/invitationService';
 import { StudentLayout } from '@/components/layout/StudentLayout';
 import { StudentSidebar } from '@/components/layout/StudentSidebar';
-import { S } from '@/components/layout/studentLayoutStyles';
+import { S, studentTokens } from '@/components/layout/studentLayoutStyles';
 import { useResolvedStudentHomeworkList } from '@/context/StudentShellDataContext';
 
 const localStyles: Record<string, React.CSSProperties> = {
     contentStack: {
         display: 'flex',
         flexDirection: 'column',
-        gap: 16,
-        padding: '12px 16px 16px',
+        gap: 18,
+        padding: '18px 0 0',
     },
     summaryGrid: {
         display: 'grid',
@@ -47,15 +47,14 @@ const localStyles: Record<string, React.CSSProperties> = {
         gap: 12,
     },
     summaryCard: {
-        background: '#ffffff',
-        borderRadius: 16,
-        padding: '16px 18px',
-        border: '1px solid #e5e7eb',
-        borderTopWidth: 4,
+        background: studentTokens.bgSurface,
+        borderRadius: 12,
+        padding: '18px 20px',
+        border: `1px solid ${studentTokens.borderWhisper}`,
         display: 'flex',
         flexDirection: 'column',
         gap: 8,
-        minHeight: 108,
+        minHeight: 116,
     },
     summaryLabel: {
         margin: 0,
@@ -63,21 +62,19 @@ const localStyles: Record<string, React.CSSProperties> = {
         fontWeight: 700,
         letterSpacing: '0.05em',
         textTransform: 'uppercase',
-        color: '#6b7280',
+        color: studentTokens.textMuted,
     },
     summaryValue: {
         margin: 0,
-        fontSize: '1.45rem',
+        fontSize: '2rem',
         fontWeight: 800,
-        color: '#111827',
+        color: studentTokens.textPrimary,
         lineHeight: 1.05,
     },
     heroCard: {
-        background: '#ffffff',
-        borderRadius: 16,
-        border: '1px solid #e5e7eb',
-        borderTopWidth: 4,
-        borderTopColor: '#d1d5db',
+        background: studentTokens.bgSurface,
+        borderRadius: 12,
+        border: `1px solid ${studentTokens.borderWhisper}`,
         padding: '18px 20px',
         display: 'flex',
         flexDirection: 'column',
@@ -106,13 +103,13 @@ const localStyles: Record<string, React.CSSProperties> = {
         margin: 0,
         fontSize: '1.25rem',
         fontWeight: 800,
-        color: '#111827',
+        color: studentTokens.textPrimary,
         lineHeight: 1.15,
     },
     heroMeta: {
         margin: 0,
         fontSize: '0.938rem',
-        color: '#6b7280',
+        color: studentTokens.textBody,
     },
     statusRow: {
         display: 'flex',
@@ -125,16 +122,16 @@ const localStyles: Record<string, React.CSSProperties> = {
         alignItems: 'center',
         gap: 6,
         padding: '4px 10px',
-        borderRadius: 999,
-        fontSize: '0.75rem',
+        borderRadius: studentTokens.radiusPill,
+        fontSize: '0.6875rem',
         fontWeight: 700,
-        letterSpacing: '0.05em',
+        letterSpacing: '0.08em',
         textTransform: 'uppercase',
     },
     sectionCard: {
-        background: '#ffffff',
-        borderRadius: 16,
-        border: '1px solid #e5e7eb',
+        background: studentTokens.bgSurface,
+        borderRadius: 12,
+        border: `1px solid ${studentTokens.borderWhisper}`,
         padding: '16px 18px',
         display: 'flex',
         flexDirection: 'column',
@@ -144,7 +141,7 @@ const localStyles: Record<string, React.CSSProperties> = {
         margin: 0,
         fontSize: '1rem',
         fontWeight: 700,
-        color: '#111827',
+        color: studentTokens.textPrimary,
     },
     rowList: {
         display: 'flex',
@@ -156,7 +153,7 @@ const localStyles: Record<string, React.CSSProperties> = {
         alignItems: 'flex-start',
         gap: 16,
         padding: '12px 0',
-        borderTop: '1px solid #e5e7eb',
+        borderTop: `1px solid ${studentTokens.borderWhisper}`,
     },
     rowFirst: {
         borderTop: 'none',
@@ -167,21 +164,19 @@ const localStyles: Record<string, React.CSSProperties> = {
         fontWeight: 700,
         letterSpacing: '0.05em',
         textTransform: 'uppercase',
-        color: '#6b7280',
+        color: studentTokens.textMuted,
         flexShrink: 0,
     },
     rowValue: {
         fontSize: '0.938rem',
         fontWeight: 600,
-        color: '#111827',
+        color: studentTokens.textPrimary,
         textAlign: 'right',
     },
     editCard: {
-        background: '#ffffff',
-        borderRadius: 16,
-        border: '1px solid #e5e7eb',
-        borderTopWidth: 4,
-        borderTopColor: '#d1d5db',
+        background: studentTokens.bgSurface,
+        borderRadius: 12,
+        border: `1px solid ${studentTokens.borderWhisper}`,
         padding: '18px 20px',
         display: 'flex',
         flexDirection: 'column',
@@ -198,12 +193,12 @@ const localStyles: Record<string, React.CSSProperties> = {
         margin: 0,
         fontSize: '0.875rem',
         lineHeight: 1.6,
-        color: '#6b7280',
+        color: studentTokens.textBody,
     },
     emptyState: {
-        background: '#ffffff',
-        borderRadius: 16,
-        border: '1px solid #fecaca',
+        background: studentTokens.bgSurface,
+        borderRadius: 12,
+        border: '1px solid rgba(158, 63, 78, 0.18)',
         padding: '48px 24px',
         textAlign: 'center',
         display: 'flex',
@@ -212,12 +207,10 @@ const localStyles: Record<string, React.CSSProperties> = {
         alignItems: 'center',
     },
     teacherBanner: {
-        margin: '0 16px',
-        background: '#ffffff',
-        borderRadius: 16,
-        border: '1px solid #c7d2fe',
-        borderTopWidth: 4,
-        borderTopColor: '#4f46e5',
+        margin: '18px 0 0',
+        background: studentTokens.bgSurface,
+        borderRadius: 12,
+        border: `1px solid ${studentTokens.borderWhisper}`,
         padding: '14px 16px',
         display: 'flex',
         justifyContent: 'space-between',
@@ -226,11 +219,9 @@ const localStyles: Record<string, React.CSSProperties> = {
         flexWrap: 'wrap',
     },
     rightCard: {
-        background: '#ffffff',
-        borderRadius: 16,
-        border: '1px solid #e5e7eb',
-        borderTopWidth: 4,
-        borderTopColor: '#d1d5db',
+        background: studentTokens.bgSurface,
+        borderRadius: 12,
+        border: `1px solid ${studentTokens.borderWhisper}`,
         padding: 16,
         display: 'flex',
         flexDirection: 'column',
@@ -247,25 +238,27 @@ const localStyles: Record<string, React.CSSProperties> = {
     },
     inviteInput: {
         flex: 1,
-        padding: '8px 12px',
-        borderRadius: 10,
-        border: '1px solid #d1d5db',
+        padding: '10px 12px',
+        borderRadius: 8,
+        border: `1px solid ${studentTokens.borderSoft}`,
         textTransform: 'uppercase',
         fontSize: '0.875rem',
         minWidth: 0,
         outline: 'none',
-        background: '#ffffff',
-        color: '#111827',
+        background: studentTokens.bgSurface,
+        color: studentTokens.textPrimary,
     },
     primaryButton: {
-        backgroundColor: '#4f46e5',
-        color: '#ffffff',
-        borderRadius: 999,
-        padding: '8px 16px',
-        fontWeight: 600,
+        backgroundColor: studentTokens.accent,
+        color: '#faf6ff',
+        borderRadius: 8,
+        padding: '10px 16px',
+        fontWeight: 700,
         border: 'none',
         cursor: 'pointer',
-        fontSize: '0.875rem',
+        fontSize: '0.75rem',
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -273,13 +266,15 @@ const localStyles: Record<string, React.CSSProperties> = {
     },
     outlineButton: {
         backgroundColor: 'transparent',
-        color: '#374151',
-        borderRadius: 999,
-        padding: '8px 16px',
-        fontWeight: 600,
-        border: '1px solid #d1d5db',
+        color: studentTokens.textBody,
+        borderRadius: 8,
+        padding: '10px 16px',
+        fontWeight: 700,
+        border: `1px solid ${studentTokens.borderSoft}`,
         cursor: 'pointer',
-        fontSize: '0.875rem',
+        fontSize: '0.75rem',
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -287,13 +282,15 @@ const localStyles: Record<string, React.CSSProperties> = {
     },
     dangerButton: {
         backgroundColor: 'transparent',
-        color: '#dc2626',
-        borderRadius: 999,
-        padding: '8px 16px',
-        fontWeight: 600,
-        border: '1px solid #fecaca',
+        color: '#9e3f4e',
+        borderRadius: 8,
+        padding: '10px 16px',
+        fontWeight: 700,
+        border: '1px solid rgba(158, 63, 78, 0.18)',
         cursor: 'pointer',
-        fontSize: '0.875rem',
+        fontSize: '0.75rem',
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -508,7 +505,7 @@ export function ProfilePage() {
         if (loading) {
             return (
                 <div style={{ textAlign: 'center', padding: '60px 24px' }}>
-                    <Loader size="xl" color="#4f46e5" />
+                    <Loader size="xl" color={studentTokens.accent} />
                     <p style={{ ...localStyles.infoText, marginTop: 16 }}>Loading profile...</p>
                 </div>
             );
@@ -518,7 +515,7 @@ export function ProfilePage() {
             return (
                 <div style={localStyles.contentStack}>
                     <div style={localStyles.emptyState}>
-                        <IconAlertTriangle size={40} color="#dc2626" />
+                        <IconAlertTriangle size={40} color="#9e3f4e" />
                         <h3 style={localStyles.sectionTitle}>Profile Error</h3>
                         <p style={localStyles.infoText}>Failed to load profile. Please refresh the page.</p>
                         <button
@@ -534,17 +531,17 @@ export function ProfilePage() {
         }
 
         const summaryCards = [
-            { label: 'Role', value: formatRole(profile.role), color: '#111827' },
+            { label: 'Role', value: formatRole(profile.role), color: studentTokens.textPrimary },
             {
                 label: 'Profile Status',
                 value: profile.profileCompletedAt ? 'Complete' : 'In Progress',
-                color: profile.profileCompletedAt ? '#059669' : '#2563eb',
+                color: profile.profileCompletedAt ? '#4c5458' : studentTokens.accent,
             },
-            { label: 'Homework Ready', value: String(notStarted.length), color: '#4f46e5' },
+            { label: 'Homework Ready', value: String(notStarted.length), color: studentTokens.accent },
             {
                 label: 'Country',
                 value: profile.address?.country ? getCountryName(profile.address.country) : '--',
-                color: '#111827',
+                color: studentTokens.textPrimary,
             },
         ];
 
@@ -577,10 +574,7 @@ export function ProfilePage() {
             <div style={localStyles.contentStack}>
                 <div style={localStyles.summaryGrid}>
                     {summaryCards.map((card) => (
-                        <div
-                            key={card.label}
-                            style={{ ...localStyles.summaryCard, borderTopColor: '#d1d5db' }}
-                        >
+                        <div key={card.label} style={localStyles.summaryCard}>
                             <p style={localStyles.summaryLabel}>{card.label}</p>
                             <p style={{ ...localStyles.summaryValue, color: card.color }}>{card.value}</p>
                         </div>
@@ -626,8 +620,8 @@ export function ProfilePage() {
                                             <span
                                                 style={{
                                                     ...localStyles.statusPill,
-                                                    background: profile.role === 'teacher' ? '#dbeafe' : '#e0e7ff',
-                                                    color: profile.role === 'teacher' ? '#2563eb' : '#4338ca',
+                                                    background: profile.role === 'teacher' ? '#edf5f9' : studentTokens.accentSoft,
+                                                    color: profile.role === 'teacher' ? '#4c5458' : studentTokens.accentHover,
                                                 }}
                                             >
                                                 {formatRole(profile.role)}
@@ -636,8 +630,8 @@ export function ProfilePage() {
                                                 <span
                                                     style={{
                                                         ...localStyles.statusPill,
-                                                        background: '#d1fae5',
-                                                        color: '#059669',
+                                                        background: '#edf5f9',
+                                                        color: '#4c5458',
                                                     }}
                                                 >
                                                     <IconCheck size={14} /> Profile Complete
@@ -674,15 +668,15 @@ export function ProfilePage() {
                                 radius="md"
                             >
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                    <p style={{ ...localStyles.infoText, color: '#9a3412' }}>
+                                    <p style={{ ...localStyles.infoText, color: '#9a6427' }}>
                                         Your account is scheduled for permanent deletion in <strong>{daysRemaining} day{daysRemaining !== 1 ? 's' : ''}</strong>.
                                     </p>
-                                    <p style={{ ...localStyles.infoText, color: '#9a3412' }}>
+                                    <p style={{ ...localStyles.infoText, color: '#9a6427' }}>
                                         All your data will be permanently removed. You can cancel this deletion at any time.
                                     </p>
                                     <button
                                         type="button"
-                                        style={{ ...localStyles.outlineButton, borderColor: '#059669', color: '#059669' }}
+                                        style={{ ...localStyles.outlineButton, borderColor: studentTokens.borderSoft, color: '#4c5458' }}
                                         onClick={handleCancelDeletion}
                                         disabled={deletionProcessing}
                                     >
@@ -694,12 +688,11 @@ export function ProfilePage() {
                             <section
                                 style={{
                                     ...localStyles.sectionCard,
-                                    borderColor: '#fecaca',
-                                    borderTopWidth: 4,
-                                    borderTopColor: '#dc2626',
+                                    borderColor: 'rgba(158, 63, 78, 0.18)',
+                                    background: '#fff8f8',
                                 }}
                             >
-                                <h3 style={{ ...localStyles.sectionTitle, color: '#dc2626' }}>Danger Zone</h3>
+                                <h3 style={{ ...localStyles.sectionTitle, color: '#9e3f4e' }}>Danger Zone</h3>
                                 <p style={localStyles.infoText}>
                                     Once you delete your account, there is no going back. Please be certain.
                                 </p>
@@ -754,7 +747,8 @@ export function ProfilePage() {
                                 disabled={!inviteCode.trim() || processingInvite}
                                 style={{
                                     ...localStyles.primaryButton,
-                                    backgroundColor: !inviteCode.trim() || processingInvite ? '#9ca3af' : '#4f46e5',
+                                    backgroundColor: !inviteCode.trim() || processingInvite ? studentTokens.bgSurfaceStrong : studentTokens.accent,
+                                    color: !inviteCode.trim() || processingInvite ? studentTokens.textDim : '#faf6ff',
                                     cursor: !inviteCode.trim() || processingInvite ? 'not-allowed' : 'pointer',
                                 }}
                             >
@@ -785,12 +779,15 @@ export function ProfilePage() {
             rightPanel={renderRightPanel()}
         >
             <div style={S.feedHeader}>
-                <h2 style={S.feedHeaderTitle}>My Profile</h2>
+                <div style={S.feedHeaderText}>
+                    <h2 style={S.feedHeaderTitle}>My Profile</h2>
+                    <p style={S.feedHeaderSubtitle}>Manage identity, account details, and academic profile settings inside the same student workspace.</p>
+                </div>
             </div>
 
             {profile?.role === 'teacher' ? (
                 <div style={localStyles.teacherBanner}>
-                    <span style={{ fontSize: '0.938rem', fontWeight: 700, color: '#4338ca' }}>Teacher Mode Active</span>
+                    <span style={{ fontSize: '0.875rem', fontWeight: 700, color: studentTokens.accentHover, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Teacher Mode Active</span>
                     <button
                         type="button"
                         style={localStyles.primaryButton}
@@ -816,7 +813,7 @@ export function ProfilePage() {
                         Your account will be scheduled for permanent deletion in 30 days. During this period, you can cancel the deletion.
                     </Alert>
                     <div>
-                        <p style={{ ...localStyles.infoText, color: '#111827', fontWeight: 700 }}>What will be deleted</p>
+                        <p style={{ ...localStyles.infoText, color: studentTokens.textPrimary, fontWeight: 700 }}>What will be deleted</p>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
                             <p style={localStyles.infoText}>Your profile and personal information</p>
                             <p style={localStyles.infoText}>All test results and academic records</p>
@@ -838,7 +835,7 @@ export function ProfilePage() {
                         </button>
                         <button
                             type="button"
-                            style={{ ...localStyles.dangerButton, backgroundColor: '#fee2e2' }}
+                            style={{ ...localStyles.dangerButton, backgroundColor: '#fff2f2' }}
                             onClick={handleRequestDeletion}
                             disabled={deletionProcessing}
                         >

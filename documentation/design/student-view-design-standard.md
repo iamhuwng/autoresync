@@ -1,9 +1,9 @@
-# Student View Design Standard v1.0
-## Unified Design Language for All Student-Facing Pages
+# Student View Design Standard v2.0
+## Editorial Academic Workspace For Student-Facing Pages
 
-**Established:** 2026-02-22
-**Status:** ACTIVE — Mandatory for all student views
-**Supersedes:** All previous glassmorphism, purple gradient, and AppShell patterns
+**Established:** 2026-03-31
+**Status:** ACTIVE - Mandatory for all student views
+**Supersedes:** Student View Design Standard v1.0 social-feed language and any previous gradient, glass, or AppShell patterns
 **CSS Enforcement:** `src/styles/student-view-override.css` (imported globally in `index.css`)
 **Root Class:** All student page wrappers MUST use `className="student-view-root"`
 
@@ -11,338 +11,300 @@
 
 ## 1. Design Philosophy
 
-The student interface follows a **Social Feed** paradigm inspired by Twitter/X. It prioritizes:
+The student interface now follows a calm editorial academic workspace model derived from the approved Academic Record direction.
 
-- **Clarity** — No visual noise, no decorative gradients, no glassmorphism
-- **Focus** — Content-first design where the feed/main content dominates
-- **Familiarity** — Social media patterns that students already understand
-- **Speed** — Minimal DOM, no backdrop-filter on scrolling content
+It prioritizes:
+- Composure - the UI should feel analytical, intentional, and quiet
+- Structural clarity - the 3-part student shell remains intact, but it should read as one composed workspace rather than three boxed columns
+- Content hierarchy - page title, section labels, metrics, lists, and actions should carry the visual hierarchy, not decorative containers
+- Consistency - Dashboard, Homework, Courses, Library, Academic Record, Course Detail, Class Detail, and Profile must look like members of the same family
+
+This standard is not a social-media clone. It does not use Twitter/X metaphors as the primary design model anymore.
 
 ---
 
-## 2. Color Palette
+## 2. Non-Negotiable Preservation Rules
 
-### Backgrounds
-| Token            | Value     | Usage                        |
-|------------------|-----------|------------------------------|
-| `bg-page`        | `#f3f4f6` | Page/body background         |
-| `bg-surface`     | `#ffffff` | Cards, feed items, sidebars  |
-| `bg-surface-alt` | `#f9fafb` | Nested cards, widget bg      |
-| `bg-hover`       | `#e5e7eb` | Hover state on nav items     |
-| `bg-input`       | `#e5e7eb` | Search bar, input backgrounds|
+These remain mandatory even under the overhaul:
+- Preserve the shared student shell architecture: left navigation, center work area, right contextual rail
+- Preserve mobile drawer behavior and mutual exclusion between left/right drawers
+- Preserve page information architecture and interaction contracts from the real app
+- Preserve the right rail as part of the shell; it is not optional for shell pages
+- Preserve the ban on `AppShell`, glassmorphism, gradients, decorative hover-lift, and emoji navigation
+- Preserve Inter as the UI typeface
+- Preserve student-safe flat HTML/CSS patterns over new Mantine additions
+
+---
+
+## 3. Core Visual Language
+
+### Mood
+- Editorial
+- Academic
+- Quiet
+- Analytical
+- Restrained
+
+### What It Must Feel Like
+- A digital academic workspace
+- Soft tonal layers instead of hard card stacks
+- Clear hierarchy through spacing and typography
+- Calm surfaces with minimal visual noise
+
+### What It Must Not Feel Like
+- Social feed clone
+- KPI dashboard
+- Retail/storefront UI
+- Learning app toy aesthetic
+- Gradient/glass marketing surface
+
+---
+
+## 4. Color System
+
+### Background & Surfaces
+| Token | Value | Usage |
+|---|---|---|
+| `bg-page` | `#f8f9fa` | global page background |
+| `bg-shell` | `#f1f4f6` | tonal shell regions, nav, subdued rail zones |
+| `bg-surface` | `#ffffff` | primary content panels and focus surfaces |
+| `bg-surface-muted` | `#eaeff1` | nested quiet surfaces |
+| `bg-surface-strong` | `#e3e9ec` | subtle emphasis blocks |
 
 ### Text
-| Token          | Value     | Usage                     |
-|----------------|-----------|---------------------------|
-| `text-primary` | `#111827` | Headings, active nav, bold |
-| `text-body`    | `#374151` | Body text, descriptions    |
-| `text-muted`   | `#6b7280` | Subtitles, metadata        |
-| `text-dim`     | `#9ca3af` | Timestamps, placeholders   |
+| Token | Value | Usage |
+|---|---|---|
+| `text-primary` | `#2b3437` | titles, primary numbers, strong labels |
+| `text-secondary` | `#586064` | body text, descriptions, metadata |
+| `text-muted` | `#737c7f` | lighter metadata |
+| `text-dim` | `#9b9d9e` | passive tertiary text |
 
-### Accents
-| Token            | Value     | Usage                        |
-|------------------|-----------|------------------------------|
-| `accent-primary` | `#4f46e5` | Primary buttons, active tab  |
-| `accent-hover`   | `#4338ca` | Button hover state           |
-| `accent-light`   | `#a5b4fc` | Disabled button bg           |
-| `accent-badge`   | `#6366f1` | Notification badges          |
+### Accent
+| Token | Value | Usage |
+|---|---|---|
+| `accent-primary` | `#4d44e3` | active tabs, primary actions, focused highlights |
+| `accent-soft` | `#e2dfff` | restrained accent container use |
+| `accent-ink` | `#3f34d6` | darker accent text or emphasis |
 
-### Semantic Colors
-| Token            | Value     | Usage                       |
-|------------------|-----------|-----------------------------|
-| `success-bg`     | `#d1fae5` | Success avatar bg           |
-| `success-text`   | `#059669` | Success text, scores        |
-| `success-border` | `#a7f3d0` | Success card border         |
-| `info-bg`        | `#dbeafe` | Info avatar bg              |
-| `info-text`      | `#2563eb` | Info text                   |
-| `warning-bg`     | `#fef3c7` | Warning/homework avatar bg  |
-| `warning-text`   | `#d97706` | Warning text                |
-| `error-text`     | `#dc2626` | Error messages              |
-| `overdue-text`   | `#e11d48` | Overdue date text           |
+### Outline
+| Token | Value | Usage |
+|---|---|---|
+| `outline-soft` | `#abb3b7` | subtle separators and ghost borders |
+| `outline-strong` | `#737c7f` | rare stronger boundary needs |
 
-### ❌ BANNED Colors
-- **NO** `#667eea` (legacy blue)
-- **NO** `#764ba2` (legacy purple)
-- **NO** Any `linear-gradient` on backgrounds
-- **NO** Purple, violet, lavender as primary colors
-- **NO** `var(--gradient-light-bg)` or any CSS variable gradient on student pages
+### Hard Rules
+- `#4d44e3` is the only strong accent for student shell pages
+- Use accent sparingly
+- Prefer tonal separation over visible borders
+- Do not introduce page-specific primary colors
+
+### Banned Colors & Effects
+- No `#667eea`
+- No `#764ba2`
+- No gradient backgrounds
+- No glassmorphism or translucent cards as a visual language
+- No candy-color palettes or bright SaaS semantic colors unless muted to this system
 
 ---
 
-## 3. Typography
+## 5. Typography
 
 ### Font Family
 ```css
 font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 ```
-Load via Google Fonts: `https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap`
 
-### Scale
-| Role           | Size       | Weight | Letter-spacing |
-|----------------|------------|--------|----------------|
-| Logo/Brand     | `1.5rem`   | 800    | `-0.02em`      |
-| Page Header    | `1.25rem`  | 700    | —              |
-| Nav Item       | `1.125rem` | 500/700| —              |
-| Widget Title   | `1.125rem` | 700    | —              |
-| Feed Title     | `0.95rem`  | 700    | —              |
-| Body Text      | `0.938rem` | 400    | —              |
-| Widget Item    | `0.875rem` | 700    | —              |
-| Timestamp      | `0.875rem` | 400    | —              |
-| Label/Badge    | `0.75rem`  | 600/700| `0.05em`       |
+### Hierarchy
+| Role | Size | Weight | Notes |
+|---|---|---|---|
+| Page title | `1.875rem` to `2rem` | 700-800 | tight, editorial |
+| Section title | `1rem` to `1.125rem` | 600-700 | compact and clear |
+| Metric value | `1.75rem` to `2.25rem` | 700-800 | high-contrast, sparse use |
+| Body | `0.875rem` to `0.938rem` | 400-500 | calm readable density |
+| Metadata | `0.75rem` to `0.8125rem` | 500-600 | subdued |
+| Micro-label | `0.625rem` to `0.75rem` | 700 | uppercase with letter spacing |
 
----
-
-## 4. Layout Structure
-
-### Desktop (≥1025px): 3-Column
-```
-┌─────────────────────────────────────────────────────────┐
-│          max-width: 1280px, centered, flex              │
-├──────────┬──────────────────────────┬───────────────────┤
-│  LEFT    │      CENTER FEED         │   RIGHT PANEL     │
-│  256px   │      max-width: 600px    │   320px           │
-│  sticky  │      border-left/right   │   sticky          │
-│  100vh   │      content scrolls     │   top: 24px       │
-└──────────┴──────────────────────────┴───────────────────┘
-```
-**CRITICAL: Structural Parity.** Do not omit the Right Panel element on pages with less content. To maintain the grid illusion and prevent the center feed from floating off-center, an empty or minimalist Right Panel (`<aside style={{ width: 320, flexShrink: 0 }}>`) must still exist to lock the architecture in place. Do not use `justifyContent: 'center'` as a shortcut.
-
-### Tablet (769px–1024px): Feed Only
-- Both sidebars hidden (`display: none`)
-- Center feed spans full width
-
-### Mobile (≤768px): Feed + Off-canvas
-- Center feed full width with `margin-top: 56px`
-- Fixed mobile header: hamburger | brand | calendar icon
-- Left sidebar: off-canvas from left, `z-index: 1000`
-- Right panel: off-canvas from right, `z-index: 1000`
-- Backdrop: `rgba(0,0,0,0.3)`, `z-index: 999`
-- **Mutual exclusion**: opening one sidebar closes the other
-- Slide animations use `transform: translateX()` (GPU-composited)
+### Rules
+- Inter only by default
+- Use uppercase micro-labels for tabs, metrics, metadata labels, and small headings
+- Favor strong title hierarchy over oversized button styling
+- Avoid friendly-app typography tricks or playful oversized labels
 
 ---
 
-## 5. Component Patterns
+## 6. Shell Architecture
 
-### 5.1 Left Sidebar Navigation
-- Logo at top: bold brand text
-- Nav items: `display: flex; align-items: center; gap: 16px; padding: 12px 16px; border-radius: 999px;`
-- Hover: `background: #e5e7eb`
-- Active: `font-weight: 700; color: #111827`
-- Icons: SVG, 24×24, `currentColor`
-- "Join Class" CTA: full-width pill button at bottom
-- User profile summary: avatar + name + email at very bottom
+### Desktop
+The 3-part structure is preserved:
+- Left navigation rail
+- Center work canvas
+- Right contextual rail
 
-### 5.2 Sticky Feed Header
+But the shell must be rendered as one composed workspace.
+
+#### Rules
+- Do not visually isolate the 3 regions as hard boxed columns
+- Use tonal background shifts, spacing, and quiet separators instead of repeated panel borders
+- The center region is the primary editorial canvas
+- The right rail is quieter and secondary but always structurally present on shell pages
+
+### Width Strategy
+The old rigid `max-width: 600px` center rule is replaced with page-class widths:
+- Feed-heavy pages may stay narrower
+- Data/list/detail pages may open wider
+- The shell composition must remain visually balanced
+
+### Mobile / Tablet
+- Keep current mobile header + off-canvas drawer behavior
+- Left and right drawers remain mutually exclusive
+- The mobile shell should inherit the same tonal language, not revert to older student-feed styling
+
+---
+
+## 7. Shared Component Rules
+
+### Navigation
+- Navigation should feel integrated into the shell, not like a stack of pills
+- Active state should be calm and precise: tonal highlight, subtle inset, or restrained accent cue
+- No emoji icons
+- Use SVG icons only
+
+### Headers
+- Sticky page headers are still allowed, but should feel lighter and more editorial
+- Prefer soft bottom separators or tonal contrast over heavy header boxes
+
+### Tabs
+- Tabs should be slim and editorial
+- Active state should use a thin accent underline or restrained tonal emphasis
+- Do not use heavy segmented-control styling unless the page specifically needs it
+
+### Panels & Cards
+- Panels are near-flat and quiet
+- Prefer white or tonal surface blocks with little or no shadow
+- Repeated framed cards should be avoided when a tonal grouping can do the job
+- No double-framed widgets
+
+### Buttons
+- Buttons are compact and restrained
+- Favor small rectangular-soft radii instead of fully pill-shaped controls as the default
+- Primary buttons use `#4d44e3`
+- Outline and tonal buttons should stay quiet
+
+### Lists & Tables
+- Use soft separators and whitespace instead of loud borders
+- Rows should read cleanly and support quick scanning
+- High-density tables may use very faint lines only
+
+### Metrics
+- Large metric numerals are encouraged for summary strips and record views
+- Pair metrics with uppercase micro-labels and quiet metadata
+
+---
+
+## 8. Page Family Rules
+
+### Dashboard
+- The dashboard is an editorial academic activity workspace, not a social feed clone or KPI dashboard
+- Use the approved Stitch dashboard export in `.stitch/designs/student-overhaul-from-academic-record-20260331/dashboard.html` as the feed companion anchor to Academic Record
+- The center column should use a sticky workspace masthead, frameless typographic metric columns, a slim editorial tab row, and a vertical academic timeline feed
+- Activity items should read as timeline/editorial rows with a left node rail, quiet metadata, strong titles, and restrained inline actions
+- Avoid nested CTA cards, stacked widget boxes, and boxed three-column emphasis; keep the shell soft and composed
+
+### Homework
+- List-first workboard
+- Summary strip + tabs + vertical assignment list
+- Homework snapshot can live in the right rail supplement
+
+### Courses
+- Grid/list states are allowed
+- Cards must remain restrained and academic, not marketplace-like
+
+### Library
+- Resource browsing page, not a storefront
+- Search/filter host should be quiet and editorial
+
+### Academic Record
+- This page is the primary visual anchor for the system
+- Use it as the reference for tonal layering, metric treatment, and section hierarchy
+
+### Course Detail / Class Detail
+- Detail-first vertical reading flow
+- Summary first, modules/assignments second
+- Avoid turning detail pages into analytics dashboards
+
+### Profile
+- Account workspace, not social profile
+- Hero section should stay calm and administrative
+
+---
+
+## 9. Banned Patterns
+
+- `AppShell`
+- New `@mantine/*` imports
+- Glass classes: `.glass*`
+- Gradient backgrounds
+- Decorative hover lift and floating cards
+- Purple/lavender primary themes
+- Emoji navigation icons
+- Mantine `Tabs`
+- Hard center-column left/right border framing as the default shell treatment
+- Treating the right rail as optional on shell pages
+
+---
+
+## 10. Reference Sources
+
+Primary Stitch anchors:
+- `academic-record.html` in `.stitch/designs/student-overhaul-20260331/`
+- `dashboard.html` in `.stitch/designs/student-overhaul-from-academic-record-20260331/`
+
+What they govern:
+- Academic Record is the primary tonal, spacing, and hierarchy anchor for the whole student system
+- Dashboard is the feed-specific companion anchor for the editorial activity timeline, metric strip, and softer shell treatment
+
+Implementation anchors:
+- `src/components/layout/StudentLayout.tsx`
+- `src/components/layout/StudentSidebar.tsx`
+- `src/components/layout/StudentRightRail.tsx`
+- `src/components/layout/studentLayoutStyles.ts`
+- `src/pages/AcademicRecordPage.tsx`
+- `src/pages/StudentDashboardPage.jsx`
+
+---
+
+## 11. Migration Checklist
+
+Before considering a student page complete under v2.0:
+- [ ] Uses the shared student shell with `student-view-root`
+- [ ] Follows the editorial academic workspace model rather than the v1 social-feed model
+- [ ] Uses the v2 token set (`#f8f9fa`, `#f1f4f6`, `#ffffff`, `#2b3437`, `#586064`, `#4d44e3`)
+- [ ] Preserves page structure and interaction logic
+- [ ] Preserves the right rail structurally on shell pages
+- [ ] Uses softer shell treatment instead of boxed three-column framing
+- [ ] Avoids gradients, glass, AppShell, emoji icons, and decorative hover lift
+- [ ] Keeps tabs, buttons, metrics, and lists inside the same visual family as Academic Record
+
+---
+
+## 12. CSS Override Layer
+
+The override layer still exists to neutralize legacy student styling, but it must now enforce the v2 editorial token system.
+
+Required CSS custom properties:
 ```css
-position: sticky;
-top: 0;
-z-index: 10;
-background: rgba(255,255,255,0.92);
-backdrop-filter: blur(12px);
-border-bottom: 1px solid #e5e7eb;
-padding: 16px;
-```
-
-### 5.3 Filter Tabs
-- Horizontal row of buttons, equal flex
-- Active tab: `font-weight: 700; color: #111827; border-bottom: 2px solid #4f46e5`
-- Inactive: `font-weight: 500; color: #6b7280; border-bottom: 2px solid transparent`
-
-### 5.4 Feed Article
-```
-┌──────────────────────────────────────────┐
-│ [Avatar 48px]  Title · timestamp         │
-│                Body message text          │
-│                ┌─────────────────────┐    │
-│                │ Nested action card  │    │
-│                └─────────────────────┘    │
-└──────────────────────────────────────────┘
-```
-- Avatar: 48×48, round, colored background per notification type
-- Hover: `background: #f9fafb`
-- Border-bottom: `1px solid #e5e7eb`
-- Nested cards: for scores (`#ecfdf5` bg, green) or actions (`#f9fafb` bg)
-
-### 5.5 Right Panel Widgets
-- Search bar: `background: #e5e7eb; border-radius: 999px; padding: 12px 16px`
-- Widget card: `background: #f9fafb; border-radius: 16px; border: 1px solid #e5e7eb; padding: 16px`
-- "Show more" link: `color: #4f46e5; font-size: 0.875rem`
-
-### 5.5.1 No Double-Framed Widgets
-- Self-framed widgets must not be nested inside another bordered card or section shell.
-- If a child component already includes its own card, border, radius, title row, or progress shell, the parent should provide spacing only, not another framed wrapper.
-- Use either a parent section shell with unframed child content, or a self-framed child widget directly. Never both.
-- Before shipping a student page, scan for any section where the same title or frame appears twice. If a component is visually complete on its own, do not wrap it in another card.
-### 5.6 Modal Dialog
-- Backdrop: `rgba(0,0,0,0.3)`
-- Card: `background: white; border-radius: 16px; padding: 24px; box-shadow: 0 20px 60px rgba(0,0,0,0.15)`
-- Centered with `position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%)`
-- Buttons: pill-shaped (`border-radius: 999px`)
-
-### 5.7 Empty States
-- Center-aligned, generous padding (60px top)
-- Large emoji (3.5rem)
-- Bold heading, muted subtitle
-- Primary CTA button
-
-### 5.8 Buttons
-| Variant   | Background  | Color   | Border               | Radius |
-|-----------|-------------|---------|----------------------|--------|
-| Primary   | `#4f46e5`   | white   | none                 | 999px  |
-| Secondary | `#111827`   | white   | none                 | 999px  |
-| Outline   | white       | `#374151`| `1px solid #d1d5db` | 999px  |
-| Ghost     | transparent | `#4f46e5`| none                 | 999px  |
-
----
-
-## 6. Animation Standards
-
-| Animation     | Duration | Easing          | Usage               |
-|---------------|----------|-----------------|----------------------|
-| Page fade-in  | 200ms    | ease-out        | View transitions     |
-| Hover bg      | 150ms    | —               | Nav items, cards     |
-| Sidebar slide | 300ms    | ease-in-out     | Mobile off-canvas    |
-| Button hover  | 200ms    | —               | Color transitions    |
-
-### ❌ BANNED Animations
-- **NO** `float` animation (bobbing up and down)
-- **NO** `shimmer` animation
-- **NO** `gradientShift` animation
-- **NO** `translateY(-4px)` card hover lift (too decorative)
-
----
-
-## 7. What NOT To Use on Student Pages
-
-### ❌ Banned Components & Patterns
-- `AppShell` from Mantine (use custom HTML layout)
-- `ThemeIcon` from Mantine (use plain SVG or colored `<div>`)
-- Glassmorphism classes: `.glass`, `.glass-card`, `.glass-strong`, `.glass-subtle`
-- Gradient backgrounds: `linear-gradient`, `radial-gradient`, `var(--gradient-*)`
-- `background-attachment: fixed` mesh gradients
-- Colored scrollbar thumbs
-- `box-shadow` with colored tints (lavender/rose/sky shadows)
-- Mantine `Tabs` component (use custom filter tabs)
-- Emoji-based navigation icons (use SVGs)
-
-### ✅ Allowed Components & Patterns
-- `Loader` — for loading states
-- `Badge` — for notifications/status (Mantine)
-- `useMediaQuery` — **CRITICAL**: When using this hook, do not initialize with a hardcoded `false`. To prevent SSR layout flashes (where mobile UI renders before desktop), initialize it lazily: `useState(() => typeof window !== 'undefined' ? window.matchMedia(query).matches : false)`.
-- Any Mantine utility hooks (`useDebouncedValue`, `useDisclosure`, etc.)
-
----
-
-## 8. Reference Implementation
-
-The canonical implementation is:
-```
-src/pages/StudentDashboardPage.jsx
-```
-
-All new student pages MUST reference this file for:
-- Color values and tokens
-- SVG icon definitions
-- Component patterns and hover states
-- Layout structure and mobile responsiveness
-- Feed article rendering pattern
-
----
-
-## 9. Page-Specific Adaptations
-
-When building other student pages (Library, Homework, Courses, Academic Record):
-
-1. **Keep the same left sidebar** — Extract it to a shared component
-2. **Keep the same color palette** — No page-specific colors
-3. **Keep the same typography** — Inter font, same scale
-4. **Adapt the center column** — Page-specific content replaces the feed
-5. **Right panel is optional** — Can be omitted on pages that don't need it
-6. **Mobile patterns stay the same** — Same breakpoints, same off-canvas behavior
-
----
-
-## 10. Migration Checklist for Existing Student Pages
-
-When migrating an existing student page to this standard:
-
-- [ ] Replace `AppShell` with custom 3-column layout
-- [ ] Remove all `#667eea` / `#764ba2` color references
-- [ ] Remove all `linear-gradient` backgrounds
-- [ ] Remove glassmorphism classes and backdrop-filter on cards
-- [ ] Replace emoji icons with SVGs
-- [ ] Override `body` background: `body { background: #f3f4f6 !important; }`
-- [ ] Add Inter font import
-- [ ] Use pill-shaped buttons (`border-radius: 999px`)
-- [ ] Implement mobile responsive breakpoints
-- [ ] Test on mobile (off-canvas sidebars work)
-- [ ] Root `<div>` has `className="student-view-root"`
-- [ ] CSS override file imported in `index.css` (`student-view-override.css`)
-
----
-
-## 11. CSS Override Layer (Code-Level Enforcement)
-
-### Why This Exists
-Documentation alone cannot prevent AI agents from copying old patterns. The CSS override layer is a **code-level guarantee** that ALL legacy patterns are neutralized on any element inside `.student-view-root`.
-
-### How It Works
-1. `src/styles/student-view-override.css` is imported globally in `index.css`
-2. It uses `body:has(.student-view-root)` to override the body gradient
-3. It uses `.student-view-root .glass`, `.student-view-root .gradient-bg`, etc. to neutralize ALL legacy classes
-4. It defines CSS custom properties (`--sv-*`) for the new design tokens
-
-### Required: Root Class
-**Every student page MUST wrap its content in:**
-```jsx
-<div className="student-view-root" style={S.root}>
-  {/* Page content */}
-</div>
-```
-
-This single class activates ALL CSS overrides automatically — even if the page still uses legacy Mantine components, the visual output will be flat/neutral.
-
-### CSS Custom Properties Available
-```css
---sv-bg-page: #f3f4f6;
+--sv-bg-page: #f8f9fa;
+--sv-bg-shell: #f1f4f6;
 --sv-bg-surface: #ffffff;
---sv-bg-surface-alt: #f9fafb;
---sv-bg-hover: #e5e7eb;
---sv-text-primary: #111827;
---sv-text-body: #374151;
---sv-text-muted: #6b7280;
---sv-accent: #4f46e5;
---sv-accent-hover: #4338ca;
---sv-border: #e5e7eb;
---sv-radius-pill: 999px;
---sv-radius-card: 16px;
+--sv-bg-surface-muted: #eaeff1;
+--sv-text-primary: #2b3437;
+--sv-text-secondary: #586064;
+--sv-text-muted: #737c7f;
+--sv-accent: #4d44e3;
+--sv-accent-soft: #e2dfff;
+--sv-outline-soft: #abb3b7;
+--sv-radius-soft: 8px;
+--sv-radius-panel: 12px;
 ```
 
-### What Gets Neutralized Automatically
-- `.glass`, `.glass-card`, `.glass-strong` → flat white with subtle border
-- `.gradient-bg` → flat background
-- `.card-lavender`, `.card-rose` → flat white
-- `.shadow-glass` → subtle shadow
-- `.text-gradient` → solid dark text
-- Card hover lift → disabled
-- Float/shimmer animations → disabled
-- Gradient scrollbar → neutral gray
-
----
-
-## 12. Legacy File Deprecation Banners
-
-All 13 existing legacy student files have a banner comment at the top:
-```
-/**
- * ╔══════════════════════════════════════════════════════════╗
- * ║  ⚠️  STUDENT VIEW DESIGN STANDARD v1.0 — ACTIVE       ║
- * ║  This file uses LEGACY styling that is DEPRECATED.     ║
- * ║  🚫 DO NOT copy styles from this file.                 ║
- * ║  ✅ Reference: src/pages/StudentDashboardPage.jsx       ║
- * ╚══════════════════════════════════════════════════════════╝
- */
-```
-
-This ensures any AI reading these files sees the deprecation warning **before** the legacy code.
+The override layer should neutralize legacy glass/gradient patterns and set the v2 shell colors automatically when `.student-view-root` is active.
