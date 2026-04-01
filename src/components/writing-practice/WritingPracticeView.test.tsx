@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import WritingPracticeView from './WritingPracticeView';
 
@@ -114,7 +114,9 @@ vi.mock('./SubmitToTeacherModal', () => ({
 describe('WritingPracticeView', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        vi.useRealTimers();
         vi.stubGlobal('alert', vi.fn());
+        window.localStorage.clear();
 
         mockGetStudentClasses.mockResolvedValue([]);
         mockGetClass.mockResolvedValue(null);
@@ -290,5 +292,115 @@ describe('WritingPracticeView', () => {
             'homework',
         );
         expect(mockNavigate).toHaveBeenCalledWith('/student/homework', { replace: true });
+    });
+
+    it('uses homework timer overrides and auto-submits when time runs out', async () => {
+        vi.useFakeTimers();
+        const startedAt = Date.now();
+
+        render(
+            <WritingPracticeView
+                materialId="material-3"
+                homeworkContext={{
+                    homeworkId: 'homework-2',
+                    submissionId: 'homework-submission-2',
+                    teacherId: 'teacher-1',
+                    timerMinutes: 1,
+                    maxAttempts: 2,
+                    startedAt,
+                }}
+                testData={{
+                    id: 'test-homework-2',
+                    metadata: {
+                        title: 'Timed Homework IELTS Writing',
+                        format: 'task1-only',
+                        duration: 45,
+                    },
+                    tasks: [
+                        {
+                            taskNumber: 1,
+                            taskType: 'task-1',
+                            promptText: 'Write about the chart',
+                            promptImageUrl: null,
+                            wordMinimum: 150,
+                        },
+                    ],
+                } as any}
+            />,
+        );
+
+        expect(screen.getByText(/1:00/)).toBeInTheDocument();
+
+        fireEvent.change(screen.getByTestId('writing-editor'), {
+            target: {
+                value: 'Timed homework essay draft.',
+            },
+        });
+
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(60_000);
+        });
+
+        expect(mockSubmitHomework).toHaveBeenCalledWith(
+            'homework-submission-2',
+            'result-1',
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            expect.any(Number),
+        );
+        expect(mockCreateSubmission).toHaveBeenCalledTimes(1);
+        expect(screen.queryByText(/confirm-submit/i)).not.toBeInTheDocument();
+    });
+
+    it('auto-resumes single-attempt homework without offering restart', async () => {
+        const startedAt = Date.now() - 30_000;
+        window.localStorage.setItem(
+            'writing_practice_material-4_student-1',
+            JSON.stringify({
+                essays: { 1: 'Recovered homework essay.', 2: '' },
+                activeTask: 1,
+                startedAt,
+            }),
+        );
+
+        render(
+            <WritingPracticeView
+                materialId="material-4"
+                homeworkContext={{
+                    homeworkId: 'homework-4',
+                    submissionId: 'homework-submission-4',
+                    teacherId: 'teacher-1',
+                    timerMinutes: 30,
+                    maxAttempts: 1,
+                    startedAt,
+                }}
+                testData={{
+                    id: 'test-homework-4',
+                    metadata: {
+                        title: 'Single Attempt Homework',
+                        format: 'task1-only',
+                        duration: 60,
+                    },
+                    tasks: [
+                        {
+                            taskNumber: 1,
+                            taskType: 'task-1',
+                            promptText: 'Write about the chart',
+                            promptImageUrl: null,
+                            wordMinimum: 150,
+                        },
+                    ],
+                } as any}
+            />,
+        );
+
+        await waitFor(() => {
+            expect(screen.getByTestId('writing-editor')).toHaveValue('Recovered homework essay.');
+        });
+
+        expect(screen.queryByText(/resume practice/i)).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /start new/i })).not.toBeInTheDocument();
     });
 });

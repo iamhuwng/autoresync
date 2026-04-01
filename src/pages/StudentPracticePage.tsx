@@ -49,6 +49,9 @@ interface PracticeLocationState {
     teacherId?: string;
     dueDate?: number;
     lateSubmissionAllowed?: boolean;
+    timerMinutes?: number | null;
+    maxAttempts?: number | null;
+    startedAt?: number;
     // Resume hint
     resumeFrom?: any;
     // Generic context (from library/course entry points)
@@ -212,6 +215,9 @@ const StudentPracticePageContent: React.FC = () => {
                         teacherId: locationState.teacherId || '',
                         dueDate: locationState.dueDate,
                         lateSubmissionAllowed: locationState.lateSubmissionAllowed ?? false,
+                        timerMinutes: locationState.timerMinutes,
+                        maxAttempts: locationState.maxAttempts,
+                        startedAt: locationState.startedAt,
                         previousEssay: locationState.resumeFrom?.essays,
                     } : undefined}
                 />

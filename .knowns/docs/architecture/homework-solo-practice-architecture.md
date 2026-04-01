@@ -2,7 +2,7 @@
 title: Homework Solo Practice Architecture
 description: 'Solo practice and homework system: data flows, status machine, result context, access control.'
 createdAt: '2026-02-27T16:20:59.562Z'
-updatedAt: '2026-03-29T08:41:42.846Z'
+updatedAt: '2026-04-01T03:39:50.597Z'
 tags:
   - architecture
   - homework
@@ -141,3 +141,32 @@ The current implementation now enforces the Writing-specific async contract in t
 - Submitting a homework Writing essay now updates both storage systems: `writing_submissions/{resultId}` plus the canonical `homework_submissions/{submissionId}` lifecycle row.
 - Final teacher grading now upgrades the linked homework attempt to `graded` and stores the band score used by homework-facing student UI.
 - Student homework cards/details now treat Writing as a manual-review workflow: pending submissions show waiting-state copy, and graded submissions can display band output instead of percentage-only assumptions.
+
+
+## 2026-04-01 Amendment — IELTS Writing Homework Timer And Resume Contract
+
+IELTS Writing homework now relies on an explicit route-state contract between the homework shells, `StudentPracticePage`, and `WritingPracticeView`.
+
+Required homework delivery fields:
+- `homeworkId`
+- `submissionId`
+- `teacherId`
+- `dueDate`
+- `lateSubmissionAllowed`
+- `timerMinutes`
+- `maxAttempts`
+- `startedAt`
+
+Timer rules:
+- homework timer override wins when `timerMinutes` is present
+- `timerMinutes === undefined` means fallback to the Writing test duration
+- `timerMinutes === null` or `<= 0` means no timer
+- `startedAt` from the homework attempt is the canonical countdown anchor across close-tab and resume flows
+
+Resume rules:
+- saved local Writing progress may show a resume choice only when homework policy still allows a fresh attempt
+- single-attempt homework (`maxAttempts === 1`) must auto-resume and must not offer restart
+- if a resume decision modal is shown, countdown time must pause while the decision is pending
+
+Timeout rule:
+- homework Writing timer expiry must auto-submit the homework attempt instead of leaving only a local draft

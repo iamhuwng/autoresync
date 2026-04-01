@@ -200,6 +200,12 @@ export const UpcomingHomeworkWidget: React.FC<UpcomingHomeworkWidgetProps> = ({
                     isHomework: true,
                     homeworkId: item.homework.id,
                     submissionId: item.submission?.id,
+                    teacherId: item.homework.createdBy,
+                    dueDate: item.homework.scheduling?.dueDate,
+                    lateSubmissionAllowed: item.homework.config?.lateSubmissionAllowed ?? false,
+                    timerMinutes: item.homework.config?.timerMinutes,
+                    maxAttempts: item.homework.config?.maxAttempts,
+                    startedAt: item.submission?.startedAt,
                 },
             });
         } else {

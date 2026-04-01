@@ -75,3 +75,25 @@ Shared interaction rules:
 - the alignment target is `selected comment header top == clicked annotation top`
 
 This preserves interaction continuity between the authoring tool and the published reader.
+
+## 2026-04-01 Amendment - Homework Delivery Timer Contract
+
+IELTS Writing homework delivery now depends on explicit route-state handoff from the homework shells into `StudentPracticePage` and `WritingPracticeView`.
+
+Required homework delivery fields:
+- `homeworkId`
+- `submissionId`
+- `teacherId`
+- `dueDate`
+- `lateSubmissionAllowed`
+- `timerMinutes`
+- `maxAttempts`
+- `startedAt`
+
+Homework timing and resume rules:
+- Writing homework must prefer the homework-assigned timer override over solo/default Writing timing
+- `undefined` timer means "fallback to test duration", while explicit `null` means "no timer"
+- the homework attempt `startedAt` value is the canonical countdown anchor across close-tab and resume flows
+- single-attempt homework must auto-resume saved local progress and must not show a restart choice
+- if a resume decision modal is shown for multi-attempt homework, the timer must pause while that decision is pending
+- timer expiry in homework mode must auto-submit the homework attempt instead of leaving a local-only draft

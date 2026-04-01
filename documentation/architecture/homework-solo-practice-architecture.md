@@ -32,3 +32,31 @@ Required rules:
 - homework list, courses, library, and other shell pages may derive counters and urgency selectors from that shared summary owner
 - dedicated homework detail or submission surfaces may own additional page-specific detail loads when those loads are not shell-global
 - student shell navigation must not recreate overlapping homework summary loaders when only the page host changes
+
+## 2026-04-01 Amendment - IELTS Writing Homework Timer And Resume Contract
+
+IELTS Writing homework currently reuses the student practice route and the `WritingPracticeView` delivery surface. That route handoff now has an explicit contract.
+
+Required route state from homework entry points:
+- `homeworkId`
+- `submissionId`
+- `teacherId`
+- `dueDate`
+- `lateSubmissionAllowed`
+- `timerMinutes`
+- `maxAttempts`
+- `startedAt`
+
+Timer rules:
+- homework timer override wins over solo/default Writing timing when `timerMinutes` is present
+- `timerMinutes === undefined` means "fallback to the Writing test duration if one exists"
+- `timerMinutes === null` or `<= 0` means "no timer"
+- `startedAt` from the homework attempt is the canonical timer anchor and must survive close-tab / back / resume flows
+
+Resume rules:
+- saved local Writing progress may show a resume decision only when homework policy still permits a fresh attempt
+- single-attempt homework (`maxAttempts === 1`) must auto-resume and must not offer restart
+- while a resume decision is pending, countdown time must not continue burning in the background
+
+Timeout rule:
+- when a homework Writing timer expires, the attempt should auto-submit the homework payload instead of leaving a stranded local draft

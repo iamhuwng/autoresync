@@ -2,7 +2,7 @@
 title: Solo Study Homework System
 description: Architecture and implementation docs for solo study and homework system
 createdAt: '2026-02-27T15:25:43.328Z'
-updatedAt: '2026-03-28T12:49:15.199Z'
+updatedAt: '2026-04-01T03:39:50.631Z'
 tags:
   - solo
   - homework
@@ -320,3 +320,16 @@ Operational implications:
 - THCS and IELTS Writing should be debugged separately because they use different load paths.
 
 See @doc/patterns/pattern-student-safe-solo-test-projection for the incident summary, solution, and checklist.
+
+
+## 2026-04-01 Amendment — IELTS Writing Homework Timer And Resume Contract
+
+The generic homework flow in this document still applies, but IELTS Writing now has an explicit delivery contract through `StudentPracticePage` and `WritingPracticeView`.
+
+Current guardrails:
+- homework entry points must forward `homeworkId`, `submissionId`, `teacherId`, `dueDate`, `lateSubmissionAllowed`, `timerMinutes`, `maxAttempts`, and `startedAt`
+- the homework timer override takes precedence over solo/default Writing timing
+- `undefined` timer means fallback to the test duration; explicit `null` means no timer
+- `startedAt` from the existing attempt is the canonical countdown anchor for resume flows
+- single-attempt homework must auto-resume saved progress and must not offer restart
+- timer expiry in homework mode must auto-submit the homework attempt

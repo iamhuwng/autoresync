@@ -227,6 +227,9 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                 teacherId: homework.createdBy,
                 dueDate: homework.scheduling?.dueDate,
                 lateSubmissionAllowed: homework.config?.lateSubmissionAllowed ?? false,
+                timerMinutes: homework.config?.timerMinutes,
+                maxAttempts: homework.config?.maxAttempts,
+                startedAt: submission?.startedAt || currentSubmission?.startedAt,
             },
         });
     };

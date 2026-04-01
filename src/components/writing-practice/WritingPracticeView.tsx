@@ -48,6 +48,9 @@ export interface HomeworkWritingContext {
     teacherId: string;
     dueDate?: number;              // epoch ms
     lateSubmissionAllowed?: boolean;
+    timerMinutes?: number | null;
+    maxAttempts?: number | null;
+    startedAt?: number;
     previousEssay?: { 1: string; 2: string };  // re-attempt pre-load
 }
 
@@ -105,6 +108,20 @@ function clearPracticeState(key: string): void {
     }
 }
 
+function getTimerSecondsRemaining(timerMinutes: number | null, startedAt?: number | null): number | null {
+    if (timerMinutes === null || timerMinutes <= 0) {
+        return null;
+    }
+
+    const totalSeconds = timerMinutes * 60;
+    if (!startedAt) {
+        return totalSeconds;
+    }
+
+    const elapsedSeconds = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+    return Math.max(0, totalSeconds - elapsedSeconds);
+}
+
 // ── Component ──────────────────────────────────────────────
 export default function WritingPracticeView({ materialId, testData, homeworkContext }: WritingPracticeViewProps) {
     const { user } = useAuth();
@@ -116,15 +133,22 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
     const isHomework = !!homeworkContext;
     const homeworkDueDate = homeworkContext?.dueDate ?? null;
     const homeworkLateAllowed = homeworkContext?.lateSubmissionAllowed ?? false;
+    const timerMinutes = isHomework
+        ? homeworkContext?.timerMinutes !== undefined
+            ? homeworkContext.timerMinutes
+            : testData.metadata.duration
+        : testData.soloConfig?.defaults?.timerMinutes ?? null;
+    const shouldForceResume = isHomework && homeworkContext?.maxAttempts === 1;
 
     // Task config (constant for test lifetime)
     const taskCount = testData.metadata.format === 'full-test' ? 2 : 1;
     const hasBothTasks = taskCount === 2;
     const showTask1 = testData.metadata.format !== 'task2-only';
     const showTask2 = testData.metadata.format !== 'task1-only';
+    const defaultTask = (showTask1 ? 1 : 2) as 1 | 2;
 
     // State
-    const [activeTask, setActiveTask] = useState<1 | 2>(showTask1 ? 1 : 2);
+    const [activeTask, setActiveTask] = useState<1 | 2>(defaultTask);
     const [essays, setEssays] = useState<{ 1: string; 2: string }>(
         homeworkContext?.previousEssay || { 1: '', 2: '' }
     );
@@ -140,13 +164,14 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
     // Auto-save indicator
     const [autoSaveStatus, setAutoSaveStatus] = useState<'saved' | 'saving'>('saved');
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-    const startedAtRef = useRef<number>(Date.now());
-
-    // Optional timer from soloConfig
-    const timerMinutes = testData.soloConfig?.defaults?.timerMinutes ?? null;
+    const startedAtRef = useRef<number>(homeworkContext?.startedAt ?? Date.now());
+    const timerExpiredRef = useRef(false);
+    const timeRemainingRef = useRef<number | null>(null);
+    const [autoSubmitOnTimeout, setAutoSubmitOnTimeout] = useState(false);
     const [timeRemaining, setTimeRemaining] = useState<number | null>(
-        timerMinutes ? timerMinutes * 60 : null
+        getTimerSecondsRemaining(timerMinutes, homeworkContext?.startedAt ?? null)
     );
+    timeRemainingRef.current = timeRemaining;
 
     // Hooks
     const activeTime = useActiveTimeTracking(taskCount as 1 | 2);
@@ -154,18 +179,48 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
 
     const saveKey = getSaveKey(materialId, studentId);
 
+    const applySavedProgress = useCallback((saved: SavedPracticeState) => {
+        setEssays(saved.essays);
+        setActiveTask(saved.activeTask);
+
+        const resolvedStartedAt = isHomework
+            ? homeworkContext?.startedAt ?? saved.startedAt
+            : saved.startedAt;
+
+        startedAtRef.current = resolvedStartedAt;
+        setTimeRemaining(getTimerSecondsRemaining(timerMinutes, resolvedStartedAt));
+    }, [homeworkContext?.startedAt, isHomework, timerMinutes]);
+
+    const resetPracticeSession = useCallback(() => {
+        clearPracticeState(saveKey);
+        setEssays({ 1: '', 2: '' });
+        setActiveTask(defaultTask);
+
+        const nextStartedAt = isHomework
+            ? homeworkContext?.startedAt ?? Date.now()
+            : Date.now();
+
+        startedAtRef.current = nextStartedAt;
+        timerExpiredRef.current = false;
+        setTimeRemaining(getTimerSecondsRemaining(timerMinutes, isHomework ? nextStartedAt : null));
+        setShowResumeModal(false);
+    }, [defaultTask, homeworkContext?.startedAt, isHomework, saveKey, timerMinutes]);
+
     // ── Load saved state on mount ──────────────────────────
     useEffect(() => {
         if (!studentId) return;
 
         const saved = loadSavedState(saveKey);
         if (saved) {
-            setShowResumeModal(true);
+            if (shouldForceResume) {
+                applySavedProgress(saved);
+            } else {
+                setShowResumeModal(true);
+            }
         } else {
-            startedAtRef.current = Date.now();
+            startedAtRef.current = homeworkContext?.startedAt ?? Date.now();
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [applySavedProgress, homeworkContext?.startedAt, saveKey, shouldForceResume, studentId]);
 
     // ── Load teachers from enrolled classes ─────────────────
     useEffect(() => {
@@ -223,17 +278,46 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
 
     // ── Timer (optional) ────────────────────────────────────
     useEffect(() => {
-        if (timeRemaining === null || submitted) return;
-        if (timeRemaining <= 0) {
-            // Auto-open submit modal on timer expiry
-            setShowSubmitModal(true);
+        if (timerMinutes === null || timerMinutes <= 0 || submitted || showResumeModal) return;
+
+        if ((timeRemainingRef.current ?? 0) <= 0) {
+            if (!timerExpiredRef.current) {
+                timerExpiredRef.current = true;
+                if (isHomework) {
+                    setAutoSubmitOnTimeout(true);
+                } else {
+                    setShowSubmitModal(true);
+                }
+            }
             return;
         }
+
         const interval = setInterval(() => {
-            setTimeRemaining(prev => (prev !== null ? prev - 1 : null));
+            setTimeRemaining(prev => {
+                if (prev === null) {
+                    return null;
+                }
+
+                if (prev <= 1) {
+                    clearInterval(interval);
+
+                    if (!timerExpiredRef.current) {
+                        timerExpiredRef.current = true;
+                        if (isHomework) {
+                            setAutoSubmitOnTimeout(true);
+                        } else {
+                            setShowSubmitModal(true);
+                        }
+                    }
+
+                    return 0;
+                }
+
+                return prev - 1;
+            });
         }, 1000);
         return () => clearInterval(interval);
-    }, [timeRemaining, submitted]);
+    }, [isHomework, showResumeModal, submitted, timerMinutes]);
 
     // ── beforeunload warning ────────────────────────────────
     useEffect(() => {
@@ -290,23 +374,17 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
     const handleResume = () => {
         const saved = loadSavedState(saveKey);
         if (saved) {
-            setEssays(saved.essays);
-            setActiveTask(saved.activeTask);
-            startedAtRef.current = saved.startedAt;
+            applySavedProgress(saved);
         }
         setShowResumeModal(false);
     };
 
     const handleStartNew = () => {
-        clearPracticeState(saveKey);
-        setEssays({ 1: '', 2: '' });
-        setActiveTask(showTask1 ? 1 : 2);
-        startedAtRef.current = Date.now();
-        setShowResumeModal(false);
+        resetPracticeSession();
     };
 
     // ── Submit flow ─────────────────────────────────────────
-    const handleSubmit = async (data: { teacherId: string | null; note: string }) => {
+    const handleSubmit = useCallback(async (data: { teacherId: string | null; note: string }) => {
         setSubmitting(true);
         setShowSubmitModal(false);
 
@@ -460,7 +538,30 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
         } finally {
             setSubmitting(false);
         }
-    };
+    }, [
+        activeTime,
+        essays,
+        homeworkContext,
+        homeworkDueDate,
+        homeworkLateAllowed,
+        isHomework,
+        navigate,
+        pastePrevention.pasteAttemptCount,
+        saveKey,
+        studentId,
+        studentName,
+        teachers,
+        testData,
+    ]);
+
+    useEffect(() => {
+        if (!autoSubmitOnTimeout || !isHomework || submitted || submitting) {
+            return;
+        }
+
+        setAutoSubmitOnTimeout(false);
+        void handleSubmit({ teacherId: homeworkContext?.teacherId || null, note: '' });
+    }, [autoSubmitOnTimeout, handleSubmit, homeworkContext?.teacherId, isHomework, submitted, submitting]);
 
     // ── Format timer ────────────────────────────────────────
     const formatTime = (seconds: number) => {
@@ -616,9 +717,11 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
                             Would you like to resume where you left off, or start fresh?
                         </p>
                         <div className="wpv-resume-actions">
-                            <button className="wpv-resume-btn wpv-resume-btn--new" onClick={handleStartNew}>
-                                Start New
-                            </button>
+                            {!shouldForceResume && (
+                                <button className="wpv-resume-btn wpv-resume-btn--new" onClick={handleStartNew}>
+                                    Start New
+                                </button>
+                            )}
                             <button className="wpv-resume-btn wpv-resume-btn--resume" onClick={handleResume}>
                                 Resume
                             </button>
