@@ -331,7 +331,7 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
                     </svg>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <div style={localStyles.brandTitle}>The Scholar</div>
+                    <div style={localStyles.brandTitle}>MySTUdent</div>
                     <p style={localStyles.brandSubtitle}>
                         Academic Workspace
                     </p>

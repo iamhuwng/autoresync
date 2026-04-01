@@ -27,19 +27,18 @@ const styles: Record<string, React.CSSProperties> = {
         gap: '1rem',
     },
     summaryGrid: {
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+        display: 'flex',
         gap: 16,
     },
     summaryCard: {
         background: '#ffffff',
         borderRadius: 0,
-        padding: '24px 24px',
+        padding: '20px 20px',
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'space-between',
-        gap: 0,
-        minHeight: 128,
+        gap: 6,
+        flex: 1,
+        minWidth: 0,
     },
     summaryLabel: {
         margin: 0,
@@ -51,22 +50,23 @@ const styles: Record<string, React.CSSProperties> = {
     },
     summaryValueRow: {
         display: 'flex',
-        alignItems: 'baseline',
-        gap: 8,
+        flexDirection: 'column',
+        gap: 2,
     },
     summaryValue: {
         margin: 0,
-        fontSize: '2.25rem',
+        fontSize: '1.75rem',
         fontWeight: 800,
         color: studentTokens.textPrimary,
-        lineHeight: 1.1,
+        lineHeight: 1.15,
     },
     summaryHint: {
         margin: 0,
-        fontSize: '0.75rem',
+        fontSize: '0.6875rem',
         fontWeight: 500,
-        lineHeight: 1.5,
+        lineHeight: 1.4,
         color: studentTokens.textMuted,
+        marginTop: 2,
     },
     groupHeader: {
         width: '100%',
@@ -336,26 +336,30 @@ export const ResultsByCourse: React.FC<ResultsByCourseProps> = ({
                     <p style={{ ...styles.summaryLabel, color: summaryCardVisuals[0].labelColor }}>Courses</p>
                     <div style={styles.summaryValueRow}>
                         <span style={{ ...styles.summaryValue, color: summaryCardVisuals[0].valueColor }}>{courseSummary.totalCourses}</span>
+                        <span style={styles.summaryHint}>Enrolled courses with results</span>
                     </div>
                 </div>
                 <div style={styles.summaryCard}>
                     <p style={{ ...styles.summaryLabel, color: summaryCardVisuals[1].labelColor }}>Latest Results</p>
                     <div style={styles.summaryValueRow}>
                         <span style={{ ...styles.summaryValue, color: summaryCardVisuals[1].valueColor }}>{courseSummary.totalResults}</span>
+                        <span style={styles.summaryHint}>Total tests across all courses</span>
                     </div>
                 </div>
                 <div style={styles.summaryCard}>
                     <p style={{ ...styles.summaryLabel, color: summaryCardVisuals[2].labelColor }}>Average Score</p>
                     <div style={styles.summaryValueRow}>
-                        <span style={{ ...styles.summaryValue, color: summaryCardVisuals[2].valueColor }}>{Math.round(courseSummary.averageScore)}%</span>
+                        <span style={{ ...styles.summaryValue, color: summaryCardVisuals[2].valueColor }}>{Math.round(courseSummary.averageScore)}<span style={{ fontSize: '0.875rem', fontWeight: 600, opacity: 0.55 }}>%</span></span>
+                        <span style={styles.summaryHint}>Mean of graded results</span>
                     </div>
                 </div>
                 <div style={styles.summaryCard}>
                     <p style={{ ...styles.summaryLabel, color: summaryCardVisuals[3].labelColor }}>Strongest Course</p>
                     <div style={styles.summaryValueRow}>
-                        <span style={{ ...styles.summaryValue, color: summaryCardVisuals[3].valueColor, fontSize: '1.25rem' }}>
-                            {courseSummary.strongestCourse?.courseName || 'Not enough data'}
+                        <span style={{ ...styles.summaryValue, color: summaryCardVisuals[3].valueColor, fontSize: '1.125rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {courseSummary.strongestCourse?.courseName || '—'}
                         </span>
+                        <span style={styles.summaryHint}>{courseSummary.strongestCourse ? 'Highest average performance' : 'Not enough data'}</span>
                     </div>
                 </div>
             </div>

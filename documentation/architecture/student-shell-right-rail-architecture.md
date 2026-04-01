@@ -36,9 +36,9 @@ Tablet and mobile remain shell-first layouts. The left navigation and right rail
 The global right rail is rendered by `StudentRightRail` and always appears on student shell pages unless a page-specific override is explicitly approved.
 
 Shell-owned modules:
-- live session summaries
-- upcoming homework summaries
-- enrolled-class summary groups
+- `Live Now` — live session thumbnail rows (conditionally rendered)
+- `Up Next` — upcoming homework dot-list inside a flat white card
+- `My Classes` — enrolled-class thumbnail rows
 
 Page-owned modules are supplemental only unless a page has an approved full override contract.
 
@@ -46,13 +46,14 @@ Rules:
 - pages should not render structural rail wrappers such as sticky containers, fixed widths, or empty placeholder columns
 - shell-owned summaries remain shell-owned even when a page-specific rail restates them differently
 - page surfaces may reshape shell summaries, but must not re-own or reacquire them
+- all variants (dashboard, default, academic-record) must use the unified v2 editorial token system — no variant may fall back to legacy CSS-in-JS styling
 
 ## Extension Pattern
 
 Current page supplements and overrides:
 - dashboard: shared shell rail plus `PendingReviewsWidget` appended through `rightPanel`
 - homework: homework summary supplement
-- records: overview and right-module selector
+- records: overview and right-module selector (academic-advisor and integrity-guide flat cards use v2 tokens)
 - profile: teacher invitation card
 
 Current shell-only pages:
@@ -66,6 +67,25 @@ Rules:
 - if a page has an approved page-specific rail contract, pass a full page-owned rail override through `rightPanel` instead of rebuilding shell data ownership
 - dashboard currently does not use a full right-rail override on the live route
 - dashboard variant in `StudentLayout` may still tune spacing or width without changing right-rail ownership
+
+## v2 Visual Token System
+
+As of 2026-04-02 all three right-rail variants (dashboard, default, academic-record) share the same `v2` inline token object. Legacy `localStyles` CSS-in-JS, `CLASS_COLORS`, `getLiveBadgeStyles`, and `formatDueDateBadge` have been removed.
+
+v2 design tokens define:
+- section headers: 10px / 800wt / uppercase / `#2b3437` / 0.12em letter-spacing
+- flat white cards: `#ffffff` background, 1px `#eceef0` border, 2px radius
+- dot-list rows: 6px `#b9c4ca` dot + truncated title + right-aligned time label
+- thumbnail-list rows: 36×36 gradient square (grayscale filter, color on hover) + name + meta
+- CTA buttons: `#dce4e8` background / `#cdd6da` hover / 12px font
+- empty states: 11px / `#737c7f`
+
+Banned patterns:
+- bordered cards around individual items
+- pill rows with uppercase labels
+- date-badge squares
+- emoji thumbnails
+- shadow effects on rail items
 
 ## Dashboard Rail Contract
 
@@ -132,6 +152,8 @@ Design rules:
 - date badges must match the Up Next date badge pattern (month abbreviated uppercase in accent, day bold)
 - source pills must be lowercase with SVG prefix icons — no emojis, no uppercase labels
 - the amber "Awaiting review" pill provides semantic differentiation from Up Next items
+
+Note: `PendingReviewsWidget` is the only rail module that still uses date badges. The shell-owned sections (Up Next, Live Now, My Classes) all use the v2 dot-list and thumbnail-list patterns instead.
 
 ## Implementation Notes
 

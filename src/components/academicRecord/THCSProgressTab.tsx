@@ -44,19 +44,18 @@ const styles: Record<string, React.CSSProperties> = {
         gap: 24,
     },
     statsGrid: {
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+        display: 'flex',
         gap: 32,
     },
     statCard: {
         background: '#ffffff',
         borderRadius: 0,
-        padding: '24px 24px',
+        padding: '20px 20px',
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'space-between',
-        gap: 0,
-        minHeight: 128,
+        gap: 6,
+        flex: 1,
+        minWidth: 0,
     },
     statLabel: {
         margin: 0,
@@ -68,15 +67,23 @@ const styles: Record<string, React.CSSProperties> = {
     },
     statValueRow: {
         display: 'flex',
-        alignItems: 'baseline',
-        gap: 8,
+        flexDirection: 'column',
+        gap: 2,
     },
     statValue: {
         margin: 0,
-        fontSize: '2.25rem',
+        fontSize: '1.75rem',
         fontWeight: 800,
         color: studentTokens.textPrimary,
-        lineHeight: 1.1,
+        lineHeight: 1.15,
+    },
+    statHint: {
+        margin: 0,
+        fontSize: '0.6875rem',
+        fontWeight: 500,
+        color: studentTokens.textMuted,
+        lineHeight: 1.4,
+        marginTop: 2,
     },
     section: {
         display: 'flex',
@@ -102,9 +109,9 @@ const styles: Record<string, React.CSSProperties> = {
         gap: 10,
     },
     skillGrid: {
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+        display: 'flex',
         gap: 16,
+        flexWrap: 'wrap',
     },
     skillRow: {
         background: '#ffffff',
@@ -113,6 +120,8 @@ const styles: Record<string, React.CSSProperties> = {
         display: 'flex',
         flexDirection: 'column',
         gap: 10,
+        flex: '1 1 140px',
+        minWidth: 0,
     },
     skillTop: {
         display: 'flex',
@@ -188,7 +197,20 @@ function getEntryDate(entry: ThcsProgressData['scoreHistory'][number]): number {
 
 export const THCSProgressTab: React.FC<THCSProgressTabProps> = ({ data, loading = false, onResultClick }) => {
     const sortedHistory = useMemo(
-        () => [...(data?.scoreHistory || [])].sort((a, b) => getEntryDate(b) - getEntryDate(a)),
+        () => {
+            const raw = data?.scoreHistory || [];
+            // Attach original index so we can break ties (entries with missing
+            // timestamps default to 0 and would otherwise keep insertion order).
+            return raw
+                .map((entry, idx) => ({ entry, idx }))
+                .sort((a, b) => {
+                    const diff = getEntryDate(b.entry) - getEntryDate(a.entry);
+                    // When timestamps match (e.g. both 0), newer entries sit later
+                    // in Firebase's array, so higher index = newer.
+                    return diff !== 0 ? diff : b.idx - a.idx;
+                })
+                .map((item) => item.entry);
+        },
         [data?.scoreHistory],
     );
 
@@ -224,18 +246,21 @@ export const THCSProgressTab: React.FC<THCSProgressTabProps> = ({ data, loading 
                     <p style={{ ...styles.statLabel, color: statCardVisuals[0].labelColor }}>Tests Completed</p>
                     <div style={styles.statValueRow}>
                         <span style={{ ...styles.statValue, color: statCardVisuals[0].valueColor }}>{data.testsCompleted}</span>
+                        <span style={styles.statHint}>Total attempts recorded</span>
                     </div>
                 </div>
                 <div style={styles.statCard}>
                     <p style={{ ...styles.statLabel, color: statCardVisuals[1].labelColor }}>Average Score</p>
                     <div style={styles.statValueRow}>
-                        <span style={{ ...styles.statValue, color: statCardVisuals[1].valueColor }}>{data.averageScore.toFixed(1)}/10</span>
+                        <span style={{ ...styles.statValue, color: statCardVisuals[1].valueColor }}>{data.averageScore.toFixed(1)}<span style={{ fontSize: '0.875rem', fontWeight: 600, opacity: 0.55 }}> / 10</span></span>
+                        <span style={styles.statHint}>Mean of all attempts</span>
                     </div>
                 </div>
                 <div style={styles.statCard}>
                     <p style={{ ...styles.statLabel, color: statCardVisuals[2].labelColor }}>Best Score</p>
                     <div style={styles.statValueRow}>
-                        <span style={{ ...styles.statValue, color: statCardVisuals[2].valueColor }}>{maxScore.toFixed(1)}/10</span>
+                        <span style={{ ...styles.statValue, color: statCardVisuals[2].valueColor }}>{maxScore.toFixed(1)}<span style={{ fontSize: '0.875rem', fontWeight: 600, opacity: 0.55 }}> / 10</span></span>
+                        <span style={styles.statHint}>Highest completed performance</span>
                     </div>
                 </div>
             </div>

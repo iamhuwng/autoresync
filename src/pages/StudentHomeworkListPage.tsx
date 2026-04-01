@@ -101,19 +101,18 @@ const localStyles: Record<string, React.CSSProperties> = {
         padding: '32px 0 0',
     },
     summaryGrid: {
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
+        display: 'flex',
         gap: 32,
     },
     summaryCard: {
         background: '#ffffff',
         borderRadius: 0,
-        padding: '24px 24px',
+        padding: '20px 20px',
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'space-between',
-        gap: 0,
-        minHeight: 128,
+        gap: 6,
+        flex: 1,
+        minWidth: 0,
     },
     summaryLabel: {
         margin: 0,
@@ -126,10 +125,18 @@ const localStyles: Record<string, React.CSSProperties> = {
     },
     summaryValue: {
         margin: 0,
-        fontSize: '2.25rem',
+        fontSize: '1.75rem',
         fontWeight: 800,
         color: studentTokens.textPrimary,
-        lineHeight: 1.1,
+        lineHeight: 1.15,
+    },
+    summaryHint: {
+        margin: 0,
+        fontSize: '0.6875rem',
+        fontWeight: 500,
+        color: studentTokens.textMuted,
+        lineHeight: 1.4,
+        marginTop: 2,
     },
     listStack: {
         display: 'flex',
@@ -455,11 +462,11 @@ export const StudentHomeworkListPage: React.FC = () => {
         .filter((item) => item.homework.scheduling?.dueDate && item.status !== 'submitted' && item.status !== 'graded')
         .sort((left, right) => left.homework.scheduling.dueDate - right.homework.scheduling.dueDate)[0] || null;
     const summaryCards = [
-        { label: 'Assignments', value: homeworkItems.length, color: studentTokens.textPrimary },
-        { label: 'Not Started', value: notStarted.length, color: studentTokens.textPrimary },
-        { label: 'In Progress', value: inProgress.length, color: studentTokens.accent },
-        { label: 'Completed', value: completed.length, color: '#4c5458' },
-        { label: 'Overdue', value: overdue.length, color: '#9e3f4e' },
+        { label: 'Assignments', value: homeworkItems.length, color: studentTokens.textPrimary, hint: 'Total assigned tasks' },
+        { label: 'Not Started', value: notStarted.length, color: studentTokens.textPrimary, hint: 'Awaiting first attempt' },
+        { label: 'In Progress', value: inProgress.length, color: studentTokens.accent, hint: 'Currently working on' },
+        { label: 'Completed', value: completed.length, color: '#4c5458', hint: 'Submitted or graded' },
+        { label: 'Overdue', value: overdue.length, color: '#9e3f4e', hint: 'Past due date' },
     ];
 
     const renderCenterContent = () => {
@@ -493,7 +500,10 @@ export const StudentHomeworkListPage: React.FC = () => {
                             style={localStyles.summaryCard}
                         >
                             <p style={localStyles.summaryLabel}>{card.label}</p>
-                            <p style={{ ...localStyles.summaryValue, color: card.color }}>{card.value}</p>
+                            <div>
+                                <p style={{ ...localStyles.summaryValue, color: card.color }}>{card.value}</p>
+                                <p style={localStyles.summaryHint}>{card.hint}</p>
+                            </div>
                         </div>
                     ))}
                 </div>

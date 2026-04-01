@@ -1,8 +1,8 @@
 ---
 title: Student Dashboard Architecture
-description: Source of truth for the live student dashboard center canvas, shared rail composition, and result-opening behavior.
+description: Source of truth for the live student dashboard center canvas, shared rail composition, result-opening behavior, and v2 editorial right-rail token compliance.
 createdAt: '2026-03-31T22:18:34.333Z'
-updatedAt: '2026-04-01T05:44:55.980Z'
+updatedAt: '2026-04-01T21:37:57.357Z'
 tags:
   - architecture
   - student

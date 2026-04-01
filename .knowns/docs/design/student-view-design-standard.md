@@ -2,7 +2,7 @@
 title: Student View Design Standard
 description: Design standards and patterns for all student-facing pages and views
 createdAt: '2026-02-27T15:25:53.999Z'
-updatedAt: '2026-04-01T19:03:18.789Z'
+updatedAt: '2026-04-01T21:36:36.576Z'
 tags:
   - design
   - student
@@ -222,12 +222,17 @@ The old rigid `max-width: 600px` center rule is replaced with page-class widths:
 
 ### Right Rail
 - Right rails should read as quiet contextual composition, not a stack of reusable widgets
-- On dashboard, `Feed Snapshot` is the primary summary surface
-- `Up Next` should sit inside the same visual family as the primary summary, not as a second unrelated widget stack
-- `Public Sessions` should be a sparse supporting list, not another heavy card column
+- All variants (dashboard, default, academic-record) must use the unified v2 editorial tokens — no variant may use legacy styling
+- Section headers: 10px / 800wt / uppercase / `#2b3437` / 0.12em letter-spacing
+- Two item patterns exist:
+  - **Dot-list** (Up Next, Pending Reviews, Upcoming Deadlines): 6px dot + truncated title + right-aligned time label inside a flat white card
+  - **Thumbnail-list** (Live Now, My Classes): 36×36 gradient thumbnail (grayscale filter, color on hover) + name + meta line
+- `Live Now` only renders when active sessions exist; otherwise the section is hidden entirely
+- CTA buttons use the flat `#dce4e8` button style with `#cdd6da` hover
+- Empty states use 11px / `#737c7f` text
+- No shadows, no bordered cards around individual items, no pill rows, no date-badge squares
 
 ---
-
 ## 8. Page Family Rules
 
 ### Dashboard
@@ -387,6 +392,14 @@ All interactive rows must implement the `onMouseEnter`/`onMouseLeave` background
 
 
 ## Changelog
+
+### 2026-04-02: v2 Right Rail Unification
+- Unified all three right-rail variants (dashboard, default, academic-record) to use the same v2 editorial token system
+- Replaced legacy styling: date badges → dot-list, pill rows → time labels, bordered live-session cards → thumbnail rows, class-icon circles → gradient thumbnails
+- Separated Live Sessions and My Classes into distinct sections (previously merged)
+- Removed 175 lines of dead legacy CSS-in-JS (`localStyles`, `CLASS_COLORS`, `getLiveBadgeStyles`, `formatDueDateBadge`)
+- Academic Advisor and Integrity Guide sections now use flat white cards with v2 typography
+- Updated Section 7: Right Rail rules to codify the two item patterns (dot-list and thumbnail-list)
 
 ### 2026-04-02: Right Rail Item Conventions Added
 - Added Section 7.5 "Right Rail Item Conventions" defining the unified pattern for all right-rail list modules

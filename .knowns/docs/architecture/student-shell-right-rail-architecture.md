@@ -1,8 +1,8 @@
 ---
 title: Student Shell Right Rail Architecture
-description: Architecture contract for the shared student shell layout, right rail ownership, and dashboard supplemental rail pattern.
+description: Architecture contract for the shared student shell layout, right rail ownership, v2 editorial token system, and dashboard supplemental rail pattern. All three variants (dashboard, default, academic-record) use the unified v2 tokens as of 2026-04-02.
 createdAt: '2026-03-30T03:14:40.723Z'
-updatedAt: '2026-04-01T19:03:18.685Z'
+updatedAt: '2026-04-01T21:37:56.295Z'
 tags:
   - architecture
   - student
