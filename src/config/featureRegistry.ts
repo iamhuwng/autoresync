@@ -261,6 +261,7 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       'openJoinClassModal',
       'closeJoinClassModal',
       'submitJoinClass',
+      'joinLiveSession',
       'joinPublicSession',
       'expandPublicSessions',
       'openAcademicHistory',

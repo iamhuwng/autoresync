@@ -3,7 +3,7 @@
  * Service for querying and aggregating student test/quiz results
  */
 
-import { ref, get } from 'firebase/database';
+import { ref, get, onValue } from 'firebase/database';
 import { database } from './firebase';
 import {
   getSessionResults as getPermanentSessionResults,
@@ -595,6 +595,47 @@ export interface PublicSession {
   isActive: boolean;
 }
 
+function normalizePublicSessions(
+  sessions: Record<string, unknown> | null | undefined,
+): PublicSession[] {
+  if (!sessions || typeof sessions !== 'object') {
+    return [];
+  }
+
+  const publicSessions: PublicSession[] = [];
+
+  for (const [sessionCode, sessionData] of Object.entries(sessions)) {
+    if (!sessionData || typeof sessionData !== 'object') continue;
+
+    const session = sessionData as Record<string, any>;
+    const isPublic = !session.linkedClassId && !session.classId;
+    const isActive = session.status === 'waiting' || session.status === 'in-progress';
+    const notExpired = !session.expiresAt || Date.now() < session.expiresAt;
+
+    if (!isPublic || !isActive || !notExpired) {
+      continue;
+    }
+
+    const players = session.players || session.students || {};
+    const playerCount = Object.keys(players).length;
+
+    publicSessions.push({
+      sessionCode,
+      sessionMode: session.mode || 'quiz',
+      testId: session.testId,
+      quizId: session.quizId,
+      testTitle: session.testTitle || session.quizTitle || 'Untitled Session',
+      status: session.status,
+      createdAt: session.createdAt || Date.now(),
+      playerCount,
+      isActive: session.status === 'in-progress',
+    });
+  }
+
+  publicSessions.sort((a, b) => b.createdAt - a.createdAt);
+  return publicSessions;
+}
+
 /**
  * Get all available public sessions (not linked to any class)
  * Students can browse and join these sessions
@@ -608,48 +649,23 @@ export async function getAvailablePublicSessions(): Promise<PublicSession[]> {
       return [];
     }
 
-    const sessions = snapshot.val();
-    const publicSessions: PublicSession[] = [];
-
-    for (const [sessionCode, sessionData] of Object.entries(sessions)) {
-      if (!sessionData || typeof sessionData !== 'object') continue;
-
-      const session = sessionData as any;
-
-      // Only include sessions that are:
-      // 1. Not linked to a class (linkedClassId is null/undefined)
-      // 2. Active (status is 'waiting' or 'in-progress')
-      // 3. Not expired
-      const isPublic = !session.linkedClassId && !session.classId;
-      const isActive = session.status === 'waiting' || session.status === 'in-progress';
-      const notExpired = !session.expiresAt || Date.now() < session.expiresAt;
-
-      if (isPublic && isActive && notExpired) {
-        const players = session.players || session.students || {};
-        const playerCount = Object.keys(players).length;
-
-        publicSessions.push({
-          sessionCode,
-          sessionMode: session.mode || 'quiz',
-          testId: session.testId,
-          quizId: session.quizId,
-          testTitle: session.testTitle || session.quizTitle || 'Untitled Session',
-          status: session.status,
-          createdAt: session.createdAt || Date.now(),
-          playerCount,
-          isActive: session.status === 'in-progress',
-        });
-      }
-    }
-
-    // Sort by creation date (newest first)
-    publicSessions.sort((a, b) => b.createdAt - a.createdAt);
-
-    return publicSessions;
+    return normalizePublicSessions(snapshot.val());
   } catch (error) {
     console.error('Error getting available public sessions:', error);
     return [];
   }
+}
+
+export function subscribeToAvailablePublicSessions(
+  callback: (sessions: PublicSession[]) => void,
+): () => void {
+  const sessionsRef = ref(database, 'game_sessions');
+
+  const unsubscribe = onValue(sessionsRef, (snapshot) => {
+    callback(snapshot.exists() ? normalizePublicSessions(snapshot.val()) : []);
+  });
+
+  return () => unsubscribe();
 }
 
 // =============================================================================

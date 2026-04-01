@@ -95,3 +95,31 @@
 - Updated relevant docs
 
 **Git commit:** Detailed conventional commit with all changes listed.
+
+## 4. Student Dashboard Layout & PendingReviewsWidget Redesign
+
+### Layout Remediation (Feed & Stats)
+- `src/components/layout/studentLayoutStyles.ts`:
+  - Restored `maxWidth: 960px` constraint on the feed container to prevent content stretching on ultra-wide viewports
+- `src/components/dashboard/StudentDashboardFeedView.jsx`:
+  - Increased vertical padding (`24px 0 28px`) on summary stats grid
+  - Added symmetric horizontal padding (`32px`) around vertical dividers for balanced column spacing
+  - Increased internal element spacing (gap: 8px)
+
+### PendingReviewsWidget v2 Redesign
+- `src/components/dashboard/PendingReviewsWidget.tsx` (full rewrite):
+  - Replaced self-framed bordered card with warm amber background → open-section editorial layout matching UP NEXT / MY CLASSES sections
+  - Section header: `0.625rem / 800wt / uppercase / 0.12em letterspacing` + accent count badge pill
+  - Item rows: left icon block (32×32, colored by source type: 📝 Homework, ✏️ Solo, 🎯 Live) + title + meta row
+  - Meta row: amber status dot + time-ago label + source pill
+  - Hover: rows highlight to `bgSurfaceAlt`
+  - See-all: accent uppercase link when total > 5
+  - Uses `studentTokens` design system tokens throughout
+  - No Mantine dependencies
+
+### Architecture Docs Updated
+- `documentation/architecture/student-shell-right-rail-architecture.md` — Added "PendingReviewsWidget Design Contract" section documenting the v2 visual structure and design rules
+- `documentation/architecture/student-dashboard-architecture.md` — Added rule requiring PendingReviewsWidget to use open-section editorial layout
+
+### Knowns Updated
+- Task `vy4fb5` — Appended v2 redesign implementation notes

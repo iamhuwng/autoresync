@@ -4,6 +4,8 @@
  *
  * Shows pending writing submissions awaiting teacher review.
  * Max 5 items; "See all" link if more. Hidden (returns null) if empty.
+ *
+ * Redesigned to match the editorial right-rail style (UP NEXT / MY CLASSES sections).
  */
 import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
@@ -20,152 +22,24 @@ interface PendingItem {
     contextType: string;
 }
 
-const s = {
-    widget: {
-        background: studentTokens.bgSurface,
-        borderRadius: 12,
-        padding: 16,
-        border: `1px solid ${studentTokens.borderWhisper}`,
-        display: 'flex',
-        flexDirection: 'column' as const,
-        gap: 12,
-        minWidth: 0,
-    },
-    header: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        gap: 12,
-    },
-    titleBlock: {
-        display: 'flex',
-        flexDirection: 'column' as const,
-        gap: 4,
-        minWidth: 0,
-    },
-    eyebrow: {
-        margin: 0,
-        fontSize: '0.625rem',
-        fontWeight: 800 as const,
-        letterSpacing: '0.12em',
-        textTransform: 'uppercase' as const,
-        color: studentTokens.textMuted,
-        lineHeight: 1.2,
-    },
-    title: {
-        margin: 0,
-        fontSize: '0.8125rem',
-        fontWeight: 600 as const,
-        lineHeight: 1.3,
-        color: studentTokens.textPrimary,
-    },
-    count: {
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minWidth: 30,
-        height: 22,
-        padding: '0 8px',
-        borderRadius: studentTokens.radiusPill,
-        background: studentTokens.accentSoft,
-        color: studentTokens.accentHover,
-        fontSize: '0.625rem',
-        fontWeight: 700 as const,
-        letterSpacing: '0.08em',
-        textTransform: 'uppercase' as const,
-        flexShrink: 0,
-    },
-    list: {
-        listStyle: 'none',
-        margin: 0,
-        padding: 0,
-        display: 'flex',
-        flexDirection: 'column' as const,
-        gap: 12,
-    },
-    itemShell: {
-        display: 'flex',
-        flexDirection: 'column' as const,
-        gap: 12,
-    },
-    item: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        gap: 12,
-        padding: 0,
-        border: 'none',
-        background: 'transparent',
-        borderRadius: 0,
-    },
-    itemMain: {
-        flex: 1,
-        minWidth: 0,
-    },
-    itemTitle: {
-        margin: 0,
-        fontSize: '0.8125rem',
-        fontWeight: 600 as const,
-        lineHeight: 1.3,
-        color: studentTokens.textPrimary,
-        wordBreak: 'break-word' as const,
-    },
-    itemMeta: {
-        marginTop: 4,
-        fontSize: '0.6875rem',
-        lineHeight: 1.45,
-        color: studentTokens.textBody,
-    },
-    sourceBadge: {
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '3px 8px',
-        borderRadius: studentTokens.radiusPill,
-        fontSize: '0.625rem',
-        fontWeight: 700 as const,
-        letterSpacing: '0.08em',
-        textTransform: 'uppercase' as const,
-        whiteSpace: 'nowrap' as const,
-        flexShrink: 0,
-    },
-    divider: {
-        height: 1,
-        background: studentTokens.borderWhisper,
-    },
-    seeAllBtn: {
-        alignSelf: 'flex-start',
-        padding: 0,
-        border: 'none',
-        background: 'transparent',
-        color: studentTokens.accent,
-        fontSize: '0.625rem',
-        fontWeight: 700 as const,
-        letterSpacing: '0.12em',
-        textTransform: 'uppercase' as const,
-        textAlign: 'left' as const,
-        cursor: 'pointer',
-        fontFamily: 'inherit',
-        transition: 'color 0.15s ease',
-    },
-} satisfies Record<string, CSSProperties>;
-
-function getSourceStyle(type: string): { bg: string; text: string; label: string } {
+/* ── Source type visuals ── */
+function getSourceStyle(type: string): { bg: string; text: string; label: string; icon: string } {
     switch (type) {
         case 'homework':
-            return { bg: '#ece9ff', text: studentTokens.accentHover, label: 'Homework' };
+            return { bg: '#ece9ff', text: studentTokens.accentHover, label: 'Homework', icon: '📝' };
         case 'solo-practice':
-            return { bg: studentTokens.bgSurfaceAlt, text: studentTokens.textBody, label: 'Solo' };
+            return { bg: studentTokens.bgSurfaceAlt, text: studentTokens.textBody, label: 'Solo', icon: '✏️' };
         case 'class-session':
         case 'class_session':
         case 'live-session':
         case 'live':
-            return { bg: '#edf5f9', text: '#4c5458', label: 'Live' };
+            return { bg: '#edf5f9', text: '#4c5458', label: 'Live', icon: '🎯' };
         default:
-            return { bg: studentTokens.bgSurfaceAlt, text: studentTokens.textBody, label: type || 'Practice' };
+            return { bg: studentTokens.bgSurfaceAlt, text: studentTokens.textBody, label: type || 'Practice', icon: '✏️' };
     }
 }
 
+/* ── Title resolution ── */
 function resolvePendingTitle(data: Record<string, any>): string {
     const testTitle =
         data.testMeta?.testTitle ||
@@ -188,12 +62,174 @@ function resolvePendingTitle(data: Record<string, any>): string {
     return 'Writing submission';
 }
 
+/* ── Time-ago helper ── */
+function timeAgo(ts: number): string {
+    if (!ts) return '';
+    const diff = Date.now() - ts;
+    const mins = Math.floor(diff / 60_000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days === 1) return 'Yesterday';
+    if (days < 7) return `${days}d ago`;
+    return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+/* ── Styles ── */
+const s: Record<string, CSSProperties> = {
+    /* Section container — matches UP NEXT / MY CLASSES open layout */
+    section: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+    },
+    /* Header row: title + count */
+    header: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: 8,
+    },
+    sectionTitle: {
+        margin: 0,
+        fontSize: '0.625rem',
+        fontWeight: 800,
+        letterSpacing: '0.12em',
+        textTransform: 'uppercase',
+        color: studentTokens.textPrimary,
+        lineHeight: 1.2,
+    },
+    countBadge: {
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minWidth: 20,
+        height: 20,
+        padding: '0 6px',
+        borderRadius: studentTokens.radiusPill,
+        background: studentTokens.accentSoft,
+        color: studentTokens.accentHover,
+        fontSize: '0.625rem',
+        fontWeight: 700,
+        lineHeight: 1,
+        flexShrink: 0,
+    },
+
+    /* Item list */
+    list: {
+        listStyle: 'none',
+        margin: 0,
+        padding: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 2,
+    },
+
+    /* Individual item row */
+    item: {
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 10,
+        padding: '8px 8px',
+        borderRadius: 6,
+        cursor: 'pointer',
+        transition: 'background 0.15s ease',
+    },
+
+    /* Left indicator — colored dot with icon */
+    indicator: {
+        width: 32,
+        height: 32,
+        borderRadius: 6,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+        fontSize: '0.8rem',
+    },
+
+    /* Item content area */
+    itemContent: {
+        flex: 1,
+        minWidth: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 2,
+    },
+    itemTitle: {
+        margin: 0,
+        fontSize: '0.75rem',
+        fontWeight: 600,
+        lineHeight: 1.35,
+        color: studentTokens.textPrimary,
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+    },
+    itemMeta: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        margin: 0,
+    },
+    itemMetaText: {
+        margin: 0,
+        fontSize: '0.625rem',
+        lineHeight: 1.4,
+        color: studentTokens.textMuted,
+    },
+    itemSourcePill: {
+        display: 'inline-flex',
+        alignItems: 'center',
+        padding: '1px 6px',
+        borderRadius: studentTokens.radiusPill,
+        fontSize: '0.5625rem',
+        fontWeight: 700,
+        letterSpacing: '0.06em',
+        textTransform: 'uppercase',
+        whiteSpace: 'nowrap',
+        lineHeight: 1.6,
+    },
+
+    /* Status dot — pulsing amber for "awaiting review" */
+    statusDot: {
+        width: 6,
+        height: 6,
+        borderRadius: '50%',
+        background: '#d4a843',
+        flexShrink: 0,
+    },
+
+    /* See all link */
+    seeAll: {
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        padding: '4px 8px',
+        margin: 0,
+        border: 'none',
+        background: 'transparent',
+        color: studentTokens.accent,
+        fontSize: '0.625rem',
+        fontWeight: 700,
+        letterSpacing: '0.1em',
+        textTransform: 'uppercase',
+        cursor: 'pointer',
+        fontFamily: 'inherit',
+        transition: 'color 0.15s ease',
+        borderRadius: 4,
+    },
+};
+
 export function PendingReviewsWidget() {
     const { user } = useAuth();
     const navigate = useNavigate();
     const [items, setItems] = useState<PendingItem[]>([]);
     const [totalCount, setTotalCount] = useState(0);
     const [loaded, setLoaded] = useState(false);
+    const [hoveredId, setHoveredId] = useState<string | null>(null);
 
     useEffect(() => {
         if (!user?.uid) return;
@@ -241,55 +277,91 @@ export function PendingReviewsWidget() {
     if (!loaded || items.length === 0) return null;
 
     return (
-        <div style={s.widget}>
+        <section style={s.section} aria-label="Pending writing reviews">
+            {/* Header — matches UP NEXT / MY CLASSES section headers */}
             <div style={s.header}>
-                <div style={s.titleBlock}>
-                    <p style={s.eyebrow}>Writing Queue</p>
-                    <h3 style={s.title}>Pending Reviews</h3>
-                </div>
-                <span style={s.count}>{totalCount > 5 ? '5+' : items.length}</span>
+                <h3 style={s.sectionTitle}>Pending Reviews</h3>
+                <span style={s.countBadge}>{totalCount > 5 ? '5+' : items.length}</span>
             </div>
 
+            {/* Item list */}
             <ul style={s.list}>
-                {items.map((item, index) => {
-                    const sourceStyle = getSourceStyle(item.contextType);
+                {items.map((item) => {
+                    const source = getSourceStyle(item.contextType);
+                    const isHovered = hoveredId === item.id;
+
                     return (
-                        <li key={item.id} style={s.itemShell}>
-                            <div style={s.item}>
-                                <div style={s.itemMain}>
-                                    <h4 style={s.itemTitle}>{item.testTitle}</h4>
-                                    <div style={s.itemMeta}>
-                                        {new Date(item.submittedAt).toLocaleDateString(undefined, {
-                                            month: 'short',
-                                            day: 'numeric',
-                                        })}
-                                    </div>
-                                </div>
-                                <span style={{ ...s.sourceBadge, background: sourceStyle.bg, color: sourceStyle.text }}>
-                                    {sourceStyle.label}
-                                </span>
+                        <li
+                            key={item.id}
+                            style={{
+                                ...s.item,
+                                background: isHovered ? studentTokens.bgSurfaceAlt : 'transparent',
+                            }}
+                            onMouseEnter={() => setHoveredId(item.id)}
+                            onMouseLeave={() => setHoveredId(null)}
+                            onClick={() => navigate(`/student/writing/${item.id}`)}
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={(event) => {
+                                if (event.key === 'Enter' || event.key === ' ') {
+                                    event.preventDefault();
+                                    navigate(`/student/writing/${item.id}`);
+                                }
+                            }}
+                        >
+                            {/* Left icon block */}
+                            <div
+                                style={{
+                                    ...s.indicator,
+                                    background: source.bg,
+                                }}
+                            >
+                                {source.icon}
                             </div>
-                            {index < items.length - 1 ? <div style={s.divider} /> : null}
+
+                            {/* Content */}
+                            <div style={s.itemContent}>
+                                <p style={s.itemTitle} title={item.testTitle}>
+                                    {item.testTitle}
+                                </p>
+                                <div style={s.itemMeta}>
+                                    <span style={s.statusDot} title="Awaiting review" />
+                                    <span style={s.itemMetaText}>{timeAgo(item.submittedAt)}</span>
+                                    <span
+                                        style={{
+                                            ...s.itemSourcePill,
+                                            background: source.bg,
+                                            color: source.text,
+                                        }}
+                                    >
+                                        {source.label}
+                                    </span>
+                                </div>
+                            </div>
                         </li>
                     );
                 })}
             </ul>
 
+            {/* See all link */}
             {totalCount > 5 && (
                 <button
-                    style={s.seeAllBtn}
+                    type="button"
+                    style={s.seeAll}
                     onClick={() => navigate('/student/academic-record', { state: { tab: 'writing' } })}
                     onMouseEnter={(event) => {
                         event.currentTarget.style.color = studentTokens.accentHover;
+                        event.currentTarget.style.background = studentTokens.bgSurfaceAlt;
                     }}
                     onMouseLeave={(event) => {
                         event.currentTarget.style.color = studentTokens.accent;
+                        event.currentTarget.style.background = 'transparent';
                     }}
                 >
-                    See all pending reviews
+                    See all reviews →
                 </button>
             )}
-        </div>
+        </section>
     );
 }
 

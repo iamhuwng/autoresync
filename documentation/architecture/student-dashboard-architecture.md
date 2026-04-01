@@ -107,6 +107,7 @@ Required composition:
 Rules:
 - `Live Now`, `Up Next`, and `My Classes` stay shell-owned and come from `StudentRightRail`
 - `PendingReviewsWidget` is supplemental only and must not replace or duplicate the shell-owned rail modules
+- `PendingReviewsWidget` must use the open-section editorial layout (section header + item list), not a bordered card or warm-background wrapper — it must visually match shell-owned sections
 - `Up Next` must not be recreated inside the center column
 - do not reintroduce `Feed Snapshot`, `Weekly Focus`, or other dashboard-only override sections on the live route without a new approved architecture update
 - keep the rail quieter than the center canvas

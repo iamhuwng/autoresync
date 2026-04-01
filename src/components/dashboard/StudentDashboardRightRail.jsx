@@ -499,34 +499,85 @@ function renderPublicSession(session, index, onJoinPublicSession) {
     );
 }
 
+function renderLiveSession(session, index, onJoinClassSession) {
+    const palette = getTonePalette(session.tone || (session.status === 'in-progress' ? 'accent' : 'neutral'));
+    const handleJoin =
+        typeof session.onJoin === 'function'
+            ? session.onJoin
+            : onJoinClassSession
+              ? () => onJoinClassSession(session.sessionCode)
+              : null;
+
+    return (
+        <li key={session.sessionCode || session.id || session.title || String(index)} style={styles.sessionItem}>
+            <div
+                style={{
+                    ...styles.sessionThumb,
+                    background: palette.card,
+                    borderColor: palette.border,
+                    color: palette.accent,
+                }}
+            >
+                {String(session.badgeLabel || session.title || 'L')
+                    .replace(/[^A-Za-z0-9]/g, '')
+                    .slice(0, 2)
+                    .toUpperCase() || 'L'}
+            </div>
+            <div style={styles.sessionMain}>
+                <p style={styles.sessionTitle}>{session.title}</p>
+                <p style={styles.sessionMeta}>{toMetaString(session.meta)}</p>
+            </div>
+            {session.statusLabel ? (
+                <span
+                    style={{
+                        ...styles.sessionBadge,
+                        background: palette.card,
+                        color: palette.accent,
+                        border: `1px solid ${palette.border}`,
+                    }}
+                >
+                    {session.statusLabel}
+                </span>
+            ) : null}
+            {handleJoin ? (
+                <button type="button" style={styles.joinButton} onClick={handleJoin}>
+                    {session.joinLabel || 'Join Now'}
+                </button>
+            ) : null}
+        </li>
+    );
+}
+
 /**
  * Presentational student dashboard right rail.
  *
  * Host contract:
- * - `feedSnapshotCards`: array of cards with `{ id, label, value, summary?, meta?, badge?, tone?, actionLabel?, onClick? }`
  * - `upNextItems`: array of rows with `{ id, title, meta?, summary?, dueLabel?, tone?, actionLabel?, onClick? }`
+ * - `liveSessions`: array of sessions with `{ sessionCode, title, meta?, statusLabel?, tone?, joinLabel?, onJoin? }`
  * - `publicSessions`: array of sessions with `{ sessionCode, title, meta?, playerCount?, badgeLabel?, tone?, joinLabel?, onJoin? }`
  * - `onOpenHomework`: callback for the homework footer CTA
+ * - `onJoinClassSession`: fallback join callback that receives `sessionCode`
  * - `onExpandPublicSessions`: callback for the public sessions expansion CTA
  * - `onJoinPublicSession`: fallback join callback that receives `sessionCode`
  */
 export function StudentDashboardRightRail({
-    feedSnapshotTitle = 'Feed Snapshot',
-    feedSnapshotSubtitle = 'A calm summary of what is active now.',
-    feedSnapshotCards = [],
     upNextTitle = 'Up Next',
-    upNextSubtitle = 'The next homework items and deadlines worth surfacing.',
+    upNextSubtitle = null,
     upNextItems = [],
     onOpenHomework,
     openHomeworkLabel = 'Open Homework',
+    liveSessionsTitle = 'Live Now',
+    liveSessionsSubtitle = null,
+    liveSessions = [],
+    onJoinClassSession,
+    emptyLiveSessionsLabel = 'No class sessions are live right now.',
     publicSessionsTitle = 'Public Sessions',
-    publicSessionsSubtitle = 'Open rooms the student can join immediately.',
+    publicSessionsSubtitle = null,
     publicSessions = [],
     visiblePublicSessionsCount = 4,
     onJoinPublicSession,
     onExpandPublicSessions,
     expandPublicSessionsLabel = 'See all public sessions',
-    emptySnapshotLabel = 'No feed snapshot is available yet.',
     emptyUpNextLabel = 'No upcoming homework right now.',
     emptyPublicSessionsLabel = 'No public sessions are currently open.',
     className,
@@ -539,32 +590,38 @@ export function StudentDashboardRightRail({
         <aside aria-label="Student dashboard right rail" className={className} style={{ ...styles.root, ...style }}>
             <section style={styles.section}>
                 <div style={styles.sectionHeader}>
-                    <h3 style={styles.sectionTitle}>{feedSnapshotTitle}</h3>
-                    {feedSnapshotSubtitle ? <p style={styles.sectionSubtitle}>{feedSnapshotSubtitle}</p> : null}
+                    <h3 style={styles.sectionTitle}>{upNextTitle}</h3>
+                    {upNextSubtitle ? <p style={styles.sectionSubtitle}>{upNextSubtitle}</p> : null}
                 </div>
                 <div style={styles.panel}>
-                    {feedSnapshotCards.length > 0 ? (
-                        <div style={styles.snapshotRail}>
-                            <div style={styles.snapshotList}>{feedSnapshotCards.map(renderSnapshotCard)}</div>
-                            <div style={styles.snapshotDivider} />
-                        </div>
-                    ) : null}
                     <div style={styles.snapshotGroup}>
-                        <p style={styles.snapshotSubheader}>{upNextTitle}</p>
-                        {upNextSubtitle ? <p style={styles.sectionSubtitle}>{upNextSubtitle}</p> : null}
                         {upNextItems.length > 0 ? (
                             <ul style={styles.summaryList}>{upNextItems.map(renderUpNextItem)}</ul>
-                        ) : feedSnapshotCards.length > 0 ? (
-                            <p style={styles.emptyState}>{emptyUpNextLabel}</p>
                         ) : (
-                            <p style={styles.emptyState}>{emptySnapshotLabel}</p>
+                            <p style={styles.emptyState}>{emptyUpNextLabel}</p>
                         )}
-                        {typeof onOpenHomework === 'function' ? (
+                        {typeof onOpenHomework === 'function' && upNextItems.length === 0 ? (
                             <button type="button" style={styles.footerButton} onClick={onOpenHomework}>
                                 {openHomeworkLabel}
                             </button>
                         ) : null}
                     </div>
+                </div>
+            </section>
+
+            <section style={styles.section}>
+                <div style={styles.sectionHeader}>
+                    <h3 style={styles.sectionTitle}>{liveSessionsTitle}</h3>
+                    {liveSessionsSubtitle ? <p style={styles.sectionSubtitle}>{liveSessionsSubtitle}</p> : null}
+                </div>
+                <div style={styles.panel}>
+                    {liveSessions.length > 0 ? (
+                        <ul style={styles.sessionList}>
+                            {liveSessions.map((session, index) => renderLiveSession(session, index, onJoinClassSession))}
+                        </ul>
+                    ) : (
+                        <p style={styles.emptyState}>{emptyLiveSessionsLabel}</p>
+                    )}
                 </div>
             </section>
 

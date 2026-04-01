@@ -200,13 +200,16 @@ const styles = {
         display: 'grid',
         gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
         gap: 0,
-        padding: '18px 0 20px',
+        padding: '24px 0 28px',
     },
     summaryCell: {
         display: 'flex',
         flexDirection: 'column',
-        gap: 6,
-        paddingRight: 28,
+        gap: 8,
+        padding: '0 32px 0 0',
+    },
+    summaryCellInner: {
+        padding: '0 0 0 32px',
     },
     summaryLabel: {
         margin: 0,
@@ -540,6 +543,7 @@ export default function StudentDashboardFeedView({
                                 key={card.label}
                                 style={{
                                     ...styles.summaryCell,
+                                    ...(index > 0 ? { paddingLeft: 32 } : {}),
                                     borderRight: index < summaryCards.length - 1 ? `1px solid ${studentTokens.borderWhisper}` : 'none',
                                 }}
                             >

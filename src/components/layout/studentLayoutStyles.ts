@@ -75,6 +75,7 @@ export const S: Record<string, React.CSSProperties> = {
         minHeight: '100vh',
         display: 'flex',
         alignItems: 'stretch',
+        maxWidth: 1400,
     },
     sidebar: {
         width: 256,
@@ -170,16 +171,15 @@ export const S: Record<string, React.CSSProperties> = {
         flexShrink: 0,
     },
     feed: {
-        width: 'min(100%, 896px)',
-        maxWidth: 896,
         flex: '1 1 auto',
+        maxWidth: 960,
         margin: 0,
         background: studentTokens.bgPage,
         minHeight: '100vh',
         display: 'flex',
         flexDirection: 'column',
         minWidth: 0,
-        padding: '24px 32px 48px',
+        padding: '24px 48px 48px',
     },
     feedHeader: {
         position: 'relative',

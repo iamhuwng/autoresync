@@ -14,7 +14,7 @@ labels:
   - new-file
   - no-mantine
 createdAt: '2026-02-27T20:04:13.997Z'
-updatedAt: '2026-02-28T03:14:31.515Z'
+updatedAt: '2026-04-01T06:33:27.587Z'
 timeSpent: 56
 parent: ekte9h
 ---
@@ -46,5 +46,8 @@ Create PendingReviewsWidget.tsx  student dashboard widget showing pending writin
 Conditional widget  returns null when empty. Uses useAuth internally. See all links to academic record Writing tab.
 
 Implemented 2026-02-28: Created PendingReviewsWidget. Fetches up to 6 items from Firestore (5 display + 1 overflow check). Returns null when empty. Source labels: Homework/Solo/Live. See all navigates to academic record Writing tab. No Mantine.
+
+
+2026-04-01: v2 Redesign — Rewrote the widget to use the open-section editorial layout matching UP NEXT / MY CLASSES sections in the right rail. Removed the old self-framed bordered card with warm amber background. New design: section header (0.625rem/800wt/uppercase + accent count badge), item rows with left icon block (colored by source type: 📝 Homework, ✏️ Solo, 🎯 Live), title + meta row (amber status dot + time-ago + source pill), hover highlights to bgSurfaceAlt. Uses studentTokens design system throughout. No Mantine. Deployed to production.
 <!-- SECTION:NOTES:END -->
 

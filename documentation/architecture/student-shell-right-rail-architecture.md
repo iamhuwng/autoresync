@@ -112,6 +112,23 @@ Required rule:
 
 Use one framing owner per surface: either the host page frames plain content, or the child widget renders as a visually complete module.
 
+## PendingReviewsWidget Design Contract
+
+As of 2026-04-01 the widget uses the open-section editorial layout — the same pattern as `UP NEXT`, `MY CLASSES`, and `LIVE NOW` sections rendered by `StudentRightRail`.
+
+Visual structure:
+- section header: `0.625rem / 800wt / uppercase / 0.12em letterspacing` label + accent count badge pill
+- item rows: left icon block (32×32 rounded square, colored by source type) + title + meta row
+- meta row: amber status dot + time-ago label + source pill (Homework / Solo / Live)
+- hover: rows highlight to `bgSurfaceAlt`
+- see-all: accent uppercase link shown when total > 5
+
+Design rules:
+- no bordered card, no amber background — the widget is an open section inside `sectionStack`
+- typography, spacing, and color tokens must use `studentTokens` from `studentLayoutStyles.ts`
+- the section header must use the same label pattern as other right-rail sections
+- item rows must not introduce card wrappers or shadow effects
+
 ## Implementation Notes
 
 Key files:
