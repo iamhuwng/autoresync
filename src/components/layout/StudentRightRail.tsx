@@ -79,6 +79,13 @@ const v2 = {
         border: '1px solid rgba(171,179,183,0.05)',
     } as React.CSSProperties,
     cardSpacing: { marginTop: 16 } as React.CSSProperties,
+    /* Live Now card — thin red border, no background */
+    liveNowCard: {
+        padding: 20,
+        borderRadius: 2,
+        border: '1px solid #d93025',
+        background: 'transparent',
+    } as React.CSSProperties,
     /* Card sub-label */
     cardLabel: {
         fontSize: 10,
@@ -281,6 +288,70 @@ export const StudentRightRail: React.FC<StudentRightRailProps> = ({ shellData, s
     };
 
     /* ═══════════════════════════════════════════════════════════════════
+       Shared Live Now Banner — renders at TOP of rail on ALL pages
+       Real-time via RTDB onValue; auto-appears/disappears.
+       ═══════════════════════════════════════════════════════════════════ */
+    const renderLiveNowBanner = () => (
+        classLiveSessions.length > 0 ? (
+            <section style={{ marginBottom: 48 }}>
+                <header style={v2.sectionHeader}>
+                    <h4 style={v2.sectionTitle}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                            <span style={v2.liveDot} />
+                            Live Now
+                        </span>
+                    </h4>
+                </header>
+                <div style={v2.liveNowCard}>
+                    <div style={v2.sessionsList}>
+                        {classLiveSessions.slice(0, 5).map((session, idx) => (
+                            <div
+                                key={session.code}
+                                style={v2.sessionRow}
+                                onClick={() => handleJoinLiveSession(session.code, session.status, session.classId)}
+                                onMouseEnter={(e) => {
+                                    const thumb = e.currentTarget.querySelector<HTMLDivElement>('[data-thumb]');
+                                    if (thumb) thumb.style.filter = 'grayscale(0%)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    const thumb = e.currentTarget.querySelector<HTMLDivElement>('[data-thumb]');
+                                    if (thumb) thumb.style.filter = 'grayscale(100%)';
+                                }}
+                                role="button"
+                                tabIndex={0}
+                                onKeyDown={(event) => {
+                                    if (event.key === 'Enter' || event.key === ' ') {
+                                        event.preventDefault();
+                                        handleJoinLiveSession(session.code, session.status, session.classId);
+                                    }
+                                }}
+                            >
+                                <div
+                                    data-thumb=""
+                                    style={{
+                                        ...v2.sessionThumb,
+                                        background: THUMB_GRADIENTS[idx % THUMB_GRADIENTS.length],
+                                    }}
+                                >
+                                    {THUMB_EMOJIS[idx % THUMB_EMOJIS.length]}
+                                </div>
+                                <div style={v2.sessionInfo}>
+                                    <p style={v2.sessionName}>{session.title}</p>
+                                    <p style={v2.sessionMeta}>
+                                        {session.className}
+                                        {session.status === 'in-progress' ? ' · In Progress' : ' · Waiting'}
+                                        {' · '}{session.code}
+                                    </p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </section>
+        ) : null
+    );
+
+    /* ═══════════════════════════════════════════════════════════════════
        v2 DASHBOARD VARIANT — Editorial Academic Standard
        ═══════════════════════════════════════════════════════════════════ */
     const renderDashboardRail = () => {
@@ -294,6 +365,7 @@ export const StudentRightRail: React.FC<StudentRightRailProps> = ({ shellData, s
 
         return (
             <>
+                {renderLiveNowBanner()}
                 {/* ━━━━━ Section 1: FEED SNAPSHOT ━━━━━ */}
                 <section style={{ marginBottom: 48 }}>
                     <header style={v2.sectionHeader}>
@@ -336,63 +408,7 @@ export const StudentRightRail: React.FC<StudentRightRailProps> = ({ shellData, s
                     )}
                 </section>
 
-                {/* ━━━━━ Section 2: LIVE NOW (only if sessions exist) ━━━━━ */}
-                {classLiveSessions.length > 0 && (
-                    <section style={{ marginBottom: 48 }}>
-                        <header style={v2.sectionHeader}>
-                            <h4 style={v2.sectionTitle}>
-                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                                    <span style={v2.liveDot} />
-                                    Live Now
-                                </span>
-                            </h4>
-                        </header>
-
-                        <div style={v2.sessionsList}>
-                            {classLiveSessions.slice(0, 5).map((session, idx) => (
-                                <div
-                                    key={session.code}
-                                    style={v2.sessionRow}
-                                    onClick={() => handleJoinLiveSession(session.code, session.status, session.classId)}
-                                    onMouseEnter={(e) => {
-                                        const thumb = e.currentTarget.querySelector<HTMLDivElement>('[data-thumb]');
-                                        if (thumb) thumb.style.filter = 'grayscale(0%)';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        const thumb = e.currentTarget.querySelector<HTMLDivElement>('[data-thumb]');
-                                        if (thumb) thumb.style.filter = 'grayscale(100%)';
-                                    }}
-                                    role="button"
-                                    tabIndex={0}
-                                    onKeyDown={(event) => {
-                                        if (event.key === 'Enter' || event.key === ' ') {
-                                            event.preventDefault();
-                                            handleJoinLiveSession(session.code, session.status, session.classId);
-                                        }
-                                    }}
-                                >
-                                    <div
-                                        data-thumb=""
-                                        style={{
-                                            ...v2.sessionThumb,
-                                            background: THUMB_GRADIENTS[idx % THUMB_GRADIENTS.length],
-                                        }}
-                                    >
-                                        {THUMB_EMOJIS[idx % THUMB_EMOJIS.length]}
-                                    </div>
-                                    <div style={v2.sessionInfo}>
-                                        <p style={v2.sessionName}>{session.title}</p>
-                                        <p style={v2.sessionMeta}>
-                                            {session.className}
-                                            {session.status === 'in-progress' ? ' · In Progress' : ' · Waiting'}
-                                            {' · '}{session.code}
-                                        </p>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </section>
-                )}
+                {/* ━━━━━ LIVE NOW is now rendered at the top via renderLiveNowBanner() ━━━━━ */}
 
                 {/* ━━━━━ Section 3: MY CLASSES ━━━━━ */}
                 <section style={{ marginBottom: 0 }}>
@@ -521,67 +537,11 @@ export const StudentRightRail: React.FC<StudentRightRailProps> = ({ shellData, s
         </section>
     );
 
-    const renderLiveSessionsSection = () => (
-        classLiveSessions.length > 0 ? (
-            <section style={{ marginBottom: 48 }}>
-                <header style={v2.sectionHeader}>
-                    <h4 style={v2.sectionTitle}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                            <span style={v2.liveDot} />
-                            Live Now
-                        </span>
-                    </h4>
-                </header>
-                <div style={v2.sessionsList}>
-                    {classLiveSessions.slice(0, 5).map((session, idx) => (
-                        <div
-                            key={session.code}
-                            style={v2.sessionRow}
-                            onClick={() => handleJoinLiveSession(session.code, session.status, session.classId)}
-                            onMouseEnter={(e) => {
-                                const thumb = e.currentTarget.querySelector<HTMLDivElement>('[data-thumb]');
-                                if (thumb) thumb.style.filter = 'grayscale(0%)';
-                            }}
-                            onMouseLeave={(e) => {
-                                const thumb = e.currentTarget.querySelector<HTMLDivElement>('[data-thumb]');
-                                if (thumb) thumb.style.filter = 'grayscale(100%)';
-                            }}
-                            role="button"
-                            tabIndex={0}
-                            onKeyDown={(event) => {
-                                if (event.key === 'Enter' || event.key === ' ') {
-                                    event.preventDefault();
-                                    handleJoinLiveSession(session.code, session.status, session.classId);
-                                }
-                            }}
-                        >
-                            <div
-                                data-thumb=""
-                                style={{
-                                    ...v2.sessionThumb,
-                                    background: THUMB_GRADIENTS[idx % THUMB_GRADIENTS.length],
-                                }}
-                            >
-                                {THUMB_EMOJIS[idx % THUMB_EMOJIS.length]}
-                            </div>
-                            <div style={v2.sessionInfo}>
-                                <p style={v2.sessionName}>{session.title}</p>
-                                <p style={v2.sessionMeta}>
-                                    {session.className}
-                                    {session.status === 'in-progress' ? ' · In Progress' : ' · Waiting'}
-                                    {' · '}{session.code}
-                                </p>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </section>
-        ) : null
-    );
+    /* renderLiveSessionsSection removed — replaced by shared renderLiveNowBanner() */
 
     const renderDefaultRail = () => (
         <>
-            {renderLiveSessionsSection()}
+            {renderLiveNowBanner()}
             {renderUpcomingDeadlines()}
             {renderMyClassesSection()}
         </>
@@ -591,6 +551,7 @@ export const StudentRightRail: React.FC<StudentRightRailProps> = ({ shellData, s
 
     const renderAcademicRecordRail = () => (
         <>
+            {renderLiveNowBanner()}
             {/* Academic Advisor — flat white card */}
             <section style={{ marginBottom: 48 }}>
                 <header style={v2.sectionHeader}>
