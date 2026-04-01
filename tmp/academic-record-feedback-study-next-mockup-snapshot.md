@@ -1,0 +1,144 @@
+- main [ref=e2]:
+  - generic [ref=e3]:
+    - article [ref=e4]:
+      - generic [ref=e5]: Student View Mockup
+      - heading "Academic Record Feedback Tab Redesign" [level=1] [ref=e6]
+      - paragraph [ref=e7]: This concept compresses “What to Study Next” into a calm priority list. Each study target shows one clear reason, one default unit to start with, and progressive disclosure for extra resources so the feedback tab stays readable instead of flooding students with dense text.
+    - complementary [ref=e8]:
+      - heading "Mockup Goals" [level=2] [ref=e9]
+      - list [ref=e10]:
+        - listitem [ref=e11]:
+          - generic [ref=e13]: Make the right column scannable in under 5 seconds.
+        - listitem [ref=e14]:
+          - generic [ref=e16]: Show priority order and question links immediately.
+        - listitem [ref=e17]:
+          - generic [ref=e19]: Default to one primary resource, keep extras collapsed.
+  - generic [ref=e20]:
+    - generic [ref=e21]:
+      - generic [ref=e22]:
+        - generic [ref=e23]: ←
+        - generic [ref=e24]:
+          - heading "Midterm English Test 2" [level=2] [ref=e25]
+          - paragraph [ref=e26]: Attempt 3 · Submitted today at 14:08
+      - generic [ref=e27]: Academic Record · THCS Review
+    - navigation "Result tabs" [ref=e28]:
+      - generic [ref=e29]: Overview
+      - generic [ref=e30]: Review
+      - generic [ref=e31]: Feedback
+    - generic [ref=e33]:
+      - article [ref=e35]:
+        - heading "🤖 AI Performance Analysis" [level=3] [ref=e36]
+        - paragraph [ref=e37]: Your overall score is improving, but the mistakes are clustering around tense choice, evidence tracking, and sentence transformation. Focus on one weak area at a time instead of reviewing every mistake equally.
+        - generic [ref=e38]:
+          - generic [ref=e39]:
+            - heading "✅ Strengths" [level=4] [ref=e40]
+            - paragraph [ref=e41]: You stayed accurate on vocabulary-in-context and signs/notices, which means your quick comprehension is holding up well.
+            - list [ref=e42]:
+              - listitem [ref=e43]: "Vocabulary clues: 4/5 correct"
+              - listitem [ref=e44]: "Signs and notices: 3/3 correct"
+          - generic [ref=e45]:
+            - heading "⚠️ Improve Next" [level=4] [ref=e46]
+            - paragraph [ref=e47]: Tense mistakes are still costing easy marks. The pattern is consistent enough to make this your first correction target.
+            - list [ref=e48]:
+              - listitem [ref=e49]: Grammar accuracy fell on present perfect vs past simple
+              - listitem [ref=e50]: Questions 5, 6, and 7 share the same decision error
+          - generic [ref=e51]:
+            - heading "📘 Recommended Practice" [level=4] [ref=e52]
+            - paragraph [ref=e53]: After grammar repair, move to evidence-finding drills in reading. That will reduce second-guessing on comprehension questions.
+            - list [ref=e54]:
+              - listitem [ref=e55]: Locate clue phrases before choosing an answer
+              - listitem [ref=e56]: Practice sentence-rewrite structure with short drills
+      - generic [ref=e57]:
+        - article [ref=e58]:
+          - generic [ref=e59]:
+            - generic [ref=e60]:
+              - heading "📚 What to Study Next" [level=3] [ref=e61]
+              - paragraph [ref=e62]: Three calm priorities. Start from the top, finish one unit, then move down.
+            - generic [ref=e63]: Compact by default
+          - generic [ref=e64]:
+            - article [ref=e65]:
+              - generic [ref=e66]:
+                - generic [ref=e67]: "1"
+                - generic [ref=e68]:
+                  - generic [ref=e69]:
+                    - generic [ref=e70]: Grammar
+                    - generic [ref=e71]:
+                      - generic [ref=e72]: Q5
+                      - generic [ref=e73]: Q6
+                      - generic [ref=e74]: Q7
+                  - paragraph [ref=e75]: Why this matters:These questions all show the same tense-choice mistake, so one focused review can fix multiple errors at once.
+                  - generic [ref=e76]:
+                    - generic [ref=e77]: Start here
+                    - paragraph [ref=e78]: "Unit 11: Present Perfect and Past Simple"
+                    - paragraph [ref=e79]: English Grammar in Use · Raymond Murphy
+                    - paragraph [ref=e80]: Start with this unit first
+                  - group [ref=e81]:
+                    - generic "+1 more resource" [ref=e82] [cursor=pointer]
+            - article [ref=e83]:
+              - generic [ref=e84]:
+                - generic [ref=e85]: "2"
+                - generic [ref=e86]:
+                  - generic [ref=e87]:
+                    - generic [ref=e88]: Reading
+                    - generic [ref=e89]:
+                      - generic [ref=e90]: Q12
+                      - generic [ref=e91]: Q13
+                  - paragraph [ref=e92]: Why this matters:You are reading too broadly before locating evidence, which slows you down and weakens answer confidence.
+                  - generic [ref=e93]:
+                    - generic [ref=e94]: Start here
+                    - paragraph [ref=e95]: "Reading Section: Matching Information"
+                    - paragraph [ref=e96]: The Official Cambridge Guide to IELTS · Cullen & French
+                    - paragraph [ref=e97]: Practice clue-tracking before redoing similar questions
+                  - group [ref=e98]:
+                    - generic "+1 more resource" [ref=e99] [cursor=pointer]
+            - article [ref=e100]:
+              - generic [ref=e101]:
+                - generic [ref=e102]: "3"
+                - generic [ref=e103]:
+                  - generic [ref=e104]:
+                    - generic [ref=e105]: Sentence Rewrite
+                    - generic [ref=e107]: Q18
+                  - paragraph [ref=e108]: Why this matters:Your answer kept the meaning but lost the required structure, so this is about controlled form, not ideas.
+                  - generic [ref=e109]:
+                    - generic [ref=e110]: Start here
+                    - paragraph [ref=e111]: Sentence Transformation Drills
+                    - paragraph [ref=e112]: THCS English Practice Workbook · Unit 8
+                    - paragraph [ref=e113]: Do 5 short drills after finishing Priority 1
+                  - group [ref=e114]:
+                    - generic "See 2 practice ideas" [ref=e115] [cursor=pointer]
+        - generic [ref=e116]:
+          - article [ref=e117]:
+            - heading "Score Trend" [level=4] [ref=e118]
+            - generic [ref=e119]:
+              - generic [ref=e120]:
+                - generic [ref=e122]: 56%
+                - generic [ref=e123]: 03/12
+              - generic [ref=e124]:
+                - generic [ref=e126]: 68%
+                - generic [ref=e127]: 03/18
+              - generic [ref=e128]:
+                - generic [ref=e130]: 74%
+                - generic [ref=e131]: Today
+          - article [ref=e132]:
+            - heading "Class Position" [level=4] [ref=e133]
+            - generic [ref=e134]:
+              - generic [ref=e135]:
+                - generic [ref=e136]: Your score
+                - generic [ref=e137]: 74%
+              - generic [ref=e138]:
+                - generic [ref=e139]: Class average
+                - generic [ref=e140]: 67%
+            - generic [ref=e141]: 🟢 Above average in this attempt
+  - generic [ref=e142]:
+    - article [ref=e143]:
+      - heading "Why it feels lighter" [level=5] [ref=e144]
+      - paragraph [ref=e145]: Each recommendation has one visible action and one visible unit. The rest is still available, but not competing for attention immediately.
+    - article [ref=e146]:
+      - heading "What changed structurally" [level=5] [ref=e147]
+      - paragraph [ref=e148]: The current resource-chip wall becomes a numbered plan. Guidance is reframed as “why this matters,” which reads faster and anchors the student’s next step.
+    - article [ref=e149]:
+      - heading "Implementation fit" [level=5] [ref=e150]
+      - paragraph [ref=e151]:
+        - text: This can be built on top of the existing
+        - code [ref=e152]: studyRecommendations
+        - text: payload without changing the backend contract. The redesign is mostly rendering and CSS.

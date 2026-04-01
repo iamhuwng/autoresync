@@ -1,0 +1,4566 @@
+{
+  "generatedAt": "2026-03-31T01:46:13.373Z",
+  "results": [
+    {
+      "label": "first-homework",
+      "url": "http://127.0.0.1:4173/student/homework",
+      "durationMs": 3358,
+      "requestCount": 16,
+      "requests": [
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68333&AID=19&zx=iquehureexgv&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 903,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68334&AID=23&zx=611fip77gtpd&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 906,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68335&AID=29&zx=faqsr8xql70q&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 887,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68336&AID=29&zx=aldrc5ka9zjo&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 883,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68337&AID=29&zx=94nth5pgrywj&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 874,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68338&AID=29&zx=4igzti4zj8s6&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 603,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68339&AID=29&zx=crehbv6d43ga&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 600,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68340&AID=29&zx=7bjw7sbrbo1p&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 606,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68341&AID=29&zx=8b7zrpr9ritc&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 598,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68342&AID=50&zx=5sf4prn2op2v&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 338,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68343&AID=50&zx=1vusb8uwpb0s&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 332,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68344&AID=50&zx=6hi25cy5b90e&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 331,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68345&AID=50&zx=gs7747f278xi&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 344,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68346&AID=50&zx=3vck54kz9h7e&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 337,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68347&AID=50&zx=fmhmp6ho25jd&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 365,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68348&AID=59&zx=ak8rni8lomhv&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 324,
+          "status": "finished"
+        }
+      ],
+      "console": [
+        {
+          "type": "warning",
+          "text": "%c🚫 Rule 15 — No Mantine in New Files background: #dc2626; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; \n\nFile: src/pages/StudentHomeworkListPage.tsx \n\nThis NEW file contains @mantine imports. Use native HTML/CSS instead. \nSee: documentation/integration-safety-rules.md#rule-15 \n\nImports found: [import { Loader } from \"@mantine/core\";]",
+          "at": 1774921557011
+        },
+        {
+          "type": "log",
+          "text": "[NAV 01:45:57] 🚀 Navigation Service Initialized {role: student, path: /student/homework}",
+          "at": 1774921557052
+        },
+        {
+          "type": "log",
+          "text": "[NAV 01:45:57] 🚀 Navigation Service Initialized {role: student, path: /student/homework}",
+          "at": 1774921557055
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921557508
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921557508
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921557509
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921557509
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921557509
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921557509
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921557509
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921557509
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921557509
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921557515
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921557515
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921557515
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921557515
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921557516
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921557516
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921557516
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921557516
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921557516
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921557562
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921557563
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921557563
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921557563
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921557563
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921557563
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921557563
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921557563
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921557563
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921557566
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921557566
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921557566
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921557566
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921557566
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921557566
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921557566
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921557566
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921557566
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921557570
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921557570
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921557570
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921557571
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921557571
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921557571
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921557571
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921557571
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921557571
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921557574
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921557574
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921557574
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921557574
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921557574
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921557574
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921557574
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921557574
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921557574
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921557744
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921557744
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921557744
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session E626GP has expired",
+          "at": 1774921557744
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IYJ7T5 has expired",
+          "at": 1774921557754
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NCR2AZ has expired",
+          "at": 1774921557755
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921557757
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921557757
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921557757
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 54CVSF has expired",
+          "at": 1774921557757
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 82Q8C5 has expired",
+          "at": 1774921557758
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 8QLRKA has expired",
+          "at": 1774921557759
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 9LNLF0 has expired",
+          "at": 1774921557759
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session HARTDN has expired",
+          "at": 1774921557760
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IKBJGI has expired",
+          "at": 1774921557760
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NFFWY6 has expired",
+          "at": 1774921557761
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921557761
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921557761
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921557761
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session OLCSUK has expired",
+          "at": 1774921557761
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session RGOXBN has expired",
+          "at": 1774921557762
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session TDD4QH has expired",
+          "at": 1774921557762
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921557762
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921557762
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921557762
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session USAKC0 has expired",
+          "at": 1774921557762
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session UZDMFN has expired",
+          "at": 1774921557763
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session W8DQ8V has expired",
+          "at": 1774921557763
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921557763
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921557764
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921557764
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session E626GP has expired",
+          "at": 1774921557764
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IYJ7T5 has expired",
+          "at": 1774921557765
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NCR2AZ has expired",
+          "at": 1774921557765
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921557767
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921557768
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921557768
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 54CVSF has expired",
+          "at": 1774921557768
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 82Q8C5 has expired",
+          "at": 1774921557768
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 8QLRKA has expired",
+          "at": 1774921557768
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 9LNLF0 has expired",
+          "at": 1774921557769
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session HARTDN has expired",
+          "at": 1774921557769
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IKBJGI has expired",
+          "at": 1774921557773
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NFFWY6 has expired",
+          "at": 1774921557773
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921557774
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921557774
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921557774
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session OLCSUK has expired",
+          "at": 1774921557774
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session RGOXBN has expired",
+          "at": 1774921557775
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session TDD4QH has expired",
+          "at": 1774921557777
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921557778
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921557778
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921557778
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session USAKC0 has expired",
+          "at": 1774921557778
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session UZDMFN has expired",
+          "at": 1774921557778
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session W8DQ8V has expired",
+          "at": 1774921557941
+        }
+      ]
+    },
+    {
+      "label": "first-courses",
+      "url": "http://127.0.0.1:4173/student/courses",
+      "durationMs": 3301,
+      "requestCount": 12,
+      "requests": [
+        {
+          "url": "http://127.0.0.1:4173/node_modules/.vite/deps/@mantine_notifications.js?v=401614cd",
+          "type": "script",
+          "method": "GET",
+          "responseStatus": null,
+          "durationMs": 5,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68349&AID=60&zx=4pm3jtc6pezq&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 320,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68350&AID=60&zx=qaqarhu29x8p&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 342,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68351&AID=60&zx=ybh6ietbbw56&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 329,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68352&AID=60&zx=psvpgokd0gy1&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 332,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68353&AID=71&zx=9kovhncqqzmx&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 336,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68354&AID=71&zx=e3lq7mske1s5&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 338,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68355&AID=71&zx=m8ehiiu2ctr&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 342,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68356&AID=71&zx=ndxzguu5si4r&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 334,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68357&AID=71&zx=6w8azryjbjo8&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 342,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68358&AID=78&zx=gvgnkdow4emu&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 336,
+          "status": "finished"
+        },
+        {
+          "url": "https://www.google-analytics.com/g/collect?v=2&tid=G-22R567RD5N&gtm=45je63r2v9229609035za200zd9229609035&_p=1774921551907&gcd=13l3l3l3l1l1&npa=0&dma=0&_fid=efBmU12l35pwRncurjTmFW&cid=122231205.1774921552&ul=en-us&sr=1440x1100&uaa=arm&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=Windows&uapv=19.0.0&uaw=0&are=1&frm=0&pscdl=noapi&_eu=AAAAAAQ&tag_exp=0~115938466~115938469~116991816~117484252&sid=1774921552&sct=1&seg=0&dl=http%3A%2F%2F127.0.0.1%2Fstudent%2Fhomework&dt=kahoot&_s=2&tfd=10581",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 46,
+          "status": "failed"
+        }
+      ],
+      "console": [
+        {
+          "type": "warning",
+          "text": "%c🚫 Rule 15 — No Mantine in New Files background: #dc2626; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; \n\nFile: src/pages/StudentCoursesPage.tsx \n\nThis NEW file contains @mantine imports. Use native HTML/CSS instead. \nSee: documentation/integration-safety-rules.md#rule-15 \n\nImports found: [import { Badge, Progress, Loader } from \"@mantine/core\";, import { notifications } from \"@mantine/notifications\";]",
+          "at": 1774921560358
+        },
+        {
+          "type": "log",
+          "text": "[NAV 01:46:00] 🚀 Navigation Service Initialized {role: student, path: /student/courses}",
+          "at": 1774921560391
+        },
+        {
+          "type": "log",
+          "text": "[NAV 01:46:00] 🚀 Navigation Service Initialized {role: student, path: /student/courses}",
+          "at": 1774921560392
+        },
+        {
+          "type": "log",
+          "text": "[NAV 01:46:00] 🚀 Navigation Service Initialized {role: student, path: /student/courses}",
+          "at": 1774921560396
+        },
+        {
+          "type": "log",
+          "text": "[NAV 01:46:00] 🚀 Navigation Service Initialized {role: student, path: /student/courses}",
+          "at": 1774921560396
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921560844
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921560844
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921560844
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921560844
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921560844
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921560844
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921560844
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921560846
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921560846
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921560859
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921560859
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921560859
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921560859
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921560859
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921560859
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921560860
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921560860
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921560860
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921561044
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921561045
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921561045
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921561045
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921561045
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921561045
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921561045
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921561045
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921561045
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921561050
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921561050
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921561050
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921561050
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921561050
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921561050
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921561050
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921561051
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921561051
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921561054
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921561054
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921561054
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921561054
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921561054
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921561054
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921561054
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921561054
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921561054
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921561057
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921561057
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921561057
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921561057
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921561057
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921561057
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921561057
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921561058
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921561058
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921561082
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921561082
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921561082
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session E626GP has expired",
+          "at": 1774921561082
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IYJ7T5 has expired",
+          "at": 1774921561083
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NCR2AZ has expired",
+          "at": 1774921561084
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921561084
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921561085
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921561085
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 54CVSF has expired",
+          "at": 1774921561085
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 82Q8C5 has expired",
+          "at": 1774921561087
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 8QLRKA has expired",
+          "at": 1774921561087
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 9LNLF0 has expired",
+          "at": 1774921561090
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session HARTDN has expired",
+          "at": 1774921561091
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IKBJGI has expired",
+          "at": 1774921561091
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NFFWY6 has expired",
+          "at": 1774921561092
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921561092
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921561092
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921561092
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session OLCSUK has expired",
+          "at": 1774921561092
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session RGOXBN has expired",
+          "at": 1774921561092
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session TDD4QH has expired",
+          "at": 1774921561093
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921561094
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921561094
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921561094
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session USAKC0 has expired",
+          "at": 1774921561094
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session UZDMFN has expired",
+          "at": 1774921561094
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session W8DQ8V has expired",
+          "at": 1774921561095
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921561102
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921561102
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921561102
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921561102
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921561102
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921561103
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921561103
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921561103
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921561103
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921561105
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921561105
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921561105
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session E626GP has expired",
+          "at": 1774921561105
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IYJ7T5 has expired",
+          "at": 1774921561106
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NCR2AZ has expired",
+          "at": 1774921561107
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921561108
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921561108
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921561108
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 54CVSF has expired",
+          "at": 1774921561108
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 82Q8C5 has expired",
+          "at": 1774921561109
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 8QLRKA has expired",
+          "at": 1774921561109
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 9LNLF0 has expired",
+          "at": 1774921561110
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session HARTDN has expired",
+          "at": 1774921561110
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IKBJGI has expired",
+          "at": 1774921561110
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NFFWY6 has expired",
+          "at": 1774921561113
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921561114
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921561114
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921561114
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session OLCSUK has expired",
+          "at": 1774921561114
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session RGOXBN has expired",
+          "at": 1774921561115
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session TDD4QH has expired",
+          "at": 1774921561115
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921561115
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921561116
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921561116
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session USAKC0 has expired",
+          "at": 1774921561116
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session UZDMFN has expired",
+          "at": 1774921561116
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session W8DQ8V has expired",
+          "at": 1774921561116
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921561269
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921561269
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921561269
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921561269
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921561270
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921561270
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921561270
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921561270
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921561270
+        }
+      ]
+    },
+    {
+      "label": "first-library",
+      "url": "http://127.0.0.1:4173/student/library",
+      "durationMs": 807,
+      "requestCount": 0,
+      "requests": [],
+      "console": [
+        {
+          "type": "warning",
+          "text": "%c🚫 Rule 15 — No Mantine in New Files background: #dc2626; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; \n\nFile: src/components/test/SoloResumeModal.tsx \n\nThis NEW file contains @mantine imports. Use native HTML/CSS instead. \nSee: documentation/integration-safety-rules.md#rule-15 \n\nImports found: [import { Modal, Button, Text, Group } from \"@mantine/core\";]",
+          "at": 1774921563650
+        },
+        {
+          "type": "warning",
+          "text": "%c🚫 Rule 15 — No Mantine in New Files background: #dc2626; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; \n\nFile: src/pages/StudentLibraryPage.tsx \n\nThis NEW file contains @mantine imports. Use native HTML/CSS instead. \nSee: documentation/integration-safety-rules.md#rule-15 \n\nImports found: [import { Loader } from \"@mantine/core\";]",
+          "at": 1774921563651
+        },
+        {
+          "type": "log",
+          "text": "[NAV 01:46:03] 🚀 Navigation Service Initialized {role: student, path: /student/library}",
+          "at": 1774921563691
+        },
+        {
+          "type": "log",
+          "text": "📚 Fetching library materials with filters: {source: my_courses}",
+          "at": 1774921563693
+        },
+        {
+          "type": "log",
+          "text": "[NAV 01:46:03] 🚀 Navigation Service Initialized {role: student, path: /student/library}",
+          "at": 1774921563694
+        },
+        {
+          "type": "log",
+          "text": "📚 Fetching library materials with filters: {source: my_courses}",
+          "at": 1774921563695
+        },
+        {
+          "type": "log",
+          "text": "✅ Found 17 materials",
+          "at": 1774921564322
+        }
+      ]
+    },
+    {
+      "label": "first-records",
+      "url": "http://127.0.0.1:4173/student/academic-record",
+      "durationMs": 2816,
+      "requestCount": 15,
+      "requests": [
+        {
+          "url": "http://127.0.0.1:4173/node_modules/.vite/deps/recharts.js?v=401614cd",
+          "type": "script",
+          "method": "GET",
+          "responseStatus": null,
+          "durationMs": 70,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68359&AID=79&zx=84bkzs6b9r4a&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 326,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68360&AID=79&zx=lurf6s3g8yyt&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 325,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68361&AID=79&zx=gstd3zcac4vr&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 331,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68362&AID=79&zx=sur3vln1uviz&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 339,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68363&AID=90&zx=zc59ybopokx0&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 325,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68364&AID=90&zx=dd3n5r3p6liy&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 320,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68365&AID=90&zx=ofm2ylua3hi&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 323,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68366&AID=90&zx=4o1vndlf6sn3&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 326,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68367&AID=90&zx=maipxsqu0auf&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 333,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68368&AID=95&zx=ba62yb8hrfci&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 330,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68369&AID=97&zx=5i8zmfa5dnfg&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 336,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68370&AID=102&zx=10kclfmfv51p&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 300,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68371&AID=102&zx=3h3xiowy6ud7&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 303,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68372&AID=107&zx=rwww7gquekni&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 308,
+          "status": "finished"
+        }
+      ],
+      "console": [
+        {
+          "type": "log",
+          "text": "✅ Found 17 materials",
+          "at": 1774921564501
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921564505
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921564505
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921564505
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921564506
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921564506
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921564506
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921564506
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921564506
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921564506
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921564557
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921564557
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921564557
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921564557
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921564557
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921564557
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921564557
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921564558
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921564558
+        },
+        {
+          "type": "log",
+          "text": "[NAV 01:46:04] 🚀 Navigation Service Initialized {role: student, path: /student/academic-record}",
+          "at": 1774921564685
+        },
+        {
+          "type": "log",
+          "text": "[NAV 01:46:04] 🚀 Navigation Service Initialized {role: student, path: /student/academic-record}",
+          "at": 1774921564688
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921564735
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921564735
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921564735
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921564735
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921564735
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921564735
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921564735
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921564735
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921564735
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921564739
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921564739
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921564739
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921564739
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921564739
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921564739
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921564739
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921564739
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921564739
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921564742
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921564742
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921564742
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921564742
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921564742
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921564742
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921564742
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921564742
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921564742
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921564743
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921564743
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921564744
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921564744
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921564744
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921564744
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921564744
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921564744
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921564744
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921564745
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921564745
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921564745
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session E626GP has expired",
+          "at": 1774921564745
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IYJ7T5 has expired",
+          "at": 1774921564745
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NCR2AZ has expired",
+          "at": 1774921564746
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921564747
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921564748
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921564748
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 54CVSF has expired",
+          "at": 1774921564748
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 82Q8C5 has expired",
+          "at": 1774921564748
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 8QLRKA has expired",
+          "at": 1774921564748
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 9LNLF0 has expired",
+          "at": 1774921564749
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session HARTDN has expired",
+          "at": 1774921564749
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IKBJGI has expired",
+          "at": 1774921564749
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NFFWY6 has expired",
+          "at": 1774921564749
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921564750
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921564750
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921564750
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session OLCSUK has expired",
+          "at": 1774921564750
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session RGOXBN has expired",
+          "at": 1774921564750
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session TDD4QH has expired",
+          "at": 1774921564750
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921564751
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921564751
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921564751
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session USAKC0 has expired",
+          "at": 1774921564751
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session UZDMFN has expired",
+          "at": 1774921564751
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session W8DQ8V has expired",
+          "at": 1774921564752
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921564888
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921564888
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921564888
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session E626GP has expired",
+          "at": 1774921564888
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IYJ7T5 has expired",
+          "at": 1774921564888
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NCR2AZ has expired",
+          "at": 1774921564889
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921564889
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921564889
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921564889
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 54CVSF has expired",
+          "at": 1774921564889
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 82Q8C5 has expired",
+          "at": 1774921564889
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 8QLRKA has expired",
+          "at": 1774921564890
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 9LNLF0 has expired",
+          "at": 1774921564890
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session HARTDN has expired",
+          "at": 1774921564890
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IKBJGI has expired",
+          "at": 1774921564890
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NFFWY6 has expired",
+          "at": 1774921564891
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921564891
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921564891
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921564891
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session OLCSUK has expired",
+          "at": 1774921564891
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session RGOXBN has expired",
+          "at": 1774921564891
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session TDD4QH has expired",
+          "at": 1774921564891
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921564891
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921564891
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921564891
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session USAKC0 has expired",
+          "at": 1774921564891
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session UZDMFN has expired",
+          "at": 1774921564892
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session W8DQ8V has expired",
+          "at": 1774921564892
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921565141
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921565141
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921565141
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921565141
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921565141
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921565141
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921565141
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921565141
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921565141
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921565203
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921565203
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921565203
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921565203
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921565203
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921565203
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921565203
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921565203
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921565203
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921565260
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921565260
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921565260
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921565260
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921565260
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921565260
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921565261
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921565261
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921565261
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921565262
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921565262
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921565262
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921565262
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921565262
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921565262
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921565262
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921565262
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921565262
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921565379
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921565379
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921565379
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session E626GP has expired",
+          "at": 1774921565379
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IYJ7T5 has expired",
+          "at": 1774921565380
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NCR2AZ has expired",
+          "at": 1774921565381
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921565381
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921565381
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921565381
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 54CVSF has expired",
+          "at": 1774921565381
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 82Q8C5 has expired",
+          "at": 1774921565382
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 8QLRKA has expired",
+          "at": 1774921565383
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 9LNLF0 has expired",
+          "at": 1774921565384
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session HARTDN has expired",
+          "at": 1774921565384
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IKBJGI has expired",
+          "at": 1774921565385
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NFFWY6 has expired",
+          "at": 1774921565385
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921565385
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921565385
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921565385
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session OLCSUK has expired",
+          "at": 1774921565385
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session RGOXBN has expired",
+          "at": 1774921565385
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session TDD4QH has expired",
+          "at": 1774921565386
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921565386
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921565386
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921565386
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session USAKC0 has expired",
+          "at": 1774921565386
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session UZDMFN has expired",
+          "at": 1774921565386
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session W8DQ8V has expired",
+          "at": 1774921565386
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921565483
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921565483
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921565483
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session E626GP has expired",
+          "at": 1774921565483
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IYJ7T5 has expired",
+          "at": 1774921565483
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NCR2AZ has expired",
+          "at": 1774921565483
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921565484
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921565484
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921565485
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 54CVSF has expired",
+          "at": 1774921565485
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 82Q8C5 has expired",
+          "at": 1774921565485
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 8QLRKA has expired",
+          "at": 1774921565485
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 9LNLF0 has expired",
+          "at": 1774921565485
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session HARTDN has expired",
+          "at": 1774921565485
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IKBJGI has expired",
+          "at": 1774921565485
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NFFWY6 has expired",
+          "at": 1774921565486
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921565486
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921565486
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921565486
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session OLCSUK has expired",
+          "at": 1774921565486
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session RGOXBN has expired",
+          "at": 1774921565486
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session TDD4QH has expired",
+          "at": 1774921565486
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921565487
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921565487
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921565487
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session USAKC0 has expired",
+          "at": 1774921565487
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session UZDMFN has expired",
+          "at": 1774921565487
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session W8DQ8V has expired",
+          "at": 1774921565487
+        }
+      ]
+    },
+    {
+      "label": "revisit-homework",
+      "url": "http://127.0.0.1:4173/student/homework",
+      "durationMs": 1975,
+      "requestCount": 10,
+      "requests": [
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68373&AID=108&zx=l4rp0ampq5pw&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 324,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68374&AID=108&zx=ewnbpj2i596o&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 327,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68375&AID=108&zx=kekdce8favuo&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 328,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68376&AID=108&zx=m1pg3tchab3f&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 330,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68377&AID=117&zx=humy9lpuz7ot&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 325,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68378&AID=117&zx=1cczrz65twyy&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 316,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68379&AID=117&zx=i9rn91v6h9l2&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 327,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68380&AID=117&zx=esss7sas5fqm&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 324,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68381&AID=117&zx=seccn9f9p7so&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 321,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68382&AID=124&zx=tvgv7gmpqwv&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 318,
+          "status": "finished"
+        }
+      ],
+      "console": [
+        {
+          "type": "log",
+          "text": "[NAV 01:46:07] 🚀 Navigation Service Initialized {role: student, path: /student/homework}",
+          "at": 1774921567245
+        },
+        {
+          "type": "log",
+          "text": "[NAV 01:46:07] 🚀 Navigation Service Initialized {role: student, path: /student/homework}",
+          "at": 1774921567246
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921567698
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921567698
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921567698
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921567698
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921567698
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921567698
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921567698
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921567698
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921567698
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921567703
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921567703
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921567703
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921567703
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921567703
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921567703
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921567703
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921567703
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921567703
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921567708
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921567708
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921567708
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921567708
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921567708
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921567708
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921567708
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921567709
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921567709
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921567711
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921567711
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921567711
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921567711
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921567711
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921567711
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921567712
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921567712
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921567712
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921567713
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921567713
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921567714
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921567714
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921567714
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921567714
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921567714
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921567714
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921567715
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921567716
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921567716
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921567716
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921567716
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921567716
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921567716
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921567716
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921567716
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921567716
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921567935
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921567935
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921567935
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session E626GP has expired",
+          "at": 1774921567935
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IYJ7T5 has expired",
+          "at": 1774921567936
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NCR2AZ has expired",
+          "at": 1774921567937
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921567937
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921567937
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921567937
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 54CVSF has expired",
+          "at": 1774921567937
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 82Q8C5 has expired",
+          "at": 1774921567937
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 8QLRKA has expired",
+          "at": 1774921567938
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 9LNLF0 has expired",
+          "at": 1774921567939
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session HARTDN has expired",
+          "at": 1774921567939
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IKBJGI has expired",
+          "at": 1774921567940
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NFFWY6 has expired",
+          "at": 1774921567940
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921567940
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921567940
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921567940
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session OLCSUK has expired",
+          "at": 1774921567940
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session RGOXBN has expired",
+          "at": 1774921567940
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session TDD4QH has expired",
+          "at": 1774921567941
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921567942
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921567942
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921567942
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session USAKC0 has expired",
+          "at": 1774921567942
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session UZDMFN has expired",
+          "at": 1774921567942
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session W8DQ8V has expired",
+          "at": 1774921567943
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921567943
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921567943
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921567943
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session E626GP has expired",
+          "at": 1774921567943
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IYJ7T5 has expired",
+          "at": 1774921567944
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NCR2AZ has expired",
+          "at": 1774921567945
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921567945
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921567946
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921567946
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 54CVSF has expired",
+          "at": 1774921567946
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 82Q8C5 has expired",
+          "at": 1774921567946
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 8QLRKA has expired",
+          "at": 1774921567946
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 9LNLF0 has expired",
+          "at": 1774921567950
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session HARTDN has expired",
+          "at": 1774921567950
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IKBJGI has expired",
+          "at": 1774921567950
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NFFWY6 has expired",
+          "at": 1774921567950
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921567951
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921567951
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921567951
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session OLCSUK has expired",
+          "at": 1774921567951
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session RGOXBN has expired",
+          "at": 1774921567951
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session TDD4QH has expired",
+          "at": 1774921567952
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921567954
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921567954
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921567954
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session USAKC0 has expired",
+          "at": 1774921567954
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session UZDMFN has expired",
+          "at": 1774921567954
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session W8DQ8V has expired",
+          "at": 1774921567954
+        }
+      ]
+    },
+    {
+      "label": "revisit-records",
+      "url": "http://127.0.0.1:4173/student/academic-record",
+      "durationMs": 2125,
+      "requestCount": 10,
+      "requests": [
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68383&AID=125&zx=2m6qdyi2frc5&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 317,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68384&AID=125&zx=sqowkhtxo9az&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 319,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68385&AID=125&zx=a0nr46fud6&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 320,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68386&AID=125&zx=hkwiqj4637vd&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 327,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68387&AID=132&zx=v8k9w2dfjuyj&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 309,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68388&AID=132&zx=d5twu4swui5f&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 313,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68389&AID=132&zx=v75znehxyt1k&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 315,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68390&AID=132&zx=qylgve777aa1&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 312,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68391&AID=132&zx=xcksug4js7vp&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 319,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68392&AID=139&zx=ps48zxkvd6w&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 309,
+          "status": "finished"
+        }
+      ],
+      "console": [
+        {
+          "type": "log",
+          "text": "[NAV 01:46:09] 🚀 Navigation Service Initialized {role: student, path: /student/academic-record}",
+          "at": 1774921569227
+        },
+        {
+          "type": "log",
+          "text": "[NAV 01:46:09] 🚀 Navigation Service Initialized {role: student, path: /student/academic-record}",
+          "at": 1774921569229
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921569678
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921569678
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921569678
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921569679
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921569679
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921569679
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921569679
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921569679
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921569679
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921569744
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921569744
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921569745
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921569745
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921569745
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921569745
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921569745
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921569745
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921569745
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921569798
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921569798
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921569799
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921569799
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921569799
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921569799
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921569799
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921569799
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921569799
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921569800
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921569800
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921569800
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921569800
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921569800
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921569800
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921569800
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921569800
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921569800
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921569920
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921569920
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921569920
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session E626GP has expired",
+          "at": 1774921569920
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IYJ7T5 has expired",
+          "at": 1774921569921
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NCR2AZ has expired",
+          "at": 1774921569921
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921569922
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921569922
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921569922
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 54CVSF has expired",
+          "at": 1774921569922
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 82Q8C5 has expired",
+          "at": 1774921569923
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 8QLRKA has expired",
+          "at": 1774921569924
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 9LNLF0 has expired",
+          "at": 1774921569924
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session HARTDN has expired",
+          "at": 1774921569924
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IKBJGI has expired",
+          "at": 1774921569924
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NFFWY6 has expired",
+          "at": 1774921569925
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921569925
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921569925
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921569925
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session OLCSUK has expired",
+          "at": 1774921569925
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session RGOXBN has expired",
+          "at": 1774921569926
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session TDD4QH has expired",
+          "at": 1774921569926
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921569926
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921569927
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921569927
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session USAKC0 has expired",
+          "at": 1774921569927
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session UZDMFN has expired",
+          "at": 1774921569927
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session W8DQ8V has expired",
+          "at": 1774921569927
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921570005
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921570005
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921570005
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session E626GP has expired",
+          "at": 1774921570005
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IYJ7T5 has expired",
+          "at": 1774921570005
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NCR2AZ has expired",
+          "at": 1774921570006
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921570007
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921570007
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921570007
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 54CVSF has expired",
+          "at": 1774921570007
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 82Q8C5 has expired",
+          "at": 1774921570007
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 8QLRKA has expired",
+          "at": 1774921570007
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 9LNLF0 has expired",
+          "at": 1774921570008
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session HARTDN has expired",
+          "at": 1774921570008
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IKBJGI has expired",
+          "at": 1774921570008
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NFFWY6 has expired",
+          "at": 1774921570009
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921570009
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921570009
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921570009
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session OLCSUK has expired",
+          "at": 1774921570009
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session RGOXBN has expired",
+          "at": 1774921570010
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session TDD4QH has expired",
+          "at": 1774921570010
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921570010
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921570010
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921570010
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session USAKC0 has expired",
+          "at": 1774921570010
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session UZDMFN has expired",
+          "at": 1774921570010
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session W8DQ8V has expired",
+          "at": 1774921570011
+        }
+      ]
+    },
+    {
+      "label": "revisit-library",
+      "url": "http://127.0.0.1:4173/student/library",
+      "durationMs": 2093,
+      "requestCount": 11,
+      "requests": [
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68393&AID=140&zx=vnpmg2mfpecy&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 322,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68394&AID=140&zx=x4c5vgsvltv&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 332,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68395&AID=140&zx=pdm7funqsd2z&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 324,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68396&AID=140&zx=kaemffhk3npw&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 333,
+          "status": "finished"
+        },
+        {
+          "url": "https://www.google-analytics.com/g/collect?v=2&tid=G-22R567RD5N&gtm=45je63r2v9229609035za200zd9229609035&_p=1774921551907&gcd=13l3l3l3l1l1&npa=0&dma=0&_fid=efBmU12l35pwRncurjTmFW&cid=122231205.1774921552&ul=en-us&sr=1440x1100&uaa=arm&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=Windows&uapv=19.0.0&uaw=0&are=1&frm=0&pscdl=noapi&_eu=AAAAAAQ&tag_exp=0~115938466~115938469~116991816~117484252&sid=1774921552&sct=1&seg=1&dl=http%3A%2F%2F127.0.0.1%2Fstudent%2Facademic-record&dt=kahoot&_s=3&tfd=20568",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 76,
+          "status": "failed"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68397&AID=146&zx=w2o6pv69xw3c&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 307,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68398&AID=146&zx=n1lwqsrwrgj6&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 312,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68399&AID=146&zx=x4o43tramn3x&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 316,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68400&AID=146&zx=biblcqej7n2g&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 320,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68401&AID=146&zx=9op4t7ob6kes&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 312,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=bidWUkGMVHyL4yQ6OUvck2qJhYhDSeSjOYF-ngO83bEdCc0jgJHxZw&SID=YJgd9NUnFxIgosrTYvsiaw&RID=68402&AID=153&zx=61mtnv7oxj09&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": 314,
+          "status": "finished"
+        }
+      ],
+      "console": [
+        {
+          "type": "log",
+          "text": "[NAV 01:46:11] 🚀 Navigation Service Initialized {role: student, path: /student/library}",
+          "at": 1774921571340
+        },
+        {
+          "type": "log",
+          "text": "📚 Fetching library materials with filters: {source: my_courses}",
+          "at": 1774921571341
+        },
+        {
+          "type": "log",
+          "text": "[NAV 01:46:11] 🚀 Navigation Service Initialized {role: student, path: /student/library}",
+          "at": 1774921571342
+        },
+        {
+          "type": "log",
+          "text": "📚 Fetching library materials with filters: {source: my_courses}",
+          "at": 1774921571342
+        },
+        {
+          "type": "log",
+          "text": "✅ Found 17 materials",
+          "at": 1774921571607
+        },
+        {
+          "type": "log",
+          "text": "✅ Found 17 materials",
+          "at": 1774921571632
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921571794
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921571794
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921571794
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921571794
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921571794
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921571794
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921571794
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921571795
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921571795
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921571835
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921571835
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921571835
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921571836
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921571836
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921571836
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921571836
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921571836
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921571836
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921571862
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921571862
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921571862
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921571862
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921571862
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921571862
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921571864
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921571864
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921571865
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921571866
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921571866
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921571866
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921571866
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921571867
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921571867
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921571867
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921571867
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921571867
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921571868
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921571869
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921571869
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921571869
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921571869
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921571869
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921571869
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921571869
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921571869
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774921571870
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774921571870
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774921571870
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774921571870
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774921571870
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774921571870
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774921571870
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774921571871
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774921571871
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921572032
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921572032
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921572032
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session E626GP has expired",
+          "at": 1774921572032
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IYJ7T5 has expired",
+          "at": 1774921572033
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NCR2AZ has expired",
+          "at": 1774921572033
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921572034
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921572034
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921572034
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 54CVSF has expired",
+          "at": 1774921572034
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 82Q8C5 has expired",
+          "at": 1774921572034
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 8QLRKA has expired",
+          "at": 1774921572034
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 9LNLF0 has expired",
+          "at": 1774921572034
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session HARTDN has expired",
+          "at": 1774921572034
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IKBJGI has expired",
+          "at": 1774921572034
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NFFWY6 has expired",
+          "at": 1774921572035
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921572035
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921572035
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921572035
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session OLCSUK has expired",
+          "at": 1774921572035
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session RGOXBN has expired",
+          "at": 1774921572036
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session TDD4QH has expired",
+          "at": 1774921572036
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921572036
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921572036
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921572036
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session USAKC0 has expired",
+          "at": 1774921572036
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session UZDMFN has expired",
+          "at": 1774921572036
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session W8DQ8V has expired",
+          "at": 1774921572036
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921572117
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921572117
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921572117
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session E626GP has expired",
+          "at": 1774921572117
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IYJ7T5 has expired",
+          "at": 1774921572117
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NCR2AZ has expired",
+          "at": 1774921572117
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921572118
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921572118
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921572118
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 54CVSF has expired",
+          "at": 1774921572118
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 82Q8C5 has expired",
+          "at": 1774921572118
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 8QLRKA has expired",
+          "at": 1774921572118
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 9LNLF0 has expired",
+          "at": 1774921572118
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session HARTDN has expired",
+          "at": 1774921572118
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IKBJGI has expired",
+          "at": 1774921572118
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NFFWY6 has expired",
+          "at": 1774921572118
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921572119
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921572119
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921572119
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session OLCSUK has expired",
+          "at": 1774921572119
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session RGOXBN has expired",
+          "at": 1774921572119
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session TDD4QH has expired",
+          "at": 1774921572119
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774921572119
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774921572119
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774921572119
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session USAKC0 has expired",
+          "at": 1774921572119
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session UZDMFN has expired",
+          "at": 1774921572120
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session W8DQ8V has expired",
+          "at": 1774921572120
+        }
+      ]
+    }
+  ]
+}

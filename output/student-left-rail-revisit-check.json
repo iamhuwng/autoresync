@@ -1,0 +1,161 @@
+{
+  "baseUrl": "http://127.0.0.1:4173",
+  "steps": [
+    {
+      "sequence": 1,
+      "label": "Courses",
+      "readyText": "My Courses",
+      "loaderTexts": [
+        "Loading your courses..."
+      ],
+      "finalUrl": "http://127.0.0.1:4173/student/courses",
+      "readySeen": true,
+      "loaderSeen": true,
+      "durationMs": 60,
+      "samples": [
+        {
+          "t": 8,
+          "href": "http://127.0.0.1:4173/student/courses",
+          "loaderMatches": [],
+          "readyMatch": false
+        },
+        {
+          "t": 60,
+          "href": "http://127.0.0.1:4173/student/courses",
+          "loaderMatches": [
+            "Loading your courses..."
+          ],
+          "readyMatch": true
+        }
+      ]
+    },
+    {
+      "sequence": 2,
+      "label": "Library",
+      "readyText": "Practice Library",
+      "loaderTexts": [
+        "Loading materials..."
+      ],
+      "finalUrl": "http://127.0.0.1:4173/student/library",
+      "readySeen": true,
+      "loaderSeen": true,
+      "durationMs": 60,
+      "samples": [
+        {
+          "t": 2,
+          "href": "http://127.0.0.1:4173/student/library",
+          "loaderMatches": [],
+          "readyMatch": false
+        },
+        {
+          "t": 60,
+          "href": "http://127.0.0.1:4173/student/library",
+          "loaderMatches": [
+            "Loading materials..."
+          ],
+          "readyMatch": true
+        }
+      ]
+    },
+    {
+      "sequence": 3,
+      "label": "Records",
+      "readyText": "Academic Record",
+      "loaderTexts": [
+        "Loading your academic records...",
+        "Loading progressive feedback..."
+      ],
+      "finalUrl": "http://127.0.0.1:4173/student/academic-record",
+      "readySeen": true,
+      "loaderSeen": true,
+      "durationMs": 54,
+      "samples": [
+        {
+          "t": 2,
+          "href": "http://127.0.0.1:4173/student/academic-record",
+          "loaderMatches": [],
+          "readyMatch": false
+        },
+        {
+          "t": 54,
+          "href": "http://127.0.0.1:4173/student/academic-record",
+          "loaderMatches": [
+            "Loading your academic records..."
+          ],
+          "readyMatch": true
+        }
+      ]
+    },
+    {
+      "sequence": 4,
+      "label": "Courses",
+      "readyText": "My Courses",
+      "loaderTexts": [
+        "Loading your courses..."
+      ],
+      "finalUrl": "http://127.0.0.1:4173/student/courses",
+      "readySeen": true,
+      "loaderSeen": true,
+      "durationMs": 8,
+      "samples": [
+        {
+          "t": 8,
+          "href": "http://127.0.0.1:4173/student/courses",
+          "loaderMatches": [
+            "Loading your courses..."
+          ],
+          "readyMatch": true
+        }
+      ]
+    },
+    {
+      "sequence": 5,
+      "label": "Library",
+      "readyText": "Practice Library",
+      "loaderTexts": [
+        "Loading materials..."
+      ],
+      "finalUrl": "http://127.0.0.1:4173/student/library",
+      "readySeen": true,
+      "loaderSeen": false,
+      "durationMs": 18,
+      "samples": [
+        {
+          "t": 18,
+          "href": "http://127.0.0.1:4173/student/library",
+          "loaderMatches": [],
+          "readyMatch": true
+        }
+      ]
+    },
+    {
+      "sequence": 6,
+      "label": "Records",
+      "readyText": "Academic Record",
+      "loaderTexts": [
+        "Loading your academic records...",
+        "Loading progressive feedback..."
+      ],
+      "finalUrl": "http://127.0.0.1:4173/student/academic-record",
+      "readySeen": true,
+      "loaderSeen": false,
+      "durationMs": 53,
+      "samples": [
+        {
+          "t": 2,
+          "href": "http://127.0.0.1:4173/student/academic-record",
+          "loaderMatches": [],
+          "readyMatch": false
+        },
+        {
+          "t": 53,
+          "href": "http://127.0.0.1:4173/student/academic-record",
+          "loaderMatches": [],
+          "readyMatch": true
+        }
+      ]
+    }
+  ],
+  "generatedAt": "2026-03-31T03:15:03.909Z",
+  "loginUrl": "http://127.0.0.1:4173/student"
+}

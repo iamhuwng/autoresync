@@ -1,4 +1,4 @@
-﻿---
+---
 name: student-view-design
 description: Enforces the Student View Design Standard for all student-facing pages. Triggers on any task involving student UI, student pages, student dashboard, student layout, feed design, or activity stream. MUST be read before creating or modifying any student-facing component.
 ---
@@ -47,6 +47,11 @@ Before writing ANY code for a student page:
 - [ ] No Mantine `Tabs`
 - [ ] No decorative hover-lift or float/shimmer motions
 - [ ] No default rigid bordered center column as the shell language
+
+### 6. Layout Integrity (Rules 17–19)
+- [ ] **Rule 17 (Flat Row Standard):** All list-based result views must use `AcademicRecordFlatRow`. No new grid-based row components may be introduced for student table surfaces.
+- [ ] **Rule 18 (No Fixed Grid Columns):** No `grid-template-columns` with fixed `repeat(N, 1fr)` or hardcoded pixel widths in student-facing table or card surfaces. Use `repeat(auto-fit, minmax(…, 1fr))` or flex layouts instead.
+- [ ] **Rule 19 (Hover Consistency):** All interactive rows must implement the `onMouseEnter`/`onMouseLeave` background-transition pattern from `AcademicRecordFlatRow`. No mixing of CSS `:hover` pseudo-classes with inline hover state management.
 
 ## Working Rules
 - The old v1 social-feed model is no longer the primary design metaphor.

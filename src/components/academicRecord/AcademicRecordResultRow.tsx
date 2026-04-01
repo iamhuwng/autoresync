@@ -2,7 +2,7 @@ import React from 'react';
 import type { EnhancedTestResultRecord } from '../../types/results.types';
 import { studentTokens } from '../layout/studentLayoutStyles';
 
-type RowTone = 'default' | 'primary' | 'success' | 'warning' | 'danger' | 'muted';
+export type RowTone = 'default' | 'primary' | 'success' | 'warning' | 'danger' | 'muted';
 
 export interface AcademicRecordFlatRowProps {
     title: string;
@@ -183,7 +183,7 @@ export function formatAcademicRecordDate(timestamp: number): string {
     });
 }
 
-function buildMetaItems(result: EnhancedTestResultRecord, hasFeedback: boolean): string[] {
+export function buildMetaItems(result: EnhancedTestResultRecord, hasFeedback: boolean): string[] {
     const courseContext = result.courseId === null
         ? 'Unassigned course'
         : [result.courseName, result.moduleName].filter(Boolean).join(' / ');
@@ -206,7 +206,7 @@ function buildMetaItems(result: EnhancedTestResultRecord, hasFeedback: boolean):
     ].filter((item): item is string => Boolean(item));
 }
 
-function getLeadingTone(result: EnhancedTestResultRecord): RowTone {
+export function getLeadingTone(result: EnhancedTestResultRecord): RowTone {
     if (result.markingStatus === 'pending-review') {
         return 'warning';
     }
@@ -232,7 +232,7 @@ function getLeadingTone(result: EnhancedTestResultRecord): RowTone {
     return 'muted';
 }
 
-function getLeadingText(result: EnhancedTestResultRecord): string {
+export function getLeadingText(result: EnhancedTestResultRecord): string {
     if (result.thcsData) {
         return 'TH';
     }
@@ -241,7 +241,7 @@ function getLeadingText(result: EnhancedTestResultRecord): string {
     return skill.slice(0, 2).toUpperCase();
 }
 
-function getScoreTone(result: EnhancedTestResultRecord): RowTone {
+export function getScoreTone(result: EnhancedTestResultRecord): RowTone {
     if (result.markingStatus === 'pending-review') {
         return 'warning';
     }
@@ -260,7 +260,7 @@ function getScoreTone(result: EnhancedTestResultRecord): RowTone {
     return 'danger';
 }
 
-function getScoreLabel(result: EnhancedTestResultRecord): string {
+export function getScoreLabel(result: EnhancedTestResultRecord): string {
     if (result.markingStatus === 'pending-review') {
         return 'Pending';
     }

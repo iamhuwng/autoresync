@@ -80,8 +80,8 @@ const styles: Record<string, React.CSSProperties> = {
     },
     summaryStack: {
         display: 'grid',
-        gridTemplateColumns: 'repeat(4, 1fr)',
-        gap: 32,
+        gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+        gap: 16,
     },
     prioritySummaryGrid: {
         display: 'contents',

@@ -1,6 +1,14 @@
 import React, { useMemo, useState } from 'react';
 import { IconInbox } from '@tabler/icons-react';
-import { AcademicRecordResultRow } from './AcademicRecordResultRow';
+import {
+    AcademicRecordFlatRow,
+    formatAcademicRecordDate,
+    buildMetaItems,
+    getLeadingText,
+    getLeadingTone,
+    getScoreLabel,
+    getScoreTone,
+} from './AcademicRecordResultRow';
 import type { EnhancedTestResultRecord } from '../../types/results.types';
 import { studentTokens } from '../layout/studentLayoutStyles';
 
@@ -72,10 +80,8 @@ const styles: Record<string, React.CSSProperties> = {
         overflow: 'hidden',
     },
     tableHeader: {
-        display: 'grid',
-        gridTemplateColumns: 'minmax(0, 1.8fr) 108px 96px 120px 32px',
+        display: 'flex',
         alignItems: 'center',
-        gap: 12,
         padding: '16px 20px',
         background: studentTokens.bgSurfaceAlt,
         color: studentTokens.textMuted,
@@ -160,19 +166,33 @@ export const ResultTimeline: React.FC<ResultTimelineProps> = ({
     return (
         <div style={styles.list}>
             <div style={styles.tableHeader}>
-                <span>Assessment Name</span>
-                <span>Date</span>
-                <span>Score</span>
-                <span>Status</span>
-                <span />
+                <span>Recent Assessment Results</span>
             </div>
-            {displayedResults.map((result) => (
-                <AcademicRecordResultRow
-                    key={result.resultId}
-                    result={result}
-                    onClick={onResultClick}
-                />
-            ))}
+            {displayedResults.map((result) => {
+                const hasFeedback = Boolean(
+                    result.overallFeedback ||
+                    result.questionResults?.some((q) => q.teacherFeedback != null),
+                );
+                const metaItems = [
+                    formatAcademicRecordDate(result.submittedAt),
+                    ...buildMetaItems(result, hasFeedback),
+                ];
+
+                return (
+                    <AcademicRecordFlatRow
+                        key={result.resultId}
+                        title={result.testTitle}
+                        metaItems={metaItems}
+                        leadingText={getLeadingText(result)}
+                        leadingTone={getLeadingTone(result)}
+                        trailingPrimary={getScoreLabel(result)}
+                        trailingSecondary={`${Math.round(result.percentage)}% score`}
+                        trailingTone={getScoreTone(result)}
+                        onClick={onResultClick ? () => onResultClick(result.resultId) : undefined}
+                        ariaLabel={onResultClick ? `Open result for ${result.testTitle}` : undefined}
+                    />
+                );
+            })}
 
             {hasMore && (
                 <div style={styles.footerWrap}>

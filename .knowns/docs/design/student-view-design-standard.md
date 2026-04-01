@@ -2,7 +2,7 @@
 title: Student View Design Standard
 description: Design standards and patterns for all student-facing pages and views
 createdAt: '2026-02-27T15:25:53.999Z'
-updatedAt: '2026-04-01T01:40:52.168Z'
+updatedAt: '2026-04-01T02:29:30.115Z'
 tags:
   - design
   - student
@@ -352,3 +352,35 @@ The override layer should neutralize legacy glass and gradient patterns and set 
 ## Vertical Alignment Contract (added 2026-04-01)
 
 32px baseline rule: `S.feed` (24px) + `S.feedHeader` (8px) = 32px total. All student page titles must align with the sidebar brand and right rail headings. Verify all five shell pages after any layout padding change.
+
+
+## Layout Integrity Rules (added 2026-04-01)
+
+These rules were added following the Academic Record overflow audit (screenshots from 2026-04-01 showing summary cards clipping under the right rail and timeline grid rows misaligning in narrow containers).
+
+### Rule 17 — Flat Row Standard
+All list-based result views in student-facing surfaces must use `AcademicRecordFlatRow`. No new grid-based row components may be introduced for student table surfaces. This ensures uniform padding, typography, hover states, and responsive behavior.
+
+**Canonical component:** `src/components/academicRecord/AcademicRecordResultRow.tsx` → `AcademicRecordFlatRow`
+
+### Rule 18 — No Fixed Grid Columns
+No `grid-template-columns` with fixed `repeat(N, 1fr)` or hardcoded pixel widths (e.g., `108px`, `96px`, `120px`) in student-facing table or card surfaces.
+
+**Allowed patterns:**
+- `repeat(auto-fit, minmax(160px, 1fr))` for card grids
+- Flex layouts for row-based surfaces
+
+**Banned patterns:**
+- `gridTemplateColumns: 'repeat(4, 1fr)'`
+- `gridTemplateColumns: 'minmax(0, 1.8fr) 108px 96px 120px 32px'`
+
+### Rule 19 — Hover Consistency
+All interactive rows must implement the `onMouseEnter`/`onMouseLeave` background-transition pattern from `AcademicRecordFlatRow`. No mixing of CSS `:hover` pseudo-classes with inline hover state management on the same surface.
+
+### Files remediated in this audit
+| File | Before | After |
+|------|--------|-------|
+| `ResultsBySkill.tsx` | `repeat(4, 1fr)` | `repeat(auto-fit, minmax(160px, 1fr))` |
+| `ResultsByCourse.tsx` | `repeat(4, 1fr)` | `repeat(auto-fit, minmax(160px, 1fr))` |
+| `ResultTimeline.tsx` | Grid-based `AcademicRecordResultRow` | Flex-based `AcademicRecordFlatRow` |
+| `AcademicRecordResultRow.tsx` | Helpers unexported | Helpers exported for shared use |

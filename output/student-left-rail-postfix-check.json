@@ -1,0 +1,32 @@
+[
+  {
+    "label": "postfix-homework",
+    "scanLogs": 0,
+    "expiredLogs": 0,
+    "listenRequests": 1
+  },
+  {
+    "label": "postfix-courses",
+    "scanLogs": 0,
+    "expiredLogs": 0,
+    "listenRequests": 0
+  },
+  {
+    "label": "postfix-library",
+    "scanLogs": 0,
+    "expiredLogs": 0,
+    "listenRequests": 0
+  },
+  {
+    "label": "postfix-records",
+    "scanLogs": 0,
+    "expiredLogs": 0,
+    "listenRequests": 0
+  },
+  {
+    "label": "postfix-revisit-homework",
+    "scanLogs": 0,
+    "expiredLogs": 0,
+    "listenRequests": 4
+  }
+]

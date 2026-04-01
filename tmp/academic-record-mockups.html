@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Academic Record Mockups</title>
+  <style>
+    :root {
+      --bg-page: #f3f4f6;
+      --bg-surface: #ffffff;
+      --bg-surface-alt: #f9fafb;
+      --bg-hover: #e5e7eb;
+      --text-primary: #111827;
+      --text-body: #374151;
+      --text-muted: #6b7280;
+      --text-dim: #9ca3af;
+      --accent: #4f46e5;
+      --accent-hover: #4338ca;
+      --border: #e5e7eb;
+      --success-bg: #d1fae5;
+      --success-text: #059669;
+      --info-bg: #dbeafe;
+      --info-text: #2563eb;
+      --warning-bg: #fef3c7;
+      --warning-text: #d97706;
+      --radius-card: 16px;
+      --radius-pill: 999px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg-page);
+      color: var(--text-primary);
+    }
+
+    .page {
+      max-width: 1380px;
+      margin: 0 auto;
+      padding: 28px;
+    }
+
+    .page-header {
+      margin-bottom: 24px;
+    }
+
+    .page-title {
+      margin: 0 0 6px;
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+    }
+
+    .page-subtitle {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: 1rem;
+      line-height: 1.5;
+    }
+
+    .mock-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 20px;
+      align-items: start;
+    }
+
+    .mock {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      overflow: hidden;
+      min-height: 980px;
+    }
+
+    .mock-top {
+      padding: 22px 22px 16px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.92);
+    }
+
+    .mock-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      padding: 6px 12px;
+      border-radius: var(--radius-pill);
+      background: var(--bg-surface-alt);
+      color: var(--accent);
+      font-size: 0.75rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .mock-title {
+      margin: 0 0 8px;
+      font-size: 1.35rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .mock-caption {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+
+    .mock-body {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .section-title {
+      margin: 0 0 6px;
+      font-size: 0.95rem;
+      font-weight: 800;
+      color: var(--text-primary);
+    }
+
+    .section-copy {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: 0.78rem;
+      line-height: 1.5;
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .metric-grid.four {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .metric-card {
+      background: var(--bg-surface-alt);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-card);
+      padding: 14px 14px 12px;
+      min-height: 110px;
+    }
+
+    .metric-card.tall {
+      min-height: 94px;
+    }
+
+    .metric-eyebrow {
+      margin: 0 0 10px;
+      color: var(--text-muted);
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .metric-value {
+      margin: 0;
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1;
+    }
+
+    .metric-meta {
+      margin: 10px 0 0;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      line-height: 1.45;
+    }
+
+    .metric-indigo { border-top: 4px solid var(--accent); }
+    .metric-blue { border-top: 4px solid var(--info-text); }
+    .metric-green { border-top: 4px solid var(--success-text); }
+    .metric-amber { border-top: 4px solid var(--warning-text); }
+    .metric-gray { border-top: 4px solid #d1d5db; }
+
+    .metric-indigo .metric-value, .metric-indigo .metric-eyebrow { color: var(--accent-hover); }
+    .metric-blue .metric-value, .metric-blue .metric-eyebrow { color: var(--info-text); }
+    .metric-green .metric-value, .metric-green .metric-eyebrow { color: var(--success-text); }
+    .metric-amber .metric-value, .metric-amber .metric-eyebrow { color: #b45309; }
+
+    .snapshot-shell {
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      background: var(--bg-surface-alt);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 2px 0;
+    }
+
+    .feed-list {
+      display: flex;
+      flex-direction: column;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      overflow: hidden;
+      background: var(--bg-surface);
+    }
+
+    .feed-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-surface);
+    }
+
+    .feed-item:last-child {
+      border-bottom: none;
+    }
+
+    .feed-item.alt {
+      background: var(--bg-surface-alt);
+    }
+
+    .feed-main {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+      flex: 1;
+    }
+
+    .feed-badge {
+      width: 46px;
+      height: 46px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+
+    .badge-indigo { background: #e0e7ff; color: var(--accent-hover); }
+    .badge-blue { background: var(--info-bg); color: var(--info-text); }
+    .badge-amber { background: var(--warning-bg); color: #b45309; }
+    .badge-green { background: var(--success-bg); color: var(--success-text); }
+
+    .feed-copy {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .feed-title {
+      margin: 0;
+      font-size: 0.97rem;
+      font-weight: 800;
+      color: var(--text-primary);
+    }
+
+    .feed-meta {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      line-height: 1.4;
+    }
+
+    .feed-action {
+      flex-shrink: 0;
+      color: var(--accent-hover);
+      font-size: 0.86rem;
+      font-weight: 800;
+    }
+
+    .status-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 12px;
+      border-radius: var(--radius-pill);
+      font-size: 0.75rem;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .status-chip.review {
+      background: var(--warning-bg);
+      color: #b45309;
+    }
+
+    .status-chip.open {
+      background: #eef2ff;
+      color: var(--accent-hover);
+    }
+
+    .stack-note {
+      border: 1px dashed #cbd5e1;
+      border-radius: 16px;
+      padding: 12px 14px;
+      color: var(--text-muted);
+      font-size: 0.78rem;
+      line-height: 1.5;
+      background: #fcfcfd;
+    }
+
+    .section-block {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    @media (max-width: 1200px) {
+      .mock-grid { grid-template-columns: 1fr; }
+      .mock { min-height: auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="page-header">
+      <h1 class="page-title">Academic Record Mockups</h1>
+      <p class="page-subtitle">Three directions for the IELTS tab that stay inside the student-view language while still creating clear distinction between summary and browse.</p>
+    </header>
+
+    <div class="mock-grid">
+      <section class="mock">
+        <div class="mock-top">
+          <div class="mock-label">Option A</div>
+          <h2 class="mock-title">Feed-Like Sections</h2>
+        </div>
+        <div class="mock-body">
+          <div class="section-block">
+            <h3 class="section-title">Snapshot</h3>
+            <div class="metric-grid">
+              <div class="metric-card metric-gray">
+                <p class="metric-eyebrow">Tests Completed</p>
+                <p class="metric-value">11</p>
+                <p class="metric-meta">Visible IELTS results</p>
+              </div>
+              <div class="metric-card metric-amber">
+                <p class="metric-eyebrow">Pending Review</p>
+                <p class="metric-value">2</p>
+                <p class="metric-meta">Writing submissions awaiting grading</p>
+              </div>
+              <div class="metric-card metric-indigo">
+                <p class="metric-eyebrow">Average Overall</p>
+                <p class="metric-value">6.8</p>
+                <p class="metric-meta">Across graded results</p>
+              </div>
+              <div class="metric-card metric-green">
+                <p class="metric-eyebrow">Highest Overall</p>
+                <p class="metric-value">8.0</p>
+                <p class="metric-meta">Best visible IELTS result</p>
+              </div>
+            </div>
+            <div class="metric-grid four">
+              <div class="metric-card tall metric-indigo">
+                <p class="metric-eyebrow">Reading</p>
+                <p class="metric-value">6.5</p>
+                <p class="metric-meta">High 8.0</p>
+              </div>
+              <div class="metric-card tall metric-blue">
+                <p class="metric-eyebrow">Listening</p>
+                <p class="metric-value">7.0</p>
+                <p class="metric-meta">High 7.5</p>
+              </div>
+              <div class="metric-card tall metric-amber">
+                <p class="metric-eyebrow">Writing</p>
+                <p class="metric-value">6.0</p>
+                <p class="metric-meta">High 6.0</p>
+              </div>
+              <div class="metric-card tall metric-green">
+                <p class="metric-eyebrow">Speaking</p>
+                <p class="metric-value">7.0</p>
+                <p class="metric-meta">High 7.0</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="section-block">
+            <h3 class="section-title">Browse By Skill</h3>
+            <div class="feed-list">
+              <div class="feed-item">
+                <div class="feed-main">
+                  <div class="feed-badge badge-indigo">RD</div>
+                  <div class="feed-copy">
+                    <p class="feed-title">Reading</p>
+                    <p class="feed-meta">6 tests · avg 6.5 · high 8.0</p>
+                  </div>
+                </div>
+                <div class="status-chip open">Open</div>
+              </div>
+              <div class="feed-item alt">
+                <div class="feed-main">
+                  <div class="feed-badge badge-blue">LS</div>
+                  <div class="feed-copy">
+                    <p class="feed-title">Listening</p>
+                    <p class="feed-meta">1 test · avg 7.0 · high 7.5</p>
+                  </div>
+                </div>
+                <div class="status-chip open">Open</div>
+              </div>
+              <div class="feed-item">
+                <div class="feed-main">
+                  <div class="feed-badge badge-amber">WR</div>
+                  <div class="feed-copy">
+                    <p class="feed-title">Writing</p>
+                    <p class="feed-meta">3 tests · avg 6.0 · high 6.0 · 2 pending review</p>
+                  </div>
+                </div>
+                <div class="status-chip review">Needs Review</div>
+              </div>
+              <div class="feed-item alt">
+                <div class="feed-main">
+                  <div class="feed-badge badge-green">SP</div>
+                  <div class="feed-copy">
+                    <p class="feed-title">Speaking</p>
+                    <p class="feed-meta">1 test · avg 7.0 · high 7.0</p>
+                  </div>
+                </div>
+                <div class="status-chip open">Open</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="stack-note">Design choice: distinction comes from section role and row structure, not large tinted slabs.</div>
+        </div>
+      </section>
+
+      <section class="mock">
+        <div class="mock-top">
+          <div class="mock-label">Option B</div>
+          <h2 class="mock-title">Unified Snapshot Shell</h2>
+          <p class="mock-caption">One clearly grouped top summary, then a simpler browse list below. More system-like, still restrained.</p>
+        </div>
+        <div class="mock-body">
+          <div class="section-block">
+            <h3 class="section-title">Snapshot</h3>
+            <p class="section-copy">All overview metrics sit inside one shared container, so the browse layer feels clearly separate.</p>
+            <div class="snapshot-shell">
+              <div class="metric-grid">
+                <div class="metric-card metric-gray">
+                  <p class="metric-eyebrow">Tests</p>
+                  <p class="metric-value">11</p>
+                  <p class="metric-meta">Completed</p>
+                </div>
+                <div class="metric-card metric-amber">
+                  <p class="metric-eyebrow">Pending</p>
+                  <p class="metric-value">2</p>
+                  <p class="metric-meta">Writing reviews</p>
+                </div>
+                <div class="metric-card metric-indigo">
+                  <p class="metric-eyebrow">Average</p>
+                  <p class="metric-value">6.8</p>
+                  <p class="metric-meta">Overall band</p>
+                </div>
+                <div class="metric-card metric-green">
+                  <p class="metric-eyebrow">Highest</p>
+                  <p class="metric-value">8.0</p>
+                  <p class="metric-meta">Overall band</p>
+                </div>
+              </div>
+              <div class="divider"></div>
+              <div class="metric-grid">
+                <div class="metric-card tall metric-indigo">
+                  <p class="metric-eyebrow">Reading</p>
+                  <p class="metric-value">6.5</p>
+                  <p class="metric-meta">High 8.0</p>
+                </div>
+                <div class="metric-card tall metric-blue">
+                  <p class="metric-eyebrow">Listening</p>
+                  <p class="metric-value">7.0</p>
+                  <p class="metric-meta">High 7.5</p>
+                </div>
+                <div class="metric-card tall metric-amber">
+                  <p class="metric-eyebrow">Writing</p>
+                  <p class="metric-value">6.0</p>
+                  <p class="metric-meta">High 6.0</p>
+                </div>
+                <div class="metric-card tall metric-green">
+                  <p class="metric-eyebrow">Speaking</p>
+                  <p class="metric-value">7.0</p>
+                  <p class="metric-meta">High 7.0</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="section-block">
+            <h3 class="section-title">Browse By Skill</h3>
+            <p class="section-copy">Headers are flatter and more list-like. The separation comes from the shared top shell, not stronger row styling.</p>
+            <div class="feed-list">
+              <div class="feed-item">
+                <div class="feed-main">
+                  <div class="feed-badge badge-indigo">RD</div>
+                  <div class="feed-copy">
+                    <p class="feed-title">Reading</p>
+                    <p class="feed-meta">6 tests · avg 6.5 · high 8.0</p>
+                  </div>
+                </div>
+                <div class="feed-action">Open</div>
+              </div>
+              <div class="feed-item">
+                <div class="feed-main">
+                  <div class="feed-badge badge-blue">LS</div>
+                  <div class="feed-copy">
+                    <p class="feed-title">Listening</p>
+                    <p class="feed-meta">1 test · avg 7.0 · high 7.5</p>
+                  </div>
+                </div>
+                <div class="feed-action">Open</div>
+              </div>
+              <div class="feed-item">
+                <div class="feed-main">
+                  <div class="feed-badge badge-amber">WR</div>
+                  <div class="feed-copy">
+                    <p class="feed-title">Writing</p>
+                    <p class="feed-meta">3 tests · avg 6.0 · 2 pending review</p>
+                  </div>
+                </div>
+                <div class="feed-action">Review</div>
+              </div>
+              <div class="feed-item">
+                <div class="feed-main">
+                  <div class="feed-badge badge-green">SP</div>
+                  <div class="feed-copy">
+                    <p class="feed-title">Speaking</p>
+                    <p class="feed-meta">1 test · avg 7.0 · high 7.0</p>
+                  </div>
+                </div>
+                <div class="feed-action">Open</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="stack-note">Design choice: clearer summary-vs-browse split, but slightly more dashboard-like than the student feed.</div>
+        </div>
+      </section>
+
+      <section class="mock">
+        <div class="mock-top">
+          <div class="mock-label">Option C</div>
+          <h2 class="mock-title">Editorial / Minimal</h2>
+          <p class="mock-caption">Very restrained. Distinction comes from typography, whitespace, and rhythm more than containers.</p>
+        </div>
+        <div class="mock-body">
+          <div class="section-block">
+            <h3 class="section-title">Snapshot</h3>
+            <p class="section-copy">This version treats the top as structured content rather than a grid of standalone widgets.</p>
+            <div class="snapshot-shell">
+              <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;">
+                <div>
+                  <p class="metric-eyebrow">Tests</p>
+                  <p class="metric-value" style="font-size:1.6rem;">11</p>
+                </div>
+                <div>
+                  <p class="metric-eyebrow" style="color:#b45309;">Pending</p>
+                  <p class="metric-value" style="font-size:1.6rem;color:#b45309;">2</p>
+                </div>
+                <div>
+                  <p class="metric-eyebrow" style="color:#4338ca;">Average</p>
+                  <p class="metric-value" style="font-size:1.6rem;color:#4338ca;">6.8</p>
+                </div>
+                <div>
+                  <p class="metric-eyebrow" style="color:#059669;">Highest</p>
+                  <p class="metric-value" style="font-size:1.6rem;color:#059669;">8.0</p>
+                </div>
+              </div>
+              <div class="divider"></div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px 20px;">
+                <p class="feed-meta" style="margin:0;"><strong style="color:#111827;">Reading</strong><br>Avg 6.5 / High 8.0</p>
+                <p class="feed-meta" style="margin:0;"><strong style="color:#111827;">Listening</strong><br>Avg 7.0 / High 7.5</p>
+                <p class="feed-meta" style="margin:0;"><strong style="color:#111827;">Writing</strong><br>Avg 6.0 / High 6.0</p>
+                <p class="feed-meta" style="margin:0;"><strong style="color:#111827;">Speaking</strong><br>Avg 7.0 / High 7.0</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="section-block">
+            <h3 class="section-title">Browse By Skill</h3>
+            <p class="section-copy">Skill browse is understated and linear. Useful if you want almost all emphasis to sit in the content itself.</p>
+            <div class="feed-list">
+              <div class="feed-item">
+                <div class="feed-main">
+                  <div class="feed-badge badge-indigo">RD</div>
+                  <div class="feed-copy">
+                    <p class="feed-title">Reading</p>
+                    <p class="feed-meta">6 tests · avg 6.5 · high 8.0</p>
+                  </div>
+                </div>
+                <div class="feed-action">Open</div>
+              </div>
+              <div class="feed-item">
+                <div class="feed-main">
+                  <div class="feed-badge badge-blue">LS</div>
+                  <div class="feed-copy">
+                    <p class="feed-title">Listening</p>
+                    <p class="feed-meta">1 test · avg 7.0 · high 7.5</p>
+                  </div>
+                </div>
+                <div class="feed-action">Open</div>
+              </div>
+              <div class="feed-item">
+                <div class="feed-main">
+                  <div class="feed-badge badge-amber">WR</div>
+                  <div class="feed-copy">
+                    <p class="feed-title">Writing</p>
+                    <p class="feed-meta">3 tests · avg 6.0 · 2 pending review</p>
+                  </div>
+                </div>
+                <div class="feed-action">Review</div>
+              </div>
+              <div class="feed-item">
+                <div class="feed-main">
+                  <div class="feed-badge badge-green">SP</div>
+                  <div class="feed-copy">
+                    <p class="feed-title">Speaking</p>
+                    <p class="feed-meta">1 test · avg 7.0 · high 7.0</p>
+                  </div>
+                </div>
+                <div class="feed-action">Open</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="stack-note">Design choice: calmest option. Strong on clarity, weaker on visual identity.</div>
+        </div>
+      </section>
+    </div>
+  </div>
+</body>
+</html>

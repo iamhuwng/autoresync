@@ -1,0 +1,2845 @@
+{
+  "generatedAt": "2026-03-31T02:02:57.413Z",
+  "results": [
+    {
+      "label": "preview-first-homework",
+      "url": "http://127.0.0.1:4173/student/homework",
+      "durationMs": 31262,
+      "requestCount": 13,
+      "requests": [
+        {
+          "url": "http://127.0.0.1:4173/assets/StudentHomeworkListPage-FGU4HXp-.js",
+          "type": "script",
+          "method": "GET",
+          "responseStatus": 200,
+          "durationMs": -1774922358754,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17102&AID=44&zx=yty4vftaq2fy&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922358806,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17103&AID=44&zx=lz3glsb6w7g9&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922358748,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17104&AID=44&zx=3togu0l1hmut&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922358640,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17105&AID=44&zx=47h6wg9tq3r3&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922358642,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17106&AID=49&zx=xm42vjgoptiz&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922359505,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17107&AID=53&zx=2l4ooyl75v95&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922359566,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17108&AID=62&zx=x9glawgn5tlk&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922359700,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17109&AID=62&zx=yqxbzzdxjwec&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922359710,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17110&AID=62&zx=v05ito8e0fzx&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922359709,
+          "status": "finished"
+        },
+        {
+          "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa25L7SUc.woff2",
+          "type": "font",
+          "method": "GET",
+          "responseStatus": 200,
+          "durationMs": -1774922360433,
+          "status": "finished"
+        },
+        {
+          "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa2pL7SUc.woff2",
+          "type": "font",
+          "method": "GET",
+          "responseStatus": 200,
+          "durationMs": -1774922360434,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17111&AID=70&zx=c7ce36kbquo4&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922360100,
+          "status": "finished"
+        }
+      ],
+      "console": [
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774922359235
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774922359235
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774922359236
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774922359236
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774922359236
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774922359236
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774922359236
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774922359236
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774922359236
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774922359248
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774922359248
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774922359248
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774922359248
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774922359248
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774922359248
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774922359248
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774922359248
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774922359249
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774922359261
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774922359261
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774922359261
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774922359261
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774922359262
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774922359262
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774922359262
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774922359262
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774922359262
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774922359473
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774922359473
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774922359473
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session E626GP has expired",
+          "at": 1774922359473
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IYJ7T5 has expired",
+          "at": 1774922359475
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NCR2AZ has expired",
+          "at": 1774922359481
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774922359488
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774922359488
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774922359488
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 54CVSF has expired",
+          "at": 1774922359488
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 82Q8C5 has expired",
+          "at": 1774922359489
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 8QLRKA has expired",
+          "at": 1774922359489
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 9LNLF0 has expired",
+          "at": 1774922359489
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session HARTDN has expired",
+          "at": 1774922359490
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IKBJGI has expired",
+          "at": 1774922359490
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NFFWY6 has expired",
+          "at": 1774922359491
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774922359491
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774922359491
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774922359491
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session OLCSUK has expired",
+          "at": 1774922359491
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session RGOXBN has expired",
+          "at": 1774922359491
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session TDD4QH has expired",
+          "at": 1774922359492
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774922359498
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774922359498
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774922359498
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session USAKC0 has expired",
+          "at": 1774922359498
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session UZDMFN has expired",
+          "at": 1774922359499
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session W8DQ8V has expired",
+          "at": 1774922359499
+        }
+      ]
+    },
+    {
+      "label": "preview-first-courses",
+      "url": "http://127.0.0.1:4173/student/courses",
+      "durationMs": 31233,
+      "requestCount": 19,
+      "requests": [
+        {
+          "url": "http://127.0.0.1:4173/assets/StudentCoursesPage-DRpaQYp8.js",
+          "type": "script",
+          "method": "GET",
+          "responseStatus": 200,
+          "durationMs": -1774922389998,
+          "status": "finished"
+        },
+        {
+          "url": "http://127.0.0.1:4173/assets/materialLinkManager-Cdg038mq.js",
+          "type": "script",
+          "method": "GET",
+          "responseStatus": 200,
+          "durationMs": -1774922389998,
+          "status": "finished"
+        },
+        {
+          "url": "http://127.0.0.1:4173/assets/enrollmentManager-7VIY197i.js",
+          "type": "script",
+          "method": "GET",
+          "responseStatus": 200,
+          "durationMs": -1774922389996,
+          "status": "finished"
+        },
+        {
+          "url": "http://127.0.0.1:4173/assets/courseRequestManager-Bs4d20ox.js",
+          "type": "script",
+          "method": "GET",
+          "responseStatus": 200,
+          "durationMs": -1774922389999,
+          "status": "finished"
+        },
+        {
+          "url": "http://127.0.0.1:4173/assets/notifications.store-XEApdYzr.js",
+          "type": "script",
+          "method": "GET",
+          "responseStatus": 200,
+          "durationMs": -1774922390001,
+          "status": "finished"
+        },
+        {
+          "url": "http://127.0.0.1:4173/assets/userService-C9xi2ieI.js",
+          "type": "script",
+          "method": "GET",
+          "responseStatus": 200,
+          "durationMs": -1774922389999,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&RID=rpc&SID=hsHi5rN2A1kVZy8lBD5gLw&AID=0&CI=0&TYPE=xmlhttp&zx=4o74hqeh2k7u&t=1",
+          "type": "fetch",
+          "method": "GET",
+          "responseStatus": null,
+          "durationMs": null,
+          "status": "failed",
+          "failureText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17112&AID=72&zx=he7nrr6xuvqi&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922390059,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17113&AID=72&zx=8cdga5h6hotg&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922389879,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17114&AID=72&zx=rmuklejkptmf&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922389885,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17115&AID=72&zx=b4g37if7qz8a&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922389637,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17116&AID=87&zx=pleo0qycrdut&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922391129,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17117&AID=87&zx=a6foo6nsriiv&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922391127,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17118&AID=87&zx=86dzcchnuc2h&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922391126,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17119&AID=90&zx=4dstddgnw989&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922391003,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17120&AID=90&zx=o4ax909948j8&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922390968,
+          "status": "finished"
+        },
+        {
+          "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa25L7SUc.woff2",
+          "type": "font",
+          "method": "GET",
+          "responseStatus": 200,
+          "durationMs": -1774922392222,
+          "status": "finished"
+        },
+        {
+          "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa2pL7SUc.woff2",
+          "type": "font",
+          "method": "GET",
+          "responseStatus": 200,
+          "durationMs": -1774922392223,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17121&AID=98&zx=mfjewol8v0t2&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922391682,
+          "status": "finished"
+        }
+      ],
+      "console": [
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774922390482
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774922390482
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774922390482
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774922390482
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774922390482
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774922390483
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774922390483
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774922390483
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774922390483
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774922390505
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774922390505
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774922390505
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774922390505
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774922390506
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774922390506
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774922390506
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774922390506
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774922390506
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774922390664
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774922390664
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774922390664
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774922390664
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774922390664
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774922390664
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774922390664
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774922390664
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774922390664
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774922390702
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774922390702
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774922390702
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session E626GP has expired",
+          "at": 1774922390702
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IYJ7T5 has expired",
+          "at": 1774922390703
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NCR2AZ has expired",
+          "at": 1774922390706
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774922390711
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774922390711
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774922390711
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 54CVSF has expired",
+          "at": 1774922390711
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 82Q8C5 has expired",
+          "at": 1774922390715
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 8QLRKA has expired",
+          "at": 1774922390716
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 9LNLF0 has expired",
+          "at": 1774922390717
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session HARTDN has expired",
+          "at": 1774922390717
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IKBJGI has expired",
+          "at": 1774922390718
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NFFWY6 has expired",
+          "at": 1774922390722
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774922390723
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774922390723
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774922390723
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session OLCSUK has expired",
+          "at": 1774922390723
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session RGOXBN has expired",
+          "at": 1774922390724
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session TDD4QH has expired",
+          "at": 1774922390725
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774922390728
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774922390728
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774922390728
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session USAKC0 has expired",
+          "at": 1774922390728
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session UZDMFN has expired",
+          "at": 1774922390728
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session W8DQ8V has expired",
+          "at": 1774922390729
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774922390885
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774922390885
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774922390886
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774922390886
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774922390886
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774922390886
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774922390886
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774922390886
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774922390886
+        }
+      ]
+    },
+    {
+      "label": "preview-first-library",
+      "url": "http://127.0.0.1:4173/student/library",
+      "durationMs": 31242,
+      "requestCount": 12,
+      "requests": [
+        {
+          "url": "http://127.0.0.1:4173/assets/SoloResumeModal-qJe5WpgF.js",
+          "type": "script",
+          "method": "GET",
+          "responseStatus": 200,
+          "durationMs": -1774922421234,
+          "status": "finished"
+        },
+        {
+          "url": "http://127.0.0.1:4173/assets/StudentLibraryPage-CTQQfZHE.js",
+          "type": "script",
+          "method": "GET",
+          "responseStatus": 200,
+          "durationMs": -1774922421231,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17122&AID=100&zx=ajx6c8nvfy92&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922422521,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17123&AID=100&zx=lzb2yj78pk21&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922422520,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17124&AID=100&zx=lriodn7v7cqg&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922422525,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17125&AID=100&zx=b81bkst1f1di&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922422523,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17126&AID=116&zx=nkm7jbgrhf5e&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922422933,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17127&AID=116&zx=1gi8o5okbfo5&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922422933,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17128&AID=116&zx=lkcy972nklsd&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922422938,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17129&AID=116&zx=6muyvrgwxpaf&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922422783,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17130&AID=116&zx=kmalta3zsmzm&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922422788,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17131&AID=125&zx=xfwii8uzvjb5&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922423460,
+          "status": "finished"
+        }
+      ],
+      "console": [
+        {
+          "type": "log",
+          "text": "📚 Fetching library materials with filters: {source: my_courses}",
+          "at": 1774922421276
+        },
+        {
+          "type": "log",
+          "text": "✅ Found 17 materials",
+          "at": 1774922422594
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774922422598
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774922422599
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774922422599
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774922422599
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774922422599
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774922422599
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774922422599
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774922422599
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774922422599
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774922422823
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774922422823
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774922422823
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774922422823
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774922422824
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774922422824
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774922422824
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774922422824
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774922422824
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774922422828
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774922422828
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774922422828
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774922422828
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774922422828
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774922422828
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774922422828
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774922422828
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774922422828
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774922422829
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774922422829
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774922422829
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session E626GP has expired",
+          "at": 1774922422829
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IYJ7T5 has expired",
+          "at": 1774922422830
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NCR2AZ has expired",
+          "at": 1774922422832
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774922422833
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774922422833
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774922422833
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 54CVSF has expired",
+          "at": 1774922422833
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 82Q8C5 has expired",
+          "at": 1774922422833
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 8QLRKA has expired",
+          "at": 1774922422834
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 9LNLF0 has expired",
+          "at": 1774922422834
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session HARTDN has expired",
+          "at": 1774922422835
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IKBJGI has expired",
+          "at": 1774922422835
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NFFWY6 has expired",
+          "at": 1774922422836
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774922422836
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774922422836
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774922422836
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session OLCSUK has expired",
+          "at": 1774922422836
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session RGOXBN has expired",
+          "at": 1774922422837
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session TDD4QH has expired",
+          "at": 1774922422837
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774922422837
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774922422837
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774922422837
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session USAKC0 has expired",
+          "at": 1774922422837
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session UZDMFN has expired",
+          "at": 1774922422837
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session W8DQ8V has expired",
+          "at": 1774922422838
+        }
+      ]
+    },
+    {
+      "label": "preview-first-records",
+      "url": "http://127.0.0.1:4173/student/academic-record",
+      "durationMs": 31239,
+      "requestCount": 27,
+      "requests": [
+        {
+          "url": "http://127.0.0.1:4173/assets/IconChevronDown-KxUiVaYL.js",
+          "type": "script",
+          "method": "GET",
+          "responseStatus": 200,
+          "durationMs": -1774922452481,
+          "status": "finished"
+        },
+        {
+          "url": "http://127.0.0.1:4173/assets/IconChevronRight-Caqbm2dj.js",
+          "type": "script",
+          "method": "GET",
+          "responseStatus": 200,
+          "durationMs": -1774922452482,
+          "status": "finished"
+        },
+        {
+          "url": "http://127.0.0.1:4173/assets/academicRecordService-BKfAbFYQ.js",
+          "type": "script",
+          "method": "GET",
+          "responseStatus": 200,
+          "durationMs": -1774922452478,
+          "status": "finished"
+        },
+        {
+          "url": "http://127.0.0.1:4173/assets/IconInbox-sjMWT0ie.js",
+          "type": "script",
+          "method": "GET",
+          "responseStatus": 200,
+          "durationMs": -1774922452479,
+          "status": "finished"
+        },
+        {
+          "url": "http://127.0.0.1:4173/assets/AIMaintenanceBanner-Qmk4tQc9.js",
+          "type": "script",
+          "method": "GET",
+          "responseStatus": 200,
+          "durationMs": -1774922452482,
+          "status": "finished"
+        },
+        {
+          "url": "http://127.0.0.1:4173/assets/AcademicRecordPage-C1Tx5fLR.js",
+          "type": "script",
+          "method": "GET",
+          "responseStatus": 200,
+          "durationMs": -1774922452476,
+          "status": "finished"
+        },
+        {
+          "url": "http://127.0.0.1:4173/assets/ai-status.service-BMOc1W3f.js",
+          "type": "script",
+          "method": "GET",
+          "responseStatus": 200,
+          "durationMs": -1774922452480,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&RID=rpc&SID=hsHi5rN2A1kVZy8lBD5gLw&AID=73&CI=0&TYPE=xmlhttp&zx=hgrqqnxh8wjn&t=1",
+          "type": "fetch",
+          "method": "GET",
+          "responseStatus": null,
+          "durationMs": null,
+          "status": "failed",
+          "failureText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17132&AID=127&zx=770v2wvjedqk&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922452922,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17133&AID=127&zx=cehc5ressew9&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922452926,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17134&AID=127&zx=cr5d3qrcvab8&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922452931,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17135&AID=127&zx=ow6zs3f1c1c4&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922452759,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17136&AID=128&zx=a8h3xm4n4jng&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922453213,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17137&AID=138&zx=l9ci0uhutf2i&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922453328,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17138&AID=138&zx=1ngs4tbiz3eq&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922453329,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17139&AID=138&zx=gu812e6mde69&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922453331,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17140&AID=142&zx=gfbj9r57dcpi&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922453496,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17141&AID=142&zx=ct6oikj1r5r&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922453502,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17142&AID=146&zx=w1cfh8n9kstf&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922453587,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17143&AID=146&zx=q4ty3szdca0c&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922453591,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17144&AID=156&zx=jdd4o7bp3rad&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922453889,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17145&AID=161&zx=x9his55cdu3y&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922453978,
+          "status": "finished"
+        },
+        {
+          "url": "https://www.google-analytics.com/g/collect?v=2&tid=G-22R567RD5N&gtm=45je63u0h2v9229609035za200zd9229609035&_p=1774922325883&gcd=13l3l3l3l1l1&npa=0&dma=0&_fid=cy86zoF-XM_u55vktSC4gC&cid=1354739553.1774922326&ul=en-us&sr=1400x1000&uaa=arm&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=Windows&uapv=19.0.0&uaw=0&are=1&frm=0&pscdl=noapi&_eu=AAAAAAQ&_s=3&tag_exp=0~115616986~115938465~115938469~116133312~116991816~117266401~117384406~117484252~118128923&sid=1774922326&sct=1&seg=1&dl=http%3A%2F%2F127.0.0.1%2Fstudent%2Facademic-record&dt=kahoot&en=screen_view&_ee=1&ep.origin=firebase&ep.firebase_screen=%2Fstudent%2Facademic-record&ep.firebase_screen_class=academicRecords&_et=124757&tfd=135535",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": null,
+          "status": "failed",
+          "failureText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17146&AID=163&zx=rh75yrmby5ie&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922482209,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17147&AID=167&zx=dp7vwxz1d920&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922482573,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17148&AID=167&zx=l3lokec38909&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922482578,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17149&AID=170&zx=ijva7w5pni9o&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922482939,
+          "status": "finished"
+        }
+      ],
+      "console": [
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774922452963
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774922452963
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774922452963
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774922452963
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774922452963
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774922452963
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774922452963
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774922452963
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774922452963
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774922453239
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774922453239
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774922453239
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774922453239
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774922453239
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774922453239
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774922453239
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774922453239
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774922453239
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774922453243
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774922453243
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774922453244
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session E626GP has expired",
+          "at": 1774922453244
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IYJ7T5 has expired",
+          "at": 1774922453244
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NCR2AZ has expired",
+          "at": 1774922453244
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774922453245
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774922453245
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774922453245
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 54CVSF has expired",
+          "at": 1774922453245
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 82Q8C5 has expired",
+          "at": 1774922453245
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 8QLRKA has expired",
+          "at": 1774922453246
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 9LNLF0 has expired",
+          "at": 1774922453246
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session HARTDN has expired",
+          "at": 1774922453246
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IKBJGI has expired",
+          "at": 1774922453246
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NFFWY6 has expired",
+          "at": 1774922453247
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774922453247
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774922453247
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774922453247
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session OLCSUK has expired",
+          "at": 1774922453247
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session RGOXBN has expired",
+          "at": 1774922453247
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session TDD4QH has expired",
+          "at": 1774922453248
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774922453248
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774922453248
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774922453248
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session USAKC0 has expired",
+          "at": 1774922453248
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session UZDMFN has expired",
+          "at": 1774922453249
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session W8DQ8V has expired",
+          "at": 1774922453249
+        }
+      ]
+    },
+    {
+      "label": "preview-revisit-homework",
+      "url": "http://127.0.0.1:4173/student/homework",
+      "durationMs": 31248,
+      "requestCount": 10,
+      "requests": [
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17150&AID=173&zx=ynq355j1vmo4&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922483864,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17153&AID=173&zx=5v8a2d6v4nep&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922483713,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17151&AID=173&zx=o5cq1wix3hrb&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922483688,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17152&AID=173&zx=kaflw1q1k6jz&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922483691,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17154&AID=177&zx=3cd24thke6uu&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922484235,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17156&AID=189&zx=p4tm1br5gs4q&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922484265,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17157&AID=189&zx=mow3brndajml&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922484281,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17155&AID=189&zx=ypiztdarq04k&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922484244,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17158&AID=189&zx=hlxsc7o9t66b&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922484153,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17159&AID=196&zx=7vavmsqqaggr&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922485035,
+          "status": "finished"
+        }
+      ],
+      "console": [
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774922484165
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774922484167
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774922484167
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774922484167
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774922484167
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774922484167
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774922484167
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774922484167
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774922484167
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774922484172
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774922484172
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774922484172
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774922484172
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774922484173
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774922484173
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774922484173
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774922484173
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774922484173
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774922484177
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774922484177
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774922484177
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774922484177
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774922484177
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774922484177
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774922484177
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774922484178
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774922484178
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774922484384
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774922484384
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774922484384
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session E626GP has expired",
+          "at": 1774922484384
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IYJ7T5 has expired",
+          "at": 1774922484385
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NCR2AZ has expired",
+          "at": 1774922484387
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774922484388
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774922484388
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774922484388
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 54CVSF has expired",
+          "at": 1774922484388
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 82Q8C5 has expired",
+          "at": 1774922484388
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 8QLRKA has expired",
+          "at": 1774922484389
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 9LNLF0 has expired",
+          "at": 1774922484390
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session HARTDN has expired",
+          "at": 1774922484391
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IKBJGI has expired",
+          "at": 1774922484392
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NFFWY6 has expired",
+          "at": 1774922484392
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774922484393
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774922484393
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774922484393
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session OLCSUK has expired",
+          "at": 1774922484393
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session RGOXBN has expired",
+          "at": 1774922484395
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session TDD4QH has expired",
+          "at": 1774922484395
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774922484395
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774922484395
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774922484395
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session USAKC0 has expired",
+          "at": 1774922484395
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session UZDMFN has expired",
+          "at": 1774922484396
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session W8DQ8V has expired",
+          "at": 1774922484396
+        }
+      ]
+    },
+    {
+      "label": "preview-revisit-records",
+      "url": "http://127.0.0.1:4173/student/academic-record",
+      "durationMs": 31239,
+      "requestCount": 16,
+      "requests": [
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&RID=rpc&SID=hsHi5rN2A1kVZy8lBD5gLw&AID=127&CI=0&TYPE=xmlhttp&zx=bguc1nkhs2z&t=1",
+          "type": "fetch",
+          "method": "GET",
+          "responseStatus": null,
+          "durationMs": null,
+          "status": "failed",
+          "failureText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17160&AID=198&zx=gxojvdqb8cap&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922515261,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17161&AID=198&zx=a6rk5v197h5c&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922515262,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17163&AID=198&zx=4cv1603jf6uz&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922515110,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17162&AID=198&zx=zfd3ryth83ql&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922515097,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17164&AID=209&zx=n6oukrblt8sf&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922515774,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17166&AID=215&zx=92kwyp6esw9x&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922515306,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17167&AID=215&zx=z0igh5t9f0dk&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922515305,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17168&AID=215&zx=ttz7v9e7gyzh&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922515300,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17165&AID=209&zx=jxhej72sgnev&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922515242,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17169&AID=223&zx=tylltg5y6kpq&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922516816,
+          "status": "finished"
+        },
+        {
+          "url": "https://www.google-analytics.com/g/collect?v=2&tid=G-22R567RD5N&gtm=45je63u0h2v9229609035za200zd9229609035&_p=1774922325883&gcd=13l3l3l3l1l1&npa=0&dma=0&_fid=cy86zoF-XM_u55vktSC4gC&cid=1354739553.1774922326&ul=en-us&sr=1400x1000&uaa=arm&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=Windows&uapv=19.0.0&uaw=0&are=1&frm=0&pscdl=noapi&_eu=AAAAAAQ&_s=4&tag_exp=0~115616986~115938465~115938469~116133312~116991816~117266401~117384406~117484252~118128923&sid=1774922326&sct=1&seg=1&dl=http%3A%2F%2F127.0.0.1%2Fstudent%2Facademic-record&dt=kahoot&en=screen_view&_ee=1&ep.origin=firebase&ep.firebase_screen=%2Fstudent%2Facademic-record&ep.firebase_screen_class=academicRecords&_et=59984&tfd=195526",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": null,
+          "durationMs": null,
+          "status": "failed",
+          "failureText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17170&AID=224&zx=4m454cl96rwd&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922544670,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17171&AID=227&zx=yw0y5dcj94ae&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922545029,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17172&AID=227&zx=4mpicwk1hrak&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922545033,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17173&AID=230&zx=6z3w574erblr&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922545358,
+          "status": "finished"
+        }
+      ],
+      "console": [
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774922515424
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774922515424
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774922515424
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774922515424
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774922515424
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774922515424
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774922515424
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774922515424
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774922515424
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774922515563
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774922515563
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774922515564
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774922515565
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774922515565
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774922515565
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774922515565
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774922515565
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774922515565
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774922515654
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774922515654
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774922515654
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session E626GP has expired",
+          "at": 1774922515654
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IYJ7T5 has expired",
+          "at": 1774922515655
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NCR2AZ has expired",
+          "at": 1774922515655
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774922515657
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774922515657
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774922515657
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 54CVSF has expired",
+          "at": 1774922515657
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 82Q8C5 has expired",
+          "at": 1774922515657
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 8QLRKA has expired",
+          "at": 1774922515658
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 9LNLF0 has expired",
+          "at": 1774922515659
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session HARTDN has expired",
+          "at": 1774922515660
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IKBJGI has expired",
+          "at": 1774922515660
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NFFWY6 has expired",
+          "at": 1774922515661
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774922515661
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774922515661
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774922515661
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session OLCSUK has expired",
+          "at": 1774922515661
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session RGOXBN has expired",
+          "at": 1774922515662
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session TDD4QH has expired",
+          "at": 1774922515664
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774922515665
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774922515665
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774922515665
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session USAKC0 has expired",
+          "at": 1774922515665
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session UZDMFN has expired",
+          "at": 1774922515665
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session W8DQ8V has expired",
+          "at": 1774922515665
+        }
+      ]
+    },
+    {
+      "label": "preview-revisit-library",
+      "url": "http://127.0.0.1:4173/student/library",
+      "durationMs": 31246,
+      "requestCount": 11,
+      "requests": [
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17174&AID=233&zx=wsqr4wwe9rjp&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922546472,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17175&AID=233&zx=gbf9ofn2fp5v&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922546474,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17176&AID=233&zx=tzc73h7xmlgq&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922546476,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17177&AID=233&zx=v362i0napapw&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922546475,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17178&AID=249&zx=7yszzg33c9s4&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922546886,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17179&AID=249&zx=8xtg7vl06rt6&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922546886,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17180&AID=249&zx=q0bj7cp8incy&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922546889,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17181&AID=249&zx=k7mjyfmf2zh&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922546902,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17182&AID=249&zx=ciru0c6g85kv&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922546885,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&SID=hsHi5rN2A1kVZy8lBD5gLw&RID=17183&AID=257&zx=lif34e8zsw4h&t=1",
+          "type": "fetch",
+          "method": "POST",
+          "responseStatus": 200,
+          "durationMs": -1774922547254,
+          "status": "finished"
+        },
+        {
+          "url": "https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?gsessionid=8vq_iIEKgG4Basn91TPe15DJz9SKlboYdKM97Y45kfoqMJBiRAchpQ&VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&RID=rpc&SID=hsHi5rN2A1kVZy8lBD5gLw&AID=199&CI=0&TYPE=xmlhttp&zx=ehrmkxamtcrp&t=1",
+          "type": "fetch",
+          "method": "GET",
+          "responseStatus": null,
+          "durationMs": null,
+          "status": "failed",
+          "failureText": "net::ERR_ABORTED"
+        }
+      ],
+      "console": [
+        {
+          "type": "log",
+          "text": "📚 Fetching library materials with filters: {source: my_courses}",
+          "at": 1774922546233
+        },
+        {
+          "type": "log",
+          "text": "✅ Found 17 materials",
+          "at": 1774922546564
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774922546675
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774922546675
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774922546675
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774922546675
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774922546675
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774922546675
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774922546675
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774922546675
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774922546675
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774922546786
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774922546787
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774922546787
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774922546787
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774922546787
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774922546787
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774922546787
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774922546787
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774922546787
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: scanning 7 total classes for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\"",
+          "at": 1774922546789
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"KKK\" (2NE3KY)",
+          "at": 1774922546789
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 11\" (86Q6TJ) - not enrolled. Students: [Object]",
+          "at": 1774922546789
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"DD-IELTS-1\" (E3N6PX) - not enrolled. Students: [Object]",
+          "at": 1774922546789
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"MD-IELTS-1\" (FN5U8C)",
+          "at": 1774922546789
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   ✅ ENROLLED in class \"Grade 10\" (K8DAV4)",
+          "at": 1774922546789
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"Grade 9\" (VGSFN9) - not enrolled. Students: [Object]",
+          "at": 1774922546789
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG]   class \"undefined\" (undefined) - not enrolled. Students: [Object, Object, Object, Object]",
+          "at": 1774922546789
+        },
+        {
+          "type": "log",
+          "text": "[Courses DEBUG] getStudentClasses: found 3 enrolled classes",
+          "at": 1774922546789
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774922546893
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774922546893
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774922546893
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session E626GP has expired",
+          "at": 1774922546893
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IYJ7T5 has expired",
+          "at": 1774922546895
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NCR2AZ has expired",
+          "at": 1774922546896
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774922546897
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774922546897
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774922546897
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 54CVSF has expired",
+          "at": 1774922546897
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 82Q8C5 has expired",
+          "at": 1774922546897
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 8QLRKA has expired",
+          "at": 1774922546897
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session 9LNLF0 has expired",
+          "at": 1774922546898
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session HARTDN has expired",
+          "at": 1774922546898
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session IKBJGI has expired",
+          "at": 1774922546898
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session NFFWY6 has expired",
+          "at": 1774922546898
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774922546899
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774922546899
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774922546899
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session OLCSUK has expired",
+          "at": 1774922546899
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session RGOXBN has expired",
+          "at": 1774922546899
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session TDD4QH has expired",
+          "at": 1774922546900
+        },
+        {
+          "type": "log",
+          "text": "📋 [Session] Old format detected, auto-migrating...",
+          "at": 1774922546900
+        },
+        {
+          "type": "log",
+          "text": "🔄 [Migration] Converting old session format to new class format",
+          "at": 1774922546900
+        },
+        {
+          "type": "log",
+          "text": "✅ [Migration] Conversion complete",
+          "at": 1774922546900
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session USAKC0 has expired",
+          "at": 1774922546900
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session UZDMFN has expired",
+          "at": 1774922546901
+        },
+        {
+          "type": "warning",
+          "text": "⚠️ Session W8DQ8V has expired",
+          "at": 1774922546901
+        }
+      ]
+    }
+  ]
+}

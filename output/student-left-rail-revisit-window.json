@@ -1,0 +1,309 @@
+{
+  "generatedAt": "2026-03-31T03:17:18.311Z",
+  "baseUrl": "http://127.0.0.1:4173",
+  "firstVisits": [
+    {
+      "label": "Courses",
+      "url": "http://127.0.0.1:4173/student/courses",
+      "loaderVisibleAfter1200ms": true,
+      "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nMy Courses\nActive\nExpired\nPending (0)\nAll Courses\n\nLoading your courses...\n\nUp Next\n\nTHCS Test\n\nOverdue • KKK\n\n[G9] ĐỀ KIỂM TRA GIỮA HỌC KÌ - TEST 3 ("
+    },
+    {
+      "label": "Library",
+      "url": "http://127.0.0.1:4173/student/library",
+      "loaderVisibleAfter1200ms": true,
+      "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nPractice Library\nMy Courses\nPublic Library\nRecommended\nRecent\nSearch\nFilters\n0 materials found\n\nLoading materials...\n\nUp Next\n\nTHCS Test\n\nOverdue • KK"
+    },
+    {
+      "label": "Records",
+      "url": "http://127.0.0.1:4173/student/academic-record",
+      "loaderVisibleAfter1200ms": false,
+      "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nAcademic Record\nAll Time\nLast 7 Days\nLast 30 Days\nLast 3 Months\nLast Year\nOverview\nTHCS\nIELTS\nWriting\nCourse\nTOTAL TESTS\n34\nRecorded attempts\nAVERAGE "
+    }
+  ],
+  "revisits": [
+    {
+      "label": "Courses",
+      "urlBeforeClick": "http://127.0.0.1:4173/student/academic-record",
+      "durationMs": 500,
+      "loaderSeen": false,
+      "firstContentSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nMy Courses\nActive\nExpired\nPending (0)\nAll Courses\nACTIVE\nExpires: 2/23/3025\nIELTS Cambridge 10\n\nby Hưng Nguyễn Đạt\n\nProgress\n0%\nCLASS ENROLLMENT\nConti",
+      "sampleCount": 16,
+      "samples": [
+        {
+          "t": 8,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nMy Courses\nActive\nExpired\nPending (0)\nAll Courses\nACTIVE\nExpires: 2/23/3025\nIELTS Cambridge 10\n\nby Hưng Nguyễn Đạt\n\nProgress\n0%\nCLASS ENROLLMENT\nConti"
+        },
+        {
+          "t": 39,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nMy Courses\nActive\nExpired\nPending (0)\nAll Courses\nACTIVE\nExpires: 2/23/3025\nIELTS Cambridge 10\n\nby Hưng Nguyễn Đạt\n\nProgress\n0%\nCLASS ENROLLMENT\nConti"
+        },
+        {
+          "t": 73,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nMy Courses\nActive\nExpired\nPending (0)\nAll Courses\nACTIVE\nExpires: 2/23/3025\nIELTS Cambridge 10\n\nby Hưng Nguyễn Đạt\n\nProgress\n0%\nCLASS ENROLLMENT\nConti"
+        },
+        {
+          "t": 106,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nMy Courses\nActive\nExpired\nPending (0)\nAll Courses\nACTIVE\nExpires: 2/23/3025\nIELTS Cambridge 10\n\nby Hưng Nguyễn Đạt\n\nProgress\n0%\nCLASS ENROLLMENT\nConti"
+        },
+        {
+          "t": 139,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nMy Courses\nActive\nExpired\nPending (0)\nAll Courses\nACTIVE\nExpires: 2/23/3025\nIELTS Cambridge 10\n\nby Hưng Nguyễn Đạt\n\nProgress\n0%\nCLASS ENROLLMENT\nConti"
+        },
+        {
+          "t": 169,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nMy Courses\nActive\nExpired\nPending (0)\nAll Courses\nACTIVE\nExpires: 2/23/3025\nIELTS Cambridge 10\n\nby Hưng Nguyễn Đạt\n\nProgress\n0%\nCLASS ENROLLMENT\nConti"
+        },
+        {
+          "t": 198,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nMy Courses\nActive\nExpired\nPending (0)\nAll Courses\nACTIVE\nExpires: 2/23/3025\nIELTS Cambridge 10\n\nby Hưng Nguyễn Đạt\n\nProgress\n0%\nCLASS ENROLLMENT\nConti"
+        },
+        {
+          "t": 227,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nMy Courses\nActive\nExpired\nPending (0)\nAll Courses\nACTIVE\nExpires: 2/23/3025\nIELTS Cambridge 10\n\nby Hưng Nguyễn Đạt\n\nProgress\n0%\nCLASS ENROLLMENT\nConti"
+        },
+        {
+          "t": 256,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nMy Courses\nActive\nExpired\nPending (0)\nAll Courses\nACTIVE\nExpires: 2/23/3025\nIELTS Cambridge 10\n\nby Hưng Nguyễn Đạt\n\nProgress\n0%\nCLASS ENROLLMENT\nConti"
+        },
+        {
+          "t": 293,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nMy Courses\nActive\nExpired\nPending (0)\nAll Courses\nACTIVE\nExpires: 2/23/3025\nIELTS Cambridge 10\n\nby Hưng Nguyễn Đạt\n\nProgress\n0%\nCLASS ENROLLMENT\nConti"
+        },
+        {
+          "t": 332,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nMy Courses\nActive\nExpired\nPending (0)\nAll Courses\nACTIVE\nExpires: 2/23/3025\nIELTS Cambridge 10\n\nby Hưng Nguyễn Đạt\n\nProgress\n0%\nCLASS ENROLLMENT\nConti"
+        },
+        {
+          "t": 364,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nMy Courses\nActive\nExpired\nPending (0)\nAll Courses\nACTIVE\nExpires: 2/23/3025\nIELTS Cambridge 10\n\nby Hưng Nguyễn Đạt\n\nProgress\n0%\nCLASS ENROLLMENT\nConti"
+        },
+        {
+          "t": 397,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nMy Courses\nActive\nExpired\nPending (0)\nAll Courses\nACTIVE\nExpires: 2/23/3025\nIELTS Cambridge 10\n\nby Hưng Nguyễn Đạt\n\nProgress\n0%\nCLASS ENROLLMENT\nConti"
+        },
+        {
+          "t": 432,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nMy Courses\nActive\nExpired\nPending (0)\nAll Courses\nACTIVE\nExpires: 2/23/3025\nIELTS Cambridge 10\n\nby Hưng Nguyễn Đạt\n\nProgress\n0%\nCLASS ENROLLMENT\nConti"
+        },
+        {
+          "t": 464,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nMy Courses\nActive\nExpired\nPending (0)\nAll Courses\nACTIVE\nExpires: 2/23/3025\nIELTS Cambridge 10\n\nby Hưng Nguyễn Đạt\n\nProgress\n0%\nCLASS ENROLLMENT\nConti"
+        },
+        {
+          "t": 493,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nMy Courses\nActive\nExpired\nPending (0)\nAll Courses\nACTIVE\nExpires: 2/23/3025\nIELTS Cambridge 10\n\nby Hưng Nguyễn Đạt\n\nProgress\n0%\nCLASS ENROLLMENT\nConti"
+        }
+      ],
+      "urlAfterClick": "http://127.0.0.1:4173/student/courses"
+    },
+    {
+      "label": "Library",
+      "urlBeforeClick": "http://127.0.0.1:4173/student/academic-record",
+      "durationMs": 500,
+      "loaderSeen": false,
+      "firstContentSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nPractice Library\nMy Courses\nPublic Library\nRecommended\nRecent\nSearch\nFilters\n17 materials found\nPage 1 of 2\nInter - Task 1 - Lesson 2\nREADING\nTEST\n1 q",
+      "sampleCount": 17,
+      "samples": [
+        {
+          "t": 4,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nPractice Library\nMy Courses\nPublic Library\nRecommended\nRecent\nSearch\nFilters\n17 materials found\nPage 1 of 2\nInter - Task 1 - Lesson 2\nREADING\nTEST\n1 q"
+        },
+        {
+          "t": 33,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nPractice Library\nMy Courses\nPublic Library\nRecommended\nRecent\nSearch\nFilters\n17 materials found\nPage 1 of 2\nInter - Task 1 - Lesson 2\nREADING\nTEST\n1 q"
+        },
+        {
+          "t": 69,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nPractice Library\nMy Courses\nPublic Library\nRecommended\nRecent\nSearch\nFilters\n17 materials found\nPage 1 of 2\nInter - Task 1 - Lesson 2\nREADING\nTEST\n1 q"
+        },
+        {
+          "t": 99,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nPractice Library\nMy Courses\nPublic Library\nRecommended\nRecent\nSearch\nFilters\n17 materials found\nPage 1 of 2\nInter - Task 1 - Lesson 2\nREADING\nTEST\n1 q"
+        },
+        {
+          "t": 133,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nPractice Library\nMy Courses\nPublic Library\nRecommended\nRecent\nSearch\nFilters\n17 materials found\nPage 1 of 2\nInter - Task 1 - Lesson 2\nREADING\nTEST\n1 q"
+        },
+        {
+          "t": 165,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nPractice Library\nMy Courses\nPublic Library\nRecommended\nRecent\nSearch\nFilters\n17 materials found\nPage 1 of 2\nInter - Task 1 - Lesson 2\nREADING\nTEST\n1 q"
+        },
+        {
+          "t": 195,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nPractice Library\nMy Courses\nPublic Library\nRecommended\nRecent\nSearch\nFilters\n17 materials found\nPage 1 of 2\nInter - Task 1 - Lesson 2\nREADING\nTEST\n1 q"
+        },
+        {
+          "t": 227,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nPractice Library\nMy Courses\nPublic Library\nRecommended\nRecent\nSearch\nFilters\n17 materials found\nPage 1 of 2\nInter - Task 1 - Lesson 2\nREADING\nTEST\n1 q"
+        },
+        {
+          "t": 255,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nPractice Library\nMy Courses\nPublic Library\nRecommended\nRecent\nSearch\nFilters\n17 materials found\nPage 1 of 2\nInter - Task 1 - Lesson 2\nREADING\nTEST\n1 q"
+        },
+        {
+          "t": 282,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nPractice Library\nMy Courses\nPublic Library\nRecommended\nRecent\nSearch\nFilters\n17 materials found\nPage 1 of 2\nInter - Task 1 - Lesson 2\nREADING\nTEST\n1 q"
+        },
+        {
+          "t": 311,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nPractice Library\nMy Courses\nPublic Library\nRecommended\nRecent\nSearch\nFilters\n17 materials found\nPage 1 of 2\nInter - Task 1 - Lesson 2\nREADING\nTEST\n1 q"
+        },
+        {
+          "t": 341,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nPractice Library\nMy Courses\nPublic Library\nRecommended\nRecent\nSearch\nFilters\n17 materials found\nPage 1 of 2\nInter - Task 1 - Lesson 2\nREADING\nTEST\n1 q"
+        },
+        {
+          "t": 373,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nPractice Library\nMy Courses\nPublic Library\nRecommended\nRecent\nSearch\nFilters\n17 materials found\nPage 1 of 2\nInter - Task 1 - Lesson 2\nREADING\nTEST\n1 q"
+        },
+        {
+          "t": 402,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nPractice Library\nMy Courses\nPublic Library\nRecommended\nRecent\nSearch\nFilters\n17 materials found\nPage 1 of 2\nInter - Task 1 - Lesson 2\nREADING\nTEST\n1 q"
+        },
+        {
+          "t": 433,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nPractice Library\nMy Courses\nPublic Library\nRecommended\nRecent\nSearch\nFilters\n17 materials found\nPage 1 of 2\nInter - Task 1 - Lesson 2\nREADING\nTEST\n1 q"
+        },
+        {
+          "t": 465,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nPractice Library\nMy Courses\nPublic Library\nRecommended\nRecent\nSearch\nFilters\n17 materials found\nPage 1 of 2\nInter - Task 1 - Lesson 2\nREADING\nTEST\n1 q"
+        },
+        {
+          "t": 491,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nPractice Library\nMy Courses\nPublic Library\nRecommended\nRecent\nSearch\nFilters\n17 materials found\nPage 1 of 2\nInter - Task 1 - Lesson 2\nREADING\nTEST\n1 q"
+        }
+      ],
+      "urlAfterClick": "http://127.0.0.1:4173/student/library"
+    },
+    {
+      "label": "Records",
+      "urlBeforeClick": "http://127.0.0.1:4173/student/courses",
+      "durationMs": 500,
+      "loaderSeen": false,
+      "firstContentSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nAcademic Record\nAll Time\nLast 7 Days\nLast 30 Days\nLast 3 Months\nLast Year\nOverview\nTHCS\nIELTS\nWriting\nCourse\nTOTAL TESTS\n34\nRecorded attempts\nAVERAGE ",
+      "sampleCount": 17,
+      "samples": [
+        {
+          "t": 4,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nAcademic Record\nAll Time\nLast 7 Days\nLast 30 Days\nLast 3 Months\nLast Year\nOverview\nTHCS\nIELTS\nWriting\nCourse\nTOTAL TESTS\n34\nRecorded attempts\nAVERAGE "
+        },
+        {
+          "t": 33,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nAcademic Record\nAll Time\nLast 7 Days\nLast 30 Days\nLast 3 Months\nLast Year\nOverview\nTHCS\nIELTS\nWriting\nCourse\nTOTAL TESTS\n34\nRecorded attempts\nAVERAGE "
+        },
+        {
+          "t": 66,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nAcademic Record\nAll Time\nLast 7 Days\nLast 30 Days\nLast 3 Months\nLast Year\nOverview\nTHCS\nIELTS\nWriting\nCourse\nTOTAL TESTS\n34\nRecorded attempts\nAVERAGE "
+        },
+        {
+          "t": 94,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nAcademic Record\nAll Time\nLast 7 Days\nLast 30 Days\nLast 3 Months\nLast Year\nOverview\nTHCS\nIELTS\nWriting\nCourse\nTOTAL TESTS\n34\nRecorded attempts\nAVERAGE "
+        },
+        {
+          "t": 124,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nAcademic Record\nAll Time\nLast 7 Days\nLast 30 Days\nLast 3 Months\nLast Year\nOverview\nTHCS\nIELTS\nWriting\nCourse\nTOTAL TESTS\n34\nRecorded attempts\nAVERAGE "
+        },
+        {
+          "t": 156,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nAcademic Record\nAll Time\nLast 7 Days\nLast 30 Days\nLast 3 Months\nLast Year\nOverview\nTHCS\nIELTS\nWriting\nCourse\nTOTAL TESTS\n34\nRecorded attempts\nAVERAGE "
+        },
+        {
+          "t": 187,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nAcademic Record\nAll Time\nLast 7 Days\nLast 30 Days\nLast 3 Months\nLast Year\nOverview\nTHCS\nIELTS\nWriting\nCourse\nTOTAL TESTS\n34\nRecorded attempts\nAVERAGE "
+        },
+        {
+          "t": 220,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nAcademic Record\nAll Time\nLast 7 Days\nLast 30 Days\nLast 3 Months\nLast Year\nOverview\nTHCS\nIELTS\nWriting\nCourse\nTOTAL TESTS\n34\nRecorded attempts\nAVERAGE "
+        },
+        {
+          "t": 250,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nAcademic Record\nAll Time\nLast 7 Days\nLast 30 Days\nLast 3 Months\nLast Year\nOverview\nTHCS\nIELTS\nWriting\nCourse\nTOTAL TESTS\n34\nRecorded attempts\nAVERAGE "
+        },
+        {
+          "t": 282,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nAcademic Record\nAll Time\nLast 7 Days\nLast 30 Days\nLast 3 Months\nLast Year\nOverview\nTHCS\nIELTS\nWriting\nCourse\nTOTAL TESTS\n34\nRecorded attempts\nAVERAGE "
+        },
+        {
+          "t": 310,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nAcademic Record\nAll Time\nLast 7 Days\nLast 30 Days\nLast 3 Months\nLast Year\nOverview\nTHCS\nIELTS\nWriting\nCourse\nTOTAL TESTS\n34\nRecorded attempts\nAVERAGE "
+        },
+        {
+          "t": 340,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nAcademic Record\nAll Time\nLast 7 Days\nLast 30 Days\nLast 3 Months\nLast Year\nOverview\nTHCS\nIELTS\nWriting\nCourse\nTOTAL TESTS\n34\nRecorded attempts\nAVERAGE "
+        },
+        {
+          "t": 367,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nAcademic Record\nAll Time\nLast 7 Days\nLast 30 Days\nLast 3 Months\nLast Year\nOverview\nTHCS\nIELTS\nWriting\nCourse\nTOTAL TESTS\n34\nRecorded attempts\nAVERAGE "
+        },
+        {
+          "t": 400,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nAcademic Record\nAll Time\nLast 7 Days\nLast 30 Days\nLast 3 Months\nLast Year\nOverview\nTHCS\nIELTS\nWriting\nCourse\nTOTAL TESTS\n34\nRecorded attempts\nAVERAGE "
+        },
+        {
+          "t": 436,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nAcademic Record\nAll Time\nLast 7 Days\nLast 30 Days\nLast 3 Months\nLast Year\nOverview\nTHCS\nIELTS\nWriting\nCourse\nTOTAL TESTS\n34\nRecorded attempts\nAVERAGE "
+        },
+        {
+          "t": 462,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nAcademic Record\nAll Time\nLast 7 Days\nLast 30 Days\nLast 3 Months\nLast Year\nOverview\nTHCS\nIELTS\nWriting\nCourse\nTOTAL TESTS\n34\nRecorded attempts\nAVERAGE "
+        },
+        {
+          "t": 491,
+          "loaderMatches": [],
+          "textSnippet": "StudentDash\nFeed\nClasses\nHomework\nCourses\nLibrary\nRecords\nProfile\nJoin Class\n\nStudent Test\n\nstudent@test.com\n\nAcademic Record\nAll Time\nLast 7 Days\nLast 30 Days\nLast 3 Months\nLast Year\nOverview\nTHCS\nIELTS\nWriting\nCourse\nTOTAL TESTS\n34\nRecorded attempts\nAVERAGE "
+        }
+      ],
+      "urlAfterClick": "http://127.0.0.1:4173/student/academic-record"
+    }
+  ]
+}

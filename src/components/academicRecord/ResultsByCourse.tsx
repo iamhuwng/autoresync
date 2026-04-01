@@ -28,8 +28,8 @@ const styles: Record<string, React.CSSProperties> = {
     },
     summaryGrid: {
         display: 'grid',
-        gridTemplateColumns: 'repeat(4, 1fr)',
-        gap: 32,
+        gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+        gap: 16,
     },
     summaryCard: {
         background: '#ffffff',

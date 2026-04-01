@@ -1,0 +1,383 @@
+- generic [ref=e620]:
+  - banner [ref=e621]:
+    - generic [ref=e622]:
+      - generic [ref=e623]:
+        - generic [ref=e624]: The Scholar
+        - paragraph [ref=e625]: Academic Workspace
+      - navigation [ref=e626]:
+        - button "Feed" [ref=e627] [cursor=pointer]:
+          - img [ref=e628]
+          - text: Feed
+        - button "Classes" [ref=e630] [cursor=pointer]:
+          - img [ref=e631]
+          - text: Classes
+        - button "Homework" [ref=e634] [cursor=pointer]:
+          - img [ref=e635]
+          - text: Homework
+        - button "Courses" [ref=e637] [cursor=pointer]:
+          - img [ref=e638]
+          - text: Courses
+        - button "Library" [ref=e640] [cursor=pointer]:
+          - img [ref=e641]
+          - text: Library
+        - button "Records" [ref=e643] [cursor=pointer]:
+          - img [ref=e644]
+          - text: Records
+        - button "Profile" [ref=e646] [cursor=pointer]:
+          - img [ref=e647]
+          - text: Profile
+      - generic [ref=e649]:
+        - button "Join Class" [ref=e650] [cursor=pointer]
+        - button "Student Test Student Test student@test.com" [ref=e652] [cursor=pointer]:
+          - img "Student Test" [ref=e654]
+          - generic [ref=e655]:
+            - paragraph [ref=e656]: Student Test
+            - paragraph [ref=e657]: student@test.com
+          - img [ref=e659]
+  - main [ref=e661]:
+    - generic [ref=e663]:
+      - heading "Feed" [level=2] [ref=e664]
+      - paragraph [ref=e665]: A calmer activity workspace for homework, live sessions, and recent academic movement.
+    - generic [ref=e666]:
+      - button "All" [ref=e667] [cursor=pointer]
+      - button "Homework" [ref=e668] [cursor=pointer]
+      - button "Tests" [ref=e669] [cursor=pointer]
+      - button "Classes" [ref=e670] [cursor=pointer]
+    - generic [ref=e672]:
+      - generic [ref=e673]:
+        - generic [ref=e674]:
+          - paragraph [ref=e675]: Activity
+          - paragraph [ref=e676]: "20"
+          - paragraph [ref=e677]: 20 in current view
+        - generic [ref=e678]:
+          - paragraph [ref=e679]: Homework Due
+          - paragraph [ref=e680]: "3"
+          - paragraph [ref=e681]: No pending start
+        - generic [ref=e682]:
+          - paragraph [ref=e683]: Live Now
+          - paragraph [ref=e684]: "0"
+          - paragraph [ref=e685]: No active class sessions
+        - generic [ref=e686]:
+          - paragraph [ref=e687]: Classes
+          - paragraph [ref=e688]: "2"
+          - paragraph [ref=e689]: Your active learning spaces
+      - generic [ref=e690]:
+        - article [ref=e691] [cursor=pointer]:
+          - generic [ref=e692]:
+            - generic [ref=e693]: �
+            - generic [ref=e694]:
+              - generic [ref=e695]:
+                - heading "📊 Writing Graded" [level=3] [ref=e696]
+                - generic [ref=e697]: Update
+                - generic [ref=e698]: · Yesterday
+              - generic [ref=e699]: "teacher@test.com has graded your essay \"Inter - Task 1 - Lesson 2\". Overall Band: 6.0"
+              - generic [ref=e701]:
+                - generic [ref=e702]:
+                  - paragraph [ref=e703]: Next Step
+                  - paragraph [ref=e704]: Open this update
+                - button "Open" [ref=e705]
+        - article [ref=e706] [cursor=pointer]:
+          - generic [ref=e707]:
+            - generic [ref=e708]: �
+            - generic [ref=e709]:
+              - generic [ref=e710]:
+                - heading "📊 Writing Graded" [level=3] [ref=e711]
+                - generic [ref=e712]: Update
+                - generic [ref=e713]: · Yesterday
+              - generic [ref=e714]: "teacher@test.com has graded your essay \"Inter - Task 1 - Lesson 2\". Overall Band: 6.0"
+              - generic [ref=e716]:
+                - generic [ref=e717]:
+                  - paragraph [ref=e718]: Next Step
+                  - paragraph [ref=e719]: Open this update
+                - button "Open" [ref=e720]
+        - article [ref=e721] [cursor=pointer]:
+          - generic [ref=e722]:
+            - img [ref=e724]
+            - generic [ref=e726]:
+              - generic [ref=e727]:
+                - heading "✅ Test Completed" [level=3] [ref=e728]
+                - generic [ref=e729]: Test
+                - generic [ref=e730]: · 2d
+              - generic [ref=e731]: "\"Inter - Task 1 - Lesson 2\" session has ended. View your results."
+              - generic [ref=e732]:
+                - paragraph [ref=e733]: Inter - Task 1 - Lesson 2
+                - button "Start Now" [ref=e734]
+        - article [ref=e735] [cursor=pointer]:
+          - generic [ref=e736]:
+            - img [ref=e738]
+            - generic [ref=e740]:
+              - generic [ref=e741]:
+                - heading "📝 Test Started" [level=3] [ref=e742]
+                - generic [ref=e743]: Test
+                - generic [ref=e744]: · 2d
+              - generic [ref=e745]: "\"Inter - Task 1 - Lesson 2\" has started in your class. Join now if you haven't already."
+              - generic [ref=e746]:
+                - paragraph [ref=e747]: Inter - Task 1 - Lesson 2
+                - button "Start Now" [ref=e748]
+        - article [ref=e749] [cursor=pointer]:
+          - generic [ref=e750]:
+            - generic [ref=e751]: �
+            - generic [ref=e752]:
+              - generic [ref=e753]:
+                - heading "📚 New Session Available" [level=3] [ref=e754]
+                - generic [ref=e755]: Test
+                - generic [ref=e756]: · 2d
+              - generic [ref=e757]: KKK has a new test session ready. Join with code ZYA3LN.
+              - generic [ref=e759]:
+                - generic [ref=e760]:
+                  - paragraph [ref=e761]: Next Step
+                  - paragraph [ref=e762]: Open this update
+                - button "Join Session" [ref=e763]
+        - article [ref=e764] [cursor=pointer]:
+          - generic [ref=e765]:
+            - img [ref=e767]
+            - generic [ref=e769]:
+              - generic [ref=e770]:
+                - heading "✅ Test Completed" [level=3] [ref=e771]
+                - generic [ref=e772]: Test
+                - generic [ref=e773]: · 2d
+              - generic [ref=e774]: "\"Inter - Task 1 - Lesson 2\" session has ended. View your results."
+              - generic [ref=e775]:
+                - paragraph [ref=e776]: Inter - Task 1 - Lesson 2
+                - button "Start Now" [ref=e777]
+        - article [ref=e778] [cursor=pointer]:
+          - generic [ref=e779]:
+            - img [ref=e781]
+            - generic [ref=e783]:
+              - generic [ref=e784]:
+                - heading "✅ Test Complete" [level=3] [ref=e785]
+                - generic [ref=e786]: Test
+                - generic [ref=e787]: · 2d
+              - generic [ref=e788]: "You completed \"Inter - Task 1 - Lesson 2\". Score: 0/1"
+              - generic [ref=e789]:
+                - generic [ref=e790]:
+                  - paragraph [ref=e791]: Score
+                  - paragraph [ref=e792]: 0/1
+                - button "View Details" [ref=e793]
+        - article [ref=e794] [cursor=pointer]:
+          - generic [ref=e795]:
+            - img [ref=e797]
+            - generic [ref=e799]:
+              - generic [ref=e800]:
+                - heading "📝 Test Started" [level=3] [ref=e801]
+                - generic [ref=e802]: Test
+                - generic [ref=e803]: · 2d
+              - generic [ref=e804]: "\"Inter - Task 1 - Lesson 2\" has started in your class. Join now if you haven't already."
+              - generic [ref=e805]:
+                - paragraph [ref=e806]: Inter - Task 1 - Lesson 2
+                - button "Start Now" [ref=e807]
+        - article [ref=e808] [cursor=pointer]:
+          - generic [ref=e809]:
+            - generic [ref=e810]: �
+            - generic [ref=e811]:
+              - generic [ref=e812]:
+                - heading "📚 New Session Available" [level=3] [ref=e813]
+                - generic [ref=e814]: Test
+                - generic [ref=e815]: · 2d
+              - generic [ref=e816]: KKK has a new test session ready. Join with code FMQYME.
+              - generic [ref=e818]:
+                - generic [ref=e819]:
+                  - paragraph [ref=e820]: Next Step
+                  - paragraph [ref=e821]: Open this update
+                - button "Join Session" [ref=e822]
+        - article [ref=e823] [cursor=pointer]:
+          - generic [ref=e824]:
+            - img [ref=e826]
+            - generic [ref=e828]:
+              - generic [ref=e829]:
+                - heading "✅ Test Completed" [level=3] [ref=e830]
+                - generic [ref=e831]: Test
+                - generic [ref=e832]: · 2d
+              - generic [ref=e833]: "\"Inter - Supplement - Reading - Lesson 6\" session has ended. View your results."
+              - generic [ref=e834]:
+                - paragraph [ref=e835]: Inter - Supplement - Reading - Lesson 6
+                - button "Start Now" [ref=e836]
+        - article [ref=e837] [cursor=pointer]:
+          - generic [ref=e838]:
+            - img [ref=e840]
+            - generic [ref=e842]:
+              - generic [ref=e843]:
+                - heading "✅ Test Complete" [level=3] [ref=e844]
+                - generic [ref=e845]: Test
+                - generic [ref=e846]: · 2d
+              - generic [ref=e847]: "You completed \"Inter - Supplement - Reading - Lesson 6\". Score: 0/19"
+              - generic [ref=e848]:
+                - generic [ref=e849]:
+                  - paragraph [ref=e850]: Score
+                  - paragraph [ref=e851]: 0/19
+                - button "View Details" [ref=e852]
+        - article [ref=e853] [cursor=pointer]:
+          - generic [ref=e854]:
+            - img [ref=e856]
+            - generic [ref=e858]:
+              - generic [ref=e859]:
+                - heading "📝 Test Started" [level=3] [ref=e860]
+                - generic [ref=e861]: Test
+                - generic [ref=e862]: · 2d
+              - generic [ref=e863]: "\"Inter - Supplement - Reading - Lesson 6\" has started in your class. Join now if you haven't already."
+              - generic [ref=e864]:
+                - paragraph [ref=e865]: Inter - Supplement - Reading - Lesson 6
+                - button "Start Now" [ref=e866]
+        - article [ref=e867] [cursor=pointer]:
+          - generic [ref=e868]:
+            - generic [ref=e869]: �
+            - generic [ref=e870]:
+              - generic [ref=e871]:
+                - heading "📚 New Session Available" [level=3] [ref=e872]
+                - generic [ref=e873]: Test
+                - generic [ref=e874]: · 2d
+              - generic [ref=e875]: KKK has a new test session ready. Join with code LCKOAW.
+              - generic [ref=e877]:
+                - generic [ref=e878]:
+                  - paragraph [ref=e879]: Next Step
+                  - paragraph [ref=e880]: Open this update
+                - button "Join Session" [ref=e881]
+        - article [ref=e882] [cursor=pointer]:
+          - generic [ref=e883]:
+            - img [ref=e885]
+            - generic [ref=e887]:
+              - generic [ref=e888]:
+                - heading "✅ Test Completed" [level=3] [ref=e889]
+                - generic [ref=e890]: Test
+                - generic [ref=e891]: · 2d
+              - generic [ref=e892]: "\"Inter - Supplement - Reading - Lesson 6\" session has ended. View your results."
+              - generic [ref=e893]:
+                - paragraph [ref=e894]: Inter - Supplement - Reading - Lesson 6
+                - button "Start Now" [ref=e895]
+        - article [ref=e896] [cursor=pointer]:
+          - generic [ref=e897]:
+            - img [ref=e899]
+            - generic [ref=e901]:
+              - generic [ref=e902]:
+                - heading "✅ Test Complete" [level=3] [ref=e903]
+                - generic [ref=e904]: Test
+                - generic [ref=e905]: · 2d
+              - generic [ref=e906]: "You completed \"Inter - Supplement - Reading - Lesson 6\". Score: 0/19"
+              - generic [ref=e907]:
+                - generic [ref=e908]:
+                  - paragraph [ref=e909]: Score
+                  - paragraph [ref=e910]: 0/19
+                - button "View Details" [ref=e911]
+        - article [ref=e912] [cursor=pointer]:
+          - generic [ref=e913]:
+            - img [ref=e915]
+            - generic [ref=e917]:
+              - generic [ref=e918]:
+                - heading "📝 Test Started" [level=3] [ref=e919]
+                - generic [ref=e920]: Test
+                - generic [ref=e921]: · 2d
+              - generic [ref=e922]: "\"Inter - Supplement - Reading - Lesson 6\" has started in your class. Join now if you haven't already."
+              - generic [ref=e923]:
+                - paragraph [ref=e924]: Inter - Supplement - Reading - Lesson 6
+                - button "Start Now" [ref=e925]
+        - article [ref=e926] [cursor=pointer]:
+          - generic [ref=e927]:
+            - generic [ref=e928]: �
+            - generic [ref=e929]:
+              - generic [ref=e930]:
+                - heading "📚 New Session Available" [level=3] [ref=e931]
+                - generic [ref=e932]: Test
+                - generic [ref=e933]: · 2d
+              - generic [ref=e934]: KKK has a new test session ready. Join with code K3K8HP.
+              - generic [ref=e936]:
+                - generic [ref=e937]:
+                  - paragraph [ref=e938]: Next Step
+                  - paragraph [ref=e939]: Open this update
+                - button "Join Session" [ref=e940]
+        - article [ref=e941] [cursor=pointer]:
+          - generic [ref=e942]:
+            - img [ref=e944]
+            - generic [ref=e946]:
+              - generic [ref=e947]:
+                - heading "✅ Test Completed" [level=3] [ref=e948]
+                - generic [ref=e949]: Test
+                - generic [ref=e950]: · 2d
+              - generic [ref=e951]: "\"Inter - Supplement - Reading - Lesson 6\" session has ended. View your results."
+              - generic [ref=e952]:
+                - paragraph [ref=e953]: Inter - Supplement - Reading - Lesson 6
+                - button "Start Now" [ref=e954]
+        - article [ref=e955] [cursor=pointer]:
+          - generic [ref=e956]:
+            - img [ref=e958]
+            - generic [ref=e960]:
+              - generic [ref=e961]:
+                - heading "📝 Test Started" [level=3] [ref=e962]
+                - generic [ref=e963]: Test
+                - generic [ref=e964]: · 2d
+              - generic [ref=e965]: "\"Inter - Supplement - Reading - Lesson 6\" has started in your class. Join now if you haven't already."
+              - generic [ref=e966]:
+                - paragraph [ref=e967]: Inter - Supplement - Reading - Lesson 6
+                - button "Start Now" [ref=e968]
+        - article [ref=e969] [cursor=pointer]:
+          - generic [ref=e970]:
+            - generic [ref=e971]: �
+            - generic [ref=e972]:
+              - generic [ref=e973]:
+                - heading "📚 New Session Available" [level=3] [ref=e974]
+                - generic [ref=e975]: Test
+                - generic [ref=e976]: · 2d
+              - generic [ref=e977]: KKK has a new test session ready. Join with code OI9PF1.
+              - generic [ref=e979]:
+                - generic [ref=e980]:
+                  - paragraph [ref=e981]: Next Step
+                  - paragraph [ref=e982]: Open this update
+                - button "Join Session" [ref=e983]
+      - button "Load More" [ref=e985] [cursor=pointer]
+  - complementary [ref=e986]:
+    - generic [ref=e988]:
+      - generic [ref=e989]:
+        - heading "Up Next" [level=3] [ref=e990]
+        - generic [ref=e991]:
+          - generic [ref=e992]:
+            - paragraph [ref=e993]: THCS Test
+            - paragraph [ref=e994]: Overdue · KKK
+          - generic [ref=e995]:
+            - paragraph [ref=e996]: "[G9] ĐỀ KIỂM TRA GIỮA HỌC KÌ - TEST 3 (No Listening)"
+            - paragraph [ref=e997]: Overdue
+          - generic [ref=e998]:
+            - paragraph [ref=e999]: "[G9] ĐỀ KIỂM TRA GIỮA HỌC KÌ - TEST 3 (No Listening)"
+            - paragraph [ref=e1000]: Overdue
+      - generic [ref=e1001]:
+        - heading "My Classes" [level=3] [ref=e1002]
+        - generic [ref=e1003]:
+          - generic [ref=e1004]:
+            - generic [ref=e1005]: K8
+            - generic [ref=e1006]:
+              - paragraph [ref=e1007]: K8DAV4
+              - paragraph [ref=e1008]: 2 students · 0 active
+          - generic [ref=e1009]:
+            - generic [ref=e1010]: 2N
+            - generic [ref=e1011]:
+              - paragraph [ref=e1012]: 2NE3KY
+              - paragraph [ref=e1013]: 1 students · 0 active
+      - generic [ref=e1014]:
+        - generic [ref=e1015]:
+          - heading "Feed Snapshot" [level=3] [ref=e1016]
+          - generic [ref=e1017]:
+            - generic [ref=e1018]:
+              - generic [ref=e1019]: Current Filter
+              - generic [ref=e1020]: All
+            - generic [ref=e1021]:
+              - generic [ref=e1022]: Feed Items
+              - generic [ref=e1023]: "20"
+            - generic [ref=e1024]:
+              - generic [ref=e1025]: Live Sessions
+              - generic [ref=e1026]: "0"
+            - generic [ref=e1027]:
+              - generic [ref=e1028]: Homework Open
+              - generic [ref=e1029]: "0"
+          - generic [ref=e1030]:
+            - generic [ref=e1031]: Up Next
+            - paragraph [ref=e1032]: THCS Test
+            - paragraph [ref=e1033]: Due 2/28/2026
+            - button "Open Homework" [ref=e1034] [cursor=pointer]
+        - generic [ref=e1035]:
+          - heading "✍️ Pending Reviews 1" [level=3] [ref=e1037]:
+            - text: ✍️ Pending Reviews
+            - generic [ref=e1038]: "1"
+          - list [ref=e1039]:
+            - listitem [ref=e1040]:
+              - generic [ref=e1041]:
+                - heading "-Omckd15I3a2iWqKTIjt" [level=4] [ref=e1042]
+                - generic [ref=e1043]: Mar 1
+              - generic [ref=e1044]: live-session
