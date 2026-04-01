@@ -16,6 +16,16 @@
 | 4. Authentication Middleware Gaps | 🔴 HIGH | 5 findings |
 | **Total Findings** | | **21 findings** |
 
+## Status Update — 2026-03-31
+
+This file remains a historical audit snapshot from `2026-03-01`. Several findings in section 2 changed state on `2026-03-31`:
+
+- `Finding 2.1` is remediated. The shipped `AdminLoginModal` client-side admin flow was removed.
+- `Finding 2.2` is remediated in active `src/` code. The browser `sessionStorage.isAdmin` flag is no longer trusted by the live admin entry flow or the live teacher waiting-room route, and the stale logout cleanup references were removed from active source files.
+- `Finding 2.5` is only partially improved. Browser-exposed admin credentials were removed with the deletion of `VITE_ADMIN_USERNAME` and `VITE_ADMIN_PASSWORD`, but browser-exposed AI key risk remains open until those calls move behind a trusted backend boundary.
+
+For the concrete March 31, 2026 closeout covering both the Firebase custom-domain auth failure and the client-side admin remediation, see `documentation/firebase-custom-domain-auth-security-closeout-2026-03-31.md`.
+
 ---
 
 ## 1. Database Security (RLS / Row-Level Security)

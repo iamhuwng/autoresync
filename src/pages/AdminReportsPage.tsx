@@ -779,7 +779,6 @@ const AdminReportsPage: React.FC = () => {
 
   const handleLogout = async () => {
     await logout();
-    await sessionStore.remove('isAdmin');
     navigateTo('LOGIN', {}, { reason: 'admin_logout', replace: true });
   };
 

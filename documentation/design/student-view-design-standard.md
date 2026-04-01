@@ -162,6 +162,42 @@ The old rigid `max-width: 600px` center rule is replaced with page-class widths:
 
 ---
 
+## 6.5. Vertical Alignment Contract
+
+All student page titles must sit at the exact same vertical baseline as the sidebar brand block and right rail module headings.
+
+### The 32px Baseline Rule
+
+The combined top padding from the content container (`S.feed`) and the page header (`S.feedHeader`) must equal exactly `32px`.
+
+| Component | Top Padding | Source |
+|---|---|---|
+| `S.feed` container | `24px` | `studentLayoutStyles.ts` |
+| `S.feedHeader` header | `8px` | `studentLayoutStyles.ts` |
+| **Total** | **32px** | matches sidebar brand baseline |
+
+### Why This Matters
+
+The Dashboard page uses a single sticky header with `32px` total top padding. Sub-pages (Homework, Academic Record, Library, Courses) render their titles inside the `S.feedHeader` component, which is nested inside the `S.feed` container. Without this contract, these two padding values stack and push sub-page titles lower than the Dashboard title.
+
+### Rules
+
+- Do not change `S.feed` container padding without updating `S.feedHeader` to compensate
+- Do not change `S.feedHeader` top padding without verifying all five shell pages still align
+- The Profile page, if using `S.feedHeader`, must follow the same contract
+- Any new student shell page must verify title alignment against the Dashboard baseline
+
+### Verification
+
+After any change to student layout padding, visually verify that the following page titles all align:
+- Dashboard → "Dashboard"
+- Homework → "My Homework"
+- Academic Record → "Academic Record"
+- Library → "Practice Library"
+- Courses → "My Courses"
+
+---
+
 ## 7. Shared Component Rules
 
 ### Navigation

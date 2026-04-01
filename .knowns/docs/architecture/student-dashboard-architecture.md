@@ -2,7 +2,7 @@
 title: Student Dashboard Architecture
 description: Source of truth for the student dashboard host, feed, right rail, data ownership, and approved Stitch parity rules.
 createdAt: '2026-03-31T22:18:34.333Z'
-updatedAt: '2026-03-31T22:30:20.715Z'
+updatedAt: '2026-04-01T01:40:51.359Z'
 tags:
   - architecture
   - student
@@ -162,3 +162,11 @@ Verification checklist:
 - @doc/architecture/student-experience-architecture
 - @doc/architecture/student-shell-right-rail-architecture
 - @doc/architecture/student-shell-data-loading-architecture
+
+## Vertical Alignment Baseline
+
+Dashboard uses a 32px top padding baseline for its sticky header. All sub-pages must match this baseline through the combined padding of `S.feed` (24px) + `S.feedHeader` (8px) = 32px.
+
+This was standardized on 2026-04-01 after discovering that the original `S.feedHeader` used 32px top padding, which stacked with the container's 24px to create a 56px total — pushing sub-page titles 24px below the Dashboard title.
+
+The fix: reduce `S.feedHeader` top padding from 32px to 8px in `studentLayoutStyles.ts`.

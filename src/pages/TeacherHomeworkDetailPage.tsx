@@ -521,7 +521,6 @@ function TeacherHomeworkDetailPage() {
     const handleLogout = useCallback(async () => {
         try {
             await logout();
-            sessionStorage.removeItem('isAdmin');
             navigateTo('LOGIN', {}, { reason: 'teacher_logout', replace: true });
         } catch (logoutError) {
             console.error('Logout error:', logoutError);

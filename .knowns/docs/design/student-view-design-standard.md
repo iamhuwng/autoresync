@@ -2,7 +2,7 @@
 title: Student View Design Standard
 description: Design standards and patterns for all student-facing pages and views
 createdAt: '2026-02-27T15:25:53.999Z'
-updatedAt: '2026-03-31T22:28:26.209Z'
+updatedAt: '2026-04-01T01:40:52.168Z'
 tags:
   - design
   - student
@@ -348,3 +348,7 @@ Required CSS custom properties:
 ```
 
 The override layer should neutralize legacy glass and gradient patterns and set the v2 shell colors automatically when `.student-view-root` is active.
+
+## Vertical Alignment Contract (added 2026-04-01)
+
+32px baseline rule: `S.feed` (24px) + `S.feedHeader` (8px) = 32px total. All student page titles must align with the sidebar brand and right rail headings. Verify all five shell pages after any layout padding change.

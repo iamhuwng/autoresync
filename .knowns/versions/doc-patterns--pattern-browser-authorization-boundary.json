@@ -1,0 +1,96 @@
+{
+  "docPath": "patterns/pattern-browser-authorization-boundary",
+  "currentVersion": 3,
+  "versions": [
+    {
+      "id": "v1",
+      "docPath": "patterns/pattern-browser-authorization-boundary",
+      "version": 1,
+      "timestamp": "2026-03-30T23:18:21.9624298Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "Pattern: Browser Authorization Boundary"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "Reusable security pattern for keeping auth and privilege decisions out of browser-controlled env vars and storage."
+        },
+        {
+          "field": "tags",
+          "oldValue": null,
+          "newValue": [
+            "pattern",
+            "auth",
+            "security",
+            "firebase",
+            "frontend"
+          ]
+        }
+      ],
+      "snapshot": {
+        "description": "Reusable security pattern for keeping auth and privilege decisions out of browser-controlled env vars and storage.",
+        "tags": [
+          "pattern",
+          "auth",
+          "security",
+          "firebase",
+          "frontend"
+        ],
+        "title": "Pattern: Browser Authorization Boundary"
+      }
+    },
+    {
+      "id": "v2",
+      "docPath": "patterns/pattern-browser-authorization-boundary",
+      "version": 2,
+      "timestamp": "2026-03-30T23:18:38.2296724Z",
+      "changes": [
+        {
+          "field": "content",
+          "oldValue": null,
+          "newValue": "# Pattern: Browser Authorization Boundary\n\n## Problem\n\nFrontend code runs in a hostile environment. Browser users control DevTools, storage, network requests, and all values embedded into the shipped bundle.\n\nThat means these are not valid authorization primitives:\n\n- `VITE_*` frontend env secrets\n- `sessionStorage`, `localStorage`, IndexedDB, or other browser-controlled storage\n- client-side role booleans derived only from browser state\n\nUsing those values for privilege creates an auth bypass even if the UI looks correct.\n\n## Solution\n\nTreat the browser as a presentation layer, not a trust boundary.\n\nPrivilege decisions must come from trusted sources such as:\n\n- Firebase Auth session state\n- backend role/profile data loaded for the authenticated user\n- route guards driven by trusted auth state\n- Firebase Security Rules or other server-enforced authorization checks\n\nBrowser storage may cache UX state, but it must never grant access.\n\n## Firebase-Specific Guidance\n\nIn Firebase web apps, keep these responsibilities separate:\n\n- browser API key website restrictions: origin allowlist only\n- Firebase Auth authorized domains: auth-domain allowlist only\n- Firebase Auth session + role data: actual authentication and authorization path\n- Firebase Security Rules: final backend enforcement\n\nAPI key referrer restrictions can fail closed and block valid users, but they are not a substitute for RBAC.\n\n## Anti-Pattern\n\n```ts\nconst adminPassword = import.meta.env.VITE_ADMIN_PASSWORD;\nconst isAdmin = sessionStorage.getItem('isAdmin') === 'true';\n\nif (inputPassword === adminPassword || isAdmin) {\n  allowPrivilegedAccess();\n}\n```\n\nThis is insecure because both the env value and the storage flag are browser-controlled from the attacker's perspective.\n\n## Preferred Pattern\n\n```ts\nconst { user, profile } = useAuth();\nconst canAccessAdmin = !!user \u0026\u0026 profile?.role === 'super_admin';\n\nif (!canAccessAdmin) {\n  denyOrRedirect();\n}\n```\n\nThen enforce the same role boundary in backend rules or trusted services.\n\n## Verification Checklist\n\nWhen cleaning up a legacy browser-auth path, grep for these classes of bugs:\n\n- `VITE_ADMIN_`\n- `sessionStorage.getItem('isAdmin')`\n- `localStorage.getItem('isAdmin')`\n- direct role checks that bypass AuthContext or trusted profile state\n\nAlso verify that the live route still works with real authenticated users after the cleanup.\n\n## Source\n\nExtracted from the March 31, 2026 remediation that:\n\n- fixed Firebase custom-domain auth failures caused by browser API key referrer restrictions\n- removed a legacy client-side admin modal that relied on browser-exposed env credentials and `sessionStorage.isAdmin`\n\n## Related Docs\n\n- @doc/architecture/auth-rbac-architecture\n- @doc/guides/guide-dev-quick-login-and-hosted-firebase-referrer-troubleshooting"
+        }
+      ],
+      "snapshot": {
+        "content": "# Pattern: Browser Authorization Boundary\n\n## Problem\n\nFrontend code runs in a hostile environment. Browser users control DevTools, storage, network requests, and all values embedded into the shipped bundle.\n\nThat means these are not valid authorization primitives:\n\n- `VITE_*` frontend env secrets\n- `sessionStorage`, `localStorage`, IndexedDB, or other browser-controlled storage\n- client-side role booleans derived only from browser state\n\nUsing those values for privilege creates an auth bypass even if the UI looks correct.\n\n## Solution\n\nTreat the browser as a presentation layer, not a trust boundary.\n\nPrivilege decisions must come from trusted sources such as:\n\n- Firebase Auth session state\n- backend role/profile data loaded for the authenticated user\n- route guards driven by trusted auth state\n- Firebase Security Rules or other server-enforced authorization checks\n\nBrowser storage may cache UX state, but it must never grant access.\n\n## Firebase-Specific Guidance\n\nIn Firebase web apps, keep these responsibilities separate:\n\n- browser API key website restrictions: origin allowlist only\n- Firebase Auth authorized domains: auth-domain allowlist only\n- Firebase Auth session + role data: actual authentication and authorization path\n- Firebase Security Rules: final backend enforcement\n\nAPI key referrer restrictions can fail closed and block valid users, but they are not a substitute for RBAC.\n\n## Anti-Pattern\n\n```ts\nconst adminPassword = import.meta.env.VITE_ADMIN_PASSWORD;\nconst isAdmin = sessionStorage.getItem('isAdmin') === 'true';\n\nif (inputPassword === adminPassword || isAdmin) {\n  allowPrivilegedAccess();\n}\n```\n\nThis is insecure because both the env value and the storage flag are browser-controlled from the attacker's perspective.\n\n## Preferred Pattern\n\n```ts\nconst { user, profile } = useAuth();\nconst canAccessAdmin = !!user \u0026\u0026 profile?.role === 'super_admin';\n\nif (!canAccessAdmin) {\n  denyOrRedirect();\n}\n```\n\nThen enforce the same role boundary in backend rules or trusted services.\n\n## Verification Checklist\n\nWhen cleaning up a legacy browser-auth path, grep for these classes of bugs:\n\n- `VITE_ADMIN_`\n- `sessionStorage.getItem('isAdmin')`\n- `localStorage.getItem('isAdmin')`\n- direct role checks that bypass AuthContext or trusted profile state\n\nAlso verify that the live route still works with real authenticated users after the cleanup.\n\n## Source\n\nExtracted from the March 31, 2026 remediation that:\n\n- fixed Firebase custom-domain auth failures caused by browser API key referrer restrictions\n- removed a legacy client-side admin modal that relied on browser-exposed env credentials and `sessionStorage.isAdmin`\n\n## Related Docs\n\n- @doc/architecture/auth-rbac-architecture\n- @doc/guides/guide-dev-quick-login-and-hosted-firebase-referrer-troubleshooting",
+        "description": "Reusable security pattern for keeping auth and privilege decisions out of browser-controlled env vars and storage.",
+        "tags": [
+          "pattern",
+          "auth",
+          "security",
+          "firebase",
+          "frontend"
+        ],
+        "title": "Pattern: Browser Authorization Boundary"
+      }
+    },
+    {
+      "id": "v3",
+      "docPath": "patterns/pattern-browser-authorization-boundary",
+      "version": 3,
+      "timestamp": "2026-03-30T23:39:12.6695101Z",
+      "changes": [
+        {
+          "field": "content",
+          "oldValue": "# Pattern: Browser Authorization Boundary\n\n## Problem\n\nFrontend code runs in a hostile environment. Browser users control DevTools, storage, network requests, and all values embedded into the shipped bundle.\n\nThat means these are not valid authorization primitives:\n\n- `VITE_*` frontend env secrets\n- `sessionStorage`, `localStorage`, IndexedDB, or other browser-controlled storage\n- client-side role booleans derived only from browser state\n\nUsing those values for privilege creates an auth bypass even if the UI looks correct.\n\n## Solution\n\nTreat the browser as a presentation layer, not a trust boundary.\n\nPrivilege decisions must come from trusted sources such as:\n\n- Firebase Auth session state\n- backend role/profile data loaded for the authenticated user\n- route guards driven by trusted auth state\n- Firebase Security Rules or other server-enforced authorization checks\n\nBrowser storage may cache UX state, but it must never grant access.\n\n## Firebase-Specific Guidance\n\nIn Firebase web apps, keep these responsibilities separate:\n\n- browser API key website restrictions: origin allowlist only\n- Firebase Auth authorized domains: auth-domain allowlist only\n- Firebase Auth session + role data: actual authentication and authorization path\n- Firebase Security Rules: final backend enforcement\n\nAPI key referrer restrictions can fail closed and block valid users, but they are not a substitute for RBAC.\n\n## Anti-Pattern\n\n```ts\nconst adminPassword = import.meta.env.VITE_ADMIN_PASSWORD;\nconst isAdmin = sessionStorage.getItem('isAdmin') === 'true';\n\nif (inputPassword === adminPassword || isAdmin) {\n  allowPrivilegedAccess();\n}\n```\n\nThis is insecure because both the env value and the storage flag are browser-controlled from the attacker's perspective.\n\n## Preferred Pattern\n\n```ts\nconst { user, profile } = useAuth();\nconst canAccessAdmin = !!user \u0026\u0026 profile?.role === 'super_admin';\n\nif (!canAccessAdmin) {\n  denyOrRedirect();\n}\n```\n\nThen enforce the same role boundary in backend rules or trusted services.\n\n## Verification Checklist\n\nWhen cleaning up a legacy browser-auth path, grep for these classes of bugs:\n\n- `VITE_ADMIN_`\n- `sessionStorage.getItem('isAdmin')`\n- `localStorage.getItem('isAdmin')`\n- direct role checks that bypass AuthContext or trusted profile state\n\nAlso verify that the live route still works with real authenticated users after the cleanup.\n\n## Source\n\nExtracted from the March 31, 2026 remediation that:\n\n- fixed Firebase custom-domain auth failures caused by browser API key referrer restrictions\n- removed a legacy client-side admin modal that relied on browser-exposed env credentials and `sessionStorage.isAdmin`\n\n## Related Docs\n\n- @doc/architecture/auth-rbac-architecture\n- @doc/guides/guide-dev-quick-login-and-hosted-firebase-referrer-troubleshooting",
+          "newValue": "# Pattern: Browser Authorization Boundary\n\n## Problem\n\nFrontend code runs in a hostile environment. Browser users control DevTools, storage, network requests, and all values embedded into the shipped bundle.\n\nThat means these are not valid authorization primitives:\n\n- `VITE_*` frontend env secrets\n- `sessionStorage`, `localStorage`, IndexedDB, or other browser-controlled storage\n- client-side role booleans derived only from browser state\n\nUsing those values for privilege creates an auth bypass even if the UI looks correct.\n\n## Solution\n\nTreat the browser as a presentation layer, not a trust boundary.\n\nPrivilege decisions must come from trusted sources such as:\n\n- Firebase Auth session state\n- backend role/profile data loaded for the authenticated user\n- route guards driven by trusted auth state\n- Firebase Security Rules or other server-enforced authorization checks\n\nBrowser storage may cache UX state, but it must never grant access.\n\n## Firebase-Specific Guidance\n\nIn Firebase web apps, keep these responsibilities separate:\n\n- browser API key website restrictions: origin allowlist only\n- Firebase Auth authorized domains: auth-domain allowlist only\n- Firebase Auth session + role data: actual authentication and authorization path\n- Firebase Security Rules: final backend enforcement\n\nAPI key referrer restrictions can fail closed and block valid users, but they are not a substitute for RBAC.\n\n## Anti-Pattern\n\n```ts\nconst adminPassword = import.meta.env.VITE_ADMIN_PASSWORD;\nconst isAdmin = sessionStorage.getItem('isAdmin') === 'true';\n\nif (inputPassword === adminPassword || isAdmin) {\n  allowPrivilegedAccess();\n}\n```\n\nThis is insecure because both the env value and the storage flag are browser-controlled from the attacker's perspective.\n\n## Preferred Pattern\n\n```ts\nconst { user, profile } = useAuth();\nconst canAccessAdmin = !!user \u0026\u0026 profile?.role === 'super_admin';\n\nif (!canAccessAdmin) {\n  denyOrRedirect();\n}\n```\n\nThen enforce the same role boundary in backend rules or trusted services.\n\n## Verification Checklist\n\nWhen cleaning up a legacy browser-auth path, grep for these classes of bugs:\n\n- `VITE_ADMIN_`\n- `sessionStorage.getItem('isAdmin')`\n- `localStorage.getItem('isAdmin')`\n- direct role checks that bypass AuthContext or trusted profile state\n\nAlso verify that the live route still works with real authenticated users after the cleanup.\n\n## Source\n\nExtracted from the March 31, 2026 remediation that:\n\n- fixed Firebase custom-domain auth failures caused by browser API key referrer restrictions\n- removed a legacy client-side admin modal that relied on browser-exposed env credentials and `sessionStorage.isAdmin`\n\n## Related Docs\n\n- @doc/architecture/auth-rbac-architecture\n- @doc/guides/guide-dev-quick-login-and-hosted-firebase-referrer-troubleshooting\n\n\n## Repository Hygiene Note\n\nAfter removing a browser-auth anti-pattern, clean up stale logout or reset code that still references the old privilege flag so future searches accurately reflect the live boundary."
+        }
+      ],
+      "snapshot": {
+        "content": "# Pattern: Browser Authorization Boundary\n\n## Problem\n\nFrontend code runs in a hostile environment. Browser users control DevTools, storage, network requests, and all values embedded into the shipped bundle.\n\nThat means these are not valid authorization primitives:\n\n- `VITE_*` frontend env secrets\n- `sessionStorage`, `localStorage`, IndexedDB, or other browser-controlled storage\n- client-side role booleans derived only from browser state\n\nUsing those values for privilege creates an auth bypass even if the UI looks correct.\n\n## Solution\n\nTreat the browser as a presentation layer, not a trust boundary.\n\nPrivilege decisions must come from trusted sources such as:\n\n- Firebase Auth session state\n- backend role/profile data loaded for the authenticated user\n- route guards driven by trusted auth state\n- Firebase Security Rules or other server-enforced authorization checks\n\nBrowser storage may cache UX state, but it must never grant access.\n\n## Firebase-Specific Guidance\n\nIn Firebase web apps, keep these responsibilities separate:\n\n- browser API key website restrictions: origin allowlist only\n- Firebase Auth authorized domains: auth-domain allowlist only\n- Firebase Auth session + role data: actual authentication and authorization path\n- Firebase Security Rules: final backend enforcement\n\nAPI key referrer restrictions can fail closed and block valid users, but they are not a substitute for RBAC.\n\n## Anti-Pattern\n\n```ts\nconst adminPassword = import.meta.env.VITE_ADMIN_PASSWORD;\nconst isAdmin = sessionStorage.getItem('isAdmin') === 'true';\n\nif (inputPassword === adminPassword || isAdmin) {\n  allowPrivilegedAccess();\n}\n```\n\nThis is insecure because both the env value and the storage flag are browser-controlled from the attacker's perspective.\n\n## Preferred Pattern\n\n```ts\nconst { user, profile } = useAuth();\nconst canAccessAdmin = !!user \u0026\u0026 profile?.role === 'super_admin';\n\nif (!canAccessAdmin) {\n  denyOrRedirect();\n}\n```\n\nThen enforce the same role boundary in backend rules or trusted services.\n\n## Verification Checklist\n\nWhen cleaning up a legacy browser-auth path, grep for these classes of bugs:\n\n- `VITE_ADMIN_`\n- `sessionStorage.getItem('isAdmin')`\n- `localStorage.getItem('isAdmin')`\n- direct role checks that bypass AuthContext or trusted profile state\n\nAlso verify that the live route still works with real authenticated users after the cleanup.\n\n## Source\n\nExtracted from the March 31, 2026 remediation that:\n\n- fixed Firebase custom-domain auth failures caused by browser API key referrer restrictions\n- removed a legacy client-side admin modal that relied on browser-exposed env credentials and `sessionStorage.isAdmin`\n\n## Related Docs\n\n- @doc/architecture/auth-rbac-architecture\n- @doc/guides/guide-dev-quick-login-and-hosted-firebase-referrer-troubleshooting\n\n\n## Repository Hygiene Note\n\nAfter removing a browser-auth anti-pattern, clean up stale logout or reset code that still references the old privilege flag so future searches accurately reflect the live boundary.",
+        "description": "Reusable security pattern for keeping auth and privilege decisions out of browser-controlled env vars and storage.",
+        "tags": [
+          "pattern",
+          "auth",
+          "security",
+          "firebase",
+          "frontend"
+        ],
+        "title": "Pattern: Browser Authorization Boundary"
+      }
+    }
+  ]
+}

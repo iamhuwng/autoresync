@@ -9,7 +9,6 @@ export interface SessionData {
   playerName: string | null;
   sessionCode: string | null;
   teacherId?: string | null;
-  isAdmin?: boolean;
   testSubmission?: any;
 }
 
@@ -58,17 +57,6 @@ class SessionService {
   }
 
   /**
-   * Admin Status
-   */
-  isAdmin(): boolean {
-    return sessionStorage.getItem('isAdmin') === 'true';
-  }
-
-  setAdmin(isAdmin: boolean): void {
-    sessionStorage.setItem('isAdmin', isAdmin.toString());
-  }
-
-  /**
    * Test Submission Data
    */
   getTestSubmission(): any | null {
@@ -105,7 +93,6 @@ class SessionService {
       playerName: this.getPlayerName(),
       sessionCode: this.getSessionCode(),
       teacherId: this.getTeacherId(),
-      isAdmin: this.isAdmin(),
       testSubmission: this.getTestSubmission(),
     };
   }
@@ -141,7 +128,7 @@ class SessionService {
   }
 
   /**
-   * Clear All Data (including admin)
+   * Clear All Session Data
    */
   clearAll(): void {
     // Get all keys

@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>The Scholar | Student Profile</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "surface-tint": "#4d44e3",
+                        "secondary": "#586064",
+                        "on-secondary": "#f2faff",
+                        "inverse-surface": "#0c0f10",
+                        "secondary-fixed-dim": "#ced6da",
+                        "error-container": "#ff8b9a",
+                        "outline-variant": "#abb3b7",
+                        "on-secondary-fixed-variant": "#555d61",
+                        "on-surface-variant": "#586064",
+                        "surface-container-highest": "#dbe4e7",
+                        "tertiary-dim": "#4c5458",
+                        "surface-container-high": "#e3e9ec",
+                        "primary": "#4d44e3",
+                        "on-secondary-fixed": "#394044",
+                        "secondary-container": "#dce4e8",
+                        "on-error-container": "#782232",
+                        "on-primary-fixed": "#2a13c5",
+                        "secondary-fixed": "#dce4e8",
+                        "surface-variant": "#dbe4e7",
+                        "on-tertiary-fixed-variant": "#5f676b",
+                        "error-dim": "#4f0116",
+                        "on-secondary-container": "#4b5357",
+                        "inverse-on-surface": "#9b9d9e",
+                        "error": "#9e3f4e",
+                        "on-background": "#2b3437",
+                        "tertiary-fixed-dim": "#dfe7eb",
+                        "surface-dim": "#d1dce0",
+                        "on-primary-container": "#3f34d6",
+                        "surface-container-lowest": "#ffffff",
+                        "primary-fixed-dim": "#d2d0ff",
+                        "on-tertiary-container": "#555d61",
+                        "on-primary-fixed-variant": "#4a40e0",
+                        "secondary-dim": "#4c5458",
+                        "surface-container-low": "#f1f4f6",
+                        "primary-container": "#e2dfff",
+                        "background": "#f8f9fa",
+                        "surface-container": "#eaeff1",
+                        "primary-fixed": "#e2dfff",
+                        "on-surface": "#2b3437",
+                        "on-tertiary-fixed": "#434b4e",
+                        "inverse-primary": "#8582ff",
+                        "tertiary": "#586064",
+                        "tertiary-container": "#edf5f9",
+                        "surface": "#f8f9fa",
+                        "on-tertiary": "#f2fafe",
+                        "on-error": "#fff7f7",
+                        "primary-dim": "#4035d7",
+                        "outline": "#737c7f",
+                        "on-primary": "#faf6ff",
+                        "tertiary-fixed": "#edf5f9",
+                        "surface-bright": "#f8f9fa"
+                    },
+                    fontFamily: {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface antialiased">
+<!-- SideNavBar (rail) -->
+<aside class="fixed left-0 top-0 bottom-0 z-50 py-8 flex flex-col items-center justify-between h-screen w-20 bg-[#f1f4f6] dark:bg-slate-900 tonal-shift-only no-border">
+<div class="flex flex-col items-center gap-10">
+<div class="text-lg font-bold tracking-tight text-[#2b3437] dark:text-slate-100 mb-4">
+<span class="material-symbols-outlined" data-icon="school">school</span>
+</div>
+<nav class="flex flex-col gap-6">
+<!-- Workspace -->
+<a class="group flex flex-col items-center gap-1 text-[#586064] dark:text-slate-400 hover:bg-[#eaeff1] dark:hover:bg-slate-800 transition-colors duration-200 ease-in-out p-2 rounded" href="#">
+<span class="material-symbols-outlined text-xl" data-icon="grid_view">grid_view</span>
+<span class="font-['Inter'] label-sm uppercase tracking-[0.05em] text-[10px]">Workspace</span>
+</a>
+<!-- Library -->
+<a class="group flex flex-col items-center gap-1 text-[#586064] dark:text-slate-400 hover:bg-[#eaeff1] dark:hover:bg-slate-800 transition-colors duration-200 ease-in-out p-2 rounded" href="#">
+<span class="material-symbols-outlined text-xl" data-icon="menu_book">menu_book</span>
+<span class="font-['Inter'] label-sm uppercase tracking-[0.05em] text-[10px]">Library</span>
+</a>
+<!-- Archive -->
+<a class="group flex flex-col items-center gap-1 text-[#586064] dark:text-slate-400 hover:bg-[#eaeff1] dark:hover:bg-slate-800 transition-colors duration-200 ease-in-out p-2 rounded" href="#">
+<span class="material-symbols-outlined text-xl" data-icon="inventory_2">inventory_2</span>
+<span class="font-['Inter'] label-sm uppercase tracking-[0.05em] text-[10px]">Archive</span>
+</a>
+<!-- Analytic -->
+<a class="group flex flex-col items-center gap-1 text-[#586064] dark:text-slate-400 hover:bg-[#eaeff1] dark:hover:bg-slate-800 transition-colors duration-200 ease-in-out p-2 rounded" href="#">
+<span class="material-symbols-outlined text-xl" data-icon="query_stats">query_stats</span>
+<span class="font-['Inter'] label-sm uppercase tracking-[0.05em] text-[10px]">Analytic</span>
+</a>
+<!-- Settings (Active for Profile Intent) -->
+<a class="group flex flex-col items-center gap-1 text-[#4d44e3] dark:text-indigo-400 border-l-2 border-[#4d44e3] p-2 rounded bg-[#eaeff1] dark:bg-slate-800 transition-colors duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined text-xl" data-icon="settings">settings</span>
+<span class="font-['Inter'] label-sm uppercase tracking-[0.05em] text-[10px]">Settings</span>
+</a>
+</nav>
+</div>
+<div class="flex flex-col items-center gap-4">
+<img alt="Academic researcher profile" class="w-10 h-10 rounded-full object-cover border-2 border-surface-container-high" data-alt="Close-up professional portrait of a male researcher in a minimal studio setting with soft neutral lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCrAYx-oDwkxDM4nSiOUP35od8dt0p6F-aqeEoEpOlnUDcnwS4jdTS0My2f7_XEZABKii-BnSM2Zc470jEWe6FGxQmSMKOR8irqnkaCMHqexGhRr1N7nWFnlCBeMrrZnYuQ9edMJ2Da0bEKlVFc_2ljdjL-haZMHHl-1CzL_rC4Pg9Dj1ACeZItJ3op3zaav74npT8FgVeE8yUsG4VjK6tnJhXdsSDCAq9Qaks3vNJErAgeu6sUQdCAexsx5pyUhiIFOJGXAJU89XjD"/>
+</div>
+</aside>
+<!-- TopAppBar -->
+<header class="fixed top-0 right-0 left-20 z-40 flex justify-between items-center px-12 h-16 bg-[#f8f9fa] dark:bg-slate-950 border-b border-[#abb3b7]/10 transition-all duration-300">
+<div class="flex items-center gap-8">
+<h1 class="text-xl font-light tracking-tighter text-[#2b3437] dark:text-slate-100">The Quiet Scholar</h1>
+<nav class="hidden md:flex gap-6">
+<a class="text-[#4d44e3] dark:text-indigo-400 border-b-2 border-[#4d44e3] pb-1 font-['Inter'] label-sm uppercase tracking-[0.05em]" href="#">Profile</a>
+<a class="text-[#586064] dark:text-slate-400 hover:text-[#4d44e3] transition-all font-['Inter'] label-sm uppercase tracking-[0.05em]" href="#">Activity</a>
+<a class="text-[#586064] dark:text-slate-400 hover:text-[#4d44e3] transition-all font-['Inter! label-sm uppercase tracking-[0.05em]" href="#">Research</a>
+<a class="text-[#586064] dark:text-slate-400 hover:text-[#4d44e3] transition-all font-['Inter'] label-sm uppercase tracking-[0.05em]" href="#">Mentorship</a>
+</nav>
+</div>
+<div class="flex items-center gap-4 text-[#586064]">
+<span class="material-symbols-outlined cursor-pointer hover:text-primary transition-colors" data-icon="search">search</span>
+<span class="material-symbols-outlined cursor-pointer hover:text-primary transition-colors" data-icon="notifications">notifications</span>
+</div>
+</header>
+<!-- Main Content Shell -->
+<main class="ml-20 mt-16 flex min-h-[calc(100vh-4rem)]">
+<!-- Center Canvas -->
+<section class="flex-1 bg-surface-container-lowest px-12 py-12">
+<div class="max-w-4xl mx-auto space-y-12">
+<!-- Page Header -->
+<header class="space-y-2">
+<h2 class="text-4xl font-light tracking-[-0.02em] text-on-background">My Profile</h2>
+<p class="text-secondary body-md leading-[1.6]">Manage your academic identity and personal information.</p>
+</header>
+<!-- Editorial Hero Card -->
+<div class="bg-surface-container-low p-8 rounded-xl flex items-center gap-8 relative overflow-hidden group">
+<div class="relative z-10 w-32 h-32 flex-shrink-0">
+<img alt="User avatar" class="w-full h-full rounded-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700" data-alt="Minimalist professional headshot of a young scholar with a neutral expression against a plain light gray background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBhCun3VtCkBFXMSg2e_e8bV_xp7MBp6MvTMKMszZATyTpXTQNIy9t59r5mcWp8ZbBbK-D-T1-SwvyIiK_QfJ6pViPQYjiWpRlg4YB1MSg_g3Ts_KEVD3XuUN2K1zTKaW53opVFjvd8JHwZCoE2kmT5mecjX5T1qnGvDfkpuFryIRJXmSxqt3rtUwhMeOu3183mi9COJC3Bl21poyglE72VJLV6-RuLgUsZ0IymU-xtSQhYP0sVlnUxoSZxHZj6SXHyoKwNSZURCu5K"/>
+<div class="absolute bottom-0 right-0 bg-primary w-6 h-6 rounded-full border-4 border-surface-container-low flex items-center justify-center">
+<span class="material-symbols-outlined text-[12px] text-on-primary" data-icon="verified" data-weight="fill" style="font-variation-settings: 'FILL' 1;">verified</span>
+</div>
+</div>
+<div class="relative z-10 space-y-3">
+<div class="flex items-center gap-3">
+<h3 class="text-3xl font-medium tracking-tight">Alex Rivera</h3>
+<span class="bg-secondary-container text-secondary label-sm px-3 py-1 rounded-full uppercase tracking-widest text-[10px]">Active Scholar</span>
+</div>
+<p class="text-secondary body-md max-w-lg leading-relaxed">
+                            Graduate researcher specializing in Computational Linguistics and Neural Semantic Networks. Currently focusing on the intersection of ancient text analysis and machine learning models.
+                        </p>
+<div class="pt-2">
+<button class="bg-primary text-on-primary px-6 py-2 rounded-md font-['Inter'] label-md uppercase tracking-wider text-sm transition-all hover:opacity-90">Edit Profile</button>
+</div>
+</div>
+<!-- Subtle background decoration -->
+<div class="absolute -right-20 -top-20 text-[200px] text-surface-container/30 font-black select-none pointer-events-none">
+                        AR
+                    </div>
+</div>
+<!-- Profile Sections Grid (Vertical Flow) -->
+<div class="space-y-8">
+<!-- Personal Information -->
+<div class="space-y-4">
+<div class="flex items-center justify-between border-b border-outline-variant/10 pb-2">
+<h4 class="font-['Inter'] label-md uppercase tracking-[0.1em] text-secondary">Personal Information</h4>
+</div>
+<div class="grid grid-cols-2 gap-y-6 gap-x-12">
+<div>
+<label class="block text-[10px] uppercase tracking-widest text-outline mb-1">Full Legal Name</label>
+<p class="body-md text-on-surface">Alexander Joseph Rivera</p>
+</div>
+<div>
+<label class="block text-[10px] uppercase tracking-widest text-outline mb-1">Email Address</label>
+<p class="body-md text-on-surface">a.rivera@scholar-inst.edu</p>
+</div>
+<div>
+<label class="block text-[10px] uppercase tracking-widest text-outline mb-1">Timezone</label>
+<p class="body-md text-on-surface">Pacific Standard Time (PST)</p>
+</div>
+<div>
+<label class="block text-[10px] uppercase tracking-widest text-outline mb-1">Phone</label>
+<p class="body-md text-on-surface">+1 (555) 892-0144</p>
+</div>
+</div>
+</div>
+<!-- Academic Details -->
+<div class="space-y-4">
+<div class="flex items-center justify-between border-b border-outline-variant/10 pb-2">
+<h4 class="font-['Inter'] label-md uppercase tracking-[0.1em] text-secondary">Academic Details</h4>
+</div>
+<div class="grid grid-cols-3 gap-8">
+<div class="bg-surface-container-low p-5 rounded-lg border-l-4 border-primary">
+<label class="block text-[10px] uppercase tracking-widest text-outline mb-1">Primary Major</label>
+<p class="text-xl font-medium">Cognitive Science</p>
+</div>
+<div class="bg-surface-container-low p-5 rounded-lg">
+<label class="block text-[10px] uppercase tracking-widest text-outline mb-1">Academic Year</label>
+<p class="text-xl font-medium">Senior (Year 4)</p>
+</div>
+<div class="bg-surface-container-low p-5 rounded-lg">
+<label class="block text-[10px] uppercase tracking-widest text-outline mb-1">Cumulative GPA</label>
+<p class="text-xl font-medium">3.92 / 4.0</p>
+</div>
+</div>
+</div>
+<!-- Account Details -->
+<div class="space-y-4">
+<div class="flex items-center justify-between border-b border-outline-variant/10 pb-2">
+<h4 class="font-['Inter'] label-md uppercase tracking-[0.1em] text-secondary">Account Details</h4>
+</div>
+<div class="grid grid-cols-2 gap-y-6 gap-x-12">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded bg-tertiary-container flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined" data-icon="key">key</span>
+</div>
+<div>
+<label class="block text-[10px] uppercase tracking-widest text-outline mb-1">Password</label>
+<p class="body-md text-on-surface">Last changed 4 months ago</p>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded bg-tertiary-container flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined" data-icon="shield">shield</span>
+</div>
+<div>
+<label class="block text-[10px] uppercase tracking-widest text-outline mb-1">Security</label>
+<p class="body-md text-on-surface">Two-Factor Auth Enabled</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Danger Zone -->
+<div class="mt-16 pt-8 border-t border-error/10">
+<div class="p-6 bg-error-container/5 rounded-lg flex items-center justify-between">
+<div class="space-y-1">
+<h5 class="text-error font-medium body-md">Deactivate Account</h5>
+<p class="text-secondary text-sm">Temporary suspension of your academic profile and access.</p>
+</div>
+<button class="text-error border border-error/20 px-4 py-2 rounded text-[11px] uppercase tracking-widest font-semibold hover:bg-error/5 transition-colors">Request Deactivation</button>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Right Rail -->
+<aside class="w-80 bg-surface-container-low px-8 py-12 space-y-10">
+<!-- Teacher Invitation Supplement -->
+<div class="space-y-4">
+<h4 class="font-['Inter'] label-md uppercase tracking-[0.1em] text-secondary">Pending Requests</h4>
+<div class="bg-surface-container-lowest p-6 rounded-xl border border-primary/5 space-y-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-primary" data-icon="group_add">group_add</span>
+</div>
+<div>
+<p class="text-xs font-semibold text-primary uppercase tracking-wider">Research Invitation</p>
+<p class="text-on-surface body-md font-medium">Dr. Thorne's Group</p>
+</div>
+</div>
+<p class="text-secondary text-sm leading-relaxed">
+                        You have a pending invitation to join Dr. Thorne's Research Group for the upcoming semantic analysis project.
+                    </p>
+<div class="flex gap-2 pt-2">
+<button class="flex-1 bg-primary text-on-primary py-2 rounded text-[11px] uppercase tracking-widest font-bold">Accept</button>
+<button class="flex-1 bg-surface-container-high text-on-surface py-2 rounded text-[11px] uppercase tracking-widest font-bold">Ignore</button>
+</div>
+</div>
+</div>
+<!-- Scholar Stats -->
+<div class="space-y-4">
+<h4 class="font-['Inter'] label-md uppercase tracking-[0.1em] text-secondary">Community Impact</h4>
+<div class="space-y-6">
+<div class="flex items-center justify-between group cursor-default">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-outline" data-icon="article">article</span>
+<span class="text-on-surface text-sm">Published Papers</span>
+</div>
+<span class="font-semibold text-lg">12</span>
+</div>
+<div class="flex items-center justify-between group cursor-default">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-outline" data-icon="forum">forum</span>
+<span class="text-on-surface text-sm">Citations</span>
+</div>
+<span class="font-semibold text-lg">458</span>
+</div>
+<div class="flex items-center justify-between group cursor-default">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-outline" data-icon="volunteer_activism">volunteer_activism</span>
+<span class="text-on-surface text-sm">Mentorship Hours</span>
+</div>
+<span class="font-semibold text-lg">84</span>
+</div>
+</div>
+</div>
+<!-- Profile Completion -->
+<div class="space-y-4 pt-4">
+<div class="flex justify-between items-end">
+<h4 class="font-['Inter'] label-md uppercase tracking-[0.1em] text-secondary">Profile Strength</h4>
+<span class="text-primary font-bold text-lg">85%</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[85%]"></div>
+</div>
+<p class="text-xs text-secondary italic">Add your research interests to reach 100% visibility.</p>
+</div>
+</aside>
+</main>
+</body></html>

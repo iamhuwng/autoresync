@@ -353,7 +353,7 @@ const StudentClassDetailPage = () => {
     return (
       <StudentLayout
         mobileTitle="Loading..."
-        sidebar={<StudentSidebar user={user ? { ...user, avatarUrl: profile?.avatarUrl } : undefined} activePage="classes" pendingHomeworkCount={notStarted.length} />}
+        sidebar={<StudentSidebar user={user ? { ...user, avatarUrl: profile?.avatarUrl } : undefined} activePage="courses" pendingHomeworkCount={notStarted.length} />}
       >
         <div style={{ textAlign: 'center', padding: '60px 24px' }}>
           <Loader size="md" />
@@ -367,7 +367,7 @@ const StudentClassDetailPage = () => {
     return (
       <StudentLayout
         mobileTitle="Not Found"
-        sidebar={<StudentSidebar user={user ? { ...user, avatarUrl: profile?.avatarUrl } : undefined} activePage="classes" pendingHomeworkCount={notStarted.length} />}
+        sidebar={<StudentSidebar user={user ? { ...user, avatarUrl: profile?.avatarUrl } : undefined} activePage="courses" pendingHomeworkCount={notStarted.length} />}
       >
         <div style={{ textAlign: 'center', padding: '60px 24px' }}>
           <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block', margin: '0 auto 16px' }}>
@@ -389,12 +389,12 @@ const StudentClassDetailPage = () => {
   return (
     <StudentLayout
       mobileTitle={classData.name || 'Class Details'}
-      sidebar={<StudentSidebar user={user ? { ...user, avatarUrl: profile?.avatarUrl } : undefined} activePage="classes" pendingHomeworkCount={notStarted.length} />}
+      sidebar={<StudentSidebar user={user ? { ...user, avatarUrl: profile?.avatarUrl } : undefined} activePage="courses" pendingHomeworkCount={notStarted.length} />}
     >
       <div style={S.feedHeader}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <button
-            onClick={() => navigate('/student/dashboard?view=classes')}
+            onClick={() => navigate('/student/courses')}
             style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', padding: 8, borderRadius: 8, color: studentTokens.textMuted }}
             onMouseEnter={e => e.currentTarget.style.background = studentTokens.bgSurfaceStrong}
             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}

@@ -11,7 +11,7 @@ import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
 import { S, studentTokens } from '../components/layout/studentLayoutStyles';
 import StudentDashboardFeedView from '../components/dashboard/StudentDashboardFeedView';
-import { StudentDashboardRightRail } from '../components/dashboard/StudentDashboardRightRail';
+
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
 import { FEATURE_IDS } from '../config/featureRegistry';
 import { DeferredResultSlidePanel } from '../components/results/DeferredResultSlidePanel';
@@ -75,7 +75,10 @@ function getPlainMessage(message = '') {
 function getFeedKind(notification) {
     if (notification.metadata?.homeworkId) return 'homework';
     if (notification.metadata?.resultId) return 'tests';
-    if (notification.metadata?.sessionCode || notification.metadata?.className || notification.title?.includes('Joined Class')) return 'classes';
+    if (notification.title?.includes('Graded') || notification.title?.includes('Band') || notification.metadata?.writingId) return 'tests';
+    if (notification.metadata?.sessionCode || notification.metadata?.className || notification.title?.includes('Joined Class')
+        || notification.title?.includes('Test Started') || notification.title?.includes('Test Completed')
+        || notification.title?.includes('Session Available') || notification.title?.includes('session')) return 'classes';
     return 'updates';
 }
 
@@ -89,13 +92,18 @@ function getFeedEyebrow(notification) {
     if (notification.metadata?.resultId) {
         return `Test Results • ${notification.metadata?.className || notification.metadata?.courseName || 'Academic Record'}`;
     }
+    if (notification.title?.includes('Graded') || notification.title?.includes('Band') || notification.metadata?.writingId) {
+        return `Test Results • ${notification.metadata?.className || 'Writing Assessment'}`;
+    }
     if (notification.metadata?.homeworkId) {
         const dueDate = notification.metadata?.dueDate
             ? new Date(notification.metadata.dueDate).toLocaleDateString('en-US', { day: 'numeric', month: 'short' }).toUpperCase()
             : 'Upcoming';
         return `Assignment Due • ${dueDate}`;
     }
-    if (notification.metadata?.className || notification.title?.includes('Joined Class') || notification.metadata?.sessionCode) {
+    if (notification.metadata?.className || notification.title?.includes('Joined Class') || notification.metadata?.sessionCode
+        || notification.title?.includes('Test Started') || notification.title?.includes('Test Completed')
+        || notification.title?.includes('Session Available')) {
         return `Class Update • ${notification.metadata?.className || 'Student Workspace'}`;
     }
     return `Academic Update • ${notification.metadata?.courseName || 'Student Workspace'}`;
@@ -131,11 +139,14 @@ function getHomeworkTags(notification) {
 }
 
 function formatScoreLabel(notification) {
-    if (typeof notification.metadata?.score !== 'number') {
-        return notification.metadata?.score || 'Updated';
+    if (typeof notification.metadata?.score === 'number') {
+        const value = Number.isInteger(notification.metadata.score) ? notification.metadata.score : notification.metadata.score.toFixed(1);
+        return notification.metadata?.maxScore === 100 ? `${value}%` : String(value);
     }
-    const value = Number.isInteger(notification.metadata.score) ? notification.metadata.score : notification.metadata.score.toFixed(1);
-    return notification.metadata?.maxScore === 100 ? `${value}%` : String(value);
+    if (notification.metadata?.score) return String(notification.metadata.score);
+    const bandMatch = (notification.message || '').match(/Band[:\s]+([\d.]+)/i);
+    if (bandMatch) return `Band ${bandMatch[1]}`;
+    return null;
 }
 
 function formatFeedBody(notification) {
@@ -169,36 +180,6 @@ function formatFeedBody(notification) {
     }
 
     return plainMessage || notification.metadata?.testName || notification.metadata?.materialTitle || 'A new update is available in your workspace.';
-}
-
-function getFocusArea(assignments, notifications, fallbackLabel) {
-    const counts = new Map();
-
-    assignments.forEach(item => {
-        const assignment = item?.homework;
-        const label = assignment?.target?.className || assignment?.className || assignment?.courseName;
-        if (!label) return;
-        counts.set(label, (counts.get(label) || 0) + 1);
-    });
-
-    if (counts.size === 0) {
-        notifications.forEach(notification => {
-            const label = notification.metadata?.className || notification.metadata?.courseName;
-            if (!label) return;
-            counts.set(label, (counts.get(label) || 0) + 1);
-        });
-    }
-
-    let topLabel = fallbackLabel;
-    let topCount = -1;
-    counts.forEach((count, label) => {
-        if (count > topCount) {
-            topLabel = label;
-            topCount = count;
-        }
-    });
-
-    return topLabel;
 }
 
 const StudentDashboardPage = () => {
@@ -454,47 +435,16 @@ const StudentDashboardPage = () => {
         [filteredNotifications],
     );
 
-    const feedSnapshotCards = useMemo(() => {
-        const activeAssignments = sortedAssignments.length;
-        const readyAssignments = Math.max(activeAssignments - notStarted.length, 0);
-        const currentFilterLabel = FILTER_TABS.find(tab => tab.key === feedFilter)?.label || 'All';
-        const focusPercent = activeAssignments > 0 ? Math.round((readyAssignments / activeAssignments) * 100) : unreadCount > 0 ? Math.max(18, 100 - unreadCount * 8) : 100;
-        const focusArea = getFocusArea(sortedAssignments, filteredNotifications, currentFilterLabel);
-
-        return [
-            {
-                id: 'snapshot-focus',
-                label: 'Weekly Focus',
-                value: `${focusPercent}%`,
-                summary:
-                    activeAssignments > 0
-                        ? `Most of your open work is sitting in ${focusArea} right now.`
-                        : unreadCount > 0
-                          ? `${unreadCount} updates still need your attention in the feed.`
-                          : 'You are caught up for now with no open homework waiting for a start.',
-                meta:
-                    activeAssignments > 0
-                        ? `${notStarted.length} homework waiting to start`
-                        : publicSessions.length > 0
-                          ? `${publicSessions.length} public sessions are available to join`
-                          : 'Your next academic activity will surface here.',
-                tone: activeAssignments > 0 ? (notStarted.length > 0 ? 'warm' : 'accent') : 'neutral',
-                actionLabel: activeAssignments > 0 ? 'Open Homework' : undefined,
-                onClick: activeAssignments > 0 ? handleOpenHomework : undefined,
-            },
-        ];
-    }, [feedFilter, filteredNotifications, unreadCount, publicSessions.length, sortedAssignments, notStarted.length, handleOpenHomework]);
-
     const upNextItems = useMemo(
         () =>
-            sortedAssignments.slice(0, 4).map(item => {
+            sortedAssignments.slice(0, 2).map(item => {
                 const assignment = item.homework;
                 const className = assignment.target?.className || assignment.className;
                 return {
                     id: assignment.id,
                     title: assignment.title || assignment.materialTitle || 'Untitled assignment',
                     meta: [className, assignment.materialType ? String(assignment.materialType).replace(/-/g, ' ') : null].filter(Boolean).join(' - '),
-                    summary: item.status === 'overdue' ? 'This assignment is overdue and should be reopened first.' : 'Review the assignment details and continue from the homework page.',
+                    summary: item.status === 'overdue' ? 'Reopen first.' : undefined,
                     dueLabel: item.status === 'overdue' ? 'Overdue' : assignment.scheduling?.dueDate ? new Date(assignment.scheduling.dueDate).toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) : undefined,
                     tone: item.status === 'overdue' ? 'warm' : assignment.materialType === 'thcs-test' ? 'accent' : 'neutral',
                     actionLabel: 'Open',
@@ -550,26 +500,15 @@ const StudentDashboardPage = () => {
     return (
         <>
             <StudentLayout
-                mobileTitle="Dashboard"
+                mobileTitle="Feed"
                 shellData={shellData}
+                rightRailVariant="dashboard"
                 sidebar={
                     <StudentSidebar
                         user={user ? { ...user, avatarUrl: profile?.avatarUrl } : undefined}
                         activePage="feed"
                         pendingHomeworkCount={notStarted.length}
                         onJoinClass={() => openJoinModal('sidebar')}
-                    />
-                }
-                rightPanel={
-                    <StudentDashboardRightRail
-                        feedSnapshotCards={feedSnapshotCards}
-                        upNextItems={upNextItems}
-                        publicSessions={railPublicSessions}
-                        onOpenHomework={handleOpenHomework}
-                        onExpandPublicSessions={railPublicSessions.length > 4 ? handleExpandPublicSessions : undefined}
-                        onJoinPublicSession={handleJoinPublicSession}
-                        expandPublicSessionsLabel={showAllPublicSessions ? 'Show fewer sessions' : 'See all public sessions'}
-                        visiblePublicSessionsCount={showAllPublicSessions ? railPublicSessions.length : 4}
                     />
                 }
             >

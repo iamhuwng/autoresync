@@ -479,7 +479,6 @@ export const TeacherStudentHistoryPage: React.FC = () => {
 
     const handleLogout = async () => {
         await signOut(auth);
-        sessionStorage.removeItem('isAdmin');
         navigate(buildRoute('LOGIN'), { replace: true });
     };
 

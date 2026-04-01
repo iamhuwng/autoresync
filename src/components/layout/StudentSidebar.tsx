@@ -124,45 +124,45 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
             background: studentTokens.bgShell,
         },
         brandBlock: {
-            padding: '0 8px 18px',
+            padding: '0 6px 24px',
         },
         brandTitle: {
             margin: 0,
             color: studentTokens.textPrimary,
-            fontSize: '1.08rem',
+            fontSize: '1.125rem',
             fontWeight: 700,
-            letterSpacing: '0.12em',
-            lineHeight: 1.05,
-            textTransform: 'uppercase' as const,
+            letterSpacing: '-0.01em',
+            lineHeight: 1.15,
+            textTransform: 'none' as const,
         },
         brandSubtitle: {
             margin: '4px 0 0',
-            color: studentTokens.textMuted,
+            color: studentTokens.textBody,
             fontSize: '0.625rem',
-            letterSpacing: '0.18em',
+            fontWeight: 600,
+            letterSpacing: '0.05em',
             textTransform: 'uppercase' as const,
-            opacity: 0.8,
         },
         navWrap: {
             display: 'flex',
             flexDirection: 'column' as const,
-            gap: 6,
+            gap: 2,
             flex: 1,
         },
         navDivider: {
-            height: 10,
+            height: 2,
         },
         footer: {
             marginTop: 'auto',
-            padding: '0 6px 0',
+            padding: '0 4px 0',
         },
         joinBtn: {
             width: '100%',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            minHeight: 48,
-            padding: '12px 16px',
+            minHeight: 44,
+            padding: '10px 14px',
             borderRadius: 14,
             border: `1px solid ${studentTokens.borderSoft}`,
             background: studentTokens.bgSurface,
@@ -177,13 +177,13 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
         },
         profileWrap: {
             position: 'relative' as const,
-            marginTop: 16,
-            paddingTop: 14,
+            marginTop: 10,
+            paddingTop: 10,
             borderTop: `1px solid ${studentTokens.borderWhisper}`,
         },
         profileRow: {
             ...S.profileRow,
-            minHeight: 58,
+            minHeight: 54,
             padding: '10px 10px 10px 8px',
             borderRadius: 14,
             transition: 'background 0.14s ease',
@@ -296,16 +296,16 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
                     ...S.navItem,
                     ...(isActive ? S.navItemActive : {}),
                     background: isHovered ? studentTokens.bgSurfaceStrong : isActive ? 'rgba(255, 255, 255, 0.55)' : 'transparent',
-                    borderRight: isActive ? `2px solid ${studentTokens.accent}` : '2px solid transparent',
+                    borderLeft: isActive ? `2px solid ${studentTokens.accent}` : '2px solid transparent',
                     color: isActive ? studentTokens.accent : studentTokens.textMuted,
                     outline: 'none',
-                    padding: '10px 10px 10px 12px',
+                    padding: '8px 10px 8px 12px',
                     borderRadius: 0,
                     textTransform: 'uppercase',
-                    letterSpacing: '0.08em',
+                    letterSpacing: '0.05em',
                     fontSize: '0.625rem',
-                    fontWeight: 700,
-                    minHeight: 40,
+                    fontWeight: 600,
+                    minHeight: 36,
                 }}
             >
                 {item.icon}
@@ -323,11 +323,19 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
                     to { opacity: 1; transform: translateY(0); }
                 }
             `}</style>
-            <div style={localStyles.brandBlock}>
-                <div style={localStyles.brandTitle}>The Scholar</div>
-                <p style={localStyles.brandSubtitle}>
-                    Academic Workspace
-                </p>
+            <div style={{ ...localStyles.brandBlock, display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 32, height: 32, borderRadius: '50%', background: studentTokens.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#faf6ff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
+                        <path d="M6 12v5c0 1.1 2.7 3 6 3s6-1.9 6-3v-5" />
+                    </svg>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <div style={localStyles.brandTitle}>The Scholar</div>
+                    <p style={localStyles.brandSubtitle}>
+                        Academic Workspace
+                    </p>
+                </div>
             </div>
 
             <nav style={localStyles.navWrap}>

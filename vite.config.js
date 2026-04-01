@@ -3,6 +3,9 @@ import react from '@vitejs/plugin-react';
 import { visualizer } from 'rollup-plugin-visualizer';
 import { ruleEnforcementPlugin } from './scripts/vite-rule-enforcement.js';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+const repoRoot = path.dirname(fileURLToPath(import.meta.url));
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -18,7 +21,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': path.resolve(repoRoot, './src'),
     },
   },
   plugins: [
@@ -32,6 +35,7 @@ export default defineConfig({
     // Dev-only: warns in browser console when new files have @mantine imports
     ruleEnforcementPlugin(),
   ],
+  experimental: {},
   optimizeDeps: {
     include: ['pdfjs-dist'],
     esbuildOptions: {

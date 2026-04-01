@@ -2,7 +2,7 @@
 title: 'Guide: Dev Quick Login and Hosted Firebase Referrer Troubleshooting'
 description: Reusable guide for using built-in teacher/student dev login buttons and diagnosing hosted quick-login failures caused by Firebase browser API key referrer restrictions.
 createdAt: '2026-03-27T21:44:28.019Z'
-updatedAt: '2026-03-27T22:23:44.330Z'
+updatedAt: '2026-03-30T23:18:21.909Z'
 tags:
   - guide
   - auth
@@ -105,3 +105,43 @@ Extracted from the March 2026 teacher-history repair session involving:
 ## Incident Closeout Reference
 
 For the concrete March 2026 event trail, live repairs, and current deployed state, see @doc/sop/teacher-history-dev-login-firebase-referrer-runtime-state.
+
+
+## Apex Domain Trap
+
+A wildcard subdomain referrer entry does not cover the apex domain.
+
+Examples:
+
+- `*.mstu.work/*` does not match `https://mstu.work/`
+- `kahoot.mstu.work` can succeed while `mstu.work` fails with the same Firebase project and browser key
+
+If a custom apex domain fails while a subdomain still works, add the apex origin explicitly in the Google Cloud browser key website allowlist.
+
+Example:
+
+- `mstu.work/*`
+
+## Service Surface Map
+
+When the browser key referrer allowlist is wrong, the failure usually appears across several Firebase browser services at once:
+
+- `identitytoolkit.googleapis.com` for Auth
+- `firebaseinstallations.googleapis.com` for Installations
+- `firebase.googleapis.com` config fetches used by Firebase web features such as Analytics setup
+
+If all of these return `403` with referrer-blocked messaging for the same host, treat the browser API key website allowlist as the primary suspect.
+
+## Control Plane Separation
+
+Keep these controls separate during debugging:
+
+- Firebase Hosting custom domains determine where the app is served
+- Firebase Auth authorized domains determine which origins Auth accepts for auth-domain purposes
+- Google Cloud browser API key website restrictions determine which browser origins can call Firebase client APIs with that key
+
+A hosted origin can load successfully and already be present in Firebase Auth authorized domains while still failing browser Firebase calls because the browser key website allowlist is missing that host.
+
+## API Restrictions Note
+
+Adding a new allowed website origin is an `Application restrictions` change on the browser key. It is not, by itself, a reason to populate `API restrictions` on the key.

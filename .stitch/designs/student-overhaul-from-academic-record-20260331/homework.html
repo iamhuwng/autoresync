@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Scholar Monograph | Homework</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              colors: {
+                "on-tertiary": "#f2fafe",
+                "on-tertiary-fixed-variant": "#5f676b",
+                "surface-container-high": "#e3e9ec",
+                "tertiary-dim": "#4c5458",
+                "surface-container-highest": "#dbe4e7",
+                "surface-tint": "#4d44e3",
+                "error-dim": "#4f0116",
+                "on-secondary-container": "#4b5357",
+                "on-surface": "#2b3437",
+                "tertiary-fixed-dim": "#dfe7eb",
+                "background": "#f8f9fa",
+                "surface-container-lowest": "#ffffff",
+                "on-tertiary-fixed": "#434b4e",
+                "secondary-fixed": "#dce4e8",
+                "on-primary-fixed-variant": "#4a40e0",
+                "on-secondary": "#f2faff",
+                "tertiary-container": "#edf5f9",
+                "inverse-primary": "#8582ff",
+                "primary-fixed": "#e2dfff",
+                "on-secondary-fixed-variant": "#555d61",
+                "secondary-dim": "#4c5458",
+                "primary": "#4d44e3",
+                "on-background": "#2b3437",
+                "surface-variant": "#dbe4e7",
+                "surface-bright": "#f8f9fa",
+                "on-primary-container": "#3f34d6",
+                "inverse-on-surface": "#9b9d9e",
+                "secondary-fixed-dim": "#ced6da",
+                "primary-dim": "#4035d7",
+                "surface": "#f8f9fa",
+                "error-container": "#ff8b9a",
+                "outline": "#737c7f",
+                "secondary-container": "#dce4e8",
+                "on-primary": "#faf6ff",
+                "primary-container": "#e2dfff",
+                "on-error-container": "#782232",
+                "tertiary": "#586064",
+                "on-primary-fixed": "#2a13c5",
+                "secondary": "#586064",
+                "on-secondary-fixed": "#394044",
+                "surface-dim": "#d1dce0",
+                "surface-container": "#eaeff1",
+                "on-error": "#fff7f7",
+                "on-surface-variant": "#586064",
+                "inverse-surface": "#0c0f10",
+                "error": "#9e3f4e",
+                "surface-container-low": "#f1f4f6",
+                "on-tertiary-container": "#555d61",
+                "outline-variant": "#abb3b7",
+                "tertiary-fixed": "#edf5f9",
+                "primary-fixed-dim": "#d2d0ff"
+              },
+              fontFamily: {
+                "headline": ["Inter"],
+                "body": ["Inter"],
+                "label": ["Inter"]
+              },
+              borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+            },
+          },
+        }
+      </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+            font-size: 1.25rem;
+        }
+        body { font-family: 'Inter', sans-serif; }
+        .no-shadow { box-shadow: none !important; }
+        .editorial-track { letter-spacing: -0.02em; }
+        .micro-label { letter-spacing: 0.05em; font-size: 0.65rem; }
+      </style>
+</head>
+<body class="bg-background text-on-surface min-h-screen">
+<!-- Shared SideNavBar -->
+<aside class="fixed left-0 top-0 h-full z-40 h-screen w-20 flex flex-col items-center py-8 border-r-0 bg-slate-100 dark:bg-slate-900">
+<div class="mb-10">
+<span class="text-lg font-bold tracking-tighter text-slate-900 dark:text-slate-50">S</span>
+</div>
+<nav class="flex flex-col gap-8 flex-1">
+<button class="flex flex-col items-center gap-1 group transition-transform Active: scale-95 transition-transform text-slate-500 dark:text-slate-400 hover:text-[#4d44e3] transition-colors duration-200">
+<span class="material-symbols-outlined">book_2</span>
+<span class="font-sans tracking-tight text-sm uppercase font-semibold leading-relaxed micro-label">Library</span>
+</button>
+<button class="flex flex-col items-center gap-1 group transition-transform Active: scale-95 transition-transform text-[#4d44e3] dark:text-[#6366f1] border-r-2 border-[#4d44e3]">
+<span class="material-symbols-outlined">edit_note</span>
+<span class="font-sans tracking-tight text-sm uppercase font-semibold leading-relaxed micro-label">Homework</span>
+</button>
+<button class="flex flex-col items-center gap-1 group transition-transform Active: scale-95 transition-transform text-slate-500 dark:text-slate-400 hover:text-[#4d44e3] transition-colors duration-200">
+<span class="material-symbols-outlined">magnification_small</span>
+<span class="font-sans tracking-tight text-sm uppercase font-semibold leading-relaxed micro-label">Research</span>
+</button>
+<button class="flex flex-col items-center gap-1 group transition-transform Active: scale-95 transition-transform text-slate-500 dark:text-slate-400 hover:text-[#4d44e3] transition-colors duration-200">
+<span class="material-symbols-outlined">inventory_2</span>
+<span class="font-sans tracking-tight text-sm uppercase font-semibold leading-relaxed micro-label">Archive</span>
+</button>
+</nav>
+<div class="mt-auto">
+<div class="w-8 h-8 rounded-full overflow-hidden bg-surface-container-high">
+<img alt="Scholar Profile" class="w-full h-full object-cover" data-alt="Portrait of a male scholar in a neutral lit study environment with academic books" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBtUrVNPi-t9mFGvlmFOaNdLr1HJ74TIjvxssLKVKMyb0uyzBP7lEF-IhitK--3LwZOaEd682GSSIOk4NQCEEuFnYdKeOzKdw0Yv7OoVsqRsocb5X5AqXQyO49EC-BsjUc44xsrpK7G_yE1dGViBkb9UvlX7vg1241bPus_c5-mEYpgS8E_1qJ_weV7bIrnA1du3ZHcyvZTqx_n6TV8_j1b14nJO6-ZMyaX7mMmQndtYypWeOzgTOi8RbzgnXeR3zfQLgRbUP7KHM90"/>
+</div>
+</div>
+</aside>
+<!-- TopNavBar Cluster -->
+<header class="flex justify-between items-center w-full px-8 h-16 ml-20 w-[calc(100%-5rem)] bg-white dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800 font-sans text-sm tracking-normal">
+<div class="flex items-center gap-8">
+<span class="text-xl font-light tracking-tight text-slate-900 dark:text-slate-50">Research &amp; Homework</span>
+<nav class="hidden md:flex items-center gap-6">
+<a class="text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 Opacity shift on hover" href="#">Drafts</a>
+<a class="text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 Opacity shift on hover" href="#">Sources</a>
+<a class="text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 Opacity shift on hover" href="#">Notes</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant opacity-60">search</span>
+<input class="bg-surface-container-low border-none rounded-lg pl-10 pr-4 py-1.5 text-xs focus:ring-1 focus:ring-primary w-64" placeholder="Search entries..." type="text"/>
+</div>
+<button class="p-2 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<button class="p-2 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">help_outline</span>
+</button>
+</div>
+</header>
+<!-- Main Workspace -->
+<main class="ml-20 flex min-h-[calc(100vh-4rem)]">
+<!-- Content Canvas -->
+<section class="flex-1 p-12 max-w-5xl mx-auto">
+<!-- Header Section -->
+<div class="mb-12">
+<h1 class="text-4xl font-light tracking-tight text-on-surface editorial-track mb-2">My Homework</h1>
+<p class="text-on-surface-variant body-md max-w-2xl leading-relaxed">Track your upcoming assignments and research goals. Maintain rigorous academic progress across all your monographs.</p>
+</div>
+<!-- Summary Strip -->
+<div class="flex gap-12 mb-12 py-6 px-8 bg-surface-container-low rounded-xl">
+<div class="flex flex-col">
+<span class="micro-label uppercase text-on-surface-variant font-bold mb-1">Due Soon</span>
+<span class="text-2xl font-semibold text-primary">03</span>
+</div>
+<div class="flex flex-col">
+<span class="micro-label uppercase text-on-surface-variant font-bold mb-1">In Progress</span>
+<span class="text-2xl font-semibold text-on-surface">12</span>
+</div>
+<div class="flex flex-col">
+<span class="micro-label uppercase text-on-surface-variant font-bold mb-1">Completed</span>
+<span class="text-2xl font-semibold text-on-surface">45</span>
+</div>
+</div>
+<!-- Tabs -->
+<div class="flex gap-8 mb-8 border-b border-outline-variant/10">
+<button class="pb-3 micro-label uppercase font-bold text-primary border-b-2 border-primary">All</button>
+<button class="pb-3 micro-label uppercase font-bold text-on-surface-variant hover:text-on-surface transition-colors">Not Started</button>
+<button class="pb-3 micro-label uppercase font-bold text-on-surface-variant hover:text-on-surface transition-colors">In Progress</button>
+<button class="pb-3 micro-label uppercase font-bold text-on-surface-variant hover:text-on-surface transition-colors">Completed</button>
+<button class="pb-3 micro-label uppercase font-bold text-on-surface-variant hover:text-on-surface transition-colors">Overdue</button>
+</div>
+<!-- Homework List -->
+<div class="space-y-4">
+<!-- Assignment Row -->
+<div class="group flex items-center justify-between p-6 bg-surface-container-lowest hover:bg-surface-container-low transition-colors rounded-xl border border-transparent hover:border-outline-variant/10">
+<div class="flex items-center gap-6">
+<div class="w-1.5 h-12 bg-primary rounded-full"></div>
+<div>
+<div class="flex items-center gap-3 mb-1">
+<h3 class="text-lg font-medium text-on-surface">Modern History: The Cold War</h3>
+<span class="bg-secondary-container text-secondary micro-label uppercase px-2 py-0.5 rounded-full">Research</span>
+<span class="bg-tertiary-container text-tertiary micro-label uppercase px-2 py-0.5 rounded-full">Essay</span>
+</div>
+<div class="flex items-center gap-4 text-on-surface-variant text-sm">
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[1rem]">event</span> Due Oct 24</span>
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[1rem]">refresh</span> 2 Attempts Left</span>
+</div>
+</div>
+</div>
+<button class="micro-label uppercase font-bold text-primary px-4 py-2 hover:bg-primary/5 rounded transition-colors">
+                        Open Assignment
+                    </button>
+</div>
+<!-- Assignment Row -->
+<div class="group flex items-center justify-between p-6 bg-surface-container-lowest hover:bg-surface-container-low transition-colors rounded-xl border border-transparent hover:border-outline-variant/10">
+<div class="flex items-center gap-6">
+<div class="w-1.5 h-12 bg-surface-container-high rounded-full"></div>
+<div>
+<div class="flex items-center gap-3 mb-1">
+<h3 class="text-lg font-medium text-on-surface">Statistical Analysis: Linear Regression</h3>
+<span class="bg-secondary-container text-secondary micro-label uppercase px-2 py-0.5 rounded-full">Mathematics</span>
+</div>
+<div class="flex items-center gap-4 text-on-surface-variant text-sm">
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[1rem]">event</span> Due Oct 28</span>
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[1rem]">refresh</span> 1 Attempt Left</span>
+</div>
+</div>
+</div>
+<button class="micro-label uppercase font-bold text-primary px-4 py-2 hover:bg-primary/5 rounded transition-colors">
+                        Open Assignment
+                    </button>
+</div>
+<!-- Assignment Row -->
+<div class="group flex items-center justify-between p-6 bg-surface-container-lowest hover:bg-surface-container-low transition-colors rounded-xl border border-transparent hover:border-outline-variant/10">
+<div class="flex items-center gap-6">
+<div class="w-1.5 h-12 bg-error rounded-full"></div>
+<div>
+<div class="flex items-center gap-3 mb-1">
+<h3 class="text-lg font-medium text-on-surface">Linguistics: Morphological Theory</h3>
+<span class="bg-secondary-container text-secondary micro-label uppercase px-2 py-0.5 rounded-full">Analysis</span>
+</div>
+<div class="flex items-center gap-4 text-error text-sm font-medium">
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[1rem]">warning</span> Overdue Oct 20</span>
+<span class="flex items-center gap-1 text-on-surface-variant font-normal"><span class="material-symbols-outlined text-[1rem]">refresh</span> 0 Attempts Left</span>
+</div>
+</div>
+</div>
+<button class="micro-label uppercase font-bold text-primary px-4 py-2 hover:bg-primary/5 rounded transition-colors">
+                        View Feedback
+                    </button>
+</div>
+<!-- Assignment Row -->
+<div class="group flex items-center justify-between p-6 bg-surface-container-lowest hover:bg-surface-container-low transition-colors rounded-xl border border-transparent hover:border-outline-variant/10">
+<div class="flex items-center gap-6">
+<div class="w-1.5 h-12 bg-surface-container-high rounded-full"></div>
+<div>
+<div class="flex items-center gap-3 mb-1">
+<h3 class="text-lg font-medium text-on-surface">Philosophy: Existentialism &amp; The Self</h3>
+<span class="bg-secondary-container text-secondary micro-label uppercase px-2 py-0.5 rounded-full">Reading</span>
+</div>
+<div class="flex items-center gap-4 text-on-surface-variant text-sm">
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[1rem]">event</span> Due Nov 02</span>
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[1rem]">refresh</span> 3 Attempts Left</span>
+</div>
+</div>
+</div>
+<button class="micro-label uppercase font-bold text-primary px-4 py-2 hover:bg-primary/5 rounded transition-colors">
+                        Open Assignment
+                    </button>
+</div>
+</div>
+</section>
+<!-- Right Rail -->
+<aside class="w-80 bg-surface-container-low p-8 border-l-0">
+<div class="sticky top-8 space-y-12">
+<!-- Snapshot Module -->
+<div>
+<h4 class="micro-label uppercase font-bold text-on-surface-variant mb-6">Homework Snapshot</h4>
+<div class="bg-surface-container-lowest p-6 rounded-xl space-y-6">
+<div>
+<div class="flex justify-between items-end mb-2">
+<span class="text-sm font-medium">Weekly Goal</span>
+<span class="text-xs text-on-surface-variant">75%</span>
+</div>
+<div class="h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+<div class="h-full bg-primary w-3/4"></div>
+</div>
+</div>
+<p class="text-xs text-on-surface-variant leading-relaxed">You are on track to complete all research entries by Friday.</p>
+</div>
+</div>
+<!-- Upcoming Deadlines -->
+<div>
+<h4 class="micro-label uppercase font-bold text-on-surface-variant mb-6">Upcoming Deadlines</h4>
+<div class="space-y-4">
+<div class="flex gap-4">
+<div class="flex flex-col items-center justify-center w-12 h-12 bg-surface-container-lowest rounded-lg border border-outline-variant/10">
+<span class="text-[0.6rem] uppercase font-bold text-primary">Oct</span>
+<span class="text-lg font-bold leading-none">24</span>
+</div>
+<div class="flex-1">
+<h5 class="text-sm font-semibold truncate w-40">The Cold War Essay</h5>
+<span class="text-[0.65rem] uppercase text-on-surface-variant font-bold">11:59 PM</span>
+</div>
+</div>
+<div class="flex gap-4">
+<div class="flex flex-col items-center justify-center w-12 h-12 bg-surface-container-lowest rounded-lg border border-outline-variant/10">
+<span class="text-[0.6rem] uppercase font-bold text-primary">Oct</span>
+<span class="text-lg font-bold leading-none">28</span>
+</div>
+<div class="flex-1">
+<h5 class="text-sm font-semibold truncate w-40">Linear Regression Lab</h5>
+<span class="text-[0.65rem] uppercase text-on-surface-variant font-bold">5:00 PM</span>
+</div>
+</div>
+<div class="flex gap-4">
+<div class="flex flex-col items-center justify-center w-12 h-12 bg-surface-container-lowest rounded-lg border border-outline-variant/10">
+<span class="text-[0.6rem] uppercase font-bold text-primary">Nov</span>
+<span class="text-lg font-bold leading-none">02</span>
+</div>
+<div class="flex-1">
+<h5 class="text-sm font-semibold truncate w-40">Philosophy Seminar Paper</h5>
+<span class="text-[0.65rem] uppercase text-on-surface-variant font-bold">11:59 PM</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Quick Action -->
+<div class="pt-8">
+<button class="w-full bg-primary text-on-primary py-4 rounded-xl flex items-center justify-center gap-2 micro-label uppercase font-bold tracking-widest hover:bg-primary-dim transition-colors">
+<span class="material-symbols-outlined text-[1.2rem]">add</span>
+                        New Study Entry
+                    </button>
+</div>
+<!-- Visual Asset -->
+<div class="rounded-xl overflow-hidden aspect-[4/3] relative group">
+<img alt="Study Space" class="w-full h-full object-cover" data-alt="Quiet library study space with a minimalist wooden desk, a stack of books, and soft morning light through a large window" src="https://lh3.googleusercontent.com/aida-public/AB6AXuByokc1uEFTE6KsFVxByZBbiaSQUnX6vnqnK_FxdtLtv4WQ_pOIfV0rDOm-WtySfhAmBFu3FnGJCtDqolHbq5lZMC0m-n99sZ-i5sdZ5MDVuednrc_0Uyd45WJOqFMoajl1JvZoRmFDug1K2X8_1oEbpBoIPMriE-SeDP4nxGyKzUlquz6ijheDqtbggahFcg2EO5Capu447FUYgWv0-ZNTVT4sap8WB_dH3QMX0zpmWKLE3D5ewQTyP8RiIWWnoZz68BLc7o30Jur4"/>
+<div class="absolute inset-0 bg-primary/10 group-hover:bg-transparent transition-colors"></div>
+</div>
+</div>
+</aside>
+</main>
+</body></html>

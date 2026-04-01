@@ -36,18 +36,18 @@ const styles = {
     root: {
         display: 'flex',
         flexDirection: 'column',
-        gap: 40,
+        gap: 28,
         minWidth: 0,
     },
     section: {
         display: 'flex',
         flexDirection: 'column',
-        gap: 18,
+        gap: 12,
     },
     sectionHeader: {
         display: 'flex',
         flexDirection: 'column',
-        gap: 6,
+        gap: 4,
     },
     sectionTitle: {
         margin: 0,
@@ -60,19 +60,19 @@ const styles = {
     },
     sectionSubtitle: {
         margin: 0,
-        fontSize: '0.8125rem',
-        lineHeight: 1.55,
+        fontSize: '0.75rem',
+        lineHeight: 1.4,
         color: studentTokens.textBody,
-        maxWidth: 280,
+        maxWidth: 220,
     },
     panel: {
         display: 'flex',
         flexDirection: 'column',
-        gap: 14,
-        padding: 16,
-        background: studentTokens.bgSurface,
-        border: `1px solid ${studentTokens.borderWhisper}`,
-        borderRadius: 4,
+        gap: 10,
+        padding: 0,
+        background: 'transparent',
+        border: 'none',
+        borderRadius: 0,
     },
     snapshotList: {
         display: 'grid',
@@ -82,7 +82,7 @@ const styles = {
     snapshotRail: {
         display: 'flex',
         flexDirection: 'column',
-        gap: 14,
+        gap: 10,
     },
     snapshotHeader: {
         display: 'flex',
@@ -107,12 +107,12 @@ const styles = {
     snapshotGroup: {
         display: 'flex',
         flexDirection: 'column',
-        gap: 10,
+        gap: 8,
     },
     snapshotDivider: {
         height: 1,
         background: studentTokens.borderWhisper,
-        margin: '2px 0 0',
+        margin: '4px 0 0',
     },
     snapshotSubheader: {
         margin: 0,
@@ -126,7 +126,7 @@ const styles = {
         display: 'flex',
         flexDirection: 'column',
         gap: 8,
-        padding: '14px 14px 13px',
+        padding: '12px 12px 11px',
         borderRadius: 4,
         border: '1px solid transparent',
     },
@@ -180,16 +180,16 @@ const styles = {
     summaryList: {
         display: 'flex',
         flexDirection: 'column',
-        gap: 8,
+        gap: 12,
         listStyle: 'none',
         margin: 0,
         padding: 0,
     },
     summaryItem: {
         display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        padding: '3px 0',
+        alignItems: 'flex-start',
+        gap: 8,
+        padding: 0,
         borderRadius: 4,
         border: 'none',
         background: 'transparent',
@@ -203,9 +203,9 @@ const styles = {
     },
     summaryItemTitle: {
         margin: 0,
-        fontSize: '0.875rem',
+        fontSize: '0.8125rem',
         fontWeight: 600,
-        lineHeight: 1.35,
+        lineHeight: 1.3,
         color: studentTokens.textPrimary,
     },
     summaryItemDot: {
@@ -217,8 +217,8 @@ const styles = {
     },
     summaryItemMeta: {
         margin: 0,
-        fontSize: '0.6875rem',
-        lineHeight: 1.45,
+        fontSize: '0.625rem',
+        lineHeight: 1.4,
         color: studentTokens.textBody,
     },
     summaryItemPill: {
@@ -237,14 +237,14 @@ const styles = {
     sessionList: {
         display: 'flex',
         flexDirection: 'column',
-        gap: 14,
+        gap: 12,
         listStyle: 'none',
         margin: 0,
         padding: 0,
     },
     sessionItem: {
         display: 'flex',
-        gap: 14,
+        gap: 10,
         alignItems: 'center',
         padding: 0,
         borderRadius: 0,
@@ -259,14 +259,14 @@ const styles = {
         flex: 1,
     },
     sessionThumb: {
-        width: 48,
-        height: 48,
+        width: 40,
+        height: 40,
         borderRadius: 4,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         flexShrink: 0,
-        fontSize: '0.8rem',
+        fontSize: '0.72rem',
         fontWeight: 800,
         letterSpacing: '0.04em',
         textTransform: 'uppercase',
@@ -276,14 +276,14 @@ const styles = {
       },
     sessionTitle: {
         margin: 0,
-        fontSize: '0.8125rem',
+        fontSize: '0.75rem',
         fontWeight: 600,
         lineHeight: 1.35,
         color: studentTokens.textPrimary,
     },
     sessionMeta: {
         margin: 0,
-        fontSize: '0.6875rem',
+        fontSize: '0.625rem',
         lineHeight: 1.4,
         color: studentTokens.textBody,
     },
@@ -316,10 +316,10 @@ const styles = {
     footerButton: {
         width: '100%',
         marginTop: 8,
-        border: 'none',
+        border: `1px solid ${studentTokens.borderSoft}`,
         borderRadius: 0,
-        padding: '12px 14px',
-        background: studentTokens.bgSurfaceStrong,
+        padding: '10px 12px',
+        background: 'transparent',
         color: studentTokens.textPrimary,
         fontSize: '0.625rem',
         fontWeight: 700,
@@ -440,7 +440,7 @@ function renderUpNextItem(item, index) {
                 {item.summary ? <p style={styles.summaryItemMeta}>{item.summary}</p> : null}
             </div>
             {clickable ? (
-                <button type="button" style={styles.inlineButton} onClick={item.onClick}>
+                <button type="button" style={{ ...styles.inlineButton, marginTop: 2 }} onClick={item.onClick}>
                     {item.actionLabel || 'Open'}
                 </button>
             ) : null}
@@ -547,24 +547,24 @@ export function StudentDashboardRightRail({
                         <div style={styles.snapshotRail}>
                             <div style={styles.snapshotList}>{feedSnapshotCards.map(renderSnapshotCard)}</div>
                             <div style={styles.snapshotDivider} />
-                            <div style={styles.snapshotGroup}>
-                                <p style={styles.snapshotSubheader}>{upNextTitle}</p>
-                                {upNextSubtitle ? <p style={styles.sectionSubtitle}>{upNextSubtitle}</p> : null}
-                                {upNextItems.length > 0 ? (
-                                    <ul style={styles.summaryList}>{upNextItems.map(renderUpNextItem)}</ul>
-                                ) : (
-                                    <p style={styles.emptyState}>{emptyUpNextLabel}</p>
-                                )}
-                                {typeof onOpenHomework === 'function' ? (
-                                    <button type="button" style={styles.footerButton} onClick={onOpenHomework}>
-                                        {openHomeworkLabel}
-                                    </button>
-                                ) : null}
-                            </div>
                         </div>
-                    ) : (
-                        <p style={styles.emptyState}>{emptySnapshotLabel}</p>
-                    )}
+                    ) : null}
+                    <div style={styles.snapshotGroup}>
+                        <p style={styles.snapshotSubheader}>{upNextTitle}</p>
+                        {upNextSubtitle ? <p style={styles.sectionSubtitle}>{upNextSubtitle}</p> : null}
+                        {upNextItems.length > 0 ? (
+                            <ul style={styles.summaryList}>{upNextItems.map(renderUpNextItem)}</ul>
+                        ) : feedSnapshotCards.length > 0 ? (
+                            <p style={styles.emptyState}>{emptyUpNextLabel}</p>
+                        ) : (
+                            <p style={styles.emptyState}>{emptySnapshotLabel}</p>
+                        )}
+                        {typeof onOpenHomework === 'function' ? (
+                            <button type="button" style={styles.footerButton} onClick={onOpenHomework}>
+                                {openHomeworkLabel}
+                            </button>
+                        ) : null}
+                    </div>
                 </div>
             </section>
 

@@ -32,10 +32,6 @@ const envSchema = z.object({
   // Groq fallback (optional)
   VITE_GROQ_API_KEY: z.string().optional(),
 
-  // Admin credentials (optional, development only)
-  VITE_ADMIN_USERNAME: z.string().optional(),
-  VITE_ADMIN_PASSWORD: z.string().optional(),
-
   // Chunking configuration
   VITE_CHUNK_SIZE: z.string().default('1000'),
   VITE_CHUNK_OVERLAP: z.string().default('50'),
@@ -85,8 +81,6 @@ export const loadEnv = (): Env => {
     VITE_GEMINI_API_KEY_5: import.meta.env.VITE_GEMINI_API_KEY_5,
     VITE_GOOGLE_DRIVE_CLIENT_ID: import.meta.env.VITE_GOOGLE_DRIVE_CLIENT_ID,
     VITE_GROQ_API_KEY: import.meta.env.VITE_GROQ_API_KEY,
-    VITE_ADMIN_USERNAME: import.meta.env.VITE_ADMIN_USERNAME,
-    VITE_ADMIN_PASSWORD: import.meta.env.VITE_ADMIN_PASSWORD,
     VITE_CHUNK_SIZE: import.meta.env.VITE_CHUNK_SIZE,
     VITE_CHUNK_OVERLAP: import.meta.env.VITE_CHUNK_OVERLAP,
     VITE_MAX_DOCUMENT_SIZE: import.meta.env.VITE_MAX_DOCUMENT_SIZE,

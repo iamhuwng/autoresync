@@ -1,10 +1,8 @@
 ---
 title: Auth RBAC Architecture
+description: Authentication flow, role-based access control, route protection matrix, security vulnerabilities from audit.
 createdAt: '2026-02-27T16:20:02.503Z'
-updatedAt: '2026-02-27T16:20:13.197Z'
-description: >-
-  Authentication flow, role-based access control, route protection matrix,
-  security vulnerabilities from audit.
+updatedAt: '2026-03-30T23:39:12.476Z'
 tags:
   - architecture
   - auth
@@ -12,6 +10,7 @@ tags:
   - security
   - core
 ---
+
 # Auth & RBAC Architecture
 
 ## Overview
@@ -100,3 +99,27 @@ Centralized route-role matrix created after security audit:
 - @doc/prd/prd-rbac-security — RBAC security PRD
 - @doc/conventions — Integration safety rules reference
 - @doc/sop/test-end-flow-debug-retrospective — Guest detection bug (related)
+
+
+## Browser Authorization Boundary
+
+The browser is not an authorization boundary.
+
+Hard rules:
+
+- never use `VITE_*` frontend env values as admin or privileged credentials
+- never use `sessionStorage`, `localStorage`, or other browser-controlled storage to decide user role or privilege
+- treat Firebase Auth session state, backend role data, route guards, and Firebase Security Rules as the valid authorization path
+
+The legacy client-side admin modal was removed on 2026-03-31 after it was confirmed to rely on browser-exposed env values and `sessionStorage.isAdmin`.
+
+Implications for future work:
+
+- browser storage may cache UX state, but not privilege
+- route guards should depend on authenticated role state from AuthContext or equivalent trusted sources
+- legacy cleanup code that removes browser admin flags is acceptable, but new code must not read those flags for access decisions
+
+See also @doc/patterns/pattern-browser-authorization-boundary and @doc/guides/guide-dev-quick-login-and-hosted-firebase-referrer-troubleshooting.
+
+
+As of 2026-03-31 follow-up cleanup, active `src/` code no longer carries the legacy browser-admin env/storage references. Historical logs and archival docs may still mention that path, but they are not implementation guidance.

@@ -392,13 +392,11 @@ export const StudentRightRail: React.FC<StudentRightRailProps> = ({ shellData, s
     return (
         <div style={S.rightSticky}>
             <div style={localStyles.sectionStack}>
-                {variant === 'dashboard' ? null : variant === 'academic-record' ? renderAcademicRecordRail() : renderDefaultRail()}
+                {variant === 'academic-record' ? renderAcademicRecordRail() : renderDefaultRail()}
 
-                {variant !== 'dashboard' && (
-                    <p style={localStyles.footnote}>
-                        Student shell data is shared between page content and the right rail.
-                    </p>
-                )}
+                <p style={localStyles.footnote}>
+                    Student shell data is shared between page content and the right rail.
+                </p>
 
                 {supplementalContent}
             </div>

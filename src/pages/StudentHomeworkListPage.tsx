@@ -97,38 +97,39 @@ const localStyles: Record<string, React.CSSProperties> = {
     contentStack: {
         display: 'flex',
         flexDirection: 'column',
-        gap: 18,
-        padding: '18px 0 0',
+        gap: 40,
+        padding: '32px 0 0',
     },
     summaryGrid: {
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-        gap: 12,
+        gridTemplateColumns: 'repeat(5, 1fr)',
+        gap: 32,
     },
     summaryCard: {
-        background: studentTokens.bgSurface,
-        borderRadius: 12,
-        padding: '18px 20px',
-        border: `1px solid ${studentTokens.borderWhisper}`,
+        background: '#ffffff',
+        borderRadius: 0,
+        padding: '24px 24px',
         display: 'flex',
         flexDirection: 'column',
-        gap: 8,
-        minHeight: 116,
+        justifyContent: 'space-between',
+        gap: 0,
+        minHeight: 128,
     },
     summaryLabel: {
         margin: 0,
-        fontSize: '0.6875rem',
+        fontSize: '0.625rem',
         fontWeight: 700,
-        letterSpacing: '0.05em',
+        letterSpacing: '0.14em',
         textTransform: 'uppercase',
         color: studentTokens.textMuted,
+        marginBottom: 0,
     },
     summaryValue: {
         margin: 0,
-        fontSize: '2rem',
+        fontSize: '2.25rem',
         fontWeight: 800,
         color: studentTokens.textPrimary,
-        lineHeight: 1.05,
+        lineHeight: 1.1,
     },
     listStack: {
         display: 'flex',
@@ -136,14 +137,15 @@ const localStyles: Record<string, React.CSSProperties> = {
         gap: 12,
     },
     rowCard: {
-        background: studentTokens.bgSurface,
-        border: `1px solid ${studentTokens.borderWhisper}`,
-        borderRadius: 12,
-        padding: '18px 20px',
+        background: '#ffffff',
+        border: 'none',
+        borderRadius: 0,
+        padding: '20px 24px',
         display: 'flex',
         flexDirection: 'column',
         gap: 14,
         cursor: 'pointer',
+        borderBottom: `1px solid ${studentTokens.borderWhisper}`,
     },
     rowHeader: {
         display: 'flex',
@@ -186,19 +188,18 @@ const localStyles: Record<string, React.CSSProperties> = {
         color: studentTokens.textBody,
     },
     resultPanel: {
-        background: studentTokens.bgShell,
+        background: studentTokens.bgSurfaceAlt,
         padding: '12px 14px',
-        borderRadius: 12,
-        border: `1px solid ${studentTokens.borderWhisper}`,
+        borderRadius: 0,
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         gap: 12,
     },
     resultLabel: {
-        fontSize: '0.75rem',
+        fontSize: '0.625rem',
         fontWeight: 700,
-        letterSpacing: '0.05em',
+        letterSpacing: '0.14em',
         textTransform: 'uppercase',
         color: studentTokens.textMuted,
     },
@@ -221,9 +222,8 @@ const localStyles: Record<string, React.CSSProperties> = {
     emptyState: {
         padding: '48px 24px',
         textAlign: 'center',
-        background: studentTokens.bgSurface,
-        borderRadius: 12,
-        border: `1px solid ${studentTokens.borderWhisper}`,
+        background: '#ffffff',
+        borderRadius: 0,
     },
     primaryBtn: {
         background: studentTokens.accent,
@@ -670,7 +670,14 @@ export const StudentHomeworkListPage: React.FC = () => {
                 </div>
             </div>
 
-            <div style={{ ...S.filterBar, overflowX: 'auto', whiteSpace: 'nowrap' }}>
+            <div style={{
+                display: 'flex',
+                gap: 32,
+                overflowX: 'auto',
+                padding: '0 0 0',
+                marginTop: 32,
+                borderBottom: `1px solid rgba(171, 179, 183, 0.1)`,
+            }}>
                 {[
                     { key: 'all', label: `All (${homeworkItems.length})` },
                     { key: 'not_started', label: 'Not Started' },
@@ -683,8 +690,17 @@ export const StudentHomeworkListPage: React.FC = () => {
                         type="button"
                         onClick={() => setActiveTab(tab.key)}
                         style={{
-                            ...S.filterTab,
-                            ...(activeTab === tab.key ? S.filterTabActive : {}),
+                            padding: '0 0 16px',
+                            fontWeight: activeTab === tab.key ? 600 : 500,
+                            fontSize: '0.875rem',
+                            color: activeTab === tab.key ? studentTokens.accent : studentTokens.textMuted,
+                            cursor: 'pointer',
+                            border: 'none',
+                            background: 'transparent',
+                            borderBottom: activeTab === tab.key ? `2px solid ${studentTokens.accent}` : '2px solid transparent',
+                            transition: 'color 0.15s ease, border-color 0.15s ease',
+                            whiteSpace: 'nowrap',
+                            fontFamily: 'inherit',
                         }}
                     >
                         {tab.label}

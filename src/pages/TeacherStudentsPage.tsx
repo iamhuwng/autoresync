@@ -104,7 +104,6 @@ const TeacherStudentsPage: React.FC = () => {
     // ============================================================================
     const handleLogout = async () => {
         await logout();
-        sessionStorage.removeItem('isAdmin');
         navigateTo('LOGIN', {}, { reason: 'teacher_logout', replace: true });
     };
 

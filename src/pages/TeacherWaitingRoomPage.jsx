@@ -20,12 +20,6 @@ const TeacherWaitingRoomPage = () => {
 
   // Effect 1: Listen to the game session
   useEffect(() => {
-    const isAdmin = sessionStorage.getItem('isAdmin');
-    if (!isAdmin) {
-      navigateTo('LOGIN', {}, { reason: 'teacher_not_authenticated', replace: true });
-      return;
-    }
-
     const gameSessionRef = ref(database, `game_sessions/${gameSessionId}`);
     const unsubscribe = onValue(gameSessionRef, (snapshot) => {
       setGameSession(snapshot.val());

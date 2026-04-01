@@ -50,7 +50,6 @@ const SessionManagementPage: React.FC = () => {
   const handleLogout = async () => {
     try {
       await logout();
-      sessionStorage.removeItem('isAdmin');
       navigateTo('LOGIN', {}, { reason: 'admin_logout', replace: true });
     } catch (error) {
       console.error('Logout error:', error);

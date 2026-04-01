@@ -205,7 +205,6 @@ export function TeacherGradingPage() {
     const handleLogout = async () => {
         try {
             await logout();
-            sessionStorage.removeItem('isAdmin');
             navigateTo('LOGIN', {}, { reason: 'teacher_logout', replace: true });
         } catch (error) {
             console.error('Logout error:', error);

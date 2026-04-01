@@ -2,7 +2,7 @@
 title: Student Experience Architecture
 description: Student-facing system overview with shell, dashboard, and academic-record architecture contracts.
 createdAt: '2026-02-27T16:18:36.604Z'
-updatedAt: '2026-03-31T22:28:52.254Z'
+updatedAt: '2026-04-01T01:40:48.999Z'
 tags:
   - architecture
   - student
@@ -136,3 +136,11 @@ Key implementation files:
 - @doc/architecture/student-dashboard-architecture
 - @doc/architecture/student-shell-right-rail-architecture
 - @doc/architecture/student-shell-data-loading-architecture
+
+## Vertical Alignment Contract
+
+All student page titles must sit at the same vertical baseline as the sidebar brand block and right rail module headings. The combined top padding from `S.feed` (24px) plus `S.feedHeader` (8px) equals 32px, which matches the Dashboard's unified baseline.
+
+This prevents stacked padding from pushing sub-page titles lower than the Dashboard title. Any change to student layout padding must be verified across all five shell pages (Dashboard, Homework, Academic Record, Library, Courses).
+
+Key file: `src/components/layout/studentLayoutStyles.ts`

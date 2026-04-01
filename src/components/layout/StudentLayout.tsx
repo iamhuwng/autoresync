@@ -10,7 +10,7 @@ export interface StudentLayoutProps {
     shellData?: StudentRightRailShellData;
     mobileTitle: string;
     mobileRightAction?: React.ReactNode;
-    rightRailVariant?: 'default' | 'academic-record';
+    rightRailVariant?: 'default' | 'academic-record' | 'dashboard';
 }
 
 export const StudentLayout: React.FC<StudentLayoutProps> = ({
@@ -143,6 +143,11 @@ export const StudentLayout: React.FC<StudentLayoutProps> = ({
                     <main
                         style={{
                             ...S.feed,
+                            ...(!isMobile && !isTablet && rightRailVariant === 'dashboard'
+                                ? {
+                                    padding: '0 48px 48px',
+                                }
+                                : {}),
                             ...((isMobile || isTablet)
                                 ? {
                                     marginTop: 56,
@@ -160,6 +165,13 @@ export const StudentLayout: React.FC<StudentLayoutProps> = ({
                         data-testid="student-layout-right-rail"
                         style={{
                             ...S.rightPanel,
+                            ...(!isMobile && !isTablet && rightRailVariant === 'dashboard'
+                                ? {
+                                    width: 320,
+                                    minWidth: 320,
+                                    flex: '0 0 320px',
+                                }
+                                : {}),
                             ...((isMobile || isTablet)
                                 ? {
                                     position: 'fixed',

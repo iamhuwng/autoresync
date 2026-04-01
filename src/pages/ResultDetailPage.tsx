@@ -27,7 +27,6 @@ export const ResultDetailPage: React.FC = () => {
     const handleLogout = React.useCallback(async () => {
         try {
             await logout();
-            sessionStorage.removeItem('isAdmin');
             navigate('/', { replace: true });
         } catch (error) {
             console.error('[ResultDetailPage] Logout failed:', error);

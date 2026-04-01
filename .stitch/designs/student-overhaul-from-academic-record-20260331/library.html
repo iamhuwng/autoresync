@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "secondary": "#586064",
+            "surface-container": "#eaeff1",
+            "surface-tint": "#4d44e3",
+            "tertiary-dim": "#4c5458",
+            "on-secondary": "#f2faff",
+            "secondary-fixed-dim": "#ced6da",
+            "on-primary-fixed": "#2a13c5",
+            "primary-fixed-dim": "#d2d0ff",
+            "outline": "#737c7f",
+            "primary-dim": "#4035d7",
+            "on-tertiary-fixed-variant": "#5f676b",
+            "background": "#f8f9fa",
+            "on-secondary-container": "#4b5357",
+            "tertiary": "#586064",
+            "surface-container-high": "#e3e9ec",
+            "primary": "#4d44e3",
+            "inverse-primary": "#8582ff",
+            "inverse-on-surface": "#9b9d9e",
+            "outline-variant": "#abb3b7",
+            "on-secondary-fixed": "#394044",
+            "secondary-dim": "#4c5458",
+            "on-primary-container": "#3f34d6",
+            "error-dim": "#4f0116",
+            "error": "#9e3f4e",
+            "on-error-container": "#782232",
+            "on-secondary-fixed-variant": "#555d61",
+            "on-surface-variant": "#586064",
+            "inverse-surface": "#0c0f10",
+            "surface-container-low": "#f1f4f6",
+            "primary-container": "#e2dfff",
+            "surface-variant": "#dbe4e7",
+            "error-container": "#ff8b9a",
+            "on-tertiary-fixed": "#434b4e",
+            "secondary-fixed": "#dce4e8",
+            "surface-dim": "#d1dce0",
+            "on-primary": "#faf6ff",
+            "on-tertiary": "#f2fafe",
+            "tertiary-container": "#edf5f9",
+            "on-primary-fixed-variant": "#4a40e0",
+            "surface-container-highest": "#dbe4e7",
+            "on-background": "#2b3437",
+            "surface-container-lowest": "#ffffff",
+            "tertiary-fixed": "#edf5f9",
+            "surface": "#f8f9fa",
+            "on-surface": "#2b3437",
+            "primary-fixed": "#e2dfff",
+            "on-tertiary-container": "#555d61",
+            "on-error": "#fff7f7",
+            "surface-bright": "#f8f9fa",
+            "secondary-container": "#dce4e8",
+            "tertiary-fixed-dim": "#dfe7eb"
+          },
+          fontFamily: {
+            "headline": ["Inter"],
+            "body": ["Inter"],
+            "label": ["Inter"]
+          },
+          borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+        },
+      },
+    }
+  </script>
+<style>
+    body { font-family: 'Inter', sans-serif; }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #abb3b7; border-radius: 10px; }
+  </style>
+</head>
+<body class="bg-background text-on-surface antialiased">
+<!-- SideNavBar -->
+<aside class="h-screen w-64 fixed left-0 top-0 bg-surface-container-low flex flex-col p-6 space-y-4 z-50">
+<div class="mb-8">
+<h1 class="text-sm font-bold text-slate-900 tracking-widest uppercase">Digital Curator</h1>
+<p class="text-[10px] text-secondary tracking-[0.2em] uppercase mt-1">Academic Workspace</p>
+</div>
+<nav class="flex-1 space-y-2">
+<!-- Active Tab: Library -->
+<a class="flex items-center space-x-3 p-3 text-primary font-bold bg-surface-container-lowest rounded-md transition-all duration-150 scale-95" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="local_library">local_library</span>
+<span class="text-sm uppercase tracking-widest font-medium">Library</span>
+</a>
+<a class="flex items-center space-x-3 p-3 text-secondary hover:text-on-surface transition-all duration-150 scale-95" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="school">school</span>
+<span class="text-sm uppercase tracking-widest font-medium">Courses</span>
+</a>
+<a class="flex items-center space-x-3 p-3 text-secondary hover:text-on-surface transition-all duration-150 scale-95" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="analytics">analytics</span>
+<span class="text-sm uppercase tracking-widest font-medium">Analysis</span>
+</a>
+<a class="flex items-center space-x-3 p-3 text-secondary hover:text-on-surface transition-all duration-150 scale-95" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="inventory_2">inventory_2</span>
+<span class="text-sm uppercase tracking-widest font-medium">Archives</span>
+</a>
+</nav>
+<div class="pt-6 border-t border-outline-variant/10">
+<a class="flex items-center space-x-3 p-3 text-secondary hover:text-on-surface transition-all duration-150 scale-95" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="settings">settings</span>
+<span class="text-sm uppercase tracking-widest font-medium">Settings</span>
+</a>
+<div class="flex items-center space-x-3 p-3 mt-4">
+<div class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center overflow-hidden">
+<img alt="Scholar Profile" data-alt="close-up portrait of a professional scholar in a library setting with soft natural window lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCr1ylo0E6tfXACcJTult85eYEhiIOAuKZbwUIrJp06-w2YTsvK0VyK13pIpS9HV7WlaJWzngPyUNt_Ww2xy8dOJ1GzE4PfUKswIn0xPjmxWrhwAAl81s_QDNvzWZ7n6I3xSUvBEjiZcFAuUn08PGofZFpDNxuw_PxKRcq7GTuBoSoeTrMFHBP1aUz-Ee1iNIw2BKNQ67YXho4R4x6uU9FHXuYl8nunn8RjL_NDlnVTO_9rYb0R6fw28nIfS-og1Cg6y3DQOK5p3UoJ"/>
+</div>
+<div class="flex flex-col">
+<span class="text-[11px] font-bold uppercase tracking-wider">A. Harrison</span>
+<span class="text-[9px] text-secondary uppercase tracking-tight">Senior Fellow</span>
+</div>
+</div>
+</div>
+</aside>
+<!-- TopNavBar (Integrated Layout) -->
+<header class="ml-64 bg-background sticky top-0 z-40 border-b border-outline-variant/5">
+<div class="flex justify-between items-center px-12 h-16 max-w-7xl mx-auto">
+<div class="flex items-center space-x-4">
+<span class="text-lg font-semibold tracking-tighter text-on-surface">The Quiet Scholar</span>
+</div>
+<div class="flex items-center space-x-6">
+<div class="flex items-center space-x-2 text-secondary">
+<span class="material-symbols-outlined text-xl" data-icon="notifications">notifications</span>
+<span class="material-symbols-outlined text-xl" data-icon="account_circle">account_circle</span>
+</div>
+</div>
+</div>
+</header>
+<!-- Main Canvas -->
+<main class="ml-64 flex min-h-[calc(100vh-4rem)]">
+<div class="flex-1 px-12 py-10 max-w-5xl mx-auto">
+<!-- Center Header -->
+<section class="mb-12">
+<h2 class="text-4xl font-light tracking-tight text-on-surface mb-2">Practice Library</h2>
+<p class="text-secondary max-w-2xl leading-relaxed">
+          An curated repository of scholarly resources, methodically organized to support rigorous academic inquiry and deep pedagogical practice.
+        </p>
+</section>
+<!-- Source Tab Strip -->
+<section class="mb-8 border-b border-outline-variant/10">
+<div class="flex space-x-10">
+<button class="pb-4 text-xs font-bold uppercase tracking-[0.15em] text-primary border-b-2 border-primary">My Courses</button>
+<button class="pb-4 text-xs font-bold uppercase tracking-[0.15em] text-secondary hover:text-on-surface transition-colors">Public Library</button>
+<button class="pb-4 text-xs font-bold uppercase tracking-[0.15em] text-secondary hover:text-on-surface transition-colors">Recommended</button>
+<button class="pb-4 text-xs font-bold uppercase tracking-[0.15em] text-secondary hover:text-on-surface transition-colors">Recent</button>
+</div>
+</section>
+<!-- Search & Filter -->
+<section class="grid grid-cols-12 gap-6 mb-6">
+<div class="col-span-7">
+<div class="relative group">
+<span class="absolute left-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline-variant group-focus-within:text-primary transition-colors" data-icon="search">search</span>
+<input class="w-full pl-12 pr-4 py-3 bg-surface-container-lowest border-b-2 border-outline-variant/20 focus:border-primary focus:ring-0 text-sm transition-all outline-none" placeholder="Search monograph archives..." type="text"/>
+</div>
+</div>
+<div class="col-span-5 flex space-x-3 items-center justify-end">
+<button class="flex items-center space-x-2 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-secondary bg-surface-container-high rounded-sm hover:bg-surface-container transition-colors">
+<span>Skill</span>
+<span class="material-symbols-outlined text-xs" data-icon="expand_more">expand_more</span>
+</button>
+<button class="flex items-center space-x-2 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-secondary bg-surface-container-high rounded-sm hover:bg-surface-container transition-colors">
+<span>Type</span>
+<span class="material-symbols-outlined text-xs" data-icon="expand_more">expand_more</span>
+</button>
+<button class="flex items-center space-x-2 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-secondary bg-surface-container-high rounded-sm hover:bg-surface-container transition-colors">
+<span>Difficulty</span>
+<span class="material-symbols-outlined text-xs" data-icon="expand_more">expand_more</span>
+</button>
+</div>
+</section>
+<!-- Results Count -->
+<div class="mb-8">
+<span class="text-[10px] font-bold uppercase tracking-[0.2em] text-secondary/60">124 Resources Available</span>
+</div>
+<!-- Content Grid -->
+<section class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
+<!-- Card 1 -->
+<div class="group bg-surface-container-lowest p-6 rounded-lg transition-all border border-transparent hover:border-outline-variant/20">
+<div class="flex justify-between items-start mb-4">
+<span class="px-2 py-1 bg-secondary-container text-secondary text-[9px] font-bold uppercase tracking-widest rounded-full">Methodology</span>
+<span class="text-[10px] text-outline-variant font-medium">12 MAR 2024</span>
+</div>
+<h3 class="text-xl font-medium text-on-surface mb-3 group-hover:text-primary transition-colors leading-snug">The Architecture of Analytical Discourse</h3>
+<p class="text-sm text-secondary leading-relaxed mb-6">A foundational study on structuring complex academic arguments using hierarchical logic and evidence nesting.</p>
+<div class="flex items-center justify-between pt-4 border-t border-outline-variant/10">
+<div class="flex items-center space-x-4">
+<span class="flex items-center text-[10px] font-bold uppercase text-secondary">
+<span class="material-symbols-outlined text-sm mr-1" data-icon="timer">timer</span> 45m
+              </span>
+<span class="flex items-center text-[10px] font-bold uppercase text-secondary">
+<span class="material-symbols-outlined text-sm mr-1" data-icon="signal_cellular_alt">signal_cellular_alt</span> Adv
+              </span>
+</div>
+<button class="text-primary text-xs font-bold uppercase tracking-widest">Open Archive</button>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="group bg-surface-container-lowest p-6 rounded-lg transition-all border border-transparent hover:border-outline-variant/20">
+<div class="flex justify-between items-start mb-4">
+<span class="px-2 py-1 bg-secondary-container text-secondary text-[9px] font-bold uppercase tracking-widest rounded-full">Philology</span>
+<span class="text-[10px] text-outline-variant font-medium">08 MAR 2024</span>
+</div>
+<h3 class="text-xl font-medium text-on-surface mb-3 group-hover:text-primary transition-colors leading-snug">Lexical Precision in Scientific Writing</h3>
+<p class="text-sm text-secondary leading-relaxed mb-6">Examining the impact of vocabulary choice on the clarity and perceived authority of peer-reviewed journals.</p>
+<div class="flex items-center justify-between pt-4 border-t border-outline-variant/10">
+<div class="flex items-center space-x-4">
+<span class="flex items-center text-[10px] font-bold uppercase text-secondary">
+<span class="material-symbols-outlined text-sm mr-1" data-icon="timer">timer</span> 1h 20m
+              </span>
+<span class="flex items-center text-[10px] font-bold uppercase text-secondary">
+<span class="material-symbols-outlined text-sm mr-1" data-icon="signal_cellular_alt">signal_cellular_alt</span> Int
+              </span>
+</div>
+<button class="text-primary text-xs font-bold uppercase tracking-widest">Open Archive</button>
+</div>
+</div>
+<!-- Card 3 -->
+<div class="group bg-surface-container-lowest p-6 rounded-lg transition-all border border-transparent hover:border-outline-variant/20">
+<div class="flex justify-between items-start mb-4">
+<span class="px-2 py-1 bg-secondary-container text-secondary text-[9px] font-bold uppercase tracking-widest rounded-full">Curation</span>
+<span class="text-[10px] text-outline-variant font-medium">01 MAR 2024</span>
+</div>
+<h3 class="text-xl font-medium text-on-surface mb-3 group-hover:text-primary transition-colors leading-snug">Bibliographic Systems &amp; Retrieval</h3>
+<p class="text-sm text-secondary leading-relaxed mb-6">Advanced techniques for maintaining personal digital libraries and managing vast citation networks efficiently.</p>
+<div class="flex items-center justify-between pt-4 border-t border-outline-variant/10">
+<div class="flex items-center space-x-4">
+<span class="flex items-center text-[10px] font-bold uppercase text-secondary">
+<span class="material-symbols-outlined text-sm mr-1" data-icon="timer">timer</span> 30m
+              </span>
+<span class="flex items-center text-[10px] font-bold uppercase text-secondary">
+<span class="material-symbols-outlined text-sm mr-1" data-icon="signal_cellular_alt">signal_cellular_alt</span> Beg
+              </span>
+</div>
+<button class="text-primary text-xs font-bold uppercase tracking-widest">Open Archive</button>
+</div>
+</div>
+<!-- Card 4 -->
+<div class="group bg-surface-container-lowest p-6 rounded-lg transition-all border border-transparent hover:border-outline-variant/20">
+<div class="flex justify-between items-start mb-4">
+<span class="px-2 py-1 bg-secondary-container text-secondary text-[9px] font-bold uppercase tracking-widest rounded-full">Theory</span>
+<span class="text-[10px] text-outline-variant font-medium">24 FEB 2024</span>
+</div>
+<h3 class="text-xl font-medium text-on-surface mb-3 group-hover:text-primary transition-colors leading-snug">The Epistemology of Digital Space</h3>
+<p class="text-sm text-secondary leading-relaxed mb-6">Exploring how digital interfaces reshape our cognitive processes and academic productivity workflows.</p>
+<div class="flex items-center justify-between pt-4 border-t border-outline-variant/10">
+<div class="flex items-center space-x-4">
+<span class="flex items-center text-[10px] font-bold uppercase text-secondary">
+<span class="material-symbols-outlined text-sm mr-1" data-icon="timer">timer</span> 2h 15m
+              </span>
+<span class="flex items-center text-[10px] font-bold uppercase text-secondary">
+<span class="material-symbols-outlined text-sm mr-1" data-icon="signal_cellular_alt">signal_cellular_alt</span> Adv
+              </span>
+</div>
+<button class="text-primary text-xs font-bold uppercase tracking-widest">Open Archive</button>
+</div>
+</div>
+</section>
+<!-- Pagination -->
+<footer class="flex justify-center items-center space-x-4 pt-8 border-t border-outline-variant/10">
+<button class="p-2 text-secondary hover:text-on-surface disabled:opacity-30">
+<span class="material-symbols-outlined" data-icon="chevron_left">chevron_left</span>
+</button>
+<div class="flex items-center space-x-2">
+<button class="w-8 h-8 flex items-center justify-center text-[10px] font-bold bg-primary text-on-primary rounded-sm">1</button>
+<button class="w-8 h-8 flex items-center justify-center text-[10px] font-bold text-secondary hover:bg-surface-container-high transition-colors">2</button>
+<button class="w-8 h-8 flex items-center justify-center text-[10px] font-bold text-secondary hover:bg-surface-container-high transition-colors">3</button>
+<span class="text-secondary text-[10px]">...</span>
+<button class="w-8 h-8 flex items-center justify-center text-[10px] font-bold text-secondary hover:bg-surface-container-high transition-colors">12</button>
+</div>
+<button class="p-2 text-secondary hover:text-on-surface">
+<span class="material-symbols-outlined" data-icon="chevron_right">chevron_right</span>
+</button>
+</footer>
+</div>
+<!-- Right Rail (Empty Shell Modules) -->
+<aside class="w-72 border-l border-outline-variant/5 bg-surface-container-low/30 p-8 space-y-8 hidden lg:block">
+<div class="space-y-4">
+<h4 class="text-[10px] font-bold uppercase tracking-[0.25em] text-secondary/70">Contextual Metadata</h4>
+<div class="h-32 bg-surface-container-low rounded-sm border border-outline-variant/10 border-dashed flex items-center justify-center text-[9px] uppercase tracking-widest text-secondary/40">
+          No items selected
+        </div>
+</div>
+<div class="space-y-4">
+<h4 class="text-[10px] font-bold uppercase tracking-[0.25em] text-secondary/70">Library Statistics</h4>
+<div class="space-y-3">
+<div class="flex justify-between items-center text-[11px]">
+<span class="text-secondary uppercase">Active Courses</span>
+<span class="font-bold">04</span>
+</div>
+<div class="flex justify-between items-center text-[11px]">
+<span class="text-secondary uppercase">Total Citations</span>
+<span class="font-bold">1,240</span>
+</div>
+<div class="flex justify-between items-center text-[11px]">
+<span class="text-secondary uppercase">Study Hours (Wk)</span>
+<span class="font-bold">18.5</span>
+</div>
+</div>
+</div>
+<div class="pt-8">
+<div class="relative w-full h-40 overflow-hidden rounded-md grayscale opacity-50 contrast-125">
+<img alt="Library atmosphere" class="object-cover w-full h-full" data-alt="high-contrast monochromatic photo of old library shelves with leather bound books in soft focus" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBsU3LKeInBu-31VtEXQSXiizHOv0YbQ64HNZpfwavKWYjxpOxzALOZrh_jcRU8xgvA2nMD3FtAgY2Up9zl93PsJUx750BEEVEmx2r4i74ZS4IqWk3aaXNgH-cBzNdJjov38S4tKV0CODunkVLymFdpdgvTmy5SbYX1XTmy2ezZPf4zpyHlR2MgH9zRcbuMRxCnrYeloJGQ60BUHYWtS2LLn9eSKL8Srl6-xNrlI06muQAJsHmdMEUCWzxU7p69obBOIytmu6JHmhb1"/>
+</div>
+</div>
+</aside>
+</main>
+</body></html>

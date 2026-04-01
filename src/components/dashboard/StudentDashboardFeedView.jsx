@@ -2,6 +2,11 @@ import React from 'react';
 import { studentTokens } from '../layout/studentLayoutStyles';
 import { IconBriefcase, IconCheck, IconHomework, IconHistory, IconSearch } from '../layout/StudentIcons';
 
+function stripEmoji(text) {
+    if (!text) return text;
+    return text.replace(/^[\p{Emoji_Presentation}\p{Extended_Pictographic}\u200d\ufe0f]+\s*/gu, '').trim();
+}
+
 function ArrowIcon() {
     return (
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -47,10 +52,10 @@ function kindLabel(kind) {
 }
 
 function getNodeTone(kind) {
-    if (kind === 'tests') return { bg: '#edf5f9', color: '#4c5458', icon: <IconCheck /> };
-    if (kind === 'homework') return { bg: '#f7efe4', color: '#9a5c2d', icon: <IconHomework /> };
-    if (kind === 'classes') return { bg: studentTokens.accentSoft, color: studentTokens.accentHover, icon: <IconBriefcase /> };
-    return { bg: studentTokens.bgSurfaceAlt, color: studentTokens.textBody, char: 'A' };
+    if (kind === 'tests') return { bg: '#eaeff1', color: studentTokens.textPrimary, icon: <IconCheck /> };
+    if (kind === 'homework') return { bg: '#dce4e8', color: '#586064', icon: <IconHomework /> };
+    if (kind === 'classes') return { bg: '#eaeff1', color: studentTokens.textPrimary, icon: <IconBriefcase /> };
+    return { bg: '#eaeff1', color: studentTokens.textBody, icon: <IconHistory /> };
 }
 
 function getFallbackAction(kind) {
@@ -81,22 +86,22 @@ const styles = {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'flex-start',
-        gap: 22,
-        padding: '34px 0 18px',
+        gap: 16,
+        padding: '32px 0 10px',
         background: studentTokens.bgPage,
         borderBottom: 'none',
     },
     titleWrap: {
         display: 'flex',
         flexDirection: 'column',
-        gap: 8,
+        gap: 6,
         minWidth: 0,
     },
     pageTitle: {
         margin: 0,
-        fontSize: '2.25rem',
+        fontSize: '1.875rem',
         fontWeight: 700,
-        letterSpacing: '-0.03em',
+        letterSpacing: '-0.02em',
         color: studentTokens.textPrimary,
     },
     subtitle: {
@@ -168,7 +173,7 @@ const styles = {
     },
     tabs: {
         display: 'flex',
-        gap: 28,
+        gap: 32,
         overflowX: 'auto',
         padding: '0 0 18px',
         marginBottom: 0,
@@ -180,9 +185,9 @@ const styles = {
         borderBottom: '2px solid transparent',
         background: 'transparent',
         color: studentTokens.textMuted,
-        fontSize: '0.7rem',
+        fontSize: '0.625rem',
         fontWeight: 700,
-        letterSpacing: '0.12em',
+        letterSpacing: '0.05em',
         textTransform: 'uppercase',
         whiteSpace: 'nowrap',
         cursor: 'pointer',
@@ -194,28 +199,30 @@ const styles = {
     summary: {
         display: 'grid',
         gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-        gap: 0,
-        padding: '18px 0 20px',
+        gap: 32,
+        padding: '24px 0',
+        marginBottom: 16,
     },
     summaryCell: {
         display: 'flex',
         flexDirection: 'column',
         gap: 6,
-        paddingRight: 28,
+        paddingRight: 20,
     },
     summaryLabel: {
         margin: 0,
         fontSize: '0.625rem',
-        fontWeight: 700,
-        letterSpacing: '0.14em',
+        fontWeight: 600,
+        letterSpacing: '0.05em',
         textTransform: 'uppercase',
-        color: studentTokens.textMuted,
+        color: studentTokens.textBody,
     },
     summaryValue: {
         margin: 0,
-        fontSize: '2.7rem',
+        fontSize: '2.25rem',
         fontWeight: 300,
         lineHeight: 1,
+        letterSpacing: '-0.02em',
         color: studentTokens.textPrimary,
     },
     summaryMeta: {
@@ -226,18 +233,18 @@ const styles = {
         color: studentTokens.textBody,
     },
     tabsWrap: {
-        marginBottom: 40,
-        borderBottom: `1px solid ${studentTokens.borderWhisper}`,
+        marginBottom: 28,
+        borderBottom: `1px solid rgba(171, 179, 183, 0.1)`,
     },
     feed: {
         display: 'flex',
         flexDirection: 'column',
-        gap: 0,
+        gap: 48,
         paddingBottom: 32,
     },
     row: {
         display: 'flex',
-        gap: 28,
+        gap: 24,
         cursor: 'pointer',
     },
     rail: {
@@ -261,15 +268,15 @@ const styles = {
     stem: {
         width: 1,
         flex: 1,
-        minHeight: 66,
-        marginTop: 18,
+        minHeight: 40,
+        marginTop: 16,
         background: studentTokens.borderWhisper,
     },
     rowBody: {
         flex: 1,
         minWidth: 0,
-        paddingBottom: 42,
         borderBottom: `1px solid ${studentTokens.borderWhisper}`,
+        paddingBottom: 48,
     },
     meta: {
         display: 'flex',
@@ -295,28 +302,28 @@ const styles = {
         whiteSpace: 'nowrap',
     },
     rowTitle: {
-        margin: '0 0 14px',
-        fontSize: '1.125rem',
+        margin: '0 0 12px',
+        fontSize: '1.25rem',
         fontWeight: 500,
-        lineHeight: 1.28,
+        lineHeight: 1.3,
         color: studentTokens.textPrimary,
     },
     scoreRow: {
         display: 'flex',
-        gap: 14,
+        gap: 16,
         flexWrap: 'wrap',
-        alignItems: 'baseline',
+        alignItems: 'center',
     },
     score: {
-        fontSize: '2rem',
+        fontSize: '1.875rem',
         fontWeight: 300,
         lineHeight: 1,
         color: studentTokens.accent,
     },
     divider: {
         width: 1,
-        height: 30,
-        background: studentTokens.borderWhisper,
+        height: 32,
+        background: 'rgba(171, 179, 183, 0.2)',
     },
     body: {
         margin: 0,
@@ -328,27 +335,26 @@ const styles = {
     inset: {
         display: 'flex',
         flexDirection: 'column',
-        gap: 12,
+        gap: 16,
         maxWidth: 520,
-        padding: '14px 16px',
-        background: studentTokens.bgSurfaceAlt,
-        border: `1px solid rgba(171, 179, 183, 0.08)`,
-        borderRadius: 4,
+        padding: '16px 16px',
+        background: '#f1f4f6',
+        border: `1px solid rgba(171, 179, 183, 0.1)`,
+        borderRadius: 8,
     },
     quote: {
         margin: 0,
         fontSize: '0.875rem',
         lineHeight: 1.7,
         color: studentTokens.textPrimary,
-        fontStyle: 'normal',
+        fontWeight: 500,
+        fontStyle: 'italic',
     },
     tagText: {
         margin: 0,
-        fontSize: '0.625rem',
-        fontWeight: 700,
-        letterSpacing: '0.12em',
-        textTransform: 'uppercase',
-        color: studentTokens.textMuted,
+        display: 'flex',
+        gap: 8,
+        flexWrap: 'wrap',
     },
     linkBtn: {
         display: 'inline-flex',
@@ -359,7 +365,7 @@ const styles = {
         background: 'transparent',
         padding: 0,
         cursor: 'pointer',
-        color: studentTokens.textBody,
+        color: studentTokens.accent,
         fontSize: '0.625rem',
         fontWeight: 700,
         letterSpacing: '0.12em',
@@ -404,16 +410,16 @@ const styles = {
         paddingTop: 18,
     },
     loadMoreButton: {
-        padding: '11px 18px',
-        border: `1px solid rgba(171, 179, 183, 0.14)`,
+        padding: '12px 32px',
+        border: `1px solid rgba(171, 179, 183, 0.2)`,
         background: 'transparent',
         color: studentTokens.textBody,
-        fontSize: '0.6875rem',
+        fontSize: '0.625rem',
         fontWeight: 700,
-        letterSpacing: '0.12em',
+        letterSpacing: '0.1em',
         textTransform: 'uppercase',
         cursor: 'pointer',
-        borderRadius: 4,
+        borderRadius: 0,
     },
     classGrid: {
         display: 'grid',
@@ -610,18 +616,26 @@ export default function StudentDashboardFeedView({
                                             <p style={styles.time}>{String(row.timeLabel || '').toUpperCase()}</p>
                                         </div>
 
-                                        <h3 style={styles.rowTitle}>{row.title}</h3>
+                                        <h3 style={styles.rowTitle}>{stripEmoji(row.title)}</h3>
 
                                         {row.kind === 'tests' ? (
-                                            <div style={styles.scoreRow}>
-                                                <span style={styles.score}>{row.scoreLabel || 'Updated'}</span>
-                                                <div style={styles.divider} />
+                                            row.scoreLabel ? (
+                                                <div style={styles.scoreRow}>
+                                                    <span style={styles.score}>{row.scoreLabel}</span>
+                                                    <div style={styles.divider} />
+                                                    <p style={styles.body}>{row.body}</p>
+                                                </div>
+                                            ) : (
                                                 <p style={styles.body}>{row.body}</p>
-                                            </div>
+                                            )
                                         ) : row.kind === 'homework' ? (
                                             <div style={styles.inset}>
                                                 <p style={styles.quote}>{row.body}</p>
-                                                {row.tags?.length ? <p style={styles.tagText}>{row.tags.join(' - ')}</p> : null}
+                                                {row.tags?.length ? (
+                                                    <p style={{ ...styles.body, margin: 0, fontSize: '0.6875rem', letterSpacing: '0.05em', textTransform: 'uppercase', color: studentTokens.textMuted }}>
+                                                        {row.tags.join(' - ')}
+                                                    </p>
+                                                ) : null}
                                             </div>
                                         ) : (
                                             <>

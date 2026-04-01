@@ -746,7 +746,6 @@ const AdminSettingsPage: React.FC = () => {
 
     const handleLogout = async () => {
         await logout();
-        sessionStorage.removeItem('isAdmin');
         navigateTo('LOGIN', {}, { reason: 'admin_logout', replace: true });
     };
 

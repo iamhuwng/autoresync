@@ -165,9 +165,15 @@ export const draftCloudService = {
    * Save draft to Firestore (permanent, cross-device)
    */
   async saveDraftToCloud(draftData: DraftData): Promise<{ success: boolean; error?: string }> {
+    void draftData;
+    return {
+      success: false,
+      error: 'Legacy quizDrafts admin flow was removed. Use testDraftService with authenticated Firebase roles.',
+    };
+
     try {
       // Check if admin is logged in via sessionStorage
-      const isAdmin = sessionStorage.getItem('isAdmin') === 'true';
+      const isAdmin = false;
 
       if (!isAdmin) {
         return { success: false, error: 'User not authenticated' };
@@ -226,9 +232,15 @@ export const draftCloudService = {
    * Load draft from Firestore
    */
   async loadDraftFromCloud(draftId: string): Promise<{ success: boolean; data?: DraftData; error?: string }> {
+    void draftId;
+    return {
+      success: false,
+      error: 'Legacy quizDrafts admin flow was removed. Use testDraftService with authenticated Firebase roles.',
+    };
+
     try {
       // Check if admin is logged in via sessionStorage
-      const isAdmin = sessionStorage.getItem('isAdmin') === 'true';
+      const isAdmin = false;
 
       if (!isAdmin) {
         return { success: false, error: 'User not authenticated' };
@@ -267,9 +279,14 @@ export const draftCloudService = {
    * Get all cloud drafts for current user
    */
   async getAllCloudDrafts(): Promise<{ success: boolean; data?: DraftData[]; error?: string }> {
+    return {
+      success: false,
+      error: 'Legacy quizDrafts admin flow was removed. Use testDraftService with authenticated Firebase roles.',
+    };
+
     try {
       // Check if admin is logged in via sessionStorage
-      const isAdmin = sessionStorage.getItem('isAdmin') === 'true';
+      const isAdmin = false;
 
       if (!isAdmin) {
         return { success: false, error: 'User not authenticated' };
@@ -308,9 +325,15 @@ export const draftCloudService = {
    * Delete draft from Firestore
    */
   async deleteDraftFromCloud(draftId: string): Promise<{ success: boolean; error?: string }> {
+    void draftId;
+    return {
+      success: false,
+      error: 'Legacy quizDrafts admin flow was removed. Use testDraftService with authenticated Firebase roles.',
+    };
+
     try {
       // Check if admin is logged in via sessionStorage
-      const isAdmin = sessionStorage.getItem('isAdmin') === 'true';
+      const isAdmin = false;
 
       if (!isAdmin) {
         return { success: false, error: 'User not authenticated' };
@@ -342,6 +365,13 @@ export const draftCloudService = {
     cloudData?: DraftData;
     error?: string;
   }> {
+    void draftId;
+    void localTimestamp;
+    return {
+      success: false,
+      error: 'Legacy quizDrafts admin flow was removed. Use testDraftService with authenticated Firebase roles.',
+    };
+
     try {
       const result = await this.loadDraftFromCloud(draftId);
 

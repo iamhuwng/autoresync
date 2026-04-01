@@ -311,7 +311,7 @@ const localStyles: Record<string, React.CSSProperties> = {
         gap: 32,
         overflowX: 'auto',
         padding: '0 0 0',
-        marginTop: 0,
+        marginTop: 32,
         borderBottom: `1px solid rgba(171, 179, 183, 0.1)`,
     },
     pageTab: {
