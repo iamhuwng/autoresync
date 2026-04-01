@@ -240,12 +240,12 @@ const styles = {
     feed: {
         display: 'flex',
         flexDirection: 'column',
-        gap: 12,
+        gap: 0,
         paddingBottom: 32,
     },
     row: {
         display: 'flex',
-        gap: 20,
+        gap: 24,
         cursor: 'pointer',
     },
     rail: {
@@ -280,7 +280,13 @@ const styles = {
         border: '1px solid #eceef0',
         borderRadius: 2,
         padding: '20px 22px',
-        transition: 'border-color 0.15s ease',
+    },
+    feedSeparator: {
+        height: 1,
+        background: studentTokens.borderWhisper,
+        marginTop: 24,
+        marginBottom: 24,
+        marginLeft: 66,
     },
     meta: {
         display: 'flex',
@@ -599,70 +605,71 @@ export default function StudentDashboardFeedView({
                             return (
                                 <article
                                     key={row.id}
-                                    style={styles.row}
+                                    style={{ cursor: 'pointer' }}
                                     onClick={() => row.onPress?.()}
                                     onMouseEnter={event => {
-                                        const card = event.currentTarget.querySelector('[data-feed-card]');
-                                        if (card) card.style.borderColor = '#cdd6da';
+                                        event.currentTarget.style.background = studentTokens.bgSurfaceMuted;
                                     }}
                                     onMouseLeave={event => {
-                                        const card = event.currentTarget.querySelector('[data-feed-card]');
-                                        if (card) card.style.borderColor = '#eceef0';
+                                        event.currentTarget.style.background = 'transparent';
                                     }}
                                 >
-                                    <div style={styles.rail}>
-                                        <div style={{ ...styles.node, background: tone.bg, color: tone.color }}>
-                                            {tone.icon || tone.char}
-                                        </div>
-                                        <div style={styles.stem} />
-                                    </div>
-
-                                    <div style={styles.rowBody} data-feed-card>
-                                        <div style={styles.meta}>
-                                            <p style={styles.eyebrow}>{row.eyebrow || kindLabel(row.kind)}</p>
-                                            <p style={styles.time}>{String(row.timeLabel || '').toUpperCase()}</p>
+                                    <div style={styles.row}>
+                                        <div style={styles.rail}>
+                                            <div style={{ ...styles.node, background: tone.bg, color: tone.color }}>
+                                                {tone.icon || tone.char}
+                                            </div>
+                                            <div style={styles.stem} />
                                         </div>
 
-                                        <h3 style={styles.rowTitle}>{stripEmoji(row.title)}</h3>
+                                        <div style={styles.rowBody}>
+                                            <div style={styles.meta}>
+                                                <p style={styles.eyebrow}>{row.eyebrow || kindLabel(row.kind)}</p>
+                                                <p style={styles.time}>{String(row.timeLabel || '').toUpperCase()}</p>
+                                            </div>
 
-                                        {row.kind === 'tests' ? (
-                                            row.scoreLabel ? (
-                                                <div style={styles.scoreRow}>
-                                                    <span style={styles.score}>{row.scoreLabel}</span>
-                                                    <div style={styles.divider} />
+                                            <h3 style={styles.rowTitle}>{stripEmoji(row.title)}</h3>
+
+                                            {row.kind === 'tests' ? (
+                                                row.scoreLabel ? (
+                                                    <div style={styles.scoreRow}>
+                                                        <span style={styles.score}>{row.scoreLabel}</span>
+                                                        <div style={styles.divider} />
+                                                        <p style={styles.body}>{row.body}</p>
+                                                    </div>
+                                                ) : (
                                                     <p style={styles.body}>{row.body}</p>
+                                                )
+                                            ) : row.kind === 'homework' ? (
+                                                <div style={styles.inset}>
+                                                    <p style={styles.quote}>{row.body}</p>
+                                                    {row.tags?.length ? (
+                                                        <p style={{ ...styles.body, margin: 0, fontSize: '0.6875rem', letterSpacing: '0.05em', textTransform: 'uppercase', color: studentTokens.textMuted }}>
+                                                            {row.tags.join(' - ')}
+                                                        </p>
+                                                    ) : null}
                                                 </div>
                                             ) : (
-                                                <p style={styles.body}>{row.body}</p>
-                                            )
-                                        ) : row.kind === 'homework' ? (
-                                            <div style={styles.inset}>
-                                                <p style={styles.quote}>{row.body}</p>
-                                                {row.tags?.length ? (
-                                                    <p style={{ ...styles.body, margin: 0, fontSize: '0.6875rem', letterSpacing: '0.05em', textTransform: 'uppercase', color: studentTokens.textMuted }}>
-                                                        {row.tags.join(' - ')}
-                                                    </p>
-                                                ) : null}
-                                            </div>
-                                        ) : (
-                                            <>
-                                                <p style={styles.body}>{row.body}</p>
-                                                {row.actionLabel || row.onAction ? (
-                                                    <button
-                                                        type="button"
-                                                        style={styles.linkBtn}
-                                                        onClick={event => {
-                                                            event.stopPropagation();
-                                                            row.onAction?.();
-                                                        }}
-                                                    >
-                                                        <span>{row.actionLabel || getFallbackAction(row.kind)}</span>
-                                                        <ArrowIcon />
-                                                    </button>
-                                                ) : null}
-                                            </>
-                                        )}
+                                                <>
+                                                    <p style={styles.body}>{row.body}</p>
+                                                    {row.actionLabel || row.onAction ? (
+                                                        <button
+                                                            type="button"
+                                                            style={styles.linkBtn}
+                                                            onClick={event => {
+                                                                event.stopPropagation();
+                                                                row.onAction?.();
+                                                            }}
+                                                        >
+                                                            <span>{row.actionLabel || getFallbackAction(row.kind)}</span>
+                                                            <ArrowIcon />
+                                                        </button>
+                                                    ) : null}
+                                                </>
+                                            )}
+                                        </div>
                                     </div>
+                                    <div style={styles.feedSeparator} />
                                 </article>
                             );
                         })}
