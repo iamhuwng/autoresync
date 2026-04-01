@@ -14,8 +14,12 @@ import { useNavigate } from 'react-router-dom';
 import { collection, getDocs, limit, orderBy, query, where } from 'firebase/firestore';
 import { firestore as db } from '../../services/firebase';
 import { useAuth } from '../../hooks/useAuth';
-import { buildRoute } from '../../constants/routes';
 import { S, studentTokens } from '../layout/studentLayoutStyles';
+
+interface PendingReviewsWidgetProps {
+    /** Called when a pending item is clicked — parent opens the result slide panel in-place */
+    onResultSelect?: (resultId: string) => void;
+}
 
 interface PendingItem {
     id: string;
@@ -225,7 +229,7 @@ const s: Record<string, CSSProperties> = {
     },
 };
 
-export function PendingReviewsWidget() {
+export function PendingReviewsWidget({ onResultSelect }: PendingReviewsWidgetProps) {
     const { user } = useAuth();
     const navigate = useNavigate();
     const [items, setItems] = useState<PendingItem[]>([]);
@@ -299,13 +303,13 @@ export function PendingReviewsWidget() {
                             }}
                             onMouseEnter={() => setHoveredId(item.id)}
                             onMouseLeave={() => setHoveredId(null)}
-                            onClick={() => navigate(buildRoute('RESULT_DETAIL', { resultId: item.id }))}
+                            onClick={() => onResultSelect?.(item.id)}
                             role="button"
                             tabIndex={0}
                             onKeyDown={(event) => {
                                 if (event.key === 'Enter' || event.key === ' ') {
                                     event.preventDefault();
-                                    navigate(buildRoute('RESULT_DETAIL', { resultId: item.id }));
+                                    onResultSelect?.(item.id);
                                 }
                             }}
                         >

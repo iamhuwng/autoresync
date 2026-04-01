@@ -459,7 +459,7 @@ const StudentDashboardPage = () => {
         [allNotifications.length, filteredNotifications.length, sortedAssignments.length, notStarted.length, classLiveSessions.length],
     );
 
-    const rightPanel = useMemo(() => <PendingReviewsWidget />, []);
+    const rightPanel = useMemo(() => <PendingReviewsWidget onResultSelect={setSelectedResultId} />, []);
 
     const emptyState = useMemo(() => {
         if (isLoading && allNotifications.length === 0) {
