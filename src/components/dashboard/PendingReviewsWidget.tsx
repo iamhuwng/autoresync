@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import { collection, getDocs, limit, orderBy, query, where } from 'firebase/firestore';
 import { firestore as db } from '../../services/firebase';
 import { useAuth } from '../../hooks/useAuth';
+import { buildRoute } from '../../constants/routes';
 import { S, studentTokens } from '../layout/studentLayoutStyles';
 
 interface PendingItem {
@@ -298,13 +299,13 @@ export function PendingReviewsWidget() {
                             }}
                             onMouseEnter={() => setHoveredId(item.id)}
                             onMouseLeave={() => setHoveredId(null)}
-                            onClick={() => navigate(`/student/writing/${item.id}`)}
+                            onClick={() => navigate(buildRoute('RESULT_DETAIL', { resultId: item.id }))}
                             role="button"
                             tabIndex={0}
                             onKeyDown={(event) => {
                                 if (event.key === 'Enter' || event.key === ' ') {
                                     event.preventDefault();
-                                    navigate(`/student/writing/${item.id}`);
+                                    navigate(buildRoute('RESULT_DETAIL', { resultId: item.id }));
                                 }
                             }}
                         >
