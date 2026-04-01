@@ -221,6 +221,7 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       'logout',
       'register',
       'resetPassword',
+      'toggleDevQuickLogin',
       'roleSwitch',
     ],
     description: 'User authentication and authorization',

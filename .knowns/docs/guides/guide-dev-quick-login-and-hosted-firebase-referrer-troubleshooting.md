@@ -2,7 +2,7 @@
 title: 'Guide: Dev Quick Login and Hosted Firebase Referrer Troubleshooting'
 description: Reusable guide for using built-in teacher/student dev login buttons and diagnosing hosted quick-login failures caused by Firebase browser API key referrer restrictions.
 createdAt: '2026-03-27T21:44:28.019Z'
-updatedAt: '2026-03-30T23:18:21.909Z'
+updatedAt: '2026-04-01T03:58:16.784Z'
 tags:
   - guide
   - auth
@@ -23,11 +23,14 @@ This matters because quick-login is the fastest way to verify teacher and studen
 
 Use the built-in quick-login buttons on the login page before asking for credentials.
 
+1. Open the login page.
+2. Click the subtle settings icon in the bottom-right corner to reveal the hidden dev quick-login controls.
+3. Use the quick-login button you need:
+
 - `Teacher` button: logs into the teacher dev account (`teacher@test.com`)
 - `Student` button: logs into the student dev account (`student@test.com`)
 
 Use these buttons as the default path for browser verification unless the task explicitly requires manual credential entry or a different account.
-
 ## Failure Pattern
 
 If hosted quick-login fails but the app otherwise loads, check for these browser-console/network symptoms:
@@ -74,12 +77,13 @@ Do not assume that Firebase Auth authorized domains are enough. API key referrer
 Once quick-login is restored, verify the actual teacher flow end to end:
 
 1. Open the app.
-2. Click the `Teacher` quick-login button.
-3. Navigate to `Students`.
-4. Click `Analytics` on the target student card.
-5. Confirm the history page loads instead of failing.
-6. Confirm the visible result count matches the intended teacher-visible set.
-7. Check the browser console at the target page, not just the initial login page.
+2. Click the subtle settings icon in the bottom-right corner of the login page.
+3. Click the `Teacher` quick-login button.
+4. Navigate to `Students`.
+5. Click `Analytics` on the target student card.
+6. Confirm the history page loads instead of failing.
+7. Confirm the visible result count matches the intended teacher-visible set.
+8. Check the browser console at the target page, not just the initial login page.
 
 ## Related Result-Visibility Checks
 

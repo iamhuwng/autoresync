@@ -11,6 +11,7 @@ const mockLogin = vi.fn();
 const mockLoginWithEmail = vi.fn();
 const mockUseAuth = vi.fn();
 const mockFetch = vi.fn();
+const mockTrackAction = vi.fn();
 
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom');
@@ -22,6 +23,12 @@ vi.mock('react-router-dom', async () => {
 
 vi.mock('../hooks/useAuth', () => ({
   useAuth: () => mockUseAuth(),
+}));
+
+vi.mock('../hooks/useFeatureTracking', () => ({
+  useFeatureTracking: () => ({
+    trackAction: mockTrackAction,
+  }),
 }));
 
 function renderPage() {
@@ -60,8 +67,9 @@ describe('LoginPage', () => {
     expect(screen.getByRole('heading', { name: /welcome/i })).toBeInTheDocument();
     expect(screen.getByText(/sign in to access your account/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /sign in with google/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /teacher/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /student/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /show dev quick login/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^teacher$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^student$/i })).not.toBeInTheDocument();
   });
 
   it('calls the google login handler when the Google button is clicked', async () => {
@@ -71,6 +79,18 @@ describe('LoginPage', () => {
     await user.click(screen.getByRole('button', { name: /sign in with google/i }));
 
     expect(mockLogin).toHaveBeenCalledTimes(1);
+    expect(mockTrackAction).toHaveBeenCalledWith('login', { method: 'google' });
+  });
+
+  it('reveals dev quick-login actions from the settings icon', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('button', { name: /show dev quick login/i }));
+
+    expect(screen.getByRole('button', { name: /^teacher$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^student$/i })).toBeInTheDocument();
+    expect(mockTrackAction).toHaveBeenCalledWith('toggleDevQuickLogin', { visible: true });
   });
 
   it('calls email login with the teacher demo credentials', async () => {
@@ -82,10 +102,12 @@ describe('LoginPage', () => {
 
     mockLoginWithEmail.mockReturnValueOnce(loginPromise);
     renderPage();
+    await user.click(screen.getByRole('button', { name: /show dev quick login/i }));
 
     await user.click(screen.getByRole('button', { name: /^teacher$/i }));
 
     expect(mockLoginWithEmail).toHaveBeenCalledWith('teacher@test.com', 'password123');
+    expect(mockTrackAction).toHaveBeenCalledWith('login', { method: 'dev', role: 'teacher' });
     expect(screen.getByRole('button', { name: /logging in\.\.\./i })).toBeDisabled();
 
     resolveLogin();
@@ -97,10 +119,12 @@ describe('LoginPage', () => {
   it('calls email login with the student demo credentials', async () => {
     const user = userEvent.setup();
     renderPage();
+    await user.click(screen.getByRole('button', { name: /show dev quick login/i }));
 
     await user.click(screen.getByRole('button', { name: /^student$/i }));
 
     expect(mockLoginWithEmail).toHaveBeenCalledWith('student@test.com', 'password123');
+    expect(mockTrackAction).toHaveBeenCalledWith('login', { method: 'dev', role: 'student' });
   });
 
   it('redirects teachers to the lobby', async () => {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useFeatureTracking } from '../hooks/useFeatureTracking';
 
 import { Card, CardBody, Button } from '../components/modern';
 import { IconBrandGoogle } from '@tabler/icons-react';
@@ -8,8 +9,10 @@ import { IconBrandGoogle } from '@tabler/icons-react';
 const LoginPage = () => {
   const navigate = useNavigate();
   const { user, profile, loading, login, loginWithEmail } = useAuth();
+  const { trackAction } = useFeatureTracking('authentication');
   const [loginError, setLoginError] = useState(null);
   const [devLoading, setDevLoading] = useState(null); // 'teacher' | 'student' | null
+  const [showDevQuickLogin, setShowDevQuickLogin] = useState(false);
 
   // Auto-redirect authenticated users to their role-appropriate dashboard
   useEffect(() => {
@@ -49,6 +52,7 @@ const LoginPage = () => {
 
   const handleGoogleSignIn = async () => {
     setLoginError(null);
+    trackAction('login', { method: 'google' });
     try {
       await login();
     } catch (error) {
@@ -61,6 +65,7 @@ const LoginPage = () => {
   const handleDevLogin = async (role) => {
     setLoginError(null);
     setDevLoading(role);
+    trackAction('login', { method: 'dev', role });
     try {
       const email = role === 'teacher' ? 'teacher@test.com' : 'student@test.com';
       await loginWithEmail(email, 'password123');
@@ -70,6 +75,14 @@ const LoginPage = () => {
     } finally {
       setDevLoading(null);
     }
+  };
+
+  const handleDevQuickLoginToggle = () => {
+    setShowDevQuickLogin((currentValue) => {
+      const nextValue = !currentValue;
+      trackAction('toggleDevQuickLogin', { visible: nextValue });
+      return nextValue;
+    });
   };
 
   // Show loading state
@@ -213,27 +226,27 @@ const LoginPage = () => {
                 New users will be registered as students by default
               </p>
 
-              {/* Demo Quick-Login Buttons */}
-              <div style={{ marginTop: '1.5rem' }}>
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.75rem',
-                  marginBottom: '1rem'
-                }}>
-                  <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }} />
-                  <span style={{
-                    fontSize: '0.6875rem',
-                    fontWeight: '600',
-                    color: '#94a3b8',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em'
+              {showDevQuickLogin && (
+                <div style={{ marginTop: '1.5rem' }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    marginBottom: '1rem'
                   }}>
-                    Demo Quick Login
-                  </span>
-                  <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }} />
-                </div>
-                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                    <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }} />
+                    <span style={{
+                      fontSize: '0.6875rem',
+                      fontWeight: '600',
+                      color: '#94a3b8',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    }}>
+                      Dev Quick Login
+                    </span>
+                    <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }} />
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.75rem' }}>
                   <button
                     id="dev-login-teacher"
                     onClick={() => handleDevLogin('teacher')}
@@ -328,12 +341,69 @@ const LoginPage = () => {
                     </svg>
                     {devLoading === 'student' ? 'Logging in...' : 'Student'}
                   </button>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
         </CardBody>
       </Card>
+
+      <button
+        type="button"
+        aria-label={showDevQuickLogin ? 'Hide dev quick login' : 'Show dev quick login'}
+        aria-pressed={showDevQuickLogin}
+        onClick={handleDevQuickLoginToggle}
+        style={{
+          position: 'fixed',
+          right: '1.25rem',
+          bottom: '1.25rem',
+          zIndex: 2,
+          width: '2.75rem',
+          height: '2.75rem',
+          border: '1px solid rgba(255, 255, 255, 0.18)',
+          borderRadius: '999px',
+          background: showDevQuickLogin
+            ? 'rgba(255, 255, 255, 0.28)'
+            : 'rgba(255, 255, 255, 0.1)',
+          backdropFilter: showDevQuickLogin ? 'blur(8px)' : 'blur(18px)',
+          WebkitBackdropFilter: showDevQuickLogin ? 'blur(8px)' : 'blur(18px)',
+          boxShadow: showDevQuickLogin
+            ? '0 12px 30px rgba(15, 23, 42, 0.18)'
+            : '0 6px 18px rgba(15, 23, 42, 0.08)',
+          color: 'rgba(255, 255, 255, 0.34)',
+          opacity: showDevQuickLogin ? 0.55 : 0.22,
+          filter: showDevQuickLogin ? 'blur(0.4px)' : 'blur(1.8px)',
+          cursor: 'pointer',
+          transition: 'all 0.25s ease',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 0
+        }}
+      >
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <circle cx="12" cy="12" r="3" />
+          <path d="M12 2v2.2" />
+          <path d="M12 19.8V22" />
+          <path d="m4.93 4.93 1.56 1.56" />
+          <path d="m17.51 17.51 1.56 1.56" />
+          <path d="M2 12h2.2" />
+          <path d="M19.8 12H22" />
+          <path d="m4.93 19.07 1.56-1.56" />
+          <path d="m17.51 6.49 1.56-1.56" />
+        </svg>
+      </button>
 
       <style>{`
         @keyframes float {

@@ -22,6 +22,7 @@ These rules are obligatory for file creation, conversion, and editing:
 
 When testing authenticated teacher or student flows in this repo:
 - Prefer the built-in dev quick-login buttons on the login page before asking for credentials.
+- First click the subtle settings icon in the bottom-right corner of the login page to reveal the hidden dev quick-login buttons.
 - Use the `Teacher` quick-login button for the teacher dev account (`teacher@test.com`).
 - Use the `Student` quick-login button for the student dev account (`student@test.com`).
 - Treat these buttons as the default path for browser verification unless the task explicitly requires manual credential entry or a different account.
