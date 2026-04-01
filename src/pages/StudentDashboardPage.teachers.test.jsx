@@ -3,13 +3,14 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { MantineProvider } from '@mantine/core';
 import StudentDashboardPage from './StudentDashboardPage';
-import * as resultsService from '../services/resultsService';
 import * as notificationService from '../services/notificationService';
 import * as studentShellHooks from '../hooks/useStudentShellData';
+import * as classManager from '../services/classManager';
 
-const { mockNavigateTo, mockRefreshClasses } = vi.hoisted(() => ({
+const { mockNavigateTo, mockRefreshClasses, mockRefreshHomeworkData } = vi.hoisted(() => ({
     mockNavigateTo: vi.fn(),
     mockRefreshClasses: vi.fn(),
+    mockRefreshHomeworkData: vi.fn(),
 }));
 
 const renderWithProviders = (ui) => render(
@@ -47,6 +48,7 @@ vi.mock('../hooks/useMediaQuery', () => ({
 
 vi.mock('../components/dashboard/PendingReviewsWidget', () => ({
     PendingReviewsWidget: () => <div data-testid="pending-reviews-widget">Pending reviews</div>,
+    default: () => <div data-testid="pending-reviews-widget">Pending reviews</div>,
 }));
 
 vi.mock('../components/results/DeferredResultSlidePanel', () => ({
@@ -57,7 +59,9 @@ vi.mock('../components/results/DeferredResultSlidePanel', () => ({
     ),
 }));
 
-vi.mock('../services/resultsService');
+vi.mock('../services/classManager', () => ({
+    enrollStudent: vi.fn(),
+}));
 vi.mock('../services/notificationService', () => ({
     getPaginatedUserNotifications: vi.fn(),
     markNotificationAsRead: vi.fn(),
@@ -81,6 +85,7 @@ const makeShellData = (overrides = {}) => ({
     sortedAssignments: [],
     isClassesLoading: false,
     refreshClasses: mockRefreshClasses,
+    refreshHomeworkData: mockRefreshHomeworkData,
     ...overrides,
 });
 
@@ -88,8 +93,9 @@ describe('StudentDashboardPage', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mockRefreshClasses.mockResolvedValue(undefined);
+        mockRefreshHomeworkData.mockResolvedValue(undefined);
         studentShellHooks.useStudentShellData.mockReturnValue(makeShellData());
-        resultsService.getAvailablePublicSessions.mockResolvedValue([]);
+        classManager.enrollStudent.mockResolvedValue({ success: true, classId: 'ABC123' });
         notificationService.getPaginatedUserNotifications.mockResolvedValue({
             notifications: [],
             hasMore: false,
@@ -103,14 +109,18 @@ describe('StudentDashboardPage', () => {
 
         await waitFor(() => {
             expect(screen.getByText('Feed')).toBeInTheDocument();
-            expect(screen.getByText('Welcome to Kahoot!')).toBeInTheDocument();
-            expect(screen.getByText('Ask your teacher for a class code to get started.')).toBeInTheDocument();
+            expect(screen.getByText('Dashboard')).toBeInTheDocument();
+            expect(screen.getByText('Your workspace is ready.')).toBeInTheDocument();
+            expect(screen.getByText('Join a class to unlock live sessions, coursework, and result tracking in this academic shell.')).toBeInTheDocument();
         });
     });
 
-    it('renders shared right rail modules from shell data', async () => {
+    it('renders the screenshot-era dashboard summary row and shared up-next module', async () => {
         studentShellHooks.useStudentShellData.mockReturnValue(makeShellData({
-            enrolledClasses: [{ id: 'cls-1', name: 'IELTS Class', classCode: 'AB', studentCount: 12 }],
+            enrolledClasses: [
+                { id: 'cls-1', name: 'IELTS Class', classCode: 'AB', studentCount: 12 },
+                { id: 'cls-2', name: 'THCS Class', classCode: 'CD', studentCount: 18 },
+            ],
             sortedAssignments: [{
                 status: 'not_started',
                 homework: {
@@ -125,15 +135,22 @@ describe('StudentDashboardPage', () => {
         renderWithProviders(<StudentDashboardPage />);
 
         await waitFor(() => {
-            expect(screen.getByText('Up Next')).toBeInTheDocument();
+            expect(screen.getByText('Activity')).toBeInTheDocument();
+            expect(screen.getByText('Homework Due')).toBeInTheDocument();
+            expect(screen.getByText('0 in current view')).toBeInTheDocument();
+            expect(screen.getByText('No pending start')).toBeInTheDocument();
+            expect(screen.getAllByText('Up Next')).toHaveLength(1);
             expect(screen.getByText('Reading Practice')).toBeInTheDocument();
             expect(screen.getByText('My Classes')).toBeInTheDocument();
             expect(screen.getAllByText('AB').length).toBeGreaterThan(0);
+            expect(screen.getAllByText('CD').length).toBeGreaterThan(0);
+            expect(screen.queryByText('Feed Snapshot')).not.toBeInTheDocument();
         });
     });
 
-    it('keeps dashboard-specific widgets under the shell rail and joins shared live sessions through waiting room', async () => {
+    it('keeps dashboard right rail aligned to shared live and up-next modules with pending review', async () => {
         studentShellHooks.useStudentShellData.mockReturnValue(makeShellData({
+            enrolledClasses: [{ id: 'cls-1', name: 'IELTS Class', classCode: 'AB', studentCount: 12 }],
             classLiveSessions: [{
                 code: 'LIVE123',
                 classId: 'cls-1',
@@ -143,47 +160,27 @@ describe('StudentDashboardPage', () => {
                 status: 'waiting',
                 title: 'Live IELTS Reading',
             }],
+            sortedAssignments: [{
+                status: 'not_started',
+                homework: {
+                    id: 'hw-1',
+                    title: 'Reading Practice',
+                    scheduling: { dueDate: Date.now() + 86400000 },
+                    target: { className: 'IELTS Class' },
+                },
+            }],
         }));
 
         renderWithProviders(<StudentDashboardPage />);
 
         await waitFor(() => {
-            expect(screen.getByText('Live Now')).toBeInTheDocument();
+            expect(screen.getAllByText('Live Now').length).toBeGreaterThan(0);
             expect(screen.getByText('Live IELTS Reading')).toBeInTheDocument();
+            expect(screen.getByText('Up Next')).toBeInTheDocument();
+            expect(screen.getByText('Reading Practice')).toBeInTheDocument();
+            expect(screen.getByText('My Classes')).toBeInTheDocument();
             expect(screen.getByTestId('pending-reviews-widget')).toBeInTheDocument();
-        });
-
-        fireEvent.click(screen.getByText(/Join Now/i));
-
-        await waitFor(() => {
-            expect(mockNavigateTo).toHaveBeenCalledWith(
-                'STUDENT_WAITING',
-                { gameSessionId: 'LIVE123' },
-                { reason: 'student_shell_right_rail_join' },
-            );
-        });
-    });
-
-    it('renders public sessions as dashboard supplemental content and joins them through waiting room', async () => {
-        resultsService.getAvailablePublicSessions.mockResolvedValue([
-            { sessionCode: 'PUBLIC1', testTitle: 'Public Quiz', playerCount: 10, createdAt: Date.now() },
-        ]);
-
-        renderWithProviders(<StudentDashboardPage />);
-
-        await waitFor(() => {
-            expect(screen.getAllByText(/Live Now/i).length).toBeGreaterThan(0);
-            expect(screen.getAllByText('Public Quiz').length).toBeGreaterThan(0);
-        });
-
-        fireEvent.click(screen.getAllByText('Join')[0]);
-
-        await waitFor(() => {
-            expect(mockNavigateTo).toHaveBeenCalledWith(
-                'STUDENT_WAITING',
-                { gameSessionId: 'PUBLIC1' },
-                { reason: 'dashboard_public_session_join' },
-            );
+            expect(screen.queryByText('Public Sessions')).not.toBeInTheDocument();
         });
     });
 
@@ -194,6 +191,29 @@ describe('StudentDashboardPage', () => {
 
         await waitFor(() => {
             expect(screen.getByPlaceholderText(/enter class code/i)).toBeInTheDocument();
+        });
+    });
+
+    it('refreshes homework after a successful class join', async () => {
+        renderWithProviders(<StudentDashboardPage />);
+
+        fireEvent.click(await screen.findByText('Join a Class'));
+        const classCodeInput = screen.getByPlaceholderText(/enter class code/i);
+
+        fireEvent.change(classCodeInput, {
+            target: { value: 'abc123' },
+        });
+        fireEvent.submit(classCodeInput.closest('form'));
+
+        await waitFor(() => {
+            expect(classManager.enrollStudent).toHaveBeenCalledWith(
+                'ABC123',
+                'student-123',
+                'Test Student',
+                'student@test.com',
+            );
+            expect(mockRefreshClasses).toHaveBeenCalledTimes(1);
+            expect(mockRefreshHomeworkData).toHaveBeenCalledTimes(1);
         });
     });
 
@@ -222,6 +242,62 @@ describe('StudentDashboardPage', () => {
 
         await waitFor(() => {
             expect(screen.getByTestId('result-slide-panel')).toHaveAttribute('data-result-id', 'result-1');
+        });
+    });
+
+    it('opens the result slide panel for result-detail links without metadata.resultId', async () => {
+        notificationService.getPaginatedUserNotifications.mockResolvedValue({
+            notifications: [{
+                id: 'notif-result-link',
+                type: 'success',
+                title: 'Writing Test Reviewed',
+                message: 'Your writing result is ready.',
+                link: '/result/result-legacy',
+                read: false,
+                createdAt: Date.now(),
+                metadata: {
+                    writingId: 'writing-1',
+                },
+            }],
+            hasMore: false,
+            lastKey: undefined,
+        });
+
+        renderWithProviders(<StudentDashboardPage />);
+
+        fireEvent.click(await screen.findByText('Writing Test Reviewed'));
+
+        await waitFor(() => {
+            expect(screen.getByTestId('result-slide-panel')).toHaveAttribute('data-result-id', 'result-legacy');
+        });
+    });
+
+    it('opens the result slide panel for writing notifications that link to academic record', async () => {
+        notificationService.getPaginatedUserNotifications.mockResolvedValue({
+            notifications: [{
+                id: 'notif-writing-graded',
+                type: 'success',
+                title: 'Writing Graded',
+                message: 'Your teacher graded your essay.',
+                link: '/student/academic-record',
+                read: false,
+                createdAt: Date.now(),
+                metadata: {
+                    submissionId: 'submission-123',
+                    testTitle: 'Writing Mock 1',
+                    overallBand: 6.5,
+                },
+            }],
+            hasMore: false,
+            lastKey: undefined,
+        });
+
+        renderWithProviders(<StudentDashboardPage />);
+
+        fireEvent.click(await screen.findByText('Writing Graded'));
+
+        await waitFor(() => {
+            expect(screen.getByTestId('result-slide-panel')).toHaveAttribute('data-result-id', 'submission-123');
         });
     });
 });

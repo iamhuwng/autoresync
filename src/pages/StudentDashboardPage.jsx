@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { enrollStudent } from '../services/classManager';
-import { getAvailablePublicSessions } from '../services/resultsService';
 import { getPaginatedUserNotifications, markNotificationAsRead, subscribeToNewNotifications } from '../services/notificationService';
 import { sessionService } from '../services/sessionService';
 import { useNavigation } from '../hooks/useNavigation';
@@ -11,6 +10,7 @@ import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
 import { S, studentTokens } from '../components/layout/studentLayoutStyles';
 import StudentDashboardFeedView from '../components/dashboard/StudentDashboardFeedView';
+import PendingReviewsWidget from '../components/dashboard/PendingReviewsWidget';
 
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
 import { FEATURE_IDS } from '../config/featureRegistry';
@@ -182,22 +182,52 @@ function formatFeedBody(notification) {
     return plainMessage || notification.metadata?.testName || notification.metadata?.materialTitle || 'A new update is available in your workspace.';
 }
 
+function resolveNotificationResultId(notification) {
+    if (notification.metadata?.resultId) {
+        return notification.metadata.resultId;
+    }
+
+    if (notification.metadata?.submissionId) {
+        return notification.metadata.submissionId;
+    }
+
+    try {
+        if (!notification.link) {
+            return null;
+        }
+
+        const url = new URL(notification.link, 'https://student.local');
+        const queryResultId = url.searchParams.get('result');
+
+        if (queryResultId) {
+            return queryResultId;
+        }
+
+        if (getFeedKind(notification) !== 'tests') {
+            return null;
+        }
+
+        const routeMatch = url.pathname.match(/^\/result\/([^/]+)$/);
+        return routeMatch?.[1] ? decodeURIComponent(routeMatch[1]) : null;
+    } catch (_) {
+        return null;
+    }
+}
+
 const StudentDashboardPage = () => {
     const { user, profile } = useAuth();
     const navigate = useNavigate();
     const { navigateTo } = useNavigation('student');
     const { trackAction } = useFeatureTracking(FEATURE_IDS.studentDashboard);
-    const { enrolledClasses, classLiveSessions, notStarted, sortedAssignments, refreshClasses } = useResolvedStudentShellData();
+    const { enrolledClasses, classLiveSessions, notStarted, sortedAssignments, refreshClasses, refreshHomeworkData } = useResolvedStudentShellData();
 
     const [classCode, setClassCode] = useState('');
     const [isEnrolling, setIsEnrolling] = useState(false);
     const [enrollError, setEnrollError] = useState('');
     const [isLoading, setIsLoading] = useState(true);
-    const [publicSessions, setPublicSessions] = useState([]);
     const [feedFilter, setFeedFilter] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [showUnreadOnly, setShowUnreadOnly] = useState(false);
-    const [showAllPublicSessions, setShowAllPublicSessions] = useState(false);
     const [allNotifications, setAllNotifications] = useState([]);
     const [notifCursor, setNotifCursor] = useState(undefined);
     const [hasMoreNotifs, setHasMoreNotifs] = useState(false);
@@ -212,15 +242,11 @@ const StudentDashboardPage = () => {
             setIsLoading(true);
 
             try {
-                const [notificationResult, sessions] = await Promise.all([
-                    getPaginatedUserNotifications(user.uid, 20),
-                    getAvailablePublicSessions(),
-                ]);
+                const notificationResult = await getPaginatedUserNotifications(user.uid, 20);
 
                 setAllNotifications(notificationResult.notifications || []);
                 setHasMoreNotifs(notificationResult.hasMore);
                 setNotifCursor(notificationResult.lastKey);
-                setPublicSessions(sessions || []);
             } catch (error) {
                 console.error('Error loading student dashboard:', error);
             } finally {
@@ -277,15 +303,6 @@ const StudentDashboardPage = () => {
         [classLiveSessions, enrolledClasses, sortedAssignments],
     );
 
-    const feedSummaryCards = useMemo(
-        () => [
-            { label: 'Activity', value: allNotifications.length, meta: `${filteredNotifications.length} in current view`, color: studentTokens.textPrimary },
-            { label: 'Homework Due', value: sortedAssignments.length, meta: notStarted.length > 0 ? `${notStarted.length} not started` : 'No pending start', color: '#9a6427' },
-            { label: 'Live Now', value: classLiveSessions.length + publicSessions.length, meta: classLiveSessions.length > 0 ? `${classLiveSessions.length} class sessions active` : 'No active class sessions', color: studentTokens.accent },
-        ],
-        [allNotifications.length, filteredNotifications.length, sortedAssignments.length, notStarted.length, classLiveSessions.length, publicSessions.length],
-    );
-
     const openJoinModal = source => {
         trackAction('openJoinClassModal', { source });
         setShowJoinModal(true);
@@ -337,6 +354,7 @@ const StudentDashboardPage = () => {
             setJoinSuccessMessage(`Successfully joined ${normalizedCode}.`);
             setClassCode('');
             await refreshClasses();
+            await refreshHomeworkData();
             setTimeout(() => {
                 setJoinSuccessMessage('');
                 closeJoinModal('auto_success');
@@ -348,14 +366,6 @@ const StudentDashboardPage = () => {
         } finally {
             setIsEnrolling(false);
         }
-    };
-
-    const handleJoinPublicSession = sessionCode => {
-        trackAction('joinPublicSession', { sessionCode });
-        if (user) {
-            sessionService.setPlayerData(user.uid, user.displayName || user.email || 'Student', sessionCode);
-        }
-        navigateTo('STUDENT_WAITING', { gameSessionId: sessionCode }, { reason: 'dashboard_public_session_join' });
     };
 
     const handleNotificationClick = notification => {
@@ -375,9 +385,10 @@ const StudentDashboardPage = () => {
             return;
         }
 
-        if (notification.metadata?.resultId) {
-            trackAction('openFeedResult', { resultId: notification.metadata.resultId });
-            setSelectedResultId(notification.metadata.resultId);
+        const resultId = resolveNotificationResultId(notification);
+        if (resultId) {
+            trackAction('openFeedResult', { resultId });
+            setSelectedResultId(resultId);
             return;
         }
 
@@ -403,17 +414,6 @@ const StudentDashboardPage = () => {
         navigate('/student/academic-record');
     };
 
-    const handleOpenHomework = () => {
-        trackAction('openHomeworkList', { source: 'dashboard_right_rail' });
-        navigateTo('STUDENT_HOMEWORK');
-    };
-
-    const handleExpandPublicSessions = () => {
-        const nextValue = !showAllPublicSessions;
-        trackAction('expandPublicSessions', { expanded: nextValue });
-        setShowAllPublicSessions(nextValue);
-    };
-
     const feedRows = useMemo(
         () =>
             filteredNotifications.map(notification => {
@@ -435,43 +435,31 @@ const StudentDashboardPage = () => {
         [filteredNotifications],
     );
 
-    const upNextItems = useMemo(
-        () =>
-            sortedAssignments.slice(0, 2).map(item => {
-                const assignment = item.homework;
-                const className = assignment.target?.className || assignment.className;
-                return {
-                    id: assignment.id,
-                    title: assignment.title || assignment.materialTitle || 'Untitled assignment',
-                    meta: [className, assignment.materialType ? String(assignment.materialType).replace(/-/g, ' ') : null].filter(Boolean).join(' - '),
-                    summary: item.status === 'overdue' ? 'Reopen first.' : undefined,
-                    dueLabel: item.status === 'overdue' ? 'Overdue' : assignment.scheduling?.dueDate ? new Date(assignment.scheduling.dueDate).toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) : undefined,
-                    tone: item.status === 'overdue' ? 'warm' : assignment.materialType === 'thcs-test' ? 'accent' : 'neutral',
-                    actionLabel: 'Open',
-                    onClick: () => {
-                        trackAction('openHomeworkAssignment', { homeworkId: assignment.id, source: 'dashboard_right_rail' });
-                        navigateTo('STUDENT_HOMEWORK_DETAIL', { homeworkId: assignment.id });
-                    },
-                };
-            }),
-        [navigateTo, sortedAssignments, trackAction],
+    const feedSummaryCards = useMemo(
+        () => [
+            {
+                label: 'Activity',
+                value: allNotifications.length,
+                meta: `${filteredNotifications.length} in current view`,
+                color: studentTokens.textPrimary,
+            },
+            {
+                label: 'Homework Due',
+                value: sortedAssignments.length,
+                meta: notStarted.length > 0 ? `${notStarted.length} not started` : 'No pending start',
+                color: '#9a6427',
+            },
+            {
+                label: 'Live Now',
+                value: classLiveSessions.length,
+                meta: classLiveSessions.length > 0 ? `${classLiveSessions.length} class sessions active` : 'No active class sessions',
+                color: studentTokens.accent,
+            },
+        ],
+        [allNotifications.length, filteredNotifications.length, sortedAssignments.length, notStarted.length, classLiveSessions.length],
     );
 
-    const railPublicSessions = useMemo(
-        () =>
-            [...publicSessions]
-                .sort((a, b) => b.playerCount - a.playerCount || a.createdAt - b.createdAt)
-                .map(session => ({
-                    sessionCode: session.sessionCode,
-                    title: session.testTitle || 'Public Session',
-                    meta: [`${session.playerCount || 0} playing`, session.createdAt ? `Opened ${timeAgo(session.createdAt)}` : null].filter(Boolean),
-                    badgeLabel: session.playerCount > 0 ? 'Open' : undefined,
-                    tone: 'cool',
-                    joinLabel: 'Join',
-                    onJoin: () => handleJoinPublicSession(session.sessionCode),
-                })),
-        [publicSessions],
-    );
+    const rightPanel = useMemo(() => <PendingReviewsWidget />, []);
 
     const emptyState = useMemo(() => {
         if (isLoading && allNotifications.length === 0) {
@@ -503,6 +491,7 @@ const StudentDashboardPage = () => {
                 mobileTitle="Feed"
                 shellData={shellData}
                 rightRailVariant="dashboard"
+                rightPanel={rightPanel}
                 sidebar={
                     <StudentSidebar
                         user={user ? { ...user, avatarUrl: profile?.avatarUrl } : undefined}

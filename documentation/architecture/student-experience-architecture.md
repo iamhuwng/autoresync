@@ -72,14 +72,13 @@ Disallowed feel:
 
 ## Dashboard Right Rail Contract
 
-Dashboard uses a page-shaped right rail rather than the generic shared shell widget stack.
+Dashboard uses the shared shell right rail on the live route and appends only one page-specific supplement.
 
 Rules:
-- the rail is an editorial aside, not a set of reusable dashboard widgets
-- `Feed Snapshot` is the primary summary surface
-- `Weekly Focus` and `Up Next` belong to the same narrative composition
-- `Public Sessions` is a quieter supporting section
+- the shell renders `Live Now`, `Up Next`, and `My Classes`
+- dashboard appends `Pending Reviews` as a quieter page-specific supplement
 - the sidebar and route structure must preserve the real app IA even when the visual tone follows Stitch
+- dashboard must not diverge into a separate page-owned rail composition unless the architecture contract is explicitly revised
 
 ## Dashboard Variant Mapping
 

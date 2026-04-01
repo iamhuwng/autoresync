@@ -2,7 +2,7 @@
 title: Student Shell Data Loading Architecture
 description: 'Canonical ownership and loading contract for student shell routes: one persistent shell data owner, shared consumers, and route-safe page loading boundaries.'
 createdAt: '2026-03-31T02:54:47.750Z'
-updatedAt: '2026-03-31T22:29:27.125Z'
+updatedAt: '2026-04-01T05:44:56.018Z'
 tags:
   - architecture
   - student
@@ -47,7 +47,12 @@ This architecture applies to student shell routes rendered inside the shared stu
 - `/student/library`
 - `/student/academic-record`
 
-Routes outside that shared shell host may use different owners because they are different host surfaces.
+This architecture does not automatically apply to routes outside the shared shell host, such as:
+- course catalog
+- homework detail and test-taking flows
+- practice and session routes
+
+Those routes may use different loading owners because they are different host surfaces.
 
 ## Canonical Ownership Model
 
@@ -59,23 +64,23 @@ Current repo shape:
 - `StudentLayout`, `StudentRightRail`, and shell pages consume resolved shell data from the provider
 - fallback hook ownership is allowed only when a surface is truly outside the provider boundary
 
-This means left-column navigation between shell pages preserves shell-owned data instead of recreating it.
+This means left-column navigation between shell pages should preserve shell-owned data instead of recreating it.
 
 ## Shell-Owned Datasets
 
 The shared shell owner is responsible for:
 - enrolled class membership summaries
 - active live-session summaries derived from enrolled classes
-- homework summary groups used by shell widgets and page-level counters
+- homework summary groups used by shell widgets and badge-like page widgets
 
 Right-rail upcoming, live-session, and class summary projections remain shell-owned even when dashboard-specific components restate them in a page-shaped composition.
 
-Current repo anchors:
-- `src/App.jsx`
+Current implementation anchors:
 - `src/context/StudentShellDataContext.tsx`
 - `src/hooks/useStudentShellData.ts`
 - `src/hooks/useHomeworkSubmission.ts`
 - `src/components/layout/StudentRightRail.tsx`
+- `src/App.jsx`
 
 ## Consumer Rules
 
@@ -91,7 +96,7 @@ Student shell pages may consume shell-owned summaries when they need the same in
 
 Allowed:
 - deriving counters, filters, urgency groups, or CTA state from shell-owned summaries
-- deriving dashboard metric-strip values, weekly-focus summaries, `Up Next`, public-session excerpts, and unread or feed filters from shell-owned summaries plus page-owned notification data
+- deriving dashboard metric-strip values, `Up Next`, and unread or feed filters from shell-owned summaries plus page-owned notification data
 - passing shell-owned projections into helper services so those services do not reread the same source
 
 Not allowed:
@@ -129,9 +134,11 @@ Dashboard is inside the persistent student shell, but it still owns page-primary
 Dashboard-owned datasets:
 - paginated student notifications
 - unread and search interaction state
-- public-session discovery rows and expansion state
 - join-class modal state
 - selected result panel state
+
+Dashboard supplemental widget-owned dataset:
+- pending writing-review summaries loaded by `PendingReviewsWidget.tsx`
 
 Dashboard must consume shell-owned summaries instead of recreating them:
 - enrolled class membership summaries
@@ -142,8 +149,18 @@ Derived view models should be assembled in the page host before being passed dow
 
 This yields the intended split:
 - shell provider owns reusable student shell summaries
-- `StudentDashboardPage.jsx` owns dashboard-primary activity and public-session data
-- `StudentDashboardFeedView.jsx` and `StudentDashboardRightRail.jsx` stay presentational and receive derived view models from the page host
+- `StudentDashboardPage.jsx` owns dashboard-primary activity data and the derived center-column view models
+- `PendingReviewsWidget.tsx` owns its narrow supplemental query
+- `StudentDashboardFeedView.jsx` stays presentational and receives derived view models from the page host
+
+## Homework Boundary
+
+Homework list and related shell pages may read homework summaries from the shared shell owner for:
+- upcoming work modules
+- sidebar counters
+- urgency selectors used outside the dedicated homework center-column host
+
+The detailed homework page host may still own additional page-specific detail loads that the shell does not need.
 
 ## Future Growth Rules
 
@@ -151,41 +168,9 @@ For future student shell work:
 - add new shell-global student summaries to the provider, not to arbitrary pages
 - keep page hosts responsible only for page-primary datasets
 - prefer stale-while-revalidate for page hosts after the first successful load
+- keep student shell warmup split between shell-owned data preload and page-owned route/cache preload
 - do not backfill, repair, or persist data during page mount or tab switch
 - do not let convenience helpers hide duplicate reads of shell-owned data
-
-## Related Docs
-
-- @doc/architecture/student-shell-right-rail-architecture
-- @doc/architecture/student-dashboard-architecture
-- @doc/architecture/student-experience-architecture
-- @doc/patterns/pattern-student-shell-single-data-owner
-- @doc/patterns/pattern-summary-first-detail-on-demand
-- @doc/patterns/pattern-bulk-enrichment-from-shared-student-history
-
-## First-Entry Warmup
-
-The student shell now uses route-owned warmup in addition to the persistent shell data owner.
-
-Rules:
-- the shell provider may prefetch selected student shell routes after login
-- prefetch may warm route chunks and page-owned caches, but it must not create a second owner for shell-shared data
-- Library and Academic Record can warm immediately after shell entry
-- Courses warms after shell-owned class membership is ready so it can reuse the student-safe class projection instead of a broader fallback read
-
-Verification contract:
-- revisits stay stale-while-revalidate
-- after fresh login plus the warmup window, first entry into warmed student shell pages should avoid blocking loaders
-
-## Startup Bundle Boundary
-
-Student shell data-loading and student startup segmentation are separate but adjacent contracts.
-
-Rules:
-- shell-owned data preload may warm shared student summaries
-- route-module warmup may preload selected shell pages and page-owned caches
-- startup optimization must not reintroduce a second owner for shell-shared data
-- startup-sensitive changes should also satisfy the bundle guardrails in @doc/architecture/student-startup-bundle-segmentation
 
 ## Verification Standard
 
@@ -196,3 +181,17 @@ The minimum pass condition for sibling shell navigation is:
 - no repeated expired-session hydration noise from tab changes
 - no new shell-level listeners started by pages that only consume shell-owned summaries
 - dashboard parity refactors do not reintroduce duplicate reads for the right rail or metric strip
+
+For startup-sensitive changes on the student path, also verify:
+- first authenticated student entry does not fetch optional heavy bundles before explicit navigation
+- warmed student shell routes avoid blocking loaders after the warmup window
+
+## Related Docs
+
+- @doc/architecture/student-dashboard-architecture
+- @doc/architecture/student-shell-right-rail-architecture
+- @doc/architecture/student-startup-bundle-segmentation
+- @doc/architecture/academic-record/academic-record-page-architecture
+- @doc/architecture/student-experience-architecture
+- @doc/patterns/pattern-student-shell-single-data-owner
+- @doc/patterns/pattern-summary-first-detail-on-demand

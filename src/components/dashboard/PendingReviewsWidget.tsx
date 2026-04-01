@@ -1,19 +1,18 @@
 /**
- * PendingReviewsWidget — Student Dashboard Widget
+ * PendingReviewsWidget - Student Dashboard Widget
  * PRD-0030 Phase 8: Notifications & Academic Record
  *
  * Shows pending writing submissions awaiting teacher review.
  * Max 5 items; "See all" link if more. Hidden (returns null) if empty.
- *
- * NO MANTINE — native HTML/CSS only.
  */
-import { useState, useEffect } from 'react';
+import type { CSSProperties } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
+import { collection, getDocs, limit, orderBy, query, where } from 'firebase/firestore';
 import { firestore as db } from '../../services/firebase';
 import { useAuth } from '../../hooks/useAuth';
+import { studentTokens } from '../layout/studentLayoutStyles';
 
-// ── Types ──────────────────────────────────────────────────
 interface PendingItem {
     id: string;
     testTitle: string;
@@ -21,106 +20,174 @@ interface PendingItem {
     contextType: string;
 }
 
-// ── Styles ──────────────────────────────────────────────────
 const s = {
     widget: {
-        background: 'white',
-        border: '1px solid #e5e7eb',
-        borderRadius: 16,
-        overflow: 'hidden',
+        background: studentTokens.bgSurface,
+        borderRadius: 12,
+        padding: 16,
+        border: `1px solid ${studentTokens.borderWhisper}`,
+        display: 'flex',
+        flexDirection: 'column' as const,
+        gap: 12,
+        minWidth: 0,
     },
     header: {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: '14px 18px',
-        borderBottom: '1px solid #f3f4f6',
+        gap: 12,
+    },
+    titleBlock: {
+        display: 'flex',
+        flexDirection: 'column' as const,
+        gap: 4,
+        minWidth: 0,
+    },
+    eyebrow: {
+        margin: 0,
+        fontSize: '0.625rem',
+        fontWeight: 800 as const,
+        letterSpacing: '0.12em',
+        textTransform: 'uppercase' as const,
+        color: studentTokens.textMuted,
+        lineHeight: 1.2,
     },
     title: {
-        fontSize: '0.9375rem',
-        fontWeight: 700 as const,
-        color: '#111827',
         margin: 0,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
+        fontSize: '0.8125rem',
+        fontWeight: 600 as const,
+        lineHeight: 1.3,
+        color: studentTokens.textPrimary,
     },
     count: {
-        background: '#fef3c7',
-        color: '#d97706',
-        fontSize: '0.75rem',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minWidth: 30,
+        height: 22,
+        padding: '0 8px',
+        borderRadius: studentTokens.radiusPill,
+        background: studentTokens.accentSoft,
+        color: studentTokens.accentHover,
+        fontSize: '0.625rem',
         fontWeight: 700 as const,
-        padding: '2px 8px',
-        borderRadius: 999,
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase' as const,
+        flexShrink: 0,
     },
     list: {
         listStyle: 'none',
         margin: 0,
         padding: 0,
+        display: 'flex',
+        flexDirection: 'column' as const,
+        gap: 12,
+    },
+    itemShell: {
+        display: 'flex',
+        flexDirection: 'column' as const,
+        gap: 12,
     },
     item: {
         display: 'flex',
         justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: '12px 18px',
-        borderBottom: '1px solid #f9fafb',
-        transition: 'background 0.12s ease',
+        alignItems: 'flex-start',
+        gap: 12,
+        padding: 0,
+        border: 'none',
+        background: 'transparent',
+        borderRadius: 0,
+    },
+    itemMain: {
+        flex: 1,
+        minWidth: 0,
     },
     itemTitle: {
-        fontSize: '0.875rem',
-        fontWeight: 600 as const,
-        color: '#111827',
         margin: 0,
-        whiteSpace: 'nowrap' as const,
-        overflow: 'hidden' as const,
-        textOverflow: 'ellipsis' as const,
-        maxWidth: 200,
-    },
-    itemMeta: {
-        fontSize: '0.75rem',
-        color: '#6b7280',
-        marginTop: 2,
-    },
-    sourceBadge: {
-        fontSize: '0.6875rem',
-        fontWeight: 600 as const,
-        padding: '2px 8px',
-        borderRadius: 999,
-        textTransform: 'uppercase' as const,
-        letterSpacing: '0.03em',
-        flexShrink: 0,
-    },
-    seeAllBtn: {
-        display: 'block',
-        width: '100%',
-        padding: '10px',
-        border: 'none',
-        background: '#f9fafb',
-        color: '#4f46e5',
         fontSize: '0.8125rem',
         fontWeight: 600 as const,
-        cursor: 'pointer',
-        textAlign: 'center' as const,
-        fontFamily: 'inherit',
-        transition: 'background 0.15s ease',
+        lineHeight: 1.3,
+        color: studentTokens.textPrimary,
+        wordBreak: 'break-word' as const,
     },
-};
+    itemMeta: {
+        marginTop: 4,
+        fontSize: '0.6875rem',
+        lineHeight: 1.45,
+        color: studentTokens.textBody,
+    },
+    sourceBadge: {
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '3px 8px',
+        borderRadius: studentTokens.radiusPill,
+        fontSize: '0.625rem',
+        fontWeight: 700 as const,
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase' as const,
+        whiteSpace: 'nowrap' as const,
+        flexShrink: 0,
+    },
+    divider: {
+        height: 1,
+        background: studentTokens.borderWhisper,
+    },
+    seeAllBtn: {
+        alignSelf: 'flex-start',
+        padding: 0,
+        border: 'none',
+        background: 'transparent',
+        color: studentTokens.accent,
+        fontSize: '0.625rem',
+        fontWeight: 700 as const,
+        letterSpacing: '0.12em',
+        textTransform: 'uppercase' as const,
+        textAlign: 'left' as const,
+        cursor: 'pointer',
+        fontFamily: 'inherit',
+        transition: 'color 0.15s ease',
+    },
+} satisfies Record<string, CSSProperties>;
 
 function getSourceStyle(type: string): { bg: string; text: string; label: string } {
     switch (type) {
         case 'homework':
-            return { bg: '#e0e7ff', text: '#4338ca', label: 'Homework' };
+            return { bg: '#ece9ff', text: studentTokens.accentHover, label: 'Homework' };
         case 'solo-practice':
-            return { bg: '#f5f3ff', text: '#7c3aed', label: 'Solo' };
+            return { bg: studentTokens.bgSurfaceAlt, text: studentTokens.textBody, label: 'Solo' };
         case 'class-session':
+        case 'class_session':
+        case 'live-session':
         case 'live':
-            return { bg: '#dbeafe', text: '#2563eb', label: 'Live' };
+            return { bg: '#edf5f9', text: '#4c5458', label: 'Live' };
         default:
-            return { bg: '#f3f4f6', text: '#6b7280', label: type || 'Practice' };
+            return { bg: studentTokens.bgSurfaceAlt, text: studentTokens.textBody, label: type || 'Practice' };
     }
 }
 
-// ── Component ──────────────────────────────────────────────
+function resolvePendingTitle(data: Record<string, any>): string {
+    const testTitle =
+        data.testMeta?.testTitle ||
+        data.testMeta?.title ||
+        data.homeworkTitle ||
+        data.materialTitle ||
+        data.context?.homeworkTitle ||
+        data.context?.className ||
+        data.context?.courseName;
+
+    if (typeof testTitle === 'string' && testTitle.trim()) {
+        return testTitle.trim();
+    }
+
+    const firstPrompt = data.tasks?.find?.((task: Record<string, any>) => typeof task?.promptText === 'string' && task.promptText.trim());
+    if (firstPrompt?.promptText) {
+        return firstPrompt.promptText.trim().slice(0, 80);
+    }
+
+    return 'Writing submission';
+}
+
 export function PendingReviewsWidget() {
     const { user } = useAuth();
     const navigate = useNavigate();
@@ -134,24 +201,23 @@ export function PendingReviewsWidget() {
 
         async function fetchPending() {
             try {
-                // Fetch up to 6 items (5 to show + 1 to check "see all")
-                const q = query(
+                const pendingQuery = query(
                     collection(db, 'writing_submissions'),
-                    where('studentId', '==', user!.uid),
+                    where('studentId', '==', user.uid),
                     where('markingStatus', '==', 'pending-review'),
                     orderBy('submittedAt', 'desc'),
                     limit(6)
                 );
-                const snap = await getDocs(q);
+                const snap = await getDocs(pendingQuery);
                 if (cancelled) return;
 
-                const fetched: PendingItem[] = snap.docs.map(doc => {
-                    const d = doc.data();
+                const fetched: PendingItem[] = snap.docs.map((doc) => {
+                    const data = doc.data();
                     return {
                         id: doc.id,
-                        testTitle: d.testMeta?.title || d.testMeta?.testId || 'Untitled',
-                        submittedAt: d.submittedAt || d.createdAt || 0,
-                        contextType: d.context?.type || 'solo-practice',
+                        testTitle: resolvePendingTitle(data),
+                        submittedAt: data.submittedAt || data.createdAt || 0,
+                        contextType: data.context?.type || 'solo-practice',
                     };
                 });
 
@@ -160,61 +226,67 @@ export function PendingReviewsWidget() {
             } catch (err) {
                 console.error('[PendingReviewsWidget] Error:', err);
             } finally {
-                if (!cancelled) setLoaded(true);
+                if (!cancelled) {
+                    setLoaded(true);
+                }
             }
         }
 
         fetchPending();
-        return () => { cancelled = true; };
+        return () => {
+            cancelled = true;
+        };
     }, [user?.uid]);
 
-    // AC #2: Hidden when no pending
     if (!loaded || items.length === 0) return null;
 
     return (
         <div style={s.widget}>
             <div style={s.header}>
-                <h3 style={s.title}>
-                    ✍️ Pending Reviews
-                    <span style={s.count}>{totalCount > 5 ? '5+' : items.length}</span>
-                </h3>
+                <div style={s.titleBlock}>
+                    <p style={s.eyebrow}>Writing Queue</p>
+                    <h3 style={s.title}>Pending Reviews</h3>
+                </div>
+                <span style={s.count}>{totalCount > 5 ? '5+' : items.length}</span>
             </div>
 
             <ul style={s.list}>
-                {items.map(item => {
-                    const src = getSourceStyle(item.contextType);
+                {items.map((item, index) => {
+                    const sourceStyle = getSourceStyle(item.contextType);
                     return (
-                        <li
-                            key={item.id}
-                            style={s.item}
-                            onMouseEnter={e => (e.currentTarget.style.background = '#f9fafb')}
-                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                        >
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                                <h4 style={s.itemTitle}>{item.testTitle}</h4>
-                                <div style={s.itemMeta}>
-                                    {new Date(item.submittedAt).toLocaleDateString(undefined, {
-                                        month: 'short', day: 'numeric',
-                                    })}
+                        <li key={item.id} style={s.itemShell}>
+                            <div style={s.item}>
+                                <div style={s.itemMain}>
+                                    <h4 style={s.itemTitle}>{item.testTitle}</h4>
+                                    <div style={s.itemMeta}>
+                                        {new Date(item.submittedAt).toLocaleDateString(undefined, {
+                                            month: 'short',
+                                            day: 'numeric',
+                                        })}
+                                    </div>
                                 </div>
+                                <span style={{ ...s.sourceBadge, background: sourceStyle.bg, color: sourceStyle.text }}>
+                                    {sourceStyle.label}
+                                </span>
                             </div>
-                            <span style={{ ...s.sourceBadge, background: src.bg, color: src.text }}>
-                                {src.label}
-                            </span>
+                            {index < items.length - 1 ? <div style={s.divider} /> : null}
                         </li>
                     );
                 })}
             </ul>
 
-            {/* AC #3: See all link if > 5 */}
             {totalCount > 5 && (
                 <button
                     style={s.seeAllBtn}
                     onClick={() => navigate('/student/academic-record', { state: { tab: 'writing' } })}
-                    onMouseEnter={e => (e.currentTarget.style.background = '#f3f4f6')}
-                    onMouseLeave={e => (e.currentTarget.style.background = '#f9fafb')}
+                    onMouseEnter={(event) => {
+                        event.currentTarget.style.color = studentTokens.accentHover;
+                    }}
+                    onMouseLeave={(event) => {
+                        event.currentTarget.style.color = studentTokens.accent;
+                    }}
                 >
-                    See all pending reviews →
+                    See all pending reviews
                 </button>
             )}
         </div>

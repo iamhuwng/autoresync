@@ -83,7 +83,7 @@ Student shell pages may consume shell-owned summaries when they need the same in
 
 Allowed:
 - deriving counters, filters, urgency groups, or CTA state from shell-owned summaries
-- deriving dashboard metric-strip values, weekly-focus summaries, `Up Next`, public-session excerpts, and unread or feed filters from shell-owned summaries plus page-owned notification data
+- deriving dashboard metric-strip values, `Up Next`, and unread or feed filters from shell-owned summaries plus page-owned notification data
 - passing shell-owned projections into helper services so those services do not reread the same source
 
 Not allowed:
@@ -121,9 +121,11 @@ Dashboard is inside the persistent student shell, but it still owns page-primary
 Dashboard-owned datasets:
 - paginated student notifications
 - unread and search interaction state
-- public-session discovery rows and expansion state
 - join-class modal state
 - selected result panel state
+
+Dashboard supplemental widget-owned dataset:
+- pending writing-review summaries loaded by `PendingReviewsWidget.tsx`
 
 Dashboard must consume shell-owned summaries instead of recreating them:
 - enrolled class membership summaries
@@ -134,8 +136,9 @@ Derived view models should be assembled in the page host before being passed dow
 
 This yields the intended split:
 - shell provider owns reusable student shell summaries
-- `StudentDashboardPage.jsx` owns dashboard-primary activity and public-session data
-- `StudentDashboardFeedView.jsx` and `StudentDashboardRightRail.jsx` stay presentational and receive derived view models from the page host
+- `StudentDashboardPage.jsx` owns dashboard-primary activity data and the derived center-column view models
+- `PendingReviewsWidget.tsx` owns its narrow supplemental query
+- `StudentDashboardFeedView.jsx` stays presentational and receives derived view models from the page host
 
 ## Homework Boundary
 

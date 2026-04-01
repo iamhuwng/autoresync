@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from './useAuth';
-import { getStudentClasses, subscribeToActiveSessions } from '../services/classManager';
-import { getSession } from '../services/sessionManager';
+import { getStudentClasses, subscribeToActiveSessions, subscribeToStudentClasses } from '../services/classManager';
+import { subscribeToSession } from '../services/sessionManager';
 import { useStudentHomeworkList, type StudentHomeworkItem } from './useHomeworkSubmission';
 import type { ClassSummary } from '../types/class.types';
 
@@ -51,6 +51,8 @@ export function useStudentShellData(options: UseStudentShellDataOptions = {}): S
     const [enrolledClasses, setEnrolledClasses] = useState<ClassSummary[]>([]);
     const [classLiveSessions, setClassLiveSessions] = useState<StudentShellLiveSession[]>([]);
     const [isClassesLoading, setIsClassesLoading] = useState(enabled && Boolean(user?.uid));
+    const membershipProjectionSignatureRef = useRef<string | null>(null);
+    const previousMembershipSignatureRef = useRef<string | null>(null);
     const {
         homeworkItems = [],
         isLoading: isHomeworkLoading,
@@ -93,19 +95,87 @@ export function useStudentShellData(options: UseStudentShellDataOptions = {}): S
     }, [enabled, refreshClasses]);
 
     useEffect(() => {
+        if (!enabled || !user?.uid) {
+            membershipProjectionSignatureRef.current = null;
+            return;
+        }
+
+        const unsubscribe = subscribeToStudentClasses(user.uid, (memberships) => {
+            const nextSignature = Object.entries(memberships || {})
+                .sort(([leftId], [rightId]) => leftId.localeCompare(rightId))
+                .map(([classId, membership]) => {
+                    const status =
+                        typeof membership === 'object' && membership !== null && 'status' in membership
+                            ? membership.status ?? 'unknown'
+                            : 'unknown';
+                    return `${classId}:${status}`;
+                })
+                .join('|');
+
+            const previousSignature = membershipProjectionSignatureRef.current;
+            membershipProjectionSignatureRef.current = nextSignature;
+
+            if (previousSignature === null || previousSignature === nextSignature) {
+                return;
+            }
+
+            void refreshClasses();
+        });
+
+        return () => {
+            membershipProjectionSignatureRef.current = null;
+            unsubscribe();
+        };
+    }, [enabled, refreshClasses, user?.uid]);
+
+    const classMembershipSignature = useMemo(() => {
+        if (!enabled || !user?.uid) {
+            return null;
+        }
+
+        const sortedClassIds = enrolledClasses
+            .map((cls) => cls.id)
+            .sort((left, right) => left.localeCompare(right));
+
+        return `${user.uid}:${sortedClassIds.join('|')}`;
+    }, [enabled, enrolledClasses, user?.uid]);
+
+    useEffect(() => {
+        if (classMembershipSignature === null) {
+            previousMembershipSignatureRef.current = null;
+            return;
+        }
+
+        if (isClassesLoading) {
+            return;
+        }
+
+        const previousSignature = previousMembershipSignatureRef.current;
+        previousMembershipSignatureRef.current = classMembershipSignature;
+
+        if (previousSignature === null || previousSignature === classMembershipSignature) {
+            return;
+        }
+
+        void refreshHomeworkData();
+    }, [classMembershipSignature, isClassesLoading, refreshHomeworkData]);
+
+    useEffect(() => {
         if (!enabled || !enrolledClasses.length) {
             setClassLiveSessions([]);
             return;
         }
 
         let isCancelled = false;
-        const sessionsByClass = new Map<string, StudentShellLiveSession[]>();
+        const sessionsByClass = new Map<string, Map<string, StudentShellLiveSession>>();
+        const sessionPointersByClass = new Map<string, Record<string, SessionPointerMeta | boolean>>();
+        const sessionSubscriptionsByClass = new Map<string, Map<string, () => void>>();
 
         const syncSessions = () => {
             if (isCancelled) return;
 
             const nextSessions = Array.from(sessionsByClass.values())
-                .flat()
+                .flatMap((sessions) => Array.from(sessions.values()))
                 .sort((left, right) => {
                     const weightDelta = getLiveSessionWeight(left.status) - getLiveSessionWeight(right.status);
                     if (weightDelta !== 0) return weightDelta;
@@ -115,59 +185,110 @@ export function useStudentShellData(options: UseStudentShellDataOptions = {}): S
             setClassLiveSessions(nextSessions);
         };
 
-        const hydrateClassSessions = async (
+        const syncClassSession = (
+            cls: ClassSummary,
+            code: string,
+            sessionData: Record<string, unknown> | null,
+        ) => {
+            if (isCancelled) return;
+
+            const pointerMeta = sessionPointersByClass.get(cls.id)?.[code];
+            const classSessions = sessionsByClass.get(cls.id) ?? new Map<string, StudentShellLiveSession>();
+
+            if (!sessionData || sessionData.status === 'completed' || sessionData.status === 'expired') {
+                classSessions.delete(code);
+                sessionsByClass.set(cls.id, classSessions);
+                syncSessions();
+                return;
+            }
+
+            const createdAt =
+                (typeof sessionData.createdAt === 'number' ? sessionData.createdAt : undefined)
+                || (typeof pointerMeta === 'object' && pointerMeta?.createdAt)
+                || 0;
+
+            classSessions.set(code, {
+                code,
+                classId: cls.id,
+                className: cls.name || cls.classCode || 'Class',
+                createdAt,
+                mode: typeof sessionData.mode === 'string' ? sessionData.mode : 'quiz',
+                status: typeof sessionData.status === 'string' ? sessionData.status : 'waiting',
+                title:
+                    (typeof sessionData.testTitle === 'string' && sessionData.testTitle)
+                    || (typeof sessionData.quizTitle === 'string' && sessionData.quizTitle)
+                    || 'Live Session',
+            });
+
+            sessionsByClass.set(cls.id, classSessions);
+            syncSessions();
+        };
+
+        const reconcileClassSessions = (
             cls: ClassSummary,
             sessionPointers: Record<string, SessionPointerMeta | boolean>,
         ) => {
             if (isCancelled) return;
 
             const codes = Object.keys(sessionPointers || {});
+            const nextCodeSet = new Set(codes);
+            const activePointers = sessionPointers || {};
+            sessionPointersByClass.set(cls.id, activePointers);
+
+            let classSubscriptions = sessionSubscriptionsByClass.get(cls.id);
+            if (!classSubscriptions) {
+                classSubscriptions = new Map<string, () => void>();
+                sessionSubscriptionsByClass.set(cls.id, classSubscriptions);
+            }
+
+            let classSessions = sessionsByClass.get(cls.id);
+            if (!classSessions) {
+                classSessions = new Map<string, StudentShellLiveSession>();
+                sessionsByClass.set(cls.id, classSessions);
+            }
+
+            Array.from(classSubscriptions.entries()).forEach(([code, unsubscribe]) => {
+                if (nextCodeSet.has(code)) {
+                    return;
+                }
+
+                unsubscribe();
+                classSubscriptions?.delete(code);
+                classSessions?.delete(code);
+            });
+
             if (!codes.length) {
-                sessionsByClass.set(cls.id, []);
+                sessionsByClass.set(cls.id, new Map<string, StudentShellLiveSession>());
                 syncSessions();
                 return;
             }
 
-            const hydratedSessions = await Promise.all(
-                codes.map(async (code) => {
+            codes.forEach((code) => {
+                if (classSubscriptions?.has(code)) {
+                    return;
+                }
+
+                const unsubscribe = subscribeToSession(code, (sessionData) => {
                     try {
-                        const sessionData = await getSession(code);
-                        if (!sessionData || sessionData.status === 'completed' || sessionData.status === 'expired') {
-                            return null;
-                        }
-
-                        const pointerMeta = sessionPointers[code];
-                        const createdAt =
-                            sessionData.createdAt
-                            || (typeof pointerMeta === 'object' && pointerMeta?.createdAt)
-                            || 0;
-
-                        return {
+                        syncClassSession(
+                            cls,
                             code,
-                            classId: cls.id,
-                            className: cls.name || cls.classCode || 'Class',
-                            createdAt,
-                            mode: sessionData.mode || 'quiz',
-                            status: sessionData.status || 'waiting',
-                            title: sessionData.testTitle || sessionData.quizTitle || 'Live Session',
-                        } satisfies StudentShellLiveSession;
+                            sessionData && typeof sessionData === 'object'
+                                ? (sessionData as Record<string, unknown>)
+                                : null,
+                        );
                     } catch (error) {
                         console.warn(`Skipping invalid live session ${code}`, error);
-                        return null;
                     }
-                }),
-            );
+                });
 
-            sessionsByClass.set(
-                cls.id,
-                hydratedSessions.filter((session): session is StudentShellLiveSession => session !== null),
-            );
-            syncSessions();
+                classSubscriptions?.set(code, unsubscribe);
+            });
         };
 
         const unsubscribers = enrolledClasses.map((cls) =>
             subscribeToActiveSessions(cls.id, (sessionPointers) => {
-                void hydrateClassSessions(
+                reconcileClassSessions(
                     cls,
                     (sessionPointers || {}) as Record<string, SessionPointerMeta | boolean>,
                 );
@@ -177,6 +298,9 @@ export function useStudentShellData(options: UseStudentShellDataOptions = {}): S
         return () => {
             isCancelled = true;
             unsubscribers.forEach((unsubscribe) => unsubscribe());
+            sessionSubscriptionsByClass.forEach((sessionSubscriptions) => {
+                sessionSubscriptions.forEach((unsubscribe) => unsubscribe());
+            });
         };
     }, [enabled, enrolledClasses]);
 

@@ -1,0 +1,71 @@
+import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import '@testing-library/jest-dom';
+import PendingReviewsWidget from './PendingReviewsWidget';
+
+const navigateMock = vi.fn();
+const getDocsMock = vi.fn();
+
+vi.mock('../../hooks/useAuth', () => ({
+    useAuth: () => ({
+        user: {
+            uid: 'student-1',
+        },
+    }),
+}));
+
+vi.mock('../../services/firebase', () => ({
+    firestore: {},
+}));
+
+vi.mock('react-router-dom', async () => {
+    const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
+    return {
+        ...actual,
+        useNavigate: () => navigateMock,
+    };
+});
+
+vi.mock('firebase/firestore', () => ({
+    collection: vi.fn(() => 'collection-ref'),
+    getDocs: (...args: unknown[]) => getDocsMock(...args),
+    limit: vi.fn((value: number) => ({ type: 'limit', value })),
+    orderBy: vi.fn((field: string, direction: string) => ({ type: 'orderBy', field, direction })),
+    query: vi.fn((...parts: unknown[]) => ({ type: 'query', parts })),
+    where: vi.fn((field: string, op: string, value: unknown) => ({ type: 'where', field, op, value })),
+}));
+
+describe('PendingReviewsWidget', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it('renders canonical writing titles and normalized live badges', async () => {
+        getDocsMock.mockResolvedValue({
+            docs: [
+                {
+                    id: 'submission-1',
+                    data: () => ({
+                        submittedAt: Date.UTC(2026, 3, 1),
+                        markingStatus: 'pending-review',
+                        context: { type: 'live-session' },
+                        testMeta: {
+                            testId: '-Omckd15l3a2iWqKTljt',
+                            testTitle: 'MD IELTS1 Writing Lesson 5',
+                        },
+                    }),
+                },
+            ],
+        });
+
+        render(<PendingReviewsWidget />);
+
+        await waitFor(() => {
+            expect(screen.getByText('MD IELTS1 Writing Lesson 5')).toBeInTheDocument();
+        });
+
+        expect(screen.queryByText('-Omckd15l3a2iWqKTljt')).not.toBeInTheDocument();
+        expect(screen.getByText('Live')).toBeInTheDocument();
+        expect(screen.queryByText('live-session')).not.toBeInTheDocument();
+    });
+});

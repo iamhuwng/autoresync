@@ -572,22 +572,21 @@ describe('Class Manager - Student Access Control', () => {
     expect(studentClasses).toEqual([]);
   });
 
-  it('should prefer student_classes projection over scanning root classes', async () => {
+  it('should merge student_classes projection with legacy class scans when the projection is incomplete', async () => {
     vi.mocked(get).mockClear();
 
-    await set(ref(database, `student_classes/${TEST_STUDENT_UID}/${class1Id}`), {
-      joinedAt: Date.now(),
-      status: 'pending_approval',
+    await enrollStudent(class2Id, TEST_STUDENT_UID, 'Test Student', 'student@test.com');
+    await set(ref(database, `student_classes/${TEST_STUDENT_UID}`), {
+      [class1Id]: {
+        joinedAt: Date.now(),
+        status: 'pending_approval',
+      },
     });
 
     const studentClasses = await getStudentClasses(TEST_STUDENT_UID);
 
     expect(studentClasses.map((cls) => cls.id)).toContain(class1Id);
-    const rootClassReads = vi
-      .mocked(get)
-      .mock.calls
-      .filter(([target]) => target.path === 'classes');
-    expect(rootClassReads).toHaveLength(0);
+    expect(studentClasses.map((cls) => cls.id)).toContain(class2Id);
   });
 
   it('should verify student can only access enrolled classes', async () => {

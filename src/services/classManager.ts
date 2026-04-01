@@ -217,6 +217,19 @@ async function getStudentClassesByLegacyScan(studentUid: string): Promise<ClassS
   return enrolledClasses.sort((left, right) => right.createdAt - left.createdAt);
 }
 
+function mergeClassSummaries(...classLists: ClassSummary[][]): ClassSummary[] {
+  const merged = new Map<string, ClassSummary>();
+
+  classLists.flat().forEach((summary) => {
+    const existing = merged.get(summary.id);
+    if (!existing || summary.createdAt > existing.createdAt) {
+      merged.set(summary.id, summary);
+    }
+  });
+
+  return Array.from(merged.values()).sort((left, right) => right.createdAt - left.createdAt);
+}
+
 // ============================================================================
 // CLASS CRUD OPERATIONS
 // ============================================================================
@@ -967,14 +980,25 @@ export async function rejectClassStudent(
 export async function getStudentClasses(studentUid: string): Promise<ClassSummary[]> {
   try {
     const indexedClasses = await getStudentClassesFromMembershipIndex(studentUid);
-    if (indexedClasses !== null) {
-      console.log(`[Courses DEBUG] getStudentClasses: using student_classes index for uid="${studentUid}" (${indexedClasses.length} classes)`);
-      return indexedClasses;
+    if (indexedClasses === null) {
+      const enrolledClasses = await getStudentClassesByLegacyScan(studentUid);
+      console.log(`[Courses DEBUG] getStudentClasses: found ${enrolledClasses.length} enrolled classes`);
+      return enrolledClasses;
     }
 
-    const enrolledClasses = await getStudentClassesByLegacyScan(studentUid);
-    console.log(`[Courses DEBUG] getStudentClasses: found ${enrolledClasses.length} enrolled classes`);
-    return enrolledClasses;
+    const scannedClasses = await getStudentClassesByLegacyScan(studentUid);
+    const mergedClasses = mergeClassSummaries(indexedClasses, scannedClasses);
+
+    if (mergedClasses.length !== indexedClasses.length) {
+      console.warn(
+        `[Courses DEBUG] getStudentClasses: membership index was incomplete for uid="${studentUid}" ` +
+        `(${indexedClasses.length} indexed vs ${mergedClasses.length} merged)`
+      );
+    } else {
+      console.log(`[Courses DEBUG] getStudentClasses: using student_classes index for uid="${studentUid}" (${indexedClasses.length} classes)`);
+    }
+
+    return mergedClasses;
   } catch (error) {
     console.error('Error getting student classes:', error);
     return [];
@@ -1231,6 +1255,23 @@ export function subscribeToStudents(
 }
 
 /**
+ * Subscribe to the student-owned class membership projection.
+ * Used by the student shell to refresh downstream class-dependent data.
+ */
+export function subscribeToStudentClasses(
+  studentUid: string,
+  callback: (memberships: Record<string, StudentClassMembershipRow | true>) => void
+): () => void {
+  const membershipRef = ref(database, `${STUDENT_CLASSES_REF}/${studentUid}`);
+
+  const listener = onValue(membershipRef, (snapshot) => {
+    callback(snapshot.exists() ? snapshot.val() : {});
+  });
+
+  return () => off(membershipRef, 'value', listener);
+}
+
+/**
  * Subscribe to active sessions for a class
  * NEW: Allows students to see live game sessions linked to this class.
  * Triggers callback with map of sessionCode -> sessionInfo
@@ -1281,6 +1322,7 @@ export const classManager = {
   // Subscriptions
   subscribeToClass,
   subscribeToStudents,
+  subscribeToStudentClasses,
   subscribeToActiveSessions,
 };
 

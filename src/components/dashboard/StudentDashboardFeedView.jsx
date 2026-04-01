@@ -86,22 +86,22 @@ const styles = {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'flex-start',
-        gap: 16,
-        padding: '32px 0 10px',
+        gap: 22,
+        padding: '34px 0 18px',
         background: studentTokens.bgPage,
         borderBottom: 'none',
     },
     titleWrap: {
         display: 'flex',
         flexDirection: 'column',
-        gap: 6,
+        gap: 8,
         minWidth: 0,
     },
     pageTitle: {
         margin: 0,
-        fontSize: '1.875rem',
+        fontSize: '2.25rem',
         fontWeight: 700,
-        letterSpacing: '-0.02em',
+        letterSpacing: '-0.03em',
         color: studentTokens.textPrimary,
     },
     subtitle: {
@@ -173,7 +173,7 @@ const styles = {
     },
     tabs: {
         display: 'flex',
-        gap: 32,
+        gap: 28,
         overflowX: 'auto',
         padding: '0 0 18px',
         marginBottom: 0,
@@ -185,9 +185,9 @@ const styles = {
         borderBottom: '2px solid transparent',
         background: 'transparent',
         color: studentTokens.textMuted,
-        fontSize: '0.625rem',
+        fontSize: '0.7rem',
         fontWeight: 700,
-        letterSpacing: '0.05em',
+        letterSpacing: '0.12em',
         textTransform: 'uppercase',
         whiteSpace: 'nowrap',
         cursor: 'pointer',
@@ -199,30 +199,28 @@ const styles = {
     summary: {
         display: 'grid',
         gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-        gap: 32,
-        padding: '24px 0',
-        marginBottom: 16,
+        gap: 0,
+        padding: '18px 0 20px',
     },
     summaryCell: {
         display: 'flex',
         flexDirection: 'column',
         gap: 6,
-        paddingRight: 20,
+        paddingRight: 28,
     },
     summaryLabel: {
         margin: 0,
         fontSize: '0.625rem',
-        fontWeight: 600,
-        letterSpacing: '0.05em',
+        fontWeight: 700,
+        letterSpacing: '0.14em',
         textTransform: 'uppercase',
-        color: studentTokens.textBody,
+        color: studentTokens.textMuted,
     },
     summaryValue: {
         margin: 0,
-        fontSize: '2.25rem',
+        fontSize: '2.7rem',
         fontWeight: 300,
         lineHeight: 1,
-        letterSpacing: '-0.02em',
         color: studentTokens.textPrimary,
     },
     summaryMeta: {
@@ -233,8 +231,8 @@ const styles = {
         color: studentTokens.textBody,
     },
     tabsWrap: {
-        marginBottom: 28,
-        borderBottom: `1px solid rgba(171, 179, 183, 0.1)`,
+        marginBottom: 40,
+        borderBottom: `1px solid ${studentTokens.borderWhisper}`,
     },
     feed: {
         display: 'flex',
@@ -498,77 +496,77 @@ export default function StudentDashboardFeedView({
             <style>{'@keyframes studentDashboardFeedSpinner { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }'}</style>
             <section style={styles.root} aria-label="Student dashboard feed">
                 <header style={styles.topBar}>
-                <div style={styles.titleWrap}>
-                    <h2 style={styles.pageTitle}>{title}</h2>
-                    <p style={styles.subtitle}>{subtitle}</p>
-                </div>
+                    <div style={styles.titleWrap}>
+                        <h2 style={styles.pageTitle}>{title}</h2>
+                        <p style={styles.subtitle}>{subtitle}</p>
+                    </div>
 
-                {showFeed ? (
-                    <div style={styles.topActions}>
-                        <label style={styles.searchShell}>
-                            <IconSearch />
-                            <input
-                                type="search"
-                                value={searchValue}
-                                placeholder="RESEARCH FEED"
-                                onChange={event => onSearchChange?.(event.target.value)}
-                                onBlur={onSearchBlur}
-                                style={styles.searchInput}
-                            />
-                        </label>
+                    {showFeed ? (
+                        <div style={styles.topActions}>
+                            <label style={styles.searchShell}>
+                                <IconSearch />
+                                <input
+                                    type="search"
+                                    value={searchValue}
+                                    placeholder="RESEARCH FEED"
+                                    onChange={event => onSearchChange?.(event.target.value)}
+                                    onBlur={onSearchBlur}
+                                    style={styles.searchInput}
+                                />
+                            </label>
 
-                        <button
-                            type="button"
-                            style={{ ...styles.utilityButton, ...(showUnreadOnly ? styles.utilityButtonActive : {}) }}
-                            onClick={() => onToggleUnreadOnly?.()}
-                            aria-pressed={showUnreadOnly}
-                            title="Toggle unread feed items"
-                        >
-                            <BellIcon />
-                            {unreadCount > 0 ? <span style={styles.badge}>{unreadCount > 99 ? '99+' : unreadCount}</span> : null}
-                        </button>
+                            <button
+                                type="button"
+                                style={{ ...styles.utilityButton, ...(showUnreadOnly ? styles.utilityButtonActive : {}) }}
+                                onClick={() => onToggleUnreadOnly?.()}
+                                aria-pressed={showUnreadOnly}
+                                title="Toggle unread feed items"
+                            >
+                                <BellIcon />
+                                {unreadCount > 0 ? <span style={styles.badge}>{unreadCount > 99 ? '99+' : unreadCount}</span> : null}
+                            </button>
 
-                        <button type="button" style={styles.utilityButton} onClick={() => onOpenAcademicHistory?.()} title="Open academic history">
-                            <IconHistory />
-                        </button>
+                            <button type="button" style={styles.utilityButton} onClick={() => onOpenAcademicHistory?.()} title="Open academic history">
+                                <IconHistory />
+                            </button>
+                        </div>
+                    ) : null}
+                </header>
+
+                {summaryCards.length > 0 ? (
+                    <div style={styles.summary} aria-label="Dashboard summary metrics">
+                        {summaryCards.map((card, index) => (
+                            <div
+                                key={card.label}
+                                style={{
+                                    ...styles.summaryCell,
+                                    borderRight: index < summaryCards.length - 1 ? `1px solid ${studentTokens.borderWhisper}` : 'none',
+                                }}
+                            >
+                                <p style={styles.summaryLabel}>{card.label}</p>
+                                <p style={{ ...styles.summaryValue, color: card.color || studentTokens.textPrimary }}>{card.value}</p>
+                                <p style={styles.summaryMeta}>{card.meta}</p>
+                            </div>
+                        ))}
                     </div>
                 ) : null}
-            </header>
 
-            {summaryCards.length > 0 ? (
-                <div style={styles.summary} aria-label="Dashboard summary metrics">
-                    {summaryCards.map((card, index) => (
-                        <div
-                            key={card.label}
-                            style={{
-                                ...styles.summaryCell,
-                                borderRight: index < summaryCards.length - 1 ? `1px solid ${studentTokens.borderWhisper}` : 'none',
-                            }}
-                        >
-                            <p style={styles.summaryLabel}>{card.label}</p>
-                            <p style={{ ...styles.summaryValue, color: card.color || studentTokens.textPrimary }}>{card.value}</p>
-                            <p style={styles.summaryMeta}>{card.meta}</p>
-                        </div>
-                    ))}
-                </div>
-            ) : null}
-
-            {showFeed && feedTabs.length > 0 ? (
-                <div style={styles.tabsWrap}>
-                    <nav style={styles.tabs} aria-label="Dashboard feed filters">
-                        {feedTabs.map(tab => (
-                            <button
-                                key={tab.key}
-                                type="button"
-                                onClick={() => onFilterChange?.(tab.key)}
-                                style={{ ...styles.tab, ...(activeFilter === tab.key ? styles.tabActive : {}) }}
-                            >
-                                {tab.label}
-                            </button>
-                        ))}
-                    </nav>
-                </div>
-            ) : null}
+                {showFeed && feedTabs.length > 0 ? (
+                    <div style={styles.tabsWrap}>
+                        <nav style={styles.tabs} aria-label="Dashboard feed filters">
+                            {feedTabs.map(tab => (
+                                <button
+                                    key={tab.key}
+                                    type="button"
+                                    onClick={() => onFilterChange?.(tab.key)}
+                                    style={{ ...styles.tab, ...(activeFilter === tab.key ? styles.tabActive : {}) }}
+                                >
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </nav>
+                    </div>
+                ) : null}
 
             {showFeed ? (
                 loading && feedRows.length === 0 ? (

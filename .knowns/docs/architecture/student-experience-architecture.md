@@ -2,7 +2,7 @@
 title: Student Experience Architecture
 description: Student-facing system overview with shell, dashboard, and academic-record architecture contracts.
 createdAt: '2026-02-27T16:18:36.604Z'
-updatedAt: '2026-04-01T01:40:48.999Z'
+updatedAt: '2026-04-01T05:44:56.026Z'
 tags:
   - architecture
   - student
@@ -85,14 +85,13 @@ Disallowed feel:
 
 ## Dashboard Right Rail Contract
 
-Dashboard uses a page-shaped right rail rather than the generic shared shell widget stack.
+Dashboard uses the shared shell right rail on the live route and appends only one page-specific supplement.
 
 Rules:
-- the rail is an editorial aside, not a set of reusable dashboard widgets
-- `Feed Snapshot` is the primary summary surface
-- `Weekly Focus` and `Up Next` belong to the same narrative composition
-- `Public Sessions` is a quieter supporting section
+- the shell renders `Live Now`, `Up Next`, and `My Classes`
+- dashboard appends `Pending Reviews` as a quieter page-specific supplement
 - the sidebar and route structure must preserve the real app IA even when the visual tone follows Stitch
+- dashboard must not diverge into a separate page-owned rail composition unless the architecture contract is explicitly revised
 
 ## Dashboard Variant Mapping
 
@@ -128,7 +127,7 @@ Key implementation files:
 - `src/pages/AcademicRecordPage.tsx`
 - `src/pages/StudentDashboardPage.jsx`
 - `src/components/dashboard/StudentDashboardFeedView.jsx`
-- `src/components/dashboard/StudentDashboardRightRail.jsx`
+- `src/components/dashboard/PendingReviewsWidget.tsx`
 
 ## Related Docs
 
@@ -136,11 +135,3 @@ Key implementation files:
 - @doc/architecture/student-dashboard-architecture
 - @doc/architecture/student-shell-right-rail-architecture
 - @doc/architecture/student-shell-data-loading-architecture
-
-## Vertical Alignment Contract
-
-All student page titles must sit at the same vertical baseline as the sidebar brand block and right rail module headings. The combined top padding from `S.feed` (24px) plus `S.feedHeader` (8px) equals 32px, which matches the Dashboard's unified baseline.
-
-This prevents stacked padding from pushing sub-page titles lower than the Dashboard title. Any change to student layout padding must be verified across all five shell pages (Dashboard, Homework, Academic Record, Library, Courses).
-
-Key file: `src/components/layout/studentLayoutStyles.ts`

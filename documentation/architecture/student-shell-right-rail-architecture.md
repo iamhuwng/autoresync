@@ -50,7 +50,7 @@ Rules:
 ## Extension Pattern
 
 Current page supplements and overrides:
-- dashboard: full page-owned right rail override rendered through `rightPanel`; this replaces the generic widget stack with a dashboard-specific editorial aside
+- dashboard: shared shell rail plus `PendingReviewsWidget` appended through `rightPanel`
 - homework: homework summary supplement
 - records: overview and right-module selector
 - profile: teacher invitation card
@@ -64,17 +64,19 @@ Current shell-only pages:
 Rules:
 - if a page only needs a small supplement, append it through `rightPanel`
 - if a page has an approved page-specific rail contract, pass a full page-owned rail override through `rightPanel` instead of rebuilding shell data ownership
-- dashboard is the canonical example of a full page-owned rail override while still consuming shell-owned summaries from the provider
+- dashboard currently does not use a full right-rail override on the live route
+- dashboard variant in `StudentLayout` may still tune spacing or width without changing right-rail ownership
 
-## Dashboard Override Contract
+## Dashboard Rail Contract
 
-Dashboard right rail is intentionally narrative and page-shaped.
+Dashboard right rail on the live route is shared-shell-first.
 
 Required rules:
-- `Feed Snapshot` is the primary summary surface
-- `Weekly Focus` and `Up Next` belong to one composition family
-- `Public Sessions` is a sparse secondary section rather than a heavy widget column
-- shell right-rail governance does not force dashboard to look like every other student page
+- the shell renders `Live Now`, `Up Next`, and `My Classes`
+- `PendingReviewsWidget` is appended as a page-owned supplemental module
+- the shared shell modules must remain visible unless a future architecture revision explicitly approves a replacement
+- `PendingReviewsWidget` may self-frame, but it must not duplicate shell module headings or replace shell-owned summaries
+- `StudentDashboardRightRail.jsx` is not the active right-rail owner for the current dashboard route
 
 ## Shared Data Contract
 
@@ -118,7 +120,7 @@ Key files:
 - `src/components/layout/StudentLayout.tsx`
 - `src/components/layout/studentLayoutStyles.ts`
 - `src/components/layout/StudentRightRail.tsx`
-- `src/components/dashboard/StudentDashboardRightRail.jsx`
+- `src/components/dashboard/PendingReviewsWidget.tsx`
 - `src/hooks/useStudentShellData.ts`
 
 ## Related Docs

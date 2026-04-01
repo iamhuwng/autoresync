@@ -1,8 +1,8 @@
 ---
 title: Student Dashboard Architecture
-description: Source of truth for the student dashboard host, feed, right rail, data ownership, and approved Stitch parity rules.
+description: Source of truth for the live student dashboard center canvas, shared rail composition, and result-opening behavior.
 createdAt: '2026-03-31T22:18:34.333Z'
-updatedAt: '2026-04-01T01:40:51.359Z'
+updatedAt: '2026-04-01T05:44:55.980Z'
 tags:
   - architecture
   - student
@@ -15,61 +15,72 @@ tags:
 
 ## Purpose
 
-This document is the dashboard-specific source of truth for the student dashboard host, feed, right rail, state ownership, and approved Stitch parity boundaries.
+This document is the dashboard-specific source of truth for the student dashboard host, center canvas, right rail composition, and result-opening behavior.
 
-It exists because the broader student experience and shell docs are intentionally higher level. Dashboard now has enough page-specific structure that it needs its own contract.
+It exists because dashboard now has a tighter structure than the rest of the student shell and has already regressed once when an experimental right-rail override drifted away from the approved layout.
 
 ## Approved Anchors
 
-Dashboard follows two approved references:
+Dashboard follows three approved references:
 - `.stitch/designs/student-overhaul-from-academic-record-20260331/dashboard.html`
 - `.stitch/designs/student-overhaul-20260331/academic-record.html`
+- the screenshot-era dashboard implementation restored from git commit `e5ba2064`
 
 Rules:
 - use the dashboard Stitch export for dashboard-specific anatomy
 - use Academic Record as the tonal and spacing anchor for the wider student family
+- use the `e5ba2064` structure as the implementation anchor for title position, summary-strip order, and dashboard-specific spacing
 - preserve the real route structure, product information architecture, and live behaviors from the app
 - do not literal-copy placeholder labels, routes, or fake content from Stitch
 
 ## Component Ownership
 
-Dashboard is split into one host page and two presentational surfaces.
+Dashboard is split into one host page, one center-canvas surface, and one page-owned supplemental widget.
 
 Host:
 - `src/pages/StudentDashboardPage.jsx`
 
-Presentational surfaces:
+Center-canvas surface:
 - `src/components/dashboard/StudentDashboardFeedView.jsx`
-- `src/components/dashboard/StudentDashboardRightRail.jsx`
+
+Supplemental dashboard widget:
+- `src/components/dashboard/PendingReviewsWidget.tsx`
 
 Sidebar parity is also part of dashboard feel:
 - `src/components/layout/StudentSidebar.tsx`
 
+Historical note:
+- `src/components/dashboard/StudentDashboardRightRail.jsx` remains in the repo as a prior dashboard-specific rail exploration, but the current dashboard route does not mount it
+
 Ownership rules:
-- `StudentDashboardPage.jsx` owns data loading, derived dashboard view models, and interaction state
+- `StudentDashboardPage.jsx` owns dashboard data loading, derived dashboard view models, and interaction state
 - `StudentDashboardFeedView.jsx` renders the center canvas only
-- `StudentDashboardRightRail.jsx` renders the dashboard-specific narrative rail only
+- `PendingReviewsWidget.tsx` owns only its narrow writing-queue query and renders as supplemental right-rail content
 - presentational components must not reacquire shell-owned or page-owned data on their own
 
 ## Center-Canvas Contract
 
 The required order for the center canvas is:
-1. masthead with light utilities
+1. sticky masthead with light utilities
 2. frameless metric strip
 3. slim editorial tab row
-4. timeline feed
+4. vertical timeline feed
 
 Interpretation rules:
 - search, unread filter, and academic-history action stay visually light
-- the metric strip sits above the tabs
+- the metric strip must stay above the tabs
+- the dashboard variant in `StudentLayout` owns the broader center-column placement and rail gutter
+- `StudentDashboardFeedView.jsx` owns the internal header, metric-strip, and tabs spacing restored from `e5ba2064`
 - the feed reads as a vertical timeline rather than a card grid
 - spacing and typography do most of the structural work
 
 Disallowed regressions:
+- removing the metric strip from the center column
+- tabs above the summary strip
 - toolbar-heavy header rows
 - boxed KPI cards above the feed
-- tabs above the summary strip
 - nested CTA cards inside feed rows
+- moving dashboard onto the generic shell page-header rhythm if that changes the screenshot-era title position
 
 ## Feed Row Variants
 
@@ -81,6 +92,8 @@ Dashboard feed rows intentionally use explicit event-row contracts.
 - strong title
 - restrained summary copy
 - one clear result action
+- result-style dashboard actions must open the local dashboard slide panel, not redirect students away from dashboard
+- if a notification carries a canonical result route such as `/result/:resultId` or an academic-record result link, the dashboard host must resolve the `resultId` locally and open the slide panel from that ID
 
 ### Homework Rows
 - one quiet inset excerpt or meta surface
@@ -96,19 +109,20 @@ Generic event-card rendering is not an acceptable fallback when parity work touc
 
 ## Right-Rail Contract
 
-Dashboard right rail is not a stack of generic shell widgets.
-
-It is a grouped editorial aside with one primary summary surface and quieter supporting modules.
+Dashboard uses the shared shell right rail on the live route.
 
 Required composition:
-- `Feed Snapshot` as the primary section
-- `Weekly Focus` and `Up Next` composed as one narrative family
-- `Public Sessions` as a secondary sparse list
+- `Live Now`
+- `Up Next`
+- `My Classes`
+- page-owned `Pending Reviews` appended through `rightPanel`
 
 Rules:
-- preserve shell-owned data sources while changing the presentation
+- `Live Now`, `Up Next`, and `My Classes` stay shell-owned and come from `StudentRightRail`
+- `PendingReviewsWidget` is supplemental only and must not replace or duplicate the shell-owned rail modules
+- `Up Next` must not be recreated inside the center column
+- do not reintroduce `Feed Snapshot`, `Weekly Focus`, or other dashboard-only override sections on the live route without a new approved architecture update
 - keep the rail quieter than the center canvas
-- avoid repeated card shells that make the aside read like three separate widgets
 
 ## Sidebar Constraints
 
@@ -126,33 +140,35 @@ Dashboard-owned state:
 - current feed filter tab
 - search query
 - unread-only filter state
-- public-session expansion state
 - join-class modal state
 - selected result panel state
 
 Dashboard-owned datasets:
 - paginated notifications
 - notification subscriptions
-- public session discovery rows
+
+Supplement-owned dataset:
+- `PendingReviewsWidget.tsx` owns its narrow writing-submission queue query
 
 Shell-owned summaries consumed by dashboard:
 - enrolled class membership summaries
 - live-session summaries
-- homework summary groups used for metrics and urgency queues
+- homework summary groups used for the dashboard metric strip and `Up Next`
 
-Derived view models must be assembled in `StudentDashboardPage.jsx` before being passed to feed and rail surfaces.
+Derived view models for the center canvas must be assembled in `StudentDashboardPage.jsx` before being passed to `StudentDashboardFeedView.jsx`.
 
 ## Verification Boundary
 
 Dashboard parity is considered correct only when both are true:
-- the dashboard feels faithful to the approved Stitch anatomy
+- the dashboard feels faithful to the approved anatomy
 - the implementation stays connected to real product routes, data, and actions
 
 Verification checklist:
 - feed order matches the center-canvas contract
 - metric strip remains above tabs
 - feed rows use explicit row variants
-- right rail reads as one narrative aside
+- the live route uses the shared shell rail plus `Pending Reviews`
+- result notifications open the local slide panel from dashboard
 - no duplicate shell data ownership is introduced
 - no placeholder Stitch IA replaces real app structure
 
@@ -162,11 +178,3 @@ Verification checklist:
 - @doc/architecture/student-experience-architecture
 - @doc/architecture/student-shell-right-rail-architecture
 - @doc/architecture/student-shell-data-loading-architecture
-
-## Vertical Alignment Baseline
-
-Dashboard uses a 32px top padding baseline for its sticky header. All sub-pages must match this baseline through the combined padding of `S.feed` (24px) + `S.feedHeader` (8px) = 32px.
-
-This was standardized on 2026-04-01 after discovering that the original `S.feedHeader` used 32px top padding, which stacked with the container's 24px to create a 56px total — pushing sub-page titles 24px below the Dashboard title.
-
-The fix: reduce `S.feedHeader` top padding from 32px to 8px in `studentLayoutStyles.ts`.

@@ -147,13 +147,6 @@ const localStyles = {
         letterSpacing: '0.02em',
         textDecoration: 'none',
     },
-    footnote: {
-        margin: 0,
-        fontSize: '0.625rem',
-        lineHeight: 1.5,
-        color: studentTokens.textDim,
-        opacity: 0.72,
-    },
 };
 
 const CLASS_COLORS = [
@@ -270,81 +263,89 @@ export const StudentRightRail: React.FC<StudentRightRailProps> = ({ shellData, s
         </section>
     );
 
+    const renderMyClassesSection = () => (
+        <section style={localStyles.section}>
+            <h3 style={S.widgetTitle}>My Classes</h3>
+            {enrolledClasses.length === 0 ? (
+                <p style={localStyles.emptyState}>No classes joined yet.</p>
+            ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {enrolledClasses.map((cls, index) => {
+                        const colors = CLASS_COLORS[index % CLASS_COLORS.length] ?? {
+                            bg: studentTokens.bgSurfaceAlt,
+                            color: studentTokens.textPrimary,
+                        };
+
+                        return (
+                            <div key={cls.id} style={localStyles.classRow}>
+                                <div style={{ ...localStyles.classIcon, background: colors.bg, color: colors.color }}>
+                                    {cls.classCode?.slice(0, 2) || '??'}
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <p style={localStyles.cardTitle}>{cls.classCode || cls.name}</p>
+                                    <p style={localStyles.cardSubtle}>
+                                        {cls.studentCount || 0} students - {cls.activeAssignments || 0} active
+                                    </p>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+        </section>
+    );
+
+    const renderLiveSessionsSection = () => (
+        classLiveSessions.length > 0 ? (
+            <section style={localStyles.section}>
+                <h3 style={S.widgetTitle}>Live Now</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {classLiveSessions.slice(0, 5).map((session) => (
+                        <div key={session.code} style={localStyles.liveCard}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                <span style={getLiveBadgeStyles(session.mode)}>
+                                    {session.mode === 'test' ? 'Test' : 'Quiz'}
+                                </span>
+                                <span style={{ fontSize: '0.6875rem', color: studentTokens.textMuted, fontFamily: 'monospace' }}>
+                                    {session.code}
+                                </span>
+                            </div>
+                            <p style={localStyles.cardTitle}>{session.title}</p>
+                            <p style={{ ...localStyles.cardSubtle, marginBottom: 10 }}>
+                                {session.className}
+                                {session.status === 'in-progress' ? ' - In Progress' : ' - Waiting'}
+                            </p>
+                            <button
+                                type="button"
+                                style={localStyles.joinButton}
+                                onMouseEnter={(event) => {
+                                    event.currentTarget.style.background = studentTokens.bgSurfaceStrong;
+                                    event.currentTarget.style.borderColor = studentTokens.outlineSoft;
+                                }}
+                                onMouseLeave={(event) => {
+                                    event.currentTarget.style.background = studentTokens.bgSurface;
+                                    event.currentTarget.style.borderColor = studentTokens.borderSoft;
+                                }}
+                                onClick={() => handleJoinLiveSession(session.code, session.status, session.classId)}
+                            >
+                                Join Session
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            </section>
+        ) : null
+    );
+
     const renderDefaultRail = () => (
         <>
-            {classLiveSessions.length > 0 ? (
-                <section style={localStyles.section}>
-                    <h3 style={S.widgetTitle}>Live Now</h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                        {classLiveSessions.slice(0, 5).map((session) => (
-                            <div key={session.code} style={localStyles.liveCard}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                                    <span style={getLiveBadgeStyles(session.mode)}>
-                                        {session.mode === 'test' ? 'Test' : 'Quiz'}
-                                    </span>
-                                    <span style={{ fontSize: '0.6875rem', color: studentTokens.textMuted, fontFamily: 'monospace' }}>
-                                        {session.code}
-                                    </span>
-                                </div>
-                                <p style={localStyles.cardTitle}>{session.title}</p>
-                                <p style={{ ...localStyles.cardSubtle, marginBottom: 10 }}>
-                                    {session.className}
-                                    {session.status === 'in-progress' ? ' - In Progress' : ' - Waiting'}
-                                </p>
-                                <button
-                                    type="button"
-                                    style={localStyles.joinButton}
-                                    onMouseEnter={(event) => {
-                                        event.currentTarget.style.background = studentTokens.bgSurfaceStrong;
-                                        event.currentTarget.style.borderColor = studentTokens.outlineSoft;
-                                    }}
-                                    onMouseLeave={(event) => {
-                                        event.currentTarget.style.background = studentTokens.bgSurface;
-                                        event.currentTarget.style.borderColor = studentTokens.borderSoft;
-                                    }}
-                                    onClick={() => handleJoinLiveSession(session.code, session.status, session.classId)}
-                                >
-                                    Join Session
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-                </section>
-            ) : null}
-
+            {renderLiveSessionsSection()}
             {renderUpcomingDeadlines()}
-
-            <section style={localStyles.section}>
-                <h3 style={S.widgetTitle}>My Classes</h3>
-                {enrolledClasses.length === 0 ? (
-                    <p style={localStyles.emptyState}>No classes joined yet.</p>
-                ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                        {enrolledClasses.slice(0, 4).map((cls, index) => {
-                            const colors = CLASS_COLORS[index % CLASS_COLORS.length] ?? {
-                                bg: studentTokens.bgSurfaceAlt,
-                                color: studentTokens.textPrimary,
-                            };
-
-                            return (
-                                <div key={cls.id} style={localStyles.classRow}>
-                                    <div style={{ ...localStyles.classIcon, background: colors.bg, color: colors.color }}>
-                                        {cls.classCode?.slice(0, 2) || '??'}
-                                    </div>
-                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                        <p style={localStyles.cardTitle}>{cls.classCode || cls.name}</p>
-                                        <p style={localStyles.cardSubtle}>
-                                            {cls.studentCount || 0} students - {cls.activeAssignments || 0} active
-                                        </p>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
-            </section>
+            {renderMyClassesSection()}
         </>
     );
+
+    const renderDashboardRail = () => renderDefaultRail();
 
     const advisor = pickAdvisor(enrolledClasses, user?.uid);
 
@@ -392,11 +393,11 @@ export const StudentRightRail: React.FC<StudentRightRailProps> = ({ shellData, s
     return (
         <div style={S.rightSticky}>
             <div style={localStyles.sectionStack}>
-                {variant === 'academic-record' ? renderAcademicRecordRail() : renderDefaultRail()}
-
-                <p style={localStyles.footnote}>
-                    Student shell data is shared between page content and the right rail.
-                </p>
+                {variant === 'academic-record'
+                    ? renderAcademicRecordRail()
+                    : variant === 'dashboard'
+                      ? renderDashboardRail()
+                      : renderDefaultRail()}
 
                 {supplementalContent}
             </div>
