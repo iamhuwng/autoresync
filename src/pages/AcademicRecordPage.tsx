@@ -173,7 +173,7 @@ const localStyles: Record<string, React.CSSProperties> = {
     },
     statsGrid: {
         display: 'grid',
-        gridTemplateColumns: 'repeat(3, 1fr)',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
         gap: 32,
         marginBottom: 0,
     },

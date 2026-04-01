@@ -102,7 +102,7 @@ const localStyles: Record<string, React.CSSProperties> = {
     },
     summaryGrid: {
         display: 'grid',
-        gridTemplateColumns: 'repeat(5, 1fr)',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
         gap: 32,
     },
     summaryCard: {
