@@ -240,12 +240,12 @@ const styles = {
     feed: {
         display: 'flex',
         flexDirection: 'column',
-        gap: 48,
+        gap: 12,
         paddingBottom: 32,
     },
     row: {
         display: 'flex',
-        gap: 24,
+        gap: 20,
         cursor: 'pointer',
     },
     rail: {
@@ -276,8 +276,11 @@ const styles = {
     rowBody: {
         flex: 1,
         minWidth: 0,
-        borderBottom: `1px solid ${studentTokens.borderWhisper}`,
-        paddingBottom: 48,
+        background: '#ffffff',
+        border: '1px solid #eceef0',
+        borderRadius: 2,
+        padding: '20px 22px',
+        transition: 'border-color 0.15s ease',
     },
     meta: {
         display: 'flex',
@@ -599,10 +602,12 @@ export default function StudentDashboardFeedView({
                                     style={styles.row}
                                     onClick={() => row.onPress?.()}
                                     onMouseEnter={event => {
-                                        event.currentTarget.style.background = studentTokens.bgSurfaceMuted;
+                                        const card = event.currentTarget.querySelector('[data-feed-card]');
+                                        if (card) card.style.borderColor = '#cdd6da';
                                     }}
                                     onMouseLeave={event => {
-                                        event.currentTarget.style.background = 'transparent';
+                                        const card = event.currentTarget.querySelector('[data-feed-card]');
+                                        if (card) card.style.borderColor = '#eceef0';
                                     }}
                                 >
                                     <div style={styles.rail}>
@@ -612,7 +617,7 @@ export default function StudentDashboardFeedView({
                                         <div style={styles.stem} />
                                     </div>
 
-                                    <div style={styles.rowBody}>
+                                    <div style={styles.rowBody} data-feed-card>
                                         <div style={styles.meta}>
                                             <p style={styles.eyebrow}>{row.eyebrow || kindLabel(row.kind)}</p>
                                             <p style={styles.time}>{String(row.timeLabel || '').toUpperCase()}</p>
