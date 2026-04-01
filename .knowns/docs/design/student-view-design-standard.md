@@ -2,7 +2,7 @@
 title: Student View Design Standard
 description: Design standards and patterns for all student-facing pages and views
 createdAt: '2026-02-27T15:25:53.999Z'
-updatedAt: '2026-04-01T02:29:30.115Z'
+updatedAt: '2026-04-01T19:03:18.789Z'
 tags:
   - design
   - student
@@ -384,3 +384,12 @@ All interactive rows must implement the `onMouseEnter`/`onMouseLeave` background
 | `ResultsByCourse.tsx` | `repeat(4, 1fr)` | `repeat(auto-fit, minmax(160px, 1fr))` |
 | `ResultTimeline.tsx` | Grid-based `AcademicRecordResultRow` | Flex-based `AcademicRecordFlatRow` |
 | `AcademicRecordResultRow.tsx` | Helpers unexported | Helpers exported for shared use |
+
+
+## Changelog
+
+### 2026-04-02: Right Rail Item Conventions Added
+- Added Section 7.5 "Right Rail Item Conventions" defining the unified pattern for all right-rail list modules
+- Codifies: date badges (42×42 white, whisper border), lowercase pills with SVG icons, `rail-title-marquee` class, `S.widgetTitle` headers
+- Bans: emoji squares, UPPERCASE pill labels, count badges in section headers, bordered cards around individual items
+- Applied to: Up Next, Pending Reviews, and any future right-rail list modules

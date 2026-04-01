@@ -2,7 +2,7 @@
 title: Student Shell Right Rail Architecture
 description: Architecture contract for the shared student shell layout, right rail ownership, and dashboard supplemental rail pattern.
 createdAt: '2026-03-30T03:14:40.723Z'
-updatedAt: '2026-04-01T05:44:56.006Z'
+updatedAt: '2026-04-01T19:03:18.685Z'
 tags:
   - architecture
   - student
@@ -141,3 +141,15 @@ Key files:
 - @doc/architecture/student-experience-architecture
 - @doc/architecture/student-shell-data-loading-architecture
 - @doc/design/student-view-design-standard
+
+
+## Changelog
+
+### 2026-04-02: PendingReviewsWidget v2 Redesign
+- **Date badges** replace emoji squares (📝/🎯) — now uses 42×42 white rounded boxes with month/day from `submittedAt`, matching Up Next date badges
+- **Lowercase pills with SVG icons** replace UPPERCASE labels (HOMEWORK/LIVE → homework/live with file/target SVG prefix icons)
+- **Count badge removed** from section header — now uses shared `S.widgetTitle` token like sibling sections
+- **Title weight normalized** from 600 → 400 to match Up Next's scannable hierarchy
+- **Explicit "Awaiting review" status pill** with amber dot replaces bare status dot
+- **Marquee hover** via `rail-title-marquee` class for long truncated titles
+- Net result: Pending Reviews section is now visually indistinguishable in structure from Up Next, creating a cohesive right-rail experience

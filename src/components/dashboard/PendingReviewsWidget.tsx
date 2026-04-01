@@ -5,15 +5,16 @@
  * Shows pending writing submissions awaiting teacher review.
  * Max 5 items; "See all" link if more. Hidden (returns null) if empty.
  *
- * Redesigned to match the editorial right-rail style (UP NEXT / MY CLASSES sections).
+ * Redesigned to align with the editorial right-rail style (UP NEXT / MY CLASSES sections).
+ * Uses date badges, lowercase pills with SVG icons, and marquee hover for long titles.
  */
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, getDocs, limit, orderBy, query, where } from 'firebase/firestore';
 import { firestore as db } from '../../services/firebase';
 import { useAuth } from '../../hooks/useAuth';
-import { studentTokens } from '../layout/studentLayoutStyles';
+import { S, studentTokens } from '../layout/studentLayoutStyles';
 
 interface PendingItem {
     id: string;
@@ -22,20 +23,42 @@ interface PendingItem {
     contextType: string;
 }
 
-/* ── Source type visuals ── */
-function getSourceStyle(type: string): { bg: string; text: string; label: string; icon: string } {
+/* ── Source type visuals (aligned with Up Next pill style) ── */
+function getSourceIcon(type: string): ReactNode {
+    if (type === 'homework') {
+        return (
+            <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M4 1h8a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V2a1 1 0 011-1zm1 3v1h6V4H5zm0 3v1h6V7H5zm0 3v1h4v-1H5z" />
+            </svg>
+        );
+    }
+    if (['class-session', 'class_session', 'live-session', 'live'].includes(type)) {
+        return (
+            <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 2a5 5 0 110 10A5 5 0 018 3zm0 2a3 3 0 100 6 3 3 0 000-6zm0 2a1 1 0 110 2 1 1 0 010-2z" />
+            </svg>
+        );
+    }
+    return (
+        <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M12.1 1.3a1 1 0 011.4 0l1.2 1.2a1 1 0 010 1.4L5.8 12.8l-3.5.9.9-3.5L12.1 1.3z" />
+        </svg>
+    );
+}
+
+function getSourceStyle(type: string): { label: string; pillBg: string; pillColor: string } {
     switch (type) {
         case 'homework':
-            return { bg: '#ece9ff', text: studentTokens.accentHover, label: 'Homework', icon: '📝' };
+            return { label: 'homework', pillBg: '#eee8ff', pillColor: '#5b47c9' };
         case 'solo-practice':
-            return { bg: studentTokens.bgSurfaceAlt, text: studentTokens.textBody, label: 'Solo', icon: '✏️' };
+            return { label: 'solo practice', pillBg: studentTokens.bgSurfaceAlt, pillColor: studentTokens.textBody };
         case 'class-session':
         case 'class_session':
         case 'live-session':
         case 'live':
-            return { bg: '#edf5f9', text: '#4c5458', label: 'Live', icon: '🎯' };
+            return { label: 'live', pillBg: '#edf5f9', pillColor: '#4c5458' };
         default:
-            return { bg: studentTokens.bgSurfaceAlt, text: studentTokens.textBody, label: type || 'Practice', icon: '✏️' };
+            return { label: type || 'practice', pillBg: studentTokens.bgSurfaceAlt, pillColor: studentTokens.textBody };
     }
 }
 
@@ -77,137 +100,116 @@ function timeAgo(ts: number): string {
     return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-/* ── Styles ── */
+/* ── Date badge helper ── */
+function formatSubmittedBadge(ts: number): { month: string; day: string } | null {
+    if (!ts) return null;
+    const date = new Date(ts);
+    if (Number.isNaN(date.getTime())) return null;
+    return {
+        month: date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(),
+        day: date.toLocaleDateString('en-US', { day: 'numeric' }),
+    };
+}
+
+/* ── Styles (aligned with StudentRightRail's Up Next section) ── */
 const s: Record<string, CSSProperties> = {
-    /* Section container — matches UP NEXT / MY CLASSES open layout */
     section: {
         display: 'flex',
         flexDirection: 'column',
-        gap: 12,
+        gap: 16,
     },
-    /* Header row: title + count */
-    header: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        gap: 8,
-    },
-    sectionTitle: {
-        margin: 0,
-        fontSize: '0.625rem',
-        fontWeight: 800,
-        letterSpacing: '0.12em',
-        textTransform: 'uppercase',
-        color: studentTokens.textPrimary,
-        lineHeight: 1.2,
-    },
-    countBadge: {
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minWidth: 20,
-        height: 20,
-        padding: '0 6px',
-        borderRadius: studentTokens.radiusPill,
-        background: studentTokens.accentSoft,
-        color: studentTokens.accentHover,
-        fontSize: '0.625rem',
-        fontWeight: 700,
-        lineHeight: 1,
-        flexShrink: 0,
-    },
-
-    /* Item list */
     list: {
         listStyle: 'none',
         margin: 0,
         padding: 0,
         display: 'flex',
         flexDirection: 'column',
-        gap: 2,
+        gap: 14,
     },
-
-    /* Individual item row */
     item: {
         display: 'flex',
         alignItems: 'flex-start',
-        gap: 10,
-        padding: '8px 8px',
+        gap: 12,
+        padding: '4px 4px',
         borderRadius: 6,
         cursor: 'pointer',
         transition: 'background 0.15s ease',
     },
-
-    /* Left indicator — colored dot with icon */
-    indicator: {
-        width: 32,
-        height: 32,
-        borderRadius: 6,
+    dateBadge: {
+        width: 42,
+        height: 42,
+        borderRadius: studentTokens.radiusSoft,
+        background: studentTokens.bgSurface,
+        border: `1px solid ${studentTokens.borderWhisper}`,
+        boxShadow: '0 1px 2px rgba(43, 52, 55, 0.04)',
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         flexShrink: 0,
-        fontSize: '0.8rem',
     },
-
-    /* Item content area */
+    dateMonth: {
+        fontSize: '0.5625rem',
+        fontWeight: 700,
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
+        color: studentTokens.accent,
+        lineHeight: 1,
+    },
+    dateDay: {
+        fontSize: '0.9375rem',
+        fontWeight: 800,
+        color: studentTokens.textPrimary,
+        lineHeight: 1.1,
+        marginTop: 2,
+    },
     itemContent: {
         flex: 1,
         minWidth: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 2,
     },
     itemTitle: {
-        margin: 0,
-        fontSize: '0.75rem',
-        fontWeight: 600,
-        lineHeight: 1.35,
+        fontWeight: 400,
+        fontSize: '0.875rem',
         color: studentTokens.textPrimary,
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
+        margin: '0 0 2px',
+        maxWidth: '100%',
+        cursor: 'default',
     },
-    itemMeta: {
+    pillRow: {
         display: 'flex',
-        alignItems: 'center',
+        flexWrap: 'wrap',
         gap: 6,
-        margin: 0,
+        marginTop: 4,
     },
-    itemMetaText: {
-        margin: 0,
-        fontSize: '0.625rem',
-        lineHeight: 1.4,
-        color: studentTokens.textMuted,
-    },
-    itemSourcePill: {
+    pillBase: {
         display: 'inline-flex',
         alignItems: 'center',
-        padding: '1px 6px',
-        borderRadius: studentTokens.radiusPill,
-        fontSize: '0.5625rem',
-        fontWeight: 700,
-        letterSpacing: '0.06em',
-        textTransform: 'uppercase',
-        whiteSpace: 'nowrap',
+        gap: 4,
+        fontSize: '0.625rem',
+        fontWeight: 600,
+        padding: '2px 8px',
+        borderRadius: 999,
+        letterSpacing: '0.02em',
         lineHeight: 1.6,
+        whiteSpace: 'nowrap',
     },
-
-    /* Status dot — pulsing amber for "awaiting review" */
+    pillStatus: {
+        background: '#fef7e8',
+        color: '#9a6427',
+    },
     statusDot: {
         width: 6,
         height: 6,
         borderRadius: '50%',
         background: '#d4a843',
+        display: 'inline-block',
         flexShrink: 0,
     },
-
-    /* See all link */
     seeAll: {
         display: 'inline-flex',
         alignItems: 'center',
         gap: 4,
-        padding: '4px 8px',
+        padding: '4px 0',
         margin: 0,
         border: 'none',
         background: 'transparent',
@@ -219,7 +221,6 @@ const s: Record<string, CSSProperties> = {
         cursor: 'pointer',
         fontFamily: 'inherit',
         transition: 'color 0.15s ease',
-        borderRadius: 4,
     },
 };
 
@@ -279,15 +280,13 @@ export function PendingReviewsWidget() {
     return (
         <section style={s.section} aria-label="Pending writing reviews">
             {/* Header — matches UP NEXT / MY CLASSES section headers */}
-            <div style={s.header}>
-                <h3 style={s.sectionTitle}>Pending Reviews</h3>
-                <span style={s.countBadge}>{totalCount > 5 ? '5+' : items.length}</span>
-            </div>
+            <h3 style={S.widgetTitle}>Pending Reviews</h3>
 
             {/* Item list */}
             <ul style={s.list}>
                 {items.map((item) => {
                     const source = getSourceStyle(item.contextType);
+                    const dateBadge = formatSubmittedBadge(item.submittedAt);
                     const isHovered = hoveredId === item.id;
 
                     return (
@@ -309,32 +308,25 @@ export function PendingReviewsWidget() {
                                 }
                             }}
                         >
-                            {/* Left icon block */}
-                            <div
-                                style={{
-                                    ...s.indicator,
-                                    background: source.bg,
-                                }}
-                            >
-                                {source.icon}
+                            {/* Date badge — matches UP NEXT date badges */}
+                            <div style={s.dateBadge}>
+                                <span style={s.dateMonth}>{dateBadge?.month || 'NEW'}</span>
+                                <span style={s.dateDay}>{dateBadge?.day || '—'}</span>
                             </div>
 
                             {/* Content */}
                             <div style={s.itemContent}>
-                                <p style={s.itemTitle} title={item.testTitle}>
-                                    {item.testTitle}
-                                </p>
-                                <div style={s.itemMeta}>
-                                    <span style={s.statusDot} title="Awaiting review" />
-                                    <span style={s.itemMetaText}>{timeAgo(item.submittedAt)}</span>
-                                    <span
-                                        style={{
-                                            ...s.itemSourcePill,
-                                            background: source.bg,
-                                            color: source.text,
-                                        }}
-                                    >
+                                <div className="rail-title-marquee" style={s.itemTitle}>
+                                    <span className="rail-title-inner">{item.testTitle}</span>
+                                </div>
+                                <div style={s.pillRow}>
+                                    <span style={{ ...s.pillBase, background: source.pillBg, color: source.pillColor }}>
+                                        {getSourceIcon(item.contextType)}
                                         {source.label}
+                                    </span>
+                                    <span style={{ ...s.pillBase, ...s.pillStatus }}>
+                                        <span style={s.statusDot} />
+                                        Awaiting review
                                     </span>
                                 </div>
                             </div>
@@ -351,11 +343,9 @@ export function PendingReviewsWidget() {
                     onClick={() => navigate('/student/academic-record', { state: { tab: 'writing' } })}
                     onMouseEnter={(event) => {
                         event.currentTarget.style.color = studentTokens.accentHover;
-                        event.currentTarget.style.background = studentTokens.bgSurfaceAlt;
                     }}
                     onMouseLeave={(event) => {
                         event.currentTarget.style.color = studentTokens.accent;
-                        event.currentTarget.style.background = 'transparent';
                     }}
                 >
                     See all reviews →

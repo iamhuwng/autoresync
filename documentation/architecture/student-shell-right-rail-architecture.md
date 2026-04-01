@@ -114,20 +114,24 @@ Use one framing owner per surface: either the host page frames plain content, or
 
 ## PendingReviewsWidget Design Contract
 
-As of 2026-04-01 the widget uses the open-section editorial layout — the same pattern as `UP NEXT`, `MY CLASSES`, and `LIVE NOW` sections rendered by `StudentRightRail`.
+As of 2026-04-02 the widget uses the open-section editorial layout — the same structural pattern as `UP NEXT`, `MY CLASSES`, and `LIVE NOW` sections rendered by `StudentRightRail`.
 
 Visual structure:
-- section header: `0.625rem / 800wt / uppercase / 0.12em letterspacing` label + accent count badge pill
-- item rows: left icon block (32×32 rounded square, colored by source type) + title + meta row
-- meta row: amber status dot + time-ago label + source pill (Homework / Solo / Live)
+- section header: uses shared `S.widgetTitle` token (no count badge — matches sibling sections)
+- item rows: left date badge (42×42 rounded, white bg, whisper border, month+day from `submittedAt`) + title + pill row
+- title: `0.875rem / 400wt` with `rail-title-marquee` class for overflow scroll-on-hover
+- pill row: lowercase source pill with SVG icon (homework / live / solo practice) + amber "Awaiting review" status pill
 - hover: rows highlight to `bgSurfaceAlt`
 - see-all: accent uppercase link shown when total > 5
 
 Design rules:
 - no bordered card, no amber background — the widget is an open section inside `sectionStack`
 - typography, spacing, and color tokens must use `studentTokens` from `studentLayoutStyles.ts`
-- the section header must use the same label pattern as other right-rail sections
+- the section header must use the shared `S.widgetTitle` token, not a custom heading style
 - item rows must not introduce card wrappers or shadow effects
+- date badges must match the Up Next date badge pattern (month abbreviated uppercase in accent, day bold)
+- source pills must be lowercase with SVG prefix icons — no emojis, no uppercase labels
+- the amber "Awaiting review" pill provides semantic differentiation from Up Next items
 
 ## Implementation Notes
 

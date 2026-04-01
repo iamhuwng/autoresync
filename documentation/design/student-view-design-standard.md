@@ -250,6 +250,15 @@ After any change to student layout padding, visually verify that the following p
 - `Up Next` should sit inside the same visual family as the primary summary, not as a second unrelated widget stack
 - `Public Sessions` should be a sparse supporting list, not another heavy card column
 
+### Right Rail Item Conventions
+All right-rail list items (Up Next, Pending Reviews, and future modules) must follow this unified pattern:
+- **Left element:** Date badge (42×42, white bg, whisper border, month uppercase in accent, day bold) or initial badge (colored circle) — never emoji squares
+- **Title:** `0.875rem / 400wt` with `rail-title-marquee` CSS class for overflow scroll-on-hover
+- **Pills:** Lowercase labels with SVG prefix icons, `0.625rem / 600wt`, fully rounded (`border-radius: 999px`)
+- **Status pills:** Use semantic amber for "Awaiting review", green for "Overdue", etc.
+- **Section headers:** Use shared `S.widgetTitle` token — no count badges, no custom header styles
+- **No emojis, no UPPERCASE pill labels, no bordered cards around individual items**
+
 ---
 
 ## 8. Page Family Rules
