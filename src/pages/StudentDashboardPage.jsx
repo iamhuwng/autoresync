@@ -624,22 +624,24 @@ const StudentDashboardPage = () => {
 
         if (validResults.length === 0) return null;
 
-        // Collect available categories
-        const skillSet = new Set();
-        const typeSet = new Set();
+        // Resolve testType to category key
+        const resolveTypeCategory = (testType) => {
+            if (!testType) return 'ielts';
+            const t = testType.toLowerCase();
+            if (t === 'thcs-thpt' || t === 'thcs' || t === 'practice_thcs') return 'thcs';
+            return 'ielts';
+        };
+
+        // Collect available type categories
+        const categorySet = new Set();
         validResults.forEach(r => {
-            if (r.testSkill) skillSet.add(r.testSkill);
-            if (r.testType) typeSet.add(r.testType);
+            categorySet.add(resolveTypeCategory(r.testType));
         });
 
-        // Build category list: skills first, then test types
+        // Build category list (only include if data exists)
         const categories = [];
-        ['reading', 'listening', 'writing', 'speaking'].forEach(s => {
-            if (skillSet.has(s)) categories.push(s);
-        });
-        ['quiz', 'test', 'thcs-test'].forEach(t => {
-            if (typeSet.has(t)) categories.push(t);
-        });
+        if (categorySet.has('ielts')) categories.push('ielts');
+        if (categorySet.has('thcs')) categories.push('thcs');
 
         // Map results to simplified records for the chart
         const testResults = validResults.map(r => ({
@@ -648,6 +650,7 @@ const StudentDashboardPage = () => {
             testTitle: r.testTitle || 'Test',
             testSkill: r.testSkill || '',
             testType: r.testType || '',
+            typeCategory: resolveTypeCategory(r.testType),
             contextType: r.context?.type || '',
         }));
 

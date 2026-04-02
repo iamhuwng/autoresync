@@ -1,34 +1,27 @@
 import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { studentTokens } from '../layout/studentLayoutStyles';
 
-// ── Color palette for test categories ──
+// ── Color palette for test-type categories ──
 const CATEGORY_COLORS = {
     all: '#4c5458',
-    reading: '#2e7d6f',
-    listening: '#5b6abf',
-    writing: '#c77a2e',
-    speaking: '#b94a9a',
-    homework: '#9a6427',
-    class_session: '#3a7bbd',
-    self_study: '#6b8e4e',
-    quiz: '#7e57c2',
-    test: '#2e7d6f',
-    'thcs-test': '#e06850',
+    ielts: '#2e7d6f',
+    thcs: '#e06850',
 };
 
 const CATEGORY_LABELS = {
     all: 'All Tests',
-    reading: 'Reading',
-    listening: 'Listening',
-    writing: 'Writing',
-    speaking: 'Speaking',
-    homework: 'Homework',
-    class_session: 'Class Session',
-    self_study: 'Self Study',
-    quiz: 'Quiz',
-    test: 'Test',
-    'thcs-test': 'THCS Test',
+    ielts: 'IELTS',
+    thcs: 'THCS',
 };
+
+// Normalize raw testType values into category keys
+function resolveTypeCategory(testType) {
+    if (!testType) return null;
+    const t = testType.toLowerCase();
+    if (t === 'thcs-thpt' || t === 'thcs' || t === 'practice_thcs') return 'thcs';
+    // quiz, test, ielts, ielts-reading, ielts-listening, reading, listening, writing, speaking → all IELTS
+    return 'ielts';
+}
 
 function ChevronDown() {
     return (
@@ -195,9 +188,7 @@ export default function RecentGradesChart({
 
         if (selectedCategory !== 'all') {
             filtered = testResults.filter(r =>
-                r.testSkill === selectedCategory
-                || r.testType === selectedCategory
-                || r.contextType === selectedCategory
+                r.typeCategory === selectedCategory
             );
         }
 
@@ -213,6 +204,7 @@ export default function RecentGradesChart({
             testTitle: r.testTitle || 'Test',
             testSkill: r.testSkill,
             testType: r.testType,
+            typeCategory: r.typeCategory,
             submittedAt: r.submittedAt,
         }));
     }, [testResults, selectedCategory]);
@@ -272,7 +264,7 @@ export default function RecentGradesChart({
                 x: px,
                 title: d.testTitle,
                 pct: d.percentage,
-                skill: d.testSkill,
+                skill: d.typeCategory === 'thcs' ? 'THCS' : (d.testSkill || 'IELTS'),
                 date: d.dateLabel,
             });
         } else {
