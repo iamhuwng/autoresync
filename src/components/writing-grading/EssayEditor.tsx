@@ -128,6 +128,11 @@ interface HighlightSelectionState {
     containsHighlight: boolean;
 }
 
+interface OverlayPosition {
+    top: number;
+    left: number;
+}
+
 // ═══════════════════════════════════════════════════════════════
 // COMPONENT
 // ═══════════════════════════════════════════════════════════════
@@ -159,7 +164,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
     const [lastHighlightColor, setLastHighlightColor] = useState<string | null>(null);
     const [showHighlightDropdown, setShowHighlightDropdown] = useState(false);
     const [showColorDropdown, setShowColorDropdown] = useState(false);
-    const [bubbleMenuPos, setBubbleMenuPos] = useState<{ top: number; left: number } | null>(null);
+    const [bubbleMenuPos, setBubbleMenuPos] = useState<OverlayPosition | null>(null);
     const [hoverTooltip, setHoverTooltip] = useState<{ commentId: string; top: number; left: number } | null>(null);
     const highlightDropdownRef = useRef<HTMLDivElement>(null);
     const colorDropdownRef = useRef<HTMLDivElement>(null);
@@ -315,13 +320,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
             return;
         }
 
-        const containerRect = editorContainerRef.current?.getBoundingClientRect();
-        if (!containerRect) return;
-
-        const left = (startCoords.left + endCoords.left) / 2 - containerRect.left;
-        const top = startCoords.top - containerRect.top - 44;
-
-        setBubbleMenuPos({ top: Math.max(0, top), left: Math.max(8, left) });
+        setBubbleMenuPos(getBubbleMenuOverlayPosition(startCoords, endCoords));
     }, [editor, viewMode]);
 
     const scheduleBubbleMenuUpdate = useCallback(() => {
@@ -376,10 +375,27 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
             setBubbleMenuPos(null);
         };
 
+        const handleContainerScroll = () => {
+            setHoverTooltip(null);
+            if (editor.state.selection.empty) {
+                setBubbleMenuPos(null);
+                return;
+            }
+
+            scheduleBubbleMenuUpdate();
+        };
+
+        const handleWindowResize = () => {
+            setHoverTooltip(null);
+            scheduleBubbleMenuUpdate();
+        };
+
         editor.on('selectionUpdate', handleSelectionUpdate);
         editor.on('blur', handleBlur);
         document.addEventListener('mousedown', handleEditorMouseDown);
         document.addEventListener('mouseup', handleDocumentMouseUp);
+        editorContainerRef.current?.addEventListener('scroll', handleContainerScroll, { passive: true });
+        window.addEventListener('resize', handleWindowResize);
 
         return () => {
             clearScheduledBubbleMenu();
@@ -387,6 +403,8 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
             editor.off('blur', handleBlur);
             document.removeEventListener('mousedown', handleEditorMouseDown);
             document.removeEventListener('mouseup', handleDocumentMouseUp);
+            editorContainerRef.current?.removeEventListener('scroll', handleContainerScroll);
+            window.removeEventListener('resize', handleWindowResize);
         };
     }, [clearScheduledBubbleMenu, editor, scheduleBubbleMenuUpdate, updateBubbleMenu]);
 
@@ -442,21 +460,14 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                 return;
             }
 
-            const containerRect = container.getBoundingClientRect();
             const markRect = commentElement.getBoundingClientRect();
-            const tooltipLeft = Math.max(
-                20,
-                Math.min(
-                    Math.max(20, container.clientWidth - 300),
-                    markRect.left - containerRect.left
-                )
-            );
+            const nextTooltipPosition = getCommentTooltipOverlayPosition(markRect);
 
             setHoverTooltip((current) => {
                 const nextTooltip = {
                     commentId,
-                    top: markRect.bottom - containerRect.top + container.scrollTop + 12,
-                    left: tooltipLeft,
+                    top: nextTooltipPosition.top,
+                    left: nextTooltipPosition.left,
                 };
 
                 if (
@@ -507,14 +518,13 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
             pendingCorrection.to,
         );
 
-        const chain = editor.chain().setTextSelection(normalizedRange);
-
         if (pendingCorrection.action === 'remove') {
-            chain.unsetCorrectionMark().run();
+            removeCorrectionMark(editor, normalizedRange.from, normalizedRange.to);
             return;
         }
 
-        chain
+        editor.chain()
+            .setTextSelection(normalizedRange)
             .setCorrectionMark({
                 correctionText: normalizeCorrectionTextForBoundary(
                     editor.state.doc,
@@ -524,6 +534,36 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
             })
             .run();
     }, [editor, pendingCorrection]);
+
+    useEffect(() => {
+        if (!editor || readOnly || !onCorrectionMarkClick) {
+            return;
+        }
+
+        const handleCorrectionMarkClick = (event: MouseEvent) => {
+            const target = event.target as HTMLElement | null;
+            const correctionElement = target?.closest('.correction-mark') as HTMLElement | null;
+            if (!correctionElement) {
+                return;
+            }
+
+            const correctionSelection = getCorrectionMarkSelection(editor.view, correctionElement);
+            if (!correctionSelection) {
+                return;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+            onCorrectionMarkClick(correctionSelection);
+        };
+
+        const editorDom = editor.view.dom;
+        editorDom.addEventListener('click', handleCorrectionMarkClick);
+
+        return () => {
+            editorDom.removeEventListener('click', handleCorrectionMarkClick);
+        };
+    }, [editor, onCorrectionMarkClick, readOnly]);
 
     useEffect(() => {
         if (!editor || !pendingCommentMutation) return;
@@ -917,11 +957,8 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                                 ref={bubbleMenuRef}
                                 className="essay-bubble-menu"
                                 style={{
-                                    position: 'absolute',
                                     top: bubbleMenuPos.top,
                                     left: bubbleMenuPos.left,
-                                    transform: 'translateX(-50%)',
-                                    zIndex: 50,
                                 }}
                             >
                                 <button
@@ -1064,6 +1101,83 @@ function normalizeCorrectionTextForBoundary(
 
 function shouldAppendCorrectionSeparator(nextCharacter: string) {
     return /[A-Za-z0-9]/.test(nextCharacter);
+}
+
+function getBubbleMenuOverlayPosition(
+    startCoords: { top: number; bottom: number; left: number; right: number },
+    endCoords: { top: number; bottom: number; left: number; right: number },
+): OverlayPosition {
+    const menuWidth = 182;
+    const menuHeight = 42;
+    const margin = 8;
+    const selectionCenter = (startCoords.left + endCoords.right) / 2;
+    const preferredTop = Math.min(startCoords.top, endCoords.top) - menuHeight - 10;
+    const fallbackTop = Math.max(startCoords.bottom, endCoords.bottom) + 10;
+
+    return clampOverlayToViewport(
+        {
+            top: preferredTop >= margin ? preferredTop : fallbackTop,
+            left: selectionCenter - menuWidth / 2,
+        },
+        { width: menuWidth, height: menuHeight },
+        margin,
+    );
+}
+
+function getCommentTooltipOverlayPosition(
+    markRect: { top: number; bottom: number; left: number; right: number },
+): OverlayPosition {
+    const tooltipWidth = 280;
+    const tooltipHeight = 180;
+    const margin = 16;
+    const preferredTop = markRect.bottom + 12;
+    const fallbackTop = markRect.top - tooltipHeight - 12;
+
+    return clampOverlayToViewport(
+        {
+            top: preferredTop + tooltipHeight <= window.innerHeight - margin ? preferredTop : fallbackTop,
+            left: markRect.left,
+        },
+        { width: tooltipWidth, height: tooltipHeight },
+        margin,
+    );
+}
+
+function clampOverlayToViewport(
+    position: OverlayPosition,
+    size: { width: number; height: number },
+    margin: number,
+): OverlayPosition {
+    if (typeof window === 'undefined') {
+        return position;
+    }
+
+    return {
+        top: Math.min(Math.max(position.top, margin), Math.max(margin, window.innerHeight - size.height - margin)),
+        left: Math.min(Math.max(position.left, margin), Math.max(margin, window.innerWidth - size.width - margin)),
+    };
+}
+
+function removeCorrectionMark(
+    editor: {
+        state: {
+            schema: { marks: Record<string, unknown> };
+            tr: { removeMark: (from: number, to: number, markType?: unknown) => { steps: unknown[] } };
+        };
+        view: { dispatch: (transaction: { steps: unknown[] }) => void };
+    },
+    from: number,
+    to: number,
+) {
+    const correctionMarkType = editor.state.schema.marks.correctionMark;
+    if (!correctionMarkType) {
+        return;
+    }
+
+    const transaction = editor.state.tr.removeMark(from, to, correctionMarkType);
+    if (transaction.steps.length > 0) {
+        editor.view.dispatch(transaction);
+    }
 }
 
 function getCorrectionMarkSelection(

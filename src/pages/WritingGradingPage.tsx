@@ -1351,17 +1351,15 @@ export default function WritingGradingPage() {
     }, [activeTask, showStatus, submissionId, trackAction]);
 
     const getCorrectionPopupPosition = useCallback((anchorViewportTop: number | null, anchorViewportLeft: number | null) => {
-        const editorContainer = pageRef.current?.querySelector('#essay-editor-container') as HTMLElement | null;
-        const containerRect = editorContainer?.getBoundingClientRect();
-        const fallback = { top: 24, left: 120 };
+        const fallback = { top: 96, left: 120 };
 
-        if (!containerRect || anchorViewportTop === null || anchorViewportLeft === null) {
+        if (anchorViewportTop === null || anchorViewportLeft === null) {
             return fallback;
         }
 
         return {
-            top: Math.max(16, anchorViewportTop - containerRect.top + (editorContainer?.scrollTop || 0) - 72),
-            left: Math.max(24, anchorViewportLeft - containerRect.left),
+            top: Math.max(16, anchorViewportTop - 72),
+            left: Math.max(24, anchorViewportLeft),
         };
     }, []);
 

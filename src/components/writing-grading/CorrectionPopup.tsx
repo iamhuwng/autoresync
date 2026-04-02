@@ -16,6 +16,7 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import './CorrectionPopup.css';
 
 export interface CorrectionPopupProps {
@@ -50,6 +51,8 @@ const CorrectionPopup: React.FC<CorrectionPopupProps> = ({
     const [correctionText, setCorrectionText] = useState('');
     const inputRef = useRef<HTMLInputElement>(null);
     const popupRef = useRef<HTMLDivElement>(null);
+    const portalRoot = typeof document !== 'undefined' ? document.body : null;
+    const fixedPosition = getClampedPopupPosition(position);
 
     // Focus input when popup opens
     useEffect(() => {
@@ -105,13 +108,13 @@ const CorrectionPopup: React.FC<CorrectionPopupProps> = ({
 
     if (!isOpen) return null;
 
-    return (
+    const popup = (
         <div
             ref={popupRef}
             className="correction-popup"
             style={{
-                top: position.top,
-                left: position.left,
+                top: fixedPosition.top,
+                left: fixedPosition.left,
             }}
             id="correction-popup"
         >
@@ -177,6 +180,25 @@ const CorrectionPopup: React.FC<CorrectionPopupProps> = ({
             )}
         </div>
     );
+
+    return portalRoot ? createPortal(popup, portalRoot) : popup;
 };
+
+function getClampedPopupPosition(position: { top: number; left: number }) {
+    if (typeof window === 'undefined') {
+        return position;
+    }
+
+    const popupWidth = Math.min(320, window.innerWidth - 24);
+    const popupHeight = 190;
+    const margin = 12;
+    const maxLeft = Math.max(margin, window.innerWidth - popupWidth - margin);
+    const maxTop = Math.max(margin, window.innerHeight - popupHeight - margin);
+
+    return {
+        top: Math.min(Math.max(position.top, margin), maxTop),
+        left: Math.min(Math.max(position.left, margin), maxLeft),
+    };
+}
 
 export default CorrectionPopup;

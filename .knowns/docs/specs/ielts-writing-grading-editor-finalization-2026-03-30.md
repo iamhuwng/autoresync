@@ -2,7 +2,7 @@
 title: IELTS Writing Grading Editor Finalization 2026-03-30
 description: Finalized source of truth for the teacher writing grading editor layout, comment interactions, ordering rules, and containment inside the teacher shell.
 createdAt: '2026-03-29T20:16:53.672Z'
-updatedAt: '2026-04-02T04:54:19.745Z'
+updatedAt: '2026-04-02T05:26:46.355Z'
 tags:
   - spec
   - ielts
@@ -198,3 +198,19 @@ Required editing behavior:
 - clicking an existing correction mark in grading edit mode must reopen the correction popup anchored to that mark
 - the popup must preload the stored correction text for inline edits
 - the popup must provide a delete path so the teacher can remove the correction mark without recreating the original text selection
+
+## 2026-04-02 Follow-up - Correction Deletion And Overlay Containment
+
+Correction deletion rules:
+- deleting a correction from the popup must remove only the `correctionMark` from the selected range
+- deleting a correction must never delete the student’s original essay text
+- correction mark clicks in grading edit mode should reopen the stored correction for in-place save/delete without forcing the teacher to recreate the selection
+
+Correction presentation rules:
+- visible correction replacement text should render in red to keep teacher-authored correction output visually distinct from the student’s original text
+- the original text remains muted and struck through while the replacement stays unstruck
+
+Overlay containment rules:
+- the correction popup, annotation hover tooltip, and floating selection tools must not be clipped by the editor card, essay wrapper, or scrollable editor viewport
+- those overlays should use viewport-based positioning and clamp to screen bounds so they stay usable near the edges of the grading surface
+- editor scroll and window resize must trigger repositioning or dismissal so stale overlay coordinates do not leave popups detached from their annotation anchors

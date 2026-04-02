@@ -123,3 +123,19 @@ Correction-editing rules:
 
 Queued correction-application rule:
 - when replaying a queued correction against a stored selection range, the editor should apply the mark directly without forcing an extra focus-and-scroll cycle first
+
+## 2026-04-02 Amendment - Grading Overlay Containment And Correction Removal Contract
+
+Correction-removal rules:
+- deleting a correction from the grading popup must remove only the `correctionMark` metadata from the selected range
+- deleting a correction must never delete or replace the student's original essay text
+- reopening a correction for edit/delete must resolve against the stored marked range, not a fresh manual reselection
+
+Correction-visual rules:
+- correction replacement text is teacher-authored annotation output and should render in red to distinguish it from the student's original text
+- the original span remains muted and struck through while the visible replacement remains unstruck
+
+Overlay-containment rules:
+- the correction popup, comment hover tooltip, and selection bubble menu must not be rendered inside clipping containers such as the editor card, essay wrapper, or scrollable editor viewport
+- those overlays should anchor from viewport coordinates and clamp to visible screen bounds so they remain usable near the top, bottom, or side edges of the grading surface
+- editor scroll and window resize must trigger overlay repositioning or dismissal so stale coordinates do not leave popups floating in the wrong place

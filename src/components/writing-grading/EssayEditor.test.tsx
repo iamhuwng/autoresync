@@ -3,18 +3,22 @@ import type { ComponentProps } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import EssayEditor from './EssayEditor';
 
+const baseProps: ComponentProps<typeof EssayEditor> = {
+    originalEssayText: 'Hello world',
+    initialContent: null,
+    wordCount: 2,
+    activeTimeSeconds: 120,
+    taskNumber: 1,
+    onAddComment: vi.fn(),
+    onGutterDotClick: vi.fn(),
+    onCommentMarkClick: vi.fn(),
+    onViewModeChange: vi.fn(),
+};
+
 function renderEditor(overrides: Partial<ComponentProps<typeof EssayEditor>> = {}) {
     return render(
         <EssayEditor
-            originalEssayText="Hello world"
-            initialContent={null}
-            wordCount={2}
-            activeTimeSeconds={120}
-            taskNumber={1}
-            onAddComment={vi.fn()}
-            onGutterDotClick={vi.fn()}
-            onCommentMarkClick={vi.fn()}
-            onViewModeChange={vi.fn()}
+            {...baseProps}
             {...overrides}
         />,
     );
@@ -193,5 +197,39 @@ describe('EssayEditor', () => {
                 correctionText: 'Hi',
             }));
         });
+    });
+
+    it('removes the correction mark without deleting the student text', async () => {
+        const { container, rerender } = renderEditor({
+            pendingCorrection: {
+                action: 'apply',
+                from: 1,
+                to: 6,
+                correctionText: 'Hi',
+                nonce: 1,
+            },
+        });
+
+        await waitFor(() => {
+            expect(container.querySelector('.correction-mark')).toBeTruthy();
+        });
+
+        rerender(
+            <EssayEditor
+                {...baseProps}
+                pendingCorrection={{
+                    action: 'remove',
+                    from: 1,
+                    to: 6,
+                    nonce: 2,
+                }}
+            />,
+        );
+
+        await waitFor(() => {
+            expect(container.querySelector('.correction-mark')).toBeNull();
+        });
+
+        expect(container.querySelector('.ProseMirror p')?.textContent).toBe('Hello world');
     });
 });

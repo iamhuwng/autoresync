@@ -183,15 +183,18 @@
 }
 
 .essay-comment-tooltip {
-    position: absolute;
+    position: fixed;
     width: min(280px, calc(100% - 32px));
+    max-width: min(280px, calc(100vw - 32px));
+    max-height: min(240px, calc(100vh - 32px));
+    overflow: auto;
     padding: 0.8rem 0.9rem;
     border-radius: 14px;
     background: rgba(15, 23, 42, 0.96);
     color: #f8fafc;
     box-shadow: 0 18px 40px rgba(15, 23, 42, 0.28);
     border: 1px solid rgba(148, 163, 184, 0.28);
-    z-index: 32;
+    z-index: 110;
     pointer-events: none;
 }
 
@@ -279,12 +282,14 @@
    ═══════════════════════════════════════════════════════════════ */
 
 .essay-bubble-menu {
+    position: fixed;
     display: flex;
     gap: 2px;
     padding: 4px 6px;
     background: #1e293b;
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    z-index: 115;
 }
 
 .bubble-btn {
