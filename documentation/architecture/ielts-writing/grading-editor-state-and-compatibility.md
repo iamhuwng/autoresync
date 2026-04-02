@@ -45,6 +45,11 @@ It focuses on the parts that were previously brittle:
 - one text slice may hold at most one comment mark, and comment removal must target the exact `commentId`
 - text-color `Default` clears the color mark instead of persisting a literal `inherit` value
 - toolbar controls must remain keyboard-activatable while still preventing editor blur on pointer interaction
+- correction is the dominant composition mark:
+  - new corrections are blocked on ranges that already contain comment/correction marks
+  - new highlight/comment/strikethrough/text-color mutations are blocked on ranges that already contain a correction mark
+  - correction application strips highlight, strike, and text-color marks before persisting the correction mark
+  - legacy correction+comment overlap remains readable, but correction click handling wins over comment click routing
 
 ### Feedback Editor Contract
 

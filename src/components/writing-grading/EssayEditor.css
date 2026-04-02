@@ -311,6 +311,15 @@
     background: rgba(255, 255, 255, 0.15);
 }
 
+.bubble-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.bubble-btn:disabled:hover {
+    background: transparent;
+}
+
 /* ═══════════════════════════════════════════════════════════════
    COMMENT MARKS (in essay text)
    ═══════════════════════════════════════════════════════════════ */

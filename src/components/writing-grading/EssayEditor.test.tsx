@@ -59,6 +59,32 @@ function buildPendingQuickComment(
     };
 }
 
+function buildInitialContent(
+    text: string,
+    marks: Array<{ type: string; attrs?: Record<string, unknown> }> = [],
+    trailingText = ' world',
+) {
+    return {
+        type: 'doc',
+        content: [
+            {
+                type: 'paragraph',
+                content: [
+                    {
+                        type: 'text',
+                        text,
+                        marks,
+                    },
+                    {
+                        type: 'text',
+                        text: trailingText,
+                    },
+                ],
+            },
+        ],
+    };
+}
+
 const rect = {
     x: 0,
     y: 0,
@@ -300,5 +326,90 @@ describe('EssayEditor', () => {
         expect(container.querySelector('#toolbar-comment')).toBeDisabled();
         expect(container.querySelector('#toolbar-correction')).toBeDisabled();
         expect(container.querySelector('#toolbar-highlight')).toBeDisabled();
+    });
+
+    it('strips highlight, strike, and text color from a range before applying a correction', async () => {
+        const { container } = renderEditor({
+            initialContent: buildInitialContent('Hello', [
+                { type: 'highlight', attrs: { color: '#fef08a' } },
+                { type: 'strike' },
+                { type: 'textStyle', attrs: { color: '#ef4444' } },
+            ]),
+            pendingCorrection: buildPendingCorrection(),
+        });
+
+        await waitFor(() => {
+            expect(container.querySelector('.correction-mark')).toBeTruthy();
+        });
+
+        expect(container.querySelector('.correction-mark-original mark')).toBeNull();
+        expect(container.querySelector('.correction-mark-original s')).toBeNull();
+        expect(container.querySelector('.correction-mark-original span[style*="color"]')).toBeNull();
+        expect(container.querySelector('.ProseMirror p')?.textContent).toContain('Hi world');
+    });
+
+    it('keeps comment and highlight overlap available when no correction mark is involved', async () => {
+        const { container } = renderEditor({
+            initialContent: buildInitialContent('Hello', [
+                { type: 'highlight', attrs: { color: '#fef08a' } },
+            ]),
+            pendingCommentMutation: {
+                action: 'apply',
+                taskNumber: 1,
+                from: 1,
+                to: 6,
+                commentId: 'comment-1',
+                color: '#22c55e',
+                nonce: 1,
+            },
+        });
+
+        await waitFor(() => {
+            expect(container.querySelector('[data-comment-id="comment-1"]')).toBeTruthy();
+        });
+
+        expect(container.querySelector('[data-comment-id="comment-1"] mark, mark [data-comment-id="comment-1"]')).toBeTruthy();
+    });
+
+    it('prefers correction editing over comment clicks when old overlapping marks already exist', async () => {
+        const onCommentMarkClick = vi.fn();
+        const onCorrectionMarkClick = vi.fn();
+        const { container } = renderEditor({
+            onCommentMarkClick,
+            onCorrectionMarkClick,
+            comments: [{
+                id: 'comment-1',
+                taskNumber: 1,
+                text: 'Keep this precise.',
+                categoryId: 'cc',
+                categoryLabel: 'CC',
+                color: '#22c55e',
+                status: 'active',
+                anchorText: 'Hello',
+                from: 1,
+                to: 6,
+                createdAt: 1,
+                updatedAt: 1,
+            }],
+            initialContent: buildInitialContent('Hello', [
+                { type: 'commentMark', attrs: { commentId: 'comment-1', color: '#22c55e' } },
+                { type: 'correctionMark', attrs: { correctionText: 'Hi' } },
+            ]),
+        });
+
+        await waitFor(() => {
+            expect(container.querySelector('.correction-mark-replacement')).toBeTruthy();
+        });
+
+        fireEvent.click(container.querySelector('.correction-mark-replacement') as Element);
+
+        await waitFor(() => {
+            expect(onCorrectionMarkClick).toHaveBeenCalledWith(expect.objectContaining({
+                selectedText: 'Hello',
+                correctionText: 'Hi',
+            }));
+        });
+
+        expect(onCommentMarkClick).not.toHaveBeenCalled();
     });
 });

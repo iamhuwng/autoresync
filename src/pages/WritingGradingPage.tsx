@@ -350,6 +350,8 @@ export default function WritingGradingPage() {
         from: null,
         to: null,
         selectedText: '',
+        containsComment: false,
+        containsCorrection: false,
     });
     const [quickCommentPresets, setQuickCommentPresets] = useState<QuickCommentPreset[]>(DEFAULT_QUICK_COMMENT_PRESETS);
     const [dirty, setDirty] = useState(false);
@@ -554,6 +556,8 @@ export default function WritingGradingPage() {
             from: null,
             to: null,
             selectedText: '',
+            containsComment: false,
+            containsCorrection: false,
         });
         setPendingQuickComment(null);
         setPendingCorrection(null);
@@ -1491,6 +1495,11 @@ export default function WritingGradingPage() {
 
         if (!editorSelectionState.hasSelection || editorSelectionState.from === null || editorSelectionState.to === null) {
             showStatus('Select text in the essay before using a quick comment.');
+            return;
+        }
+
+        if (editorSelectionState.containsCorrection) {
+            showStatus('Remove the correction before adding a quick comment on that text.');
             return;
         }
 

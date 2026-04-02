@@ -139,12 +139,23 @@ export interface EssaySelectionState {
     from: number | null;
     to: number | null;
     selectedText: string;
+    containsComment: boolean;
+    containsCorrection: boolean;
 }
 
 interface HighlightSelectionState {
     isFullyHighlighted: boolean;
     containsHighlight: boolean;
 }
+
+const EMPTY_SELECTION_STATE: EssaySelectionState = {
+    hasSelection: false,
+    from: null,
+    to: null,
+    selectedText: '',
+    containsComment: false,
+    containsCorrection: false,
+};
 
 interface OverlayPosition {
     top: number;
@@ -233,6 +244,10 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
             // Handle clicks on comment marks
             handleClick: (view, _pos, event) => {
                 const target = event.target as HTMLElement;
+                if (target.closest('.correction-mark')) {
+                    return false;
+                }
+
                 const commentEl = target.closest('[data-comment-id]');
                 if (commentEl) {
                     const commentId = commentEl.getAttribute('data-comment-id');
@@ -251,6 +266,15 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
         },
         editable: !readOnly,
     }, [taskNumber, originalEssayText]);
+    const selectionState = editor ? getEssaySelectionState(editor) : EMPTY_SELECTION_STATE;
+    const hasSelection = selectionState.hasSelection;
+    const selectionContainsComment = hasSelection && selectionState.containsComment;
+    const selectionContainsCorrection = hasSelection && selectionState.containsCorrection;
+    const canApplyHighlight = canAnnotate && hasSelection && !selectionContainsCorrection;
+    const canAddComment = canAnnotate && hasSelection && !selectionContainsCorrection;
+    const canApplyStrikethrough = canAnnotate && hasSelection && !selectionContainsCorrection;
+    const canApplyCorrection = canAnnotate && hasSelection && !selectionContainsCorrection && !selectionContainsComment;
+    const canApplyTextColor = canAnnotate && hasSelection && !selectionContainsCorrection;
 
     useEffect(() => {
         editor?.setEditable(!readOnly);
@@ -570,33 +594,12 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
         }
 
         if (!editor || viewMode !== 'marked') {
-            onSelectionStateChange({
-                hasSelection: false,
-                from: null,
-                to: null,
-                selectedText: '',
-            });
+            onSelectionStateChange(EMPTY_SELECTION_STATE);
             return;
         }
 
         const emitSelectionState = () => {
-            const { from, to, empty } = editor.state.selection;
-            if (empty) {
-                onSelectionStateChange({
-                    hasSelection: false,
-                    from: null,
-                    to: null,
-                    selectedText: '',
-                });
-                return;
-            }
-
-            onSelectionStateChange({
-                hasSelection: true,
-                from,
-                to,
-                selectedText: editor.state.doc.textBetween(from, to, ' '),
-            });
+            onSelectionStateChange(getEssaySelectionState(editor));
         };
 
         emitSelectionState();
@@ -612,6 +615,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
     useEffect(() => {
         if (!editor || readOnly || !pendingQuickComment || pendingQuickComment.taskNumber !== taskNumber) return;
         if (lastQuickCommentNonceRef.current === pendingQuickComment.nonce) return;
+        if (rangeHasAnyMark(editor, pendingQuickComment.from, pendingQuickComment.to, ['correctionMark'])) return;
 
         lastQuickCommentNonceRef.current = pendingQuickComment.nonce;
         const commentId = `comment-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -640,6 +644,12 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
             removeCorrectionMark(editor, normalizedRange.from, normalizedRange.to);
             return;
         }
+
+        if (rangeHasAnyMark(editor, normalizedRange.from, normalizedRange.to, ['correctionMark', 'commentMark'])) {
+            return;
+        }
+
+        removeMarksByType(editor, normalizedRange.from, normalizedRange.to, ['highlight', 'strike', 'textStyle']);
 
         editor.chain()
             .setTextSelection(normalizedRange)
@@ -763,7 +773,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
     }, [editor]);
 
     const handleHighlight = useCallback((color?: string) => {
-        if (!canAnnotate) {
+        if (!canApplyHighlight) {
             return;
         }
 
@@ -791,33 +801,29 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
         }
 
         setShowHighlightDropdown(false);
-    }, [applyHighlightToSelection, canAnnotate, clearHighlightFromSelection, getHighlightSelectionState, lastHighlightColor]);
+    }, [applyHighlightToSelection, canApplyHighlight, clearHighlightFromSelection, getHighlightSelectionState, lastHighlightColor]);
 
     const handleAddComment = useCallback(() => {
-        if (!editor || !canAnnotate) return;
+        if (!editor || !canAddComment) return;
         const { from, to } = editor.state.selection;
-        if (from === to) return; // No selection
-        const selectedText = editor.state.doc.textBetween(from, to, ' ');
 
         const commentId = `comment-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-        onAddComment(selectedText, from, to, commentId);
-    }, [canAnnotate, editor, onAddComment]);
+        onAddComment(selectionState.selectedText, from, to, commentId);
+    }, [canAddComment, editor, onAddComment, selectionState.selectedText]);
 
     const handleStrikethrough = useCallback(() => {
-        if (!editor || !canAnnotate) return;
+        if (!editor || !canApplyStrikethrough) return;
         editor.chain().focus().toggleStrike().run();
-    }, [canAnnotate, editor]);
+    }, [canApplyStrikethrough, editor]);
 
     const handleCorrection = useCallback(() => {
-        if (!editor || !canAnnotate) return;
+        if (!editor || !canApplyCorrection) return;
         const { from, to } = editor.state.selection;
-        if (from === to) return;
-        const selectedText = editor.state.doc.textBetween(from, to, ' ');
-        onCorrectionRequest?.(from, to, selectedText);
-    }, [canAnnotate, editor, onCorrectionRequest]);
+        onCorrectionRequest?.(from, to, selectionState.selectedText);
+    }, [canApplyCorrection, editor, onCorrectionRequest, selectionState.selectedText]);
 
     const handleTextColor = useCallback((color: string) => {
-        if (!editor || !canAnnotate || editor.state.selection.empty) return;
+        if (!editor || !canApplyTextColor) return;
 
         const chain = editor.chain().focus();
         if (color === 'inherit') {
@@ -826,7 +832,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
             chain.setColor(color).run();
         }
         setShowColorDropdown(false);
-    }, [canAnnotate, editor]);
+    }, [canApplyTextColor, editor]);
 
     const handleUndo = useCallback(() => {
         if (!canAnnotate) {
@@ -884,7 +890,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                                 onClick={() => handleHighlight()}
                                 title={lastHighlightColor ? 'Highlight (Ctrl+Shift+H)' : 'Choose highlight color'}
                                 id="toolbar-highlight"
-                                disabled={readOnly || editor.state.selection.empty}
+                                disabled={!canApplyHighlight}
                             >
                                 <span className="toolbar-icon" style={{ borderBottom: `3px solid ${lastHighlightColor || 'transparent'}` }}>
                                     ✏️
@@ -898,7 +904,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                                 onClick={() => setShowHighlightDropdown((current) => !current)}
                                 title="Highlight colors"
                                 id="toolbar-highlight-dropdown"
-                                disabled={readOnly}
+                                disabled={!canApplyHighlight}
                             >
                                 ▾
                             </button>
@@ -915,7 +921,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                                             onClick={() => handleHighlight(c.color)}
                                             title={c.name}
                                             id={`highlight-color-${c.name.toLowerCase()}`}
-                                            disabled={readOnly}
+                                            disabled={!canApplyHighlight}
                                         />
                                     ))}
                                 </div>
@@ -931,7 +937,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                                 preventToolbarBlur(event);
                             }}
                             onClick={() => handleAddComment()}
-                            disabled={readOnly || editor.state.selection.empty}
+                            disabled={!canAddComment}
                             title="Add Comment (Ctrl+Shift+M)"
                             id="toolbar-comment"
                         >
@@ -945,7 +951,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                                 preventToolbarBlur(event);
                             }}
                             onClick={() => handleStrikethrough()}
-                            disabled={readOnly || editor.state.selection.empty}
+                            disabled={!canApplyStrikethrough}
                             title="Strikethrough"
                             id="toolbar-strikethrough"
                         >
@@ -959,7 +965,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                                 preventToolbarBlur(event);
                             }}
                             onClick={() => handleCorrection()}
-                            disabled={readOnly || editor.state.selection.empty}
+                            disabled={!canApplyCorrection}
                             title="Correction"
                             id="toolbar-correction"
                         >
@@ -976,7 +982,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                                 onClick={() => setShowColorDropdown((current) => !current)}
                                 title="Text Color"
                                 id="toolbar-text-color"
-                                disabled={readOnly || editor.state.selection.empty}
+                                disabled={!canApplyTextColor}
                             >
                                 🎨
                             </button>
@@ -993,7 +999,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                                             onClick={() => handleTextColor(c.color)}
                                             title={c.name}
                                             id={`text-color-${c.name.toLowerCase()}`}
-                                            disabled={readOnly || editor.state.selection.empty}
+                                            disabled={!canApplyTextColor}
                                         />
                                     ))}
                                 </div>
@@ -1080,6 +1086,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                                     className="bubble-btn"
                                     onMouseDown={(e) => { e.preventDefault(); }}
                                     onClick={() => handleHighlight()}
+                                    disabled={!canApplyHighlight}
                                     title="Highlight"
                                 >
                                     ✏️
@@ -1088,6 +1095,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                                     className="bubble-btn"
                                     onMouseDown={(e) => { e.preventDefault(); }}
                                     onClick={() => handleAddComment()}
+                                    disabled={!canAddComment}
                                     title="Comment"
                                 >
                                     💬
@@ -1096,6 +1104,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                                     className="bubble-btn"
                                     onMouseDown={(e) => { e.preventDefault(); }}
                                     onClick={() => handleStrikethrough()}
+                                    disabled={!canApplyStrikethrough}
                                     title="Strikethrough"
                                 >
                                     <span style={{ textDecoration: 'line-through', fontSize: '12px' }}>S</span>
@@ -1104,6 +1113,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                                     className="bubble-btn"
                                     onMouseDown={(e) => { e.preventDefault(); }}
                                     onClick={() => handleCorrection()}
+                                    disabled={!canApplyCorrection}
                                     title="Correction"
                                 >
                                     ✏️
@@ -1219,6 +1229,38 @@ function normalizeCorrectionTextForBoundary(
         : normalizedCorrectionText;
 }
 
+function getEssaySelectionState(editor: {
+    state: {
+        selection: { from: number; to: number; empty: boolean };
+        doc: {
+            textBetween: (from: number, to: number, blockSeparator?: string, leafText?: string) => string;
+            nodesBetween: (
+                from: number,
+                to: number,
+                callback: (node: {
+                    isText?: boolean;
+                    marks: Array<{ type: { name: string } }>;
+                    nodeSize: number;
+                }, pos: number) => void,
+            ) => void;
+        };
+    };
+}): EssaySelectionState {
+    const { from, to, empty } = editor.state.selection;
+    if (empty) {
+        return EMPTY_SELECTION_STATE;
+    }
+
+    return {
+        hasSelection: true,
+        from,
+        to,
+        selectedText: editor.state.doc.textBetween(from, to, ' '),
+        containsComment: rangeHasAnyMark(editor, from, to, ['commentMark']),
+        containsCorrection: rangeHasAnyMark(editor, from, to, ['correctionMark']),
+    };
+}
+
 function shouldAppendCorrectionSeparator(nextCharacter: string) {
     return /[A-Za-z0-9]/.test(nextCharacter);
 }
@@ -1295,6 +1337,74 @@ function removeCorrectionMark(
     }
 
     const transaction = editor.state.tr.removeMark(from, to, correctionMarkType);
+    if (transaction.steps.length > 0) {
+        editor.view.dispatch(transaction);
+    }
+}
+
+function rangeHasAnyMark(
+    editor: {
+        state: {
+            doc: {
+                nodesBetween: (
+                    from: number,
+                    to: number,
+                    callback: (node: {
+                        isText?: boolean;
+                        marks: Array<{ type: { name: string } }>;
+                        nodeSize: number;
+                    }, pos: number) => boolean | void,
+                ) => void;
+            };
+        };
+    },
+    from: number,
+    to: number,
+    markNames: string[],
+) {
+    let found = false;
+
+    editor.state.doc.nodesBetween(from, to, (node, pos) => {
+        if (found || !node.isText) {
+            return found;
+        }
+
+        const segmentFrom = Math.max(from, pos);
+        const segmentTo = Math.min(to, pos + node.nodeSize);
+        if (segmentFrom >= segmentTo) {
+            return false;
+        }
+
+        found = node.marks.some((mark) => markNames.includes(mark.type.name));
+        return found;
+    });
+
+    return found;
+}
+
+function removeMarksByType(
+    editor: {
+        state: {
+            schema: { marks: Record<string, unknown> };
+            tr: { removeMark: (from: number, to: number, markType?: unknown) => { steps: unknown[] } };
+        };
+        view: { dispatch: (transaction: { steps: unknown[] }) => void };
+    },
+    from: number,
+    to: number,
+    markNames: string[],
+) {
+    const transaction = editor.state.tr;
+
+    markNames.forEach((markName) => {
+        const markType = editor.state.schema.marks[markName];
+        if (!markType) {
+            return;
+        }
+
+        transaction.removeMark(from, to, markType);
+    });
+
     if (transaction.steps.length > 0) {
         editor.view.dispatch(transaction);
     }

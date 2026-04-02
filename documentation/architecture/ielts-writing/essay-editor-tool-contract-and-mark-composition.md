@@ -8,7 +8,7 @@ It exists because the editor has two distinct responsibility layers:
 - tool affordances and command routing
 - mark composition rules when multiple tools touch the same text
 
-The 2026-04-02 hardening pass stabilized the first layer. Future work on overlapping mark semantics should treat this document as the starting contract.
+The 2026-04-02 hardening work stabilized tool routing first and then made correction overlap rules explicit.
 
 ## Tool Surface
 
@@ -69,6 +69,7 @@ The essay editor currently exposes these tool surfaces:
 - Highlight is a mark-only mutation.
 - Reusing the last chosen highlight color is valid.
 - A fully highlighted selection toggles highlight off.
+- Highlight must not be applied to a selection that already contains a correction mark.
 - In read-only mode, highlight controls must be disabled and shortcuts ignored.
 
 ### Comment
@@ -77,29 +78,39 @@ The essay editor currently exposes these tool surfaces:
 - One text slice may hold at most one `commentMark`.
 - Removing a comment mark must target the exact `commentId`, not strip all comment marks from the range.
 - Click and hover routing depend on that one-mark-per-slice invariant.
+- New comment marks must not be created on top of a correction mark.
 
 ### Quick comment
 
 - Quick comments are comment creation with a preset payload.
 - They share the same exact range/identity constraints as manual comments.
 - Quick comments must never drift to a newer selection after the teacher opens the preset dialog.
+- Quick comments must be rejected when the anchored range already contains a correction mark.
 
 ### Strikethrough
 
 - Strikethrough is allowed as a mark-only mutation.
-- Its composition with correction and comment marks is still a separate concern and must be tested explicitly.
+- Strikethrough may overlap with highlight, comment, and text color.
+- Strikethrough must not be applied to a selection that already contains a correction mark.
 
 ### Correction
 
 - Correction creation is selection-bound.
+- A new correction must not be created on a range that already contains a comment mark or another correction mark.
+- Applying a correction strips presentation marks from the selected range before the correction mark is written:
+  - highlight
+  - strikethrough
+  - text color / `textStyle`
 - Removing a correction removes only correction metadata and visible replacement rendering, never the student's original text.
 - Clicking a rendered correction mark must reopen correction editing using the stored range and correction text.
+- If an older document still contains both comment and correction marks on the same text, click routing must prefer correction editing over comment-click behavior.
 
 ### Text color
 
 - Text color is selection-bound.
 - `Default` means clear the color mark, not write a literal `inherit` value into the document.
 - Text color is toolbar-only today; the bubble menu intentionally does not provide an active color picker.
+- Text color must not be applied to a selection that already contains a correction mark.
 
 ### Undo / redo
 
@@ -112,19 +123,16 @@ The essay editor currently exposes these tool surfaces:
 - Preventing editor blur on mouse interaction must not remove standard button click activation.
 - Keyboard shortcuts must only fire when the active selection belongs to the essay editor surface.
 
-## Mark Composition Boundary
+## Mark Composition Policy
 
-The hardening pass does not fully settle overlapping-mark semantics.
+The current composition policy is:
+- correction is the dominant inline annotation
+- new correction overlaps with comment or correction are blocked
+- new highlight, comment, strikethrough, and text-color mutations are blocked on selections that already contain a correction
+- correction strips visual formatting marks before it is applied so the replacement rendering owns the slice cleanly
+- comment, highlight, strikethrough, and text color may still overlap with one another when no correction is involved
 
-The remaining second-pass scope is:
-- correction + strikethrough overlap behavior
-- correction + text-color overlap behavior
-- correction + highlight overlap behavior
-- comment + correction overlap behavior
-- comment + highlight overlap behavior after the one-mark-per-slice rule
-- how rendered replacement text should inherit or reject other visual marks
-
-Any work in that area must preserve the stable tool contract above.
+The main residual risk is legacy content that already contains older overlap combinations. Those ranges should remain readable, and correction interaction must keep winning over comment click routing.
 
 ## Related Documents
 

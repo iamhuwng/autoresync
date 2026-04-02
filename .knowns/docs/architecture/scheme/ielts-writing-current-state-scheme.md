@@ -2,7 +2,7 @@
 title: IELTS Writing Current State Scheme
 description: Current-state contract for IELTS Writing across routing, submission, grading, result access, and forbidden regressions.
 createdAt: '2026-03-29T07:59:36.729Z'
-updatedAt: '2026-04-02T09:51:04.823Z'
+updatedAt: '2026-04-02T10:05:32.483Z'
 tags:
   - architecture
   - scheme
@@ -237,6 +237,19 @@ Teacher IELTS Writing grading now depends on an explicit essay-editor tool contr
 - text-color reset clears marks rather than storing `inherit`
 
 This lowers the remaining editor risk to overlapping-mark composition semantics instead of basic tool routing.
+
+Related doc:
+- @doc/architecture/ielts-writing/ielts-writing-essay-editor-tool-contract-and-mark-composition-2026-04-02
+
+
+## 2026-04-02 implementation update: correction mark composition
+
+Current teacher IELTS Writing grading assumes the essay editor enforces these correction-overlap rules:
+- correction is the dominant inline mark
+- new correction/comment overlap is blocked at creation time
+- new highlight/comment/strikethrough/text-color operations are blocked on corrected text
+- correction apply strips presentation marks (`highlight`, `strike`, `textStyle`) before persistence
+- legacy correction+comment overlap remains readable, with correction click handling taking precedence
 
 Related doc:
 - @doc/architecture/ielts-writing/ielts-writing-essay-editor-tool-contract-and-mark-composition-2026-04-02

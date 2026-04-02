@@ -2,7 +2,7 @@
 title: IELTS Writing Grading Editor State And Compatibility 2026-04-02
 description: Architecture note for the 2026-04-02 stabilization pass covering task normalization, editor rehydration, draft/lock workflow, and RTDB compatibility metadata for teacher IELTS Writing grading.
 createdAt: '2026-04-02T07:17:57.239Z'
-updatedAt: '2026-04-02T09:51:04.760Z'
+updatedAt: '2026-04-02T10:05:32.405Z'
 tags:
   - architecture
   - ielts
@@ -132,6 +132,19 @@ The essay editor tool layer now has its own explicit contract:
 - toolbar controls must stay keyboard-activatable while still preventing pointer-triggered editor blur
 
 The remaining second-pass scope is now isolated to overlapping mark composition rather than basic command routing.
+
+Related doc:
+- @doc/architecture/ielts-writing/ielts-writing-essay-editor-tool-contract-and-mark-composition-2026-04-02
+
+
+## 2026-04-02 second pass: explicit mark composition policy
+
+The essay editor now enforces a concrete overlap policy instead of leaving correction combinations to TipTap defaults:
+- correction is the dominant inline mark
+- new correction application is blocked on ranges that already contain `commentMark` or `correctionMark`
+- new highlight, comment, strikethrough, and text-color actions are blocked on selections that already contain `correctionMark`
+- correction apply strips `highlight`, `strike`, and `textStyle` before persisting the correction mark
+- older correction+comment combinations remain readable, but correction clicks win over comment-click routing
 
 Related doc:
 - @doc/architecture/ielts-writing/ielts-writing-essay-editor-tool-contract-and-mark-composition-2026-04-02

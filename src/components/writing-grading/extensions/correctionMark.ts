@@ -43,7 +43,8 @@ export const CorrectionMark = Mark.create<CorrectionMarkOptions>({
 
     priority: 1000,
     inclusive: false,
-    excludes: 'correctionMark',
+    // Corrections own the text slice visually; overlapping presentation marks are stripped on apply.
+    excludes: 'correctionMark highlight strike textStyle',
 
     addOptions() {
         return {

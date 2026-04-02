@@ -2,7 +2,7 @@
 title: IELTS Writing Grading Editor Finalization 2026-03-30
 description: Finalized source of truth for the teacher writing grading editor layout, comment interactions, ordering rules, and containment inside the teacher shell.
 createdAt: '2026-03-29T20:16:53.672Z'
-updatedAt: '2026-04-02T09:51:04.798Z'
+updatedAt: '2026-04-02T10:05:32.446Z'
 tags:
   - spec
   - ielts
@@ -253,6 +253,19 @@ The essay-editor tool layer is now explicitly constrained as follows:
 - toolbar buttons must remain keyboard-activatable while still preventing pointer-triggered editor blur
 
 The next follow-up scope is overlapping mark composition: correction/highlight/comment/strikethrough/text-color interactions on the same text range.
+
+Related doc:
+- @doc/architecture/ielts-writing/ielts-writing-essay-editor-tool-contract-and-mark-composition-2026-04-02
+
+
+## 2026-04-02 Second Pass - Mark Composition Policy
+
+The finalized grading editor implementation now constrains mark overlap explicitly:
+- correction is the dominant inline mark
+- new correction creation is blocked on ranges that already contain a comment mark or another correction mark
+- new highlight, comment, strikethrough, and text-color mutations are blocked on selections that already contain a correction mark
+- correction application strips highlight, strike, and text-color styling before the correction mark is written
+- if older saved content still contains correction+comment overlap, correction-click routing wins over comment-click routing inside the essay
 
 Related doc:
 - @doc/architecture/ielts-writing/ielts-writing-essay-editor-tool-contract-and-mark-composition-2026-04-02
