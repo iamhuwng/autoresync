@@ -307,12 +307,18 @@ When working on anything result-related, start with [PRD-0040](./documentation/t
 | Script | Purpose |
 |--------|---------|
 | `npm run dev` | Start Vite dev server |
-| `npm run build` | Production build |
+| `npm run build` | Production build with required env validation and worktree `.env` fallback |
+| `npm run deploy:hosting` | Hosting deploy with the same env guard and Firebase predeploy build |
 | `npm test` | Run Vitest unit tests |
 | `npm run test:e2e` | Run Playwright E2E tests |
 | `npm run lint` | ESLint check |
 | `npm run enforce` | Pre-commit rule enforcement |
 | `npm run enforce:check` | Dry-run enforcement check |
+
+Deployment note:
+- detached or temporary git worktrees do not carry the untracked root `.env` file by default
+- `npm run build` and `npm run deploy:hosting` now load env files from the current worktree first, then fall back to the main worktree env files discovered via `git worktree list`
+- if required Firebase web config is still missing, the build fails before a broken hosting artifact can be published
 
 ---
 
