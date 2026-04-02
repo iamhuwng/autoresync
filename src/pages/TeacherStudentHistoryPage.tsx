@@ -9,7 +9,7 @@
  * - Teacher must have assignment to student to view data
  */
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getAuth, signOut } from 'firebase/auth';
 import { buildRoute } from '../constants/routes';
@@ -21,11 +21,11 @@ import { classifyTeacherResultVisibility } from '../services/resultVisibility.se
 import { ResultFilters as FilterType } from '../types/results.types';
 
 import { Card, CardBody, Button } from '../components/modern';
+import { ErrorBoundary } from '../components/ErrorBoundary.tsx';
 import { TeacherHeader } from '../components/navigation';
-import { ProgressLineChart } from '../components/results/ProgressLineChart';
-import { SkillRadarChart } from '../components/results/SkillRadarChart';
 import { BandScoreProgress } from '../components/results/BandScoreProgress';
 import { ResultFilters } from '../components/results/ResultFilters';
+import { lazyWithRetry } from '../utils/lazyWithRetry.ts';
 
 import {
     calculateStudyStreak,
@@ -39,6 +39,16 @@ import { useStudentDataAccessCheck } from '../hooks/useOwnershipCheck';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
 
 const ITEMS_PER_PAGE = 20;
+const LazyProgressLineChart = lazyWithRetry(() =>
+    import('../components/results/ProgressLineChart').then((module) => ({
+        default: module.ProgressLineChart,
+    })),
+);
+const LazySkillRadarChart = lazyWithRetry(() =>
+    import('../components/results/SkillRadarChart').then((module) => ({
+        default: module.SkillRadarChart,
+    })),
+);
 
 const StatCard: React.FC<{
     title: string;
@@ -685,10 +695,46 @@ function renderPageContent({
 
             {analyticsResultCount > 0 ? (
                 <div style={chartsGridStyle}>
-                    <ProgressLineChart data={chartData.progress} title="Band Score History" />
+                    <ErrorBoundary
+                        fallback={(
+                            <ChartFallbackCard
+                                title="Band Score History unavailable"
+                                description="The chart module failed to load, but the rest of the student history remains available."
+                            />
+                        )}
+                    >
+                        <Suspense
+                            fallback={(
+                                <ChartFallbackCard
+                                    title="Loading band history"
+                                    description="Fetching the progress chart module for this student."
+                                />
+                            )}
+                        >
+                            <LazyProgressLineChart data={chartData.progress} title="Band Score History" />
+                        </Suspense>
+                    </ErrorBoundary>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                         <BandScoreProgress currentBand={stats.avgBand} targetBand={7.0} />
-                        <SkillRadarChart data={chartData.skills} />
+                        <ErrorBoundary
+                            fallback={(
+                                <ChartFallbackCard
+                                    title="Skill Breakdown unavailable"
+                                    description="The radar chart module failed to load, but the result history and filters are still available."
+                                />
+                            )}
+                        >
+                            <Suspense
+                                fallback={(
+                                    <ChartFallbackCard
+                                        title="Loading skill breakdown"
+                                        description="Fetching the skill breakdown chart module for this student."
+                                    />
+                                )}
+                            >
+                                <LazySkillRadarChart data={chartData.skills} />
+                            </Suspense>
+                        </ErrorBoundary>
                     </div>
                 </div>
             ) : null}
@@ -769,6 +815,24 @@ const StateCard: React.FC<{
                 <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f172a' }}>{title}</div>
                 <div style={{ color: '#64748b', maxWidth: '40rem', textAlign: 'center' }}>{description}</div>
                 {children}
+            </div>
+        </CardBody>
+    </Card>
+);
+
+const ChartFallbackCard: React.FC<{
+    title: string;
+    description: string;
+}> = ({ title, description }) => (
+    <Card variant="glass">
+        <CardBody style={{ padding: '1.5rem', minHeight: '300px', display: 'grid', alignItems: 'center' }}>
+            <div style={{ textAlign: 'center' }}>
+                <h3 style={{ margin: '0 0 0.75rem', fontSize: '1.1rem', fontWeight: 700, color: '#1e293b' }}>
+                    {title}
+                </h3>
+                <p style={{ margin: 0, color: '#64748b', lineHeight: 1.5 }}>
+                    {description}
+                </p>
             </div>
         </CardBody>
     </Card>

@@ -41,7 +41,9 @@ function asTeacherPage(
 ) {
   return (
     <PrivateRoute allowedRoles={allowedRoles}>
-      {withTrackedRoute(children, featureName)}
+      <ErrorBoundary>
+        {withTrackedRoute(children, featureName)}
+      </ErrorBoundary>
     </PrivateRoute>
   );
 }
@@ -52,9 +54,7 @@ function asTeacherProfilePage(
   allowedRoles: string[] = ['teacher']
 ) {
   return asTeacherPage(
-    <ErrorBoundary>
-      <ProfileCompletionGuard>{children}</ProfileCompletionGuard>
-    </ErrorBoundary>,
+    <ProfileCompletionGuard>{children}</ProfileCompletionGuard>,
     featureName,
     allowedRoles
   );
@@ -65,11 +65,7 @@ function asTeacherErrorBoundaryPage(
   featureName?: string,
   allowedRoles: string[] = ['teacher']
 ) {
-  return asTeacherPage(
-    <ErrorBoundary>{children}</ErrorBoundary>,
-    featureName,
-    allowedRoles
-  );
+  return asTeacherPage(children, featureName, allowedRoles);
 }
 
 export const teacherRoutes: RouteObject[] = [
