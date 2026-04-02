@@ -33,3 +33,21 @@ Required rules:
 
 Current repo anchor:
 - enrollment enrichment accepts `getEnrollmentsByStudent(studentId, { studentClasses })`
+
+## Teacher Class Homework Tab Contract
+
+`TeacherClassDetailPage` owns a class-scoped homework surface inside the class management route instead of redirecting teachers to a generic homework page with no class context.
+
+Required rules:
+- the homework tab must load homework through the shared homework read path with `classId` filtering instead of rendering a placeholder stub
+- class-scoped homework reads should only activate while the homework tab is selected, so the student and course tabs do not pay for hidden homework loads
+- the primary action from the tab must open homework creation pre-targeted to the current class
+- homework cards rendered in the class tab must navigate to teacher homework detail for the selected homework row
+- the empty-state fallback may link to the homework dashboard, but the main tab experience must remain class-scoped
+- class homework tab interactions must register feature tracking actions under the `classes` feature, not as unregistered page events
+
+Current repo anchors:
+- `src/pages/TeacherClassDetailPage.tsx`
+- `src/hooks/useHomeworkList.ts`
+- `src/components/homework/HomeworkCreateModal.tsx`
+- `src/config/featureRegistry.ts`

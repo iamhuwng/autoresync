@@ -45,6 +45,23 @@ Required rules:
 - dedicated homework detail or submission surfaces may own additional page-specific detail loads when those loads are not shell-global
 - student shell navigation must not recreate overlapping homework summary loaders when only the page host changes
 
+## Teacher Class-Scoped Homework Surface Contract
+
+Teacher class management now exposes homework as a first-class class-scoped surface rather than a placeholder redirect.
+
+Required rules:
+- class detail homework tabs must read from the same homework source of truth as the teacher homework dashboard by passing the active `classId` into the shared homework hook
+- class detail homework fetches must stay gated behind the homework tab selection to avoid hidden background loading
+- homework creation launched from a class page must pass a preselected target shaped as `{ type: 'class', classId, className }`
+- successful create and reset flows from the class page must refetch the class-scoped homework list so the tab stays current without a full-page navigation
+- class homework cards must open the teacher homework detail route for the selected row
+
+Current repo anchors:
+- `src/pages/TeacherClassDetailPage.tsx`
+- `src/hooks/useHomeworkList.ts`
+- `src/components/homework/HomeworkCard.tsx`
+- `src/components/homework/HomeworkCreateModal.tsx`
+
 ## 2026-04-01 Amendment - IELTS Writing Homework Timer And Resume Contract
 
 IELTS Writing homework currently reuses the student practice route and the `WritingPracticeView` delivery surface. That route handoff now has an explicit contract.

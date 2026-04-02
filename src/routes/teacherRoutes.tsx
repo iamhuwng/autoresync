@@ -52,7 +52,9 @@ function asTeacherProfilePage(
   allowedRoles: string[] = ['teacher']
 ) {
   return asTeacherPage(
-    <ProfileCompletionGuard>{children}</ProfileCompletionGuard>,
+    <ErrorBoundary>
+      <ProfileCompletionGuard>{children}</ProfileCompletionGuard>
+    </ErrorBoundary>,
     featureName,
     allowedRoles
   );

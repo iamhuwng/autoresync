@@ -20,7 +20,9 @@ export interface FeatureDefinition {
 
 export const FEATURE_IDS = {
   antiCheat: 'antiCheat',
+  classes: 'classes',
   grading: 'grading',
+  homework: 'homework',
   results: 'results',
   studentDashboard: 'studentDashboard',
 } as const;
@@ -72,7 +74,7 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     description: 'Teacher test creation and editing workflows',
   },
   {
-    id: 'homework',
+    id: FEATURE_IDS.homework,
     name: 'Homework',
     routes: [
       '/teacher/homework',
@@ -112,7 +114,7 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     description: 'Course management for teachers and students',
   },
   {
-    id: 'classes',
+    id: FEATURE_IDS.classes,
     name: 'Classes',
     routes: [
       '/teacher/classes',
@@ -124,6 +126,10 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       'editClass',
       'addStudent',
       'removeStudent',
+      'viewHomeworkTab',
+      'openHomeworkCreateModal',
+      'openHomeworkDetail',
+      'openHomeworkDashboard',
     ],
     description: 'Class management and viewing',
   },

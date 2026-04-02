@@ -1,11 +1,12 @@
 // TeacherLobbyPage — Composition Layer (PRD-0033 refactor)
 // Rule 15 Exception: AppShell, Modal, Select — moved code, see PRD-0033 NG-1
-import React, { useState, useCallback } from 'react';
+import React, { Suspense, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useNavigation } from '../hooks/useNavigation';
 import { useAuth } from '../hooks/useAuth';
 import { buildRoute } from '../constants/routes';
 import { AppShell } from '@mantine/core';
+import { lazyWithRetry } from '../utils/lazyWithRetry.ts';
 import { Card, CardBody, Button, Input } from '../components/modern';
 import { TeacherHeader } from '../components/navigation';
 
@@ -30,8 +31,9 @@ import UseAsIsModal from '../components/UseAsIsModal';
 // NOTE: QuizEditor removed — no legacy quiz items remain (PRD-0033 Task 2)
 import TestEditor from '../components/TestEditor.tsx';
 import TestCreationModal from '../components/test-creation/TestCreationModal';
-import { THCSHomeworkAssignDialog } from '../components/thcs-editor/THCSHomeworkAssignDialog';
 import THCSTestEditorModal from '../components/thcs-editor/THCSTestEditorModal';
+
+const THCSHomeworkAssignDialog = lazyWithRetry(() => import('../components/thcs-editor/THCSHomeworkAssignDialog'));
 
 const DEFAULT_WRITING_TASK1 = {
   taskType: 'line-graph',
@@ -47,6 +49,18 @@ const DEFAULT_WRITING_TASK2 = {
   wordMinimum: 250,
   recommendedTimeMinutes: 40,
   showModelAnswerToStudent: false,
+};
+
+const homeworkDialogFallbackStyle = {
+  position: 'fixed',
+  inset: 0,
+  zIndex: 2200,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '1.5rem',
+  background: 'rgba(15, 23, 42, 0.55)',
+  backdropFilter: 'blur(8px)',
 };
 
 function buildWritingModalState(draft) {
@@ -531,15 +545,37 @@ const TeacherLobbyPage = () => {
 
         {/* THCS Homework Dialog */}
         {modals.state.hwDialog.show && modals.state.hwDialog.test && (
-          <THCSHomeworkAssignDialog
-            isOpen={true}
-            onClose={modals.closeHwDialog}
-            onSuccess={modals.closeHwDialog}
-            testId={modals.state.hwDialog.test.id}
-            testTitle={modals.state.hwDialog.test.metadata?.title || 'Untitled THCS Test'}
-            versionKey={modals.state.hwDialog.test._changelog ? Object.keys(modals.state.hwDialog.test._changelog).pop() : undefined}
-            testMetadata={modals.state.hwDialog.test.metadata}
-          />
+          <Suspense
+            fallback={(
+              <div style={homeworkDialogFallbackStyle}>
+                <div
+                  style={{
+                    width: 'min(420px, 100%)',
+                    padding: '1.5rem',
+                    borderRadius: '1.25rem',
+                    background: 'rgba(255, 255, 255, 0.98)',
+                    border: '1px solid rgba(226, 232, 240, 0.9)',
+                    boxShadow: '0 24px 70px rgba(15,23,42,0.28)',
+                    textAlign: 'center',
+                    color: '#334155',
+                    fontWeight: 600,
+                  }}
+                >
+                  Loading homework assignment dialog...
+                </div>
+              </div>
+            )}
+          >
+            <THCSHomeworkAssignDialog
+              isOpen={true}
+              onClose={modals.closeHwDialog}
+              onSuccess={modals.closeHwDialog}
+              testId={modals.state.hwDialog.test.id}
+              testTitle={modals.state.hwDialog.test.metadata?.title || 'Untitled THCS Test'}
+              versionKey={modals.state.hwDialog.test._changelog ? Object.keys(modals.state.hwDialog.test._changelog).pop() : undefined}
+              testMetadata={modals.state.hwDialog.test.metadata}
+            />
+          </Suspense>
         )}
 
         {/* Use-as-is Modal */}

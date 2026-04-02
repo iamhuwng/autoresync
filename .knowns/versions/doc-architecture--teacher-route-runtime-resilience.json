@@ -1,0 +1,71 @@
+{
+  "docPath": "architecture/teacher-route-runtime-resilience",
+  "currentVersion": 2,
+  "versions": [
+    {
+      "id": "v1",
+      "docPath": "architecture/teacher-route-runtime-resilience",
+      "version": 1,
+      "timestamp": "2026-04-02T10:42:35.2819895Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "Teacher Route Runtime Resilience"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "Runtime contract for teacher-route provider boundaries, lazy modal loading, and error-boundary fallbacks that prevent blank screens."
+        },
+        {
+          "field": "tags",
+          "oldValue": null,
+          "newValue": [
+            "architecture",
+            "teacher",
+            "routing",
+            "runtime",
+            "mantine"
+          ]
+        }
+      ],
+      "snapshot": {
+        "description": "Runtime contract for teacher-route provider boundaries, lazy modal loading, and error-boundary fallbacks that prevent blank screens.",
+        "tags": [
+          "architecture",
+          "teacher",
+          "routing",
+          "runtime",
+          "mantine"
+        ],
+        "title": "Teacher Route Runtime Resilience"
+      }
+    },
+    {
+      "id": "v2",
+      "docPath": "architecture/teacher-route-runtime-resilience",
+      "version": 2,
+      "timestamp": "2026-04-02T10:42:53.5105018Z",
+      "changes": [
+        {
+          "field": "content",
+          "oldValue": null,
+          "newValue": "# Teacher Route Runtime Resilience\n\n## Purpose\n\nThis note captures the runtime contract that keeps teacher routes from failing blank when a secondary modal, provider dependency, or lazy route import breaks.\n\n## Core Contract\n\n### Provider Boundary\n\nTeacher route trees still depend on Mantine primitives such as `AppShell`, `Modal`, and `Select`. While those dependencies remain, the authenticated theme boundary must keep one global `MantineProvider` mounted.\n\nCurrent repo anchors:\n- `src/context/ThemeContext.jsx`\n- `src/pages/TeacherLobbyPage.jsx`\n\n### Heavy Modal Loading\n\nOptional dialogs that open from secondary actions should not be part of the initial teacher route bundle when the route can render without them.\n\nCurrent example:\n- `TeacherLobbyPage` lazy-loads `THCSHomeworkAssignDialog` and only renders it after the assign-homework action opens the dialog state.\n\nCurrent repo anchor:\n- `src/pages/TeacherLobbyPage.jsx`\n\n### Route-Level Fallback\n\nTeacher profile-gated routes must render inside `ErrorBoundary` so a lazy-route failure or provider crash degrades to a controlled fallback instead of a blank page.\n\nCurrent repo anchor:\n- `src/routes/teacherRoutes.tsx`\n\n## Working Rules\n\n- If a route still uses Mantine components, do not remove the global provider until that route tree is fully migrated.\n- If a dialog is opened from a button or card action rather than page mount, prefer lazy-loading the dialog component.\n- If `lazyWithRetry` exhausts its retry path, the user should still see an error fallback rather than a blank screen.\n- Validate runtime fixes in a real browser session, not only with unit tests.\n\n## Verification Checklist\n\n- Teacher quick-login reaches `/lobby` without a blank page.\n- The lobby route does not require loading the THCS homework assignment dialog during first paint.\n- Profile-guarded teacher routes surface failures through `ErrorBoundary`.\n- Class homework tab still loads class-scoped homework and opens a class-targeted create modal.\n\n## Related Docs\n\n- @doc/architecture/routing-navigation\n- @doc/patterns/prd-0033-teacher-lobby-refactor-session-extraction"
+        }
+      ],
+      "snapshot": {
+        "content": "# Teacher Route Runtime Resilience\n\n## Purpose\n\nThis note captures the runtime contract that keeps teacher routes from failing blank when a secondary modal, provider dependency, or lazy route import breaks.\n\n## Core Contract\n\n### Provider Boundary\n\nTeacher route trees still depend on Mantine primitives such as `AppShell`, `Modal`, and `Select`. While those dependencies remain, the authenticated theme boundary must keep one global `MantineProvider` mounted.\n\nCurrent repo anchors:\n- `src/context/ThemeContext.jsx`\n- `src/pages/TeacherLobbyPage.jsx`\n\n### Heavy Modal Loading\n\nOptional dialogs that open from secondary actions should not be part of the initial teacher route bundle when the route can render without them.\n\nCurrent example:\n- `TeacherLobbyPage` lazy-loads `THCSHomeworkAssignDialog` and only renders it after the assign-homework action opens the dialog state.\n\nCurrent repo anchor:\n- `src/pages/TeacherLobbyPage.jsx`\n\n### Route-Level Fallback\n\nTeacher profile-gated routes must render inside `ErrorBoundary` so a lazy-route failure or provider crash degrades to a controlled fallback instead of a blank page.\n\nCurrent repo anchor:\n- `src/routes/teacherRoutes.tsx`\n\n## Working Rules\n\n- If a route still uses Mantine components, do not remove the global provider until that route tree is fully migrated.\n- If a dialog is opened from a button or card action rather than page mount, prefer lazy-loading the dialog component.\n- If `lazyWithRetry` exhausts its retry path, the user should still see an error fallback rather than a blank screen.\n- Validate runtime fixes in a real browser session, not only with unit tests.\n\n## Verification Checklist\n\n- Teacher quick-login reaches `/lobby` without a blank page.\n- The lobby route does not require loading the THCS homework assignment dialog during first paint.\n- Profile-guarded teacher routes surface failures through `ErrorBoundary`.\n- Class homework tab still loads class-scoped homework and opens a class-targeted create modal.\n\n## Related Docs\n\n- @doc/architecture/routing-navigation\n- @doc/patterns/prd-0033-teacher-lobby-refactor-session-extraction",
+        "description": "Runtime contract for teacher-route provider boundaries, lazy modal loading, and error-boundary fallbacks that prevent blank screens.",
+        "tags": [
+          "architecture",
+          "teacher",
+          "routing",
+          "runtime",
+          "mantine"
+        ],
+        "title": "Teacher Route Runtime Resilience"
+      }
+    }
+  ]
+}

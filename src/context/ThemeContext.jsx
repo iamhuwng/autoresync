@@ -1,11 +1,9 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import '@mantine/core/styles.css';
-import { MantineProvider, createTheme } from '@mantine/core';
+import { MantineProvider } from '@mantine/core';
 import { AuroraThemeProvider } from '../components/theme/AuroraThemeProvider.jsx';
 
 const ThemeContext = createContext(undefined);
-
-const LEGACY_THEME = createTheme({});
 
 const getInitialColorScheme = () => {
   return 'light'; // Always use light mode
@@ -17,6 +15,7 @@ export function ThemeProvider({ children }) {
 
   const contextValue = useMemo(() => ({
     theme,
+    template: theme,
     setTheme,
     colorScheme: 'light', // Always light mode
     setColorScheme: () => {}, // No-op since we don't change themes
@@ -30,15 +29,13 @@ export function ThemeProvider({ children }) {
         {children}
       </AuroraThemeProvider>
     )
-    : (
-      <MantineProvider theme={LEGACY_THEME} defaultColorScheme="light">
-        {children}
-      </MantineProvider>
-    );
+    : children;
 
   return (
     <ThemeContext.Provider value={contextValue}>
-      {themedChildren}
+      <MantineProvider forceColorScheme="light">
+        {themedChildren}
+      </MantineProvider>
     </ThemeContext.Provider>
   );
 }

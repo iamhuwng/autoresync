@@ -2,7 +2,7 @@
 title: Routing Navigation
 description: React Router v6 route map, PrivateRoute, routeSecurity.ts, useNavigation hook, breadcrumbs, mobile menu.
 createdAt: '2026-02-27T17:10:27.255Z'
-updatedAt: '2026-04-02T10:22:55.114Z'
+updatedAt: '2026-04-02T10:42:53.524Z'
 tags:
   - architecture
   - routing
@@ -143,3 +143,16 @@ Implementation references:
 
 Related doc:
 - @doc/architecture/browser-document-title-architecture
+
+
+## Teacher Route Runtime Resilience
+
+Teacher routes now follow an explicit runtime resilience contract for provider boundaries, lazy modal loading, and profile-route fallbacks.
+
+Required rules:
+- profile-gated teacher routes should render inside `ErrorBoundary`
+- optional heavy dialogs on teacher pages should be lazy-loaded instead of bundled into the first route paint when possible
+- the authenticated theme boundary must keep `MantineProvider` mounted while teacher routes still render Mantine primitives
+
+Related doc:
+- @doc/architecture/teacher-route-runtime-resilience
