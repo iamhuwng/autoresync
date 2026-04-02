@@ -1,5 +1,10 @@
 import React from 'react';
-import type { WritingSuggestionCacheDoc, WritingSuggestionItem, WritingSuggestionTaskResult } from '../../types/ielts-writing.types';
+import type {
+    WritingSuggestionCacheDoc,
+    WritingSuggestionItem,
+    WritingSuggestionTaskResult,
+    WritingSuggestionTaskRunState,
+} from '../../types/ielts-writing.types';
 import './WritingSuggestionsPanel.css';
 
 interface WritingSuggestionsPanelProps {
@@ -7,11 +12,13 @@ interface WritingSuggestionsPanelProps {
     taskNumber: 1 | 2;
     loading: boolean;
     reloading: boolean;
-    canInject: boolean;
+    runState?: WritingSuggestionTaskRunState | null;
+    canApprove: boolean;
+    canGenerateMore: boolean;
+    approvalBlockedReason?: string | null;
     onReload: () => void;
-    onFocusSuggestion: (suggestion: WritingSuggestionItem) => void;
-    onInjectComment: (suggestion: WritingSuggestionItem) => void;
-    onInjectCorrection: (suggestion: WritingSuggestionItem) => void;
+    onGenerateMore: () => void;
+    onOpenReview: () => void;
 }
 
 function createEmptyTaskResult(taskNumber: 1 | 2): WritingSuggestionTaskResult {
@@ -22,189 +29,192 @@ function createEmptyTaskResult(taskNumber: 1 | 2): WritingSuggestionTaskResult {
     };
 }
 
-function SuggestionSection({
-    title,
-    suggestions,
-    kindLabel,
-    canInject,
-    onFocusSuggestion,
-    onInject,
-}: {
-    title: string;
-    suggestions: WritingSuggestionItem[];
-    kindLabel: 'comment' | 'correction';
-    canInject: boolean;
-    onFocusSuggestion: (suggestion: WritingSuggestionItem) => void;
-    onInject: (suggestion: WritingSuggestionItem) => void;
-}) {
-    return (
-        <section className="wsp-section">
-            <div className="wsp-section-header">
-                <h4>{title}</h4>
-                <span>{suggestions.length}</span>
-            </div>
-            {suggestions.length === 0 ? (
-                <p className="wsp-empty-copy">No {kindLabel} suggestions for this group.</p>
-            ) : (
-                <div className="wsp-list">
-                    {suggestions.map((suggestion) => (
-                        <article key={suggestion.id} className="wsp-card">
-                            <div className="wsp-card-header">
-                                <strong>{suggestion.title}</strong>
-                                <span>Sentence {suggestion.sentenceIndex + 1}</span>
-                            </div>
-                            <div className="wsp-anchor">"{suggestion.anchorText}"</div>
-                            <p className="wsp-reason">{suggestion.reason}</p>
-                            <div className="wsp-proposal">
-                                {kindLabel === 'comment'
-                                    ? suggestion.suggestedCommentText
-                                    : suggestion.replacementText}
-                            </div>
-                            <div className="wsp-actions">
-                                <button type="button" className="wsp-secondary-btn" onClick={() => onFocusSuggestion(suggestion)}>
-                                    Focus in Essay
-                                </button>
-                                <button
-                                    type="button"
-                                    className="wsp-primary-btn"
-                                    disabled={!canInject}
-                                    onClick={() => onInject(suggestion)}
-                                >
-                                    {kindLabel === 'comment' ? 'Inject to Comment' : 'Inject to Correction'}
-                                </button>
-                            </div>
-                        </article>
-                    ))}
-                </div>
-            )}
-        </section>
-    );
+function getTaskSuggestions(taskResult: WritingSuggestionTaskResult): WritingSuggestionItem[] {
+    return [
+        ...taskResult.grammar.comments,
+        ...taskResult.grammar.corrections,
+        ...taskResult.vocabularyExpression.comments,
+        ...taskResult.vocabularyExpression.corrections,
+    ];
 }
 
-function SuggestionGroup({
-    title,
-    comments,
-    corrections,
-    canInject,
-    onFocusSuggestion,
-    onInjectComment,
-    onInjectCorrection,
+function SuggestionHeader({
+    message,
+    secondaryMessage,
+    onReload,
+    onGenerateMore,
+    onOpenReview,
+    reloadLabel,
+    reloadDisabled,
+    generateMoreDisabled,
+    showGenerateMore,
+    openDisabled,
 }: {
-    title: string;
-    comments: WritingSuggestionItem[];
-    corrections: WritingSuggestionItem[];
-    canInject: boolean;
-    onFocusSuggestion: (suggestion: WritingSuggestionItem) => void;
-    onInjectComment: (suggestion: WritingSuggestionItem) => void;
-    onInjectCorrection: (suggestion: WritingSuggestionItem) => void;
+    message: string;
+    secondaryMessage?: string | null;
+    onReload: () => void;
+    onGenerateMore: () => void;
+    onOpenReview: () => void;
+    reloadLabel: string;
+    reloadDisabled: boolean;
+    generateMoreDisabled: boolean;
+    showGenerateMore: boolean;
+    openDisabled: boolean;
 }) {
     return (
-        <div className="wsp-group">
-            <div className="wsp-group-title">{title}</div>
-            <SuggestionSection
-                title="Comment Ideas"
-                suggestions={comments}
-                kindLabel="comment"
-                canInject={canInject}
-                onFocusSuggestion={onFocusSuggestion}
-                onInject={onInjectComment}
-            />
-            <SuggestionSection
-                title="Corrections"
-                suggestions={corrections}
-                kindLabel="correction"
-                canInject={canInject}
-                onFocusSuggestion={onFocusSuggestion}
-                onInject={onInjectCorrection}
-            />
+        <div className="wgp-panel-card">
+            <div className="wsp-toolbar">
+                <div>
+                    <div className="wgp-card-title">Suggestions</div>
+                    <p className="wsp-status-copy">{message}</p>
+                    {secondaryMessage && <p className="wsp-status-copy">{secondaryMessage}</p>}
+                </div>
+                <div className="wsp-toolbar-actions">
+                    <button
+                        type="button"
+                        className="wsp-secondary-btn"
+                        onClick={onReload}
+                        disabled={reloadDisabled}
+                    >
+                        {reloadLabel}
+                    </button>
+                    {showGenerateMore && (
+                        <button
+                            type="button"
+                            className="wsp-secondary-btn"
+                            onClick={onGenerateMore}
+                            disabled={generateMoreDisabled}
+                        >
+                            Generate More
+                        </button>
+                    )}
+                    <button
+                        type="button"
+                        className="wsp-primary-btn"
+                        onClick={onOpenReview}
+                        disabled={openDisabled}
+                    >
+                        Open Review
+                    </button>
+                </div>
+            </div>
         </div>
     );
 }
 
-const WritingSuggestionsPanel: React.FC<WritingSuggestionsPanelProps> = ({
+export default function WritingSuggestionsPanel({
     cache,
     taskNumber,
     loading,
     reloading,
-    canInject,
+    runState = null,
+    canApprove,
+    canGenerateMore,
+    approvalBlockedReason = null,
     onReload,
-    onFocusSuggestion,
-    onInjectComment,
-    onInjectCorrection,
-}) => {
+    onGenerateMore,
+    onOpenReview,
+}: WritingSuggestionsPanelProps) {
     const taskResult = cache?.perTask?.[taskNumber] || createEmptyTaskResult(taskNumber);
-    const totalSuggestions = taskResult.grammar.comments.length
-        + taskResult.grammar.corrections.length
-        + taskResult.vocabularyExpression.comments.length
-        + taskResult.vocabularyExpression.corrections.length;
+    const suggestions = getTaskSuggestions(taskResult);
+    const counts = suggestions.reduce((acc, suggestion) => {
+        acc.total += 1;
+        acc[suggestion.reviewStatus] += 1;
+        return acc;
+    }, {
+        total: 0,
+        pending: 0,
+        approved: 0,
+        dismissed: 0,
+    });
+    const reloadButtonLabel = reloading ? 'Regenerating...' : 'Force Regenerate';
+    const isGenerating = loading || reloading || runState?.status === 'generating';
+    const progressMessage = isGenerating && runState?.phase
+        ? `${runState.phase.replace(/-/g, ' ')}. ${runState.acceptedCount} finding${runState.acceptedCount === 1 ? '' : 's'} accepted so far.`
+        : null;
 
-    if (loading || cache?.status === 'generating') {
+    if (isGenerating) {
         return (
-            <div className="wgp-panel-card">
-                <div className="wgp-card-title">Suggestions</div>
-                <p className="wsp-status-copy">Generating grammar and vocabulary suggestions for this submission.</p>
-            </div>
+            <SuggestionHeader
+                message={`Scanning Task ${taskNumber} suggestions in this browser.`}
+                secondaryMessage={progressMessage
+                    ? `Safe: keep reading or grading on this page. Avoid refreshing, closing the tab, navigating away, signing out, or starting another suggestion run until this finishes. ${progressMessage}`
+                    : 'Safe: keep reading or grading on this page. Avoid refreshing, closing the tab, navigating away, signing out, or starting another suggestion run until this finishes.'}
+                onReload={onReload}
+                onGenerateMore={onGenerateMore}
+                onOpenReview={onOpenReview}
+                reloadLabel={reloadButtonLabel}
+                reloadDisabled
+                generateMoreDisabled
+                showGenerateMore={false}
+                openDisabled
+            />
         );
     }
 
     if (cache?.status === 'failed') {
         return (
-            <div className="wgp-panel-card">
-                <div className="wgp-card-title">Suggestions</div>
-                <p className="wsp-status-copy">{cache.error || 'Suggestions could not be generated.'}</p>
-                <button type="button" className="wsp-primary-btn" onClick={onReload} disabled={reloading}>
-                    {reloading ? 'Reloading...' : 'Reload Suggestions'}
-                </button>
-            </div>
+            <SuggestionHeader
+                message={cache.error || 'Suggestions could not be generated.'}
+                onReload={onReload}
+                onGenerateMore={onGenerateMore}
+                onOpenReview={onOpenReview}
+                reloadLabel={reloadButtonLabel}
+                reloadDisabled={reloading}
+                generateMoreDisabled
+                showGenerateMore={false}
+                openDisabled
+            />
         );
     }
 
     return (
         <div className="wgp-panel-stack">
+            <SuggestionHeader
+                message={counts.total > 0
+                    ? `${counts.total} suggestion${counts.total === 1 ? '' : 's'} ready for Task ${taskNumber}.`
+                    : `No worthwhile suggestions found for Task ${taskNumber}.`}
+                secondaryMessage={runState?.status === 'incomplete'
+                    ? 'The latest run completed with partial failures. You can keep these findings and generate more later.'
+                    : null}
+                onReload={onReload}
+                onGenerateMore={onGenerateMore}
+                onOpenReview={onOpenReview}
+                reloadLabel={reloadButtonLabel}
+                reloadDisabled={reloading}
+                generateMoreDisabled={reloading || isGenerating}
+                showGenerateMore={canGenerateMore}
+                openDisabled={counts.total === 0}
+            />
+
             <div className="wgp-panel-card">
-                <div className="wsp-toolbar">
-                    <div>
-                        <div className="wgp-card-title">Suggestions</div>
-                        <p className="wsp-status-copy">
-                            {totalSuggestions > 0
-                                ? `${totalSuggestions} suggestion${totalSuggestions === 1 ? '' : 's'} ready for Task ${taskNumber}.`
-                                : `No worthwhile suggestions found for Task ${taskNumber}.`}
-                        </p>
+                <div className="wsp-summary-grid">
+                    <div className="wsp-summary-tile">
+                        <span>Pending</span>
+                        <strong>{counts.pending}</strong>
                     </div>
-                    <button type="button" className="wsp-secondary-btn" onClick={onReload} disabled={reloading}>
-                        {reloading ? 'Reloading...' : 'Reload Suggestions'}
-                    </button>
+                    <div className="wsp-summary-tile">
+                        <span>Approved</span>
+                        <strong>{counts.approved}</strong>
+                    </div>
+                    <div className="wsp-summary-tile">
+                        <span>Dismissed</span>
+                        <strong>{counts.dismissed}</strong>
+                    </div>
                 </div>
-                {!canInject && (
-                    <p className="wsp-note">Open the grading session to inject suggestions into comments or corrections.</p>
-                )}
             </div>
 
-            <div className="wgp-panel-card">
-                <SuggestionGroup
-                    title="Grammar"
-                    comments={taskResult.grammar.comments}
-                    corrections={taskResult.grammar.corrections}
-                    canInject={canInject}
-                    onFocusSuggestion={onFocusSuggestion}
-                    onInjectComment={onInjectComment}
-                    onInjectCorrection={onInjectCorrection}
-                />
-            </div>
+            {!canApprove && (
+                <div className="wgp-panel-card">
+                    <p className="wsp-note">Open the grading session to approve suggestions into comments or corrections.</p>
+                </div>
+            )}
 
-            <div className="wgp-panel-card">
-                <SuggestionGroup
-                    title="Vocabulary & Expression"
-                    comments={taskResult.vocabularyExpression.comments}
-                    corrections={taskResult.vocabularyExpression.corrections}
-                    canInject={canInject}
-                    onFocusSuggestion={onFocusSuggestion}
-                    onInjectComment={onInjectComment}
-                    onInjectCorrection={onInjectCorrection}
-                />
-            </div>
+            {canApprove && approvalBlockedReason && (
+                <div className="wgp-panel-card">
+                    <p className="wsp-note">{approvalBlockedReason}</p>
+                </div>
+            )}
         </div>
     );
-};
-
-export default WritingSuggestionsPanel;
+}

@@ -10,6 +10,13 @@ function createReadyCache(): WritingSuggestionCacheDoc {
         generatedAt: Date.now(),
         updatedAt: Date.now(),
         generatedFromEssayHashByTask: { 1: 'essay_hash' },
+        reviewStateByTask: {
+            1: {
+                'comment-1': 'pending',
+                'correction-1': 'approved',
+                'correction-2': 'dismissed',
+            },
+        },
         perTask: {
             1: {
                 taskNumber: 1,
@@ -17,9 +24,13 @@ function createReadyCache(): WritingSuggestionCacheDoc {
                     comments: [
                         {
                             id: 'comment-1',
+                            reviewKey: 'comment-1',
+                            reviewStatus: 'pending',
                             taskNumber: 1,
                             kind: 'comment',
                             focus: 'grammar',
+                            issueFamily: 'agreement',
+                            confidence: 90,
                             sentenceIndex: 0,
                             anchorText: 'show',
                             from: 4,
@@ -37,9 +48,13 @@ function createReadyCache(): WritingSuggestionCacheDoc {
                     corrections: [
                         {
                             id: 'correction-1',
+                            reviewKey: 'correction-1',
+                            reviewStatus: 'approved',
                             taskNumber: 1,
                             kind: 'correction',
                             focus: 'vocabulary-expression',
+                            issueFamily: 'word-choice',
+                            confidence: 88,
                             sentenceIndex: 1,
                             anchorText: 'increase',
                             from: 18,
@@ -47,6 +62,24 @@ function createReadyCache(): WritingSuggestionCacheDoc {
                             title: 'Verb choice',
                             reason: 'Past reporting typically uses the past tense here.',
                             replacementText: 'increased',
+                            categoryId: 'lr',
+                        },
+                        {
+                            id: 'correction-2',
+                            reviewKey: 'correction-2',
+                            reviewStatus: 'dismissed',
+                            taskNumber: 1,
+                            kind: 'correction',
+                            focus: 'vocabulary-expression',
+                            issueFamily: 'word-choice',
+                            confidence: 82,
+                            sentenceIndex: 2,
+                            anchorText: 'goodly',
+                            from: 32,
+                            to: 38,
+                            title: 'Word choice',
+                            reason: 'This is not natural written English.',
+                            replacementText: 'well',
                             categoryId: 'lr',
                         },
                     ],
@@ -57,38 +90,35 @@ function createReadyCache(): WritingSuggestionCacheDoc {
 }
 
 describe('WritingSuggestionsPanel', () => {
-    it('renders ready suggestions and delegates button actions', () => {
+    it('renders summary counts and delegates review actions', () => {
         const onReload = vi.fn();
-        const onFocusSuggestion = vi.fn();
-        const onInjectComment = vi.fn();
-        const onInjectCorrection = vi.fn();
-        const cache = createReadyCache();
+        const onOpenReview = vi.fn();
 
         render(
             <WritingSuggestionsPanel
-                cache={cache}
+                cache={createReadyCache()}
                 taskNumber={1}
                 loading={false}
                 reloading={false}
-                canInject
+                runState={null}
+                canApprove
+                canGenerateMore={false}
+                approvalBlockedReason="Finish the open comment first."
                 onReload={onReload}
-                onFocusSuggestion={onFocusSuggestion}
-                onInjectComment={onInjectComment}
-                onInjectCorrection={onInjectCorrection}
+                onGenerateMore={vi.fn()}
+                onOpenReview={onOpenReview}
             />,
         );
 
-        expect(screen.getByText('Verb agreement')).toBeInTheDocument();
-        expect(screen.getByText('Verb choice')).toBeInTheDocument();
+        expect(screen.getByText('Pending')).toBeInTheDocument();
+        expect(screen.getByText('Approved')).toBeInTheDocument();
+        expect(screen.getByText('Dismissed')).toBeInTheDocument();
+        expect(screen.getByText('Finish the open comment first.')).toBeInTheDocument();
 
-        fireEvent.click(screen.getAllByText('Focus in Essay')[0] as HTMLElement);
-        fireEvent.click(screen.getByText('Inject to Comment'));
-        fireEvent.click(screen.getByText('Inject to Correction'));
-        fireEvent.click(screen.getByText('Reload Suggestions'));
+        fireEvent.click(screen.getByText('Open Review'));
+        fireEvent.click(screen.getByText('Force Regenerate'));
 
-        expect(onFocusSuggestion).toHaveBeenCalledWith(cache.perTask[1]?.grammar.comments[0]);
-        expect(onInjectComment).toHaveBeenCalledWith(cache.perTask[1]?.grammar.comments[0]);
-        expect(onInjectCorrection).toHaveBeenCalledWith(cache.perTask[1]?.vocabularyExpression.corrections[0]);
+        expect(onOpenReview).toHaveBeenCalledTimes(1);
         expect(onReload).toHaveBeenCalledTimes(1);
     });
 
@@ -104,20 +134,51 @@ describe('WritingSuggestionsPanel', () => {
                     error: 'AI suggestions unavailable.',
                     perTask: {},
                     generatedFromEssayHashByTask: {},
+                    reviewStateByTask: {},
                 }}
                 taskNumber={1}
                 loading={false}
                 reloading={false}
-                canInject={false}
+                canApprove={false}
+                canGenerateMore={false}
+                runState={null}
+                approvalBlockedReason={null}
                 onReload={onReload}
-                onFocusSuggestion={vi.fn()}
-                onInjectComment={vi.fn()}
-                onInjectCorrection={vi.fn()}
+                onGenerateMore={vi.fn()}
+                onOpenReview={vi.fn()}
             />,
         );
 
         expect(screen.getByText('AI suggestions unavailable.')).toBeInTheDocument();
-        fireEvent.click(screen.getByText('Reload Suggestions'));
+        fireEvent.click(screen.getByText('Force Regenerate'));
         expect(onReload).toHaveBeenCalledTimes(1);
+        expect(screen.getByRole('button', { name: 'Open Review' })).toBeDisabled();
+    });
+
+    it('disables review while suggestions are generating', () => {
+        render(
+            <WritingSuggestionsPanel
+                cache={null}
+                taskNumber={1}
+                loading
+                reloading={false}
+                runState={{
+                    status: 'generating',
+                    updatedAt: Date.now(),
+                    acceptedCount: 2,
+                    phase: 'combined-scan',
+                }}
+                canApprove={false}
+                canGenerateMore={false}
+                approvalBlockedReason={null}
+                onReload={vi.fn()}
+                onGenerateMore={vi.fn()}
+                onOpenReview={vi.fn()}
+            />,
+        );
+
+        expect(screen.getByText('Scanning Task 1 suggestions in this browser.')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Force Regenerate' })).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Open Review' })).toBeDisabled();
     });
 });

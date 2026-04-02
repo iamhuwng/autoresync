@@ -1,6 +1,13 @@
 import type { Chunk, ReadingLabeledOption } from '../../types/document.types';
 import type { Result } from '../../types/result.types';
-import type { IAIService, AIParseResult, ProviderStatus, AIStructuredGenerationOptions } from './ai.service';
+import type {
+  IAIService,
+  AIParseResult,
+  ProviderStatus,
+  AIStructuredGenerationOptions,
+  WritingSuggestionBatchRequest,
+  WritingSuggestionBatchResponse,
+} from './ai.service';
 import { geminiProvider } from './gemini.provider';
 import { groqProvider } from './groq.provider';
 
@@ -396,6 +403,37 @@ class AIRouterService implements IAIService {
     return {
       success: false,
       error: 'All AI providers failed to generate structured JSON',
+    };
+  }
+
+  async generateWritingSuggestionBatch(
+    request: WritingSuggestionBatchRequest,
+    options?: AIStructuredGenerationOptions & {
+      preferredKeyIndex?: number;
+      keyLeaseId?: string | null;
+    }
+  ): Promise<Result<WritingSuggestionBatchResponse>> {
+    const providerOrder = this.getProviderOrder();
+
+    for (const providerName of providerOrder) {
+      const provider = this.providers[providerName];
+      const result = await provider.generateWritingSuggestionBatch(request, options);
+
+      if (result.success) {
+        console.log(`✅ Writing suggestion batch generated with ${providerName}`);
+        return result;
+      }
+
+      console.error(`❌ ${providerName} writing suggestion batch failed: ${result.error}`);
+
+      if (!this.config.enableFallback) {
+        return result;
+      }
+    }
+
+    return {
+      success: false,
+      error: 'All AI providers failed to generate writing suggestion batch',
     };
   }
 

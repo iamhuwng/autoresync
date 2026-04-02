@@ -5,8 +5,13 @@
     gap: 12px;
 }
 
+.wsp-toolbar-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
 .wsp-status-copy,
-.wsp-empty-copy,
 .wsp-note {
     margin: 8px 0 0;
     color: #5f6b7a;
@@ -18,108 +23,33 @@
     color: #8a5a00;
 }
 
-.wsp-group {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
-.wsp-group-title {
-    font-size: 0.95rem;
-    font-weight: 700;
-    color: #1f2937;
-}
-
-.wsp-section {
-    display: flex;
-    flex-direction: column;
+.wsp-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 12px;
 }
 
-.wsp-section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-}
-
-.wsp-section-header h4 {
-    margin: 0;
-    font-size: 0.92rem;
-    font-weight: 700;
-    color: #334155;
-}
-
-.wsp-section-header span {
-    border-radius: 999px;
-    background: #eef2f7;
-    color: #475569;
-    font-size: 0.78rem;
-    font-weight: 700;
-    padding: 4px 10px;
-}
-
-.wsp-list {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.wsp-card {
+.wsp-summary-tile {
     border: 1px solid #d7dee8;
     border-radius: 14px;
     background: #f8fafc;
     padding: 14px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
 }
 
-.wsp-card-header {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 12px;
-}
-
-.wsp-card-header strong {
-    color: #0f172a;
-    font-size: 0.95rem;
-}
-
-.wsp-card-header span {
+.wsp-summary-tile span {
     color: #64748b;
-    font-size: 0.8rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
 }
 
-.wsp-anchor {
-    border-left: 3px solid #94a3b8;
-    padding-left: 10px;
-    color: #1e293b;
-    font-size: 0.9rem;
-}
-
-.wsp-reason {
-    margin: 0;
-    color: #475569;
-    font-size: 0.9rem;
-    line-height: 1.45;
-}
-
-.wsp-proposal {
-    border-radius: 12px;
-    background: #ffffff;
-    border: 1px solid #dde5ee;
-    padding: 10px 12px;
+.wsp-summary-tile strong {
     color: #0f172a;
-    font-size: 0.9rem;
-    line-height: 1.45;
-}
-
-.wsp-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
+    font-size: 1.3rem;
 }
 
 .wsp-primary-btn,
@@ -137,8 +67,11 @@
     color: #ffffff;
 }
 
-.wsp-primary-btn:disabled {
+.wsp-primary-btn:disabled,
+.wsp-secondary-btn:disabled {
     background: #cbd5e1;
+    border-color: #cbd5e1;
+    color: #475569;
     cursor: not-allowed;
 }
 
@@ -146,4 +79,14 @@
     background: #ffffff;
     color: #1e293b;
     border-color: #cbd5e1;
+}
+
+@media (max-width: 720px) {
+    .wsp-toolbar {
+        flex-direction: column;
+    }
+
+    .wsp-summary-grid {
+        grid-template-columns: 1fr;
+    }
 }

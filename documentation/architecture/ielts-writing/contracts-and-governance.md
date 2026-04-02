@@ -186,6 +186,23 @@ Publishing boundary:
 - AI suggestions do not change release state, result visibility, or result ownership
 - suggestions only become grading content if a teacher explicitly injects them into the existing comment or correction authoring tools and then saves or applies through those existing flows
 
+## 2026-04-03 Amendment - Suggestion Run Artifact And Runtime Governance
+
+Active-run rules:
+- writing suggestions now generate for the active essay/task only, not by warming every task in the submission
+- active browser-side runs must publish run-state metadata for the active task, including run status, accepted-count progress, and a short-lived generation lease
+- stale generation leases must be recoverable as `interrupted` so the grading page can safely retry instead of remaining stuck in `generating`
+
+Artifact rules:
+- Firestore `writing_grading_ai_cache/{submissionId}/generation_runs/{runId__attemptId}` is a teacher-private diagnostic artifact subcollection for short-lived raw AI request and response data
+- artifact documents are diagnostic-only operational state; they are not grading artifacts and they do not affect release, ownership, or publication semantics
+- artifact documents may store raw prompt text, raw response text, repaired JSON, provider metadata, token metadata, acceptance/drop summaries, and expiry timestamps
+- artifact retention is intentionally short-lived and should be governed by TTL cleanup, not indefinite history accumulation
+
+Access rules:
+- the same assigned-teacher-only boundary that protects `writing_grading_ai_cache/{submissionId}` also protects the `generation_runs` subcollection
+- a Firestore rules deployment is required whenever the helper-state contract adds a new subcollection path; otherwise the UI may succeed in AI generation but fail while persisting diagnostic artifacts
+
 ## 2026-04-03 Amendment - Writing Authoring Visibility And Publish Governance
 
 Authoring-state rules:

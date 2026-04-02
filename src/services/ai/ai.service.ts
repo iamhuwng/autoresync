@@ -96,6 +96,91 @@ export interface AIStructuredGenerationOptions {
   maxOutputTokens?: number;
 }
 
+export type WritingSuggestionScope =
+  | 'combined'
+  | 'grammar-correction'
+  | 'grammar-improvement'
+  | 'vocabulary-correction'
+  | 'vocabulary-improvement';
+
+export type WritingSuggestionFocus = 'grammar' | 'vocabulary-expression';
+
+export type WritingSuggestionKind = 'comment' | 'correction';
+
+export type WritingSuggestionIssueFamily =
+  | 'tense'
+  | 'agreement'
+  | 'article'
+  | 'plural'
+  | 'preposition'
+  | 'punctuation'
+  | 'sentence-structure'
+  | 'capitalization'
+  | 'pronoun'
+  | 'word-choice'
+  | 'collocation'
+  | 'word-form'
+  | 'spelling'
+  | 'register'
+  | 'awkward-phrase'
+  | 'task1-reporting';
+
+export interface WritingSuggestionSentenceInput {
+  sentenceIndex: number;
+  text: string;
+}
+
+export interface WritingSuggestionParagraphInput {
+  paragraphIndex: number;
+  sentences: WritingSuggestionSentenceInput[];
+}
+
+export interface WritingSuggestionLedgerItem {
+  focus: WritingSuggestionFocus;
+  kind: WritingSuggestionKind;
+  sentenceIndex: number;
+  anchorText: string;
+  issueFamily: WritingSuggestionIssueFamily;
+  title: string;
+  replacementText?: string;
+}
+
+export interface WritingSuggestionFinding {
+  focus: WritingSuggestionFocus;
+  kind: WritingSuggestionKind;
+  sentenceIndex: number;
+  anchorText: string;
+  issueFamily: WritingSuggestionIssueFamily;
+  title: string;
+  reason: string;
+  replacementText?: string;
+  confidence: number;
+}
+
+export interface WritingSuggestionBatchRequest {
+  taskPrompt: string;
+  essay: {
+    taskNumber: 1 | 2;
+    paragraphs: WritingSuggestionParagraphInput[];
+  };
+  scope: WritingSuggestionScope;
+  maxFindings: number;
+  priorFindingsLedger: WritingSuggestionLedgerItem[];
+}
+
+export interface WritingSuggestionBatchResponse {
+  findings: WritingSuggestionFinding[];
+  hasMorePotential: boolean;
+  provider: 'gemini' | 'groq';
+  model: string;
+  rawPrompt: string;
+  rawResponse: string;
+  repairedParsedJson?: unknown;
+  finishReason?: string | null;
+  usageMetadata?: Record<string, unknown> | null;
+  keyLeaseId?: string | null;
+}
+
 /**
  * AI Service interface
  * All providers must implement this
@@ -158,4 +243,12 @@ export interface IAIService {
     prompt: string,
     options?: AIStructuredGenerationOptions
   ): Promise<Result<unknown>>;
+
+  generateWritingSuggestionBatch(
+    request: WritingSuggestionBatchRequest,
+    options?: AIStructuredGenerationOptions & {
+      preferredKeyIndex?: number;
+      keyLeaseId?: string | null;
+    }
+  ): Promise<Result<WritingSuggestionBatchResponse>>;
 }

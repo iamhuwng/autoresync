@@ -1,6 +1,14 @@
 ﻿import type { Chunk } from '../../types/document.types';
 import type { Result } from '../../types/result.types';
-import type { IAIService, AIParseResult, ProviderStatus, AIStructuredGenerationOptions } from './ai.service';
+import type {
+  IAIService,
+  AIParseResult,
+  ProviderStatus,
+  AIStructuredGenerationOptions,
+  WritingSuggestionBatchRequest,
+  WritingSuggestionBatchResponse,
+  WritingSuggestionScope,
+} from './ai.service';
 import { getEnv } from '../../config/env.config';
 import { validateAIResponse, validatePassagesOnly, validateQuestionsAndAnswers, normalizeQuestionType, normalizeAnswer } from './response.validator';
 import { getDecryptedKeys } from '../api-keys.service';
@@ -1257,6 +1265,147 @@ Respond with JSON array only:
         this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
       }
       return { success: false, error: `Suggestion generation failed: ${msg}` };
+    }
+  }
+
+  private getWritingSuggestionScopeInstruction(scope: WritingSuggestionScope): string {
+    switch (scope) {
+      case 'grammar-correction':
+        return 'Return grammar findings only. Return only precise micro-fixes that can be corrected with a short replacement.';
+      case 'grammar-improvement':
+        return 'Return grammar findings only. Return only broader improvement guidance items that should stay as comments, not direct micro-corrections.';
+      case 'vocabulary-correction':
+        return 'Return vocabulary/expression findings only. Return only precise micro-fixes that can be corrected with a short replacement.';
+      case 'vocabulary-improvement':
+        return 'Return vocabulary/expression findings only. Return only broader improvement guidance items that should stay as comments, not direct micro-corrections.';
+      case 'combined':
+      default:
+        return 'Return both grammar and vocabulary/expression findings. Include both corrections and improvement comments when appropriate.';
+    }
+  }
+
+  private buildWritingSuggestionPrompt(request: WritingSuggestionBatchRequest): string {
+    const priorLedger = request.priorFindingsLedger.length > 0
+      ? JSON.stringify(request.priorFindingsLedger, null, 2)
+      : '[]';
+
+    return [
+      'You are a careful IELTS writing grading assistant.',
+      'Return only valid JSON with no markdown fences and no explanatory prose.',
+      'Analyze the full essay as one entity while anchoring each finding to the provided indexed sentence text.',
+      this.getWritingSuggestionScopeInstruction(request.scope),
+      `Return up to ${request.maxFindings} distinct findings in this batch.`,
+      'Prefer distinct issues over alternate rewrites of the same issue.',
+      'Do not return any finding that substantially repeats something already present in priorFindingsLedger.',
+      'If there are clearly more worthwhile new findings after this batch, set hasMorePotential to true. Otherwise set it to false.',
+      'anchorText must exactly match the provided sentence text.',
+      'confidence must be an integer from 0 to 100.',
+      'replacementText is optional and should be omitted for comment-style findings.',
+      'Use only these issueFamily values:',
+      'tense, agreement, article, plural, preposition, punctuation, sentence-structure, capitalization, pronoun, word-choice, collocation, word-form, spelling, register, awkward-phrase, task1-reporting.',
+      '',
+      'Return exactly this JSON shape:',
+      '{',
+      '  "findings": [',
+      '    {',
+      '      "focus": "grammar" | "vocabulary-expression",',
+      '      "kind": "comment" | "correction",',
+      '      "sentenceIndex": 0,',
+      '      "anchorText": "",',
+      '      "issueFamily": "",',
+      '      "title": "",',
+      '      "reason": "",',
+      '      "replacementText": "",',
+      '      "confidence": 0',
+      '    }',
+      '  ],',
+      '  "hasMorePotential": false',
+      '}',
+      '',
+      `Task prompt:\n${request.taskPrompt}`,
+      '',
+      `Essay structure:\n${JSON.stringify(request.essay, null, 2)}`,
+      '',
+      `Prior findings ledger:\n${priorLedger}`,
+    ].join('\n');
+  }
+
+  async generateWritingSuggestionBatch(
+    request: WritingSuggestionBatchRequest,
+    options: AIStructuredGenerationOptions & {
+      preferredKeyIndex?: number;
+      keyLeaseId?: string | null;
+    } = {}
+  ): Promise<Result<WritingSuggestionBatchResponse>> {
+    if (this.clients.length === 0 && !this.sdkLoaded) await this.initialize();
+    if (this.clients.length === 0) return { success: false, error: 'Groq clients not initialized' };
+
+    this.cleanupExhaustedKeys();
+    if (
+      typeof options.preferredKeyIndex === 'number'
+      && this.clients[options.preferredKeyIndex]
+      && !this.isKeyExhausted(options.preferredKeyIndex)
+    ) {
+      this.currentKeyIndex = options.preferredKeyIndex;
+    } else {
+      this.currentKeyIndex = this.getNextAvailableKeyRoundRobin();
+    }
+
+    try {
+      this.status.requestCount++;
+      this.status.lastRequestTime = Date.now();
+
+      const client = this.clients[this.currentKeyIndex];
+      if (!client) {
+        throw new Error('No client available');
+      }
+
+      const modelName = 'llama-3.3-70b-versatile';
+      const rawPrompt = this.buildWritingSuggestionPrompt(request);
+      const completion = await client.chat.completions.create({
+        model: modelName,
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a careful IELTS writing grading assistant. Return only valid JSON.',
+          },
+          {
+            role: 'user',
+            content: rawPrompt,
+          },
+        ],
+        temperature: options.temperature ?? 0.1,
+        max_tokens: options.maxOutputTokens ?? 8192,
+      });
+
+      const rawResponse = completion.choices[0]?.message?.content || '';
+      const repairedParsedJson = extractJSON(rawResponse) as Record<string, any>;
+      if (!repairedParsedJson || !Array.isArray(repairedParsedJson.findings) || typeof repairedParsedJson.hasMorePotential !== 'boolean') {
+        throw new Error('Invalid writing suggestion batch response shape');
+      }
+
+      return {
+        success: true,
+        data: {
+          findings: repairedParsedJson.findings,
+          hasMorePotential: repairedParsedJson.hasMorePotential,
+          provider: 'groq',
+          model: modelName,
+          rawPrompt,
+          rawResponse,
+          repairedParsedJson,
+          finishReason: completion.choices[0]?.finish_reason ?? null,
+          usageMetadata: (completion as unknown as Record<string, unknown>).usage || null,
+          keyLeaseId: options.keyLeaseId ?? null,
+        },
+      };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      this.status.lastError = msg;
+      if (msg.includes('429') || msg.includes('rate limit') || msg.includes('403')) {
+        this.markKeyExhausted(this.currentKeyIndex, msg.includes('403') ? '403 Forbidden' : 'Rate limit');
+      }
+      return { success: false, error: `Writing suggestion batch failed: ${msg}` };
     }
   }
 

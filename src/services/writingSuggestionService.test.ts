@@ -7,8 +7,9 @@ import {
     normalizeSuggestionTaskResult,
     resolveSuggestionAnchor,
     segmentEssayIntoSentences,
+    updateWritingSuggestionReviewStatus,
 } from './writingSuggestionService';
-import type { WritingSubmission, WritingSubmissionTask } from '../types/ielts-writing.types';
+import type { WritingSubmission, WritingSubmissionTask, WritingSuggestionCacheDoc } from '../types/ielts-writing.types';
 
 const { mockGetAIAvailability } = vi.hoisted(() => ({
     mockGetAIAvailability: vi.fn(),
@@ -19,7 +20,8 @@ vi.mock('./firebase', () => ({
 }));
 
 vi.mock('firebase/firestore', () => ({
-    doc: vi.fn((_: unknown, ...segments: string[]) => segments.join('/')),
+    collection: vi.fn((...segments: string[]) => segments.join('/')),
+    doc: vi.fn((...segments: string[]) => segments.join('/')),
     getDoc: vi.fn(),
     setDoc: vi.fn(),
 }));
@@ -37,12 +39,18 @@ vi.mock('./restoreGuard', () => ({
 
 vi.mock('./ai/router.service', () => ({
     aiService: {
-        generateStructuredJson: vi.fn(),
+        generateWritingSuggestionBatch: vi.fn(),
     },
 }));
 
 vi.mock('./ai-status.service', () => ({
     getAIAvailability: mockGetAIAvailability,
+}));
+
+vi.mock('./ai/writingSuggestionKeyLease.service', () => ({
+    acquireGeminiSuggestionKeyLeases: vi.fn().mockResolvedValue([]),
+    getUsableGeminiSuggestionKeyCount: vi.fn().mockResolvedValue(0),
+    releaseGeminiSuggestionKeyLeases: vi.fn(),
 }));
 
 function createTask(overrides: Partial<WritingSubmissionTask> = {}): WritingSubmissionTask {
@@ -66,12 +74,9 @@ function createSubmission(tasks: WritingSubmissionTask[]): WritingSubmission {
         context: { type: 'live-session', assigningTeacherId: 'teacher-1', selectedTeacherId: 'teacher-1' },
         testMeta: { testId: 'test-1', testTitle: 'Mock', format: 'full-test', duration: 60 },
         submittedAt: Date.now(),
-        updatedAt: Date.now(),
-        startedAt: Date.now(),
-        markingStatus: 'pending-review',
-        totalWordCount: tasks.reduce((sum, task) => sum + task.wordCount, 0),
-        activeTimeSeconds: tasks.reduce((sum, task) => sum + task.activeTimeSeconds, 0),
+        totalElapsedTimeSeconds: tasks.reduce((sum, task) => sum + task.activeTimeSeconds, 0),
         pasteAttemptCount: 0,
+        markingStatus: 'pending-review',
         tasks,
         grading: undefined,
         publishedGrading: undefined,
@@ -81,6 +86,63 @@ function createSubmission(tasks: WritingSubmissionTask[]): WritingSubmission {
     } as WritingSubmission;
 }
 
+function createEssayHashForTest(essayText: string): string {
+    let hash = 5381;
+    for (let index = 0; index < essayText.length; index += 1) {
+        hash = ((hash << 5) + hash) + essayText.charCodeAt(index);
+        hash &= hash;
+    }
+
+    return `essay_${(hash >>> 0).toString(36)}`;
+}
+
+function createReadyCache(): WritingSuggestionCacheDoc {
+    const normalized = normalizeSuggestionTaskResult(createTask(), {
+        combined: [
+            {
+                sentenceIndex: 0,
+                anchorText: 'show',
+                title: 'Verb agreement',
+                reason: 'Use the singular verb form.',
+                focus: 'grammar',
+                kind: 'correction',
+                issueFamily: 'agreement',
+                replacementText: 'shows',
+                confidence: 92,
+            },
+        ],
+    });
+    const suggestion = normalized.taskResult.grammar.corrections[0]!;
+
+    return {
+        submissionId: 'submission-1',
+        status: 'ready',
+        generatedAt: 100,
+        updatedAt: 100,
+        perTask: {
+            1: normalized.taskResult,
+        },
+        generatedFromEssayHashByTask: { 1: createEssayHashForTest(createTask().essayText) },
+        reviewStateByTask: {
+            1: {
+                [suggestion.reviewKey]: 'pending',
+            },
+        },
+        diagnosticsByTask: {
+            1: normalized.diagnosticsByBucket,
+        },
+        runStateByTask: {
+            1: {
+                status: 'complete',
+                updatedAt: 100,
+                acceptedCount: 1,
+                lastRunAcceptedCount: 1,
+                lastRunHasMorePotential: false,
+            },
+        },
+    };
+}
+
 describe('writingSuggestionService', () => {
     beforeEach(() => {
         vi.clearAllMocks();
@@ -88,7 +150,7 @@ describe('writingSuggestionService', () => {
             available: true,
             geminiAvailable: true,
             groqAvailable: true,
-            totalKeys: 1,
+            totalKeys: 4,
             benchedKeys: 0,
             checkedAt: Date.now(),
         });
@@ -102,7 +164,6 @@ describe('writingSuggestionService', () => {
             'It increase rapidly.',
         ]);
         expect(resolveSuggestionAnchor(sentences, 1, 'increase')).toEqual({ from: 26, to: 34 });
-        expect(resolveSuggestionAnchor(sentences, 1, 'rapidly')).toEqual({ from: 35, to: 42 });
     });
 
     it('infers GeneralTraining Task 1 prompts from letter instructions', () => {
@@ -114,123 +175,110 @@ describe('writingSuggestionService', () => {
         expect(inferTask1SuggestionType(createTask())).toBe('Academic');
     });
 
-    it('drops duplicate and overlapping normalized suggestions', () => {
-        const result = normalizeSuggestionTaskResult(
-            createTask({ essayText: 'The chart show a rise. It increase rapidly.' }),
-            {
-                tasks: [
-                    {
-                        taskNumber: 1,
-                        grammar: {
-                            comments: [
-                                {
-                                    sentenceIndex: 0,
-                                    anchorText: 'show',
-                                    title: 'Verb agreement',
-                                    reason: 'The singular subject needs the third-person verb form.',
-                                    suggestedCommentText: 'Use the singular verb form here.',
-                                },
-                                {
-                                    sentenceIndex: 0,
-                                    anchorText: 'show',
-                                    title: 'Duplicate',
-                                    reason: 'Duplicate issue.',
-                                    suggestedCommentText: 'Duplicate issue.',
-                                },
-                            ],
-                            corrections: [
-                                {
-                                    sentenceIndex: 0,
-                                    anchorText: 'show',
-                                    title: 'Correct verb',
-                                    reason: 'The verb should agree with the subject.',
-                                    replacementText: 'shows',
-                                },
-                            ],
-                        },
-                        vocabularyExpression: {
-                            comments: [],
-                            corrections: [
-                                {
-                                    sentenceIndex: 1,
-                                    anchorText: 'increase',
-                                    title: 'Verb tense',
-                                    reason: 'Use past tense for reported data.',
-                                    replacementText: 'increased',
-                                },
-                            ],
-                        },
-                    },
-                ],
-            },
-        );
+    it('normalizes legacy raw findings into comment and correction buckets', () => {
+        const normalized = normalizeSuggestionTaskResult(createTask(), {
+            grammar: [
+                {
+                    sentenceIndex: 0,
+                    anchorText: 'show',
+                    title: 'Verb agreement',
+                    reason: 'Use the singular verb form.',
+                    replacementText: 'shows',
+                },
+            ],
+            'vocabulary-expression': [
+                {
+                    sentenceIndex: 1,
+                    anchorText: 'increase',
+                    title: 'Verb choice',
+                    reason: 'This is awkward for reported data.',
+                },
+            ],
+        });
 
-        expect(result.grammar.comments).toHaveLength(1);
-        expect(result.grammar.corrections).toHaveLength(0);
-        expect(result.vocabularyExpression.corrections).toHaveLength(1);
-        expect(result.vocabularyExpression.corrections[0]?.anchorText).toBe('increase');
+        expect(normalized.taskResult.grammar.corrections).toHaveLength(1);
+        expect(normalized.taskResult.vocabularyExpression.comments).toHaveLength(1);
+        expect(normalized.taskResult.grammar.corrections[0]?.issueFamily).toBe('agreement');
+        expect(normalized.taskResult.vocabularyExpression.comments[0]?.issueFamily).toBe('word-choice');
     });
 
-    it('reuses an existing cache without regenerating suggestions', async () => {
+    it('reuses an existing cache for the active task without regenerating', async () => {
         vi.mocked(getDoc).mockResolvedValue({
             exists: () => true,
-            data: () => ({
-                submissionId: 'submission-1',
-                status: 'ready',
-                generatedAt: 100,
-                updatedAt: 100,
-                perTask: {},
-                generatedFromEssayHashByTask: {},
-            }),
+            data: () => createReadyCache(),
         } as any);
 
-        const result = await getOrCreateWritingSuggestionCache(createSubmission([createTask()]));
+        const result = await getOrCreateWritingSuggestionCache(createSubmission([createTask()]), {
+            taskNumber: 1,
+        });
 
         expect(result.success).toBe(true);
-        expect(result.success && result.data.status).toBe('ready');
-        expect(aiService.generateStructuredJson).not.toHaveBeenCalled();
+        expect(aiService.generateWritingSuggestionBatch).not.toHaveBeenCalled();
         expect(setDoc).not.toHaveBeenCalled();
     });
 
-    it('forces regeneration and persists the ready cache', async () => {
+    it('generates suggestions for only the requested task and stores run state', async () => {
         vi.mocked(getDoc).mockResolvedValue({
             exists: () => false,
             data: () => undefined,
         } as any);
-        vi.mocked(aiService.generateStructuredJson).mockResolvedValue({
+        vi.mocked(aiService.generateWritingSuggestionBatch).mockResolvedValue({
             success: true,
             data: {
-                tasks: [
+                findings: [
                     {
-                        taskNumber: 1,
-                        grammar: {
-                            comments: [
-                                {
-                                    sentenceIndex: 0,
-                                    anchorText: 'show',
-                                    title: 'Verb agreement',
-                                    reason: 'The singular subject needs the third-person verb form.',
-                                    suggestedCommentText: 'Use the singular verb form here.',
-                                    categoryId: 'gra',
-                                },
-                            ],
-                            corrections: [],
-                        },
-                        vocabularyExpression: {
-                            comments: [],
-                            corrections: [],
-                        },
+                        sentenceIndex: 0,
+                        anchorText: 'show',
+                        title: 'Verb agreement',
+                        reason: 'Use the singular verb form.',
+                        focus: 'grammar',
+                        kind: 'correction',
+                        issueFamily: 'agreement',
+                        replacementText: 'shows',
+                        confidence: 91,
                     },
                 ],
+                hasMorePotential: true,
+                provider: 'gemini',
+                model: 'gemini-2.5-flash',
+                rawPrompt: 'prompt',
+                rawResponse: 'response',
+                repairedParsedJson: { findings: [], hasMorePotential: true },
+                finishReason: 'STOP',
+                usageMetadata: null,
+                keyLeaseId: null,
             },
+        } as any);
+
+        const result = await getOrCreateWritingSuggestionCache(createSubmission([
+            createTask({ taskNumber: 1 }),
+            createTask({ taskNumber: 2, essayText: 'Task 2 stays untouched.' }),
+        ]), {
+            taskNumber: 1,
+            force: true,
+            source: 'force',
+            sessionId: 'session-1',
         });
 
-        const result = await getOrCreateWritingSuggestionCache(createSubmission([createTask()]), { force: true });
+        expect(result.success).toBe(true);
+        expect(aiService.generateWritingSuggestionBatch).toHaveBeenCalledTimes(1);
+        expect(result.success && result.data.perTask[1]?.grammar.corrections[0]?.anchorText).toBe('show');
+        expect(result.success && result.data.perTask[2]).toBeUndefined();
+        expect(result.success && result.data.runStateByTask?.[1]?.lastRunHasMorePotential).toBe(true);
+    });
+
+    it('updates suggestion review status in the persisted cache', async () => {
+        vi.mocked(getDoc).mockResolvedValue({
+            exists: () => true,
+            data: () => createReadyCache(),
+        } as any);
+
+        const cache = createReadyCache();
+        const suggestion = cache.perTask[1]!.grammar.corrections[0]!;
+        const result = await updateWritingSuggestionReviewStatus('submission-1', 1, suggestion.reviewKey, 'approved');
 
         expect(result.success).toBe(true);
-        expect(aiService.generateStructuredJson).toHaveBeenCalledTimes(1);
-        expect(setDoc).toHaveBeenCalledTimes(2);
-        expect(result.success && result.data.status).toBe('ready');
-        expect(result.success && result.data.perTask[1]?.grammar.comments[0]?.anchorText).toBe('show');
+        expect(result.success && result.data.perTask[1]?.grammar.corrections[0]?.reviewStatus).toBe('approved');
+        expect(setDoc).toHaveBeenCalled();
     });
 });

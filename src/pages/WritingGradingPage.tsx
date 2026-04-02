@@ -34,10 +34,11 @@ import QuickCommentsDialog from '../components/writing-grading/QuickCommentsDial
 import CorrectionPopup from '../components/writing-grading/CorrectionPopup';
 import CriteriaScoringPanel from '../components/writing-grading/CriteriaScoringPanel';
 import WritingSuggestionsPanel from '../components/writing-grading/WritingSuggestionsPanel';
+import WritingSuggestionsReviewModal from '../components/writing-grading/WritingSuggestionsReviewModal';
 import TabbedFeedbackEditor, { type FeedbackContent } from '../components/writing-grading/TabbedFeedbackEditor';
 import VoidTaskButton from '../components/writing-grading/VoidTaskButton';
 import GradingAuditTrail from '../components/writing-grading/GradingAuditTrail';
-import { getOrCreateWritingSuggestionCache } from '../services/writingSuggestionService';
+import { getOrCreateWritingSuggestionCache, updateWritingSuggestionReviewStatus } from '../services/writingSuggestionService';
 import type {
     CommentCategoryId,
     GradingComment,
@@ -131,6 +132,11 @@ interface PendingSuggestionFocusCommand {
     to: number;
     nonce: number;
 }
+
+type PendingLeaveIntent =
+    | { type: 'queue' }
+    | { type: 'route'; route: string; reason: string }
+    | { type: 'logout' };
 
 const COMMENT_HIGHLIGHT_COLORS = [
     '#f59e0b',
@@ -397,6 +403,8 @@ export default function WritingGradingPage() {
     const [suggestionCache, setSuggestionCache] = useState<WritingSuggestionCacheDoc | null>(null);
     const [suggestionsLoading, setSuggestionsLoading] = useState(false);
     const [suggestionsReloading, setSuggestionsReloading] = useState(false);
+    const [suggestionReviewOpen, setSuggestionReviewOpen] = useState(false);
+    const [pendingSuggestionApproval, setPendingSuggestionApproval] = useState<WritingSuggestionItem | null>(null);
     const [correctionRequest, setCorrectionRequest] = useState<{
         mode: 'create' | 'edit';
         from: number;
@@ -407,6 +415,7 @@ export default function WritingGradingPage() {
     } | null>(null);
     const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
     const [leaveDialogSaving, setLeaveDialogSaving] = useState(false);
+    const [pendingLeaveIntent, setPendingLeaveIntent] = useState<PendingLeaveIntent>({ type: 'queue' });
     const [takeoverReason, setTakeoverReason] = useState('');
     const [takeoverDialogOpen, setTakeoverDialogOpen] = useState(false);
     const [takeoverSubmitting, setTakeoverSubmitting] = useState(false);
@@ -428,6 +437,7 @@ export default function WritingGradingPage() {
     const suggestionFocusNonceRef = useRef(0);
     const dirtyRef = useRef(false);
     const hasUnsavedChangesRef = useRef(false);
+    const suggestionGenerationActiveRef = useRef(false);
     const savedPendingCommentDraftSignatureRef = useRef(savedPendingCommentDraftSignature);
     const modeRef = useRef<PageMode>('review');
     const submissionRef = useRef<WritingSubmission | null>(null);
@@ -494,6 +504,29 @@ export default function WritingGradingPage() {
             console.error('Logout error:', logoutError);
         }
     }, [logout, navigateTo]);
+
+    const openLeaveWarning = useCallback((
+        source: 'back-to-queue' | 'header-navigation' | 'logout',
+        intent: PendingLeaveIntent,
+    ) => {
+        const hasUnsaved = modeRef.current === 'editing' && hasUnsavedChangesRef.current;
+        const generating = suggestionGenerationActiveRef.current;
+        if (!hasUnsaved && !generating) {
+            return false;
+        }
+
+        trackAction('showSuggestionLeaveWarning', {
+            submissionId,
+            taskNumber: activeTask,
+            reason: generating
+                ? (hasUnsaved ? 'unsaved-and-generating' : 'generating')
+                : 'unsaved-only',
+            source,
+        });
+        setPendingLeaveIntent(intent);
+        setLeaveDialogOpen(true);
+        return true;
+    }, [activeTask, submissionId, trackAction]);
 
     const buildCurrentDraft = useCallback(() => {
         if (!submissionId || !user?.uid) {
@@ -578,6 +611,25 @@ export default function WritingGradingPage() {
             );
         });
     }, [submission, taskStates]);
+    const suggestionApprovalBlockedReason = mode !== 'editing'
+        ? 'Open the grading session to approve suggestions into comments or corrections.'
+        : hasAnyPendingCommentDraft
+            ? 'Finish or cancel the open comment before approving another suggestion.'
+            : correctionRequest
+                ? 'Finish or cancel the open correction before approving another suggestion.'
+                : null;
+    const suggestionApprovalBlocked = Boolean(suggestionApprovalBlockedReason);
+    const activeSuggestionRunState = suggestionCache?.runStateByTask?.[activeTask] || null;
+    const suggestionGenerationActive = suggestionsLoading || suggestionsReloading || activeSuggestionRunState?.status === 'generating';
+    const suggestionCanGenerateMore = activeSuggestionRunState?.lastRunHasMorePotential === true
+        || (activeSuggestionRunState?.status === 'incomplete' && activeSuggestionRunState?.lastRunHasMorePotential == null);
+    const leaveWarningMode = suggestionGenerationActive
+        ? (hasUnsavedChanges ? 'unsaved-and-generating' : 'generating-only')
+        : 'unsaved-only';
+
+    useEffect(() => {
+        suggestionGenerationActiveRef.current = suggestionGenerationActive;
+    }, [suggestionGenerationActive]);
 
     const clearTaskScopedTransientState = useCallback(() => {
         setFocusedCommentId(null);
@@ -598,6 +650,8 @@ export default function WritingGradingPage() {
         setPendingCommentMutation(null);
         setPendingSuggestionFocus(null);
         setCorrectionRequest(null);
+        setSuggestionReviewOpen(false);
+        setPendingSuggestionApproval((current) => current?.kind === 'correction' ? null : current);
     }, []);
 
     const resetFromGradingSource = useCallback((
@@ -691,22 +745,37 @@ export default function WritingGradingPage() {
         };
     }, [resetFromGradingSource, submissionId, user?.uid]);
 
-    const loadSuggestions = useCallback(async (options: { force?: boolean } = {}) => {
+    const loadSuggestions = useCallback(async (options: { force?: boolean; source?: 'open' | 'force' | 'continue' } = {}) => {
         const currentSubmission = submissionRef.current;
         if (!currentSubmission) {
             return;
         }
 
+        suggestionGenerationActiveRef.current = true;
+
         if (options.force) {
             setSuggestionsReloading(true);
             trackAction('reloadSuggestions', { submissionId: currentSubmission.id });
-            trackAction('generateSuggestions', { submissionId: currentSubmission.id, source: 'reload' });
+            trackAction(options.source === 'continue' ? 'generateMoreSuggestions' : 'generateSuggestions', {
+                submissionId: currentSubmission.id,
+                source: options.source || 'force',
+                taskNumber: activeTask,
+            });
         } else {
             setSuggestionsLoading(true);
-            trackAction('generateSuggestions', { submissionId: currentSubmission.id, source: 'open' });
+            trackAction('generateSuggestions', {
+                submissionId: currentSubmission.id,
+                source: options.source || 'open',
+                taskNumber: activeTask,
+            });
         }
 
-        const result = await getOrCreateWritingSuggestionCache(currentSubmission, options);
+        const result = await getOrCreateWritingSuggestionCache(currentSubmission, {
+            taskNumber: activeTask,
+            force: options.force,
+            source: options.source,
+            sessionId: sessionIdRef.current,
+        });
         if (result.success) {
             setSuggestionCache(result.data);
         } else {
@@ -717,6 +786,8 @@ export default function WritingGradingPage() {
                 error: result.error,
                 perTask: {},
                 generatedFromEssayHashByTask: {},
+                reviewStateByTask: {},
+                runStateByTask: {},
             });
         }
 
@@ -725,20 +796,91 @@ export default function WritingGradingPage() {
         } else {
             setSuggestionsLoading(false);
         }
-    }, [trackAction]);
+        suggestionGenerationActiveRef.current = false;
+    }, [activeTask, trackAction]);
+
+    const persistSuggestionReviewStatus = useCallback(async (
+        suggestion: WritingSuggestionItem,
+        status: 'pending' | 'approved' | 'dismissed',
+        actionName: 'approveSuggestion' | 'dismissSuggestion' | 'restoreSuggestion',
+    ) => {
+        const currentSubmission = submissionRef.current;
+        if (!currentSubmission) {
+            return false;
+        }
+
+        const result = await updateWritingSuggestionReviewStatus(
+            currentSubmission.id,
+            suggestion.taskNumber,
+            suggestion.reviewKey,
+            status,
+        );
+
+        if (!result.success) {
+            showStatus(result.error || 'Failed to update suggestion review state.');
+            return false;
+        }
+
+        setSuggestionCache(result.data);
+        trackAction(actionName, {
+            submissionId: currentSubmission.id,
+            taskNumber: suggestion.taskNumber,
+            focus: suggestion.focus,
+            kind: suggestion.kind,
+        });
+        return true;
+    }, [showStatus, trackAction]);
+
+    const openSuggestionReview = useCallback((source: 'tab' | 'summary') => {
+        if (!submissionRef.current) {
+            return;
+        }
+
+        setSuggestionReviewOpen(true);
+        trackAction('openSuggestionReview', {
+            submissionId: submissionRef.current.id,
+            taskNumber: activeTask,
+            source,
+        });
+    }, [activeTask, trackAction]);
+
+    const closeSuggestionReview = useCallback(() => {
+        const currentSubmission = submissionRef.current;
+        if (!suggestionReviewOpen) {
+            return;
+        }
+
+        setSuggestionReviewOpen(false);
+        if (!currentSubmission) {
+            return;
+        }
+
+        trackAction('closeSuggestionReview', {
+            submissionId: currentSubmission.id,
+            taskNumber: activeTask,
+        });
+    }, [activeTask, suggestionReviewOpen, trackAction]);
 
     useEffect(() => {
         if (!submission?.id) {
             setSuggestionCache(null);
             setSuggestionsLoading(false);
             setSuggestionsReloading(false);
+            setSuggestionReviewOpen(false);
+            setPendingSuggestionApproval(null);
             return;
         }
 
         let cancelled = false;
         setSuggestionsLoading(true);
+        suggestionGenerationActiveRef.current = true;
 
-        void getOrCreateWritingSuggestionCache(submission, { force: false }).then((result) => {
+        void getOrCreateWritingSuggestionCache(submission, {
+            taskNumber: activeTask,
+            force: false,
+            source: 'open',
+            sessionId: sessionIdRef.current,
+        }).then((result) => {
             if (cancelled) {
                 return;
             }
@@ -753,15 +895,19 @@ export default function WritingGradingPage() {
                     error: result.error,
                     perTask: {},
                     generatedFromEssayHashByTask: {},
+                    reviewStateByTask: {},
+                    runStateByTask: {},
                 });
             }
             setSuggestionsLoading(false);
+            suggestionGenerationActiveRef.current = false;
         });
 
         return () => {
             cancelled = true;
+            suggestionGenerationActiveRef.current = false;
         };
-    }, [submission?.id]);
+    }, [activeTask, submission]);
 
     const reloadLatestGradingState = useCallback(async () => {
         if (!submissionId || !user?.uid) {
@@ -1196,14 +1342,27 @@ export default function WritingGradingPage() {
 
     useEffect(() => {
         const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-            if (modeRef.current === 'editing' && hasUnsavedChangesRef.current) {
-                event.preventDefault();
+            const hasUnsaved = modeRef.current === 'editing' && hasUnsavedChangesRef.current;
+            const generatingSuggestions = suggestionGenerationActiveRef.current;
+            if (!hasUnsaved && !generatingSuggestions) {
+                return;
+            }
+
+            event.preventDefault();
+            event.returnValue = '';
+            if (generatingSuggestions) {
+                trackAction('showSuggestionLeaveWarning', {
+                    submissionId,
+                    taskNumber: activeTask,
+                    reason: hasUnsaved ? 'unsaved-and-generating' : 'generating',
+                    source: 'beforeunload',
+                });
             }
         };
 
         window.addEventListener('beforeunload', handleBeforeUnload);
         return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-    }, []);
+    }, [activeTask, submissionId, trackAction]);
 
     useEffect(() => () => {
         if (statusTimerRef.current) {
@@ -1283,7 +1442,10 @@ export default function WritingGradingPage() {
             }
         }
         setPanelTab(nextTab);
-    }, [activeTask, panelTab, submissionId, trackAction]);
+        if (nextTab === 'suggestions') {
+            openSuggestionReview('tab');
+        }
+    }, [activeTask, openSuggestionReview, panelTab, submissionId, trackAction]);
 
     const handleFocusComment = useCallback((commentId: string | null) => {
         setFocusedCommentId(commentId);
@@ -1366,7 +1528,26 @@ export default function WritingGradingPage() {
             taskNumber: draft.taskNumber,
             preset: preset?.id || null,
         });
-    }, [pushCommentMutation, setPendingCommentDraft, setTaskState, submissionId, trackAction]);
+        if (
+            pendingSuggestionApproval
+            && pendingSuggestionApproval.kind === 'comment'
+            && pendingSuggestionApproval.taskNumber === draft.taskNumber
+            && pendingSuggestionApproval.from === draft.from
+            && pendingSuggestionApproval.to === draft.to
+        ) {
+            const approvedSuggestion = pendingSuggestionApproval;
+            setPendingSuggestionApproval(null);
+            void persistSuggestionReviewStatus(approvedSuggestion, 'approved', 'approveSuggestion');
+        }
+    }, [
+        pendingSuggestionApproval,
+        persistSuggestionReviewStatus,
+        pushCommentMutation,
+        setPendingCommentDraft,
+        setTaskState,
+        submissionId,
+        trackAction,
+    ]);
 
     const handleAddComment = useCallback((
         selectedText: string,
@@ -1511,6 +1692,7 @@ export default function WritingGradingPage() {
 
     const handleCancelPendingComment = useCallback(() => {
         setPendingCommentDraft(activeTask, null);
+        setPendingSuggestionApproval((current) => current?.kind === 'comment' ? null : current);
     }, [activeTask, setPendingCommentDraft]);
 
     const handleSavePendingComment = useCallback((html: string, categoryId: CommentCategoryId) => {
@@ -1665,6 +1847,11 @@ export default function WritingGradingPage() {
         });
     }, [getCorrectionPopupPosition]);
 
+    const dismissCorrectionRequest = useCallback(() => {
+        setCorrectionRequest(null);
+        setPendingSuggestionApproval((current) => current?.kind === 'correction' ? null : current);
+    }, []);
+
     const applyCorrection = useCallback((correctionText: string) => {
         if (!correctionRequest) {
             return;
@@ -1684,7 +1871,18 @@ export default function WritingGradingPage() {
             taskNumber: activeTask,
         });
         setCorrectionRequest(null);
-    }, [activeTask, correctionRequest, submissionId, trackAction]);
+        if (
+            pendingSuggestionApproval
+            && pendingSuggestionApproval.kind === 'correction'
+            && pendingSuggestionApproval.taskNumber === activeTask
+            && pendingSuggestionApproval.from === correctionRequest.from
+            && pendingSuggestionApproval.to === correctionRequest.to
+        ) {
+            const approvedSuggestion = pendingSuggestionApproval;
+            setPendingSuggestionApproval(null);
+            void persistSuggestionReviewStatus(approvedSuggestion, 'approved', 'approveSuggestion');
+        }
+    }, [activeTask, correctionRequest, pendingSuggestionApproval, persistSuggestionReviewStatus, submissionId, trackAction]);
 
     const deleteCorrection = useCallback(() => {
         if (!correctionRequest || correctionRequest.mode !== 'edit') {
@@ -1723,7 +1921,7 @@ export default function WritingGradingPage() {
         if (pendingCommentDraftsRef.current[suggestion.taskNumber]) {
             setPanelTab('comments');
             showStatus('Finish or cancel the open comment before injecting another suggestion.');
-            return;
+            return false;
         }
 
         setFocusedCommentId(null);
@@ -1743,9 +1941,15 @@ export default function WritingGradingPage() {
             taskNumber: suggestion.taskNumber,
             focus: suggestion.focus,
         });
+        return true;
     }, [focusSuggestionInEssay, setPendingCommentDraft, showStatus, submissionId, trackAction]);
 
     const injectSuggestionCorrection = useCallback((suggestion: WritingSuggestionItem) => {
+        if (correctionRequest) {
+            showStatus('Finish or cancel the open correction before injecting another suggestion.');
+            return false;
+        }
+
         setCorrectionRequest({
             mode: 'create',
             from: suggestion.from,
@@ -1760,7 +1964,47 @@ export default function WritingGradingPage() {
             taskNumber: suggestion.taskNumber,
             focus: suggestion.focus,
         });
-    }, [focusSuggestionInEssay, getCorrectionPopupPosition, submissionId, trackAction]);
+        return true;
+    }, [correctionRequest, focusSuggestionInEssay, getCorrectionPopupPosition, showStatus, submissionId, trackAction]);
+
+    const dismissSuggestion = useCallback((suggestion: WritingSuggestionItem) => {
+        void persistSuggestionReviewStatus(suggestion, 'dismissed', 'dismissSuggestion');
+    }, [persistSuggestionReviewStatus]);
+
+    const restoreSuggestion = useCallback((suggestion: WritingSuggestionItem) => {
+        void persistSuggestionReviewStatus(suggestion, 'pending', 'restoreSuggestion');
+    }, [persistSuggestionReviewStatus]);
+
+    const approveSuggestion = useCallback((suggestion: WritingSuggestionItem) => {
+        if (suggestionApprovalBlockedReason) {
+            showStatus(suggestionApprovalBlockedReason);
+            return;
+        }
+
+        const started = suggestion.kind === 'comment'
+            ? injectSuggestionComment(suggestion)
+            : injectSuggestionCorrection(suggestion);
+
+        if (!started) {
+            return;
+        }
+
+        setPendingSuggestionApproval(suggestion);
+        setSuggestionReviewOpen(false);
+    }, [
+        injectSuggestionComment,
+        injectSuggestionCorrection,
+        showStatus,
+        suggestionApprovalBlockedReason,
+    ]);
+
+    const handleGenerateMoreSuggestions = useCallback(() => {
+        if (suggestionGenerationActive) {
+            return;
+        }
+
+        void loadSuggestions({ force: true, source: 'continue' });
+    }, [loadSuggestions, suggestionGenerationActive]);
 
     const confirmRegradePublish = useCallback(async () => {
         const reason = regradeReason.trim();
@@ -1774,7 +2018,7 @@ export default function WritingGradingPage() {
         await executePublish(reason);
     }, [executePublish, regradeReason]);
 
-    const leaveToQueue = useCallback(async (modeToUse: 'save' | 'discard') => {
+    const executeLeaveIntent = useCallback(async (modeToUse: 'save' | 'discard') => {
         if (modeToUse === 'save') {
             setLeaveDialogSaving(true);
             try {
@@ -1788,19 +2032,41 @@ export default function WritingGradingPage() {
         }
 
         setLeaveDialogOpen(false);
+        const intent = pendingLeaveIntent;
         await releaseLock();
+        if (intent.type === 'route') {
+            navigateTo(intent.route as never, {}, { reason: intent.reason });
+            return;
+        }
+        if (intent.type === 'logout') {
+            await handleLogout();
+            return;
+        }
         navigateTo('TEACHER_GRADING_QUEUE', {}, { reason: 'teacher_grading_back_to_queue' });
-    }, [navigateTo, persistDraft, releaseLock, showStatus]);
+    }, [handleLogout, navigateTo, pendingLeaveIntent, persistDraft, releaseLock, showStatus]);
 
     const handleBackToQueue = useCallback(async () => {
-        if (mode === 'editing' && hasUnsavedChangesRef.current) {
-            setLeaveDialogOpen(true);
+        if (openLeaveWarning('back-to-queue', { type: 'queue' })) {
             return;
         }
 
         await releaseLock();
         navigateTo('TEACHER_GRADING_QUEUE', {}, { reason: 'teacher_grading_back_to_queue' });
-    }, [mode, navigateTo, releaseLock]);
+    }, [navigateTo, openLeaveWarning, releaseLock]);
+
+    const handleTeacherShellNavigateAttempt = useCallback((route: string, reason: string) => {
+        if (openLeaveWarning('header-navigation', { type: 'route', route, reason })) {
+            return false;
+        }
+        return true;
+    }, [openLeaveWarning]);
+
+    const handleTeacherShellLogoutAttempt = useCallback(() => {
+        if (openLeaveWarning('logout', { type: 'logout' })) {
+            return false;
+        }
+        return true;
+    }, [openLeaveWarning]);
 
     const renderTeacherShell = useCallback((content: ReactNode) => (
         <div className="wgp-shell">
@@ -1812,6 +2078,8 @@ export default function WritingGradingPage() {
                 userEmail={profile?.email || user?.email}
                 userAvatarUrl={profile?.avatarUrl || profile?.photoURL || user?.photoURL}
                 onLogout={handleLogout}
+                onNavigateAttempt={handleTeacherShellNavigateAttempt}
+                onLogoutAttempt={handleTeacherShellLogoutAttempt}
             />
             <div className="wgp-shell-content">
                 <div className="wgp-shell-panel">
@@ -1819,7 +2087,7 @@ export default function WritingGradingPage() {
                 </div>
             </div>
         </div>
-    ), [handleLogout, profile?.avatarUrl, profile?.displayName, profile?.email, profile?.photoURL, profile?.role, user?.displayName, user?.email, user?.photoURL, user?.uid]);
+    ), [handleLogout, handleTeacherShellLogoutAttempt, handleTeacherShellNavigateAttempt, profile?.avatarUrl, profile?.displayName, profile?.email, profile?.photoURL, profile?.role, user?.displayName, user?.email, user?.photoURL, user?.uid]);
 
     if (loading) {
         return renderTeacherShell(
@@ -2020,7 +2288,7 @@ export default function WritingGradingPage() {
                             mode={correctionRequest?.mode || 'create'}
                             onApply={applyCorrection}
                             onDelete={correctionRequest?.mode === 'edit' ? deleteCorrection : undefined}
-                            onDismiss={() => setCorrectionRequest(null)}
+                            onDismiss={dismissCorrectionRequest}
                         />
                     </div>
                 </section>
@@ -2095,11 +2363,13 @@ export default function WritingGradingPage() {
                             taskNumber={activeTask}
                             loading={suggestionsLoading}
                             reloading={suggestionsReloading}
-                            canInject={mode === 'editing'}
-                            onReload={() => void loadSuggestions({ force: true })}
-                            onFocusSuggestion={focusSuggestionInEssay}
-                            onInjectComment={injectSuggestionComment}
-                            onInjectCorrection={injectSuggestionCorrection}
+                            runState={activeSuggestionRunState}
+                            canApprove={mode === 'editing'}
+                            canGenerateMore={suggestionCanGenerateMore}
+                            approvalBlockedReason={suggestionApprovalBlockedReason}
+                            onReload={() => void loadSuggestions({ force: true, source: 'force' })}
+                            onGenerateMore={handleGenerateMoreSuggestions}
+                            onOpenReview={() => openSuggestionReview('summary')}
                         />
                     )}
 
@@ -2187,14 +2457,38 @@ export default function WritingGradingPage() {
                 </aside>
             </main>
 
+            <WritingSuggestionsReviewModal
+                open={suggestionReviewOpen}
+                cache={suggestionCache}
+                taskNumber={activeTask}
+                loading={suggestionsLoading}
+                reloading={suggestionsReloading}
+                runState={activeSuggestionRunState}
+                canApprove={mode === 'editing'}
+                canGenerateMore={suggestionCanGenerateMore}
+                approvalBlocked={suggestionApprovalBlocked}
+                approvalBlockedReason={suggestionApprovalBlockedReason}
+                onClose={closeSuggestionReview}
+                onReload={() => void loadSuggestions({ force: true, source: 'force' })}
+                onGenerateMore={handleGenerateMoreSuggestions}
+                onFocusSuggestion={focusSuggestionInEssay}
+                onApproveSuggestion={approveSuggestion}
+                onDismissSuggestion={dismissSuggestion}
+                onRestoreSuggestion={restoreSuggestion}
+            />
+
             {leaveDialogOpen && (
                 <div className="wgp-modal-backdrop" role="presentation">
                     <div className="wgp-modal-card" role="dialog" aria-modal="true" aria-labelledby="wgp-leave-dialog-title">
                         <h2 className="wgp-modal-title" id="wgp-leave-dialog-title">Leave grading page?</h2>
                         <p className="wgp-modal-copy">
-                            {hasAnyPendingCommentDraft
-                                ? 'Open comment composers and unsaved grading changes will be lost unless you save a draft first.'
-                                : 'You have unsaved grading changes. Save a draft before returning to the queue?'}
+                            {leaveWarningMode === 'unsaved-and-generating'
+                                ? 'Writing suggestion generation is still running in this browser, and you also have unsaved grading changes. Leaving now may cancel the AI run and lose unsaved grading work unless you save first.'
+                                : leaveWarningMode === 'generating-only'
+                                    ? 'Writing suggestion generation is still running in this browser. Leaving now may cancel the AI run and require another paid generation later.'
+                                    : hasAnyPendingCommentDraft
+                                        ? 'Open comment composers and unsaved grading changes will be lost unless you save a draft first.'
+                                        : 'You have unsaved grading changes. Save a draft before returning to the queue?'}
                         </p>
                         <div className="wgp-modal-actions">
                             <button
@@ -2203,6 +2497,7 @@ export default function WritingGradingPage() {
                                 onClick={() => {
                                     trackAction('cancelLeave', { submissionId, source: 'grading_dialog' });
                                     setLeaveDialogOpen(false);
+                                    setPendingLeaveIntent({ type: 'queue' });
                                 }}
                                 disabled={leaveDialogSaving}
                             >
@@ -2213,20 +2508,22 @@ export default function WritingGradingPage() {
                                 type="button"
                                 onClick={() => {
                                     trackAction('discardChanges', { submissionId, source: 'grading_dialog' });
-                                    void leaveToQueue('discard');
+                                    void executeLeaveIntent('discard');
                                 }}
                                 disabled={leaveDialogSaving}
                             >
-                                Discard and Leave
+                                {leaveWarningMode === 'generating-only' ? 'Leave Anyway' : 'Discard and Leave'}
                             </button>
-                            <button
-                                className="wgp-primary-btn"
-                                type="button"
-                                onClick={() => void leaveToQueue('save')}
-                                disabled={leaveDialogSaving}
-                            >
-                                {leaveDialogSaving ? 'Saving...' : 'Save Draft and Leave'}
-                            </button>
+                            {leaveWarningMode !== 'generating-only' && (
+                                <button
+                                    className="wgp-primary-btn"
+                                    type="button"
+                                    onClick={() => void executeLeaveIntent('save')}
+                                    disabled={leaveDialogSaving}
+                                >
+                                    {leaveDialogSaving ? 'Saving...' : 'Save Draft and Leave'}
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>

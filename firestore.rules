@@ -298,6 +298,14 @@ service cloud.firestore {
       allow update: if request.auth != null
         && isAssignedWritingTeacher(submissionId);
       allow delete: if false;
+
+      match /generation_runs/{runId} {
+        allow get: if request.auth != null && isAssignedWritingTeacher(submissionId);
+        allow list: if false;
+        allow create, update: if request.auth != null
+          && isAssignedWritingTeacher(submissionId);
+        allow delete: if false;
+      }
     }
 
     match /users/{userId}/settings/{document=**} {

@@ -28,7 +28,7 @@ This pack does not replace the detailed PRD/spec/audit documents. It gives the s
 - the canonical storage contract
 - the grading editor's task-state, draft, lock, and AI-suggestion cache contract
 - the essay editor tool contract, mark-composition boundary, and suggestion-focus command
-- how teacher-only AI suggestions are generated, cached, and injected into existing grading tools
+- how teacher-only AI suggestions are generated, reviewed, cached, diagnostically captured, and injected into existing grading tools
 - how Writing relates to the generic result-view shell and visibility systems
 - which older assumptions are now superseded
 
@@ -66,5 +66,5 @@ Related shared architecture docs:
 - If storage, release gating, ownership, teacher-private helper state, or compatibility rules change, update `contracts-and-governance.md`.
 - If grading-editor task state, draft behavior, suggestion-cache behavior, or result compatibility metadata changes, update `grading-editor-state-and-compatibility.md`.
 - If essay-editor tools, selection routing, focus commands, or mark-composition rules change, update `essay-editor-tool-contract-and-mark-composition.md`.
-- If AI prompt selection, cache normalization, or injection rules change, update `ai-suggestions-and-injection.md`.
+- If AI run scope, review workflow, cache normalization, diagnostic artifacts, or injection rules change, update `ai-suggestions-and-injection.md`.
 - If the source-of-truth spec moves, update the links in this README.
