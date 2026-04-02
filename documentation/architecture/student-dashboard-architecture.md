@@ -115,7 +115,7 @@ Rules:
 - `PendingReviewsWidget` is supplemental only and must not replace or duplicate the shell-owned rail modules
 - `PendingReviewsWidget` must use the open-section editorial layout (section header + item list), not a bordered card or warm-background wrapper — it must visually match shell-owned sections
 - `Up Next` must not be recreated inside the center column
-- do not reintroduce `Feed Snapshot`, `Weekly Focus`, or other dashboard-only override sections on the live route without a new approved architecture update
+- do not reintroduce `Your Updates`, `Weekly Focus`, or other dashboard-only override sections on the live route without a new approved architecture update
 - all rail sections must use v2 editorial tokens — do not reintroduce legacy `localStyles`, `CLASS_COLORS`, or date-badge patterns in the shell rail
 - keep the rail quieter than the center canvas
 

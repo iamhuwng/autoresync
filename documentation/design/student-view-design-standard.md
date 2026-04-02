@@ -246,7 +246,7 @@ After any change to student layout padding, visually verify that the following p
 
 ### Right Rail
 - Right rails should read as quiet contextual composition, not a stack of reusable widgets
-- On dashboard, `Feed Snapshot` is the primary summary surface
+- On dashboard, `Your Updates` is the primary summary surface
 - `Up Next` should sit inside the same visual family as the primary summary, not as a second unrelated widget stack
 - `Public Sessions` should be a sparse supporting list, not another heavy card column
 
