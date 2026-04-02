@@ -132,6 +132,7 @@ Dashboard-owned state:
 - unread-only filter state
 - join-class modal state
 - selected result panel state
+- session unavailable toast message (for stale notification feedback)
 
 Dashboard-owned datasets:
 - paginated notifications
@@ -146,6 +147,23 @@ Shell-owned summaries consumed by dashboard:
 - homework summary groups used for the dashboard metric strip and `Up Next`
 
 Derived view models for the center canvas must be assembled in `StudentDashboardPage.jsx` before being passed to `StudentDashboardFeedView.jsx`.
+
+## Session Navigation Guards
+
+Dashboard notification cards may contain stale references to sessions that have since been ended or deleted by the teacher. The dashboard must validate session existence before navigating.
+
+Contract:
+- `handleNotificationClick` performs a one-shot `get()` against `game_sessions/{sessionCode}` before navigating to `STUDENT_WAITING`
+- if the session node does not exist, an inline toast is shown and navigation is aborted
+- if the session exists but its status is not `waiting` or `in-progress`, an inline toast is shown and navigation is aborted
+- on network error during the check, navigation is allowed as fallback — `StudentWaitingRoomPage` has its own defense-in-depth guards
+- the toast auto-dismisses after 5 seconds
+
+Defense-in-depth:
+- `StudentWaitingRoomPage` also checks session status in its `onValue` listener and redirects to `STUDENT_DASHBOARD` (not LOGIN) if the session is no longer active
+- this two-layer approach (pre-navigation check + in-page guard) prevents students from ever seeing a broken waiting room for ended sessions
+
+See: `documentation/rules/navigation.md` Rule 4 for the canonical pattern.
 
 ## Verification Boundary
 

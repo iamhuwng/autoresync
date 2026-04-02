@@ -1,0 +1,47 @@
+{
+  "docPath": "patterns/session-navigation-guard-pattern",
+  "currentVersion": 1,
+  "versions": [
+    {
+      "id": "v1",
+      "docPath": "patterns/session-navigation-guard-pattern",
+      "version": 1,
+      "timestamp": "2026-04-02T00:08:55.1106883Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "Session Navigation Guard Pattern"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "Pattern for preventing navigation to session pages from stale/cached references. Two-layer guard: pre-navigation Firebase get() + in-page status check."
+        },
+        {
+          "field": "tags",
+          "oldValue": null,
+          "newValue": [
+            "session",
+            "navigation",
+            "security",
+            "guard",
+            "firebase"
+          ]
+        }
+      ],
+      "snapshot": {
+        "content": "# Session Navigation Guard Pattern\n\n## Problem (2026-04-01)\n\nStudents could access the waiting lobby by clicking notification cards on the dashboard even after the teacher had ended or deleted the session. The notification metadata contained a `sessionCode` that was valid at creation time but pointed to a session that no longer existed or had moved to `completed` status.\n\n## Root Cause\n\n`handleNotificationClick` in `StudentDashboardPage.jsx` directly called `navigateTo('STUDENT_WAITING', ...)` when a `sessionCode` was present in notification metadata, without checking the session's current state in RTDB.\n\n`StudentWaitingRoomPage.jsx` redirected to LOGIN when `sessionData` was null (deleted), but did not handle `completed` sessions — it only checked for active transitions (`waiting` → `in-progress`).\n\n## Solution: Two-Layer Guard\n\n### Layer 1: Pre-Navigation Check (Dashboard)\n\nIn `handleNotificationClick`, before navigating:\n\n```js\nconst snapshot = await get(ref(database, `game_sessions/${sessionCode}`));\nif (!snapshot.exists()) {\n  // Session deleted — show toast, abort\n  return;\n}\nif (!['waiting', 'in-progress'].includes(snapshot.val().status)) {\n  // Session ended — show toast, abort\n  return;\n}\n// Safe to navigate\n```\n\n**Key decisions:**\n- Uses one-shot `get()` instead of `onValue` — we only need a point-in-time check\n- On network error, allows navigation as fallback (waiting room has its own guards)\n- Toast auto-dismisses after 5 seconds\n- Tracked via `sessionNotificationBlocked` action for observability\n\n### Layer 2: Defense-in-Depth (Waiting Room)\n\nIn `StudentWaitingRoomPage.jsx`, inside the `onValue` listener:\n\n```js\nif (sessionData.status \u0026\u0026 !['waiting', 'in-progress'].includes(sessionData.status)) {\n  navigateTo('STUDENT_DASHBOARD', {}, { reason: 'session_ended', replace: true });\n  return;\n}\n```\n\n**Key decisions:**\n- Redirects to `STUDENT_DASHBOARD` (not LOGIN) since the student is authenticated\n- Uses `replace: true` to prevent back-button loops\n- Acts as a safety net for race conditions between dashboard check and page mount\n\n## When This Pattern Applies\n\nUse this pre-navigation validation when navigation to a session page is triggered from:\n- Stored notification metadata\n- Cached links\n- Deep links with session codes\n- Any non-real-time source\n\n**Exception:** Real-time RTDB listeners (e.g., `onValue` in `StudentRightRail`) do NOT need this check — their data is inherently current.\n\n## Files Modified\n\n- `src/pages/StudentDashboardPage.jsx` — async `handleNotificationClick` with `get()` validation\n- `src/pages/StudentWaitingRoomPage.jsx` — defense-in-depth status guard in `onValue` listener\n\n## Related Documentation\n\n- `documentation/rules/navigation.md` (Rule 4)\n- `documentation/architecture/student-dashboard-architecture.md` (Session Navigation Guards section)\n- `documentation/integration-safety-rules.md` (Rule 4 in Quick Trigger Table)\n",
+        "description": "Pattern for preventing navigation to session pages from stale/cached references. Two-layer guard: pre-navigation Firebase get() + in-page status check.",
+        "tags": [
+          "session",
+          "navigation",
+          "security",
+          "guard",
+          "firebase"
+        ],
+        "title": "Session Navigation Guard Pattern"
+      }
+    }
+  ]
+}

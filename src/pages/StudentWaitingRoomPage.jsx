@@ -166,6 +166,14 @@ const StudentWaitingRoomPage = () => {
         return;
       }
 
+      // Defense-in-depth: if session exists but is completed/ended, redirect to dashboard
+      const activeStatuses = ['waiting', 'in-progress'];
+      if (sessionData.status && !activeStatuses.includes(sessionData.status)) {
+        console.warn('⚠️ [WaitingRoom] Session is no longer active (status:', sessionData.status, '), redirecting to dashboard');
+        navigateTo('STUDENT_DASHBOARD', {}, { reason: 'session_ended', replace: true });
+        return;
+      }
+
       const currentPlayerData = playerId ? sessionData.players?.[playerId] : null;
       const submissionResetAt = currentPlayerData?.submissionResetAt;
 

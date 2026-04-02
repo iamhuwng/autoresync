@@ -2,7 +2,7 @@
 title: Student View Design Standard
 description: Design standards and patterns for all student-facing pages and views
 createdAt: '2026-02-27T15:25:53.999Z'
-updatedAt: '2026-04-01T21:36:36.576Z'
+updatedAt: '2026-04-01T22:47:15.240Z'
 tags:
   - design
   - student
@@ -200,7 +200,8 @@ The old rigid `max-width: 600px` center rule is replaced with page-class widths:
 - Prefer white or tonal surface blocks with little or no shadow
 - Repeated framed cards should be avoided when a tonal grouping can do the job
 - No double-framed widgets
-
+- **Feed cards** use a flat white card (`#ffffff` bg, `1px #eceef0` border, `2px` radius) — the same token as right-rail widget cards
+- Feed card boxing wraps only the content body; timeline rails (circle + stem) must stay outside the card boundary
 ### Buttons
 - Buttons are compact and restrained
 - Favor small rectangular-soft radii instead of fully pill-shaped controls as the default
@@ -242,11 +243,14 @@ The old rigid `max-width: 600px` center rule is replaced with page-class widths:
   `masthead with light utilities/search -> frameless metric strip -> slim editorial tabs -> timeline feed`
 - The metric strip sits above the tab row
 - Activity items should read as timeline/editorial rows with a left node rail, quiet metadata, strong titles, and restrained inline actions
+- **Feed Card Boxing**: Each feed row's content body is wrapped in a flat white card (`#ffffff` bg, `1px #eceef0` border, `2px` radius, `20px 22px` padding) matching the right-rail v2 card pattern. The timeline rail (circle icon + stem line) stays **outside** the card box to preserve visual timeline continuity
+- **Feed Separator**: A 1px horizontal separator line (`borderWhisper` token) runs below each card, aligned to the card's left edge (`marginLeft: 66px` = 42px rail + 24px gap), with `24px` vertical margin above and below
+- **Feed Spacing**: Feed gap is `0` (separator handles all vertical spacing between cards)
+- **Live Now Banner**: When live sessions exist, the `Live Now` widget appears at the **top** of the right rail on this page (shared across all student pages)
 - Tests should be score-led timeline rows
 - Homework rows should use one quiet inset excerpt or meta surface
 - Class updates should stay mostly textual with one restrained action
 - Avoid nested CTA cards, stacked widget boxes, and boxed three-column emphasis; keep the shell soft and composed
-
 ### Homework
 - List-first workboard
 - Summary strip + tabs + vertical assignment list
@@ -406,3 +410,20 @@ All interactive rows must implement the `onMouseEnter`/`onMouseLeave` background
 - Codifies: date badges (42×42 white, whisper border), lowercase pills with SVG icons, `rail-title-marquee` class, `S.widgetTitle` headers
 - Bans: emoji squares, UPPERCASE pill labels, count badges in section headers, bordered cards around individual items
 - Applied to: Up Next, Pending Reviews, and any future right-rail list modules
+
+
+### 2026-04-02: Feed Card Boxing
+- Each feed notification row's content body is now wrapped in a flat white card (`#ffffff` bg, `1px #eceef0` border, `2px` radius) matching the right-rail v2 card pattern
+- Timeline rail (circle icon + vertical stem) remains **outside** the card to preserve visual timeline continuity
+- Added 1px horizontal separator line below each card, aligned to card's left edge (offset 66px for rail+gap)
+- Feed gap changed from `48px` to `0` — all vertical spacing managed by separator margins (24px above + 24px below)
+- Article element restructured: outer article (block) wraps inner flex row (rail + card) + separator div
+- Hover effect applies to full article background, not individual card border
+
+
+### 2026-04-02: Live Now Banner Unification
+- Unified `Live Now` widget as a shared `renderLiveNowBanner()` rendered at the **top** of the right rail across ALL page variants (dashboard, default, academic-record)
+- Live Now card uses thin red border (`1px solid #d93025`), transparent background — distinct from content cards
+- Removed three duplicate `renderLiveSessionsSection` implementations; single source of truth
+- Real-time auto-appear/auto-update via existing RTDB `onValue` subscriptions (no polling, no refresh needed)
+- Banner conditionally renders only when `classLiveSessions.length > 0`

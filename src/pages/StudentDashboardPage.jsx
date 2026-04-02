@@ -1,5 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ref, get } from 'firebase/database';
+import { database } from '../services/firebase';
 import { useAuth } from '../hooks/useAuth';
 import { enrollStudent } from '../services/classManager';
 import { getPaginatedUserNotifications, markNotificationAsRead, subscribeToNewNotifications } from '../services/notificationService';
@@ -368,7 +370,9 @@ const StudentDashboardPage = () => {
         }
     };
 
-    const handleNotificationClick = notification => {
+    const [sessionUnavailableMsg, setSessionUnavailableMsg] = useState(null);
+
+    const handleNotificationClick = async (notification) => {
         try {
             if (user?.uid) {
                 markNotificationAsRead(user.uid, notification.id);
@@ -380,6 +384,30 @@ const StudentDashboardPage = () => {
         const { sessionCode } = notification.metadata || {};
         if (sessionCode) {
             trackAction('openSessionNotification', { sessionCode });
+
+            // ── Pre-navigation session validation ──
+            // Check if session still exists and is active before navigating
+            try {
+                const sessionSnapshot = await get(ref(database, `game_sessions/${sessionCode}`));
+                if (!sessionSnapshot.exists()) {
+                    trackAction('sessionNotificationBlocked', { sessionCode, reason: 'deleted' });
+                    setSessionUnavailableMsg('This session has been deleted and is no longer available.');
+                    setTimeout(() => setSessionUnavailableMsg(null), 5000);
+                    return;
+                }
+                const sessionData = sessionSnapshot.val();
+                const activeStatuses = ['waiting', 'in-progress'];
+                if (sessionData.status && !activeStatuses.includes(sessionData.status)) {
+                    trackAction('sessionNotificationBlocked', { sessionCode, reason: 'ended', status: sessionData.status });
+                    setSessionUnavailableMsg('This session has ended and is no longer accepting students.');
+                    setTimeout(() => setSessionUnavailableMsg(null), 5000);
+                    return;
+                }
+            } catch (checkError) {
+                console.warn('⚠️ Session pre-check failed, allowing navigation as fallback:', checkError);
+                // On network error, allow navigation — the WaitingRoom page has its own guards
+            }
+
             sessionService.setPlayerData(user.uid, user.displayName || user.email || 'Student', sessionCode);
             navigateTo('STUDENT_WAITING', { gameSessionId: sessionCode }, { reason: 'dashboard_session_notification' });
             return;
@@ -530,6 +558,32 @@ const StudentDashboardPage = () => {
                     onLoadMore={handleLoadMore}
                 />
             </StudentLayout>
+
+            {/* Session unavailable toast — shown when notification points to ended/deleted session */}
+            {sessionUnavailableMsg && (
+                <div
+                    role="alert"
+                    style={{
+                        position: 'fixed',
+                        bottom: 24,
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        background: '#2b3437',
+                        color: '#faf6ff',
+                        padding: '12px 24px',
+                        borderRadius: 12,
+                        fontSize: '0.875rem',
+                        fontWeight: 500,
+                        zIndex: 2000,
+                        boxShadow: '0 8px 32px rgba(43, 52, 55, 0.25)',
+                        maxWidth: '90vw',
+                        textAlign: 'center',
+                        animation: 'fadeInUp 0.3s ease',
+                    }}
+                >
+                    {sessionUnavailableMsg}
+                </div>
+            )}
 
             {showJoinModal ? (
                 <>

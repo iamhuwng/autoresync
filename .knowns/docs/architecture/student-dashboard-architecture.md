@@ -2,7 +2,7 @@
 title: Student Dashboard Architecture
 description: Source of truth for the live student dashboard center canvas, shared rail composition, result-opening behavior, and v2 editorial right-rail token compliance.
 createdAt: '2026-03-31T22:18:34.333Z'
-updatedAt: '2026-04-01T21:37:57.357Z'
+updatedAt: '2026-04-01T22:47:46.275Z'
 tags:
   - architecture
   - student
@@ -178,3 +178,67 @@ Verification checklist:
 - @doc/architecture/student-experience-architecture
 - @doc/architecture/student-shell-right-rail-architecture
 - @doc/architecture/student-shell-data-loading-architecture
+
+
+## Feed Card Boxing (added 2026-04-02)
+
+The feed was modernized to wrap each notification row's content body in a flat white card while preserving the editorial timeline aesthetic.
+
+### Structure
+
+```
+<article>                        ← block container (cursor: pointer, hover bg)
+  <div style={row}>              ← flex row (gap: 24px)
+    <div style={rail}>           ← timeline rail (42px wide)
+      <div style={node}>         ← colored circle icon
+      <div style={stem}>         ← 1px vertical connector line
+    </div>
+    <div style={rowBody}>        ← WHITE CARD (flex: 1)
+      meta row  →  title  →  content variant
+    </div>
+  </div>
+  <div style={feedSeparator}>    ← 1px horizontal line (marginLeft: 66px)
+</article>
+```
+
+### Card Token Compliance
+
+| Token | Value | Source |
+|---|---|---|
+| `background` | `#ffffff` | v2 card standard |
+| `border` | `1px solid #eceef0` | v2 `borderWhisper` |
+| `borderRadius` | `2px` | v2 flat card |
+| `padding` | `20px 22px` | v2 card padding |
+
+### Separator
+
+- 1px height, `borderWhisper` background
+- `marginLeft: 66px` (42px rail width + 24px gap) — aligns with card left edge
+- `marginTop: 24px`, `marginBottom: 24px` — controls all inter-card spacing
+- Feed container `gap: 0` — separator is sole spacing mechanism
+
+### Rules
+
+- The timeline rail (circle + stem) must remain **outside** the card box
+- The separator must align to the card's left edge, not the full row
+- The article hover applies to the entire row (including rail), not just the card
+- Do not add `box-shadow` or increased `borderRadius` to feed cards — keep flat and editorial
+- Do not remove the timeline stem — it is a defining visual element of the editorial feed
+
+
+## Live Now Position Contract (added 2026-04-02)
+
+The Live Now banner is rendered at the **top** of the right rail via a shared `renderLiveNowBanner()` function, before any variant-specific content.
+
+Rendering order for all variants:
+1. **Live Now** (if sessions exist) — red-bordered card, transparent background
+2. Variant-specific content (Feed Snapshot, Up Next, Academic Advisor, etc.)
+3. My Classes / supplemental content
+
+Rules:
+- Live Now MUST appear at position 1 in the right rail on ALL pages
+- Uses existing RTDB real-time subscriptions — auto-appear/disappear without refresh
+- Styled with `1px solid #d93025` border, no background (distinct from content cards)
+- Maximum 5 sessions displayed
+- Do not move Live Now below other content in any variant
+- Do not duplicate Live Now between variants — single `renderLiveNowBanner()` source

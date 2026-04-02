@@ -2,7 +2,7 @@
 title: Student Shell Right Rail Architecture
 description: Architecture contract for the shared student shell layout, right rail ownership, v2 editorial token system, and dashboard supplemental rail pattern. All three variants (dashboard, default, academic-record) use the unified v2 tokens as of 2026-04-02.
 createdAt: '2026-03-30T03:14:40.723Z'
-updatedAt: '2026-04-01T21:37:56.295Z'
+updatedAt: '2026-04-01T22:47:36.921Z'
 tags:
   - architecture
   - student
@@ -153,3 +153,12 @@ Key files:
 - **Explicit "Awaiting review" status pill** with amber dot replaces bare status dot
 - **Marquee hover** via `rail-title-marquee` class for long truncated titles
 - Net result: Pending Reviews section is now visually indistinguishable in structure from Up Next, creating a cohesive right-rail experience
+
+
+### 2026-04-02: Live Now Banner Unification
+- **Shared `renderLiveNowBanner()`** replaces three duplicate Live Now rendering implementations (dashboard, default, academic-record variants)
+- Live Now now renders at the **top** of the right rail on **ALL** student pages — previously only appeared in default variant's top position; dashboard had it below Feed Snapshot
+- **Red border card**: `1px solid #d93025`, transparent background — visually distinct from content cards (which use whisper borders)
+- **Real-time**: Uses existing RTDB `onValue` subscriptions via `subscribeToActiveSessions` + `subscribeToSession` — sessions auto-appear/disappear without page refresh
+- **Conditional rendering**: Banner only renders when `classLiveSessions.length > 0`
+- **Position contract**: Live Now MUST appear before all other right-rail content in every variant

@@ -1,8 +1,8 @@
 # Integration Safety Rules — Index
 
-> 19 active rules from real production bugs. **DO NOT read the full rule files upfront.**
+> 20 active rules from real production bugs. **DO NOT read the full rule files upfront.**
 > Only load the relevant category file when a trigger condition is met.
-> Updated 2026-03-14: Removed Rules 4, 5 (dnd-kit, now inline comments), Rule 16 (WebMCP, retired).
+> Updated 2026-04-01: Added Rule 4 (session existence validation before navigation from stored refs).
 
 ## Quick Trigger Table
 
@@ -11,6 +11,7 @@
 | 1 | Writing `navigate()`, links, or redirect URLs | `documentation/rules/navigation.md` |
 | 2 | Navigating to a page that reads prerequisite state | `documentation/rules/navigation.md` |
 | 3 | Writing a new nav handler, auth flow, or session entry | `documentation/rules/navigation.md` |
+| 4 | Navigating to session pages from stored/cached references | `documentation/rules/navigation.md` |
 | 6 | Writing `useEffect` with `setInterval`/`setTimeout` + state deps | `documentation/rules/react-patterns.md` |
 | 7 | Creating state initialized as `'pending'`, `'loading'` | `documentation/rules/react-patterns.md` |
 | 8 | Creating a new component intended for use in another page | `documentation/rules/react-patterns.md` |
@@ -32,7 +33,7 @@
 
 | File | Rules | Topic |
 |------|-------|-------|
-| `rules/navigation.md` | 1, 2, 3 | Routes, page-entry handshakes, pattern-first research |
+| `rules/navigation.md` | 1, 2, 3, 4 | Routes, page-entry handshakes, pattern-first research, session validation |
 | `rules/react-patterns.md` | 6, 7, 8 | Intervals, state machines, component integration |
 | `rules/infrastructure.md` | 10, 11, 12, 13, 14 | Git sync, DB rules, CF Workers, shared IDs |
 | `rules/codebase-hygiene.md` | 9, 15, 17 | Grep audits, Mantine ban, data contracts |
@@ -42,6 +43,5 @@
 
 | # | Rule | Reason | Knowledge location |
 |---|------|--------|-------------------|
-| 4 | dnd-kit re-measurement | Only 3 files, stable | Inline comments in `THCSDndSectionsContainer.tsx`, `DragDropMatchingInput.tsx` |
 | 5 | No setPointerCapture | Only 2 files, already fixed | Inline comments in `THCSDndSectionsContainer.tsx` |
 | 16 | WebMCP tool registration | Fully removed 2026-03-14 | `documentation/archive/webmcp-final-backup-2026-03-14/` |
