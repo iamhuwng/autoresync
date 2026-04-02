@@ -175,6 +175,7 @@ const styles = {
     },
     tabs: {
         display: 'flex',
+        justifyContent: 'center',
         gap: 28,
         overflowX: 'auto',
         padding: '0 0 18px',
@@ -236,6 +237,7 @@ const styles = {
         color: studentTokens.textBody,
     },
     tabsWrap: {
+        marginTop: 16,
         marginBottom: 40,
         borderBottom: `1px solid ${studentTokens.borderWhisper}`,
     },
