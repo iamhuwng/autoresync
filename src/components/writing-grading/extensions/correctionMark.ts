@@ -1,12 +1,13 @@
 /**
- * correctionMark — Custom TipTap Mark Extension
+ * correctionMark - Custom TipTap Mark Extension
  *
- * Renders a correction indicator: the original text gets a line-through (strikethrough),
- * and the correction text is appended inline via CSS ::after pseudo-element:
- *   ~~original~~ → correction
+ * Renders a correction indicator where the original text is struck through
+ * and the replacement text is rendered as a separate inline node:
+ *   ~~original~~ -> correction
  *
- * The correction text is stored in a `data-correction` attribute and rendered
- * via `content: " → " attr(data-correction)` in CSS (see essayEditorStyles.css).
+ * The correction text remains stored in `data-correction` for persistence,
+ * but the visible replacement is rendered outside the editable content hole so
+ * it does not inherit strikethrough from the original text.
  *
  * @see specs/grading-editor-redesign FR-9, FR-10
  * @module extensions/correctionMark
@@ -40,13 +41,8 @@ declare module '@tiptap/core' {
 export const CorrectionMark = Mark.create<CorrectionMarkOptions>({
     name: 'correctionMark',
 
-    // Standard priority — no overlap concerns with highlight
     priority: 1000,
-
-    // Don't extend mark when typing at the boundary
     inclusive: false,
-
-    // Correction excludes other corrections on same text (can't double-correct)
     excludes: 'correctionMark',
 
     addOptions() {
@@ -61,7 +57,10 @@ export const CorrectionMark = Mark.create<CorrectionMarkOptions>({
                 default: null,
                 parseHTML: (element: HTMLElement) => element.getAttribute('data-correction'),
                 renderHTML: (attributes: Record<string, string>) => {
-                    if (!attributes.correctionText) return {};
+                    if (!attributes.correctionText) {
+                        return {};
+                    }
+
                     return { 'data-correction': attributes.correctionText };
                 },
             },
@@ -77,15 +76,16 @@ export const CorrectionMark = Mark.create<CorrectionMarkOptions>({
     },
 
     renderHTML({ HTMLAttributes }) {
+        const correctionText = HTMLAttributes['data-correction'] || '';
+
         return [
             'span',
             mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
                 class: 'correction-mark',
-                // Inline style for strikethrough + grayed text
-                // The ::after pseudo-element (in CSS) renders " → correctionText" in green
-                style: 'text-decoration: line-through; color: #94a3b8;',
+                'data-correction': correctionText,
             }),
-            0, // 0 = render child content (the original text, now struck through)
+            ['span', { class: 'correction-mark-original' }, 0],
+            ['span', { class: 'correction-mark-replacement', contenteditable: 'false' }, ` -> ${correctionText}`],
         ];
     },
 
@@ -93,14 +93,10 @@ export const CorrectionMark = Mark.create<CorrectionMarkOptions>({
         return {
             setCorrectionMark:
                 (attributes) =>
-                    ({ commands }) => {
-                        return commands.setMark(this.name, attributes);
-                    },
+                    ({ commands }) => commands.setMark(this.name, attributes),
             unsetCorrectionMark:
                 () =>
-                    ({ commands }) => {
-                        return commands.unsetMark(this.name);
-                    },
+                    ({ commands }) => commands.unsetMark(this.name),
         };
     },
 });

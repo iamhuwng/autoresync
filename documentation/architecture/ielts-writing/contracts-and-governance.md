@@ -97,3 +97,21 @@ Homework timing and resume rules:
 - single-attempt homework must auto-resume saved local progress and must not show a restart choice
 - if a resume decision modal is shown for multi-attempt homework, the timer must pause while that decision is pending
 - timer expiry in homework mode must auto-submit the homework attempt instead of leaving a local-only draft
+
+## 2026-04-02 Amendment - Grading Editor Selection And Correction Rendering Contract
+
+The teacher grading editor now treats the current text selection as a first-class interaction state for fixed-toolbar actions.
+
+Selection-preservation rules:
+- fixed-toolbar annotation actions that operate on the active essay selection must execute from `mousedown` and prevent the browser's default blur behavior
+- the grading editor must not depend on `click` for selection-scoped toolbar actions because the selection may collapse before the command runs
+- if selection geometry cannot be resolved for the floating bubble menu, the menu should hide instead of throwing or breaking the editor session
+
+Correction-rendering rules:
+- correction markup must render the original text and the replacement text as separate inline DOM nodes
+- the original text remains struck through and visually muted
+- the replacement text must never inherit the original strikethrough styling
+- the visible replacement text should remain non-editable annotation output, not part of the student's editable essay content
+
+Queued correction-application rule:
+- when replaying a queued correction against a stored selection range, the editor should apply the mark directly without forcing an extra focus-and-scroll cycle first

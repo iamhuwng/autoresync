@@ -2,7 +2,7 @@
 title: IELTS Writing Grading Editor Finalization 2026-03-30
 description: Finalized source of truth for the teacher writing grading editor layout, comment interactions, ordering rules, and containment inside the teacher shell.
 createdAt: '2026-03-29T20:16:53.672Z'
-updatedAt: '2026-03-30T03:30:19.251Z'
+updatedAt: '2026-04-02T03:54:22.020Z'
 tags:
   - spec
   - ielts
@@ -164,3 +164,21 @@ Implementation note:
 - The grading page provides the clicked annotation viewport top from the essay editor into the comments sidebar.
 - The comments sidebar measures the selected comment header within the natural rail and translates the whole rail from that stable offset.
 - The alignment math must not depend on center-based card positioning or temporary floating-card overlays.
+
+## 2026-04-02 Amendment - Selection-Safe Toolbar And Correction Rendering
+
+The teacher grading editor now treats the active essay selection as a durable interaction state for fixed-toolbar actions.
+
+Selection-handling rules:
+- Fixed-toolbar annotation actions that operate on the current essay selection must run from `mousedown` and prevent the default blur behavior so the selection does not collapse before the command executes.
+- Selection-scoped toolbar actions must not rely on `click` when the action depends on the live selection range.
+- If selection geometry cannot be resolved for the floating bubble menu, the menu should hide instead of throwing or destabilizing the editor session.
+
+Correction-rendering rules:
+- Correction markup must render the original text and the replacement text as separate inline DOM nodes.
+- The original text remains struck through and visually muted.
+- The replacement text must never inherit the original strikethrough styling.
+- The visible replacement text remains non-editable annotation output, not part of the student's editable essay content.
+
+Queued correction application:
+- Replaying a queued correction against a stored selection range should apply the correction mark directly without forcing an extra focus-and-scroll cycle first.

@@ -247,10 +247,22 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                 return;
             }
 
-            // Get the DOM rect of the selection
-            const view = editor.view;
-            const startCoords = view.coordsAtPos(from);
-            const endCoords = view.coordsAtPos(to);
+            let startCoords;
+            let endCoords;
+
+            try {
+                const view = editor.view;
+                startCoords = view.coordsAtPos(from);
+                endCoords = view.coordsAtPos(to);
+            } catch {
+                setBubbleMenuPos(null);
+                return;
+            }
+
+            if (!startCoords || !endCoords) {
+                setBubbleMenuPos(null);
+                return;
+            }
 
             // Position above the selection, centered
             const containerRect = editorContainerRef.current?.getBoundingClientRect();
@@ -383,7 +395,6 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
 
         lastCorrectionNonceRef.current = pendingCorrection.nonce;
         editor.chain()
-            .focus()
             .setTextSelection({ from: pendingCorrection.from, to: pendingCorrection.to })
             .setCorrectionMark({ correctionText: pendingCorrection.correctionText })
             .run();
@@ -417,6 +428,10 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
         setViewMode(mode);
         onViewModeChange(mode);
     }, [onViewModeChange]);
+
+    const preventToolbarBlur = useCallback((event: React.MouseEvent<HTMLElement>) => {
+        event.preventDefault();
+    }, []);
 
     const handleHighlight = useCallback((color?: string) => {
         if (!editor) return;
@@ -497,7 +512,10 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                         <div className="toolbar-btn-group" ref={highlightDropdownRef}>
                             <button
                                 className={`toolbar-btn ${editor.isActive('highlight') ? 'active' : ''}`}
-                                onClick={() => handleHighlight()}
+                                onMouseDown={(event) => {
+                                    preventToolbarBlur(event);
+                                    handleHighlight();
+                                }}
                                 title="Highlight (Ctrl+Shift+H)"
                                 id="toolbar-highlight"
                             >
@@ -507,7 +525,10 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                             </button>
                             <button
                                 className="toolbar-btn toolbar-dropdown-arrow"
-                                onClick={() => setShowHighlightDropdown(!showHighlightDropdown)}
+                                onMouseDown={(event) => {
+                                    preventToolbarBlur(event);
+                                    setShowHighlightDropdown(!showHighlightDropdown);
+                                }}
                                 title="Highlight colors"
                                 id="toolbar-highlight-dropdown"
                             >
@@ -520,7 +541,10 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                                             key={c.name}
                                             className="color-dot"
                                             style={{ backgroundColor: c.color, border: `2px solid ${c.hex}` }}
-                                            onClick={() => handleHighlight(c.color)}
+                                            onMouseDown={(event) => {
+                                                preventToolbarBlur(event);
+                                                handleHighlight(c.color);
+                                            }}
                                             title={c.name}
                                             id={`highlight-color-${c.name.toLowerCase()}`}
                                         />
@@ -534,7 +558,10 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                         {/* Comment */}
                         <button
                             className="toolbar-btn"
-                            onClick={handleAddComment}
+                            onMouseDown={(event) => {
+                                preventToolbarBlur(event);
+                                handleAddComment();
+                            }}
                             disabled={editor.state.selection.empty}
                             title="Add Comment (Ctrl+Shift+M)"
                             id="toolbar-comment"
@@ -545,7 +572,10 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                         {/* Strikethrough */}
                         <button
                             className={`toolbar-btn ${editor.isActive('strike') ? 'active' : ''}`}
-                            onClick={handleStrikethrough}
+                            onMouseDown={(event) => {
+                                preventToolbarBlur(event);
+                                handleStrikethrough();
+                            }}
                             disabled={editor.state.selection.empty}
                             title="Strikethrough"
                             id="toolbar-strikethrough"
@@ -556,7 +586,10 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                         {/* Correction */}
                         <button
                             className="toolbar-btn"
-                            onClick={handleCorrection}
+                            onMouseDown={(event) => {
+                                preventToolbarBlur(event);
+                                handleCorrection();
+                            }}
                             disabled={editor.state.selection.empty}
                             title="Correction"
                             id="toolbar-correction"
@@ -568,7 +601,10 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                         <div className="toolbar-btn-group" ref={colorDropdownRef}>
                             <button
                                 className="toolbar-btn"
-                                onClick={() => setShowColorDropdown(!showColorDropdown)}
+                                onMouseDown={(event) => {
+                                    preventToolbarBlur(event);
+                                    setShowColorDropdown(!showColorDropdown);
+                                }}
                                 title="Text Color"
                                 id="toolbar-text-color"
                             >
@@ -581,7 +617,10 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                                             key={c.name}
                                             className="color-dot"
                                             style={{ backgroundColor: c.color }}
-                                            onClick={() => handleTextColor(c.color)}
+                                            onMouseDown={(event) => {
+                                                preventToolbarBlur(event);
+                                                handleTextColor(c.color);
+                                            }}
                                             title={c.name}
                                             id={`text-color-${c.name.toLowerCase()}`}
                                         />
@@ -595,7 +634,10 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                         {/* Undo / Redo */}
                         <button
                             className="toolbar-btn"
-                            onClick={handleUndo}
+                            onMouseDown={(event) => {
+                                preventToolbarBlur(event);
+                                handleUndo();
+                            }}
                             disabled={!editor.can().undo()}
                             title="Undo (Ctrl+Z)"
                             id="toolbar-undo"
@@ -604,7 +646,10 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                         </button>
                         <button
                             className="toolbar-btn"
-                            onClick={handleRedo}
+                            onMouseDown={(event) => {
+                                preventToolbarBlur(event);
+                                handleRedo();
+                            }}
                             disabled={!editor.can().redo()}
                             title="Redo (Ctrl+Y)"
                             id="toolbar-redo"

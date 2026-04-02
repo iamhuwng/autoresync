@@ -1,0 +1,104 @@
+import { render, waitFor } from '@testing-library/react';
+import type { ComponentProps } from 'react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import EssayEditor from './EssayEditor';
+
+function renderEditor(overrides: Partial<ComponentProps<typeof EssayEditor>> = {}) {
+    return render(
+        <EssayEditor
+            originalEssayText="Hello world"
+            initialContent={null}
+            wordCount={2}
+            activeTimeSeconds={120}
+            taskNumber={1}
+            onAddComment={vi.fn()}
+            onGutterDotClick={vi.fn()}
+            onCommentMarkClick={vi.fn()}
+            onViewModeChange={vi.fn()}
+            {...overrides}
+        />,
+    );
+}
+
+const rect = {
+    x: 0,
+    y: 0,
+    width: 120,
+    height: 24,
+    top: 0,
+    left: 0,
+    right: 120,
+    bottom: 24,
+    toJSON() {
+        return this;
+    },
+};
+
+describe('EssayEditor', () => {
+    beforeEach(() => {
+        Object.defineProperty(HTMLElement.prototype, 'getBoundingClientRect', {
+            configurable: true,
+            value: () => rect,
+        });
+        Object.defineProperty(HTMLElement.prototype, 'getClientRects', {
+            configurable: true,
+            value: () => ({
+                length: 1,
+                item: () => rect,
+                [Symbol.iterator]: function* iterator() {
+                    yield rect;
+                },
+            }),
+        });
+        Object.defineProperty(Range.prototype, 'getBoundingClientRect', {
+            configurable: true,
+            value: () => rect,
+        });
+        Object.defineProperty(Range.prototype, 'getClientRects', {
+            configurable: true,
+            value: () => ({
+                length: 1,
+                item: () => rect,
+                [Symbol.iterator]: function* iterator() {
+                    yield rect;
+                },
+            }),
+        });
+    });
+
+    it('renders correction replacement text outside the struck-through original span', async () => {
+        const { container } = renderEditor({
+            pendingCorrection: {
+                from: 1,
+                to: 6,
+                correctionText: 'Hi',
+                nonce: 1,
+            },
+        });
+
+        await waitFor(() => {
+            expect(container.querySelector('.correction-mark')).toBeTruthy();
+        });
+
+        expect(container.querySelector('.correction-mark-original')?.textContent).toBe('Hello');
+        expect(container.querySelector('.correction-mark-replacement')?.textContent).toBe(' -> Hi');
+    });
+
+    it('renders the visible replacement text as a non-editable span', async () => {
+        const { container } = renderEditor({
+            pendingCorrection: {
+                from: 1,
+                to: 6,
+                correctionText: 'Hi',
+                nonce: 1,
+            },
+        });
+
+        await waitFor(() => {
+            expect(container.querySelector('.correction-mark-replacement')).toBeTruthy();
+        });
+
+        expect(container.querySelector('.correction-mark-replacement')).toHaveAttribute('contenteditable', 'false');
+        expect(container.querySelector('.correction-mark-replacement')?.textContent).toBe(' -> Hi');
+    });
+});
