@@ -1,4 +1,4 @@
-# IELTS Writing Grading Editor State And Compatibility
+﻿# IELTS Writing Grading Editor State And Compatibility
 
 ## Purpose
 
@@ -129,3 +129,26 @@ It focuses on the parts that were previously brittle:
 - `essay-editor-tool-contract-and-mark-composition.md`
 - `../../../.knowns/docs/specs/ielts-writing-grading-editor-finalization-2026-03-30.md`
 - `../../../.knowns/docs/architecture/scheme/ielts-writing-current-state-scheme.md`
+## 2026-04-02 Amendment - AI Suggestions Cache And Injection Contract
+
+Suggestion-state rules:
+- `WritingGradingPage` treats AI suggestions as teacher-private helper state, not canonical grading state
+- opening a submission may trigger suggestion generation in parallel with normal editor loading, but the grading editor must remain usable while suggestions are loading
+- suggestion generation warms all available tasks for the submission in one pass so Task 1 and Task 2 switching do not retrigger generation waits
+- existing `ready` and `failed` cache states are reused on later opens; regeneration happens only through explicit `Reload Suggestions`
+
+Cache-shape rules:
+- teacher-only suggestion cache lives in Firestore `writing_grading_ai_cache/{submissionId}`
+- cache status is one of `generating`, `ready`, or `failed`
+- the persisted payload is per task and split into `grammar` and `vocabularyExpression`, each with `comments` and `corrections`
+- normalized suggestion items must preserve `sentenceIndex`, `anchorText`, exact `from` / `to` offsets, `kind`, `focus`, `categoryId`, and the teacher-facing comment or replacement payload
+
+Injection rules:
+- comment suggestion injection must reuse the existing pending comment draft flow instead of creating a second authoring path
+- correction suggestion injection must reuse the existing correction popup instead of applying marks directly
+- suggestions never write directly into `publishedGrading`
+- if a pending comment draft already exists, comment injection must be blocked and the existing draft-warning path must be used
+
+Failure rules:
+- AI failure records a persisted `failed` cache state so the teacher sees a stable retry affordance instead of silent background loops
+- suggestion failure must not block normal grading, saving, or publishing flows

@@ -1,6 +1,6 @@
 import type { Chunk, ReadingLabeledOption } from '../../types/document.types';
 import type { Result } from '../../types/result.types';
-import type { IAIService, AIParseResult, ProviderStatus } from './ai.service';
+import type { IAIService, AIParseResult, ProviderStatus, AIStructuredGenerationOptions } from './ai.service';
 import { loadAllGeminiApiKeys } from '../../config/env.config';
 import { validateAIResponse, validatePassagesOnly, validateQuestionsAndAnswers, normalizeQuestionType, normalizeAnswer } from './response.validator';
 import { benchKey, isKeyBenched } from '../key-cooldown.service';
@@ -1805,6 +1805,53 @@ Respond with JSON array only:
         this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
       }
       return { success: false, error: `Suggestion generation failed: ${msg}` };
+    }
+  }
+
+  async generateStructuredJson(
+    prompt: string,
+    options: AIStructuredGenerationOptions = {}
+  ): Promise<Result<unknown>> {
+    if (this.clients.length === 0 && !this.sdkLoaded) await this.initialize();
+    if (this.clients.length === 0) return { success: false, error: 'Gemini clients not initialized' };
+
+    this.currentKeyIndex = this.getNextAvailableKeyRoundRobin();
+
+    try {
+      this.status.requestCount++;
+      this.status.lastRequestTime = Date.now();
+      const client = this.clients[this.currentKeyIndex];
+      if (!client) throw new Error('No client available');
+
+      const model = client.getGenerativeModel({
+        model: 'gemini-2.5-flash',
+        generationConfig: {
+          temperature: options.temperature ?? 0.1,
+          maxOutputTokens: options.maxOutputTokens ?? 8192,
+          responseMimeType: 'application/json',
+        },
+      });
+
+      const request = options.systemInstruction
+        ? [
+          { text: `${options.systemInstruction}\n\n${prompt}` },
+        ]
+        : prompt;
+      const result = await model.generateContent(request as any);
+      const text = result.response.text();
+      const parsed = this.extractJSON(text);
+
+      return {
+        success: true,
+        data: parsed,
+      };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      this.status.lastError = msg;
+      if (msg.includes('429') || msg.includes('rate limit')) {
+        this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
+      }
+      return { success: false, error: `Structured generation failed: ${msg}` };
     }
   }
 

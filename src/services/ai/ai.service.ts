@@ -90,6 +90,12 @@ export interface AIQuestionsAndAnswersResult {
   confidence: number;
 }
 
+export interface AIStructuredGenerationOptions {
+  systemInstruction?: string;
+  temperature?: number;
+  maxOutputTokens?: number;
+}
+
 /**
  * AI Service interface
  * All providers must implement this
@@ -144,4 +150,12 @@ export interface IAIService {
     questionType: 'fill-in' | 'writing',
     context?: { sentenceStarter?: string; keyword?: string }
   ): Promise<Result<Array<{ answer: string; confidence: number }>>>;
+
+  /**
+   * Generate arbitrary structured JSON output.
+   */
+  generateStructuredJson(
+    prompt: string,
+    options?: AIStructuredGenerationOptions
+  ): Promise<Result<unknown>>;
 }

@@ -1,0 +1,149 @@
+.wsp-toolbar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.wsp-status-copy,
+.wsp-empty-copy,
+.wsp-note {
+    margin: 8px 0 0;
+    color: #5f6b7a;
+    font-size: 0.94rem;
+    line-height: 1.45;
+}
+
+.wsp-note {
+    color: #8a5a00;
+}
+
+.wsp-group {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.wsp-group-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #1f2937;
+}
+
+.wsp-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.wsp-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.wsp-section-header h4 {
+    margin: 0;
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #334155;
+}
+
+.wsp-section-header span {
+    border-radius: 999px;
+    background: #eef2f7;
+    color: #475569;
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 4px 10px;
+}
+
+.wsp-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.wsp-card {
+    border: 1px solid #d7dee8;
+    border-radius: 14px;
+    background: #f8fafc;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.wsp-card-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.wsp-card-header strong {
+    color: #0f172a;
+    font-size: 0.95rem;
+}
+
+.wsp-card-header span {
+    color: #64748b;
+    font-size: 0.8rem;
+}
+
+.wsp-anchor {
+    border-left: 3px solid #94a3b8;
+    padding-left: 10px;
+    color: #1e293b;
+    font-size: 0.9rem;
+}
+
+.wsp-reason {
+    margin: 0;
+    color: #475569;
+    font-size: 0.9rem;
+    line-height: 1.45;
+}
+
+.wsp-proposal {
+    border-radius: 12px;
+    background: #ffffff;
+    border: 1px solid #dde5ee;
+    padding: 10px 12px;
+    color: #0f172a;
+    font-size: 0.9rem;
+    line-height: 1.45;
+}
+
+.wsp-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.wsp-primary-btn,
+.wsp-secondary-btn {
+    border-radius: 10px;
+    padding: 9px 12px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid transparent;
+}
+
+.wsp-primary-btn {
+    background: #0f766e;
+    color: #ffffff;
+}
+
+.wsp-primary-btn:disabled {
+    background: #cbd5e1;
+    cursor: not-allowed;
+}
+
+.wsp-secondary-btn {
+    background: #ffffff;
+    color: #1e293b;
+    border-color: #cbd5e1;
+}

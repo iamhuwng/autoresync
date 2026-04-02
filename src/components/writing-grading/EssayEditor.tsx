@@ -104,6 +104,13 @@ export interface EssayEditorProps {
         to: number;
         nonce: number;
     } | null;
+    /** External focus-range command from the page */
+    pendingFocusRange?: {
+        taskNumber: 1 | 2;
+        from: number;
+        to: number;
+        nonce: number;
+    } | null;
     /** Comment mark positions for gutter dots: [{commentId, color, top}] */
     commentPositions?: Array<{ commentId: string; color: string; top: number }>;
     /** Saved comments for tooltip content */
@@ -183,6 +190,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
     pendingQuickComment = null,
     pendingCorrection = null,
     pendingCommentMutation = null,
+    pendingFocusRange = null,
     commentPositions = [],
     comments = [],
     focusedCommentId = null,
@@ -206,6 +214,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
     const lastQuickCommentNonceRef = useRef<number | null>(null);
     const lastCorrectionNonceRef = useRef<number | null>(null);
     const lastCommentMutationNonceRef = useRef<number | null>(null);
+    const lastFocusRangeNonceRef = useRef<number | null>(null);
     const commentsById = useMemo(() => {
         return new Map(comments.map((comment) => [comment.id, comment]));
     }, [comments]);
@@ -688,6 +697,24 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
             })
             .run();
     }, [editor, pendingCommentMutation, readOnly, taskNumber]);
+
+    useEffect(() => {
+        if (!editor || !pendingFocusRange || pendingFocusRange.taskNumber !== taskNumber) return;
+        if (lastFocusRangeNonceRef.current === pendingFocusRange.nonce) return;
+
+        lastFocusRangeNonceRef.current = pendingFocusRange.nonce;
+        const normalizedRange = normalizeCorrectionSelectionRange(
+            editor.state.doc,
+            pendingFocusRange.from,
+            pendingFocusRange.to,
+        );
+
+        editor.chain()
+            .focus()
+            .setTextSelection(normalizedRange)
+            .scrollIntoView()
+            .run();
+    }, [editor, pendingFocusRange, taskNumber]);
 
     // ─── Handlers ────────────────────────────────────────────
 

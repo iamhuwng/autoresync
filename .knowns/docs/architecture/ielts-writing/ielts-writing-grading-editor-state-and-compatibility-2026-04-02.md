@@ -2,7 +2,7 @@
 title: IELTS Writing Grading Editor State And Compatibility 2026-04-02
 description: Architecture note for the 2026-04-02 stabilization pass covering task normalization, editor rehydration, draft/lock workflow, and RTDB compatibility metadata for teacher IELTS Writing grading.
 createdAt: '2026-04-02T07:17:57.239Z'
-updatedAt: '2026-04-02T10:32:17.910Z'
+updatedAt: '2026-04-02T10:35:04.280Z'
 tags:
   - architecture
   - ielts
@@ -158,3 +158,29 @@ Related doc:
 - toolbar buttons must preserve editor selection on `mousedown` so list toggles act on the intended block instead of blurring first
 
 This keeps the feedback editor list tools stable while preserving the task/tab rehydration rules already documented above.
+
+
+## 2026-04-02 follow-up: AI suggestions cache and injection contract
+
+The grading editor now owns a teacher-only AI helper layer that sits beside the manual grading workflow rather than inside it.
+
+Runtime rules:
+- suggestions generate on first teacher open and warm all submitted tasks in one pass
+- later opens reuse the persisted cache unless the teacher explicitly requests `Reload Suggestions`
+- cache state lives in Firestore `writing_grading_ai_cache/{submissionId}` and is private to assigned teachers
+- suggestion generation failure is persisted as `failed` state rather than silently retried on every load
+
+Editor-state rules:
+- the right rail now has a fourth tab, `Suggestions`
+- suggestion cards may focus an anchored essay range without mutating markup
+- comment suggestion injection creates a normal pending comment draft and reuses the existing composer save path
+- correction suggestion injection opens the existing correction popup and still requires teacher confirmation
+- suggestion injection must never write directly into `publishedGrading`
+
+Normalization rules:
+- AI returns sentence-bound anchors, not trusted raw offsets
+- the client resolves `from` / `to` locally from `sentenceIndex + anchorText`
+- duplicate, overlapping, and ambiguous anchors are dropped before persistence
+
+Related doc:
+- @doc/architecture/ielts-writing/ielts-writing-ai-suggestions-and-injection-2026-04-02

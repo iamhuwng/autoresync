@@ -387,6 +387,48 @@ export interface WritingSubmissionForGrading {
     publishedGrading: PublishedWritingGrading | null;
     gradingDraft: WritingGradingDraft | null;
 }
+export type WritingSuggestionCacheStatus = 'generating' | 'ready' | 'failed';
+
+export type WritingSuggestionFocus = 'grammar' | 'vocabulary-expression';
+
+export type WritingSuggestionKind = 'comment' | 'correction';
+
+export interface WritingSuggestionItem {
+    id: string;
+    taskNumber: 1 | 2;
+    kind: WritingSuggestionKind;
+    focus: WritingSuggestionFocus;
+    sentenceIndex: number;
+    anchorText: string;
+    from: number;
+    to: number;
+    title: string;
+    reason: string;
+    suggestedCommentText?: string;
+    replacementText?: string;
+    categoryId: CommentCategoryId;
+}
+
+export interface WritingSuggestionItemSet {
+    comments: WritingSuggestionItem[];
+    corrections: WritingSuggestionItem[];
+}
+
+export interface WritingSuggestionTaskResult {
+    taskNumber: 1 | 2;
+    grammar: WritingSuggestionItemSet;
+    vocabularyExpression: WritingSuggestionItemSet;
+}
+
+export interface WritingSuggestionCacheDoc {
+    submissionId: string;
+    status: WritingSuggestionCacheStatus;
+    generatedAt?: number;
+    updatedAt: number;
+    error?: string;
+    perTask: Partial<Record<1 | 2, WritingSuggestionTaskResult>>;
+    generatedFromEssayHashByTask: Partial<Record<1 | 2, string>>;
+}
 
 // ═══════════════════════════════════════════════════════════════
 // ANNOTATIONS

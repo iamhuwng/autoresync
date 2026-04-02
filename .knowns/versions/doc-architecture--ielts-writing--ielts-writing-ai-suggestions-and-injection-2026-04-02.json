@@ -1,0 +1,49 @@
+{
+  "docPath": "architecture/ielts-writing/ielts-writing-ai-suggestions-and-injection-2026-04-02",
+  "currentVersion": 1,
+  "versions": [
+    {
+      "id": "v1",
+      "docPath": "architecture/ielts-writing/ielts-writing-ai-suggestions-and-injection-2026-04-02",
+      "version": 1,
+      "timestamp": "2026-04-02T10:35:04.27333Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "IELTS Writing AI Suggestions And Injection 2026-04-02"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "Architecture note for the teacher-only IELTS Writing AI suggestions flow, including generation timing, cache ownership, prompt split, and comment/correction injection rules."
+        },
+        {
+          "field": "tags",
+          "oldValue": null,
+          "newValue": [
+            "architecture",
+            "ielts",
+            "writing",
+            "grading",
+            "ai",
+            "suggestions"
+          ]
+        }
+      ],
+      "snapshot": {
+        "content": "# IELTS Writing AI Suggestions And Injection 2026-04-02\n\n## Purpose\n\nThis note records the architecture contract for the teacher-only AI suggestions helper added to the IELTS Writing grading editor on 2026-04-02.\n\nIt covers:\n- when suggestions generate\n- where they are stored\n- how Task 1 and Task 2 prompt selection works\n- how suggestions are injected into existing grading tools\n- what remains explicitly out of scope\n\n## Scope\n\nThe feature is a teacher productivity helper for grammar and vocabulary/expression review.\n\nIt is not a second grading artifact and it does not publish anything automatically.\n\n## Generation contract\n\n- Suggestions generate on teacher open, not on student submit.\n- Generation is per submission and warms all available tasks in one pass.\n- Existing cache is reused on later opens.\n- Regeneration is manual only through `Reload Suggestions`.\n- If AI is unavailable, the cache records a failed state instead of retrying automatically forever.\n\n## Prompt contract\n\n- Task 1 and Task 2 use separate prompts because the expected language differs.\n- Task 1 prompt is constrained to an explicit `Academic` or `GeneralTraining` mode.\n- Current runtime data does not store that enum directly, so Task 1 uses a conservative inference:\n  - explicit letter-style prompts map to `GeneralTraining`\n  - otherwise Task 1 defaults to `Academic`\n- Both prompts require JSON-only output, exact `sentenceIndex`, exact `anchorText`, one primary category, and a maximum of 8 total suggestions per task.\n\n## Cache and persistence contract\n\n- Suggestions are stored in Firestore `writing_grading_ai_cache/{submissionId}`.\n- The cache is teacher-private and separate from `writing_submissions` because `writing_submissions` remains broadly readable for queue compatibility.\n- Cache states are:\n  - `generating`\n  - `ready`\n  - `failed`\n- Cached entries persist:\n  - normalized per-task suggestion payloads\n  - generation timestamps\n  - generation error state when applicable\n  - essay hashes by task so future invalidation can be explicit\n\n## Security contract\n\n- Assigned teachers may `get`, `create`, and `update` the suggestion cache.\n- `list` is denied.\n- Students and unrelated teachers may not read or write suggestion cache documents.\n- This mirrors the privacy boundary used for private grading drafts.\n\n## Injection contract\n\nSuggestions do not create grading output on their own.\n\n### Comment injection\n- switches the grading page to `Comments`\n- creates a pending comment draft using the existing composer flow\n- preserves exact `from` / `to` anchor offsets\n- maps `grammar` to category `gra`\n- maps `vocabulary-expression` to category `lr`\n- does not auto-save or auto-publish\n- is blocked if another pending comment draft already exists\n\n### Correction injection\n- opens the existing correction popup\n- preloads the original anchor text and replacement text\n- does not auto-apply the correction mark\n- still depends on the teacher confirming in the popup\n\n### Focus action\n- `Focus in Essay` is an editor-navigation command only\n- it selects and scrolls the anchored range in the essay editor\n- it does not mutate markup by itself\n\n## UI contract\n\n- The grading page right rail now exposes four tabs:\n  - `Prompt`\n  - `Comments`\n  - `Suggestions`\n  - `Scoring`\n- The Suggestions tab groups results into:\n  - `Grammar`\n  - `Vocabulary \u0026 Expression`\n- Each group is split into:\n  - `Comment Ideas`\n  - `Corrections`\n\n## Normalization and rejection rules\n\n- AI output is normalized locally before persistence.\n- `sentenceIndex` is authoritative; offsets are resolved locally from the immutable essay text.\n- Suggestions are dropped when:\n  - required fields are missing\n  - the anchor cannot be found exactly\n  - the anchor appears multiple times in the same sentence and cannot be resolved uniquely\n  - the suggestion duplicates or overlaps an already accepted suggestion\n\n## Explicit non-goals\n\n- no student-visible pending suggestions state\n- no auto-publish behavior\n- no mutation of `publishedGrading` from the suggestions service\n- no background worker or submit-time generation pipeline\n\n## Related docs\n\n- @doc/architecture/ielts-writing/ielts-writing-grading-editor-state-and-compatibility-2026-04-02\n- @doc/architecture/ielts-writing/ielts-writing-essay-editor-tool-contract-and-mark-composition-2026-04-02\n- @doc/specs/ielts-writing-grading-editor-finalization-2026-03-30\n- @doc/architecture/scheme/ielts-writing-current-state-scheme",
+        "description": "Architecture note for the teacher-only IELTS Writing AI suggestions flow, including generation timing, cache ownership, prompt split, and comment/correction injection rules.",
+        "tags": [
+          "architecture",
+          "ielts",
+          "writing",
+          "grading",
+          "ai",
+          "suggestions"
+        ],
+        "title": "IELTS Writing AI Suggestions And Injection 2026-04-02"
+      }
+    }
+  ]
+}

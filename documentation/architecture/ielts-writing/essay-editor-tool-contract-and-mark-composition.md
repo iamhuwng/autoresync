@@ -1,4 +1,4 @@
-# IELTS Writing Essay Editor Tool Contract And Mark Composition
+﻿# IELTS Writing Essay Editor Tool Contract And Mark Composition
 
 ## Purpose
 
@@ -140,3 +140,17 @@ The main residual risk is legacy content that already contains older overlap com
 - `grading-editor-state-and-compatibility.md`
 - `contracts-and-governance.md`
 - `../../../.knowns/docs/specs/ielts-writing-grading-editor-finalization-2026-03-30.md`
+## 2026-04-02 Amendment - External Focus Command For Suggestions
+
+The essay editor now supports a non-mutating external focus command used by the Suggestions tab.
+
+Focus-command rules:
+- external focus commands are navigation-only and must never add, edit, or remove annotation marks
+- a focus command carries the exact task-scoped `from` / `to` range resolved from the suggestion cache
+- executing a focus command should select and scroll the anchored range into view inside the essay editor
+- a focus command for another task must be ignored
+- read-only mode may still honor focus commands because they are viewing actions, not mutations
+
+Interaction boundary:
+- suggestion-driven focus is separate from quick comment and correction command replay
+- the Suggestions tab may move the teacher's viewport and selection, but it must still defer all actual feedback creation to the existing comment composer and correction popup flows

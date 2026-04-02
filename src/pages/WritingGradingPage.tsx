@@ -33,9 +33,11 @@ import CommentSidebar, { type PendingCommentDraft } from '../components/writing-
 import QuickCommentsDialog from '../components/writing-grading/QuickCommentsDialog';
 import CorrectionPopup from '../components/writing-grading/CorrectionPopup';
 import CriteriaScoringPanel from '../components/writing-grading/CriteriaScoringPanel';
+import WritingSuggestionsPanel from '../components/writing-grading/WritingSuggestionsPanel';
 import TabbedFeedbackEditor, { type FeedbackContent } from '../components/writing-grading/TabbedFeedbackEditor';
 import VoidTaskButton from '../components/writing-grading/VoidTaskButton';
 import GradingAuditTrail from '../components/writing-grading/GradingAuditTrail';
+import { getOrCreateWritingSuggestionCache } from '../services/writingSuggestionService';
 import type {
     CommentCategoryId,
     GradingComment,
@@ -45,6 +47,8 @@ import type {
     WritingPendingCommentDraft,
     WritingSubmission,
     WritingSubmissionForGrading,
+    WritingSuggestionCacheDoc,
+    WritingSuggestionItem,
     WritingSubmissionTask,
     WritingTaskMarkupState,
 } from '../types/ielts-writing.types';
@@ -52,7 +56,7 @@ import { COMMENT_CATEGORIES } from '../types/ielts-writing.types';
 import { calculateTaskBand } from '../utils/ieltsWritingBandCalculator';
 import './WritingGradingPage.css';
 
-type PanelTab = 'prompt' | 'comments' | 'scoring';
+type PanelTab = 'prompt' | 'comments' | 'suggestions' | 'scoring';
 type PageMode = 'review' | 'editing';
 
 interface TaskScores {
@@ -116,6 +120,13 @@ interface PendingCommentMutationCommand {
     action: 'remove' | 'apply';
     commentId: string;
     color: string;
+    from: number;
+    to: number;
+    nonce: number;
+}
+
+interface PendingSuggestionFocusCommand {
+    taskNumber: 1 | 2;
     from: number;
     to: number;
     nonce: number;
@@ -271,6 +282,24 @@ function isHtmlMeaningful(html: string) {
     return html.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').trim().length > 0;
 }
 
+function escapeHtml(value: string) {
+    return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function convertPlainTextToCommentHtml(value: string) {
+    return value
+        .split(/\n{2,}/)
+        .map((paragraph) => paragraph.trim())
+        .filter(Boolean)
+        .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, '<br />')}</p>`)
+        .join('');
+}
+
 function getNextCommentHighlightColor(comments: GradingComment[]) {
     const usedColors = new Set(comments.map((comment) => comment.color));
     const unusedColor = COMMENT_HIGHLIGHT_COLORS.find((color) => !usedColors.has(color));
@@ -364,6 +393,10 @@ export default function WritingGradingPage() {
     const [pendingQuickComment, setPendingQuickComment] = useState<PendingQuickCommentCommand | null>(null);
     const [pendingCorrection, setPendingCorrection] = useState<PendingCorrectionCommand | null>(null);
     const [pendingCommentMutation, setPendingCommentMutation] = useState<PendingCommentMutationCommand | null>(null);
+    const [pendingSuggestionFocus, setPendingSuggestionFocus] = useState<PendingSuggestionFocusCommand | null>(null);
+    const [suggestionCache, setSuggestionCache] = useState<WritingSuggestionCacheDoc | null>(null);
+    const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+    const [suggestionsReloading, setSuggestionsReloading] = useState(false);
     const [correctionRequest, setCorrectionRequest] = useState<{
         mode: 'create' | 'edit';
         from: number;
@@ -392,6 +425,7 @@ export default function WritingGradingPage() {
     const mutationNonceRef = useRef(0);
     const quickCommentNonceRef = useRef(0);
     const correctionNonceRef = useRef(0);
+    const suggestionFocusNonceRef = useRef(0);
     const dirtyRef = useRef(false);
     const hasUnsavedChangesRef = useRef(false);
     const savedPendingCommentDraftSignatureRef = useRef(savedPendingCommentDraftSignature);
@@ -562,6 +596,7 @@ export default function WritingGradingPage() {
         setPendingQuickComment(null);
         setPendingCorrection(null);
         setPendingCommentMutation(null);
+        setPendingSuggestionFocus(null);
         setCorrectionRequest(null);
     }, []);
 
@@ -656,6 +691,78 @@ export default function WritingGradingPage() {
         };
     }, [resetFromGradingSource, submissionId, user?.uid]);
 
+    const loadSuggestions = useCallback(async (options: { force?: boolean } = {}) => {
+        const currentSubmission = submissionRef.current;
+        if (!currentSubmission) {
+            return;
+        }
+
+        if (options.force) {
+            setSuggestionsReloading(true);
+            trackAction('reloadSuggestions', { submissionId: currentSubmission.id });
+            trackAction('generateSuggestions', { submissionId: currentSubmission.id, source: 'reload' });
+        } else {
+            setSuggestionsLoading(true);
+            trackAction('generateSuggestions', { submissionId: currentSubmission.id, source: 'open' });
+        }
+
+        const result = await getOrCreateWritingSuggestionCache(currentSubmission, options);
+        if (result.success) {
+            setSuggestionCache(result.data);
+        } else {
+            setSuggestionCache({
+                submissionId: currentSubmission.id,
+                status: 'failed',
+                updatedAt: Date.now(),
+                error: result.error,
+                perTask: {},
+                generatedFromEssayHashByTask: {},
+            });
+        }
+
+        if (options.force) {
+            setSuggestionsReloading(false);
+        } else {
+            setSuggestionsLoading(false);
+        }
+    }, [trackAction]);
+
+    useEffect(() => {
+        if (!submission?.id) {
+            setSuggestionCache(null);
+            setSuggestionsLoading(false);
+            setSuggestionsReloading(false);
+            return;
+        }
+
+        let cancelled = false;
+        setSuggestionsLoading(true);
+
+        void getOrCreateWritingSuggestionCache(submission, { force: false }).then((result) => {
+            if (cancelled) {
+                return;
+            }
+
+            if (result.success) {
+                setSuggestionCache(result.data);
+            } else {
+                setSuggestionCache({
+                    submissionId: submission.id,
+                    status: 'failed',
+                    updatedAt: Date.now(),
+                    error: result.error,
+                    perTask: {},
+                    generatedFromEssayHashByTask: {},
+                });
+            }
+            setSuggestionsLoading(false);
+        });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [submission?.id]);
+
     const reloadLatestGradingState = useCallback(async () => {
         if (!submissionId || !user?.uid) {
             return false;
@@ -737,7 +844,7 @@ export default function WritingGradingPage() {
                 user.uid,
                 user.displayName || user.email || 'Teacher',
                 nextTaskStates,
-                null,
+                {},
             );
             seededDraft.basedOnPublishedVersion = publishedGrading.auditVersion;
             resetFromGradingSource(submission, publishedGrading, seededDraft);
@@ -1171,9 +1278,12 @@ export default function WritingGradingPage() {
     const handlePanelTabChange = useCallback((nextTab: PanelTab) => {
         if (nextTab !== panelTab) {
             trackAction('switchTab', { submissionId, tab: nextTab });
+            if (nextTab === 'suggestions') {
+                trackAction('viewSuggestions', { submissionId, taskNumber: activeTask });
+            }
         }
         setPanelTab(nextTab);
-    }, [panelTab, submissionId, trackAction]);
+    }, [activeTask, panelTab, submissionId, trackAction]);
 
     const handleFocusComment = useCallback((commentId: string | null) => {
         setFocusedCommentId(commentId);
@@ -1593,6 +1703,65 @@ export default function WritingGradingPage() {
         setCorrectionRequest(null);
     }, [activeTask, correctionRequest, submissionId, trackAction]);
 
+    const focusSuggestionInEssay = useCallback((suggestion: WritingSuggestionItem) => {
+        suggestionFocusNonceRef.current += 1;
+        setPendingSuggestionFocus({
+            taskNumber: suggestion.taskNumber,
+            from: suggestion.from,
+            to: suggestion.to,
+            nonce: suggestionFocusNonceRef.current,
+        });
+        trackAction('focusSuggestion', {
+            submissionId,
+            taskNumber: suggestion.taskNumber,
+            focus: suggestion.focus,
+            kind: suggestion.kind,
+        });
+    }, [submissionId, trackAction]);
+
+    const injectSuggestionComment = useCallback((suggestion: WritingSuggestionItem) => {
+        if (pendingCommentDraftsRef.current[suggestion.taskNumber]) {
+            setPanelTab('comments');
+            showStatus('Finish or cancel the open comment before injecting another suggestion.');
+            return;
+        }
+
+        setFocusedCommentId(null);
+        setPanelTab('comments');
+        setPendingCommentDraft(suggestion.taskNumber, {
+            commentId: `comment-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            taskNumber: suggestion.taskNumber,
+            anchorText: suggestion.anchorText,
+            from: suggestion.from,
+            to: suggestion.to,
+            categoryId: suggestion.categoryId,
+            html: convertPlainTextToCommentHtml(suggestion.suggestedCommentText || ''),
+        });
+        focusSuggestionInEssay(suggestion);
+        trackAction('injectSuggestionComment', {
+            submissionId,
+            taskNumber: suggestion.taskNumber,
+            focus: suggestion.focus,
+        });
+    }, [focusSuggestionInEssay, setPendingCommentDraft, showStatus, submissionId, trackAction]);
+
+    const injectSuggestionCorrection = useCallback((suggestion: WritingSuggestionItem) => {
+        setCorrectionRequest({
+            mode: 'create',
+            from: suggestion.from,
+            to: suggestion.to,
+            selectedText: suggestion.anchorText,
+            correctionText: suggestion.replacementText || '',
+            position: getCorrectionPopupPosition(null, null),
+        });
+        focusSuggestionInEssay(suggestion);
+        trackAction('injectSuggestionCorrection', {
+            submissionId,
+            taskNumber: suggestion.taskNumber,
+            focus: suggestion.focus,
+        });
+    }, [focusSuggestionInEssay, getCorrectionPopupPosition, submissionId, trackAction]);
+
     const confirmRegradePublish = useCallback(async () => {
         const reason = regradeReason.trim();
         if (!reason) {
@@ -1824,6 +1993,7 @@ export default function WritingGradingPage() {
                             pendingQuickComment={pendingQuickComment}
                             pendingCorrection={pendingCorrection}
                             pendingCommentMutation={pendingCommentMutation}
+                            pendingFocusRange={pendingSuggestionFocus}
                             commentPositions={commentPositions}
                             comments={activeTaskState.comments}
                             focusedCommentId={focusedCommentId}
@@ -1866,6 +2036,9 @@ export default function WritingGradingPage() {
                             disabled={editorViewMode === 'original'}
                         >
                             Comments
+                        </button>
+                        <button className={`wgp-panel-tab ${panelTab === 'suggestions' ? 'active' : ''}`} onClick={() => handlePanelTabChange('suggestions')}>
+                            Suggestions
                         </button>
                         <button className={`wgp-panel-tab ${panelTab === 'scoring' ? 'active' : ''}`} onClick={() => handlePanelTabChange('scoring')}>
                             Scoring
@@ -1914,6 +2087,20 @@ export default function WritingGradingPage() {
                                 readOnly={mode !== 'editing'}
                             />
                         </div>
+                    )}
+
+                    {panelTab === 'suggestions' && (
+                        <WritingSuggestionsPanel
+                            cache={suggestionCache}
+                            taskNumber={activeTask}
+                            loading={suggestionsLoading}
+                            reloading={suggestionsReloading}
+                            canInject={mode === 'editing'}
+                            onReload={() => void loadSuggestions({ force: true })}
+                            onFocusSuggestion={focusSuggestionInEssay}
+                            onInjectComment={injectSuggestionComment}
+                            onInjectCorrection={injectSuggestionCorrection}
+                        />
                     )}
 
                     {panelTab === 'scoring' && (

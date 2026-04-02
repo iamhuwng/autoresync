@@ -2,7 +2,7 @@
 title: IELTS Writing Grading Editor Finalization 2026-03-30
 description: Finalized source of truth for the teacher writing grading editor layout, comment interactions, ordering rules, and containment inside the teacher shell.
 createdAt: '2026-03-29T20:16:53.672Z'
-updatedAt: '2026-04-02T10:32:17.956Z'
+updatedAt: '2026-04-02T10:35:04.319Z'
 tags:
   - spec
   - ielts
@@ -277,3 +277,19 @@ The tabbed feedback editor now has a controlled-update guard:
 - list-formatting commands must survive the normal `onChange -> parent rerender -> feedback prop` cycle
 - identical incoming feedback HTML must not trigger unnecessary `setContent(...)` resets
 - toolbar actions for list toggles must preserve editor selection before the command runs
+
+
+## 2026-04-02 follow-up - AI Suggestions tab
+
+The teacher grading editor now includes a fourth right-panel tab, `Suggestions`, in addition to `Prompt`, `Comments`, and `Scoring`.
+
+Finalized behavior:
+- suggestions are teacher-only working aids for grammar and vocabulary or expression issues
+- suggestions generate once per submission on teacher open and then reuse persisted cache
+- reload is explicit and manual
+- suggestions are grouped by `Grammar` and `Vocabulary & Expression`, each split into `Comment Ideas` and `Corrections`
+- comment injection must reuse the existing pending comment composer flow
+- correction injection must reuse the existing correction popup flow
+- no suggestion may auto-save, auto-apply, or auto-publish feedback
+
+This changes the earlier 3-tab right-panel assumption. The stable contract is now a 4-tab panel with the Suggestions tab positioned between Comments and Scoring.

@@ -11,8 +11,8 @@ labels:
   - teacher
   - grading
 createdAt: '2026-02-27T20:03:27.527Z'
-updatedAt: '2026-02-27T22:29:29.554Z'
-timeSpent: 0
+updatedAt: '2026-04-02T10:35:04.349Z'
+timeSpent: 5400
 ---
 # PRD-0030: Grading System
 
@@ -41,5 +41,6 @@ Phase 5 epic. Teacher grading system: TipTap feedback editor, grading queue with
 
 <!-- SECTION:NOTES:BEGIN -->
 TipTap only for teacher feedback. Annotations as character offsets. Band calc from Phase 1. Re-grading requires reason. Safety Rule 11: withRestoreGuard on writes.
+2026-04-02 follow-up: added a teacher-only AI Suggestions tab to the IELTS Writing grading editor. The feature generates grammar and vocabulary-expression suggestions on first teacher open, persists them in private Firestore cache `writing_grading_ai_cache/{submissionId}`, and reuses existing comment/correction tools for injection instead of creating a second grading artifact. Added prompt split for Task 1 vs Task 2, observability actions, security-rule coverage, and focused unit/UI tests.
 <!-- SECTION:NOTES:END -->
 

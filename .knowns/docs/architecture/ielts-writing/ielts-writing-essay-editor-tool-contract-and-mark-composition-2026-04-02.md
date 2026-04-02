@@ -2,7 +2,7 @@
 title: IELTS Writing Essay Editor Tool Contract And Mark Composition 2026-04-02
 description: Architecture note for the essay-editor tool layer in teacher IELTS Writing grading, covering read-only behavior, selection anchoring, comment identity, and the remaining overlapping-mark composition boundary.
 createdAt: '2026-04-02T09:51:04.708Z'
-updatedAt: '2026-04-02T10:05:32.328Z'
+updatedAt: '2026-04-02T10:35:04.290Z'
 tags:
   - architecture
   - ielts
@@ -154,3 +154,14 @@ The main residual risk is legacy content that already contains older overlap com
 - @doc/architecture/ielts-writing/ielts-writing-grading-editor-state-and-compatibility-2026-04-02
 - @doc/specs/ielts-writing-grading-editor-finalization-2026-03-30
 - @doc/architecture/scheme/ielts-writing-current-state-scheme
+
+
+## 2026-04-02 follow-up: external focus command
+
+The essay editor now accepts an additional page-owned command for suggestion navigation.
+
+Rules:
+- the command is task-scoped and must include `taskNumber`, `from`, `to`, and `nonce`
+- it selects and scrolls the anchored essay range into view
+- it does not add, remove, or rewrite any marks by itself
+- it exists to let the Suggestions tab focus the exact text slice before the teacher decides whether to inject a comment or correction

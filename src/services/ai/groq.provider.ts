@@ -1,6 +1,6 @@
 ﻿import type { Chunk } from '../../types/document.types';
 import type { Result } from '../../types/result.types';
-import type { IAIService, AIParseResult, ProviderStatus } from './ai.service';
+import type { IAIService, AIParseResult, ProviderStatus, AIStructuredGenerationOptions } from './ai.service';
 import { getEnv } from '../../config/env.config';
 import { validateAIResponse, validatePassagesOnly, validateQuestionsAndAnswers, normalizeQuestionType, normalizeAnswer } from './response.validator';
 import { getDecryptedKeys } from '../api-keys.service';
@@ -1257,6 +1257,57 @@ Respond with JSON array only:
         this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
       }
       return { success: false, error: `Suggestion generation failed: ${msg}` };
+    }
+  }
+
+  async generateStructuredJson(
+    prompt: string,
+    options: AIStructuredGenerationOptions = {}
+  ): Promise<Result<unknown>> {
+    if (this.clients.length === 0 && !this.sdkLoaded) await this.initialize();
+    if (this.clients.length === 0) return { success: false, error: 'Groq clients not initialized' };
+
+    this.cleanupExhaustedKeys();
+    this.currentKeyIndex = this.getNextAvailableKeyRoundRobin();
+
+    try {
+      this.status.requestCount++;
+      this.status.lastRequestTime = Date.now();
+      const client = this.clients[this.currentKeyIndex];
+      if (!client) throw new Error('No client available');
+
+      const completion = await client.chat.completions.create({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          {
+            role: 'system',
+            content: options.systemInstruction || 'Return only valid JSON. Do not use markdown.',
+          },
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        temperature: options.temperature ?? 0.1,
+        max_tokens: options.maxOutputTokens ?? 4096,
+      });
+
+      const text = completion.choices[0]?.message?.content;
+      if (!text) {
+        throw new Error('Empty response from Groq');
+      }
+
+      return {
+        success: true,
+        data: extractJSON(text),
+      };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      this.status.lastError = msg;
+      if (msg.includes('429') || msg.includes('rate limit')) {
+        this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
+      }
+      return { success: false, error: `Structured generation failed: ${msg}` };
     }
   }
 

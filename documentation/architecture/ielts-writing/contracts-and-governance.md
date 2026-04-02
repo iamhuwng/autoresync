@@ -1,4 +1,4 @@
-# IELTS Writing Contracts And Governance
+﻿# IELTS Writing Contracts And Governance
 
 ## Canonical Data Contract
 
@@ -170,3 +170,18 @@ Compatibility metadata rules:
   - `feedbackUpdatedByTeacherName`
 - Writing result readers should prefer those explicit fields and only fall back to legacy label fields when the explicit fields are absent
 - degraded fallback reconstruction must preserve the real surviving task number so a single Task 2 snapshot reconstructs as `task2-only`
+## 2026-04-02 Amendment - Teacher-Private AI Suggestion Cache Governance
+
+Teacher-private helper-state rules:
+- Firestore `writing_grading_ai_cache/{submissionId}` is a teacher-private helper collection for AI-generated grammar and vocabulary/expression suggestions
+- suggestion cache documents are operational aids only; they are not canonical grading artifacts and they do not replace `gradingDraft` or `publishedGrading`
+- the collection exists separately from `writing_submissions` because the submission document still supports broader queue and review access patterns
+
+Access rules:
+- assigned teachers may `get`, `create`, and `update` their suggestion cache document
+- `list` is denied to reduce broad discovery of teacher-private helper state
+- students and unrelated teachers must not read or write suggestion cache documents
+
+Publishing boundary:
+- AI suggestions do not change release state, result visibility, or result ownership
+- suggestions only become grading content if a teacher explicitly injects them into the existing comment or correction authoring tools and then saves or applies through those existing flows

@@ -1,4 +1,4 @@
-# IELTS Writing Lifecycle And Surfaces
+﻿# IELTS Writing Lifecycle And Surfaces
 
 ## Lifecycle
 
@@ -108,3 +108,17 @@ Current operational rules:
 - task switching is a hard boundary for transient grading UI state and editor content rehydration
 - leaving with unsaved work is a three-way workflow (`save`, `discard`, `cancel`), not a binary confirm prompt
 - published submissions may re-enter the editor only through the explicit regrade workflow with a required reason
+## 2026-04-02 Amendment - Suggestions Tab As Teacher Helper Surface
+
+The grading editor now includes a teacher-only `Suggestions` tab in the right rail.
+
+Surface rules:
+- the right rail order is `Prompt`, `Comments`, `Suggestions`, `Scoring`
+- the Suggestions tab is an operational helper surface inside `WritingGradingPage`, not a separate grading artifact
+- suggestions are visible only to the assigned teacher in the grading workflow and never appear on student-facing result surfaces
+- the helper surface may show `generating`, `ready`, and `failed` operational states without changing the public result phase
+
+Workflow rules:
+- `Focus in Essay` is a navigation action within the grading session
+- `Inject to Comment` and `Inject to Correction` are shortcuts into the existing authoring tools, not direct feedback publication actions
+- normal grading and publishing remain valid even when the Suggestions tab is unavailable or failed
