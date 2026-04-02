@@ -86,7 +86,7 @@ const styles = {
         zIndex: 3,
         display: 'flex',
         justifyContent: 'space-between',
-        alignItems: 'flex-start',
+        alignItems: 'center',
         gap: 22,
         padding: '34px 0 18px',
         background: studentTokens.bgPage,
@@ -97,6 +97,7 @@ const styles = {
         flexDirection: 'column',
         gap: 8,
         minWidth: 0,
+        flexShrink: 0,
     },
     pageTitle: {
         margin: 0,
@@ -522,7 +523,7 @@ export default function StudentDashboardFeedView({
                                 <input
                                     type="search"
                                     value={searchValue}
-                                    placeholder="RESEARCH FEED"
+                                    placeholder="SEARCH FEED"
                                     onChange={event => onSearchChange?.(event.target.value)}
                                     onBlur={onSearchBlur}
                                     style={styles.searchInput}
