@@ -89,6 +89,7 @@ The result is a broken experience where Reading tests show questions without the
 - Opens a settings modal with available controls
 - Settings locked by teacher are greyed out and uninteractable with a tooltip: "Set by teacher"
 - Reading settings: font size, line spacing, highlighter, show timer, dark mode
+- Highlighter is OFF by default until the student explicitly enables it
 - Listening settings (in addition): audio speed, replay section, skip to section, pause audio
 - Settings persist in `localStorage` for the student across sessions
 
@@ -248,6 +249,7 @@ interface PracticeSettings {
 | FR-23 | Modal displays available settings based on test skill (Reading vs Listening) |
 | FR-24 | Settings locked by teacher are greyed out with tooltip "Set by teacher". The modal receives `resolvedPracticeSettings` as a prop to determine which fields are teacher-locked (any field where the resolved value differs from `'default'` and was set at course/module/material level by teacher). |
 | FR-25 | Student settings persist in `localStorage` under key `solo_student_prefs_{studentId}` |
+| FR-25a | Reading highlights must resolve against full passage source offsets so a selection can start in one rendered paragraph and end in the next without corruption. See `documentation/architecture/reading-passage-highlighting-architecture.md`. |
 
 **Reading test student settings:**
 
@@ -255,7 +257,7 @@ interface PracticeSettings {
 |---------|-----|---------|:-:|
 | Font size | `fontSize` | 16px | No |
 | Line spacing | `lineSpacing` | 1.5 | No |
-| Highlighter tool | `highlighterEnabled` | true | No |
+| Highlighter tool | `highlighterEnabled` | false | No |
 | Show timer | `showTimer` | true | Yes (via `PracticeSettings`) |
 | Dark mode | `darkMode` | false | No |
 
@@ -495,7 +497,7 @@ courses/{courseId}/modules/{moduleId}/materials/{materialId}/practiceSettings: P
 | Key | Data | Expiry |
 |-----|------|--------|
 | `solo_progress_{materialId}_{studentId}` | `{ answers, currentQuestion, timeElapsed, startedAt, lastSavedAt }` | 7 days |
-| `solo_student_prefs_{studentId}` | `{ fontSize, lineSpacing, highlighterEnabled, showTimer, darkMode, audioSpeed }` | Never |
+| `solo_student_prefs_{studentId}` | `{ fontSize, lineSpacing, highlighterEnabled, showTimer, darkMode, audioSpeed }` where new records default `highlighterEnabled` to `false` | Never |
 
 ---
 

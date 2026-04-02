@@ -1,14 +1,15 @@
 ---
 title: PRD Unified Solo Practice
-createdAt: '2026-02-27T15:28:18.101Z'
-updatedAt: '2026-02-27T15:28:19.451Z'
 description: Product requirements for unified solo practice mode across test types
+createdAt: '2026-02-27T15:28:18.101Z'
+updatedAt: '2026-04-02T04:50:17.834Z'
 tags:
   - prd
   - solo
   - practice
   - unified
 ---
+
 # PRD: Unified Solo Practice Mode
 
 > **PRD Number:** 0025  
@@ -579,3 +580,12 @@ All decisions were made through a 3-round clarifying questions session on 2026-0
 
 *PRD Status: Ready for Review*  
 *Next Step: Generate detailed task breakdown after approval*
+
+## 2026-04-02 Amendment - Reading Highlighter Defaults And Cross-Paragraph Selections
+
+Updated solo Reading contract:
+- the highlighter remains available in student settings, but new `solo_student_prefs_{studentId}` records must default `highlighterEnabled` to `false`
+- Reading highlight selections must resolve against full passage source offsets, not per-paragraph DOM offsets
+- a selection may begin in one rendered paragraph and end in the next paragraph without corrupting the saved highlight
+
+Implementation reference: @doc/architecture/reading-passage-highlighting-architecture.

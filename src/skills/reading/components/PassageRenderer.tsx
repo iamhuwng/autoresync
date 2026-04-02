@@ -38,6 +38,7 @@ interface Highlight {
 interface ParagraphPosition {
   start: number;
   end: number;
+  textStart: number;
   text: string;
   label?: string;     // Detected paragraph label (A, B, i, ii, Section A, etc.)
   labelEnd?: number;  // End position of label in original content (for highlight offset)
@@ -103,9 +104,6 @@ export const PassageRenderer: React.FC<PassageRendererProps> = ({
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed) return;
 
-    const selectedText = selection.toString().trim();
-    if (!selectedText) return;
-
     const contentContainer = contentContainerRef.current;
     if (!contentContainer) return;
 
@@ -117,35 +115,28 @@ export const PassageRenderer: React.FC<PassageRendererProps> = ({
         return;
       }
 
-      // Create a range from start of CONTENT container to start of selection
-      // This ensures positions align with the 'content' string, not DOM textContent
-      const beforeRange = document.createRange();
-      beforeRange.setStart(contentContainer, 0);
-      beforeRange.setEnd(range.startContainer, range.startOffset);
+      const startContainer = getClosestTextContainer(range.startContainer);
+      const endContainer = getClosestTextContainer(range.endContainer);
+      if (!startContainer || !endContainer) {
+        return;
+      }
 
-      // Get text before selection - this matches our paragraph position calculation
-      const textBeforeSelection = beforeRange.toString();
-      const startPos = textBeforeSelection.length;
-      const endPos = startPos + selectedText.length;
+      const startBase = Number(startContainer.dataset.passageTextStart || '0');
+      const startLimit = Number(startContainer.dataset.passageTextEnd || String(startBase));
+      const endBase = Number(endContainer.dataset.passageTextStart || '0');
+      const endLimit = Number(endContainer.dataset.passageTextEnd || String(endBase));
 
-      // Validate positions against content length
-      const contentLength = passage?.content?.length || 0;
-      if (startPos < 0 || endPos > contentLength || startPos >= endPos) {
-        // Position might exceed content due to whitespace differences
-        // Try to find the text in content as fallback
-        const content = passage?.content || '';
-        const fallbackStart = content.indexOf(selectedText);
-        if (fallbackStart !== -1) {
-          const newHighlight: Highlight = {
-            id: Date.now() + Math.random(),
-            text: selectedText,
-            color: highlightColor,
-            startPos: fallbackStart,
-            endPos: fallbackStart + selectedText.length
-          };
-          setHighlights(prev => [...prev, newHighlight]);
-        }
-        selection.removeAllRanges();
+      const startOffset = getOffsetWithinContainer(startContainer, range.startContainer, range.startOffset);
+      const endOffset = getOffsetWithinContainer(endContainer, range.endContainer, range.endOffset);
+
+      const startPos = Math.min(startLimit, Math.max(startBase, startBase + startOffset));
+      const endPos = Math.min(endLimit, Math.max(endBase, endBase + endOffset));
+      if (startPos >= endPos) {
+        return;
+      }
+
+      const selectedText = (passage?.content || '').slice(startPos, endPos);
+      if (!selectedText.trim()) {
         return;
       }
 
@@ -290,6 +281,7 @@ export const PassageRenderer: React.FC<PassageRendererProps> = ({
         rawPositions.push({
           start: currentPos,
           end: currentPos + line.length,
+          textStart: currentPos,
           text: line
         });
       }
@@ -318,6 +310,7 @@ export const PassageRenderer: React.FC<PassageRendererProps> = ({
         merged.push({
           start: pendingLabel.start,
           end: pos.end,
+          textStart: pos.start,
           text: pos.text,
           label: stripBold(pendingLabel.text),
           labelEnd: pendingLabel.end,
@@ -329,6 +322,7 @@ export const PassageRenderer: React.FC<PassageRendererProps> = ({
         merged.push({
           start: pos.start,
           end: pos.end,
+          textStart: pos.start + matchedLabel.length,
           text: pos.text.substring(matchedLabel.length),
           label: stripBold(matchedLabel),
           labelEnd: pos.start + matchedLabel.length,
@@ -347,6 +341,7 @@ export const PassageRenderer: React.FC<PassageRendererProps> = ({
         text: pendingLabel.text,
         label: stripBold(pendingLabel.text),
         labelEnd: pendingLabel.end,
+        textStart: pendingLabel.end,
       });
     }
 
@@ -402,6 +397,7 @@ export const PassageRenderer: React.FC<PassageRendererProps> = ({
         <div
           ref={contentContainerRef}
           onMouseUp={handleMouseUp}
+          data-passage-content="true"
           style={{
             userSelect: highlighterActive ? 'text' : 'none',
             cursor: highlighterActive ? 'text' : 'default',
@@ -437,10 +433,20 @@ export const PassageRenderer: React.FC<PassageRendererProps> = ({
                     }}>
                       {label}
                     </strong>
-                    {processTextWithHighlights(content, textStart, para.end)}
+                    <span
+                      data-passage-text-start={textStart}
+                      data-passage-text-end={para.end}
+                    >
+                      {processTextWithHighlights(content, textStart, para.end)}
+                    </span>
                   </>
                 ) : (
-                  processTextWithHighlights(content, para.start, para.end)
+                  <span
+                    data-passage-text-start={para.textStart}
+                    data-passage-text-end={para.end}
+                  >
+                    {processTextWithHighlights(content, para.start, para.end)}
+                  </span>
                 )}
               </p>
             );
@@ -580,3 +586,25 @@ export const PassageRenderer: React.FC<PassageRendererProps> = ({
 };
 
 export default PassageRenderer;
+
+function getClosestTextContainer(node: Node | null): HTMLElement | null {
+  if (!node) {
+    return null;
+  }
+
+  const element = node instanceof HTMLElement ? node : node.parentElement;
+  return element?.closest('[data-passage-text-start]') as HTMLElement | null;
+}
+
+function getOffsetWithinContainer(container: HTMLElement, node: Node, offset: number): number {
+  const range = document.createRange();
+  range.selectNodeContents(container);
+
+  try {
+    range.setEnd(node, offset);
+  } catch {
+    return container.textContent?.length ?? 0;
+  }
+
+  return range.toString().length;
+}

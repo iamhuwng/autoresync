@@ -119,7 +119,7 @@
     export interface StudentSoloPreferences {
       fontSize: number;        // px, default 16
       lineSpacing: number;     // default 1.5
-      highlighterEnabled: boolean;  // default true
+      highlighterEnabled: boolean;  // default false
       showTimer: boolean;      // default true
       darkMode: boolean;       // default false
       audioSpeed: number;      // default 1.0
@@ -142,7 +142,7 @@
     export const DEFAULT_STUDENT_PREFS: StudentSoloPreferences = {
       fontSize: 16,
       lineSpacing: 1.5,
-      highlighterEnabled: true,
+      highlighterEnabled: false,
       showTimer: true,
       darkMode: false,
       audioSpeed: 1.0,
@@ -1020,7 +1020,7 @@
     - **Reading section** (always shown):
       - Font Size: `Slider` component (12-24px range)
       - Line Spacing: `Slider` (1.0 - 2.5)
-      - Highlighter: `Switch`
+      - Highlighter: `Switch` (default OFF for new solo preference records)
       - Show Timer: `Switch` — **if `resolvedSettings.reading.showTimer` was set by teacher (check `_sources['reading.showTimer'] !== 'material_owner_default'`), grey out with tooltip "Set by teacher"**
       - Dark Mode: `Switch`
     - **Listening section** (only when `testSkill === 'Listening'`):
@@ -1034,6 +1034,7 @@
         - If `resolvedSettings.listening.allowPauseAudio === false`: grey out
     - "Save" button: calls `onPrefsChange()` and closes modal
     - Prefs persist to `localStorage` key `solo_student_prefs_{studentId}` (pass `studentId` via prop or context).
+    - Reading highlights must be stored against full passage source offsets so selections may span adjacent rendered paragraphs.
   - [x] 6.3 Create `src/components/test/SoloResumeModal.tsx`:
     ```typescript
     interface SoloResumeModalProps {

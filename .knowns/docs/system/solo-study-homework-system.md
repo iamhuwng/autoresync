@@ -2,7 +2,7 @@
 title: Solo Study Homework System
 description: Architecture and implementation docs for solo study and homework system
 createdAt: '2026-02-27T15:25:43.328Z'
-updatedAt: '2026-04-01T03:39:50.631Z'
+updatedAt: '2026-04-02T04:50:17.841Z'
 tags:
   - solo
   - homework
@@ -333,3 +333,13 @@ Current guardrails:
 - `startedAt` from the existing attempt is the canonical countdown anchor for resume flows
 - single-attempt homework must auto-resume saved progress and must not offer restart
 - timer expiry in homework mode must auto-submit the homework attempt
+
+## 2026-04-02 Amendment - Reading Highlight Delivery Contract
+
+For Reading solo practice and homework surfaces:
+- shared highlight behavior is owned by `src/skills/reading/components/PassageRenderer.tsx`
+- `src/components/PassageRenderer_v2.jsx` is wrapper-only compatibility code
+- new solo preference records default the highlighter off (`highlighterEnabled: false`)
+- highlight selections must map back to full passage source offsets so cross-paragraph selections persist correctly
+
+See @doc/architecture/reading-passage-highlighting-architecture.

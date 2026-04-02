@@ -23,6 +23,18 @@ Canonical visibility governance for homework and solo-practice results lives in:
 - Producers must persist the canonical `result.visibility` snapshot.
 - Consumers must not promote `selectedTeacherId`, `assigningTeacherId`, or assignment status into ownership.
 
+## 2026-04-02 Amendment - Reading Passage Highlight Contract
+
+Solo practice and homework Reading flows now share one source-of-truth renderer contract:
+- `src/skills/reading/components/PassageRenderer.tsx` is the owning implementation for passage highlighting behavior.
+- `src/components/PassageRenderer_v2.jsx` is a compatibility wrapper only and must delegate to the skill-owned renderer instead of reimplementing highlight logic.
+- highlight persistence must be based on source passage offsets, not per-paragraph DOM offsets
+- selections that start in one rendered paragraph and end in the next are valid and must save as one logical highlight
+- new solo student preferences must default `highlighterEnabled` to `false`, so the tool stays off until the student explicitly enables it
+
+Reference:
+- `documentation/architecture/reading-passage-highlighting-architecture.md`
+
 ## Student Shell Homework Summary Contract
 
 Homework summary groups that are reused across student shell pages belong to the shared student shell provider documented in `documentation/architecture/student-shell-data-loading.md`.

@@ -60,7 +60,7 @@ export interface ResolvedPracticeSettings {
 export interface StudentSoloPreferences {
     fontSize: number;        // px, default 16
     lineSpacing: number;     // default 1.5
-    highlighterEnabled: boolean;  // default true
+    highlighterEnabled: boolean;  // default false
     showTimer: boolean;      // default true
     darkMode: boolean;       // default false
     audioSpeed: number;      // default 1.0
@@ -83,7 +83,7 @@ export interface SoloSessionProgress {
 export const DEFAULT_STUDENT_PREFS: StudentSoloPreferences = {
     fontSize: 16,
     lineSpacing: 1.5,
-    highlighterEnabled: true,
+    highlighterEnabled: false,
     showTimer: true,
     darkMode: false,
     audioSpeed: 1.0,
