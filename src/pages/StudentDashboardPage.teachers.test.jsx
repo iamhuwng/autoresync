@@ -144,7 +144,7 @@ describe('StudentDashboardPage', () => {
             expect(screen.getByText('My Classes')).toBeInTheDocument();
             expect(screen.getAllByText('AB').length).toBeGreaterThan(0);
             expect(screen.getAllByText('CD').length).toBeGreaterThan(0);
-            expect(screen.queryByText('Feed Snapshot')).not.toBeInTheDocument();
+            expect(screen.queryByText('Your Updates')).not.toBeInTheDocument();
         });
     });
 

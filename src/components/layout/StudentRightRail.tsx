@@ -366,10 +366,10 @@ export const StudentRightRail: React.FC<StudentRightRailProps> = ({ shellData, s
         return (
             <>
                 {renderLiveNowBanner()}
-                {/* ━━━━━ Section 1: FEED SNAPSHOT ━━━━━ */}
+                {/* ━━━━━ Section 1: YOUR UPDATES ━━━━━ */}
                 <section style={{ marginBottom: 48 }}>
                     <header style={v2.sectionHeader}>
-                        <h4 style={v2.sectionTitle}>Feed Snapshot</h4>
+                        <h4 style={v2.sectionTitle}>Your Updates</h4>
                     </header>
 
                     {/* Card: Up Next — "Upcoming" dot-list format */}
