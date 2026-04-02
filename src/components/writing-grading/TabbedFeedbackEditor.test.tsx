@@ -1,4 +1,5 @@
 import { fireEvent, render, waitFor } from '@testing-library/react';
+import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import TabbedFeedbackEditor, { type FeedbackContent } from './TabbedFeedbackEditor';
 
@@ -10,6 +11,18 @@ function buildFeedback(prefix: string): FeedbackContent {
         lr: `<p>${prefix} lexical</p>`,
         gra: `<p>${prefix} grammar</p>`,
     };
+}
+
+function ControlledTabbedFeedbackEditor({ initialFeedback }: { initialFeedback: FeedbackContent }) {
+    const [feedback, setFeedback] = useState(initialFeedback);
+
+    return (
+        <TabbedFeedbackEditor
+            taskNumber={1}
+            feedback={feedback}
+            onChange={setFeedback}
+        />
+    );
 }
 
 describe('TabbedFeedbackEditor', () => {
@@ -75,6 +88,21 @@ describe('TabbedFeedbackEditor', () => {
         await waitFor(() => {
             expect(container.querySelector('.feedback-tab.active')?.textContent).toBe('TA');
             expect(container.querySelector('.ProseMirror')?.textContent).toContain('Draft B task response');
+        });
+    });
+
+    it('keeps bullet list markup after the parent re-renders with controlled feedback state', async () => {
+        const { container } = render(
+            <ControlledTabbedFeedbackEditor initialFeedback={buildFeedback('List draft')} />,
+        );
+
+        const bulletButton = container.querySelector('[title="Bullet List"]') as HTMLButtonElement;
+        fireEvent.mouseDown(bulletButton);
+        fireEvent.click(bulletButton);
+
+        await waitFor(() => {
+            expect(container.querySelector('.ProseMirror ul li')).toBeTruthy();
+            expect(container.querySelector('.ProseMirror ul li')?.textContent).toContain('List draft summary');
         });
     });
 });

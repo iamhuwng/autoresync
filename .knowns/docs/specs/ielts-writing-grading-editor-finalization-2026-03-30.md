@@ -2,7 +2,7 @@
 title: IELTS Writing Grading Editor Finalization 2026-03-30
 description: Finalized source of truth for the teacher writing grading editor layout, comment interactions, ordering rules, and containment inside the teacher shell.
 createdAt: '2026-03-29T20:16:53.672Z'
-updatedAt: '2026-04-02T10:05:32.446Z'
+updatedAt: '2026-04-02T10:32:17.956Z'
 tags:
   - spec
   - ielts
@@ -269,3 +269,11 @@ The finalized grading editor implementation now constrains mark overlap explicit
 
 Related doc:
 - @doc/architecture/ielts-writing/ielts-writing-essay-editor-tool-contract-and-mark-composition-2026-04-02
+
+
+## 2026-04-02 Follow-up - Feedback Editor List Stability
+
+The tabbed feedback editor now has a controlled-update guard:
+- list-formatting commands must survive the normal `onChange -> parent rerender -> feedback prop` cycle
+- identical incoming feedback HTML must not trigger unnecessary `setContent(...)` resets
+- toolbar actions for list toggles must preserve editor selection before the command runs

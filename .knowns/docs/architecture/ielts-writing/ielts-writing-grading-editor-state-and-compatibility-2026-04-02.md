@@ -2,7 +2,7 @@
 title: IELTS Writing Grading Editor State And Compatibility 2026-04-02
 description: Architecture note for the 2026-04-02 stabilization pass covering task normalization, editor rehydration, draft/lock workflow, and RTDB compatibility metadata for teacher IELTS Writing grading.
 createdAt: '2026-04-02T07:17:57.239Z'
-updatedAt: '2026-04-02T10:05:32.405Z'
+updatedAt: '2026-04-02T10:32:17.910Z'
 tags:
   - architecture
   - ielts
@@ -148,3 +148,13 @@ The essay editor now enforces a concrete overlap policy instead of leaving corre
 
 Related doc:
 - @doc/architecture/ielts-writing/ielts-writing-essay-editor-tool-contract-and-mark-composition-2026-04-02
+
+
+## 2026-04-02 follow-up: feedback editor list-tool stability
+
+`TabbedFeedbackEditor` now has an additional controlled-editor invariant:
+- same-value controlled `feedback` updates must not re-run `setContent(...)`
+- bullet and ordered list formatting must survive the `onChange -> parent rerender -> feedback prop` loop
+- toolbar buttons must preserve editor selection on `mousedown` so list toggles act on the intended block instead of blurring first
+
+This keeps the feedback editor list tools stable while preserving the task/tab rehydration rules already documented above.

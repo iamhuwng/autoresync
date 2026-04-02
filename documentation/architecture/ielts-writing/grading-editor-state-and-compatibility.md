@@ -56,6 +56,9 @@ It focuses on the parts that were previously brittle:
 - `TabbedFeedbackEditor` must rebuild its internal per-tab cache from incoming `feedback`
 - real task changes reset the active tab to `taskSummary`
 - same-task source reloads must keep the current tab but replace the tab content from props
+- same-value controlled updates must not re-run `setContent(...)` and clobber active formatting commands
+- list formatting must survive the parent `onChange -> rerender -> feedback prop` loop without collapsing back to paragraphs
+- toolbar buttons must preserve editor selection on `mousedown` so list toggles operate on the intended block instead of blurring first
 
 ## Draft And Unsaved-Work Rules
 

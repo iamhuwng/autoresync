@@ -157,6 +157,15 @@
       "duration": 60
     }
   ],
+  "gmr6z8": [
+    {
+      "id": "te-1775125937998-gmr6z8",
+      "startedAt": "2026-04-02T10:32:17.9987716Z",
+      "endedAt": "2026-04-02T10:52:17.9987716Z",
+      "duration": 1200,
+      "note": "Fix feedback-editor list-tool instability, update grading-editor architecture docs, and add controlled rerender regression coverage."
+    }
+  ],
   "hb9gdo": [
     {
       "id": "te-1772234604652-hb9gdo",
@@ -298,6 +307,13 @@
       "endedAt": "2026-04-02T10:50:32.5579718Z",
       "duration": 2700,
       "note": "Second pass on essay-editor mark composition, regression tests, and architecture doc synchronization."
+    },
+    {
+      "id": "te-1775124476533-t6evqo",
+      "startedAt": "2026-04-02T10:07:56.5338822Z",
+      "endedAt": "2026-04-02T10:17:56.5338822Z",
+      "duration": 600,
+      "note": "Documentation and Knowns consistency pass after the essay-editor second pass."
     }
   ],
   "ujov0v": [

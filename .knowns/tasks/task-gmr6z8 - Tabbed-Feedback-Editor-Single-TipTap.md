@@ -8,8 +8,8 @@ labels:
   - from-spec
   - grading-editor
 createdAt: '2026-03-01T06:45:21.893Z'
-updatedAt: '2026-03-01T07:59:29.235Z'
-timeSpent: 128
+updatedAt: '2026-04-02T10:32:18.007Z'
+timeSpent: 1328
 assignee: '@me'
 spec: specs/grading-editor-redesign
 fulfills:
@@ -58,5 +58,6 @@ Rewrite FeedbackPanel.tsx. Replace 5 separate TipTap editors with 1 tabbed TipTa
 - Placeholder styling via CSS ::before pseudo-element
 
 ### Build: Zero new TS errors"
+2026-04-02 follow-up fix: TabbedFeedbackEditor list tools were unstable under controlled parent updates because the prop-sync effect re-ran `setContent(...)` even when the incoming HTML matched the live editor state. Added normalized same-value guards, made toolbar buttons preserve selection on `mousedown`, and added a regression test that verifies bullet-list markup survives the `onChange -> rerender -> feedback prop` loop.
 <!-- SECTION:NOTES:END -->
 
