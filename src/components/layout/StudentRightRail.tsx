@@ -430,7 +430,7 @@ export const StudentRightRail: React.FC<StudentRightRailProps> = ({ shellData, s
                                         {THUMB_EMOJIS[(idx + 2) % THUMB_EMOJIS.length]}
                                     </div>
                                     <div style={v2.sessionInfo}>
-                                        <p style={v2.sessionName}>{cls.classCode || cls.name}</p>
+                                        <p style={v2.sessionName}>{cls.name || cls.classCode}</p>
                                         <p style={v2.sessionMeta}>
                                             {cls.studentCount || 0} Students · {cls.activeAssignments || 0} Active
                                         </p>
@@ -525,7 +525,7 @@ export const StudentRightRail: React.FC<StudentRightRailProps> = ({ shellData, s
                                 {THUMB_EMOJIS[(idx + 2) % THUMB_EMOJIS.length]}
                             </div>
                             <div style={v2.sessionInfo}>
-                                <p style={v2.sessionName}>{cls.classCode || cls.name}</p>
+                                <p style={v2.sessionName}>{cls.name || cls.classCode}</p>
                                 <p style={v2.sessionMeta}>
                                     {cls.studentCount || 0} Students · {cls.activeAssignments || 0} Active
                                 </p>
