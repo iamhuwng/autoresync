@@ -42,6 +42,7 @@ import type {
     PublishedWritingGrading,
     QuickCommentPreset,
     WritingGradingDraft,
+    WritingPendingCommentDraft,
     WritingSubmission,
     WritingSubmissionForGrading,
     WritingSubmissionTask,
@@ -90,6 +91,31 @@ interface CommentAnchorPosition {
     anchorRight: number;
     anchorCenterY: number;
     anchorViewportTop: number;
+}
+
+interface PendingQuickCommentCommand {
+    taskNumber: 1 | 2;
+    preset: QuickCommentPreset;
+    nonce: number;
+}
+
+interface PendingCorrectionCommand {
+    taskNumber: 1 | 2;
+    action: 'apply' | 'remove';
+    from: number;
+    to: number;
+    correctionText?: string;
+    nonce: number;
+}
+
+interface PendingCommentMutationCommand {
+    taskNumber: 1 | 2;
+    action: 'remove' | 'apply';
+    commentId: string;
+    color: string;
+    from: number;
+    to: number;
+    nonce: number;
 }
 
 const COMMENT_HIGHLIGHT_COLORS = [
@@ -199,6 +225,7 @@ function buildDraftFromPageState(
     teacherId: string,
     teacherName: string,
     taskStates: Record<1 | 2, TaskEditorState>,
+    pendingCommentDrafts: Partial<Record<1 | 2, WritingPendingCommentDraft>>,
     previous?: WritingGradingDraft | null,
 ): WritingGradingDraft {
     return {
@@ -214,6 +241,7 @@ function buildDraftFromPageState(
             acc[Number(key) as 1 | 2] = buildTaskMarkupState(task);
             return acc;
         }, {} as Partial<Record<1 | 2, WritingTaskMarkupState>>),
+        pendingCommentDrafts,
     };
 }
 
@@ -264,6 +292,34 @@ function formatAbsoluteDate(timestamp?: number) {
     });
 }
 
+function getInitialActiveWritingTask(submission: WritingSubmission, preferredTask?: 1 | 2 | null): 1 | 2 {
+    const availableTasks = submission.tasks
+        .map((task) => task.taskNumber)
+        .filter((taskNumber): taskNumber is 1 | 2 => taskNumber === 1 || taskNumber === 2)
+        .sort((left, right) => left - right);
+
+    if (preferredTask && availableTasks.includes(preferredTask)) {
+        return preferredTask;
+    }
+
+    return availableTasks[0] || 1;
+}
+
+function isVersionConflictError(errorMessage: string) {
+    return errorMessage.includes('A newer published grading already exists')
+        || errorMessage.includes('A newer grading draft already exists');
+}
+
+function serializePendingCommentDrafts(
+    drafts: Partial<Record<1 | 2, WritingPendingCommentDraft>>,
+) {
+    return JSON.stringify(
+        Object.entries(drafts)
+            .sort(([left], [right]) => Number(left) - Number(right))
+            .map(([taskNumber, draft]) => [taskNumber, draft]),
+    );
+}
+
 export default function WritingGradingPage() {
     const { submissionId } = useParams<{ submissionId: string }>();
     const { user, profile, logout } = useAuth();
@@ -294,22 +350,9 @@ export default function WritingGradingPage() {
     const [lockInfo, setLockInfo] = useState<WritingGradingLock | null>(null);
     const [lockConflict, setLockConflict] = useState<WritingGradingLock | null>(null);
     const [pendingCommentDrafts, setPendingCommentDrafts] = useState<Partial<Record<1 | 2, PendingCommentDraft>>>({});
-    const [pendingQuickComment, setPendingQuickComment] = useState<{ preset: QuickCommentPreset; nonce: number } | null>(null);
-    const [pendingCorrection, setPendingCorrection] = useState<{
-        action: 'apply' | 'remove';
-        from: number;
-        to: number;
-        correctionText?: string;
-        nonce: number;
-    } | null>(null);
-    const [pendingCommentMutation, setPendingCommentMutation] = useState<{
-        action: 'remove' | 'apply';
-        commentId: string;
-        color: string;
-        from: number;
-        to: number;
-        nonce: number;
-    } | null>(null);
+    const [pendingQuickComment, setPendingQuickComment] = useState<PendingQuickCommentCommand | null>(null);
+    const [pendingCorrection, setPendingCorrection] = useState<PendingCorrectionCommand | null>(null);
+    const [pendingCommentMutation, setPendingCommentMutation] = useState<PendingCommentMutationCommand | null>(null);
     const [correctionRequest, setCorrectionRequest] = useState<{
         mode: 'create' | 'edit';
         from: number;
@@ -318,6 +361,16 @@ export default function WritingGradingPage() {
         correctionText: string;
         position: { top: number; left: number };
     } | null>(null);
+    const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
+    const [leaveDialogSaving, setLeaveDialogSaving] = useState(false);
+    const [takeoverReason, setTakeoverReason] = useState('');
+    const [takeoverDialogOpen, setTakeoverDialogOpen] = useState(false);
+    const [takeoverSubmitting, setTakeoverSubmitting] = useState(false);
+    const [regradeReason, setRegradeReason] = useState('');
+    const [regradeDialogOpen, setRegradeDialogOpen] = useState(false);
+    const [regradeError, setRegradeError] = useState<string | null>(null);
+    const [savedPendingCommentDraftSignature, setSavedPendingCommentDraftSignature] = useState(() => serializePendingCommentDrafts({}));
+    const [editorHydrationNonce, setEditorHydrationNonce] = useState(0);
 
     const pageRef = useRef<HTMLDivElement>(null);
     const sessionIdRef = useRef(createSessionId());
@@ -329,6 +382,8 @@ export default function WritingGradingPage() {
     const quickCommentNonceRef = useRef(0);
     const correctionNonceRef = useRef(0);
     const dirtyRef = useRef(false);
+    const hasUnsavedChangesRef = useRef(false);
+    const savedPendingCommentDraftSignatureRef = useRef(savedPendingCommentDraftSignature);
     const modeRef = useRef<PageMode>('review');
     const submissionRef = useRef<WritingSubmission | null>(null);
     const publishedGradingRef = useRef<PublishedWritingGrading | null>(null);
@@ -340,6 +395,15 @@ export default function WritingGradingPage() {
     useEffect(() => {
         dirtyRef.current = dirty;
     }, [dirty]);
+
+    useEffect(() => {
+        savedPendingCommentDraftSignatureRef.current = savedPendingCommentDraftSignature;
+    }, [savedPendingCommentDraftSignature]);
+
+    useEffect(() => {
+        hasUnsavedChangesRef.current = dirty
+            || serializePendingCommentDrafts(pendingCommentDrafts) !== savedPendingCommentDraftSignatureRef.current;
+    }, [dirty, pendingCommentDrafts]);
 
     useEffect(() => {
         modeRef.current = mode;
@@ -396,6 +460,7 @@ export default function WritingGradingPage() {
             user.uid,
             user.displayName || user.email || 'Teacher',
             taskStatesRef.current,
+            pendingCommentDraftsRef.current,
             serverDraftRef.current,
         );
 
@@ -440,6 +505,8 @@ export default function WritingGradingPage() {
     const foreignDraftOwnerId = submission?.gradingDraftMeta?.ownerTeacherId;
     const hasForeignDraft = Boolean(foreignDraftOwnerId && foreignDraftOwnerId !== user?.uid);
     const hasAnyPendingCommentDraft = Object.keys(pendingCommentDrafts).length > 0;
+    const hasUnsavedPendingCommentDrafts = serializePendingCommentDrafts(pendingCommentDrafts) !== savedPendingCommentDraftSignature;
+    const hasUnsavedChanges = dirty || hasUnsavedPendingCommentDrafts;
     const currentLockIsOwned = Boolean(
         user?.uid
         && lockInfo?.teacherId === user.uid
@@ -467,6 +534,18 @@ export default function WritingGradingPage() {
         });
     }, [submission, taskStates]);
 
+    const clearTaskScopedTransientState = useCallback(() => {
+        setFocusedCommentId(null);
+        setFocusedCommentAnchorViewportTop(null);
+        setHoveredCommentId(null);
+        setAnchorPositions([]);
+        setHasSelectionInEditor(false);
+        setPendingQuickComment(null);
+        setPendingCorrection(null);
+        setPendingCommentMutation(null);
+        setCorrectionRequest(null);
+    }, []);
+
     const resetFromGradingSource = useCallback((
         nextSubmission: WritingSubmission,
         nextPublished: PublishedWritingGrading | null,
@@ -477,11 +556,14 @@ export default function WritingGradingPage() {
         setPublishedGrading(nextPublished);
         setServerDraft(nextDraft);
         setSubmission(nextSubmission);
-        setFocusedCommentId(null);
-        setHoveredCommentId(null);
-        setAnchorPositions([]);
+        setPendingCommentDrafts(nextDraft?.pendingCommentDrafts ?? {});
+        setSavedPendingCommentDraftSignature(serializePendingCommentDrafts(nextDraft?.pendingCommentDrafts ?? {}));
+        setEditorHydrationNonce((current) => current + 1);
+        setActiveTask((current) => getInitialActiveWritingTask(nextSubmission, current));
+        clearTaskScopedTransientState();
+        setEditorViewMode('marked');
         setDirty(false);
-    }, []);
+    }, [clearTaskScopedTransientState]);
 
     useEffect(() => {
         if (!submissionId || !user?.uid) {
@@ -527,7 +609,15 @@ export default function WritingGradingPage() {
 
                 setQuickCommentPresets(presets);
                 resetFromGradingSource(data.submission, published, preferredDraft);
-                setMode(data.submission.markingStatus === 'pending-review' && !nextHasForeignDraft ? 'editing' : 'review');
+                setMode('review');
+                setLockConflict(nextHasForeignDraft ? data.submission.gradingDraftMeta ? {
+                    submissionId: data.submission.id,
+                    teacherId: data.submission.gradingDraftMeta.ownerTeacherId,
+                    teacherName: data.submission.gradingDraftMeta.ownerTeacherName,
+                    sessionId: '',
+                    heartbeatAt: 0,
+                    expiresAt: 0,
+                } : null : null);
             } catch (loadError) {
                 if (!isActive) {
                     return;
@@ -546,6 +636,24 @@ export default function WritingGradingPage() {
             isActive = false;
         };
     }, [resetFromGradingSource, submissionId, user?.uid]);
+
+    const reloadLatestGradingState = useCallback(async () => {
+        if (!submissionId || !user?.uid) {
+            return false;
+        }
+
+        const gradingResult = await getWritingSubmissionForGrading(submissionId, user.uid);
+        if (!gradingResult.success || !gradingResult.data) {
+            return false;
+        }
+
+        const data: WritingSubmissionForGrading = gradingResult.data;
+        const published = data.publishedGrading || data.submission.publishedGrading || null;
+        resetFromGradingSource(data.submission, published, data.gradingDraft);
+        setMode('review');
+        showStatus('The grading state changed on another session. Latest data has been reloaded.');
+        return true;
+    }, [resetFromGradingSource, showStatus, submissionId, user?.uid]);
 
     const releaseLock = useCallback(async () => {
         if (!submissionId || !user?.uid || !lockInfoRef.current) {
@@ -634,7 +742,7 @@ export default function WritingGradingPage() {
     ]);
 
     const saveLocalBackup = useCallback(async () => {
-        if (!submissionId || !user?.uid || !dirtyRef.current) {
+        if (!submissionId || !user?.uid || !hasUnsavedChangesRef.current) {
             return;
         }
 
@@ -657,7 +765,7 @@ export default function WritingGradingPage() {
     }, []);
 
     const persistDraft = useCallback(async (source: 'manual' | 'autosave') => {
-        if (!submissionId || !submission || !user?.uid || !dirtyRef.current) {
+        if (!submissionId || !submission || !user?.uid || !hasUnsavedChangesRef.current) {
             return true;
         }
 
@@ -676,44 +784,52 @@ export default function WritingGradingPage() {
 
         return enqueueWrite(async () => {
             setSaving(true);
-            await saveLocalBackup();
+            try {
+                await saveLocalBackup();
 
-            const draft = buildCurrentDraft();
-            if (!draft) {
-                throw new Error('Unable to build draft snapshot');
+                const draft = buildCurrentDraft();
+                if (!draft) {
+                    throw new Error('Unable to build draft snapshot');
+                }
+
+                const response = await saveGradingDraft(submissionId, draft, {
+                    expectedDraftVersion: serverDraftRef.current?.version ?? null,
+                    expectedPublishedVersion: publishedGradingRef.current?.auditVersion ?? 0,
+                });
+
+                if (!response.success || !response.data) {
+                    const errorMessage = response.error || 'Failed to save draft';
+                    if (isVersionConflictError(errorMessage)) {
+                        await reloadLatestGradingState();
+                    }
+                    throw new Error(errorMessage);
+                }
+
+                setServerDraft(response.data);
+                setSavedPendingCommentDraftSignature(serializePendingCommentDrafts(response.data.pendingCommentDrafts ?? {}));
+                setSubmission((current) => current ? ({
+                    ...current,
+                    gradingDraftMeta: {
+                        ownerTeacherId: response.data!.ownerTeacherId,
+                        ownerTeacherName: response.data!.ownerTeacherName,
+                        version: response.data!.version,
+                        basedOnPublishedVersion: response.data!.basedOnPublishedVersion,
+                        updatedAt: response.data!.updatedAt,
+                    },
+                    markingStatus: current.markingStatus === 'graded' ? 'graded' : 'pending-review',
+                }) : current);
+                setDirty(false);
+                showStatus(source === 'autosave' ? 'Draft autosaved' : 'Draft saved');
+                trackAction('saveDraft', { submissionId, source });
+                return true;
+            } finally {
+                setSaving(false);
             }
-
-            const response = await saveGradingDraft(submissionId, draft, {
-                expectedDraftVersion: serverDraftRef.current?.version ?? null,
-                expectedPublishedVersion: publishedGradingRef.current?.auditVersion ?? 0,
-            });
-
-            setSaving(false);
-
-            if (!response.success || !response.data) {
-                throw new Error(response.error || 'Failed to save draft');
-            }
-
-            setServerDraft(response.data);
-            setSubmission((current) => current ? ({
-                ...current,
-                gradingDraftMeta: {
-                    ownerTeacherId: response.data!.ownerTeacherId,
-                    ownerTeacherName: response.data!.ownerTeacherName,
-                    version: response.data!.version,
-                    basedOnPublishedVersion: response.data!.basedOnPublishedVersion,
-                    updatedAt: response.data!.updatedAt,
-                },
-                markingStatus: current.markingStatus === 'graded' ? 'graded' : 'pending-review',
-            }) : current);
-            setDirty(false);
-            showStatus(source === 'autosave' ? 'Draft autosaved' : 'Draft saved');
-            trackAction('saveDraft', { submissionId, source });
-            return true;
         });
     }, [
         buildCurrentDraft,
         enqueueWrite,
+        reloadLatestGradingState,
         saveLocalBackup,
         showStatus,
         submission,
@@ -722,7 +838,7 @@ export default function WritingGradingPage() {
         user?.uid,
     ]);
 
-    const handlePublish = useCallback(async () => {
+    const executePublish = useCallback(async (reason?: string) => {
         if (!submissionId || !submission || !user?.uid) {
             return;
         }
@@ -756,14 +872,6 @@ export default function WritingGradingPage() {
                     throw new Error('Unable to build draft snapshot');
                 }
 
-                const reason = publishedGradingRef.current
-                    ? (window.prompt('Reason for regrade:') || '').trim()
-                    : '';
-
-                if (publishedGradingRef.current && !reason) {
-                    throw new Error('A regrade reason is required');
-                }
-
                 const response = await publishGrading(submissionId, draft, {
                     expectedDraftVersion: serverDraftRef.current?.version ?? null,
                     expectedPublishedVersion: publishedGradingRef.current?.auditVersion ?? 0,
@@ -771,7 +879,11 @@ export default function WritingGradingPage() {
                 });
 
                 if (!response.success || !response.data) {
-                    throw new Error(response.error || 'Failed to publish grading');
+                    const errorMessage = response.error || 'Failed to publish grading';
+                    if (isVersionConflictError(errorMessage)) {
+                        await reloadLatestGradingState();
+                    }
+                    throw new Error(errorMessage);
                 }
 
                 const nextPublished = response.data;
@@ -802,12 +914,24 @@ export default function WritingGradingPage() {
         hasAnyPendingCommentDraft,
         currentLockIsOwned,
         releaseLock,
+        reloadLatestGradingState,
         showStatus,
         submission,
         submissionId,
         trackAction,
         user?.uid,
     ]);
+
+    const handlePublish = useCallback(async () => {
+        if (publishedGradingRef.current) {
+            setRegradeReason('');
+            setRegradeError(null);
+            setRegradeDialogOpen(true);
+            return;
+        }
+
+        await executePublish();
+    }, [executePublish]);
 
     const handleDiscardTakeover = useCallback(async () => {
         if (!submission || !user?.uid || !submission.gradingDraftMeta?.ownerTeacherId || submission.gradingDraftMeta.ownerTeacherId === user.uid) {
@@ -820,50 +944,64 @@ export default function WritingGradingPage() {
             showStatus('Another teacher still has an active lock. Takeover is blocked until the lock expires.');
             return;
         }
-
-        const reason = (window.prompt('Reason for discarding the other teacher draft and taking over:') || '').trim();
-        if (!reason) {
-            return;
-        }
-
-        const discardResult = await discardPrivateDraft(submission.id, {
-            actorTeacherId: user.uid,
-            actorTeacherName: user.displayName || user.email || 'Teacher',
-            reason,
-        });
-
-        if (!discardResult.success) {
-            showStatus(discardResult.error || 'Failed to discard the private draft');
-            return;
-        }
-
-        setSubmission((current) => current ? ({ ...current, gradingDraftMeta: null }) : current);
-        trackAction('discardDraftTakeover', { submissionId: submission.id });
-        const locked = await acquireLock();
-        if (!locked) {
-            return;
-        }
-        setMode('editing');
-        showStatus('Private draft discarded. You now own the grading draft.');
+        setTakeoverReason('');
+        setTakeoverDialogOpen(true);
     }, [
         acquireLock,
         showStatus,
         submission,
-        trackAction,
         user?.displayName,
         user?.email,
         user?.uid,
     ]);
 
-    useEffect(() => {
-        if (mode !== 'editing' || !submission || hasForeignDraft) {
+    const confirmDiscardTakeover = useCallback(async () => {
+        if (!submission || !user?.uid) {
             return;
         }
 
-        if (submission.markingStatus === 'pending-review') {
-            void startEditing('pending-review');
+        const reason = takeoverReason.trim();
+        if (!reason) {
+            showStatus('A takeover reason is required.');
+            return;
         }
-    }, [hasForeignDraft, mode, startEditing, submission]);
+
+        setTakeoverSubmitting(true);
+        try {
+            const discardResult = await discardPrivateDraft(submission.id, {
+                actorTeacherId: user.uid,
+                actorTeacherName: user.displayName || user.email || 'Teacher',
+                reason,
+            });
+
+            if (!discardResult.success) {
+                showStatus(discardResult.error || 'Failed to discard the private draft');
+                return;
+            }
+
+            setTakeoverDialogOpen(false);
+            setSubmission((current) => current ? ({ ...current, gradingDraftMeta: null }) : current);
+            trackAction('discardDraftTakeover', { submissionId: submission.id });
+            const locked = await acquireLock();
+            if (!locked) {
+                return;
+            }
+
+            setMode('editing');
+            showStatus('Private draft discarded. You now own the grading draft.');
+        } finally {
+            setTakeoverSubmitting(false);
+        }
+    }, [
+        acquireLock,
+        showStatus,
+        submission,
+        takeoverReason,
+        trackAction,
+        user?.displayName,
+        user?.email,
+        user?.uid,
+    ]);
 
     useEffect(() => {
         if (mode !== 'editing') {
@@ -888,6 +1026,7 @@ export default function WritingGradingPage() {
                 void renewWritingGradingLock(submissionId, user.uid, sessionIdRef.current).then((result) => {
                     if (!result.success || !result.lock) {
                         setLockInfo(null);
+                        setMode('review');
                         trackAction('lockExpired', { submissionId });
                         showStatus(result.error || 'Your grading lock expired');
                         return;
@@ -907,7 +1046,7 @@ export default function WritingGradingPage() {
     }, [mode, showStatus, submissionId, trackAction, user?.uid]);
 
     useEffect(() => {
-        if (mode !== 'editing' || !dirty) {
+        if (mode !== 'editing' || !hasUnsavedChanges) {
             if (autosaveTimerRef.current) {
                 clearTimeout(autosaveTimerRef.current);
                 autosaveTimerRef.current = null;
@@ -927,11 +1066,11 @@ export default function WritingGradingPage() {
                 autosaveTimerRef.current = null;
             }
         };
-    }, [dirty, mode, persistDraft, showStatus]);
+    }, [hasUnsavedChanges, mode, persistDraft, showStatus]);
 
     useEffect(() => {
         const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-            if (modeRef.current === 'editing' && (dirtyRef.current || Object.keys(pendingCommentDraftsRef.current).length > 0)) {
+            if (modeRef.current === 'editing' && hasUnsavedChangesRef.current) {
                 event.preventDefault();
             }
         };
@@ -1013,12 +1152,14 @@ export default function WritingGradingPage() {
     }, [activeTaskState?.comments, activeTaskState?.markedContent, activeTask, focusedCommentId, hoveredCommentId, mode, panelTab]);
 
     const handleTaskChange = useCallback((taskNumber: 1 | 2) => {
+        if (taskNumber === activeTask) {
+            return;
+        }
+
+        clearTaskScopedTransientState();
         setActiveTask(taskNumber);
-        setFocusedCommentId(null);
-        setFocusedCommentAnchorViewportTop(null);
-        setHoveredCommentId(null);
         trackAction('switchTask', { submissionId, taskNumber });
-    }, [submissionId, trackAction]);
+    }, [activeTask, clearTaskScopedTransientState, submissionId, trackAction]);
 
     const handlePanelTabChange = useCallback((nextTab: PanelTab) => {
         if (nextTab !== panelTab) {
@@ -1061,6 +1202,7 @@ export default function WritingGradingPage() {
     const pushCommentMutation = useCallback((comment: GradingComment, action: 'remove' | 'apply', color?: string) => {
         mutationNonceRef.current += 1;
         setPendingCommentMutation({
+            taskNumber: comment.taskNumber,
             action,
             commentId: comment.id,
             color: color || comment.color,
@@ -1345,7 +1487,7 @@ export default function WritingGradingPage() {
         }
 
         quickCommentNonceRef.current += 1;
-        setPendingQuickComment({ preset, nonce: quickCommentNonceRef.current });
+        setPendingQuickComment({ taskNumber: activeTask, preset, nonce: quickCommentNonceRef.current });
         setFocusedCommentId(null);
         trackAction('useQuickComment', { submissionId, presetId: preset.id });
     }, [activeTask, showStatus, submissionId, trackAction]);
@@ -1396,6 +1538,7 @@ export default function WritingGradingPage() {
 
         correctionNonceRef.current += 1;
         setPendingCorrection({
+            taskNumber: activeTask,
             action: 'apply',
             from: correctionRequest.from,
             to: correctionRequest.to,
@@ -1416,6 +1559,7 @@ export default function WritingGradingPage() {
 
         correctionNonceRef.current += 1;
         setPendingCorrection({
+            taskNumber: activeTask,
             action: 'remove',
             from: correctionRequest.from,
             to: correctionRequest.to,
@@ -1425,29 +1569,45 @@ export default function WritingGradingPage() {
         setCorrectionRequest(null);
     }, [activeTask, correctionRequest, submissionId, trackAction]);
 
-    const handleBackToQueue = useCallback(async () => {
-        if (Object.keys(pendingCommentDraftsRef.current).length > 0) {
-            const discardPending = window.confirm('There is an open comment composer that has not been saved. Leave the grading page and discard it?');
-            if (!discardPending) {
+    const confirmRegradePublish = useCallback(async () => {
+        const reason = regradeReason.trim();
+        if (!reason) {
+            setRegradeError('A regrade reason is required.');
+            return;
+        }
+
+        setRegradeError(null);
+        setRegradeDialogOpen(false);
+        await executePublish(reason);
+    }, [executePublish, regradeReason]);
+
+    const leaveToQueue = useCallback(async (modeToUse: 'save' | 'discard') => {
+        if (modeToUse === 'save') {
+            setLeaveDialogSaving(true);
+            try {
+                await persistDraft('manual');
+            } catch (saveError) {
+                showStatus(saveError instanceof Error ? saveError.message : 'Failed to save draft');
                 return;
+            } finally {
+                setLeaveDialogSaving(false);
             }
         }
 
-        if (mode === 'editing' && dirtyRef.current) {
-            const shouldSave = window.confirm('You have unsaved grading changes. Save draft before returning to the queue?');
-            if (shouldSave) {
-                try {
-                    await persistDraft('manual');
-                } catch (saveError) {
-                    showStatus(saveError instanceof Error ? saveError.message : 'Failed to save draft');
-                    return;
-                }
-            }
+        setLeaveDialogOpen(false);
+        await releaseLock();
+        navigateTo('TEACHER_GRADING_QUEUE', {}, { reason: 'teacher_grading_back_to_queue' });
+    }, [navigateTo, persistDraft, releaseLock, showStatus]);
+
+    const handleBackToQueue = useCallback(async () => {
+        if (mode === 'editing' && hasUnsavedChangesRef.current) {
+            setLeaveDialogOpen(true);
+            return;
         }
 
         await releaseLock();
         navigateTo('TEACHER_GRADING_QUEUE', {}, { reason: 'teacher_grading_back_to_queue' });
-    }, [mode, navigateTo, persistDraft, releaseLock, showStatus]);
+    }, [mode, navigateTo, releaseLock]);
 
     const renderTeacherShell = useCallback((content: ReactNode) => (
         <div className="wgp-shell">
@@ -1551,7 +1711,7 @@ export default function WritingGradingPage() {
                         )
                     ) : (
                         <>
-                            <button className="wgp-secondary-btn" onClick={() => void persistDraft('manual')} disabled={saving || !dirty || !currentLockIsOwned}>
+                            <button className="wgp-secondary-btn" onClick={() => void persistDraft('manual')} disabled={saving || !hasUnsavedChanges || !currentLockIsOwned}>
                                 {saving ? 'Saving...' : 'Save Draft'}
                             </button>
                             <button className="wgp-primary-btn" onClick={() => void handlePublish()} disabled={publishing || hasPublishBlockingError || !currentLockIsOwned || hasAnyPendingCommentDraft}>
@@ -1610,6 +1770,7 @@ export default function WritingGradingPage() {
                 <section className="wgp-left-column">
                     <div className={`wgp-editor-card ${mode === 'review' ? 'wgp-editor-card-readonly' : ''}`}>
                         <EssayEditor
+                            key={`essay-${submission.id}-${activeTask}-${editorHydrationNonce}`}
                             originalEssayText={activeTaskState.essayText}
                             initialContent={activeTaskState.markedContent}
                             wordCount={activeTaskState.wordCount}
@@ -1746,6 +1907,7 @@ export default function WritingGradingPage() {
                                     <div className="wgp-panel-card">
                                         <div className="wgp-card-title">Task {activeTask} Feedback</div>
                                         <TabbedFeedbackEditor
+                                            key={`feedback-${submission.id}-${activeTask}-${editorHydrationNonce}`}
                                             taskNumber={activeTask}
                                             feedback={activeTaskState.feedback}
                                             onChange={(feedback) => handleTaskFeedbackChange(activeTask, feedback)}
@@ -1812,6 +1974,136 @@ export default function WritingGradingPage() {
                     )}
                 </aside>
             </main>
+
+            {leaveDialogOpen && (
+                <div className="wgp-modal-backdrop" role="presentation">
+                    <div className="wgp-modal-card" role="dialog" aria-modal="true" aria-labelledby="wgp-leave-dialog-title">
+                        <h2 className="wgp-modal-title" id="wgp-leave-dialog-title">Leave grading page?</h2>
+                        <p className="wgp-modal-copy">
+                            {hasAnyPendingCommentDraft
+                                ? 'Open comment composers and unsaved grading changes will be lost unless you save a draft first.'
+                                : 'You have unsaved grading changes. Save a draft before returning to the queue?'}
+                        </p>
+                        <div className="wgp-modal-actions">
+                            <button
+                                className="wgp-secondary-btn"
+                                type="button"
+                                onClick={() => {
+                                    trackAction('cancelLeave', { submissionId, source: 'grading_dialog' });
+                                    setLeaveDialogOpen(false);
+                                }}
+                                disabled={leaveDialogSaving}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                className="wgp-secondary-btn"
+                                type="button"
+                                onClick={() => {
+                                    trackAction('discardChanges', { submissionId, source: 'grading_dialog' });
+                                    void leaveToQueue('discard');
+                                }}
+                                disabled={leaveDialogSaving}
+                            >
+                                Discard and Leave
+                            </button>
+                            <button
+                                className="wgp-primary-btn"
+                                type="button"
+                                onClick={() => void leaveToQueue('save')}
+                                disabled={leaveDialogSaving}
+                            >
+                                {leaveDialogSaving ? 'Saving...' : 'Save Draft and Leave'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {takeoverDialogOpen && (
+                <div className="wgp-modal-backdrop" role="presentation">
+                    <div className="wgp-modal-card" role="dialog" aria-modal="true" aria-labelledby="wgp-takeover-dialog-title">
+                        <h2 className="wgp-modal-title" id="wgp-takeover-dialog-title">Discard private draft and take over?</h2>
+                        <p className="wgp-modal-copy">
+                            This will permanently remove the other teacher&apos;s unpublished draft. A takeover reason is required for the audit trail.
+                        </p>
+                        <textarea
+                            className="wgp-modal-textarea"
+                            value={takeoverReason}
+                            onChange={(event) => setTakeoverReason(event.target.value)}
+                            placeholder="Explain why this private draft is being discarded..."
+                            rows={4}
+                        />
+                        <div className="wgp-modal-actions">
+                            <button
+                                className="wgp-secondary-btn"
+                                type="button"
+                                onClick={() => {
+                                    trackAction('cancelDraftTakeover', { submissionId, source: 'grading_dialog' });
+                                    setTakeoverDialogOpen(false);
+                                }}
+                                disabled={takeoverSubmitting}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                className="wgp-primary-btn"
+                                type="button"
+                                onClick={() => void confirmDiscardTakeover()}
+                                disabled={takeoverSubmitting}
+                            >
+                                {takeoverSubmitting ? 'Taking Over...' : 'Discard Draft and Take Over'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {regradeDialogOpen && (
+                <div className="wgp-modal-backdrop" role="presentation">
+                    <div className="wgp-modal-card" role="dialog" aria-modal="true" aria-labelledby="wgp-regrade-dialog-title">
+                        <h2 className="wgp-modal-title" id="wgp-regrade-dialog-title">Publish regrade</h2>
+                        <p className="wgp-modal-copy">
+                            A regrade reason is required before updating the published grading.
+                        </p>
+                        <textarea
+                            className="wgp-modal-textarea"
+                            value={regradeReason}
+                            onChange={(event) => {
+                                setRegradeReason(event.target.value);
+                                if (regradeError) {
+                                    setRegradeError(null);
+                                }
+                            }}
+                            placeholder="Explain what changed in this regrade..."
+                            rows={4}
+                        />
+                        {regradeError && <p className="wgp-modal-error">{regradeError}</p>}
+                        <div className="wgp-modal-actions">
+                            <button
+                                className="wgp-secondary-btn"
+                                type="button"
+                                onClick={() => {
+                                    trackAction('cancelRegrade', { submissionId, source: 'grading_dialog' });
+                                    setRegradeDialogOpen(false);
+                                    setRegradeError(null);
+                                }}
+                                disabled={publishing}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                className="wgp-primary-btn"
+                                type="button"
+                                onClick={() => void confirmRegradePublish()}
+                                disabled={publishing}
+                            >
+                                {publishing ? 'Publishing...' : 'Publish Regrade'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

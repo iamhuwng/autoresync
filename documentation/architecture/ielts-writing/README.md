@@ -14,12 +14,14 @@ This pack does not replace the detailed PRD/spec/audit documents. It gives the s
 
 1. `lifecycle-and-surfaces.md`
 2. `contracts-and-governance.md`
+3. `grading-editor-state-and-compatibility.md`
 
 ## What This Pack Covers
 
 - the active Writing lifecycle from submit to published result
 - the current teacher and student surfaces
 - the canonical storage contract
+- the grading editor's task-state, draft, and lock contract
 - how Writing relates to the generic result-view shell and visibility systems
 - which older assumptions are now superseded
 
@@ -51,4 +53,5 @@ Related shared architecture docs:
 
 - If a Writing lifecycle state or host surface changes, update `lifecycle-and-surfaces.md`.
 - If storage, release gating, ownership, or compatibility rules change, update `contracts-and-governance.md`.
+- If grading-editor task state, draft behavior, or result compatibility metadata changes, update `grading-editor-state-and-compatibility.md`.
 - If the source-of-truth spec moves, update the links in this README.

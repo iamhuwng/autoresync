@@ -182,7 +182,7 @@ export function buildWritingSubmissionFallbackFromResult(
             activeTimeSeconds: typeof result.timeElapsed === 'number' ? result.timeElapsed : 0,
         }];
 
-    const format = normalizeWritingFormat(indexedTasks.length);
+    const format = normalizeWritingFormat(indexedTasks);
     const markingStatus = normalizeWritingMarkingStatus(result.markingStatus ?? writingData?.markingStatus);
     const fallbackTasks = indexedTasks
         .map((task: any, index: number) => {
@@ -213,8 +213,8 @@ export function buildWritingSubmissionFallbackFromResult(
         : (typeof result.bandScore === 'number' && result.bandScore > 0 ? result.bandScore : null);
     const fallbackGrading = markingStatus === 'graded'
         ? {
-            teacherId: typeof result.feedbackUpdatedBy === 'string' ? result.feedbackUpdatedBy : '',
-            teacherName: typeof result.feedbackUpdatedBy === 'string' ? result.feedbackUpdatedBy : 'Teacher',
+            teacherId: getResultFeedbackTeacherId(result),
+            teacherName: getResultFeedbackTeacherName(result),
             gradedAt: typeof result.feedbackUpdatedAt === 'number'
                 ? result.feedbackUpdatedAt
                 : (typeof result.updatedAt === 'number' ? result.updatedAt : result.submittedAt),
@@ -457,16 +457,16 @@ function normalizeWritingDuration(result: TestResultRecord, taskCount: number) {
     return taskCount > 1 ? 60 : 20;
 }
 
-function normalizeWritingFormat(taskCount: number): WritingSubmission['testMeta']['format'] {
-    if (taskCount <= 1) {
-        return 'task1-only';
+function normalizeWritingFormat(tasks: Array<{ taskNumber?: number }> | number): WritingSubmission['testMeta']['format'] {
+    if (typeof tasks === 'number') {
+        return tasks >= 2 ? 'full-test' : 'task1-only';
     }
 
-    if (taskCount >= 2) {
+    if (tasks.length >= 2) {
         return 'full-test';
     }
 
-    return 'task1-only';
+    return normalizeTaskNumber(tasks[0]?.taskNumber) === 2 ? 'task2-only' : 'task1-only';
 }
 
 function normalizeWritingMarkingStatus(
@@ -505,4 +505,24 @@ function extractTaskEssayText(previewText: unknown, taskNumber: 1 | 2, totalTask
     }
 
     return normalizedText;
+}
+
+function getResultFeedbackTeacherId(result: TestResultRecord) {
+    if (typeof (result as any).feedbackUpdatedByTeacherId === 'string' && (result as any).feedbackUpdatedByTeacherId.trim()) {
+        return (result as any).feedbackUpdatedByTeacherId;
+    }
+
+    return typeof result.feedbackUpdatedBy === 'string' ? result.feedbackUpdatedBy : '';
+}
+
+function getResultFeedbackTeacherName(result: TestResultRecord) {
+    if (typeof (result as any).feedbackUpdatedByTeacherName === 'string' && (result as any).feedbackUpdatedByTeacherName.trim()) {
+        return (result as any).feedbackUpdatedByTeacherName;
+    }
+
+    if (typeof result.feedbackUpdatedBy === 'string' && result.feedbackUpdatedBy.trim()) {
+        return result.feedbackUpdatedBy;
+    }
+
+    return 'Teacher';
 }

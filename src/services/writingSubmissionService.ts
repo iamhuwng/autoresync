@@ -592,6 +592,8 @@ async function persistPublishedWritingProjection(
         overallFeedback: publishedGrading.overallSummary || null,
         feedbackUpdatedAt: publishedGrading.updatedAt,
         feedbackUpdatedBy: publishedGrading.teacherId,
+        feedbackUpdatedByTeacherId: publishedGrading.teacherId,
+        feedbackUpdatedByTeacherName: publishedGrading.teacherName,
         updatedAt: publishedGrading.updatedAt,
         markingStatus: 'graded',
         context: baseResultRecord.context || resultContext,
@@ -1313,6 +1315,8 @@ export const updateGrading = withRestoreGuard<{ success: boolean; error?: string
             overallFeedback: gradingResult.feedback?.overall || null,
             feedbackUpdatedAt,
             feedbackUpdatedBy: graderId,
+            feedbackUpdatedByTeacherId: graderId,
+            feedbackUpdatedByTeacherName: gradingResult.teacherName || null,
             context: baseResultRecord.context || writingResultContext,
             writingData: {
                 ...(baseResultRecord.writingData || {}),

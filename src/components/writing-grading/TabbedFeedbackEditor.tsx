@@ -72,6 +72,7 @@ const TabbedFeedbackEditor: React.FC<TabbedFeedbackEditorProps> = ({
 }) => {
     const [activeTab, setActiveTab] = useState<FeedbackTab>('taskSummary');
     const contentRef = useRef<FeedbackContent>({ ...feedback });
+    const previousTaskNumberRef = useRef(taskNumber);
     const tabs = getTabs(taskNumber);
     const activeConfig = tabs.find(t => t.id === activeTab)!;
 
@@ -97,6 +98,24 @@ const TabbedFeedbackEditor: React.FC<TabbedFeedbackEditorProps> = ({
             onChange(contentRef.current);
         },
     });
+
+    useEffect(() => {
+        const taskChanged = previousTaskNumberRef.current !== taskNumber;
+        previousTaskNumberRef.current = taskNumber;
+        contentRef.current = { ...feedback };
+
+        if (taskChanged) {
+            setActiveTab('taskSummary');
+            onTabChange?.('taskSummary');
+        }
+
+        if (!editor) {
+            return;
+        }
+
+        const nextTab = taskChanged ? 'taskSummary' : activeTab;
+        editor.commands.setContent(feedback[nextTab] || '', false);
+    }, [editor, feedback, onTabChange, taskNumber]);
 
     // Switch tab: save current → load new
     const handleTabSwitch = useCallback((tabId: FeedbackTab) => {

@@ -8,7 +8,7 @@ labels:
   - from-spec
   - grading-editor
 createdAt: '2026-03-01T06:43:56.129Z'
-updatedAt: '2026-03-01T07:46:34.778Z'
+updatedAt: '2026-04-02T07:19:32.581Z'
 timeSpent: 1436
 assignee: '@me'
 spec: specs/grading-editor-redesign
@@ -77,5 +77,6 @@ Full component with:
 - Highlight multicolor works via `Highlight.configure({ multicolor: true })`
 
 ### Build: Zero new TS errors"
+2026-04-02 follow-up stabilization: EssayEditor is now task-scoped for command replay and content rehydration; queued quick comments/corrections/comment-mark mutations require taskNumber and are ignored when stale; correction-mark clicks reopen editing again; correction removal preserves original student text; added regression tests for correction replay, task rehydration, and stale-command rejection.
 <!-- SECTION:NOTES:END -->
 

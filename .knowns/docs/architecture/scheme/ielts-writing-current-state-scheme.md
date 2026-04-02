@@ -2,7 +2,7 @@
 title: IELTS Writing Current State Scheme
 description: Current-state contract for IELTS Writing across routing, submission, grading, result access, and forbidden regressions.
 createdAt: '2026-03-29T07:59:36.729Z'
-updatedAt: '2026-03-29T20:17:27.094Z'
+updatedAt: '2026-04-02T07:17:57.284Z'
 tags:
   - architecture
   - scheme
@@ -204,3 +204,25 @@ Remaining note:
 ## UI Finalization Pointer
 
 For current finalized expectations of the teacher writing grading editor surface and comment behavior, see @doc/specs/ielts-writing-grading-editor-finalization-2026-03-30.
+
+
+## 2026-04-02 implementation update: grading editor state and compatibility
+
+### Teacher workflow amendments
+- Pending-review submissions now load in review mode first; editing begins only after lock ownership is confirmed.
+- The grading page normalizes the first active task from the actual submission tasks, so `task2-only` submissions open correctly.
+- Task switching and grading-source reloads are hard state boundaries for editor rehydration and transient UI state.
+- Unsaved comment composers are part of the grading draft contract and participate in unsaved-work detection.
+- Leave, regrade, and draft-takeover paths now require explicit in-app dialogs instead of browser confirm/prompt flows.
+
+### Compatibility artifact amendments
+- RTDB compatibility results now write explicit teacher metadata in addition to legacy aliases:
+  - `feedbackUpdatedByTeacherId`
+  - `feedbackUpdatedByTeacherName`
+- Writing result readers should prefer those explicit fields and use legacy `feedbackUpdatedBy` only as fallback.
+- Degraded fallback reconstruction must preserve the real surviving task number so a single Task 2 result reconstructs as `task2-only`.
+
+### Lock and save safety amendments
+- grading locks are session-aware (`teacherId + sessionId`), so another tab owned by the same teacher is still a lock conflict
+- save completion must always clear the saving state even on failure
+- version conflicts must reload the latest grading state rather than silently overwriting it

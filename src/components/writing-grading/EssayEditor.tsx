@@ -77,9 +77,10 @@ export interface EssayEditorProps {
     onCorrectionRequest?: (from: number, to: number, selectedText: string) => void;
     onCorrectionMarkClick?: (selection: CorrectionMarkSelection) => void;
     /** External quick-comment command from the page */
-    pendingQuickComment?: { preset: QuickCommentPreset; nonce: number } | null;
+    pendingQuickComment?: { taskNumber: 1 | 2; preset: QuickCommentPreset; nonce: number } | null;
     /** External correction command from the page */
     pendingCorrection?: {
+        taskNumber: 1 | 2;
         action: 'apply' | 'remove';
         from: number;
         to: number;
@@ -88,6 +89,7 @@ export interface EssayEditorProps {
     } | null;
     /** External comment-mark mutation from the page */
     pendingCommentMutation?: {
+        taskNumber: 1 | 2;
         action: 'remove' | 'apply';
         commentId: string;
         color: string;
@@ -142,7 +144,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
     initialContent,
     wordCount: _wordCount,
     activeTimeSeconds: _activeTimeSeconds,
-    taskNumber: _taskNumber,
+    taskNumber,
     onAddComment,
     onGutterDotClick,
     onCommentMarkClick,
@@ -223,17 +225,6 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                     }
                 }
 
-                if (!readOnly) {
-                    const correctionEl = target.closest('.correction-mark') as HTMLElement | null;
-                    if (correctionEl) {
-                        const correctionSelection = getCorrectionMarkSelection(view, correctionEl);
-                        if (correctionSelection) {
-                            onCorrectionMarkClick?.(correctionSelection);
-                            return true;
-                        }
-                    }
-                }
-
                 return false;
             },
         },
@@ -241,11 +232,34 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
             onContentChange?.(ed.getJSON());
         },
         editable: !readOnly,
-    });
+    }, [taskNumber, originalEssayText]);
 
     useEffect(() => {
         editor?.setEditable(!readOnly);
     }, [editor, readOnly]);
+
+    useEffect(() => {
+        if (!editor) {
+            return;
+        }
+
+        const nextContent = initialContent || convertTextToTipTapJson(originalEssayText);
+        editor.commands.clearContent(false);
+        editor.commands.setContent(nextContent, false);
+    }, [editor, initialContent, originalEssayText]);
+
+    useEffect(() => {
+        setViewMode('marked');
+        onViewModeChange('marked');
+        setLastHighlightColor(null);
+        setShowHighlightDropdown(false);
+        setShowColorDropdown(false);
+        setBubbleMenuPos(null);
+        setHoverTooltip(null);
+        lastQuickCommentNonceRef.current = null;
+        lastCorrectionNonceRef.current = null;
+        lastCommentMutationNonceRef.current = null;
+    }, [onViewModeChange, taskNumber]);
 
     // ─── Keyboard Shortcuts ──────────────────────────────────
     useEffect(() => {
@@ -408,6 +422,40 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
         };
     }, [clearScheduledBubbleMenu, editor, scheduleBubbleMenuUpdate, updateBubbleMenu]);
 
+    useEffect(() => {
+        if (!editor || readOnly || !onCorrectionMarkClick) {
+            return;
+        }
+
+        const editorEditable = editorEditableRef.current;
+        if (!editorEditable) {
+            return;
+        }
+
+        const handleCorrectionClick = (event: MouseEvent) => {
+            const target = event.target as HTMLElement | null;
+            const correctionEl = target?.closest('.correction-mark') as HTMLElement | null;
+
+            if (!correctionEl || !editorEditable.contains(correctionEl)) {
+                return;
+            }
+
+            const correctionSelection = getCorrectionMarkSelection(editor.view, correctionEl);
+            if (!correctionSelection) {
+                return;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+            onCorrectionMarkClick(correctionSelection);
+        };
+
+        editorEditable.addEventListener('click', handleCorrectionClick);
+        return () => {
+            editorEditable.removeEventListener('click', handleCorrectionClick);
+        };
+    }, [editor, onCorrectionMarkClick, readOnly]);
+
     // ─── Apply focused/hovered comment mark classes ──────────
     useEffect(() => {
         if (!editorContainerRef.current) return;
@@ -494,7 +542,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
     }, [commentsById, onCommentMarkHover, viewMode]);
 
     useEffect(() => {
-        if (!editor || !pendingQuickComment) return;
+        if (!editor || !pendingQuickComment || pendingQuickComment.taskNumber !== taskNumber) return;
         if (lastQuickCommentNonceRef.current === pendingQuickComment.nonce) return;
 
         lastQuickCommentNonceRef.current = pendingQuickComment.nonce;
@@ -505,10 +553,10 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
         const commentId = `comment-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
         onAddComment(selectedText, from, to, commentId, pendingQuickComment.preset);
-    }, [editor, onAddComment, pendingQuickComment]);
+    }, [editor, onAddComment, pendingQuickComment, taskNumber]);
 
     useEffect(() => {
-        if (!editor || !pendingCorrection) return;
+        if (!editor || !pendingCorrection || pendingCorrection.taskNumber !== taskNumber) return;
         if (lastCorrectionNonceRef.current === pendingCorrection.nonce) return;
 
         lastCorrectionNonceRef.current = pendingCorrection.nonce;
@@ -533,40 +581,10 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                 ),
             })
             .run();
-    }, [editor, pendingCorrection]);
+    }, [editor, pendingCorrection, taskNumber]);
 
     useEffect(() => {
-        if (!editor || readOnly || !onCorrectionMarkClick) {
-            return;
-        }
-
-        const handleCorrectionMarkClick = (event: MouseEvent) => {
-            const target = event.target as HTMLElement | null;
-            const correctionElement = target?.closest('.correction-mark') as HTMLElement | null;
-            if (!correctionElement) {
-                return;
-            }
-
-            const correctionSelection = getCorrectionMarkSelection(editor.view, correctionElement);
-            if (!correctionSelection) {
-                return;
-            }
-
-            event.preventDefault();
-            event.stopPropagation();
-            onCorrectionMarkClick(correctionSelection);
-        };
-
-        const editorDom = editor.view.dom;
-        editorDom.addEventListener('click', handleCorrectionMarkClick);
-
-        return () => {
-            editorDom.removeEventListener('click', handleCorrectionMarkClick);
-        };
-    }, [editor, onCorrectionMarkClick, readOnly]);
-
-    useEffect(() => {
-        if (!editor || !pendingCommentMutation) return;
+        if (!editor || !pendingCommentMutation || pendingCommentMutation.taskNumber !== taskNumber) return;
         if (lastCommentMutationNonceRef.current === pendingCommentMutation.nonce) return;
 
         lastCommentMutationNonceRef.current = pendingCommentMutation.nonce;
@@ -585,7 +603,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                 color: pendingCommentMutation.color,
             })
             .run();
-    }, [editor, pendingCommentMutation]);
+    }, [editor, pendingCommentMutation, taskNumber]);
 
     // ─── Handlers ────────────────────────────────────────────
 
@@ -991,8 +1009,9 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                                 </button>
                                 <button
                                     className="bubble-btn"
-                                    onMouseDown={(e) => { e.preventDefault(); setShowColorDropdown(!showColorDropdown); }}
-                                    title="Text Color"
+                                    onMouseDown={(e) => { e.preventDefault(); }}
+                                    title="Use the toolbar for text color"
+                                    disabled
                                 >
                                     🎨
                                 </button>

@@ -97,3 +97,14 @@ Current contract:
 - the intended steady-state is `selected comment header top == clicked annotation top`
 
 This supersedes any looser wording that implied the matching comment only scrolls nearby in the sidebar.
+
+## 2026-04-02 Amendment - Teacher Grading Operational States
+
+The teacher grading lifecycle now distinguishes the public result phase from the editor's operational state more strictly.
+
+Current operational rules:
+- loading a pending-review submission no longer implies immediate edit mode before lock ownership is confirmed
+- lock acquisition is the gate that promotes the page from review/read-only assumptions into active editing
+- task switching is a hard boundary for transient grading UI state and editor content rehydration
+- leaving with unsaved work is a three-way workflow (`save`, `discard`, `cancel`), not a binary confirm prompt
+- published submissions may re-enter the editor only through the explicit regrade workflow with a required reason

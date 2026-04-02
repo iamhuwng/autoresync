@@ -139,3 +139,34 @@ Overlay-containment rules:
 - the correction popup, comment hover tooltip, and selection bubble menu must not be rendered inside clipping containers such as the editor card, essay wrapper, or scrollable editor viewport
 - those overlays should anchor from viewport coordinates and clamp to visible screen bounds so they remain usable near the top, bottom, or side edges of the grading surface
 - editor scroll and window resize must trigger overlay repositioning or dismissal so stale coordinates do not leave popups floating in the wrong place
+
+## 2026-04-02 Amendment - Grading Draft, Lock, And Compatibility Ownership Contract
+
+Task-state rules:
+- the grading editor must normalize the initial active task from the loaded submission shape instead of assuming Task 1 exists
+- `task2-only` submissions are valid first-class grading targets and must open directly into Task 2
+- task switches and grading-source reloads are hard state boundaries; task-scoped queued commands and transient overlays must be cleared before the next task becomes active
+
+Draft-state rules:
+- pending new-comment composers are unsaved grading state and must be persisted per task inside the grading draft payload
+- unsaved-work detection must include pending comment drafts, not just the main dirty flag
+- save completion must always release the saving state even when the save fails
+- version-conflict failures must reload the latest grading state instead of silently overwriting another version
+
+Leave / regrade / takeover rules:
+- destructive grading decisions must use explicit in-app dialogs rather than `window.confirm` or `window.prompt`
+- leave flow must preserve a real cancel path that leaves the page, lock, and draft state unchanged
+- regrading requires an explicit reason
+- discarding another teacher's private draft requires an explicit takeover reason
+
+Lock-ownership rules:
+- grading locks are session-aware
+- identical `teacherId` values across different `sessionId` values are conflicts, not shared ownership
+- lock renewal failure must demote the page back to review/read-only assumptions until editing is reacquired
+
+Compatibility metadata rules:
+- published Writing projections to `test_results` must write explicit teacher metadata in addition to legacy aliases:
+  - `feedbackUpdatedByTeacherId`
+  - `feedbackUpdatedByTeacherName`
+- Writing result readers should prefer those explicit fields and only fall back to legacy label fields when the explicit fields are absent
+- degraded fallback reconstruction must preserve the real surviving task number so a single Task 2 snapshot reconstructs as `task2-only`

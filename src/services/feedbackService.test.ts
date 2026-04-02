@@ -65,7 +65,9 @@ describe('feedbackService', () => {
 
             expect(feedbackData.questionId).toBe('q1');
             expect(feedbackData.feedback).toBe('Great answer!');
-            expect(feedbackData.updatedBy).toBe('teacher456');
+            expect(feedbackData.updatedBy).toBe('Mr. Smith');
+            expect(feedbackData.updatedById).toBe('teacher456');
+            expect(feedbackData.updatedByName).toBe('Mr. Smith');
             expect(feedbackData.teacherName).toBe('Mr. Smith');
             expect(feedbackData.updatedAt).toBeTypeOf('number');
 
@@ -74,6 +76,8 @@ describe('feedbackService', () => {
                 expect.objectContaining({
                     'questionResults/0/teacherFeedback': 'Great answer!',
                     feedbackUpdatedBy: 'Mr. Smith',
+                    feedbackUpdatedByTeacherId: 'teacher456',
+                    feedbackUpdatedByTeacherName: 'Mr. Smith',
                     hasFeedback: true
                 })
             );
@@ -130,7 +134,11 @@ describe('feedbackService', () => {
 
             const result = await getQuestionFeedback('result123', 'q1');
 
-            expect(result).toEqual(mockFeedback);
+            expect(result).toEqual({
+                ...mockFeedback,
+                updatedById: 'teacher456',
+                updatedByName: 'Mr. Smith',
+            });
         });
 
         it('should return null if feedback does not exist', async () => {
@@ -184,6 +192,8 @@ describe('feedbackService', () => {
                 feedback: 'Canonical feedback',
                 updatedAt: 123,
                 updatedBy: 'Ms. Nguyen',
+                updatedById: 'Ms. Nguyen',
+                updatedByName: 'Ms. Nguyen',
                 teacherName: 'Ms. Nguyen'
             });
         });
@@ -207,7 +217,16 @@ describe('feedbackService', () => {
 
             const result = await getAllQuestionFeedback('result123');
 
-            expect(result).toEqual(mockFeedbackMap);
+            expect(result).toEqual({
+                q1: {
+                    ...mockFeedbackMap.q1,
+                    updatedById: 'teacher456',
+                },
+                q2: {
+                    ...mockFeedbackMap.q2,
+                    updatedById: 'teacher456',
+                },
+            });
             expect(Object.keys(result)).toHaveLength(2);
         });
 
@@ -257,15 +276,21 @@ describe('feedbackService', () => {
 
             const feedbackData = mockSet.mock.calls[0][1] as OverallFeedback;
             expect(feedbackData.feedback).toBe('Overall great work!');
-            expect(feedbackData.updatedBy).toBe('teacher456');
+            expect(feedbackData.updatedBy).toBe('Mr. Smith');
+            expect(feedbackData.updatedById).toBe('teacher456');
+            expect(feedbackData.updatedByName).toBe('Mr. Smith');
 
             const updateData = mockUpdate.mock.calls[0][1] as any;
             expect(updateData.hasFeedback).toBe(true);
-            expect(updateData.feedbackUpdatedBy).toBe('teacher456');
+            expect(updateData.feedbackUpdatedBy).toBe('Mr. Smith');
+            expect(updateData.feedbackUpdatedByTeacherId).toBe('teacher456');
+            expect(updateData.feedbackUpdatedByTeacherName).toBe('Mr. Smith');
 
             const canonicalUpdateData = mockUpdate.mock.calls[1][1] as any;
             expect(canonicalUpdateData.overallFeedback).toBe('Overall great work!');
             expect(canonicalUpdateData.feedbackUpdatedBy).toBe('Mr. Smith');
+            expect(canonicalUpdateData.feedbackUpdatedByTeacherId).toBe('teacher456');
+            expect(canonicalUpdateData.feedbackUpdatedByTeacherName).toBe('Mr. Smith');
             expect(canonicalUpdateData.hasFeedback).toBe(true);
         });
 
@@ -300,7 +325,11 @@ describe('feedbackService', () => {
 
             const result = await getOverallFeedback('result123');
 
-            expect(result).toEqual(mockFeedback);
+            expect(result).toEqual({
+                ...mockFeedback,
+                updatedById: 'teacher456',
+                updatedByName: 'Mr. Smith',
+            });
         });
 
         it('should fall back to canonical overall feedback when legacy data is absent', async () => {
@@ -328,6 +357,8 @@ describe('feedbackService', () => {
                 feedback: 'Canonical overall feedback',
                 updatedAt: 456,
                 updatedBy: 'Mr. Smith',
+                updatedById: 'Mr. Smith',
+                updatedByName: 'Mr. Smith',
                 teacherName: 'Mr. Smith'
             });
         });
@@ -459,6 +490,28 @@ describe('feedbackService', () => {
             mockGet.mockResolvedValueOnce({
                 exists: () => true,
                 val: () => ({ createdBy: 'teacher456' })
+            } as any);
+
+            mockRef.mockReturnValue({} as any);
+
+            const result = await canTeacherEditFeedback('result123', 'teacher456');
+
+            expect(result).toBe(true);
+        });
+
+        it('should respect canonical visibility ownership when present', async () => {
+            const mockGet = vi.mocked(get);
+            const mockRef = vi.mocked(ref);
+
+            mockGet.mockResolvedValueOnce({
+                exists: () => true,
+                val: () => ({
+                    visibility: {
+                        ownershipResolved: true,
+                        visibilityOwnerTeacherId: 'teacher456',
+                        contextType: 'class_session',
+                    },
+                }),
             } as any);
 
             mockRef.mockReturnValue({} as any);

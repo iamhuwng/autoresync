@@ -55,12 +55,14 @@ const CommentCard: React.FC<CommentCardProps> = ({
     const [showMenu, setShowMenu] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [draftHtml, setDraftHtml] = useState(comment.text);
+    const [draftCategoryId, setDraftCategoryId] = useState<CommentCategoryId>(comment.categoryId);
     const [isResolving, setIsResolving] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         setDraftHtml(comment.text);
-    }, [comment.text]);
+        setDraftCategoryId(comment.categoryId);
+    }, [comment.categoryId, comment.text]);
 
     useEffect(() => {
         if (!showMenu) {
@@ -235,14 +237,15 @@ const CommentCard: React.FC<CommentCardProps> = ({
                         value={draftHtml}
                         anchorText={comment.anchorText}
                         taskNumber={taskNumber}
-                        categoryId={comment.categoryId}
+                        categoryId={draftCategoryId}
                         mode="edit"
                         saveLabel="Update Comment"
                         autoFocus
                         onChange={setDraftHtml}
-                        onCategoryChange={(nextCategoryId) => onCategoryChange(comment.id, nextCategoryId)}
+                        onCategoryChange={setDraftCategoryId}
                         onCancel={() => {
                             setDraftHtml(comment.text);
+                            setDraftCategoryId(comment.categoryId);
                             setIsEditing(false);
                         }}
                         onSave={(html) => {
@@ -250,6 +253,9 @@ const CommentCard: React.FC<CommentCardProps> = ({
                                 return;
                             }
 
+                            if (draftCategoryId !== comment.categoryId) {
+                                onCategoryChange(comment.id, draftCategoryId);
+                            }
                             onEdit(comment.id, html);
                             setIsEditing(false);
                         }}

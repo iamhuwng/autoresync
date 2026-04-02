@@ -63,9 +63,9 @@ export const acquireWritingGradingLock = withRestoreGuard<{
 
     const result = await runTransaction(getLockRef(input.submissionId), (currentLock: WritingGradingLock | null) => {
         const isExpired = !currentLock || typeof currentLock.expiresAt !== 'number' || currentLock.expiresAt <= now;
-        const ownedBySameTeacher = currentLock?.teacherId === input.teacherId;
+        const ownedBySameSession = currentLock?.teacherId === input.teacherId && currentLock?.sessionId === input.sessionId;
 
-        if (isExpired || ownedBySameTeacher) {
+        if (isExpired || ownedBySameSession) {
             return nextLock;
         }
 
@@ -89,7 +89,9 @@ export const acquireWritingGradingLock = withRestoreGuard<{
         return {
             success: false,
             conflict: conflict || currentLock,
-            error: 'This submission is already locked by another teacher',
+            error: currentLock?.teacherId === input.teacherId
+                ? 'This submission is already open in another grading session'
+                : 'This submission is already locked by another teacher',
         };
     }
 

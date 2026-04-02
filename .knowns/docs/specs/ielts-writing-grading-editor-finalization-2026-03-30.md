@@ -2,7 +2,7 @@
 title: IELTS Writing Grading Editor Finalization 2026-03-30
 description: Finalized source of truth for the teacher writing grading editor layout, comment interactions, ordering rules, and containment inside the teacher shell.
 createdAt: '2026-03-29T20:16:53.672Z'
-updatedAt: '2026-04-02T05:26:46.355Z'
+updatedAt: '2026-04-02T07:17:57.257Z'
 tags:
   - spec
   - ielts
@@ -214,3 +214,30 @@ Overlay containment rules:
 - the correction popup, annotation hover tooltip, and floating selection tools must not be clipped by the editor card, essay wrapper, or scrollable editor viewport
 - those overlays should use viewport-based positioning and clamp to screen bounds so they stay usable near the edges of the grading surface
 - editor scroll and window resize must trigger repositioning or dismissal so stale overlay coordinates do not leave popups detached from their annotation anchors
+
+
+## 2026-04-02 Amendment - Task Rehydration, Draft Safety, And Session Locks
+
+### Task Rehydration Boundary
+- Changing the active task or reloading the grading source is a hard rehydration boundary for both the essay editor and the feedback editor.
+- Task-scoped transient state must be cleared on that boundary: focused comment state, hovered comment state, anchor positions, queued quick comments, queued corrections, queued comment-mark mutations, and correction-popup state.
+- Task 1 markup or feedback must never survive into Task 2, and Task 2 state must never survive back into Task 1.
+- `task2-only` submissions are first-class grading targets and must hydrate directly into Task 2 instead of failing the editor.
+
+### Draft Safety
+- Pending new-comment composers count as unsaved grading work.
+- Pending comment drafts are persisted per task in the grading draft payload.
+- Unsaved-work detection must include those pending comment drafts, not just the main dirty grading flag.
+- Save completion must always clear the saving state even when the save throws.
+- Version conflicts must reload the latest grading source instead of leaving the editor in an optimistic overwrite state.
+
+### Leave, Regrade, And Draft-Takeover Rules
+- Leaving with unsaved work must use an explicit three-way dialog: save, discard, or cancel.
+- Cancel must preserve the current page, lock, and local grading state.
+- Regrading published work requires an explicit regrade reason.
+- Discarding another teacher's private draft requires an explicit takeover reason.
+
+### Session Lock Rules
+- Lock ownership is session-aware, not just teacher-aware.
+- Same-teacher different-session collisions are conflicts, not implicit ownership.
+- Lock renewal failure must demote the page back to review/read-only assumptions until editing is reacquired.

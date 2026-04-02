@@ -24,6 +24,20 @@ function renderEditor(overrides: Partial<ComponentProps<typeof EssayEditor>> = {
     );
 }
 
+function buildPendingCorrection(
+    overrides: Partial<NonNullable<ComponentProps<typeof EssayEditor>['pendingCorrection']>> = {},
+): NonNullable<ComponentProps<typeof EssayEditor>['pendingCorrection']> {
+    return {
+        taskNumber: 1,
+        action: 'apply',
+        from: 1,
+        to: 6,
+        correctionText: 'Hi',
+        nonce: 1,
+        ...overrides,
+    };
+}
+
 const rect = {
     x: 0,
     y: 0,
@@ -76,13 +90,7 @@ describe('EssayEditor', () => {
 
     it('renders correction replacement text outside the struck-through original span', async () => {
         const { container } = renderEditor({
-            pendingCorrection: {
-                action: 'apply',
-                from: 1,
-                to: 6,
-                correctionText: 'Hi',
-                nonce: 1,
-            },
+            pendingCorrection: buildPendingCorrection(),
         });
 
         await waitFor(() => {
@@ -95,13 +103,7 @@ describe('EssayEditor', () => {
 
     it('renders the visible replacement text as a non-editable span', async () => {
         const { container } = renderEditor({
-            pendingCorrection: {
-                action: 'apply',
-                from: 1,
-                to: 6,
-                correctionText: 'Hi',
-                nonce: 1,
-            },
+            pendingCorrection: buildPendingCorrection(),
         });
 
         await waitFor(() => {
@@ -114,13 +116,7 @@ describe('EssayEditor', () => {
 
     it('preserves spacing after the replacement when the selection includes a trailing space', async () => {
         const { container } = renderEditor({
-            pendingCorrection: {
-                action: 'apply',
-                from: 1,
-                to: 7,
-                correctionText: 'Hi',
-                nonce: 1,
-            },
+            pendingCorrection: buildPendingCorrection({ to: 7 }),
         });
 
         await waitFor(() => {
@@ -134,13 +130,7 @@ describe('EssayEditor', () => {
     it('adds exactly one separating space when the replacement would otherwise glue to the next word', async () => {
         const { container } = renderEditor({
             originalEssayText: 'Helloworld',
-            pendingCorrection: {
-                action: 'apply',
-                from: 1,
-                to: 6,
-                correctionText: 'Hi',
-                nonce: 1,
-            },
+            pendingCorrection: buildPendingCorrection(),
         });
 
         await waitFor(() => {
@@ -153,13 +143,7 @@ describe('EssayEditor', () => {
 
     it('does not create a double space when the teacher enters a trailing space before an existing gap', async () => {
         const { container } = renderEditor({
-            pendingCorrection: {
-                action: 'apply',
-                from: 1,
-                to: 6,
-                correctionText: 'Hi   ',
-                nonce: 1,
-            },
+            pendingCorrection: buildPendingCorrection({ correctionText: 'Hi   ' }),
         });
 
         await waitFor(() => {
@@ -174,13 +158,7 @@ describe('EssayEditor', () => {
         const onCorrectionMarkClick = vi.fn();
         const { container } = renderEditor({
             onCorrectionMarkClick,
-            pendingCorrection: {
-                action: 'apply',
-                from: 1,
-                to: 6,
-                correctionText: 'Hi',
-                nonce: 1,
-            },
+            pendingCorrection: buildPendingCorrection(),
         });
 
         await waitFor(() => {
@@ -201,13 +179,7 @@ describe('EssayEditor', () => {
 
     it('removes the correction mark without deleting the student text', async () => {
         const { container, rerender } = renderEditor({
-            pendingCorrection: {
-                action: 'apply',
-                from: 1,
-                to: 6,
-                correctionText: 'Hi',
-                nonce: 1,
-            },
+            pendingCorrection: buildPendingCorrection(),
         });
 
         await waitFor(() => {
@@ -217,12 +189,11 @@ describe('EssayEditor', () => {
         rerender(
             <EssayEditor
                 {...baseProps}
-                pendingCorrection={{
+                pendingCorrection={buildPendingCorrection({
                     action: 'remove',
-                    from: 1,
-                    to: 6,
                     nonce: 2,
-                }}
+                    correctionText: undefined,
+                })}
             />,
         );
 
@@ -231,5 +202,46 @@ describe('EssayEditor', () => {
         });
 
         expect(container.querySelector('.ProseMirror p')?.textContent).toBe('Hello world');
+    });
+
+    it('rehydrates the editor state when the task source changes', async () => {
+        const { container, rerender } = renderEditor({
+            pendingCorrection: buildPendingCorrection(),
+        });
+
+        await waitFor(() => {
+            expect(container.querySelector('.correction-mark')).toBeTruthy();
+        });
+
+        fireEvent.click(container.querySelector('#view-toggle-original') as Element);
+
+        expect(container.querySelector('#view-toggle-original')?.className).toContain('active');
+
+        rerender(
+            <EssayEditor
+                {...baseProps}
+                taskNumber={2}
+                originalEssayText="Second task response"
+                pendingCorrection={null}
+            />,
+        );
+
+        await waitFor(() => {
+            expect(container.querySelector('.correction-mark')).toBeNull();
+            expect(container.querySelector('.ProseMirror p')?.textContent).toBe('Second task response');
+            expect(container.querySelector('#view-toggle-marked')?.className).toContain('active');
+        });
+    });
+
+    it('ignores correction commands queued for another task', async () => {
+        const { container } = renderEditor({
+            pendingCorrection: buildPendingCorrection({ taskNumber: 2 }),
+        });
+
+        await waitFor(() => {
+            expect(container.querySelector('.ProseMirror p')?.textContent).toBe('Hello world');
+        });
+
+        expect(container.querySelector('.correction-mark')).toBeNull();
     });
 });

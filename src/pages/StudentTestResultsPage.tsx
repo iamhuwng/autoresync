@@ -870,7 +870,7 @@ export const StudentTestResultsPage: React.FC = () => {
           <div style={{ marginBottom: '2rem' }}>
             <FeedbackDisplay
               feedback={permanentResultRecord.overallFeedback}
-              teacherName={permanentResultRecord.feedbackUpdatedBy || 'Your Teacher'}
+              teacherName={(permanentResultRecord as any).feedbackUpdatedByTeacherName || permanentResultRecord.feedbackUpdatedBy || 'Your Teacher'}
               updatedAt={permanentResultRecord.feedbackUpdatedAt || Date.now()}
               isOverall={true}
               variant="highlighted"
@@ -1040,7 +1040,7 @@ export const StudentTestResultsPage: React.FC = () => {
                               </div>
                               <FeedbackDisplay
                                 feedback={questionFeedback}
-                                teacherName={permanentResultRecord?.feedbackUpdatedBy || 'Your Teacher'}
+                                teacherName={(permanentResultRecord as any)?.feedbackUpdatedByTeacherName || permanentResultRecord?.feedbackUpdatedBy || 'Your Teacher'}
                                 updatedAt={permanentResultRecord?.feedbackUpdatedAt || Date.now()}
                                 questionId={String(result.questionNumber)}
                                 variant="default"

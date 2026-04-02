@@ -340,6 +340,16 @@ export interface WritingTaskMarkupState {
     };
 }
 
+export interface WritingPendingCommentDraft {
+    commentId: string;
+    taskNumber: 1 | 2;
+    anchorText: string;
+    from: number;
+    to: number;
+    categoryId: CommentCategoryId;
+    html: string;
+}
+
 export interface WritingGradingDraft {
     submissionId: string;
     version: number;
@@ -350,6 +360,7 @@ export interface WritingGradingDraft {
     updatedAt: number;
     overallSummary: string;
     perTask: Partial<Record<1 | 2, WritingTaskMarkupState>>;
+    pendingCommentDrafts?: Partial<Record<1 | 2, WritingPendingCommentDraft>>;
 }
 
 export interface WritingGradingDraftMeta {
