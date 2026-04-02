@@ -2,7 +2,7 @@
 title: IELTS Writing Grading Editor State And Compatibility 2026-04-02
 description: Architecture note for the 2026-04-02 stabilization pass covering task normalization, editor rehydration, draft/lock workflow, and RTDB compatibility metadata for teacher IELTS Writing grading.
 createdAt: '2026-04-02T07:17:57.239Z'
-updatedAt: '2026-04-02T07:18:56.325Z'
+updatedAt: '2026-04-02T09:51:04.760Z'
 tags:
   - architecture
   - ielts
@@ -120,3 +120,18 @@ Readers should prefer those explicit fields and use legacy `feedbackUpdatedBy` o
 - @doc/architecture/scheme/ielts-writing-current-state-scheme
 - @doc/specs/ielts-writing-result-surfaces-2026-03-30
 - @doc/architecture/architecture-ielts-writing-grading-submit-compatibility-audit-2026-03-29
+
+
+## 2026-04-02 follow-up: essay editor tool contract
+
+The essay editor tool layer now has its own explicit contract:
+- `readOnly` blocks toolbar, bubble-menu, shortcut, and queued-command mutations
+- quick comments replay against a page-owned selection snapshot (`from`, `to`, `selectedText`), not a later live selection
+- one text slice may hold at most one `commentMark`, and comment removal must target the exact `commentId`
+- text-color `Default` clears the color mark instead of persisting a literal `inherit` value
+- toolbar controls must stay keyboard-activatable while still preventing pointer-triggered editor blur
+
+The remaining second-pass scope is now isolated to overlapping mark composition rather than basic command routing.
+
+Related doc:
+- @doc/architecture/ielts-writing/ielts-writing-essay-editor-tool-contract-and-mark-composition-2026-04-02

@@ -38,6 +38,27 @@ function buildPendingCorrection(
     };
 }
 
+function buildPendingQuickComment(
+    overrides: Partial<NonNullable<ComponentProps<typeof EssayEditor>['pendingQuickComment']>> = {},
+): NonNullable<ComponentProps<typeof EssayEditor>['pendingQuickComment']> {
+    return {
+        taskNumber: 1,
+        preset: {
+            id: 'preset-1',
+            text: 'Check cohesion',
+            categoryId: 'cc',
+            categoryLabel: 'CC',
+            color: '#22c55e',
+            isDefault: true,
+        },
+        from: 1,
+        to: 6,
+        selectedText: 'Hello',
+        nonce: 1,
+        ...overrides,
+    };
+}
+
 const rect = {
     x: 0,
     y: 0,
@@ -243,5 +264,41 @@ describe('EssayEditor', () => {
         });
 
         expect(container.querySelector('.correction-mark')).toBeNull();
+    });
+
+    it('replays quick comments against the anchored selection provided by the page', async () => {
+        const onAddComment = vi.fn();
+
+        renderEditor({
+            onAddComment,
+            pendingQuickComment: buildPendingQuickComment(),
+        });
+
+        await waitFor(() => {
+            expect(onAddComment).toHaveBeenCalledWith(
+                'Hello',
+                1,
+                6,
+                expect.stringMatching(/^comment-/),
+                expect.objectContaining({ id: 'preset-1' }),
+            );
+        });
+    });
+
+    it('does not apply queued tool commands while read-only', async () => {
+        const { container } = renderEditor({
+            readOnly: true,
+            pendingCorrection: buildPendingCorrection(),
+            pendingQuickComment: buildPendingQuickComment(),
+        });
+
+        await waitFor(() => {
+            expect(container.querySelector('.ProseMirror p')?.textContent).toBe('Hello world');
+        });
+
+        expect(container.querySelector('.correction-mark')).toBeNull();
+        expect(container.querySelector('#toolbar-comment')).toBeDisabled();
+        expect(container.querySelector('#toolbar-correction')).toBeDisabled();
+        expect(container.querySelector('#toolbar-highlight')).toBeDisabled();
     });
 });

@@ -46,9 +46,8 @@ export const CommentMark = Mark.create<CommentMarkOptions>({
     // Don't extend mark when typing at the boundary
     inclusive: false,
 
-    // Allow multiple non-overlapping comment marks in the same document
-    // but each text range can only have ONE comment mark
-    excludes: '',
+    // Keep one comment mark per text slice so selection/click semantics stay deterministic.
+    excludes: 'commentMark',
 
     addOptions() {
         return {

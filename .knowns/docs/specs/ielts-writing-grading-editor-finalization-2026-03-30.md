@@ -2,7 +2,7 @@
 title: IELTS Writing Grading Editor Finalization 2026-03-30
 description: Finalized source of truth for the teacher writing grading editor layout, comment interactions, ordering rules, and containment inside the teacher shell.
 createdAt: '2026-03-29T20:16:53.672Z'
-updatedAt: '2026-04-02T07:17:57.257Z'
+updatedAt: '2026-04-02T09:51:04.798Z'
 tags:
   - spec
   - ielts
@@ -241,3 +241,18 @@ Overlay containment rules:
 - Lock ownership is session-aware, not just teacher-aware.
 - Same-teacher different-session collisions are conflicts, not implicit ownership.
 - Lock renewal failure must demote the page back to review/read-only assumptions until editing is reacquired.
+
+
+## 2026-04-02 Follow-up - Essay Editor Tool Contract
+
+The essay-editor tool layer is now explicitly constrained as follows:
+- `readOnly` is a true no-mutation state for toolbar buttons, bubble-menu actions, keyboard shortcuts, and queued external commands
+- quick comments must use an anchored selection snapshot captured by the page (`from`, `to`, `selectedText`) rather than whatever selection is live later
+- each text slice may hold at most one `commentMark`; comment-mark removal must target the specific `commentId`
+- text-color `Default` clears the color mark instead of saving a literal `inherit` value
+- toolbar buttons must remain keyboard-activatable while still preventing pointer-triggered editor blur
+
+The next follow-up scope is overlapping mark composition: correction/highlight/comment/strikethrough/text-color interactions on the same text range.
+
+Related doc:
+- @doc/architecture/ielts-writing/ielts-writing-essay-editor-tool-contract-and-mark-composition-2026-04-02

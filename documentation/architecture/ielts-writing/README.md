@@ -15,6 +15,7 @@ This pack does not replace the detailed PRD/spec/audit documents. It gives the s
 1. `lifecycle-and-surfaces.md`
 2. `contracts-and-governance.md`
 3. `grading-editor-state-and-compatibility.md`
+4. `essay-editor-tool-contract-and-mark-composition.md`
 
 ## What This Pack Covers
 
@@ -22,6 +23,7 @@ This pack does not replace the detailed PRD/spec/audit documents. It gives the s
 - the current teacher and student surfaces
 - the canonical storage contract
 - the grading editor's task-state, draft, and lock contract
+- the essay editor tool contract and mark-composition boundary
 - how Writing relates to the generic result-view shell and visibility systems
 - which older assumptions are now superseded
 
@@ -54,4 +56,5 @@ Related shared architecture docs:
 - If a Writing lifecycle state or host surface changes, update `lifecycle-and-surfaces.md`.
 - If storage, release gating, ownership, or compatibility rules change, update `contracts-and-governance.md`.
 - If grading-editor task state, draft behavior, or result compatibility metadata changes, update `grading-editor-state-and-compatibility.md`.
+- If essay-editor tools, selection routing, or mark-composition rules change, update `essay-editor-tool-contract-and-mark-composition.md`.
 - If the source-of-truth spec moves, update the links in this README.

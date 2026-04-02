@@ -8,8 +8,8 @@ labels:
   - from-spec
   - grading-editor
 createdAt: '2026-03-01T06:43:56.129Z'
-updatedAt: '2026-04-02T07:19:32.581Z'
-timeSpent: 1436
+updatedAt: '2026-04-02T09:53:32.146Z'
+timeSpent: 2313
 assignee: '@me'
 spec: specs/grading-editor-redesign
 fulfills:
@@ -78,5 +78,8 @@ Full component with:
 
 ### Build: Zero new TS errors"
 2026-04-02 follow-up stabilization: EssayEditor is now task-scoped for command replay and content rehydration; queued quick comments/corrections/comment-mark mutations require taskNumber and are ignored when stale; correction-mark clicks reopen editing again; correction removal preserves original student text; added regression tests for correction replay, task rehydration, and stale-command rejection.
+
+2026-04-02 essay-tool hardening pass: enforced true read-only behavior in EssayEditor tool affordances, anchored quick-comment replay to explicit selection snapshots from the page, changed text-color Default to clear color marks instead of writing `inherit`, enabled keyboard/click activation parity on toolbar buttons, and constrained comment marks to one mark per text slice with exact-id removal during replay.
+2026-04-02: Added the essay-editor tool-contract architecture note to repo docs and Knowns, validated the linked IELTS writing architecture/spec docs, and prepared a narrow commit for the first hardening pass before starting the overlapping-mark composition pass.
 <!-- SECTION:NOTES:END -->
 

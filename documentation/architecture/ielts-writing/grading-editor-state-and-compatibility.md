@@ -38,8 +38,13 @@ It focuses on the parts that were previously brittle:
 - `EssayEditor` is task-scoped even when React reuses the page component
 - incoming `initialContent` / `originalEssayText` changes must rehydrate the TipTap instance
 - queued commands must include `taskNumber` and be ignored when they target another task
+- selection-driven quick comments must carry an explicit `from` / `to` / `selectedText` snapshot from the page, not depend on whatever selection is live later
 - correction-mark clicks must reopen correction editing without requiring a native reselection
 - correction deletion removes only the mark metadata, never the student's original text
+- `readOnly` disables tool mutations from toolbar, bubble menu, shortcuts, and queued command replay
+- one text slice may hold at most one comment mark, and comment removal must target the exact `commentId`
+- text-color `Default` clears the color mark instead of persisting a literal `inherit` value
+- toolbar controls must remain keyboard-activatable while still preventing editor blur on pointer interaction
 
 ### Feedback Editor Contract
 
@@ -113,5 +118,6 @@ It focuses on the parts that were previously brittle:
 - `README.md`
 - `lifecycle-and-surfaces.md`
 - `contracts-and-governance.md`
+- `essay-editor-tool-contract-and-mark-composition.md`
 - `../../../.knowns/docs/specs/ielts-writing-grading-editor-finalization-2026-03-30.md`
 - `../../../.knowns/docs/architecture/scheme/ielts-writing-current-state-scheme.md`

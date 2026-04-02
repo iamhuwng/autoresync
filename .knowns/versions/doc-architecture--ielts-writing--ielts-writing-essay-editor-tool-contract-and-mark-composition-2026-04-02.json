@@ -1,0 +1,77 @@
+{
+  "docPath": "architecture/ielts-writing/ielts-writing-essay-editor-tool-contract-and-mark-composition-2026-04-02",
+  "currentVersion": 2,
+  "versions": [
+    {
+      "id": "v1",
+      "docPath": "architecture/ielts-writing/ielts-writing-essay-editor-tool-contract-and-mark-composition-2026-04-02",
+      "version": 1,
+      "timestamp": "2026-04-02T09:51:04.7167317Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "IELTS Writing Essay Editor Tool Contract And Mark Composition 2026-04-02"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "Architecture note for the essay-editor tool layer in teacher IELTS Writing grading, covering read-only behavior, selection anchoring, comment identity, and the remaining overlapping-mark composition boundary."
+        },
+        {
+          "field": "tags",
+          "oldValue": null,
+          "newValue": [
+            "architecture",
+            "ielts",
+            "writing",
+            "grading",
+            "essay-editor",
+            "tools",
+            "composition"
+          ]
+        }
+      ],
+      "snapshot": {
+        "description": "Architecture note for the essay-editor tool layer in teacher IELTS Writing grading, covering read-only behavior, selection anchoring, comment identity, and the remaining overlapping-mark composition boundary.",
+        "tags": [
+          "architecture",
+          "ielts",
+          "writing",
+          "grading",
+          "essay-editor",
+          "tools",
+          "composition"
+        ],
+        "title": "IELTS Writing Essay Editor Tool Contract And Mark Composition 2026-04-02"
+      }
+    },
+    {
+      "id": "v2",
+      "docPath": "architecture/ielts-writing/ielts-writing-essay-editor-tool-contract-and-mark-composition-2026-04-02",
+      "version": 2,
+      "timestamp": "2026-04-02T09:52:57.1647861Z",
+      "changes": [
+        {
+          "field": "content",
+          "oldValue": null,
+          "newValue": "# IELTS Writing Essay Editor Tool Contract And Mark Composition\n\n## Purpose\n\nThis note isolates the runtime contract for the left-column essay editor inside teacher IELTS Writing grading.\n\nIt exists because the editor has two distinct responsibility layers:\n- tool affordances and command routing\n- mark composition rules when multiple tools touch the same text\n\nThe 2026-04-02 hardening pass stabilized the first layer. Future work on overlapping mark semantics should treat this document as the starting contract.\n\n## Tool Surface\n\nThe essay editor currently exposes these tool surfaces:\n- `Marked` / `Original` view toggle\n- toolbar actions: highlight, comment, strikethrough, correction, text color, undo, redo\n- bubble menu actions: highlight, comment, strikethrough, correction\n- inline comment-mark click / hover behavior\n- inline correction-mark click behavior\n- gutter-dot navigation for saved comments\n- keyboard shortcuts for highlight and comment\n- external queued commands from `WritingGradingPage`:\n  - quick comment\n  - correction apply / remove\n  - comment-mark apply / remove\n\n## Stable Tool Contract\n\n### Read-only means no mutations\n\n- `readOnly` is not just a visual state.\n- When `readOnly` is true, no essay-editor tool may mutate markup.\n- This applies to:\n  - toolbar clicks\n  - bubble-menu clicks\n  - keyboard shortcuts\n  - queued external commands\n- The editor may still support viewing, hovering, and comment/correction inspection in read-only mode.\n\n### Selection-driven tools need stable ranges\n\n- Selection-dependent tools must act on an explicit selection snapshot, not on whichever selection happens to exist later.\n- Quick comments must carry:\n  - `taskNumber`\n  - `from`\n  - `to`\n  - `selectedText`\n  - `preset`\n  - `nonce`\n- `WritingGradingPage` owns the authoritative current selection snapshot for dialog-driven actions.\n- If no valid essay selection exists, quick-comment execution must be rejected before command dispatch.\n\n### Task scoping still applies\n\n- Every queued command remains task-scoped.\n- A queued command for another task must be ignored.\n- Task switches and source reloads clear selection-driven transient command state.\n\n## Tool-Specific Rules\n\n### View toggle\n\n- `Marked` is the only mode where annotation tools may execute.\n- `Original` is display-only and must clear active selection-driven overlays.\n\n### Highlight\n\n- Highlight is a mark-only mutation.\n- Reusing the last chosen highlight color is valid.\n- A fully highlighted selection toggles highlight off.\n- In read-only mode, highlight controls must be disabled and shortcuts ignored.\n\n### Comment\n\n- Comment creation is selection-bound.\n- One text slice may hold at most one `commentMark`.\n- Removing a comment mark must target the exact `commentId`, not strip all comment marks from the range.\n- Click and hover routing depend on that one-mark-per-slice invariant.\n\n### Quick comment\n\n- Quick comments are comment creation with a preset payload.\n- They share the same exact range/identity constraints as manual comments.\n- Quick comments must never drift to a newer selection after the teacher opens the preset dialog.\n\n### Strikethrough\n\n- Strikethrough is allowed as a mark-only mutation.\n- Its composition with correction and comment marks is still a separate concern and must be tested explicitly.\n\n### Correction\n\n- Correction creation is selection-bound.\n- Removing a correction removes only correction metadata and visible replacement rendering, never the student's original text.\n- Clicking a rendered correction mark must reopen correction editing using the stored range and correction text.\n\n### Text color\n\n- Text color is selection-bound.\n- `Default` means clear the color mark, not write a literal `inherit` value into the document.\n- Text color is toolbar-only today; the bubble menu intentionally does not provide an active color picker.\n\n### Undo / redo\n\n- Undo and redo operate on mark history only because the editor is in marks-only mode.\n- In read-only mode, undo and redo controls must be disabled.\n\n## Accessibility And Input Semantics\n\n- Toolbar buttons must remain keyboard-activatable.\n- Preventing editor blur on mouse interaction must not remove standard button click activation.\n- Keyboard shortcuts must only fire when the active selection belongs to the essay editor surface.\n\n## Mark Composition Boundary\n\nThe hardening pass does not fully settle overlapping-mark semantics.\n\nThe remaining second-pass scope is:\n- correction + strikethrough overlap behavior\n- correction + text-color overlap behavior\n- correction + highlight overlap behavior\n- comment + correction overlap behavior\n- comment + highlight overlap behavior after the one-mark-per-slice rule\n- how rendered replacement text should inherit or reject other visual marks\n\nAny work in that area must preserve the stable tool contract above.\n\n## Related Documents\n\n- @doc/architecture/ielts-writing/ielts-writing-grading-editor-state-and-compatibility-2026-04-02\n- @doc/specs/ielts-writing-grading-editor-finalization-2026-03-30\n- @doc/architecture/scheme/ielts-writing-current-state-scheme\n"
+        }
+      ],
+      "snapshot": {
+        "content": "# IELTS Writing Essay Editor Tool Contract And Mark Composition\n\n## Purpose\n\nThis note isolates the runtime contract for the left-column essay editor inside teacher IELTS Writing grading.\n\nIt exists because the editor has two distinct responsibility layers:\n- tool affordances and command routing\n- mark composition rules when multiple tools touch the same text\n\nThe 2026-04-02 hardening pass stabilized the first layer. Future work on overlapping mark semantics should treat this document as the starting contract.\n\n## Tool Surface\n\nThe essay editor currently exposes these tool surfaces:\n- `Marked` / `Original` view toggle\n- toolbar actions: highlight, comment, strikethrough, correction, text color, undo, redo\n- bubble menu actions: highlight, comment, strikethrough, correction\n- inline comment-mark click / hover behavior\n- inline correction-mark click behavior\n- gutter-dot navigation for saved comments\n- keyboard shortcuts for highlight and comment\n- external queued commands from `WritingGradingPage`:\n  - quick comment\n  - correction apply / remove\n  - comment-mark apply / remove\n\n## Stable Tool Contract\n\n### Read-only means no mutations\n\n- `readOnly` is not just a visual state.\n- When `readOnly` is true, no essay-editor tool may mutate markup.\n- This applies to:\n  - toolbar clicks\n  - bubble-menu clicks\n  - keyboard shortcuts\n  - queued external commands\n- The editor may still support viewing, hovering, and comment/correction inspection in read-only mode.\n\n### Selection-driven tools need stable ranges\n\n- Selection-dependent tools must act on an explicit selection snapshot, not on whichever selection happens to exist later.\n- Quick comments must carry:\n  - `taskNumber`\n  - `from`\n  - `to`\n  - `selectedText`\n  - `preset`\n  - `nonce`\n- `WritingGradingPage` owns the authoritative current selection snapshot for dialog-driven actions.\n- If no valid essay selection exists, quick-comment execution must be rejected before command dispatch.\n\n### Task scoping still applies\n\n- Every queued command remains task-scoped.\n- A queued command for another task must be ignored.\n- Task switches and source reloads clear selection-driven transient command state.\n\n## Tool-Specific Rules\n\n### View toggle\n\n- `Marked` is the only mode where annotation tools may execute.\n- `Original` is display-only and must clear active selection-driven overlays.\n\n### Highlight\n\n- Highlight is a mark-only mutation.\n- Reusing the last chosen highlight color is valid.\n- A fully highlighted selection toggles highlight off.\n- In read-only mode, highlight controls must be disabled and shortcuts ignored.\n\n### Comment\n\n- Comment creation is selection-bound.\n- One text slice may hold at most one `commentMark`.\n- Removing a comment mark must target the exact `commentId`, not strip all comment marks from the range.\n- Click and hover routing depend on that one-mark-per-slice invariant.\n\n### Quick comment\n\n- Quick comments are comment creation with a preset payload.\n- They share the same exact range/identity constraints as manual comments.\n- Quick comments must never drift to a newer selection after the teacher opens the preset dialog.\n\n### Strikethrough\n\n- Strikethrough is allowed as a mark-only mutation.\n- Its composition with correction and comment marks is still a separate concern and must be tested explicitly.\n\n### Correction\n\n- Correction creation is selection-bound.\n- Removing a correction removes only correction metadata and visible replacement rendering, never the student's original text.\n- Clicking a rendered correction mark must reopen correction editing using the stored range and correction text.\n\n### Text color\n\n- Text color is selection-bound.\n- `Default` means clear the color mark, not write a literal `inherit` value into the document.\n- Text color is toolbar-only today; the bubble menu intentionally does not provide an active color picker.\n\n### Undo / redo\n\n- Undo and redo operate on mark history only because the editor is in marks-only mode.\n- In read-only mode, undo and redo controls must be disabled.\n\n## Accessibility And Input Semantics\n\n- Toolbar buttons must remain keyboard-activatable.\n- Preventing editor blur on mouse interaction must not remove standard button click activation.\n- Keyboard shortcuts must only fire when the active selection belongs to the essay editor surface.\n\n## Mark Composition Boundary\n\nThe hardening pass does not fully settle overlapping-mark semantics.\n\nThe remaining second-pass scope is:\n- correction + strikethrough overlap behavior\n- correction + text-color overlap behavior\n- correction + highlight overlap behavior\n- comment + correction overlap behavior\n- comment + highlight overlap behavior after the one-mark-per-slice rule\n- how rendered replacement text should inherit or reject other visual marks\n\nAny work in that area must preserve the stable tool contract above.\n\n## Related Documents\n\n- @doc/architecture/ielts-writing/ielts-writing-grading-editor-state-and-compatibility-2026-04-02\n- @doc/specs/ielts-writing-grading-editor-finalization-2026-03-30\n- @doc/architecture/scheme/ielts-writing-current-state-scheme\n",
+        "description": "Architecture note for the essay-editor tool layer in teacher IELTS Writing grading, covering read-only behavior, selection anchoring, comment identity, and the remaining overlapping-mark composition boundary.",
+        "tags": [
+          "architecture",
+          "ielts",
+          "writing",
+          "grading",
+          "essay-editor",
+          "tools",
+          "composition"
+        ],
+        "title": "IELTS Writing Essay Editor Tool Contract And Mark Composition 2026-04-02"
+      }
+    }
+  ]
+}

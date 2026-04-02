@@ -28,7 +28,7 @@ import {
     getTeacherQuickCommentPresets,
 } from '../services/writingQuickCommentPresetService';
 import AIMaintenanceBanner from '../components/ai/AIMaintenanceBanner';
-import EssayEditor, { type CorrectionMarkSelection } from '../components/writing-grading/EssayEditor';
+import EssayEditor, { type CorrectionMarkSelection, type EssaySelectionState } from '../components/writing-grading/EssayEditor';
 import CommentSidebar, { type PendingCommentDraft } from '../components/writing-grading/CommentSidebar';
 import QuickCommentsDialog from '../components/writing-grading/QuickCommentsDialog';
 import CorrectionPopup from '../components/writing-grading/CorrectionPopup';
@@ -96,6 +96,9 @@ interface CommentAnchorPosition {
 interface PendingQuickCommentCommand {
     taskNumber: 1 | 2;
     preset: QuickCommentPreset;
+    from: number;
+    to: number;
+    selectedText: string;
     nonce: number;
 }
 
@@ -342,6 +345,12 @@ export default function WritingGradingPage() {
     const [anchorPositions, setAnchorPositions] = useState<CommentAnchorPosition[]>([]);
     const [editorScrollTop, setEditorScrollTop] = useState(0);
     const [hasSelectionInEditor, setHasSelectionInEditor] = useState(false);
+    const [editorSelectionState, setEditorSelectionState] = useState<EssaySelectionState>({
+        hasSelection: false,
+        from: null,
+        to: null,
+        selectedText: '',
+    });
     const [quickCommentPresets, setQuickCommentPresets] = useState<QuickCommentPreset[]>(DEFAULT_QUICK_COMMENT_PRESETS);
     const [dirty, setDirty] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -540,6 +549,12 @@ export default function WritingGradingPage() {
         setHoveredCommentId(null);
         setAnchorPositions([]);
         setHasSelectionInEditor(false);
+        setEditorSelectionState({
+            hasSelection: false,
+            from: null,
+            to: null,
+            selectedText: '',
+        });
         setPendingQuickComment(null);
         setPendingCorrection(null);
         setPendingCommentMutation(null);
@@ -1092,21 +1107,9 @@ export default function WritingGradingPage() {
         void releaseLock();
     }, [releaseLock]);
 
-    useEffect(() => {
-        const handleSelectionChange = () => {
-            const editorContainer = pageRef.current?.querySelector('#essay-editor-container');
-            const selection = document.getSelection();
-            if (!editorContainer || !selection || selection.rangeCount === 0 || selection.isCollapsed) {
-                setHasSelectionInEditor(false);
-                return;
-            }
-
-            const anchorNode = selection.anchorNode;
-            setHasSelectionInEditor(Boolean(anchorNode && editorContainer.contains(anchorNode)));
-        };
-
-        document.addEventListener('selectionchange', handleSelectionChange);
-        return () => document.removeEventListener('selectionchange', handleSelectionChange);
+    const handleEditorSelectionStateChange = useCallback((selection: EssaySelectionState) => {
+        setEditorSelectionState(selection);
+        setHasSelectionInEditor(selection.hasSelection);
     }, []);
 
     useEffect(() => {
@@ -1486,11 +1489,23 @@ export default function WritingGradingPage() {
             return;
         }
 
+        if (!editorSelectionState.hasSelection || editorSelectionState.from === null || editorSelectionState.to === null) {
+            showStatus('Select text in the essay before using a quick comment.');
+            return;
+        }
+
         quickCommentNonceRef.current += 1;
-        setPendingQuickComment({ taskNumber: activeTask, preset, nonce: quickCommentNonceRef.current });
+        setPendingQuickComment({
+            taskNumber: activeTask,
+            preset,
+            from: editorSelectionState.from,
+            to: editorSelectionState.to,
+            selectedText: editorSelectionState.selectedText,
+            nonce: quickCommentNonceRef.current,
+        });
         setFocusedCommentId(null);
         trackAction('useQuickComment', { submissionId, presetId: preset.id });
-    }, [activeTask, showStatus, submissionId, trackAction]);
+    }, [activeTask, editorSelectionState, showStatus, submissionId, trackAction]);
 
     const getCorrectionPopupPosition = useCallback((anchorViewportTop: number | null, anchorViewportLeft: number | null) => {
         const fallback = { top: 96, left: 120 };
@@ -1791,6 +1806,7 @@ export default function WritingGradingPage() {
                             }}
                             onCommentMarkHover={setHoveredCommentId}
                             onViewModeChange={handleViewModeChange}
+                            onSelectionStateChange={handleEditorSelectionStateChange}
                             onContentChange={(json) => {
                                 setTaskState(activeTask, (current) => ({ ...current, markedContent: json as Record<string, any> }));
                             }}

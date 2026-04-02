@@ -2,7 +2,7 @@
 title: IELTS Writing Current State Scheme
 description: Current-state contract for IELTS Writing across routing, submission, grading, result access, and forbidden regressions.
 createdAt: '2026-03-29T07:59:36.729Z'
-updatedAt: '2026-04-02T07:17:57.284Z'
+updatedAt: '2026-04-02T09:51:04.823Z'
 tags:
   - architecture
   - scheme
@@ -226,3 +226,17 @@ For current finalized expectations of the teacher writing grading editor surface
 - grading locks are session-aware (`teacherId + sessionId`), so another tab owned by the same teacher is still a lock conflict
 - save completion must always clear the saving state even on failure
 - version conflicts must reload the latest grading state rather than silently overwriting it
+
+
+## 2026-04-02 implementation update: essay editor tool contract
+
+Teacher IELTS Writing grading now depends on an explicit essay-editor tool contract:
+- read-only grading views must not mutate markup through toolbar, bubble-menu, shortcut, or queued-command paths
+- quick comments depend on an anchored selection snapshot from the page rather than a later live DOM selection
+- comment marks are single-identity per text slice and removals target a specific `commentId`
+- text-color reset clears marks rather than storing `inherit`
+
+This lowers the remaining editor risk to overlapping-mark composition semantics instead of basic tool routing.
+
+Related doc:
+- @doc/architecture/ielts-writing/ielts-writing-essay-editor-tool-contract-and-mark-composition-2026-04-02
