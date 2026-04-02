@@ -165,7 +165,7 @@ const localStyles: Record<string, React.CSSProperties> = {
         borderLeft: `4px solid ${studentTokens.accent}`,
     },
     feedSection: {
-        padding: '32px 0 0',
+        padding: '48px 0 0',
         animation: 'dashFadeIn 200ms ease-out forwards',
         display: 'flex',
         flexDirection: 'column',
