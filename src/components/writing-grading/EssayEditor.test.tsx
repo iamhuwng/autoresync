@@ -64,6 +64,10 @@ describe('EssayEditor', () => {
                 },
             }),
         });
+        Object.defineProperty(document, 'elementFromPoint', {
+            configurable: true,
+            value: () => document.querySelector('.ProseMirror'),
+        });
     });
 
     it('renders correction replacement text outside the struck-through original span', async () => {
@@ -100,5 +104,23 @@ describe('EssayEditor', () => {
 
         expect(container.querySelector('.correction-mark-replacement')).toHaveAttribute('contenteditable', 'false');
         expect(container.querySelector('.correction-mark-replacement')?.textContent).toBe(' -> Hi');
+    });
+
+    it('preserves spacing after the replacement when the selection includes a trailing space', async () => {
+        const { container } = renderEditor({
+            pendingCorrection: {
+                from: 1,
+                to: 7,
+                correctionText: 'Hi',
+                nonce: 1,
+            },
+        });
+
+        await waitFor(() => {
+            expect(container.querySelector('.correction-mark')).toBeTruthy();
+        });
+
+        expect(container.querySelector('.correction-mark-original')?.textContent).toBe('Hello');
+        expect(container.querySelector('.ProseMirror p')?.textContent).toContain('Hi world');
     });
 });

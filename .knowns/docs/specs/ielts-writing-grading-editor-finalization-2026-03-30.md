@@ -2,7 +2,7 @@
 title: IELTS Writing Grading Editor Finalization 2026-03-30
 description: Finalized source of truth for the teacher writing grading editor layout, comment interactions, ordering rules, and containment inside the teacher shell.
 createdAt: '2026-03-29T20:16:53.672Z'
-updatedAt: '2026-04-02T03:54:22.020Z'
+updatedAt: '2026-04-02T04:28:28.426Z'
 tags:
   - spec
   - ielts
@@ -182,3 +182,12 @@ Correction-rendering rules:
 
 Queued correction application:
 - Replaying a queued correction against a stored selection range should apply the correction mark directly without forcing an extra focus-and-scroll cycle first.
+
+## 2026-04-02 Follow-up - Correction Whitespace Boundary Contract
+
+The queued correction replay path must normalize selection-boundary whitespace before applying the correction mark.
+
+Required behavior:
+- leading and trailing whitespace accidentally captured in the stored selection range must remain outside the struck-through original span
+- the visible replacement text must preserve normal word separation with adjacent essay text, especially when the teacher selection includes a trailing space
+- this whitespace normalization is part of the correction-rendering contract for both the grading editor and published Writing markup readers that render the same stored TipTap content

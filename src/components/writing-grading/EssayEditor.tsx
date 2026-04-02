@@ -23,6 +23,7 @@ import Highlight from '@tiptap/extension-highlight';
 import { TextStyle } from '@tiptap/extension-text-style';
 import Color from '@tiptap/extension-color';
 import Placeholder from '@tiptap/extension-placeholder';
+import { TextSelection } from '@tiptap/pm/state';
 import { CommentMark, CorrectionMark, MarksOnlyMode } from './extensions';
 import { RichContent } from '../../core/components/RichContent';
 import type { GradingComment, QuickCommentPreset } from '../../types/ielts-writing.types';
@@ -101,6 +102,16 @@ export interface EssayEditorProps {
 
 type ViewMode = 'marked' | 'original';
 
+interface CorrectionSelectionRange {
+    from: number;
+    to: number;
+}
+
+interface HighlightSelectionState {
+    isFullyHighlighted: boolean;
+    containsHighlight: boolean;
+}
+
 // ═══════════════════════════════════════════════════════════════
 // COMPONENT
 // ═══════════════════════════════════════════════════════════════
@@ -128,7 +139,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
     readOnly = false,
 }) => {
     const [viewMode, setViewMode] = useState<ViewMode>('marked');
-    const [lastHighlightColor, setLastHighlightColor] = useState<string>(HIGHLIGHT_COLORS[0].color);
+    const [lastHighlightColor, setLastHighlightColor] = useState<string | null>(null);
     const [showHighlightDropdown, setShowHighlightDropdown] = useState(false);
     const [showColorDropdown, setShowColorDropdown] = useState(false);
     const [bubbleMenuPos, setBubbleMenuPos] = useState<{ top: number; left: number } | null>(null);
@@ -136,7 +147,10 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
     const highlightDropdownRef = useRef<HTMLDivElement>(null);
     const colorDropdownRef = useRef<HTMLDivElement>(null);
     const editorContainerRef = useRef<HTMLDivElement>(null);
+    const editorEditableRef = useRef<HTMLDivElement>(null);
     const bubbleMenuRef = useRef<HTMLDivElement>(null);
+    const isMouseSelectingRef = useRef(false);
+    const bubbleMenuFrameRef = useRef<number | null>(null);
     const lastQuickCommentNonceRef = useRef<number | null>(null);
     const lastCorrectionNonceRef = useRef<number | null>(null);
     const lastCommentMutationNonceRef = useRef<number | null>(null);
@@ -204,11 +218,11 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
         if (!editor) return;
 
         const handleKeyDown = (e: KeyboardEvent) => {
-            // Ctrl+Shift+H — Highlight with last-used color
+            // Ctrl+Shift+H — Highlight with the last explicitly chosen color
             if (e.ctrlKey && e.shiftKey && e.key === 'H') {
                 e.preventDefault();
                 if (!editor.state.selection.empty) {
-                    editor.chain().focus().toggleHighlight({ color: lastHighlightColor }).run();
+                    handleHighlight();
                 }
             }
             // Ctrl+Shift+M — Add comment
@@ -237,51 +251,115 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
     }, []);
 
     // ─── Track selection for bubble menu positioning ─────────
+    const clearScheduledBubbleMenu = useCallback(() => {
+        if (bubbleMenuFrameRef.current !== null) {
+            cancelAnimationFrame(bubbleMenuFrameRef.current);
+            bubbleMenuFrameRef.current = null;
+        }
+    }, []);
+
+    const updateBubbleMenu = useCallback(() => {
+        if (!editor) {
+            return;
+        }
+
+        const { from, to, empty } = editor.state.selection;
+        if (empty || viewMode !== 'marked' || isMouseSelectingRef.current) {
+            setBubbleMenuPos(null);
+            return;
+        }
+
+        let startCoords;
+        let endCoords;
+
+        try {
+            const view = editor.view;
+            startCoords = view.coordsAtPos(from);
+            endCoords = view.coordsAtPos(to);
+        } catch {
+            setBubbleMenuPos(null);
+            return;
+        }
+
+        if (!startCoords || !endCoords) {
+            setBubbleMenuPos(null);
+            return;
+        }
+
+        const containerRect = editorContainerRef.current?.getBoundingClientRect();
+        if (!containerRect) return;
+
+        const left = (startCoords.left + endCoords.left) / 2 - containerRect.left;
+        const top = startCoords.top - containerRect.top - 44;
+
+        setBubbleMenuPos({ top: Math.max(0, top), left: Math.max(8, left) });
+    }, [editor, viewMode]);
+
+    const scheduleBubbleMenuUpdate = useCallback(() => {
+        clearScheduledBubbleMenu();
+        bubbleMenuFrameRef.current = window.requestAnimationFrame(() => {
+            bubbleMenuFrameRef.current = null;
+            updateBubbleMenu();
+        });
+    }, [clearScheduledBubbleMenu, updateBubbleMenu]);
+
     useEffect(() => {
         if (!editor) return;
 
-        const updateBubbleMenu = () => {
-            const { from, to, empty } = editor.state.selection;
-            if (empty || viewMode !== 'marked') {
+        const handleSelectionUpdate = () => {
+            if (isMouseSelectingRef.current) {
                 setBubbleMenuPos(null);
                 return;
             }
 
-            let startCoords;
-            let endCoords;
-
-            try {
-                const view = editor.view;
-                startCoords = view.coordsAtPos(from);
-                endCoords = view.coordsAtPos(to);
-            } catch {
-                setBubbleMenuPos(null);
-                return;
-            }
-
-            if (!startCoords || !endCoords) {
-                setBubbleMenuPos(null);
-                return;
-            }
-
-            // Position above the selection, centered
-            const containerRect = editorContainerRef.current?.getBoundingClientRect();
-            if (!containerRect) return;
-
-            const left = (startCoords.left + endCoords.left) / 2 - containerRect.left;
-            const top = startCoords.top - containerRect.top - 44; // 44px above
-
-            setBubbleMenuPos({ top: Math.max(0, top), left: Math.max(8, left) });
+            updateBubbleMenu();
         };
 
-        editor.on('selectionUpdate', updateBubbleMenu);
-        editor.on('blur', () => setBubbleMenuPos(null));
+        const handleEditorMouseDown = (event: MouseEvent) => {
+            if (event.button !== 0) {
+                return;
+            }
+
+            const target = event.target as Node | null;
+            const editorEditable = editorEditableRef.current;
+
+            if (!target || !editorEditable || bubbleMenuRef.current?.contains(target) || !editorEditable.contains(target)) {
+                return;
+            }
+
+            isMouseSelectingRef.current = true;
+            clearScheduledBubbleMenu();
+            setBubbleMenuPos(null);
+        };
+
+        const handleDocumentMouseUp = () => {
+            if (!isMouseSelectingRef.current) {
+                return;
+            }
+
+            isMouseSelectingRef.current = false;
+            scheduleBubbleMenuUpdate();
+        };
+
+        const handleBlur = () => {
+            isMouseSelectingRef.current = false;
+            clearScheduledBubbleMenu();
+            setBubbleMenuPos(null);
+        };
+
+        editor.on('selectionUpdate', handleSelectionUpdate);
+        editor.on('blur', handleBlur);
+        document.addEventListener('mousedown', handleEditorMouseDown);
+        document.addEventListener('mouseup', handleDocumentMouseUp);
 
         return () => {
-            editor.off('selectionUpdate', updateBubbleMenu);
-            editor.off('blur', () => setBubbleMenuPos(null));
+            clearScheduledBubbleMenu();
+            editor.off('selectionUpdate', handleSelectionUpdate);
+            editor.off('blur', handleBlur);
+            document.removeEventListener('mousedown', handleEditorMouseDown);
+            document.removeEventListener('mouseup', handleDocumentMouseUp);
         };
-    }, [editor, viewMode]);
+    }, [clearScheduledBubbleMenu, editor, scheduleBubbleMenuUpdate, updateBubbleMenu]);
 
     // ─── Apply focused/hovered comment mark classes ──────────
     useEffect(() => {
@@ -394,8 +472,14 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
         if (lastCorrectionNonceRef.current === pendingCorrection.nonce) return;
 
         lastCorrectionNonceRef.current = pendingCorrection.nonce;
+        const normalizedRange = normalizeCorrectionSelectionRange(
+            editor.state.doc,
+            pendingCorrection.from,
+            pendingCorrection.to,
+        );
+
         editor.chain()
-            .setTextSelection({ from: pendingCorrection.from, to: pendingCorrection.to })
+            .setTextSelection(normalizedRange)
             .setCorrectionMark({ correctionText: pendingCorrection.correctionText })
             .run();
     }, [editor, pendingCorrection]);
@@ -433,13 +517,104 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
         event.preventDefault();
     }, []);
 
+    const applyHighlightToSelection = useCallback((color: string) => {
+        if (!editor) return false;
+
+        const { from, to, empty } = editor.state.selection;
+        if (empty) return false;
+
+        const highlightType = editor.schema.marks.highlight;
+        if (!highlightType) return false;
+
+        const transaction = editor.state.tr
+            .setSelection(TextSelection.create(editor.state.doc, from, to))
+            .removeMark(from, to, highlightType)
+            .addMark(from, to, highlightType.create({ color }))
+            .scrollIntoView();
+
+        editor.view.dispatch(transaction);
+        return true;
+    }, [editor]);
+
+    const clearHighlightFromSelection = useCallback(() => {
+        if (!editor) return false;
+
+        const { from, to, empty } = editor.state.selection;
+        if (empty) return false;
+
+        const highlightType = editor.schema.marks.highlight;
+        if (!highlightType) return false;
+
+        const transaction = editor.state.tr
+            .setSelection(TextSelection.create(editor.state.doc, from, to))
+            .removeMark(from, to, highlightType)
+            .scrollIntoView();
+
+        editor.view.dispatch(transaction);
+        return true;
+    }, [editor]);
+
+    const getHighlightSelectionState = useCallback((): HighlightSelectionState => {
+        if (!editor) {
+            return { isFullyHighlighted: false, containsHighlight: false };
+        }
+
+        const { from, to, empty } = editor.state.selection;
+        if (empty) {
+            return { isFullyHighlighted: false, containsHighlight: false };
+        }
+
+        let containsHighlight = false;
+        let fullyHighlighted = true;
+
+        editor.state.doc.nodesBetween(from, to, (node, pos) => {
+            if (!node.isText) {
+                return;
+            }
+
+            const nodeFrom = Math.max(pos, from);
+            const nodeTo = Math.min(pos + node.nodeSize, to);
+            if (nodeFrom >= nodeTo) {
+                return;
+            }
+
+            const hasHighlight = node.marks.some((mark) => mark.type.name === 'highlight');
+            containsHighlight = containsHighlight || hasHighlight;
+            fullyHighlighted = fullyHighlighted && hasHighlight;
+        });
+
+        return {
+            isFullyHighlighted: containsHighlight && fullyHighlighted,
+            containsHighlight,
+        };
+    }, [editor]);
+
     const handleHighlight = useCallback((color?: string) => {
-        if (!editor) return;
-        const c = color || lastHighlightColor;
-        if (color) setLastHighlightColor(color);
-        editor.chain().focus().toggleHighlight({ color: c }).run();
+        const selectionState = getHighlightSelectionState();
+
+        if (selectionState.isFullyHighlighted) {
+            clearHighlightFromSelection();
+            setShowHighlightDropdown(false);
+            return;
+        }
+
+        const chosenColor = color || lastHighlightColor;
+        if (!chosenColor) {
+            setShowHighlightDropdown(true);
+            return;
+        }
+
+        const didApply = applyHighlightToSelection(chosenColor);
+        if (!didApply) {
+            return;
+        }
+
+        if (color) {
+            setLastHighlightColor(color);
+        }
+
         setShowHighlightDropdown(false);
-    }, [editor, lastHighlightColor]);
+    }, [applyHighlightToSelection, clearHighlightFromSelection, getHighlightSelectionState, lastHighlightColor]);
 
     const handleAddComment = useCallback(() => {
         if (!editor) return;
@@ -516,10 +691,10 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                                     preventToolbarBlur(event);
                                     handleHighlight();
                                 }}
-                                title="Highlight (Ctrl+Shift+H)"
+                                title={lastHighlightColor ? 'Highlight (Ctrl+Shift+H)' : 'Choose highlight color'}
                                 id="toolbar-highlight"
                             >
-                                <span className="toolbar-icon" style={{ borderBottom: `3px solid ${lastHighlightColor}` }}>
+                                <span className="toolbar-icon" style={{ borderBottom: `3px solid ${lastHighlightColor || 'transparent'}` }}>
                                     ✏️
                                 </span>
                             </button>
@@ -676,7 +851,9 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                         </div>
 
                         {/* TipTap Editor Content */}
-                        <EditorContent editor={editor} className="essay-editor-editable" />
+                        <div className="essay-editor-editable" ref={editorEditableRef}>
+                            <EditorContent editor={editor} />
+                        </div>
 
                         {hoverTooltip && commentsById.get(hoverTooltip.commentId) && (
                             <div
@@ -795,6 +972,32 @@ function convertTextToTipTapJson(text: string): object {
             type: 'paragraph',
             content: [{ type: 'text', text: p.trim() }],
         })),
+    };
+}
+
+function normalizeCorrectionSelectionRange(
+    doc: { textBetween: (from: number, to: number, blockSeparator?: string, leafText?: string) => string },
+    from: number,
+    to: number,
+): CorrectionSelectionRange {
+    const selectedText = doc.textBetween(from, to);
+
+    if (!selectedText) {
+        return { from, to };
+    }
+
+    const leadingWhitespaceLength = selectedText.match(/^\s+/)?.[0].length ?? 0;
+    const trailingWhitespaceLength = selectedText.match(/\s+$/)?.[0].length ?? 0;
+    const normalizedFrom = from + leadingWhitespaceLength;
+    const normalizedTo = to - trailingWhitespaceLength;
+
+    if (normalizedFrom >= normalizedTo) {
+        return { from, to };
+    }
+
+    return {
+        from: normalizedFrom,
+        to: normalizedTo,
     };
 }
 

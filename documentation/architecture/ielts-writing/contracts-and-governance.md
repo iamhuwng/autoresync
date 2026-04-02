@@ -112,6 +112,8 @@ Correction-rendering rules:
 - the original text remains struck through and visually muted
 - the replacement text must never inherit the original strikethrough styling
 - the visible replacement text should remain non-editable annotation output, not part of the student's editable essay content
+- queued correction replay must trim selection-boundary whitespace before applying the correction mark so spaces remain outside the struck-through original span
+- when a teacher selection accidentally includes a trailing space, the replacement text must still read as a normal phrase boundary with the following word instead of gluing the replacement to downstream content
 
 Queued correction-application rule:
 - when replaying a queued correction against a stored selection range, the editor should apply the mark directly without forcing an extra focus-and-scroll cycle first
