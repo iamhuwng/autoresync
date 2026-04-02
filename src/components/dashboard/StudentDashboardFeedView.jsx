@@ -1,6 +1,7 @@
 import React from 'react';
 import { studentTokens } from '../layout/studentLayoutStyles';
 import { IconBriefcase, IconCheck, IconHomework, IconHistory, IconSearch } from '../layout/StudentIcons';
+import RecentGradesChart from './RecentGradesChart';
 
 function stripEmoji(text) {
     if (!text) return text;
@@ -473,7 +474,7 @@ const styles = {
 export default function StudentDashboardFeedView({
     mode = 'feed',
     title = 'Dashboard',
-    subtitle = 'Review your latest academic activity and upcoming milestones.',
+    subtitle,
     searchValue = '',
     onSearchChange,
     onSearchBlur,
@@ -498,6 +499,7 @@ export default function StudentDashboardFeedView({
     classItems = [],
     onClassSelect,
     onJoinClass,
+    gradeChartData = null,
 }) {
     const feedTabs = filterTabs.length > 0 ? filterTabs : [];
     const showFeed = mode === 'feed';
@@ -510,7 +512,7 @@ export default function StudentDashboardFeedView({
                 <header style={styles.topBar}>
                     <div style={styles.titleWrap}>
                         <h2 style={styles.pageTitle}>{title}</h2>
-                        <p style={styles.subtitle}>{subtitle}</p>
+                        {subtitle ? <p style={styles.subtitle}>{subtitle}</p> : null}
                     </div>
 
                     {showFeed ? (
@@ -546,22 +548,37 @@ export default function StudentDashboardFeedView({
                 </header>
 
                 {summaryCards.length > 0 ? (
-                    <div style={styles.summary} aria-label="Dashboard summary metrics">
-                        {summaryCards.map((card, index) => (
-                            <div
-                                key={card.label}
-                                style={{
-                                    ...styles.summaryCell,
-                                    ...(index > 0 ? { paddingLeft: 32 } : {}),
-                                    borderRight: index < summaryCards.length - 1 ? `1px solid ${studentTokens.borderWhisper}` : 'none',
-                                }}
-                            >
-                                <p style={styles.summaryLabel}>{card.label}</p>
-                                <p style={{ ...styles.summaryValue, color: card.color || studentTokens.textPrimary }}>{card.value}</p>
-                                <p style={styles.summaryMeta}>{card.meta}</p>
-                            </div>
-                        ))}
+                    <div style={styles.summary} aria-label="This week assignments">
+                        {summaryCards.map((card, index) => {
+                            const col = index % 3;
+                            const row = Math.floor(index / 3);
+                            const isLastCol = col === 2;
+                            const isFirstCol = col === 0;
+                            const isSecondRow = row === 1;
+                            return (
+                                <div
+                                    key={card.label + '-' + index}
+                                    style={{
+                                        ...styles.summaryCell,
+                                        ...(!isFirstCol ? { paddingLeft: 32 } : {}),
+                                        borderRight: !isLastCol ? `1px solid ${studentTokens.borderWhisper}` : 'none',
+                                        ...(isSecondRow ? { paddingTop: 24, borderTop: `1px solid ${studentTokens.borderWhisper}`, marginTop: 4 } : {}),
+                                    }}
+                                >
+                                    <p style={styles.summaryLabel}>{card.label}</p>
+                                    <p style={{ ...styles.summaryValue, color: card.color || studentTokens.textPrimary }}>{card.value}</p>
+                                    <p style={styles.summaryMeta}>{card.meta}</p>
+                                </div>
+                            );
+                        })}
                     </div>
+                ) : null}
+
+                {gradeChartData && gradeChartData.testResults && gradeChartData.testResults.length > 0 ? (
+                    <RecentGradesChart
+                        testResults={gradeChartData.testResults}
+                        availableCategories={gradeChartData.availableCategories || []}
+                    />
                 ) : null}
 
                 {showFeed && feedTabs.length > 0 ? (

@@ -33,6 +33,9 @@ Center-canvas surface:
 Supplemental dashboard widget:
 - `src/components/dashboard/PendingReviewsWidget.tsx`
 
+Inline dashboard visualization:
+- `src/components/dashboard/RecentGradesChart.jsx` — canvas-based line chart for recent test performance
+
 Sidebar parity is also part of dashboard feel:
 - `src/components/layout/StudentSidebar.tsx`
 
@@ -42,6 +45,7 @@ Historical note:
 Ownership rules:
 - `StudentDashboardPage.jsx` owns dashboard data loading, derived dashboard view models, and interaction state
 - `StudentDashboardFeedView.jsx` renders the center canvas only
+- `RecentGradesChart.jsx` owns its own dropdown filter state and canvas rendering; data flows in via `testResults` and `availableCategories` props
 - `PendingReviewsWidget.tsx` owns only its narrow writing-queue query and renders as supplemental right-rail content
 - presentational components must not reacquire shell-owned or page-owned data on their own
 
@@ -49,9 +53,10 @@ Ownership rules:
 
 The required order for the center canvas is:
 1. sticky masthead with light utilities
-2. frameless metric strip
-3. slim editorial tab row
-4. vertical timeline feed
+2. frameless metric strip ("This Week Assignments" — 3-column, up to 2-row, 6 cards max; includes proficiency estimation and weekly activity counts as filler cards)
+3. recent grades chart (canvas-based line chart with category dropdown filter)
+4. slim editorial tab row
+5. vertical timeline feed
 
 Interpretation rules:
 - search, unread filter, and academic-history action stay visually light
@@ -133,6 +138,13 @@ Dashboard-owned state:
 - join-class modal state
 - selected result panel state
 - session unavailable toast message (for stale notification feedback)
+- proficiency level (CEFR A1–C2, estimated from last 25 test results)
+- weekly test count (count of tests submitted in the current Mon–Sun week)
+- all test results (full `TestResultRecord[]` from `getStudentResults`, used for grade chart)
+
+Dashboard-owned derived view models:
+- `feedSummaryCards` — the 3-or-6 card array for the metric strip
+- `gradeChartData` — `{ testResults, availableCategories }` projected from `allTestResults` for the grade history chart
 
 Dashboard-owned datasets:
 - paginated notifications

@@ -6,6 +6,7 @@ import { useAuth } from '../hooks/useAuth';
 import { enrollStudent } from '../services/classManager';
 import { getPaginatedUserNotifications, markNotificationAsRead, subscribeToNewNotifications } from '../services/notificationService';
 import { sessionService } from '../services/sessionService';
+import { getStudentResults } from '../services/testResults.service';
 import { useNavigation } from '../hooks/useNavigation';
 import { useResolvedStudentShellData } from '../context/StudentShellDataContext';
 import { StudentLayout } from '../components/layout/StudentLayout';
@@ -221,7 +222,7 @@ const StudentDashboardPage = () => {
     const navigate = useNavigate();
     const { navigateTo } = useNavigation('student');
     const { trackAction } = useFeatureTracking(FEATURE_IDS.studentDashboard);
-    const { enrolledClasses, classLiveSessions, notStarted, sortedAssignments, refreshClasses, refreshHomeworkData } = useResolvedStudentShellData();
+    const { enrolledClasses, classLiveSessions, notStarted, sortedAssignments, completed, refreshClasses, refreshHomeworkData } = useResolvedStudentShellData();
 
     const [classCode, setClassCode] = useState('');
     const [isEnrolling, setIsEnrolling] = useState(false);
@@ -237,6 +238,9 @@ const StudentDashboardPage = () => {
     const [joinSuccessMessage, setJoinSuccessMessage] = useState('');
     const [showJoinModal, setShowJoinModal] = useState(false);
     const [selectedResultId, setSelectedResultId] = useState(null);
+    const [proficiencyLevel, setProficiencyLevel] = useState(null);
+    const [weeklyTestCount, setWeeklyTestCount] = useState(0);
+    const [allTestResults, setAllTestResults] = useState([]);
 
     useEffect(() => {
         const loadDashboard = async () => {
@@ -260,6 +264,55 @@ const StudentDashboardPage = () => {
             cleanupExpiredProgress();
             loadDashboard();
         }
+    }, [user?.uid]);
+
+    // ── Proficiency estimation from recent 25 tests ──
+    useEffect(() => {
+        if (!user?.uid) return;
+        let cancelled = false;
+
+        const estimateProficiency = async () => {
+            try {
+                const results = await getStudentResults(user.uid);
+                if (cancelled) return;
+                setAllTestResults(results);
+
+                // Sort by submittedAt descending, take last 25
+                const sorted = [...results]
+                    .filter(r => typeof r.percentage === 'number')
+                    .sort((a, b) => (b.submittedAt || 0) - (a.submittedAt || 0))
+                    .slice(0, 25);
+
+                if (sorted.length === 0) {
+                    setProficiencyLevel(null);
+                } else {
+                    const avgPct = sorted.reduce((sum, r) => sum + r.percentage, 0) / sorted.length;
+                    const level = avgPct >= 95 ? 'C2'
+                        : avgPct >= 85 ? 'C1'
+                        : avgPct >= 72 ? 'B2'
+                        : avgPct >= 55 ? 'B1'
+                        : avgPct >= 35 ? 'A2'
+                        : 'A1';
+                    setProficiencyLevel(level);
+                }
+
+                // Count tests taken this week
+                const now = new Date();
+                const dayOfWeek = now.getDay();
+                const weekStart = new Date(now);
+                weekStart.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+                weekStart.setHours(0, 0, 0, 0);
+                const weekStartMs = weekStart.getTime();
+
+                const thisWeekTests = results.filter(r => (r.submittedAt || 0) >= weekStartMs);
+                setWeeklyTestCount(thisWeekTests.length);
+            } catch (err) {
+                console.warn('Proficiency estimation failed:', err);
+            }
+        };
+
+        estimateProficiency();
+        return () => { cancelled = true; };
     }, [user?.uid]);
 
     useEffect(() => {
@@ -463,29 +516,146 @@ const StudentDashboardPage = () => {
         [filteredNotifications],
     );
 
-    const feedSummaryCards = useMemo(
-        () => [
-            {
-                label: 'Activity',
-                value: allNotifications.length,
-                meta: `${filteredNotifications.length} in current view`,
-                color: studentTokens.textPrimary,
-            },
-            {
-                label: 'Homework Due',
-                value: sortedAssignments.length,
-                meta: notStarted.length > 0 ? `${notStarted.length} not started` : 'No pending start',
-                color: '#9a6427',
-            },
-            {
-                label: 'Live Now',
-                value: classLiveSessions.length,
-                meta: classLiveSessions.length > 0 ? `${classLiveSessions.length} class sessions active` : 'No active class sessions',
-                color: studentTokens.accent,
-            },
-        ],
-        [allNotifications.length, filteredNotifications.length, sortedAssignments.length, notStarted.length, classLiveSessions.length],
-    );
+    // ── This Week Assignments module ──
+    const thisWeekAssignments = useMemo(() => {
+        const now = new Date();
+        const dayOfWeek = now.getDay();
+        const weekStart = new Date(now);
+        weekStart.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+        weekStart.setHours(0, 0, 0, 0);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 7);
+        const startMs = weekStart.getTime();
+        const endMs = weekEnd.getTime();
+
+        return sortedAssignments.filter(item => {
+            const dueDate = item.homework?.scheduling?.dueDate;
+            return dueDate && dueDate >= startMs && dueDate < endMs;
+        });
+    }, [sortedAssignments]);
+
+    const weeklyCompletedCount = useMemo(() => {
+        const now = new Date();
+        const dayOfWeek = now.getDay();
+        const weekStart = new Date(now);
+        weekStart.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+        weekStart.setHours(0, 0, 0, 0);
+        const startMs = weekStart.getTime();
+
+        const completedThisWeek = completed.filter(item => {
+            const sub = item.latestSubmission;
+            return sub?.submittedAt && sub.submittedAt >= startMs;
+        }).length;
+
+        return completedThisWeek + weeklyTestCount;
+    }, [completed, weeklyTestCount]);
+
+    const feedSummaryCards = useMemo(() => {
+        const N = thisWeekAssignments.length;
+
+        const formatDue = (dueDate) => {
+            const d = new Date(dueDate);
+            return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase();
+        };
+
+        const makeAssignmentCard = (item) => {
+            const hw = item.homework;
+            const title = hw?.title || hw?.materialTitle || 'Assignment';
+            const dueLabel = hw?.scheduling?.dueDate ? `DUE ${formatDue(hw.scheduling.dueDate)}` : 'ASSIGNMENT';
+            const statusLabel = item.status === 'not_started' ? 'Not started'
+                : item.status === 'in_progress' ? 'In progress'
+                : item.status === 'overdue' ? 'Overdue'
+                : item.status;
+            const className = hw?.target?.className || hw?.target?.courseName || '';
+            return {
+                label: dueLabel,
+                value: title.length > 18 ? title.slice(0, 16) + '…' : title,
+                meta: className ? `${statusLabel} · ${className}` : statusLabel,
+                color: item.isOverdue ? '#b94a48' : studentTokens.textPrimary,
+            };
+        };
+
+        const proficiencyCard = {
+            label: 'Proficiency Level',
+            value: proficiencyLevel || '—',
+            meta: proficiencyLevel ? 'Based on recent 25 tests' : 'No test data yet',
+            color: studentTokens.accent,
+        };
+
+        const weeklyTotalCard = {
+            label: 'Completed This Week',
+            value: weeklyCompletedCount,
+            meta: 'tests, homework & practice',
+            color: '#4c5458',
+        };
+
+        // Build cards ensuring 3 or 6 are always populated
+        const assignmentCards = thisWeekAssignments.slice(0, 6).map(makeAssignmentCard);
+
+        if (N === 0) {
+            return [proficiencyCard, weeklyTotalCard, { label: 'This Week', value: '0', meta: 'No assignments due', color: studentTokens.textMuted }];
+        }
+        if (N === 1) {
+            return [assignmentCards[0], weeklyTotalCard, proficiencyCard];
+        }
+        if (N === 2) {
+            return [proficiencyCard, assignmentCards[0], assignmentCards[1]];
+        }
+        if (N === 3) {
+            return [assignmentCards[0], assignmentCards[1], assignmentCards[2]];
+        }
+        if (N === 4) {
+            return [proficiencyCard, weeklyTotalCard, assignmentCards[0], assignmentCards[1], assignmentCards[2], assignmentCards[3]];
+        }
+        if (N === 5) {
+            return [proficiencyCard, assignmentCards[0], assignmentCards[1], assignmentCards[2], assignmentCards[3], assignmentCards[4]];
+        }
+        // N >= 6
+        return assignmentCards.slice(0, 6);
+    }, [thisWeekAssignments, proficiencyLevel, weeklyCompletedCount]);
+
+    // ── Grade chart data from test results ──
+    const gradeChartData = useMemo(() => {
+        if (!allTestResults || allTestResults.length === 0) return null;
+
+        const validResults = allTestResults.filter(
+            r => typeof r.percentage === 'number' && typeof r.submittedAt === 'number'
+        );
+
+        if (validResults.length === 0) return null;
+
+        // Collect available categories
+        const skillSet = new Set();
+        const typeSet = new Set();
+        validResults.forEach(r => {
+            if (r.testSkill) skillSet.add(r.testSkill);
+            if (r.testType) typeSet.add(r.testType);
+        });
+
+        // Build category list: skills first, then test types
+        const categories = [];
+        ['reading', 'listening', 'writing', 'speaking'].forEach(s => {
+            if (skillSet.has(s)) categories.push(s);
+        });
+        ['quiz', 'test', 'thcs-test'].forEach(t => {
+            if (typeSet.has(t)) categories.push(t);
+        });
+
+        // Map results to simplified records for the chart
+        const testResults = validResults.map(r => ({
+            percentage: r.percentage,
+            submittedAt: r.submittedAt,
+            testTitle: r.testTitle || 'Test',
+            testSkill: r.testSkill || '',
+            testType: r.testType || '',
+            contextType: r.context?.type || '',
+        }));
+
+        return {
+            testResults,
+            availableCategories: categories,
+        };
+    }, [allTestResults]);
 
     const rightPanel = useMemo(() => <PendingReviewsWidget onResultSelect={setSelectedResultId} />, []);
 
@@ -532,7 +702,6 @@ const StudentDashboardPage = () => {
                 <StudentDashboardFeedView
                     mode="feed"
                     title="Dashboard"
-                    subtitle="Review your latest academic activity and upcoming milestones."
                     searchValue={searchQuery}
                     onSearchChange={setSearchQuery}
                     onSearchBlur={handleSearchBlur}
@@ -556,6 +725,7 @@ const StudentDashboardPage = () => {
                     hasMore={hasMoreNotifs}
                     loadingMore={isLoadingMore}
                     onLoadMore={handleLoadMore}
+                    gradeChartData={gradeChartData}
                 />
             </StudentLayout>
 
