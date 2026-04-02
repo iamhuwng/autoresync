@@ -23,10 +23,16 @@ export interface CorrectionPopupProps {
     isOpen: boolean;
     /** The original selected text being corrected */
     selectedText: string;
+    /** Existing correction text when editing */
+    initialValue?: string;
     /** Position relative to the editor container */
     position: { top: number; left: number };
+    /** Popup mode */
+    mode?: 'create' | 'edit';
     /** Called with correction text when the teacher submits */
     onApply: (correctionText: string) => void;
+    /** Called when the correction should be removed */
+    onDelete?: () => void;
     /** Called when the popup is dismissed without applying */
     onDismiss: () => void;
 }
@@ -34,8 +40,11 @@ export interface CorrectionPopupProps {
 const CorrectionPopup: React.FC<CorrectionPopupProps> = ({
     isOpen,
     selectedText,
+    initialValue = '',
     position,
+    mode = 'create',
     onApply,
+    onDelete,
     onDismiss,
 }) => {
     const [correctionText, setCorrectionText] = useState('');
@@ -45,13 +54,13 @@ const CorrectionPopup: React.FC<CorrectionPopupProps> = ({
     // Focus input when popup opens
     useEffect(() => {
         if (isOpen) {
-            setCorrectionText('');
+            setCorrectionText(initialValue.trimEnd());
             // Small delay to ensure DOM is rendered
             requestAnimationFrame(() => {
                 inputRef.current?.focus();
             });
         }
-    }, [isOpen]);
+    }, [initialValue, isOpen]);
 
     // Click outside to dismiss
     useEffect(() => {
@@ -150,9 +159,22 @@ const CorrectionPopup: React.FC<CorrectionPopupProps> = ({
                     disabled={!correctionText.trim()}
                     id="correction-popup-apply"
                 >
-                    Apply
+                    {mode === 'edit' ? 'Save' : 'Apply'}
                 </button>
             </div>
+
+            {mode === 'edit' && onDelete && (
+                <div className="correction-popup-actions">
+                    <button
+                        className="correction-popup-delete"
+                        onClick={onDelete}
+                        type="button"
+                        id="correction-popup-delete"
+                    >
+                        Delete Correction
+                    </button>
+                </div>
+            )}
         </div>
     );
 };

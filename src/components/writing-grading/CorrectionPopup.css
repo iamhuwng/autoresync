@@ -148,3 +148,23 @@
     opacity: 0.4;
     cursor: not-allowed;
 }
+
+.correction-popup-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 10px;
+}
+
+.correction-popup-delete {
+    border: none;
+    background: transparent;
+    color: #dc2626;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+}
+
+.correction-popup-delete:hover {
+    color: #b91c1c;
+}

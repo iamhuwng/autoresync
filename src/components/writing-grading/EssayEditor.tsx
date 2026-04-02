@@ -75,10 +75,17 @@ export interface EssayEditorProps {
     onContentChange?: (json: object) => void;
     /** Callback when correction popup should open — passes selection range */
     onCorrectionRequest?: (from: number, to: number, selectedText: string) => void;
+    onCorrectionMarkClick?: (selection: CorrectionMarkSelection) => void;
     /** External quick-comment command from the page */
     pendingQuickComment?: { preset: QuickCommentPreset; nonce: number } | null;
     /** External correction command from the page */
-    pendingCorrection?: { from: number; to: number; correctionText: string; nonce: number } | null;
+    pendingCorrection?: {
+        action: 'apply' | 'remove';
+        from: number;
+        to: number;
+        correctionText?: string;
+        nonce: number;
+    } | null;
     /** External comment-mark mutation from the page */
     pendingCommentMutation?: {
         action: 'remove' | 'apply';
@@ -107,6 +114,15 @@ interface CorrectionSelectionRange {
     to: number;
 }
 
+export interface CorrectionMarkSelection {
+    from: number;
+    to: number;
+    selectedText: string;
+    correctionText: string;
+    anchorViewportTop: number | null;
+    anchorViewportLeft: number | null;
+}
+
 interface HighlightSelectionState {
     isFullyHighlighted: boolean;
     containsHighlight: boolean;
@@ -129,6 +145,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
     onViewModeChange,
     onContentChange,
     onCorrectionRequest,
+    onCorrectionMarkClick,
     pendingQuickComment = null,
     pendingCorrection = null,
     pendingCommentMutation = null,
@@ -189,7 +206,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                 id: 'essay-editor-content',
             },
             // Handle clicks on comment marks
-            handleClick: (_view, _pos, event) => {
+            handleClick: (view, _pos, event) => {
                 const target = event.target as HTMLElement;
                 const commentEl = target.closest('[data-comment-id]');
                 if (commentEl) {
@@ -200,6 +217,18 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                         return true;
                     }
                 }
+
+                if (!readOnly) {
+                    const correctionEl = target.closest('.correction-mark') as HTMLElement | null;
+                    if (correctionEl) {
+                        const correctionSelection = getCorrectionMarkSelection(view, correctionEl);
+                        if (correctionSelection) {
+                            onCorrectionMarkClick?.(correctionSelection);
+                            return true;
+                        }
+                    }
+                }
+
                 return false;
             },
         },
@@ -478,9 +507,21 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
             pendingCorrection.to,
         );
 
-        editor.chain()
-            .setTextSelection(normalizedRange)
-            .setCorrectionMark({ correctionText: pendingCorrection.correctionText })
+        const chain = editor.chain().setTextSelection(normalizedRange);
+
+        if (pendingCorrection.action === 'remove') {
+            chain.unsetCorrectionMark().run();
+            return;
+        }
+
+        chain
+            .setCorrectionMark({
+                correctionText: normalizeCorrectionTextForBoundary(
+                    editor.state.doc,
+                    normalizedRange.to,
+                    pendingCorrection.correctionText || '',
+                ),
+            })
             .run();
     }, [editor, pendingCorrection]);
 
@@ -999,6 +1040,73 @@ function normalizeCorrectionSelectionRange(
         from: normalizedFrom,
         to: normalizedTo,
     };
+}
+
+function normalizeCorrectionTextForBoundary(
+    doc: { textBetween: (from: number, to: number, blockSeparator?: string, leafText?: string) => string },
+    to: number,
+    correctionText: string,
+) {
+    const normalizedCorrectionText = correctionText.trim();
+    if (!normalizedCorrectionText) {
+        return '';
+    }
+
+    const nextCharacter = doc.textBetween(to, to + 1);
+    if (!nextCharacter || /^\s/.test(nextCharacter)) {
+        return normalizedCorrectionText;
+    }
+
+    return shouldAppendCorrectionSeparator(nextCharacter)
+        ? `${normalizedCorrectionText} `
+        : normalizedCorrectionText;
+}
+
+function shouldAppendCorrectionSeparator(nextCharacter: string) {
+    return /[A-Za-z0-9]/.test(nextCharacter);
+}
+
+function getCorrectionMarkSelection(
+    editorView: { posAtDOM: (node: Node, offset: number) => number },
+    correctionElement: HTMLElement,
+): CorrectionMarkSelection | null {
+    const originalTextNode = findTextNode(correctionElement.querySelector('.correction-mark-original'));
+    const selectedText = originalTextNode?.textContent || '';
+    if (!originalTextNode || !selectedText) {
+        return null;
+    }
+
+    const from = editorView.posAtDOM(originalTextNode, 0);
+    const to = editorView.posAtDOM(originalTextNode, selectedText.length);
+    const rect = correctionElement.getBoundingClientRect();
+
+    return {
+        from,
+        to,
+        selectedText,
+        correctionText: correctionElement.getAttribute('data-correction') || '',
+        anchorViewportTop: Number.isFinite(rect.top) ? rect.top : null,
+        anchorViewportLeft: Number.isFinite(rect.left) ? rect.left : null,
+    };
+}
+
+function findTextNode(node: Node | null): Text | null {
+    if (!node) {
+        return null;
+    }
+
+    if (node.nodeType === Node.TEXT_NODE) {
+        return node as Text;
+    }
+
+    for (const childNode of Array.from(node.childNodes)) {
+        const textNode = findTextNode(childNode);
+        if (textNode) {
+            return textNode;
+        }
+    }
+
+    return null;
 }
 
 export default EssayEditor;

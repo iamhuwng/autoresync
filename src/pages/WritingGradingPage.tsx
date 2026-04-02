@@ -28,7 +28,7 @@ import {
     getTeacherQuickCommentPresets,
 } from '../services/writingQuickCommentPresetService';
 import AIMaintenanceBanner from '../components/ai/AIMaintenanceBanner';
-import EssayEditor from '../components/writing-grading/EssayEditor';
+import EssayEditor, { type CorrectionMarkSelection } from '../components/writing-grading/EssayEditor';
 import CommentSidebar, { type PendingCommentDraft } from '../components/writing-grading/CommentSidebar';
 import QuickCommentsDialog from '../components/writing-grading/QuickCommentsDialog';
 import CorrectionPopup from '../components/writing-grading/CorrectionPopup';
@@ -295,7 +295,13 @@ export default function WritingGradingPage() {
     const [lockConflict, setLockConflict] = useState<WritingGradingLock | null>(null);
     const [pendingCommentDrafts, setPendingCommentDrafts] = useState<Partial<Record<1 | 2, PendingCommentDraft>>>({});
     const [pendingQuickComment, setPendingQuickComment] = useState<{ preset: QuickCommentPreset; nonce: number } | null>(null);
-    const [pendingCorrection, setPendingCorrection] = useState<{ from: number; to: number; correctionText: string; nonce: number } | null>(null);
+    const [pendingCorrection, setPendingCorrection] = useState<{
+        action: 'apply' | 'remove';
+        from: number;
+        to: number;
+        correctionText?: string;
+        nonce: number;
+    } | null>(null);
     const [pendingCommentMutation, setPendingCommentMutation] = useState<{
         action: 'remove' | 'apply';
         commentId: string;
@@ -305,9 +311,11 @@ export default function WritingGradingPage() {
         nonce: number;
     } | null>(null);
     const [correctionRequest, setCorrectionRequest] = useState<{
+        mode: 'create' | 'edit';
         from: number;
         to: number;
         selectedText: string;
+        correctionText: string;
         position: { top: number; left: number };
     } | null>(null);
 
@@ -1342,26 +1350,46 @@ export default function WritingGradingPage() {
         trackAction('useQuickComment', { submissionId, presetId: preset.id });
     }, [activeTask, showStatus, submissionId, trackAction]);
 
-    const handleCorrectionRequest = useCallback((from: number, to: number, selectedText: string) => {
-        const selection = document.getSelection();
-        const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+    const getCorrectionPopupPosition = useCallback((anchorViewportTop: number | null, anchorViewportLeft: number | null) => {
         const editorContainer = pageRef.current?.querySelector('#essay-editor-container') as HTMLElement | null;
-        const rect = range?.getBoundingClientRect();
         const containerRect = editorContainer?.getBoundingClientRect();
         const fallback = { top: 24, left: 120 };
 
+        if (!containerRect || anchorViewportTop === null || anchorViewportLeft === null) {
+            return fallback;
+        }
+
+        return {
+            top: Math.max(16, anchorViewportTop - containerRect.top + (editorContainer?.scrollTop || 0) - 72),
+            left: Math.max(24, anchorViewportLeft - containerRect.left),
+        };
+    }, []);
+
+    const handleCorrectionRequest = useCallback((from: number, to: number, selectedText: string) => {
+        const selection = document.getSelection();
+        const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+        const rect = range?.getBoundingClientRect();
+
         setCorrectionRequest({
+            mode: 'create',
             from,
             to,
             selectedText,
-            position: rect && containerRect
-                ? {
-                    top: rect.top - containerRect.top + (editorContainer?.scrollTop || 0) - 72,
-                    left: Math.max(24, rect.left - containerRect.left),
-                }
-                : fallback,
+            correctionText: '',
+            position: getCorrectionPopupPosition(rect?.top ?? null, rect?.left ?? null),
         });
-    }, []);
+    }, [getCorrectionPopupPosition]);
+
+    const handleCorrectionMarkClick = useCallback((selection: CorrectionMarkSelection) => {
+        setCorrectionRequest({
+            mode: 'edit',
+            from: selection.from,
+            to: selection.to,
+            selectedText: selection.selectedText,
+            correctionText: selection.correctionText,
+            position: getCorrectionPopupPosition(selection.anchorViewportTop, selection.anchorViewportLeft),
+        });
+    }, [getCorrectionPopupPosition]);
 
     const applyCorrection = useCallback((correctionText: string) => {
         if (!correctionRequest) {
@@ -1370,13 +1398,34 @@ export default function WritingGradingPage() {
 
         correctionNonceRef.current += 1;
         setPendingCorrection({
+            action: 'apply',
             from: correctionRequest.from,
             to: correctionRequest.to,
             correctionText,
             nonce: correctionNonceRef.current,
         });
+        trackAction(correctionRequest.mode === 'edit' ? 'editCorrection' : 'addCorrection', {
+            submissionId,
+            taskNumber: activeTask,
+        });
         setCorrectionRequest(null);
-    }, [correctionRequest]);
+    }, [activeTask, correctionRequest, submissionId, trackAction]);
+
+    const deleteCorrection = useCallback(() => {
+        if (!correctionRequest || correctionRequest.mode !== 'edit') {
+            return;
+        }
+
+        correctionNonceRef.current += 1;
+        setPendingCorrection({
+            action: 'remove',
+            from: correctionRequest.from,
+            to: correctionRequest.to,
+            nonce: correctionNonceRef.current,
+        });
+        trackAction('deleteCorrection', { submissionId, taskNumber: activeTask });
+        setCorrectionRequest(null);
+    }, [activeTask, correctionRequest, submissionId, trackAction]);
 
     const handleBackToQueue = useCallback(async () => {
         if (Object.keys(pendingCommentDraftsRef.current).length > 0) {
@@ -1587,6 +1636,7 @@ export default function WritingGradingPage() {
                                 setTaskState(activeTask, (current) => ({ ...current, markedContent: json as Record<string, any> }));
                             }}
                             onCorrectionRequest={handleCorrectionRequest}
+                            onCorrectionMarkClick={handleCorrectionMarkClick}
                             pendingQuickComment={pendingQuickComment}
                             pendingCorrection={pendingCorrection}
                             pendingCommentMutation={pendingCommentMutation}
@@ -1611,8 +1661,11 @@ export default function WritingGradingPage() {
                         <CorrectionPopup
                             isOpen={Boolean(correctionRequest)}
                             selectedText={correctionRequest?.selectedText || ''}
+                            initialValue={correctionRequest?.correctionText || ''}
                             position={correctionRequest?.position || { top: 24, left: 24 }}
+                            mode={correctionRequest?.mode || 'create'}
                             onApply={applyCorrection}
+                            onDelete={correctionRequest?.mode === 'edit' ? deleteCorrection : undefined}
                             onDismiss={() => setCorrectionRequest(null)}
                         />
                     </div>

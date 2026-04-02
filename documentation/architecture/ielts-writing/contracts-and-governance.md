@@ -114,6 +114,12 @@ Correction-rendering rules:
 - the visible replacement text should remain non-editable annotation output, not part of the student's editable essay content
 - queued correction replay must trim selection-boundary whitespace before applying the correction mark so spaces remain outside the struck-through original span
 - when a teacher selection accidentally includes a trailing space, the replacement text must still read as a normal phrase boundary with the following word instead of gluing the replacement to downstream content
+- queued correction replay must normalize the replacement text against the next essay character so adjacent words end up separated by exactly one space, even if the teacher omitted the space or typed extra trailing spaces in the popup
+
+Correction-editing rules:
+- in grading edit mode, clicking an existing correction mark should reopen the correction popup anchored to that mark
+- the popup should preload the stored replacement text for in-place editing
+- the popup must support deleting the correction mark entirely without forcing the teacher to recreate the selection
 
 Queued correction-application rule:
 - when replaying a queued correction against a stored selection range, the editor should apply the mark directly without forcing an extra focus-and-scroll cycle first

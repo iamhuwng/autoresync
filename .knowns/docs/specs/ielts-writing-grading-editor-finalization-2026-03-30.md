@@ -2,7 +2,7 @@
 title: IELTS Writing Grading Editor Finalization 2026-03-30
 description: Finalized source of truth for the teacher writing grading editor layout, comment interactions, ordering rules, and containment inside the teacher shell.
 createdAt: '2026-03-29T20:16:53.672Z'
-updatedAt: '2026-04-02T04:28:28.426Z'
+updatedAt: '2026-04-02T04:54:19.745Z'
 tags:
   - spec
   - ielts
@@ -183,11 +183,18 @@ Correction-rendering rules:
 Queued correction application:
 - Replaying a queued correction against a stored selection range should apply the correction mark directly without forcing an extra focus-and-scroll cycle first.
 
-## 2026-04-02 Follow-up - Correction Whitespace Boundary Contract
+## 2026-04-02 Follow-up - Correction Spacing And Editing Contract
 
-The queued correction replay path must normalize selection-boundary whitespace before applying the correction mark.
+The queued correction replay path must normalize selection-boundary whitespace before applying the correction mark, and existing correction marks must stay editable in place.
 
-Required behavior:
+Required spacing behavior:
 - leading and trailing whitespace accidentally captured in the stored selection range must remain outside the struck-through original span
 - the visible replacement text must preserve normal word separation with adjacent essay text, especially when the teacher selection includes a trailing space
+- if the teacher omits a separating space before the next word, correction replay must append one automatically when the downstream essay character is word-like
+- if the teacher types trailing spaces into the correction popup and the essay already has a following gap, the rendered result must still separate with one space, not a double space
 - this whitespace normalization is part of the correction-rendering contract for both the grading editor and published Writing markup readers that render the same stored TipTap content
+
+Required editing behavior:
+- clicking an existing correction mark in grading edit mode must reopen the correction popup anchored to that mark
+- the popup must preload the stored correction text for inline edits
+- the popup must provide a delete path so the teacher can remove the correction mark without recreating the original text selection
