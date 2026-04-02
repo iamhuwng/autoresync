@@ -125,12 +125,25 @@
 
 .feedback-editor-content .tiptap ul,
 .feedback-editor-content .tiptap ol {
-    padding-left: 1.2em;
+    padding-left: 1.6em;
     margin: 0 0 0.5em;
 }
 
+.feedback-editor-content .tiptap ul {
+    list-style: disc outside;
+}
+
+.feedback-editor-content .tiptap ol {
+    list-style: decimal outside;
+}
+
 .feedback-editor-content .tiptap li {
+    display: list-item;
     margin-bottom: 0.2em;
+}
+
+.feedback-editor-content .tiptap li > p {
+    margin: 0;
 }
 
 /* Placeholder */
