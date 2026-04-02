@@ -1,0 +1,49 @@
+{
+  "docPath": "architecture/ielts-writing/ielts-writing-authoring-edit-shell-and-publish-contract-2026-04-03",
+  "currentVersion": 1,
+  "versions": [
+    {
+      "id": "v1",
+      "docPath": "architecture/ielts-writing/ielts-writing-authoring-edit-shell-and-publish-contract-2026-04-03",
+      "version": 1,
+      "timestamp": "2026-04-02T19:23:34.567753Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "IELTS Writing Authoring Edit Shell And Publish Contract 2026-04-03"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "Architecture note for the teacher-side IELTS Writing authoring flow after moving edit and resume onto the shared edit-modal shell, including save/publish behavior and visibility ownership."
+        },
+        {
+          "field": "tags",
+          "oldValue": null,
+          "newValue": [
+            "architecture",
+            "ielts",
+            "writing",
+            "authoring",
+            "editor",
+            "visibility"
+          ]
+        }
+      ],
+      "snapshot": {
+        "content": "# IELTS Writing Authoring Edit Shell And Publish Contract 2026-04-03\n\n## Status\n\nCurrent source of truth for teacher-side IELTS Writing authoring after the edit flow was moved off the creation wizard and into the shared edit-modal shell.\n\n## Surface split\n\n- `TestCreationModal` is create-only.\n- `WritingTestEditModal` is edit/resume-only.\n- `TeacherLobbyPage` decides which surface to open:\n  - `Create Test` -\u003e creation modal\n  - editing a published writing material -\u003e ensure editable draft, then open `WritingTestEditModal`\n  - resuming a writing draft -\u003e open `WritingTestEditModal`\n\nExisting writing drafts must not be routed back through the creation wizard.\n\n## Shared shell contract\n\n`WritingTestEditModal` uses the shared edit-shell contract:\n\n- outer shell: shared modal wrapper\n- inner chrome: `EditTestFrame`\n- visible tabs: `Questions`, `Context \u0026 Resources`, `Settings`\n- hidden tab: `Answer Key`\n\nWriting-specific behavior stays inside the tab bodies:\n\n- `Questions`: task selector + task editor\n- `Context \u0026 Resources`: metadata + validation summary\n- `Settings`: shared settings, including visibility\n\n## Action contract\n\n### Published writing material\n\n- primary action label: `Save Changes`\n- action behavior: publish/update the linked RTDB writing test immediately\n- no secondary `Publish Updates` action\n\n### Unpublished writing draft\n\n- primary action label: `Save Draft`\n- action behavior: save Firestore draft only\n- secondary action label: `Publish Test`\n- secondary action behavior: publish to RTDB and sync draft linkage\n\n## Visibility contract\n\nThe shared `Settings` tab owns the writing `Public Test` toggle.\n\nRequired persistence path:\n\n- `WritingTestEditModal` hydrates `isPublic` from the draft\n- `saveWritingDraft()` persists `isPublic` to Firestore `writing_drafts/{draftId}`\n- `publishWritingTest()` persists `isPublic` to RTDB `tests/{testId}`\n- `ensureWritingEditableDraft()` copies `isPublic` from the published test back into the draft when needed\n\nThe writing visibility toggle is real persistence state, not decorative shell chrome.\n\n## Layout contract\n\nInside the shared shell:\n\n- the left task list may stay constrained but must be shrinkable\n- the right editor pane must stay fluid and vertically scrollable inside the frame\n- the questions row must stretch to the frame height and avoid clipping the editor pane\n\nThe right editor pane is the scroll container for task editing.\n\n## Integration notes\n\n- `useTeacherDrafts()` refreshes writing drafts after save or publish\n- the teacher lobby refreshes both drafts and published tests after writing publish/update\n- feature tracking stays under `FEATURE_IDS.testCreation`\n- visibility changes inside settings track through the same feature\n\n## Repo anchors\n\n- `src/pages/TeacherLobbyPage.jsx`\n- `src/components/writing/WritingTestEditModal.tsx`\n- `src/services/writingTestService.ts`\n- `src/hooks/thcs/useTeacherDrafts.ts`\n- `src/components/test/editor/EditTestFrame.tsx`\n",
+        "description": "Architecture note for the teacher-side IELTS Writing authoring flow after moving edit and resume onto the shared edit-modal shell, including save/publish behavior and visibility ownership.",
+        "tags": [
+          "architecture",
+          "ielts",
+          "writing",
+          "authoring",
+          "editor",
+          "visibility"
+        ],
+        "title": "IELTS Writing Authoring Edit Shell And Publish Contract 2026-04-03"
+      }
+    }
+  ]
+}

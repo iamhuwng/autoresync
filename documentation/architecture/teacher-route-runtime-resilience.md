@@ -25,6 +25,11 @@ Teacher pages should not eagerly import optional heavy dialogs into the initial 
 
 Current example:
 - `TeacherLobbyPage` lazy-loads `THCSHomeworkAssignDialog` and renders it behind `Suspense` only when the homework dialog state is open
+- `TeacherLobbyPage` keeps `WritingTestEditModal` as a direct import because Writing edit and resume are primary materials-edit actions, not optional secondary utilities
+
+Implication:
+- primary editor surfaces may stay directly imported when they are part of the main page contract
+- secondary dialogs such as homework assignment should remain lazy-loaded
 
 Current repo anchor:
 - `src/pages/TeacherLobbyPage.jsx`

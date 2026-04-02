@@ -14,6 +14,8 @@ export interface EditTestFrameProps {
     onCancel: () => void;
     isSaving: boolean;
     children?: React.ReactNode;
+    saveLabel?: string;
+    extraActions?: React.ReactNode;
 
     // Optional stats or badges
     questionCount?: number;
@@ -59,6 +61,8 @@ export const EditTestFrame: React.FC<EditTestFrameProps> = ({
     onOpenPracticeSettings,
     readOnly = false,
     hiddenTabs = [],
+    saveLabel = 'Save Test',
+    extraActions,
 }) => {
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [tempTitle, setTempTitle] = useState(title);
@@ -303,6 +307,7 @@ export const EditTestFrame: React.FC<EditTestFrameProps> = ({
 
                 {/* Right: Actions */}
                 <Group>
+                    {extraActions}
                     {readOnly ? (
                         <Button
                             variant="glass"
@@ -318,7 +323,7 @@ export const EditTestFrame: React.FC<EditTestFrameProps> = ({
                             loading={isSaving}
                             onClick={onSave}
                         >
-                            Save Test
+                            {saveLabel}
                         </Button>
                     )}
                     <ActionIcon
@@ -365,17 +370,19 @@ export const EditTestFrame: React.FC<EditTestFrameProps> = ({
                 {/* Spacer */}
                 <div style={{ flex: 1 }} />
 
-                <TabButton
-                    active={activeTab === 'settings'}
-                    onClick={() => onTabChange('settings')}
-                    icon={<IconSettings size={18} />}
-                    label="Settings"
-                />
+                {!hiddenTabs.includes('settings') && (
+                    <TabButton
+                        active={activeTab === 'settings'}
+                        onClick={() => onTabChange('settings')}
+                        icon={<IconSettings size={18} />}
+                        label="Settings"
+                    />
+                )}
             </div>
 
             {/* Main Content Area */}
             <div style={{ flex: 1, overflow: 'auto', position: 'relative' }}>
-                {activeTab === 'settings' ? renderSettingsTab() : children}
+                {activeTab === 'settings' && !hiddenTabs.includes('settings') ? renderSettingsTab() : children}
             </div>
         </Card>
     );

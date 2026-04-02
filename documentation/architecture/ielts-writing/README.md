@@ -14,14 +14,16 @@ This pack does not replace the detailed PRD/spec/audit documents. It gives the s
 ## Reading Order
 
 1. `lifecycle-and-surfaces.md`
-2. `contracts-and-governance.md`
-3. `grading-editor-state-and-compatibility.md`
-4. `essay-editor-tool-contract-and-mark-composition.md`
-5. `ai-suggestions-and-injection.md`
+2. `authoring-edit-shell-and-publish-contract.md`
+3. `contracts-and-governance.md`
+4. `grading-editor-state-and-compatibility.md`
+5. `essay-editor-tool-contract-and-mark-composition.md`
+6. `ai-suggestions-and-injection.md`
 
 ## What This Pack Covers
 
 - the active Writing lifecycle from submit to published result
+- the current teacher authoring and shared edit-shell contract
 - the current teacher and student surfaces
 - the canonical storage contract
 - the grading editor's task-state, draft, lock, and AI-suggestion cache contract
@@ -60,6 +62,7 @@ Related shared architecture docs:
 ## Update Rules
 
 - If a Writing lifecycle state or host surface changes, update `lifecycle-and-surfaces.md`.
+- If the writing edit/resume shell, save/publish flow, settings-tab ownership, or shared-shell layout contract changes, update `authoring-edit-shell-and-publish-contract.md`.
 - If storage, release gating, ownership, teacher-private helper state, or compatibility rules change, update `contracts-and-governance.md`.
 - If grading-editor task state, draft behavior, suggestion-cache behavior, or result compatibility metadata changes, update `grading-editor-state-and-compatibility.md`.
 - If essay-editor tools, selection routing, focus commands, or mark-composition rules change, update `essay-editor-tool-contract-and-mark-composition.md`.

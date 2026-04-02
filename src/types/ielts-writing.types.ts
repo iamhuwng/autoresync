@@ -131,6 +131,7 @@ export interface WritingTestDraft {
     skill: 'Writing';
     metadata: WritingTestMetadata;
     tasks: WritingTask[];
+    isPublic?: boolean;
     status: 'editing' | 'review' | 'published';
     publishedTestId?: string;
     createdAt: Date;

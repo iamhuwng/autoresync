@@ -25,6 +25,7 @@ export const FEATURE_IDS = {
   homework: 'homework',
   results: 'results',
   studentDashboard: 'studentDashboard',
+  testCreation: 'testCreation',
 } as const;
 
 // ─── Registry ───────────────────────────────────────────────────────────────
@@ -51,7 +52,7 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     description: 'Student test-taking and practice sessions',
   },
   {
-    id: 'testCreation',
+    id: FEATURE_IDS.testCreation,
     name: 'Test Creation',
     routes: [
       '/teacher/test/create',
@@ -65,6 +66,8 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     actions: [
       'createTest',
       'editTest',
+      'toggleVisibility',
+      'saveDraft',
       'publishTest',
       'deleteTest',
       'uploadDocument',

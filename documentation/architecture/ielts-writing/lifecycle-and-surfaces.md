@@ -32,6 +32,10 @@ Teacher creates/publishes writing test
   Dedicated student Writing result body.
 
 ### Teacher
+- `TeacherLobbyPage` / Materials tab  
+  Entry point for create, edit, and resume actions.
+- `WritingTestEditModal`  
+  Canonical edit/resume surface for existing writing drafts and published materials.
 - `WritingGradingQueuePage`  
   Operational front door for pending-review work.
 - `WritingGradingPage`  
@@ -76,6 +80,15 @@ In the wide student slide modal:
 - published markup and ordered comments
 - audit metadata and re-open path when permissions allow
 
+## Teacher Authoring Contract
+
+- create-only flow lives in `TestCreationModal`
+- edit and resume flow lives in `WritingTestEditModal`
+- writing edit uses the shared edit shell (`Modal` + `EditTestFrame`) instead of reusing the creation wizard
+- the shared shell tabs for writing are `Questions`, `Context & Resources`, and `Settings`
+- published writing materials save through one primary `Save Changes` action
+- unpublished writing drafts keep `Save Draft` plus `Publish Test`
+
 ## Superseded Surface Assumptions
 
 Do not treat the following as current architecture:
@@ -83,6 +96,7 @@ Do not treat the following as current architecture:
 - a public three-state student result model
 - immediate post-submit Writing result review
 - center-based or focused-card-overlay descriptions for the student comment rail
+- editing an existing writing draft through the creation wizard
 
 ## 2026-03-30 Amendment - Grading Editor Comment-Rail Alignment
 

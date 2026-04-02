@@ -4,6 +4,8 @@ import React, { Suspense, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useNavigation } from '../hooks/useNavigation';
 import { useAuth } from '../hooks/useAuth';
+import { useFeatureTracking } from '../hooks/useFeatureTracking';
+import { FEATURE_IDS } from '../config/featureRegistry';
 import { buildRoute } from '../constants/routes';
 import { AppShell } from '@mantine/core';
 import { lazyWithRetry } from '../utils/lazyWithRetry.ts';
@@ -32,24 +34,9 @@ import UseAsIsModal from '../components/UseAsIsModal';
 import TestEditor from '../components/TestEditor.tsx';
 import TestCreationModal from '../components/test-creation/TestCreationModal';
 import THCSTestEditorModal from '../components/thcs-editor/THCSTestEditorModal';
+import WritingTestEditModal from '../components/writing/WritingTestEditModal';
 
 const THCSHomeworkAssignDialog = lazyWithRetry(() => import('../components/thcs-editor/THCSHomeworkAssignDialog'));
-
-const DEFAULT_WRITING_TASK1 = {
-  taskType: 'line-graph',
-  promptText: '',
-  wordMinimum: 150,
-  recommendedTimeMinutes: 20,
-  showModelAnswerToStudent: false,
-};
-
-const DEFAULT_WRITING_TASK2 = {
-  taskType: 'opinion',
-  promptText: '',
-  wordMinimum: 250,
-  recommendedTimeMinutes: 40,
-  showModelAnswerToStudent: false,
-};
 
 const homeworkDialogFallbackStyle = {
   position: 'fixed',
@@ -63,44 +50,11 @@ const homeworkDialogFallbackStyle = {
   backdropFilter: 'blur(8px)',
 };
 
-function buildWritingModalState(draft) {
-  const task1 = draft?.tasks?.find((task) => task.taskNumber === 1);
-  const task2 = draft?.tasks?.find((task) => task.taskNumber === 2);
-  const hasTaskContent = Boolean(task1?.promptText || task2?.promptText);
-
-  return {
-    initialStep: hasTaskContent ? 'writing-content' : 'writing-metadata',
-    initialData: {
-      testType: 'IELTS',
-      skillType: 'writing',
-      writingMetadata: {
-        title: draft?.metadata?.title || '',
-        description: draft?.metadata?.description,
-        duration: draft?.metadata?.duration || 60,
-        difficulty: draft?.metadata?.difficulty,
-        targetBand: draft?.metadata?.targetBand,
-        tags: Array.isArray(draft?.metadata?.tags) ? draft.metadata.tags : [],
-      },
-      writingFormat: draft?.metadata?.format || 'full-test',
-      writingTasks: {
-        task1: {
-          ...DEFAULT_WRITING_TASK1,
-          ...(task1 || {}),
-        },
-        task2: {
-          ...DEFAULT_WRITING_TASK2,
-          ...(task2 || {}),
-        },
-      },
-    },
-    initialWritingDraftId: draft?.id,
-  };
-}
-
 const TeacherLobbyPage = () => {
   const { navigateTo } = useNavigation('teacher');
   const { sessionCode } = useParams();
   const { user, profile, logout } = useAuth();
+  const { trackAction } = useFeatureTracking(FEATURE_IDS.testCreation);
   const navigate = useNavigate();
 
   // ---------- Local UI State ----------
@@ -109,14 +63,12 @@ const TeacherLobbyPage = () => {
   const [testTypeFilter, setTestTypeFilter] = useState('all');
   const [thcsGradeFilter, setThcsGradeFilter] = useState('all');
   const [thcsExamTypeFilter, setThcsExamTypeFilter] = useState('all');
-  const [testCreationInitialStep, setTestCreationInitialStep] = useState('type');
-  const [testCreationInitialData, setTestCreationInitialData] = useState(undefined);
-  const [testCreationInitialWritingDraftId, setTestCreationInitialWritingDraftId] = useState(undefined);
+  const [editingWritingDraft, setEditingWritingDraft] = useState(null);
 
   // ---------- Hooks ----------
   const modals = useModalManager();
-  const { tests, loading: contentLoading, deleteTest, togglePublic } = useTeacherTests();
-  const { drafts, loading: draftsLoading, error: draftsError, deleteDraft } = useTeacherDrafts({
+  const { tests, loading: contentLoading, deleteTest, togglePublic, refresh: refreshTests } = useTeacherTests();
+  const { drafts, loading: draftsLoading, error: draftsError, deleteDraft, refreshDrafts } = useTeacherDrafts({
     userId: user?.uid || '',
     enabled: contentFilter === 'drafts',
   });
@@ -139,29 +91,29 @@ const TeacherLobbyPage = () => {
     thcsExamTypeFilter,
   });
 
-  const resetTestCreationOverrides = useCallback(() => {
-    setTestCreationInitialStep('type');
-    setTestCreationInitialData(undefined);
-    setTestCreationInitialWritingDraftId(undefined);
-  }, []);
-
   const handleOpenTestCreation = useCallback(() => {
-    resetTestCreationOverrides();
+    trackAction('createTest', { source: 'teacher_lobby' });
     modals.openTestCreation();
-  }, [modals.openTestCreation, resetTestCreationOverrides]);
+  }, [modals.openTestCreation, trackAction]);
 
   const handleCloseTestCreation = useCallback(() => {
-    resetTestCreationOverrides();
     modals.closeTestCreation();
-  }, [modals.closeTestCreation, resetTestCreationOverrides]);
+  }, [modals.closeTestCreation]);
 
-  const openWritingDraftInModal = useCallback((draft) => {
-    const modalState = buildWritingModalState(draft);
-    setTestCreationInitialStep(modalState.initialStep);
-    setTestCreationInitialData(modalState.initialData);
-    setTestCreationInitialWritingDraftId(modalState.initialWritingDraftId);
-    modals.openTestCreation();
-  }, [modals.openTestCreation]);
+  const openWritingDraftEditor = useCallback((draft, source) => {
+    trackAction('editTest', {
+      source,
+      skill: 'writing',
+      draftId: draft?.id || null,
+      publishedTestId: draft?.publishedTestId || null,
+      status: draft?.status || null,
+    });
+    setEditingWritingDraft(draft);
+  }, [trackAction]);
+
+  const closeWritingDraftEditor = useCallback(() => {
+    setEditingWritingDraft(null);
+  }, []);
 
   // ---------- Handlers ----------
   const handleLogout = async () => {
@@ -177,6 +129,11 @@ const TeacherLobbyPage = () => {
     const isWritingTest = test?.testType === 'IELTS' && String(test?.skill || '').toLowerCase() === 'writing';
 
     if (test.testType === 'THCS-THPT') {
+      trackAction('editTest', {
+        source: 'teacher_lobby_test_card',
+        skill: 'thcs',
+        testId: test.id,
+      });
       modals.openEditThcsTest(test);
       return;
     }
@@ -199,7 +156,7 @@ const TeacherLobbyPage = () => {
             throw new Error(draftResult.error || 'Failed to load writing draft');
           }
 
-          openWritingDraftInModal(draftResult.data);
+          openWritingDraftEditor(draftResult.data, 'teacher_lobby_test_card');
         })
         .catch((error) => {
           console.error('Failed to open writing editor:', error);
@@ -208,8 +165,13 @@ const TeacherLobbyPage = () => {
       return;
     }
 
+    trackAction('editTest', {
+      source: 'teacher_lobby_test_card',
+      skill: String(test?.skill || '').toLowerCase() || null,
+      testId: test.id,
+    });
     modals.openEditTest(test);
-  }, [modals.openEditThcsTest, modals.openEditTest, openWritingDraftInModal, user?.uid]);
+  }, [modals.openEditThcsTest, modals.openEditTest, openWritingDraftEditor, trackAction, user?.uid]);
 
   const handleDeleteTest = useCallback(async (test) => {
     const isThcs = test.testType === 'THCS-THPT';
@@ -382,7 +344,7 @@ const TeacherLobbyPage = () => {
                           index={index}
                           onResume={(draftToResume) => {
                             if (draftToResume?.draftKind === 'writing') {
-                              openWritingDraftInModal(draftToResume);
+                              openWritingDraftEditor(draftToResume, 'teacher_lobby_draft_card');
                               return;
                             }
                             navigate(buildRoute('TEACHER_THCS_EDIT', { draftId: draftToResume.id }));
@@ -538,9 +500,19 @@ const TeacherLobbyPage = () => {
             handleCloseTestCreation();
             navigate(`/teacher/test/review/${draftId}`);
           }}
-          initialStep={testCreationInitialStep}
-          initialData={testCreationInitialData}
-          initialWritingDraftId={testCreationInitialWritingDraftId}
+        />
+
+        <WritingTestEditModal
+          draft={editingWritingDraft}
+          isOpen={Boolean(editingWritingDraft)}
+          onClose={closeWritingDraftEditor}
+          onSaved={() => {
+            void refreshDrafts();
+          }}
+          onPublished={() => {
+            void refreshDrafts();
+            void refreshTests();
+          }}
         />
 
         {/* THCS Homework Dialog */}

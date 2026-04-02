@@ -2,7 +2,7 @@
 title: Test System Architecture
 description: 'Complete test lifecycle architecture: IELTS + THCS creation, editing, session management, test-taking, grading, results. The single entry point for understanding the test system.'
 createdAt: '2026-02-27T16:15:16.855Z'
-updatedAt: '2026-03-29T08:35:07.616Z'
+updatedAt: '2026-04-02T19:28:34.460Z'
 tags:
   - architecture
   - test
@@ -477,3 +477,46 @@ The acknowledgement page must not imply auto-grading. It exists to confirm persi
 - @doc/architecture/results-academic-record
 - @doc/architecture/scheme/ielts-writing-current-state-scheme
 - @doc/architecture/firebase-infrastructure
+
+
+## 2026-04-03 Amendment - IELTS Writing Edit Shell And Publish Contract
+
+## 2026-04-03 Amendment - IELTS Writing Edit Shell And Publish Contract
+
+### Current state of the feature
+
+- `TeacherLobbyPage` opens `WritingTestEditModal` for both published Writing material edits and Writing draft resume actions.
+- Writing edit no longer reuses `TestCreationModal`.
+- The Writing editor now sits inside the shared `Modal` plus `EditTestFrame` shell and keeps `questions`, `context`, and `settings` behavior aligned with the other editor surfaces.
+- Published Writing material uses one primary `Save Changes` action.
+- Unpublished Writing drafts keep `Save Draft` plus `Publish Test`.
+- The shared `Settings` tab owns the writing `Public Test` toggle, and `isPublic` must survive draft save, publish, and edit-resume hydration.
+
+### Cross-feature interaction boundary
+
+#### Teacher lobby -> Writing editor
+
+- Lobby owns the decision to open Writing edit directly instead of routing published edits back through creation review.
+- The edit modal is part of the primary materials workflow, not an optional utility dialog.
+
+#### Writing draft -> published RTDB test
+
+- Firestore draft state remains the authoring source.
+- Publish remains the operation that updates the RTDB test record.
+- For published Writing material, the primary save action now runs that publish path directly so the teacher does not see a redundant second publish control.
+
+#### Shared shell -> Writing-specific panes
+
+- `EditTestFrame` owns shell chrome and the `settings` tab.
+- Writing-specific panes own task selection, metadata editing, validation, and right-pane scroll behavior.
+
+### Operational rule going forward
+
+- Do not route Writing edit and resume flows back into `TestCreationModal`.
+- Do not reintroduce a separate `Publish Updates` action for already-published Writing materials.
+- Keep `isPublic` wired through draft hydration, save, publish, and editable-draft recreation.
+- Treat right-pane scroll and full-height layout as part of the edit contract, not a cosmetic detail.
+
+### Related docs
+
+- @doc/architecture/ielts-writing/ielts-writing-authoring-edit-shell-and-publish-contract-2026-04-03

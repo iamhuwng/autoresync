@@ -185,3 +185,20 @@ Access rules:
 Publishing boundary:
 - AI suggestions do not change release state, result visibility, or result ownership
 - suggestions only become grading content if a teacher explicitly injects them into the existing comment or correction authoring tools and then saves or applies through those existing flows
+
+## 2026-04-03 Amendment - Writing Authoring Visibility And Publish Governance
+
+Authoring-state rules:
+- writing edit and resume flow is owned by `WritingTestEditModal`, not `TestCreationModal`
+- the writing editor uses the shared edit shell and shared settings tab
+
+Visibility rules:
+- `isPublic` is part of the writing draft contract and must survive draft save, publish, and edit-resume hydration
+- the writing `Public Test` toggle is operationally meaningful and must never be display-only
+
+Publish-action rules:
+- published writing materials must use a single primary save/update action instead of a redundant secondary `Publish Updates` button
+- unpublished writing drafts still keep separate `Save Draft` and `Publish Test` actions
+
+Detailed reference:
+- `authoring-edit-shell-and-publish-contract.md`
