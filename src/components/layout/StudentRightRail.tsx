@@ -372,9 +372,9 @@ export const StudentRightRail: React.FC<StudentRightRailProps> = ({ shellData, s
                         <h4 style={v2.sectionTitle}>Your Updates</h4>
                     </header>
 
-                    {/* Card: Up Next — "Upcoming" dot-list format */}
+                    {/* Card: Deadlines — "Upcoming" dot-list format */}
                     <div style={v2.card}>
-                        <span style={v2.cardLabel}>Up Next</span>
+                        <span style={v2.cardLabel}>Deadlines</span>
                         {sortedAssignments.length === 0 ? (
                             <p style={v2.emptyText}>No upcoming deadlines.</p>
                         ) : (
@@ -461,7 +461,7 @@ export const StudentRightRail: React.FC<StudentRightRailProps> = ({ shellData, s
        Shared v2 Sections — used by default + academic-record variants
        ═══════════════════════════════════════════════════════════════════ */
     const renderUpcomingDeadlines = () => {
-        const sectionLabel = variant === 'academic-record' ? 'Upcoming Deadlines' : 'Up Next';
+        const sectionLabel = variant === 'academic-record' ? 'Upcoming Deadlines' : 'Deadlines';
         const isDueTomorrow = (dateValue?: number | string) => {
             if (!dateValue) return false;
             const d = new Date(dateValue);

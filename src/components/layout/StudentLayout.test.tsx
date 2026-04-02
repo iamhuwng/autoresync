@@ -100,7 +100,7 @@ describe('StudentLayout', () => {
         expect(screen.getByTestId('student-layout-container')).toBeInTheDocument();
         expect(screen.getByText('Live Now')).toBeInTheDocument();
         expect(screen.getByText('Live IELTS Reading')).toBeInTheDocument();
-        expect(screen.getByText('Up Next')).toBeInTheDocument();
+        expect(screen.getByText('Deadlines')).toBeInTheDocument();
         expect(screen.getByText('Reading Practice')).toBeInTheDocument();
         expect(screen.getByText('My Classes')).toBeInTheDocument();
         expect(screen.getByText('Supplemental Widget')).toBeInTheDocument();
@@ -162,7 +162,7 @@ describe('StudentLayout', () => {
 
         expect(screen.getByText('Live Now')).toBeInTheDocument();
         expect(screen.getByText('Live IELTS Reading')).toBeInTheDocument();
-        expect(screen.getByText('Up Next')).toBeInTheDocument();
+        expect(screen.getByText('Deadlines')).toBeInTheDocument();
         expect(screen.getByText('Reading Practice')).toBeInTheDocument();
         expect(screen.getByText('My Classes')).toBeInTheDocument();
         expect(screen.getByText('Supplemental Widget')).toBeInTheDocument();
@@ -219,7 +219,7 @@ describe('StudentLayout', () => {
         );
 
         expect(screen.queryByText('Live Now')).not.toBeInTheDocument();
-        expect(screen.getByText('Up Next')).toBeInTheDocument();
+        expect(screen.getByText('Deadlines')).toBeInTheDocument();
         expect(screen.getByText(/No upcoming deadlines/i)).toBeInTheDocument();
         expect(screen.getByText('My Classes')).toBeInTheDocument();
         expect(screen.getByText('No classes joined yet.')).toBeInTheDocument();

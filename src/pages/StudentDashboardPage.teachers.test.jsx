@@ -139,7 +139,7 @@ describe('StudentDashboardPage', () => {
             expect(screen.getByText('Homework Due')).toBeInTheDocument();
             expect(screen.getByText('0 in current view')).toBeInTheDocument();
             expect(screen.getByText('No pending start')).toBeInTheDocument();
-            expect(screen.getAllByText('Up Next')).toHaveLength(1);
+            expect(screen.getAllByText('Deadlines')).toHaveLength(1);
             expect(screen.getByText('Reading Practice')).toBeInTheDocument();
             expect(screen.getByText('My Classes')).toBeInTheDocument();
             expect(screen.getAllByText('AB').length).toBeGreaterThan(0);
@@ -176,7 +176,7 @@ describe('StudentDashboardPage', () => {
         await waitFor(() => {
             expect(screen.getAllByText('Live Now').length).toBeGreaterThan(0);
             expect(screen.getByText('Live IELTS Reading')).toBeInTheDocument();
-            expect(screen.getByText('Up Next')).toBeInTheDocument();
+            expect(screen.getByText('Deadlines')).toBeInTheDocument();
             expect(screen.getByText('Reading Practice')).toBeInTheDocument();
             expect(screen.getByText('My Classes')).toBeInTheDocument();
             expect(screen.getByTestId('pending-reviews-widget')).toBeInTheDocument();
