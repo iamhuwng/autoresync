@@ -643,6 +643,12 @@ const StudentDashboardPage = () => {
         if (categorySet.has('ielts')) categories.push('ielts');
         if (categorySet.has('thcs')) categories.push('thcs');
 
+        // Determine the most recently practiced type
+        const mostRecent = validResults.reduce((latest, r) =>
+            r.submittedAt > (latest?.submittedAt || 0) ? r : latest
+        , null);
+        const defaultCategory = mostRecent ? resolveTypeCategory(mostRecent.testType) : (categories[0] || 'ielts');
+
         // Map results to simplified records for the chart
         const testResults = validResults.map(r => ({
             percentage: r.percentage,
@@ -657,6 +663,7 @@ const StudentDashboardPage = () => {
         return {
             testResults,
             availableCategories: categories,
+            defaultCategory,
         };
     }, [allTestResults]);
 

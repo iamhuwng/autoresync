@@ -3,13 +3,11 @@ import { studentTokens } from '../layout/studentLayoutStyles';
 
 // ── Color palette for test-type categories ──
 const CATEGORY_COLORS = {
-    all: '#4c5458',
     ielts: '#2e7d6f',
     thcs: '#e06850',
 };
 
 const CATEGORY_LABELS = {
-    all: 'All Tests',
     ielts: 'IELTS',
     thcs: 'THCS',
 };
@@ -161,14 +159,20 @@ function drawChart(canvas, dataPoints, color, hoveredIndex) {
 export default function RecentGradesChart({
     testResults = [],
     availableCategories = [],
+    defaultCategory = 'ielts',
 }) {
     const canvasRef = useRef(null);
     const containerRef = useRef(null);
-    const [selectedCategory, setSelectedCategory] = useState('all');
+    const [selectedCategory, setSelectedCategory] = useState(defaultCategory);
     const [hoveredIndex, setHoveredIndex] = useState(-1);
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [tooltipData, setTooltipData] = useState(null);
     const dropdownRef = useRef(null);
+
+    // Sync default when it changes (e.g. data loads async)
+    useEffect(() => {
+        setSelectedCategory(defaultCategory);
+    }, [defaultCategory]);
 
     // Close dropdown on outside click
     useEffect(() => {
@@ -184,13 +188,9 @@ export default function RecentGradesChart({
 
     // Filter and sort results
     const chartData = useMemo(() => {
-        let filtered = testResults;
-
-        if (selectedCategory !== 'all') {
-            filtered = testResults.filter(r =>
-                r.typeCategory === selectedCategory
-            );
-        }
+        const filtered = testResults.filter(r =>
+            r.typeCategory === selectedCategory
+        );
 
         // Sort by submittedAt ascending, take LAST 10
         const sorted = [...filtered]
@@ -294,22 +294,11 @@ export default function RecentGradesChart({
                     >
                         <span style={{ color: CATEGORY_COLORS[selectedCategory] || '#4c5458' }}>●</span>
                         {' '}
-                        {CATEGORY_LABELS[selectedCategory] || 'All Tests'}
+                        {CATEGORY_LABELS[selectedCategory] || selectedCategory}
                         <ChevronDown />
                     </button>
                     {dropdownOpen && (
                         <ul style={styles.dropdownList} role="listbox">
-                            <li
-                                role="option"
-                                aria-selected={selectedCategory === 'all'}
-                                style={{
-                                    ...styles.dropdownItem,
-                                    ...(selectedCategory === 'all' ? styles.dropdownItemActive : {}),
-                                }}
-                                onClick={() => { setSelectedCategory('all'); setDropdownOpen(false); }}
-                            >
-                                <span style={{ color: CATEGORY_COLORS.all }}>●</span> All Tests
-                            </li>
                             {availableCategories.map(cat => (
                                 <li
                                     key={cat}

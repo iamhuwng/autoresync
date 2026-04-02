@@ -578,6 +578,7 @@ export default function StudentDashboardFeedView({
                     <RecentGradesChart
                         testResults={gradeChartData.testResults}
                         availableCategories={gradeChartData.availableCategories || []}
+                        defaultCategory={gradeChartData.defaultCategory}
                     />
                 ) : null}
 
