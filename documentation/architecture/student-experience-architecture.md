@@ -45,6 +45,19 @@ The key rule is that these regions must read as one composed workspace rather th
 - Preserve the mobile page host and navigation contract
 - Carry the same tonal and editorial language into smaller breakpoints instead of reverting to legacy feed styling
 
+## Workspace Chrome And Browser Title Contract
+
+For shared student shell pages, `StudentLayout` owns both:
+- the mobile visible workspace title
+- the browser tab title
+
+The shell title source is the `mobileTitle` prop, which now feeds the browser document-title hook through the shared platform layer.
+
+Required behavior:
+- shell pages should render `{mobileTitle} | MySTUdent Workspace` in the browser tab
+- routes that bypass `StudentLayout` should not hand-roll title behavior unless they intentionally own their own standalone route chrome
+- future student shell APIs should expand at the layout boundary if visible and browser titles need to diverge
+
 ## Dashboard Feed Contract
 
 Dashboard is not treated as a social feed clone.
@@ -122,4 +135,5 @@ Key implementation files:
 - `documentation/architecture/student-dashboard-architecture.md`
 - `documentation/architecture/student-shell-right-rail-architecture.md`
 - `documentation/architecture/student-shell-data-loading.md`
+- `documentation/architecture/browser-document-title-architecture.md`
 - `documentation/rules/student-data-loading.md`

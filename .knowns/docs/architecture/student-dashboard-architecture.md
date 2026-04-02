@@ -2,7 +2,7 @@
 title: Student Dashboard Architecture
 description: Source of truth for the live student dashboard center canvas, shared rail composition, result-opening behavior, and v2 editorial right-rail token compliance.
 createdAt: '2026-03-31T22:18:34.333Z'
-updatedAt: '2026-04-01T22:47:46.275Z'
+updatedAt: '2026-04-02T10:23:42.350Z'
 tags:
   - architecture
   - student
@@ -242,3 +242,16 @@ Rules:
 - Maximum 5 sessions displayed
 - Do not move Live Now below other content in any variant
 - Do not duplicate Live Now between variants — single `renderLiveNowBanner()` source
+
+## Dashboard Browser Title Ownership
+
+Dashboard follows the shared student shell title contract.
+
+Rules:
+- dashboard should render `Feed | MySTUdent Workspace` through `StudentLayout`
+- dashboard-only components should not set `document.title` independently
+- browser-title changes for dashboard should be treated as shell ownership work, not feed-only presentation work
+
+## Related Docs
+
+- @doc/architecture/browser-document-title-architecture

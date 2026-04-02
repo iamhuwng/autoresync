@@ -1,10 +1,8 @@
 ---
 title: Routing Navigation
+description: React Router v6 route map, PrivateRoute, routeSecurity.ts, useNavigation hook, breadcrumbs, mobile menu.
 createdAt: '2026-02-27T17:10:27.255Z'
-updatedAt: '2026-02-27T17:10:56.238Z'
-description: >-
-  React Router v6 route map, PrivateRoute, routeSecurity.ts, useNavigation hook,
-  breadcrumbs, mobile menu.
+updatedAt: '2026-04-02T10:22:55.114Z'
 tags:
   - architecture
   - routing
@@ -12,6 +10,7 @@ tags:
   - routes
   - core
 ---
+
 # Routing & Navigation Architecture
 
 ## Overview
@@ -122,3 +121,25 @@ See @doc/conventions (Integration Safety Rules)
 - @doc/architecture/auth-rbac-architecture — Route protection
 - @doc/conventions — Integration safety rules #1, #2
 - @doc/integration-safety-rules — Full safety rules
+
+## Browser Tab Title Ownership
+
+Browser tab titles are now handled through shared shell ownership plus a route-change fallback reset.
+
+Current owners:
+- `TeacherHeader` for teacher shell pages
+- `AdminTopBar` for admin shell pages
+- `StudentLayout` for shared student workspace pages
+- `App.jsx` fallback reset for routes that do not set a page-specific title
+
+Title format:
+- page routes: `{Page Title} | MySTUdent Workspace`
+- fallback routes: `MySTUdent Workspace`
+
+Implementation references:
+- `src/core/platform/documentTitle.ts`
+- `src/core/platform/hooks/useDocumentTitle.ts`
+- `src/App.jsx`
+
+Related doc:
+- @doc/architecture/browser-document-title-architecture

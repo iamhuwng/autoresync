@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { ConnectedStudentRightRail, StudentRightRail, type StudentRightRailShellData } from './StudentRightRail';
 import { S } from './studentLayoutStyles';
+import { useDocumentTitle } from '../../core/platform';
 
 export interface StudentLayoutProps {
     children: React.ReactNode;
@@ -24,6 +25,7 @@ export const StudentLayout: React.FC<StudentLayoutProps> = ({
 }) => {
     const [showMobileLeft, setShowMobileLeft] = useState(false);
     const [showMobileRight, setShowMobileRight] = useState(false);
+    useDocumentTitle(mobileTitle);
 
     const isMobile = useMediaQuery('(max-width: 768px)');
     const isTablet = useMediaQuery('(max-width: 1024px)');

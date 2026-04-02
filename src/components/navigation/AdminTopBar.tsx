@@ -1,4 +1,5 @@
 import React from 'react';
+import { useDocumentTitle } from '../../core/platform';
 
 interface AdminTopBarProps {
     pageTitle: string;
@@ -19,6 +20,8 @@ export const AdminTopBar: React.FC<AdminTopBarProps> = ({
     pageTitle,
     userRole,
 }) => {
+    useDocumentTitle(pageTitle);
+
     return (
         <div
             style={{

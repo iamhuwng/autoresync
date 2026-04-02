@@ -2,7 +2,7 @@
 title: Student Experience Architecture
 description: Student-facing system overview with shell, dashboard, and academic-record architecture contracts.
 createdAt: '2026-02-27T16:18:36.604Z'
-updatedAt: '2026-04-01T05:44:56.026Z'
+updatedAt: '2026-04-02T10:22:55.076Z'
 tags:
   - architecture
   - student
@@ -135,3 +135,20 @@ Key implementation files:
 - @doc/architecture/student-dashboard-architecture
 - @doc/architecture/student-shell-right-rail-architecture
 - @doc/architecture/student-shell-data-loading-architecture
+
+## Workspace Chrome And Browser Title Contract
+
+For shared student shell pages, `StudentLayout` owns both:
+- the mobile visible workspace title
+- the browser tab title
+
+The shell title source is the `mobileTitle` prop, which now feeds the browser document-title hook through the shared platform layer.
+
+Required behavior:
+- shell pages should render `{mobileTitle} | MySTUdent Workspace` in the browser tab
+- routes that bypass `StudentLayout` should not hand-roll title behavior unless they intentionally own their own standalone route chrome
+- future student shell APIs should expand at the layout boundary if visible and browser titles need to diverge
+
+## Related Docs
+
+- @doc/architecture/browser-document-title-architecture

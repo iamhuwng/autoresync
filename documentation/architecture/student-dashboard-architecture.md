@@ -17,6 +17,7 @@ Rules:
 - use the dashboard Stitch export for dashboard-specific anatomy
 - use Academic Record as the tonal and spacing anchor for the wider student family
 - use the `e5ba2064` structure as the implementation anchor for title position, summary-strip order, and dashboard-specific spacing
+- use the shared student shell title contract for browser-tab ownership; dashboard should render `Feed | MySTUdent Workspace` through `StudentLayout` instead of setting `document.title` inside dashboard-only components
 - preserve the real route structure, product information architecture, and live behaviors from the app
 - do not literal-copy placeholder labels, routes, or fake content from Stitch
 
@@ -196,5 +197,6 @@ Verification checklist:
 
 - `documentation/design/student-view-design-standard.md`
 - `documentation/architecture/student-experience-architecture.md`
+- `documentation/architecture/browser-document-title-architecture.md`
 - `documentation/architecture/student-shell-right-rail-architecture.md`
 - `documentation/architecture/student-shell-data-loading.md`
