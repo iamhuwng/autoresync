@@ -71,8 +71,7 @@ function createCache(): WritingSuggestionCacheDoc {
 }
 
 describe('WritingSuggestionsReviewModal', () => {
-    it('renders pending suggestions and delegates focus/approve/dismiss actions', () => {
-        const onFocusSuggestion = vi.fn();
+    it('renders pending suggestions and delegates approve/dismiss actions', () => {
         const onApproveSuggestion = vi.fn();
         const onDismissSuggestion = vi.fn();
 
@@ -91,7 +90,6 @@ describe('WritingSuggestionsReviewModal', () => {
                 onClose={vi.fn()}
                 onReload={vi.fn()}
                 onGenerateMore={vi.fn()}
-                onFocusSuggestion={onFocusSuggestion}
                 onApproveSuggestion={onApproveSuggestion}
                 onDismissSuggestion={onDismissSuggestion}
                 onRestoreSuggestion={vi.fn()}
@@ -99,11 +97,9 @@ describe('WritingSuggestionsReviewModal', () => {
         );
 
         expect(screen.getByText('Verb agreement')).toBeInTheDocument();
-        fireEvent.click(screen.getByText('Focus in Essay'));
         fireEvent.click(screen.getByText('Approve'));
         fireEvent.click(screen.getByText('Dismiss'));
 
-        expect(onFocusSuggestion).toHaveBeenCalledTimes(1);
         expect(onApproveSuggestion).toHaveBeenCalledTimes(1);
         expect(onDismissSuggestion).toHaveBeenCalledTimes(1);
     });
@@ -126,7 +122,6 @@ describe('WritingSuggestionsReviewModal', () => {
                 onClose={vi.fn()}
                 onReload={vi.fn()}
                 onGenerateMore={vi.fn()}
-                onFocusSuggestion={vi.fn()}
                 onApproveSuggestion={vi.fn()}
                 onDismissSuggestion={vi.fn()}
                 onRestoreSuggestion={onRestoreSuggestion}
@@ -156,7 +151,6 @@ describe('WritingSuggestionsReviewModal', () => {
                 onClose={vi.fn()}
                 onReload={vi.fn()}
                 onGenerateMore={vi.fn()}
-                onFocusSuggestion={vi.fn()}
                 onApproveSuggestion={vi.fn()}
                 onDismissSuggestion={vi.fn()}
                 onRestoreSuggestion={vi.fn()}

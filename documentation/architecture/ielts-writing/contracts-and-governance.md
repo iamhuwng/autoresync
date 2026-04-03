@@ -184,7 +184,10 @@ Access rules:
 
 Publishing boundary:
 - AI suggestions do not change release state, result visibility, or result ownership
-- suggestions only become grading content if a teacher explicitly injects them into the existing comment or correction authoring tools and then saves or applies through those existing flows
+- suggestions only become grading content if a teacher explicitly approves them into the existing comment or correction authoring tools
+- approved suggestion comments are materialized as saved comments immediately through the existing grading infrastructure
+- approved suggestion corrections are materialized as correction marks immediately through the existing grading infrastructure
+- suggestion approval must still respect active composer / correction conflicts and must never auto-publish grading output
 
 ## 2026-04-03 Amendment - Suggestion Run Artifact And Runtime Governance
 

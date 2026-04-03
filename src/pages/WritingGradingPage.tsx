@@ -404,7 +404,6 @@ export default function WritingGradingPage() {
     const [suggestionsLoading, setSuggestionsLoading] = useState(false);
     const [suggestionsReloading, setSuggestionsReloading] = useState(false);
     const [suggestionReviewOpen, setSuggestionReviewOpen] = useState(false);
-    const [pendingSuggestionApproval, setPendingSuggestionApproval] = useState<WritingSuggestionItem | null>(null);
     const [correctionRequest, setCorrectionRequest] = useState<{
         mode: 'create' | 'edit';
         from: number;
@@ -651,7 +650,6 @@ export default function WritingGradingPage() {
         setPendingSuggestionFocus(null);
         setCorrectionRequest(null);
         setSuggestionReviewOpen(false);
-        setPendingSuggestionApproval((current) => current?.kind === 'correction' ? null : current);
     }, []);
 
     const resetFromGradingSource = useCallback((
@@ -867,7 +865,6 @@ export default function WritingGradingPage() {
             setSuggestionsLoading(false);
             setSuggestionsReloading(false);
             setSuggestionReviewOpen(false);
-            setPendingSuggestionApproval(null);
             return;
         }
 
@@ -1528,20 +1525,7 @@ export default function WritingGradingPage() {
             taskNumber: draft.taskNumber,
             preset: preset?.id || null,
         });
-        if (
-            pendingSuggestionApproval
-            && pendingSuggestionApproval.kind === 'comment'
-            && pendingSuggestionApproval.taskNumber === draft.taskNumber
-            && pendingSuggestionApproval.from === draft.from
-            && pendingSuggestionApproval.to === draft.to
-        ) {
-            const approvedSuggestion = pendingSuggestionApproval;
-            setPendingSuggestionApproval(null);
-            void persistSuggestionReviewStatus(approvedSuggestion, 'approved', 'approveSuggestion');
-        }
     }, [
-        pendingSuggestionApproval,
-        persistSuggestionReviewStatus,
         pushCommentMutation,
         setPendingCommentDraft,
         setTaskState,
@@ -1692,7 +1676,6 @@ export default function WritingGradingPage() {
 
     const handleCancelPendingComment = useCallback(() => {
         setPendingCommentDraft(activeTask, null);
-        setPendingSuggestionApproval((current) => current?.kind === 'comment' ? null : current);
     }, [activeTask, setPendingCommentDraft]);
 
     const handleSavePendingComment = useCallback((html: string, categoryId: CommentCategoryId) => {
@@ -1849,7 +1832,6 @@ export default function WritingGradingPage() {
 
     const dismissCorrectionRequest = useCallback(() => {
         setCorrectionRequest(null);
-        setPendingSuggestionApproval((current) => current?.kind === 'correction' ? null : current);
     }, []);
 
     const applyCorrection = useCallback((correctionText: string) => {
@@ -1871,18 +1853,7 @@ export default function WritingGradingPage() {
             taskNumber: activeTask,
         });
         setCorrectionRequest(null);
-        if (
-            pendingSuggestionApproval
-            && pendingSuggestionApproval.kind === 'correction'
-            && pendingSuggestionApproval.taskNumber === activeTask
-            && pendingSuggestionApproval.from === correctionRequest.from
-            && pendingSuggestionApproval.to === correctionRequest.to
-        ) {
-            const approvedSuggestion = pendingSuggestionApproval;
-            setPendingSuggestionApproval(null);
-            void persistSuggestionReviewStatus(approvedSuggestion, 'approved', 'approveSuggestion');
-        }
-    }, [activeTask, correctionRequest, pendingSuggestionApproval, persistSuggestionReviewStatus, submissionId, trackAction]);
+    }, [activeTask, correctionRequest, submissionId, trackAction]);
 
     const deleteCorrection = useCallback(() => {
         if (!correctionRequest || correctionRequest.mode !== 'edit') {
@@ -1909,63 +1880,63 @@ export default function WritingGradingPage() {
             to: suggestion.to,
             nonce: suggestionFocusNonceRef.current,
         });
-        trackAction('focusSuggestion', {
-            submissionId,
-            taskNumber: suggestion.taskNumber,
-            focus: suggestion.focus,
-            kind: suggestion.kind,
-        });
-    }, [submissionId, trackAction]);
+    }, []);
 
-    const injectSuggestionComment = useCallback((suggestion: WritingSuggestionItem) => {
+    const createCommentFromSuggestion = useCallback((suggestion: WritingSuggestionItem) => {
         if (pendingCommentDraftsRef.current[suggestion.taskNumber]) {
             setPanelTab('comments');
-            showStatus('Finish or cancel the open comment before injecting another suggestion.');
+            showStatus('Finish or cancel the open comment before approving another suggestion.');
+            return false;
+        }
+
+        const html = convertPlainTextToCommentHtml(suggestion.suggestedCommentText || '');
+        if (!isHtmlMeaningful(html)) {
+            showStatus('This suggestion is missing comment text and cannot be approved automatically.');
             return false;
         }
 
         setFocusedCommentId(null);
-        setPanelTab('comments');
-        setPendingCommentDraft(suggestion.taskNumber, {
+        createSavedComment({
             commentId: `comment-${Date.now()}-${Math.random().toString(36).slice(2)}`,
             taskNumber: suggestion.taskNumber,
             anchorText: suggestion.anchorText,
             from: suggestion.from,
             to: suggestion.to,
             categoryId: suggestion.categoryId,
-            html: convertPlainTextToCommentHtml(suggestion.suggestedCommentText || ''),
-        });
+            html,
+        }, html);
         focusSuggestionInEssay(suggestion);
-        trackAction('injectSuggestionComment', {
-            submissionId,
-            taskNumber: suggestion.taskNumber,
-            focus: suggestion.focus,
-        });
         return true;
-    }, [focusSuggestionInEssay, setPendingCommentDraft, showStatus, submissionId, trackAction]);
+    }, [createSavedComment, focusSuggestionInEssay, showStatus]);
 
-    const injectSuggestionCorrection = useCallback((suggestion: WritingSuggestionItem) => {
+    const applySuggestionCorrection = useCallback((suggestion: WritingSuggestionItem) => {
         if (correctionRequest) {
-            showStatus('Finish or cancel the open correction before injecting another suggestion.');
+            showStatus('Finish or cancel the open correction before approving another suggestion.');
+            return false;
+        }
+        if (!suggestion.replacementText?.trim()) {
+            showStatus('This suggestion is missing correction text and cannot be approved automatically.');
             return false;
         }
 
-        setCorrectionRequest({
-            mode: 'create',
+        correctionNonceRef.current += 1;
+        setPanelTab('comments');
+        focusSuggestionInEssay(suggestion);
+        setPendingCorrection({
+            taskNumber: suggestion.taskNumber,
+            action: 'apply',
             from: suggestion.from,
             to: suggestion.to,
-            selectedText: suggestion.anchorText,
-            correctionText: suggestion.replacementText || '',
-            position: getCorrectionPopupPosition(null, null),
+            correctionText: suggestion.replacementText,
+            nonce: correctionNonceRef.current,
         });
-        focusSuggestionInEssay(suggestion);
-        trackAction('injectSuggestionCorrection', {
+        trackAction('addCorrection', {
             submissionId,
             taskNumber: suggestion.taskNumber,
             focus: suggestion.focus,
         });
         return true;
-    }, [correctionRequest, focusSuggestionInEssay, getCorrectionPopupPosition, showStatus, submissionId, trackAction]);
+    }, [correctionRequest, focusSuggestionInEssay, showStatus, submissionId, trackAction]);
 
     const dismissSuggestion = useCallback((suggestion: WritingSuggestionItem) => {
         void persistSuggestionReviewStatus(suggestion, 'dismissed', 'dismissSuggestion');
@@ -1982,18 +1953,19 @@ export default function WritingGradingPage() {
         }
 
         const started = suggestion.kind === 'comment'
-            ? injectSuggestionComment(suggestion)
-            : injectSuggestionCorrection(suggestion);
+            ? createCommentFromSuggestion(suggestion)
+            : applySuggestionCorrection(suggestion);
 
         if (!started) {
             return;
         }
 
-        setPendingSuggestionApproval(suggestion);
+        void persistSuggestionReviewStatus(suggestion, 'approved', 'approveSuggestion');
         setSuggestionReviewOpen(false);
     }, [
-        injectSuggestionComment,
-        injectSuggestionCorrection,
+        applySuggestionCorrection,
+        createCommentFromSuggestion,
+        persistSuggestionReviewStatus,
         showStatus,
         suggestionApprovalBlockedReason,
     ]);
@@ -2471,7 +2443,6 @@ export default function WritingGradingPage() {
                 onClose={closeSuggestionReview}
                 onReload={() => void loadSuggestions({ force: true, source: 'force' })}
                 onGenerateMore={handleGenerateMoreSuggestions}
-                onFocusSuggestion={focusSuggestionInEssay}
                 onApproveSuggestion={approveSuggestion}
                 onDismissSuggestion={dismissSuggestion}
                 onRestoreSuggestion={restoreSuggestion}

@@ -140,6 +140,7 @@ It is not a second grading artifact and it does not publish anything automatical
   - `Generate More` when continuation is allowed
   - `Open Review`
 - The review modal is sentence-ordered and grouped so the list follows essay progression from top to bottom.
+- The review modal no longer exposes a separate essay-focus navigation action because sentence grouping already follows essay progression.
 - Review state is persisted per suggestion:
   - `pending`
   - `approved`
@@ -153,25 +154,19 @@ Suggestions do not create grading output on their own.
 ### Comment Injection
 
 - switches the grading page to `Comments`
-- creates a pending comment draft using the existing composer flow
+- creates a saved comment immediately using the existing grading comment infrastructure
 - preserves exact `from` / `to` anchor offsets
 - maps `grammar` to category `gra`
 - maps `vocabulary-expression` to category `lr`
-- does not auto-save or auto-publish
+- does not auto-publish grading
 - is blocked if another pending comment draft already exists
 
 ### Correction Injection
 
-- opens the existing correction popup
-- preloads the original anchor text and replacement text
-- does not auto-apply the correction mark
-- still depends on the teacher confirming in the popup
-
-### Focus Action
-
-- `Focus in Essay` is an editor-navigation command only
-- it selects and scrolls the anchored range in the essay editor
-- it does not mutate markup by itself
+- routes through the existing correction application path
+- uses the exact anchored range plus the suggestion replacement text
+- applies the correction mark directly without an extra teacher confirmation step
+- is blocked if another correction workflow is already active
 
 ## Runtime UX Contract
 
@@ -217,6 +212,7 @@ Suggestions do not create grading output on their own.
 - no mutation of `publishedGrading` from the suggestions service
 - no student-submit-time generation pipeline
 - no hidden deep fallback chain beyond the immediate 4-way split in the current version
+- no separate `Focus in Essay` action inside the review modal
 
 ## Related docs
 

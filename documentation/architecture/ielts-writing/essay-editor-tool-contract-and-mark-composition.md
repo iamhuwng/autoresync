@@ -140,17 +140,18 @@ The main residual risk is legacy content that already contains older overlap com
 - `grading-editor-state-and-compatibility.md`
 - `contracts-and-governance.md`
 - `../../../.knowns/docs/specs/ielts-writing-grading-editor-finalization-2026-03-30.md`
-## 2026-04-02 Amendment - External Focus Command For Suggestions
+## 2026-04-03 Amendment - Internal Suggestion Range Focus
 
-The essay editor now supports a non-mutating external focus command used by the Suggestions tab.
+The essay editor still supports non-mutating internal range focus for suggestion approval flows, but that focus is no longer exposed as a separate user action in the review modal.
 
-Focus-command rules:
-- external focus commands are navigation-only and must never add, edit, or remove annotation marks
+Internal-focus rules:
+- internal focus commands remain navigation-only and must never add, edit, or remove annotation marks by themselves
 - a focus command carries the exact task-scoped `from` / `to` range resolved from the suggestion cache
-- executing a focus command should select and scroll the anchored range into view inside the essay editor
+- executing a focus command may select and scroll the anchored range into view before the grading page applies an approved suggestion
 - a focus command for another task must be ignored
-- read-only mode may still honor focus commands because they are viewing actions, not mutations
+- read-only mode may still honor internal focus commands because they are viewing actions, not mutations
 
 Interaction boundary:
-- suggestion-driven focus is separate from quick comment and correction command replay
-- the Suggestions tab may move the teacher's viewport and selection, but it must still defer all actual feedback creation to the existing comment composer and correction popup flows
+- suggestion-driven focus is now an implementation detail of direct approval flows
+- the review modal no longer exposes a dedicated `Focus in Essay` button
+- approved suggestions must still route through the existing saved-comment or correction-application infrastructure instead of writing editor marks directly from the modal

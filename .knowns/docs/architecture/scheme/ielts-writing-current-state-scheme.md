@@ -2,7 +2,7 @@
 title: IELTS Writing Current State Scheme
 description: Current-state contract for IELTS Writing across routing, submission, grading, result access, and forbidden regressions.
 createdAt: '2026-03-29T07:59:36.729Z'
-updatedAt: '2026-04-02T10:05:32.483Z'
+updatedAt: '2026-04-03T00:11:58.149Z'
 tags:
   - architecture
   - scheme
@@ -253,3 +253,29 @@ Current teacher IELTS Writing grading assumes the essay editor enforces these co
 
 Related doc:
 - @doc/architecture/ielts-writing/ielts-writing-essay-editor-tool-contract-and-mark-composition-2026-04-02
+
+## 2026-04-03 implementation update: authoring edit shell and publish contract
+
+Teacher authoring now has an explicit split between create and edit surfaces.
+
+Current rules:
+- `TestCreationModal` is create-only for IELTS Writing
+- `WritingTestEditModal` is the edit and resume surface for existing writing drafts and published materials
+- writing edit uses the shared edit shell (`Modal` + `EditTestFrame`) with `Questions`, `Context & Resources`, and `Settings`
+- published writing materials save through one primary `Save Changes` action rather than a separate `Publish Updates` action
+- unpublished writing drafts keep `Save Draft` plus `Publish Test`
+- writing draft visibility (`isPublic`) must survive draft save, publish, and edit-resume hydration
+
+Detailed reference:
+- @doc/architecture/ielts-writing/ielts-writing-authoring-edit-shell-and-publish-contract-2026-04-03
+
+## 2026-04-03 implementation update: active-task AI suggestion runtime
+
+- the teacher-only AI suggestion helper now generates for the active essay/task only, not by warming every task in a submission on first load
+- suggestion runs are browser-side and use visible run-state, lease-heartbeat, and interruption recovery instead of assuming a background worker
+- the active suggestion run starts with one combined batch and immediately fans out to 4 quadrant calls if the combined batch is unhealthy
+- surfaced findings append across `Force Regenerate` and `Generate More`; they are not replaced wholesale on each run
+- short-lived raw AI artifacts now live under teacher-private Firestore `writing_grading_ai_cache/{submissionId}/generation_runs/*` and require matching Firestore rules deployment to avoid post-generation permission failures
+- the teacher review modal is sentence-ordered and grouped so the review list follows essay progression
+- approving a suggestion now materializes the saved comment or correction immediately through the existing grading infrastructure; there is no secondary confirmation step inside the suggestion modal
+- the review modal no longer exposes a separate `Focus in Essay` action

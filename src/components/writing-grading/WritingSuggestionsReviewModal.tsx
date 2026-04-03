@@ -27,7 +27,6 @@ interface WritingSuggestionsReviewModalProps {
     onClose: () => void;
     onReload: () => void;
     onGenerateMore: () => void;
-    onFocusSuggestion: (suggestion: WritingSuggestionItem) => void;
     onApproveSuggestion: (suggestion: WritingSuggestionItem) => void;
     onDismissSuggestion: (suggestion: WritingSuggestionItem) => void;
     onRestoreSuggestion: (suggestion: WritingSuggestionItem) => void;
@@ -70,7 +69,6 @@ export default function WritingSuggestionsReviewModal({
     onClose,
     onReload,
     onGenerateMore,
-    onFocusSuggestion,
     onApproveSuggestion,
     onDismissSuggestion,
     onRestoreSuggestion,
@@ -297,10 +295,6 @@ export default function WritingSuggestionsReviewModal({
                                                 <div className="wsm-proposal">{getProposalText(suggestion)}</div>
 
                                                 <div className="wsm-actions">
-                                                    <button type="button" className="wsp-secondary-btn" onClick={() => onFocusSuggestion(suggestion)}>
-                                                        Focus in Essay
-                                                    </button>
-
                                                     {suggestion.reviewStatus === 'pending' ? (
                                                         <>
                                                             <button
