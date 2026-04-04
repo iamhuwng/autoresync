@@ -2,7 +2,7 @@
 title: IELTS Writing Grading Editor State And Compatibility 2026-04-02
 description: Architecture note for the 2026-04-02 stabilization pass covering task normalization, editor rehydration, draft/lock workflow, and RTDB compatibility metadata for teacher IELTS Writing grading.
 createdAt: '2026-04-02T07:17:57.239Z'
-updatedAt: '2026-04-02T10:35:04.280Z'
+updatedAt: '2026-04-04T13:54:27.413Z'
 tags:
   - architecture
   - ielts
@@ -184,3 +184,36 @@ Normalization rules:
 
 Related doc:
 - @doc/architecture/ielts-writing/ielts-writing-ai-suggestions-and-injection-2026-04-02
+
+
+## 2026-04-04 follow-up: review correction linking and comment-rail identity
+
+### Parent-owned view mode remains authoritative
+- `editorViewMode` is page state owned by `WritingGradingPage`.
+- Editor remounts, task changes, and source rehydration must not silently push the page back to `marked` after the teacher selects `original`.
+
+### Review-mode correction linking
+- Corrections shown in review mode must behave as first-class comment-tab items.
+- Clicking a correction mark in the essay must force-open `Comments`, focus the matching sidebar item, and preserve visible linkage even when the correction originated from older saved markup.
+- Sidebar correction items therefore depend on correction identity derived from the rendered editor surface, not only on newly persisted ids.
+
+### Comment-anchor measurement boundary
+- Page-side anchor measurement must target essay marks only.
+- Gutter dots are navigational affordances and must not share the same selector identity as essay comment marks, otherwise anchor-position reads can target the dot itself and corrupt the left-rail alignment state.
+
+### Shared comment highlight compatibility
+- New and legacy comments now converge on one shared yellow highlight treatment at render time.
+- Persisted legacy `comment.color` data may still exist for compatibility, but runtime rendering and gutter-dot affordances should normalize to the shared yellow comment highlight.
+
+## 2026-04-04 follow-up: current annotation workflow surfaces
+
+### Supported teacher tool model
+- The grading page now uses a hybrid annotation model instead of the older full toolbar.
+- Persistent essay controls live in the sticky editor bar: `undo`, `redo`, `comment`, and `correction`.
+- Range-local controls live in the bubble menu: `comment`, `correction`, and optional `strikethrough`.
+- Manual `highlight` and manual `text color` creation are no longer part of the active teacher authoring workflow.
+
+### Comment and correction parity in the sidebar
+- The `Comments` tab is the shared review surface for both comment annotations and correction annotations.
+- Focus, hover, edit, and delete flows must work when initiated from either the essay surface or the sidebar item.
+- Review-mode interaction must preserve this parity for both current and legacy saved markup.

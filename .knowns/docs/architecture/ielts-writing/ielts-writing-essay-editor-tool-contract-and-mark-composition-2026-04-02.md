@@ -2,7 +2,7 @@
 title: IELTS Writing Essay Editor Tool Contract And Mark Composition 2026-04-02
 description: Architecture note for the essay-editor tool layer in teacher IELTS Writing grading, covering read-only behavior, selection anchoring, comment identity, and the remaining overlapping-mark composition boundary.
 createdAt: '2026-04-02T09:51:04.708Z'
-updatedAt: '2026-04-02T10:35:04.290Z'
+updatedAt: '2026-04-04T13:54:27.386Z'
 tags:
   - architecture
   - ielts
@@ -165,3 +165,45 @@ Rules:
 - it selects and scrolls the anchored essay range into view
 - it does not add, remove, or rewrite any marks by itself
 - it exists to let the Suggestions tab focus the exact text slice before the teacher decides whether to inject a comment or correction
+
+
+## 2026-04-04 follow-up: controlled view mode, shared comment highlight, and legacy correction identity
+
+### Controlled view-mode ownership
+- `WritingGradingPage` is the sole owner of `Marked` / `Original` state.
+- `EssayEditor` must never force the parent back to `marked` on mount or task change.
+- Task changes may clear local overlay state, but they must not override the page-owned view toggle.
+
+### Shared comment highlight contract
+- Comment marks now render with one shared yellow highlight treatment instead of per-comment highlight colors.
+- The same yellow is used for the essay mark and the gutter dot so the left-rail affordance matches the inline mark.
+- Comment category colors still belong to sidebar labels, presets, and categorization UI; they are no longer the inline highlight source.
+
+### Gutter-dot selector boundary
+- Gutter dots must not reuse `data-comment-id`.
+- Anchor measurement and essay-click routing depend on `data-comment-id` belonging only to real essay comment marks.
+- Gutter dots therefore use a dedicated identifier so page-side anchor-position queries never self-target the gutter element.
+
+### Legacy correction identity in review mode
+- Older saved correction marks may lack `data-correction-id`.
+- The editor must derive a deterministic fallback correction id from the resolved range when needed.
+- That fallback id must be usable for review-mode focus, hover sync, and comment-tab linking even before the mark is rewritten by a newer save.
+- Review-mode correction clicks should therefore participate in the same sidebar-focus path as current corrections, not degrade into essay-only behavior.
+
+## 2026-04-04 follow-up: current teacher tool surfaces after toolbar redesign
+
+### Current persistent editor controls
+- The sticky top editor bar is now the persistent tool surface inside the essay area.
+- Supported persistent actions are `undo`, `redo`, `comment`, and `correction`.
+- `Marked` / `Original` stays page-owned outside the editor chrome.
+- Quick comments remain a separate visible trigger and are not part of the sticky editor bar.
+
+### Current bubble-menu scope
+- The bubble menu is now limited to selection-bound inline actions.
+- Supported bubble actions are `comment`, `correction`, and `strikethrough`.
+- Manual `highlight` and manual `text color` authoring are intentionally removed from the teacher workflow.
+
+### Comments-tab interaction contract
+- Saved comments and saved corrections must both materialize as first-class items in the `Comments` tab.
+- Clicking either a comment mark or a correction mark from the essay must open or focus the matching sidebar item.
+- Sidebar edit and delete actions for corrections must route back through the same correction editing and removal flow as the editor surface.

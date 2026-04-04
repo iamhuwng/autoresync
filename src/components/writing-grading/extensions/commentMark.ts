@@ -12,6 +12,7 @@
  */
 
 import { Mark, mergeAttributes } from '@tiptap/core';
+import { COMMENT_HIGHLIGHT_COLOR } from '../../../types/ielts-writing.types';
 
 export interface CommentMarkOptions {
     /**
@@ -66,8 +67,8 @@ export const CommentMark = Mark.create<CommentMarkOptions>({
                 },
             },
             color: {
-                default: '#6b7280',
-                parseHTML: (element: HTMLElement) => element.getAttribute('data-comment-color') || '#6b7280',
+                default: COMMENT_HIGHLIGHT_COLOR,
+                parseHTML: (element: HTMLElement) => element.getAttribute('data-comment-color') || COMMENT_HIGHLIGHT_COLOR,
                 renderHTML: (attributes: Record<string, string>) => {
                     return { 'data-comment-color': attributes.color };
                 },
@@ -84,7 +85,7 @@ export const CommentMark = Mark.create<CommentMarkOptions>({
     },
 
     renderHTML({ HTMLAttributes }) {
-        const color = HTMLAttributes['data-comment-color'] || '#6b7280';
+        const color = COMMENT_HIGHLIGHT_COLOR;
 
         // Convert hex to rgba for semi-transparent background (12% opacity)
         const bgColor = hexToRgba(color, 0.15);
@@ -93,6 +94,7 @@ export const CommentMark = Mark.create<CommentMarkOptions>({
             'span',
             mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
                 class: 'comment-mark',
+                'data-comment-color': COMMENT_HIGHLIGHT_COLOR,
                 style: `background-color: ${bgColor}; border-bottom: 2px dotted ${color}; padding-bottom: 1px;`,
             }),
             0, // 0 = render child content (the marked text)

@@ -1,32 +1,32 @@
 /**
  * EssayEditor — TipTap-based Essay Editor for Grading
  *
- * Left column of the grading editor. Teacher can apply marks (highlight,
- * comment, correction, strikethrough, text color) but CANNOT modify the
- * student's essay text (marks-only mode).
+ * Left column of the grading editor. Teacher can annotate via comment,
+ * correction, and strikethrough tools while the student's essay text remains
+ * immutable (marks-only mode). Legacy highlight marks are still rendered for
+ * compatibility with older grading content.
  *
  * Features:
- * - Fixed toolbar with annotation buttons
+ * - Sticky tool strip for persistent editor actions
  * - TipTap BubbleMenu near text selection
  * - Left gutter with colored comment dots
  * - Original / Marked toggle
- * - Keyboard shortcuts (Ctrl+Shift+H, Ctrl+Shift+M, etc.)
+ * - Keyboard shortcut for comment insertion
  *
  * @see specs/grading-editor-redesign FR-GROUP-1
  * @module components/writing-grading/EssayEditor
  */
 
-import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo, useImperativeHandle } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Highlight from '@tiptap/extension-highlight';
 import { TextStyle } from '@tiptap/extension-text-style';
 import Color from '@tiptap/extension-color';
 import Placeholder from '@tiptap/extension-placeholder';
-import { TextSelection } from '@tiptap/pm/state';
 import { CommentMark, CorrectionMark, MarksOnlyMode } from './extensions';
 import { RichContent } from '../../core/components/RichContent';
-import type { GradingComment, QuickCommentPreset } from '../../types/ielts-writing.types';
+import type { GradingComment, GradingCorrection, QuickCommentPreset } from '../../types/ielts-writing.types';
 import './extensions/essayEditorStyles.css';
 import './EssayEditor.css';
 
@@ -34,15 +34,6 @@ import './EssayEditor.css';
 // TYPES & CONSTANTS
 // ═══════════════════════════════════════════════════════════════
 
-/** Preset highlight colors */
-const HIGHLIGHT_COLORS = [
-    { name: 'Yellow', color: '#fef08a', hex: '#eab308' },
-    { name: 'Green', color: '#bbf7d0', hex: '#22c55e' },
-    { name: 'Blue', color: '#bfdbfe', hex: '#3b82f6' },
-    { name: 'Purple', color: '#e9d5ff', hex: '#a855f7' },
-    { name: 'Orange', color: '#fed7aa', hex: '#f97316' },
-    { name: 'Red', color: '#fecaca', hex: '#ef4444' },
-] as const;
 
 export interface EssayEditorProps {
     /** The student's original essay text (never mutated) */
@@ -69,13 +60,14 @@ export interface EssayEditorProps {
     onCommentMarkClick: (commentId: string, anchorViewportTop: number | null) => void;
     /** Callback when a highlighted comment mark is hovered in the essay */
     onCommentMarkHover?: (commentId: string | null) => void;
-    /** Callback when Original/Marked view changes — parent disables Comments tab */
-    onViewModeChange: (mode: 'marked' | 'original') => void;
+    /** Current view mode — controlled by parent */
+    viewMode: 'marked' | 'original';
     /** Callback when editor content changes (for auto-save / task switching) */
     onContentChange?: (json: object) => void;
     /** Callback when correction popup should open — passes selection range */
     onCorrectionRequest?: (from: number, to: number, selectedText: string) => void;
     onCorrectionMarkClick?: (selection: CorrectionMarkSelection) => void;
+    onCorrectionItemsChange?: (corrections: GradingCorrection[]) => void;
     /** External quick-comment command from the page */
     pendingQuickComment?: {
         taskNumber: 1 | 2;
@@ -91,6 +83,7 @@ export interface EssayEditorProps {
         action: 'apply' | 'remove';
         from: number;
         to: number;
+        correctionId?: string;
         correctionText?: string;
         nonce: number;
     } | null;
@@ -123,9 +116,19 @@ export interface EssayEditorProps {
     readOnly?: boolean;
     /** Emits the current selection so external tool dialogs can anchor safely */
     onSelectionStateChange?: (selection: EssaySelectionState) => void;
+    /** Ref to expose editor commands (undo/redo) to parent */
+    editorRef?: React.Ref<EssayEditorHandle>;
 }
 
-type ViewMode = 'marked' | 'original';
+/** Handle exposed to parent via editorRef */
+export interface EssayEditorHandle {
+    undo: () => void;
+    redo: () => void;
+    canUndo: () => boolean;
+    canRedo: () => boolean;
+}
+
+
 
 interface CorrectionSelectionRange {
     from: number;
@@ -133,6 +136,7 @@ interface CorrectionSelectionRange {
 }
 
 export interface CorrectionMarkSelection {
+    id: string;
     from: number;
     to: number;
     selectedText: string;
@@ -148,11 +152,6 @@ export interface EssaySelectionState {
     selectedText: string;
     containsComment: boolean;
     containsCorrection: boolean;
-}
-
-interface HighlightSelectionState {
-    isFullyHighlighted: boolean;
-    containsHighlight: boolean;
 }
 
 const EMPTY_SELECTION_STATE: EssaySelectionState = {
@@ -183,10 +182,11 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
     onGutterDotClick,
     onCommentMarkClick,
     onCommentMarkHover,
-    onViewModeChange,
+    viewMode,
     onContentChange,
     onCorrectionRequest,
     onCorrectionMarkClick,
+    onCorrectionItemsChange,
     pendingQuickComment = null,
     pendingCorrection = null,
     pendingCommentMutation = null,
@@ -197,15 +197,11 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
     hoveredCommentId = null,
     readOnly = false,
     onSelectionStateChange,
+    editorRef,
 }) => {
-    const [viewMode, setViewMode] = useState<ViewMode>('marked');
-    const [lastHighlightColor, setLastHighlightColor] = useState<string | null>(null);
-    const [showHighlightDropdown, setShowHighlightDropdown] = useState(false);
-    const [showColorDropdown, setShowColorDropdown] = useState(false);
     const [bubbleMenuPos, setBubbleMenuPos] = useState<OverlayPosition | null>(null);
     const [hoverTooltip, setHoverTooltip] = useState<{ commentId: string; top: number; left: number } | null>(null);
-    const highlightDropdownRef = useRef<HTMLDivElement>(null);
-    const colorDropdownRef = useRef<HTMLDivElement>(null);
+
     const editorContainerRef = useRef<HTMLDivElement>(null);
     const editorEditableRef = useRef<HTMLDivElement>(null);
     const bubbleMenuRef = useRef<HTMLDivElement>(null);
@@ -251,7 +247,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                 id: 'essay-editor-content',
             },
             // Handle clicks on comment marks
-            handleClick: (view, _pos, event) => {
+            handleClick: (_view, _pos, event) => {
                 const target = event.target as HTMLElement;
                 if (target.closest('.correction-mark')) {
                     return false;
@@ -279,11 +275,15 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
     const hasSelection = selectionState.hasSelection;
     const selectionContainsComment = hasSelection && selectionState.containsComment;
     const selectionContainsCorrection = hasSelection && selectionState.containsCorrection;
-    const canApplyHighlight = canAnnotate && hasSelection && !selectionContainsCorrection;
     const canAddComment = canAnnotate && hasSelection && !selectionContainsCorrection;
     const canApplyStrikethrough = canAnnotate && hasSelection && !selectionContainsCorrection;
     const canApplyCorrection = canAnnotate && hasSelection && !selectionContainsCorrection && !selectionContainsComment;
-    const canApplyTextColor = canAnnotate && hasSelection && !selectionContainsCorrection;
+    const canUndo = !readOnly && (editor?.can().undo() ?? false);
+    const canRedo = !readOnly && (editor?.can().redo() ?? false);
+    const preventToolbarBlur = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
+        event.preventDefault();
+    }, []);
+
 
     useEffect(() => {
         editor?.setEditable(!readOnly);
@@ -299,18 +299,21 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
         editor.commands.setContent(nextContent, false);
     }, [editor, initialContent, originalEssayText]);
 
+    // ─── Expose undo/redo to parent via editorRef ────────────
+    useImperativeHandle(editorRef, () => ({
+        undo: () => editor?.chain().focus().undo().run(),
+        redo: () => editor?.chain().focus().redo().run(),
+        canUndo: () => editor?.can().undo() ?? false,
+        canRedo: () => editor?.can().redo() ?? false,
+    }), [editor]);
+
     useEffect(() => {
-        setViewMode('marked');
-        onViewModeChange('marked');
-        setLastHighlightColor(null);
-        setShowHighlightDropdown(false);
-        setShowColorDropdown(false);
         setBubbleMenuPos(null);
         setHoverTooltip(null);
         lastQuickCommentNonceRef.current = null;
         lastCorrectionNonceRef.current = null;
         lastCommentMutationNonceRef.current = null;
-    }, [onViewModeChange, taskNumber]);
+    }, [taskNumber]);
 
     // ─── Keyboard Shortcuts ──────────────────────────────────
     useEffect(() => {
@@ -322,13 +325,6 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
             if (!anchorNode || !editorEditable || !editorEditable.contains(anchorNode)) {
                 return;
             }
-            // Ctrl+Shift+H — Highlight with the last explicitly chosen color
-            if (e.ctrlKey && e.shiftKey && e.key === 'H') {
-                e.preventDefault();
-                if (!editor.state.selection.empty) {
-                    handleHighlight();
-                }
-            }
             // Ctrl+Shift+M — Add comment
             if (e.ctrlKey && e.shiftKey && e.key === 'M') {
                 e.preventDefault();
@@ -338,21 +334,9 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
 
         document.addEventListener('keydown', handleKeyDown);
         return () => document.removeEventListener('keydown', handleKeyDown);
-    }, [editor, readOnly, lastHighlightColor]);
+    }, [editor, readOnly]);
 
-    // ─── Close dropdowns on outside click ────────────────────
-    useEffect(() => {
-        const handleOutsideClick = (e: MouseEvent) => {
-            if (highlightDropdownRef.current && !highlightDropdownRef.current.contains(e.target as Node)) {
-                setShowHighlightDropdown(false);
-            }
-            if (colorDropdownRef.current && !colorDropdownRef.current.contains(e.target as Node)) {
-                setShowColorDropdown(false);
-            }
-        };
-        document.addEventListener('mousedown', handleOutsideClick);
-        return () => document.removeEventListener('mousedown', handleOutsideClick);
-    }, []);
+
 
     // ─── Track selection for bubble menu positioning ─────────
     const clearScheduledBubbleMenu = useCallback(() => {
@@ -479,7 +463,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
     }, [clearScheduledBubbleMenu, editor, scheduleBubbleMenuUpdate, updateBubbleMenu]);
 
     useEffect(() => {
-        if (!editor || readOnly || !onCorrectionMarkClick) {
+        if (!editor || !onCorrectionMarkClick) {
             return;
         }
 
@@ -510,34 +494,54 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
         return () => {
             editorEditable.removeEventListener('click', handleCorrectionClick);
         };
-    }, [editor, onCorrectionMarkClick, readOnly]);
+    }, [editor, onCorrectionMarkClick]);
 
     // ─── Apply focused/hovered comment mark classes ──────────
     useEffect(() => {
         if (!editorContainerRef.current) return;
         const container = editorContainerRef.current;
+        const findMarksForAnnotationId = (annotationId: string) => {
+            const matchedElements = Array.from(
+                container.querySelectorAll(`[data-comment-id="${annotationId}"], .correction-mark[data-correction-id="${annotationId}"]`),
+            );
+
+            if (editor) {
+                container.querySelectorAll('.correction-mark:not([data-correction-id])').forEach((element) => {
+                    const correctionSelection = getCorrectionMarkSelection(editor.view, element as HTMLElement);
+                    if (correctionSelection?.id === annotationId) {
+                        matchedElements.push(element);
+                    }
+                });
+            }
+
+            return Array.from(new Set(matchedElements));
+        };
 
         // Clear all focus/hover classes
         container.querySelectorAll('.comment-focused').forEach(el => el.classList.remove('comment-focused'));
         container.querySelectorAll('.comment-hovered').forEach(el => el.classList.remove('comment-hovered'));
+        container.querySelectorAll('.correction-focused').forEach(el => el.classList.remove('correction-focused'));
+        container.querySelectorAll('.correction-hovered').forEach(el => el.classList.remove('correction-hovered'));
 
         // Apply focused class + scroll into view
         if (focusedCommentId) {
-            const marks = container.querySelectorAll(`[data-comment-id="${focusedCommentId}"]`);
+            const marks = findMarksForAnnotationId(focusedCommentId);
             marks.forEach(el => {
-                el.classList.add('comment-focused');
+                el.classList.add(el.classList.contains('correction-mark') ? 'correction-focused' : 'comment-focused');
             });
             // Scroll the first mark into view (card→essay direction)
-            const firstMark = marks[0] as Element | undefined;
-            firstMark?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            const firstMark = marks[0];
+            if (firstMark && typeof (firstMark as { scrollIntoView?: unknown }).scrollIntoView === 'function') {
+                (firstMark as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
         }
         // Apply hovered class
         if (hoveredCommentId && hoveredCommentId !== focusedCommentId) {
-            container.querySelectorAll(`[data-comment-id="${hoveredCommentId}"]`).forEach(el => {
-                el.classList.add('comment-hovered');
+            findMarksForAnnotationId(hoveredCommentId).forEach(el => {
+                el.classList.add(el.classList.contains('correction-mark') ? 'correction-hovered' : 'comment-hovered');
             });
         }
-    }, [focusedCommentId, hoveredCommentId]);
+    }, [editor, focusedCommentId, hoveredCommentId]);
 
     useEffect(() => {
         const container = editorContainerRef.current;
@@ -663,6 +667,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
         editor.chain()
             .setTextSelection(normalizedRange)
             .setCorrectionMark({
+                correctionId: pendingCorrection.correctionId,
                 correctionText: normalizeCorrectionTextForBoundary(
                     editor.state.doc,
                     normalizedRange.to,
@@ -716,119 +721,9 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
             .run();
     }, [editor, pendingFocusRange, taskNumber]);
 
-    // ─── Handlers ────────────────────────────────────────────
 
-    const handleViewModeChange = useCallback((mode: ViewMode) => {
-        setViewMode(mode);
-        onViewModeChange(mode);
-    }, [onViewModeChange]);
 
-    const preventToolbarBlur = useCallback((event: React.MouseEvent<HTMLElement>) => {
-        event.preventDefault();
-    }, []);
 
-    const applyHighlightToSelection = useCallback((color: string) => {
-        if (!editor) return false;
-
-        const { from, to, empty } = editor.state.selection;
-        if (empty) return false;
-
-        const highlightType = editor.schema.marks.highlight;
-        if (!highlightType) return false;
-
-        const transaction = editor.state.tr
-            .setSelection(TextSelection.create(editor.state.doc, from, to))
-            .removeMark(from, to, highlightType)
-            .addMark(from, to, highlightType.create({ color }))
-            .scrollIntoView();
-
-        editor.view.dispatch(transaction);
-        return true;
-    }, [editor]);
-
-    const clearHighlightFromSelection = useCallback(() => {
-        if (!editor) return false;
-
-        const { from, to, empty } = editor.state.selection;
-        if (empty) return false;
-
-        const highlightType = editor.schema.marks.highlight;
-        if (!highlightType) return false;
-
-        const transaction = editor.state.tr
-            .setSelection(TextSelection.create(editor.state.doc, from, to))
-            .removeMark(from, to, highlightType)
-            .scrollIntoView();
-
-        editor.view.dispatch(transaction);
-        return true;
-    }, [editor]);
-
-    const getHighlightSelectionState = useCallback((): HighlightSelectionState => {
-        if (!editor) {
-            return { isFullyHighlighted: false, containsHighlight: false };
-        }
-
-        const { from, to, empty } = editor.state.selection;
-        if (empty) {
-            return { isFullyHighlighted: false, containsHighlight: false };
-        }
-
-        let containsHighlight = false;
-        let fullyHighlighted = true;
-
-        editor.state.doc.nodesBetween(from, to, (node, pos) => {
-            if (!node.isText) {
-                return;
-            }
-
-            const nodeFrom = Math.max(pos, from);
-            const nodeTo = Math.min(pos + node.nodeSize, to);
-            if (nodeFrom >= nodeTo) {
-                return;
-            }
-
-            const hasHighlight = node.marks.some((mark) => mark.type.name === 'highlight');
-            containsHighlight = containsHighlight || hasHighlight;
-            fullyHighlighted = fullyHighlighted && hasHighlight;
-        });
-
-        return {
-            isFullyHighlighted: containsHighlight && fullyHighlighted,
-            containsHighlight,
-        };
-    }, [editor]);
-
-    const handleHighlight = useCallback((color?: string) => {
-        if (!canApplyHighlight) {
-            return;
-        }
-
-        const selectionState = getHighlightSelectionState();
-
-        if (selectionState.isFullyHighlighted) {
-            clearHighlightFromSelection();
-            setShowHighlightDropdown(false);
-            return;
-        }
-
-        const chosenColor = color || lastHighlightColor;
-        if (!chosenColor) {
-            setShowHighlightDropdown(true);
-            return;
-        }
-
-        const didApply = applyHighlightToSelection(chosenColor);
-        if (!didApply) {
-            return;
-        }
-
-        if (color) {
-            setLastHighlightColor(color);
-        }
-
-        setShowHighlightDropdown(false);
-    }, [applyHighlightToSelection, canApplyHighlight, clearHighlightFromSelection, getHighlightSelectionState, lastHighlightColor]);
 
     const handleAddComment = useCallback(() => {
         if (!editor || !canAddComment) return;
@@ -849,33 +744,63 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
         onCorrectionRequest?.(from, to, selectionState.selectedText);
     }, [canApplyCorrection, editor, onCorrectionRequest, selectionState.selectedText]);
 
-    const handleTextColor = useCallback((color: string) => {
-        if (!editor || !canApplyTextColor) return;
-
-        const chain = editor.chain().focus();
-        if (color === 'inherit') {
-            chain.unsetColor().run();
-        } else {
-            chain.setColor(color).run();
-        }
-        setShowColorDropdown(false);
-    }, [canApplyTextColor, editor]);
-
-    const handleUndo = useCallback(() => {
-        if (!canAnnotate) {
+    useEffect(() => {
+        if (!editor) {
             return;
         }
 
-        editor?.chain().focus().undo().run();
-    }, [canAnnotate, editor]);
+        const emitCorrections = () => {
+            const editorEditable = editorEditableRef.current;
+            if (!editorEditable || viewMode !== 'marked') {
+                onCorrectionItemsChange?.([]);
+                return;
+            }
 
-    const handleRedo = useCallback(() => {
-        if (!canAnnotate) {
-            return;
-        }
+            const nextCorrections = Array.from(editorEditable.querySelectorAll('.correction-mark'))
+                .map((node) => {
+                    const correctionNode = node as HTMLElement;
+                    const selection = getCorrectionMarkSelection(editor.view, correctionNode);
+                    if (!selection) {
+                        return null;
+                    }
 
-        editor?.chain().focus().redo().run();
-    }, [canAnnotate, editor]);
+                    // Backfill a stable DOM id for legacy correction marks so review-mode
+                    // focus and sidebar linking can target them like newer saved corrections.
+                    if (!correctionNode.getAttribute('data-correction-id')) {
+                        correctionNode.setAttribute('data-correction-id', selection.id);
+                    }
+
+                    return {
+                        id: selection.id,
+                        taskNumber,
+                        anchorText: selection.selectedText,
+                        correctionText: selection.correctionText,
+                        from: selection.from,
+                        to: selection.to,
+                    };
+                })
+                .filter((selection): selection is GradingCorrection => Boolean(selection));
+
+            if (!onCorrectionItemsChange) {
+                return;
+            }
+
+            const deduped = Array.from(
+                new Map(nextCorrections.map((correction) => [correction.id, correction])).values(),
+            );
+            onCorrectionItemsChange(deduped);
+        };
+
+        const frame = window.requestAnimationFrame(emitCorrections);
+        editor.on('update', emitCorrections);
+
+        return () => {
+            cancelAnimationFrame(frame);
+            editor.off('update', emitCorrections);
+        };
+    }, [editor, onCorrectionItemsChange, taskNumber, viewMode]);
+
+
 
     if (!editor) return null;
 
@@ -883,288 +808,146 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
 
     return (
         <div className="essay-editor-wrapper" id="essay-editor-wrapper">
-            {/* ── View Mode Toggle ── */}
-            <div className="essay-editor-view-toggle" id="essay-editor-view-toggle">
-                <button
-                    className={`view-toggle-btn ${viewMode === 'marked' ? 'active' : ''}`}
-                    onClick={() => handleViewModeChange('marked')}
-                    id="view-toggle-marked"
-                    title="View marked essay with annotations"
-                >
-                    📝 Marked
-                </button>
-                <button
-                    className={`view-toggle-btn ${viewMode === 'original' ? 'active' : ''}`}
-                    onClick={() => handleViewModeChange('original')}
-                    id="view-toggle-original"
-                    title="View original student submission"
-                >
-                    📄 Original
-                </button>
-            </div>
-
-            {viewMode === 'marked' ? (
-                <>
-                    {/* ── Fixed Toolbar ── */}
-                    <div className="essay-editor-toolbar" id="essay-editor-toolbar">
-                        {/* Highlight with dropdown */}
-                        <div className="toolbar-btn-group" ref={highlightDropdownRef}>
-                            <button
-                                className={`toolbar-btn ${editor.isActive('highlight') ? 'active' : ''}`}
-                                onMouseDown={(event) => {
-                                    preventToolbarBlur(event);
-                                }}
-                                onClick={() => handleHighlight()}
-                                title={lastHighlightColor ? 'Highlight (Ctrl+Shift+H)' : 'Choose highlight color'}
-                                id="toolbar-highlight"
-                                disabled={!canApplyHighlight}
-                            >
-                                <span className="toolbar-icon" style={{ borderBottom: `3px solid ${lastHighlightColor || 'transparent'}` }}>
-                                    ✏️
-                                </span>
-                            </button>
-                            <button
-                                className="toolbar-btn toolbar-dropdown-arrow"
-                                onMouseDown={(event) => {
-                                    preventToolbarBlur(event);
-                                }}
-                                onClick={() => setShowHighlightDropdown((current) => !current)}
-                                title="Highlight colors"
-                                id="toolbar-highlight-dropdown"
-                                disabled={!canApplyHighlight}
-                            >
-                                ▾
-                            </button>
-                            {showHighlightDropdown && (
-                                <div className="toolbar-dropdown" id="highlight-color-dropdown">
-                                    {HIGHLIGHT_COLORS.map((c) => (
-                                        <button
-                                            key={c.name}
-                                            className="color-dot"
-                                            style={{ backgroundColor: c.color, border: `2px solid ${c.hex}` }}
-                                            onMouseDown={(event) => {
-                                                preventToolbarBlur(event);
-                                            }}
-                                            onClick={() => handleHighlight(c.color)}
-                                            title={c.name}
-                                            id={`highlight-color-${c.name.toLowerCase()}`}
-                                            disabled={!canApplyHighlight}
-                                        />
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="toolbar-separator" />
-
-                        {/* Comment */}
-                        <button
-                            className="toolbar-btn"
-                            onMouseDown={(event) => {
-                                preventToolbarBlur(event);
-                            }}
-                            onClick={() => handleAddComment()}
-                            disabled={!canAddComment}
-                            title="Add Comment (Ctrl+Shift+M)"
-                            id="toolbar-comment"
-                        >
-                            💬
-                        </button>
-
-                        {/* Strikethrough */}
-                        <button
-                            className={`toolbar-btn ${editor.isActive('strike') ? 'active' : ''}`}
-                            onMouseDown={(event) => {
-                                preventToolbarBlur(event);
-                            }}
-                            onClick={() => handleStrikethrough()}
-                            disabled={!canApplyStrikethrough}
-                            title="Strikethrough"
-                            id="toolbar-strikethrough"
-                        >
-                            <span style={{ textDecoration: 'line-through' }}>S</span>
-                        </button>
-
-                        {/* Correction */}
-                        <button
-                            className="toolbar-btn"
-                            onMouseDown={(event) => {
-                                preventToolbarBlur(event);
-                            }}
-                            onClick={() => handleCorrection()}
-                            disabled={!canApplyCorrection}
-                            title="Correction"
-                            id="toolbar-correction"
-                        >
-                            ✏️
-                        </button>
-
-                        {/* Text Color */}
-                        <div className="toolbar-btn-group" ref={colorDropdownRef}>
-                            <button
-                                className="toolbar-btn"
-                                onMouseDown={(event) => {
-                                    preventToolbarBlur(event);
-                                }}
-                                onClick={() => setShowColorDropdown((current) => !current)}
-                                title="Text Color"
-                                id="toolbar-text-color"
-                                disabled={!canApplyTextColor}
-                            >
-                                🎨
-                            </button>
-                            {showColorDropdown && (
-                                <div className="toolbar-dropdown" id="text-color-dropdown">
-                                    {TEXT_COLORS.map((c) => (
-                                        <button
-                                            key={c.name}
-                                            className="color-dot"
-                                            style={{ backgroundColor: c.color }}
-                                            onMouseDown={(event) => {
-                                                preventToolbarBlur(event);
-                                            }}
-                                            onClick={() => handleTextColor(c.color)}
-                                            title={c.name}
-                                            id={`text-color-${c.name.toLowerCase()}`}
-                                            disabled={!canApplyTextColor}
-                                        />
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="toolbar-separator" />
-
-                        {/* Undo / Redo */}
-                        <button
-                            className="toolbar-btn"
-                            onMouseDown={(event) => {
-                                preventToolbarBlur(event);
-                            }}
-                            onClick={() => handleUndo()}
-                            disabled={readOnly || !editor.can().undo()}
-                            title="Undo (Ctrl+Z)"
-                            id="toolbar-undo"
-                        >
-                            ↩
-                        </button>
-                        <button
-                            className="toolbar-btn"
-                            onMouseDown={(event) => {
-                                preventToolbarBlur(event);
-                            }}
-                            onClick={() => handleRedo()}
-                            disabled={readOnly || !editor.can().redo()}
-                            title="Redo (Ctrl+Y)"
-                            id="toolbar-redo"
-                        >
-                            ↪
-                        </button>
-                    </div>
-
-                    {/* ── Editor Area with Gutter ── */}
-                    <div className="essay-editor-container" ref={editorContainerRef} id="essay-editor-container">
-                        {/* Left gutter with comment dots */}
-                        <div className="essay-editor-gutter" id="essay-editor-gutter">
-                            {commentPositions.map((cp) => (
-                                <div
-                                    key={cp.commentId}
-                                    className="gutter-dot"
-                                    style={{ top: cp.top, backgroundColor: cp.color }}
-                                    onClick={() => onGutterDotClick(cp.commentId)}
-                                    title="Go to comment"
-                                    data-comment-id={cp.commentId}
-                                    id={`gutter-dot-${cp.commentId}`}
-                                />
-                            ))}
-                        </div>
-
-                        {/* TipTap Editor Content */}
-                        <div className="essay-editor-editable" ref={editorEditableRef}>
-                            <EditorContent editor={editor} />
-                        </div>
-
-                        {hoverTooltip && commentsById.get(hoverTooltip.commentId) && (
-                            <div
-                                className="essay-comment-tooltip"
-                                style={{
-                                    top: hoverTooltip.top,
-                                    left: hoverTooltip.left,
-                                }}
-                            >
-                                <RichContent
-                                    className="essay-comment-tooltip-body"
-                                    content={commentsById.get(hoverTooltip.commentId)?.text || ''}
-                                />
-                            </div>
-                        )}
-
-                        {/* Custom Bubble Menu — positioned near selection */}
-                        {bubbleMenuPos && !readOnly && (
-                            <div
-                                ref={bubbleMenuRef}
-                                className="essay-bubble-menu"
-                                style={{
-                                    top: bubbleMenuPos.top,
-                                    left: bubbleMenuPos.left,
-                                }}
-                            >
-                                <button
-                                    className="bubble-btn"
-                                    onMouseDown={(e) => { e.preventDefault(); }}
-                                    onClick={() => handleHighlight()}
-                                    disabled={!canApplyHighlight}
-                                    title="Highlight"
-                                >
-                                    ✏️
-                                </button>
-                                <button
-                                    className="bubble-btn"
-                                    onMouseDown={(e) => { e.preventDefault(); }}
-                                    onClick={() => handleAddComment()}
-                                    disabled={!canAddComment}
-                                    title="Comment"
-                                >
-                                    💬
-                                </button>
-                                <button
-                                    className="bubble-btn"
-                                    onMouseDown={(e) => { e.preventDefault(); }}
-                                    onClick={() => handleStrikethrough()}
-                                    disabled={!canApplyStrikethrough}
-                                    title="Strikethrough"
-                                >
-                                    <span style={{ textDecoration: 'line-through', fontSize: '12px' }}>S</span>
-                                </button>
-                                <button
-                                    className="bubble-btn"
-                                    onMouseDown={(e) => { e.preventDefault(); }}
-                                    onClick={() => handleCorrection()}
-                                    disabled={!canApplyCorrection}
-                                    title="Correction"
-                                >
-                                    ✏️
-                                </button>
-                                <button
-                                    className="bubble-btn"
-                                    onMouseDown={(e) => { e.preventDefault(); }}
-                                    title="Use the toolbar for text color"
-                                    disabled
-                                >
-                                    🎨
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                </>
-            ) : (
-                /* ── Original View (read-only plain text) ── */
+            {viewMode === 'original' ? (
                 <div className="essay-original-view" id="essay-original-view">
                     <div className="essay-original-text">
                         {originalEssayText || (
                             <span className="essay-placeholder">No essay submitted</span>
                         )}
                     </div>
+                </div>
+            ) : (
+                <div className="essay-editor-container" ref={editorContainerRef} id="essay-editor-container">
+                    {!readOnly && (
+                        <div className="essay-editor-toolbar-shell">
+                            <div className="essay-editor-toolbar" id="essay-editor-toolbar">
+                                <button
+                                    className="essay-toolbar-btn essay-toolbar-btn-icon"
+                                    onMouseDown={preventToolbarBlur}
+                                    onClick={() => editor.chain().focus().undo().run()}
+                                    disabled={!canUndo}
+                                    type="button"
+                                    title="Undo"
+                                    aria-label="Undo"
+                                >
+                                    <span className="material-symbols-outlined">undo</span>
+                                </button>
+                                <button
+                                    className="essay-toolbar-btn essay-toolbar-btn-icon"
+                                    onMouseDown={preventToolbarBlur}
+                                    onClick={() => editor.chain().focus().redo().run()}
+                                    disabled={!canRedo}
+                                    type="button"
+                                    title="Redo"
+                                    aria-label="Redo"
+                                >
+                                    <span className="material-symbols-outlined">redo</span>
+                                </button>
+                                <div className="essay-toolbar-divider" aria-hidden="true" />
+                                <button
+                                    className="essay-toolbar-btn"
+                                    onMouseDown={preventToolbarBlur}
+                                    onClick={() => handleAddComment()}
+                                    disabled={!canAddComment}
+                                    type="button"
+                                    title="Add comment"
+                                    aria-label="Add comment"
+                                >
+                                    <span className="material-symbols-outlined">add_comment</span>
+                                    <span>Comment</span>
+                                </button>
+                                <button
+                                    className="essay-toolbar-btn"
+                                    onMouseDown={preventToolbarBlur}
+                                    onClick={() => handleCorrection()}
+                                    disabled={!canApplyCorrection}
+                                    type="button"
+                                    title="Add correction"
+                                    aria-label="Add correction"
+                                >
+                                    <span className="material-symbols-outlined">edit_note</span>
+                                    <span>Correction</span>
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="essay-editor-body">
+                    {/* Left gutter with comment dots */}
+                    <div className="essay-editor-gutter" id="essay-editor-gutter">
+                        {commentPositions.map((cp) => (
+                            <div
+                                key={cp.commentId}
+                                className="gutter-dot"
+                                style={{ top: cp.top, backgroundColor: cp.color }}
+                                onClick={() => onGutterDotClick(cp.commentId)}
+                                title="Go to comment"
+                                data-gutter-comment-id={cp.commentId}
+                                id={`gutter-dot-${cp.commentId}`}
+                            />
+                        ))}
+                    </div>
+
+                    {/* TipTap Editor Content */}
+                    <div className="essay-editor-editable" ref={editorEditableRef}>
+                        <EditorContent editor={editor} />
+                    </div>
+                    </div>
+
+                    {hoverTooltip && commentsById.get(hoverTooltip.commentId) && (
+                        <div
+                            className="essay-comment-tooltip"
+                            style={{
+                                top: hoverTooltip.top,
+                                left: hoverTooltip.left,
+                            }}
+                        >
+                            <RichContent
+                                className="essay-comment-tooltip-body"
+                                content={commentsById.get(hoverTooltip.commentId)?.text || ''}
+                            />
+                        </div>
+                    )}
+
+                    {/* Custom Bubble Menu positioned near selection */}
+                    {bubbleMenuPos && !readOnly && (
+                        <div
+                            ref={bubbleMenuRef}
+                            className="essay-bubble-menu"
+                            style={{
+                                top: bubbleMenuPos.top,
+                                left: bubbleMenuPos.left,
+                            }}
+                        >
+                            <button
+                                className="bubble-btn"
+                                onMouseDown={(e) => { e.preventDefault(); }}
+                                onClick={() => handleAddComment()}
+                                disabled={!canAddComment}
+                                title="Comment"
+                            >
+                                💬
+                            </button>
+                            <button
+                                className="bubble-btn"
+                                onMouseDown={(e) => { e.preventDefault(); }}
+                                onClick={() => handleStrikethrough()}
+                                disabled={!canApplyStrikethrough}
+                                title="Strikethrough"
+                            >
+                                <span style={{ textDecoration: 'line-through', fontSize: '12px' }}>S</span>
+                            </button>
+                            <button
+                                className="bubble-btn"
+                                onMouseDown={(e) => { e.preventDefault(); }}
+                                onClick={() => handleCorrection()}
+                                disabled={!canApplyCorrection}
+                                title="Correction"
+                            >
+                                ✏️
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
         </div>
@@ -1175,16 +958,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
 // HELPERS
 // ═══════════════════════════════════════════════════════════════
 
-/** Text color presets */
-const TEXT_COLORS = [
-    { name: 'Red', color: '#ef4444' },
-    { name: 'Orange', color: '#f97316' },
-    { name: 'Green', color: '#22c55e' },
-    { name: 'Blue', color: '#3b82f6' },
-    { name: 'Purple', color: '#a855f7' },
-    { name: 'Gray', color: '#6b7280' },
-    { name: 'Default', color: 'inherit' },
-];
+
 
 /**
  * Convert plain essay text to TipTap-compatible JSON document.
@@ -1511,6 +1285,7 @@ function getCorrectionMarkSelection(
     const rect = correctionElement.getBoundingClientRect();
 
     return {
+        id: correctionElement.getAttribute('data-correction-id') || `correction-${from}-${to}`,
         from,
         to,
         selectedText,

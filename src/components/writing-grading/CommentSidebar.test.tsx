@@ -1,7 +1,7 @@
-import { render, waitFor } from '@testing-library/react';
+import { fireEvent, render, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import CommentSidebar from './CommentSidebar';
-import type { GradingComment } from '../../types/ielts-writing.types';
+import type { GradingComment, GradingCorrection } from '../../types/ielts-writing.types';
 
 const scrollIntoViewMock = vi.fn();
 
@@ -33,6 +33,17 @@ const comments: GradingComment[] = [
         to: 10,
         createdAt: Date.now(),
         updatedAt: Date.now(),
+    },
+];
+
+const corrections: GradingCorrection[] = [
+    {
+        id: 'correction-1',
+        taskNumber: 1,
+        anchorText: 'third phrase',
+        correctionText: 'Use a more precise verb here.',
+        from: 11,
+        to: 16,
     },
 ];
 
@@ -158,5 +169,51 @@ describe('CommentSidebar', () => {
             });
             expect(scrollIntoViewMock).not.toHaveBeenCalled();
         });
+    });
+
+    it('renders corrections in the comments tab and routes correction actions through the sidebar callbacks', async () => {
+        const onEditCorrection = vi.fn();
+        const onDeleteCorrection = vi.fn();
+
+        const { getByText, getByRole, container } = render(
+            <CommentSidebar
+                comments={comments}
+                corrections={corrections}
+                taskNumber={1}
+                focusedCommentId="correction-1"
+                focusedCommentAnchorViewportTop={220}
+                hoveredCommentId={null}
+                anchorPositions={[
+                    { commentId: 'comment-1', anchorTop: 100, anchorRight: 20, anchorCenterY: 110, anchorViewportTop: 140 },
+                    { commentId: 'comment-2', anchorTop: 200, anchorRight: 20, anchorCenterY: 210, anchorViewportTop: 180 },
+                    { commentId: 'correction-1', anchorTop: 300, anchorRight: 20, anchorCenterY: 310, anchorViewportTop: 220 },
+                ]}
+                editorScrollTop={0}
+                onFocusComment={() => {}}
+                onHoverComment={() => {}}
+                onEditComment={() => {}}
+                onResolveComment={() => {}}
+                onReopenComment={() => {}}
+                onDeleteComment={() => {}}
+                onRecoverComment={() => {}}
+                onCategoryChange={() => {}}
+                onEditCorrection={onEditCorrection}
+                onDeleteCorrection={onDeleteCorrection}
+            />,
+        );
+
+        expect(getByText('Open (3)')).toBeTruthy();
+        expect(getByText('Correction')).toBeTruthy();
+        expect(getByText('Correct to')).toBeTruthy();
+        expect(getByText('Use a more precise verb here.')).toBeTruthy();
+
+        const correctionCard = container.querySelector('[data-comment-id="correction-1"]');
+        expect(correctionCard).toHaveClass('comment-card-correction');
+
+        fireEvent.click(getByRole('button', { name: 'Edit' }));
+        expect(onEditCorrection).toHaveBeenCalledWith('correction-1');
+
+        fireEvent.click(getByRole('button', { name: 'Delete' }));
+        expect(onDeleteCorrection).toHaveBeenCalledWith('correction-1');
     });
 });

@@ -1,27 +1,136 @@
+/* ═════════════════════════════════════════════════════════════════════════════
+   WritingGradingPage.css — "The Academic Atelier" Design System
+   Design Philosophy: The Architectural Editor
+   ═════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Design Tokens (aligned to mockup palette) ──────────────────────────── */
+:root {
+    /* Surface Hierarchy — matches mockup Tailwind config */
+    --wgp-surface: #f7f9fb;
+    --wgp-surface-container-lowest: #ffffff;
+    --wgp-surface-container-low: #f0f4f7;
+    --wgp-surface-container: #e8eff3;
+    --wgp-surface-container-high: #e1e9ee;
+    --wgp-surface-container-highest: #d9e4ea;
+
+    /* Primary — mockup uses muted slate-blue tones */
+    --wgp-primary: #595e6c;
+    --wgp-primary-dim: #4d525f;
+    --wgp-primary-container: #dee2f2;
+    --wgp-on-primary: #f7f7ff;
+    --wgp-primary-fixed-dim: #d0d4e4;
+
+    /* Text — matches mockup on-surface tones */
+    --wgp-on-surface: #2a3439;
+    --wgp-on-surface-variant: #566166;
+    --wgp-secondary: #5e5f65;
+    --wgp-on-secondary-container: #505157;
+    --wgp-outline: #717c82;
+    --wgp-outline-variant: #a9b4b9;
+
+    /* Tertiary — for status badges */
+    --wgp-tertiary-container: #d3ceef;
+    --wgp-on-tertiary-container: #47445f;
+
+    /* Status */
+    --wgp-error: #9f403d;
+    --wgp-error-container: #fe8983;
+    --wgp-warning-bg: #fef8ee;
+    --wgp-warning-text: #7c5a1a;
+    --wgp-danger-bg: #fef2f2;
+    --wgp-danger-text: #9c2626;
+    --wgp-success-bg: #f0fdf4;
+    --wgp-success-text: #166534;
+
+    /* Elevation */
+    --wgp-shadow-ambient: 0 4px 20px rgba(0, 0, 0, 0.02);
+    --wgp-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+    --wgp-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+    --wgp-shadow-elevated: 0px 20px 48px rgba(25, 28, 30, 0.10);
+    --wgp-ghost-border: rgba(169, 180, 185, 0.10);
+
+    /* Shape — mockup uses xl (0.75rem) and full (9999px) */
+    --wgp-radius-sm: 4px;
+    --wgp-radius-md: 6px;
+    --wgp-radius-lg: 8px;
+    --wgp-radius-xl: 12px;
+    --wgp-radius-card: 12px;
+    --wgp-radius-full: 9999px;
+
+    /* Typography — mockup uses Work Sans + Newsreader */
+    --wgp-font-body: 'Work Sans', 'Inter', system-ui, -apple-system, sans-serif;
+    --wgp-font-label: 'Work Sans', 'Inter', system-ui, -apple-system, sans-serif;
+    --wgp-font-manuscript: 'Newsreader', 'Georgia', serif;
+}
+
+/* ── Font Import (Work Sans + Newsreader from mockup) ────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500;600;700&display=swap');
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SHELL — The Base Layer ("The Desk")
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 .wgp-shell {
     min-height: 100vh;
-    background: linear-gradient(135deg, #faf5ff 0%, #f0f9ff 25%, #f0fdfa 50%, #fff7ed 75%, #faf5ff 100%);
-    background-attachment: fixed;
+    background: var(--wgp-surface);
+    font-family: var(--wgp-font-body);
+    color: var(--wgp-on-surface);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
 .wgp-shell-content {
-    padding: 2rem 1rem 3rem;
+    padding: 0 1.5rem 3rem;
 }
 
 .wgp-shell-panel {
-    max-width: 1400px;
+    max-width: 1440px;
     margin: 0 auto;
 }
 
 .wgp-page {
     min-height: auto;
     background: transparent;
-    color: #0f172a;
+    color: var(--wgp-on-surface);
     border: none;
     border-radius: 0;
     overflow: visible;
     box-shadow: none;
+    padding-top: 1.5rem;
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BACK LINK — Replaces Breadcrumb
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.wgp-back-link {
+    background: transparent;
+    border: none;
+    padding: 0;
+    border-radius: 0;
+    cursor: pointer;
+    color: var(--wgp-primary);
+    font-family: var(--wgp-font-label);
+    font-size: 0.78rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.wgp-back-link:hover {
+    opacity: 0.8;
+    color: var(--wgp-primary);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   HEADER — Submission Context Card (matches mockup)
+   Rounded card with surface-container-low background
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 .wgp-header {
     position: relative;
@@ -29,172 +138,225 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 1rem;
-    padding: 1.35rem 1.5rem;
-    background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
-    border: 1px solid #e5e7eb;
-    border-radius: 1.25rem;
-    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
-    backdrop-filter: none;
+    gap: 1.5rem;
+    padding: 1rem;
+    background: var(--wgp-surface-container-low);
+    border: none;
+    border-radius: var(--wgp-radius-xl);
+    box-shadow: none;
+    margin-bottom: 2rem;
 }
 
-.wgp-header-left,
-.wgp-header-actions {
+.wgp-header-left {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.wgp-header-student {
     display: flex;
     align-items: center;
     gap: 0.75rem;
 }
 
+.wgp-header-student-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.wgp-header-student-name {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--wgp-on-surface);
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+}
+
+.wgp-header-student-id {
+    font-family: var(--wgp-font-label);
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--wgp-on-surface-variant);
+    padding: 0;
+    background: transparent;
+    border-radius: 0;
+}
+
 .wgp-header-actions {
-    flex-wrap: wrap;
-    justify-content: flex-end;
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    flex-shrink: 0;
 }
 
-.wgp-student-name {
-    font-size: 1.2rem;
-    font-weight: 800;
-    color: #0f172a;
-}
-
-.wgp-subtitle,
 .wgp-status-text {
-    font-size: 0.84rem;
-    color: #64748b;
+    font-size: 0.82rem;
+    color: var(--wgp-on-surface-variant);
+    font-family: var(--wgp-font-label);
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BUTTONS — Pill-shaped (matches mockup rounded-full)
+   Primary: solid primary bg
+   Secondary: surface_container_high, matte
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 .wgp-back-btn,
 .wgp-secondary-btn,
 .wgp-primary-btn,
 .wgp-inline-btn {
-    border-radius: 14px;
-    font-size: 0.88rem;
+    border-radius: var(--wgp-radius-lg);
+    font-family: var(--wgp-font-label);
+    font-size: 1rem;
     font-weight: 600;
     cursor: pointer;
-    transition: transform 0.12s ease, opacity 0.12s ease, background 0.12s ease;
+    transition: all 0.2s ease;
+    letter-spacing: 0.01em;
+    line-height: 1.3;
 }
 
 .wgp-back-btn,
 .wgp-secondary-btn {
-    border: 1px solid #e5e7eb;
-    background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
-    color: #1e293b;
-    padding: 0.65rem 1rem;
+    border: 1px solid var(--wgp-ghost-border);
+    background: var(--wgp-surface-container-high);
+    color: var(--wgp-on-secondary-container);
+    padding: 0.55rem 1.25rem;
+}
+
+.wgp-back-btn:hover,
+.wgp-secondary-btn:hover {
+    background: var(--wgp-surface-container-highest);
 }
 
 .wgp-primary-btn {
     border: none;
-    background: linear-gradient(135deg, #2563eb, #4f46e5);
-    color: #ffffff;
-    padding: 0.7rem 1.15rem;
-    box-shadow: 0 8px 20px rgba(59, 130, 246, 0.28);
+    background: var(--wgp-primary);
+    color: var(--wgp-on-primary);
+    padding: 0.625rem 2rem;
+    box-shadow: var(--wgp-shadow-sm);
+}
+
+.wgp-primary-btn:hover {
+    background: var(--wgp-primary-dim);
+    box-shadow: var(--wgp-shadow-md);
 }
 
 .wgp-inline-btn {
     border: none;
-    background: #0f172a;
-    color: #ffffff;
-    padding: 0.45rem 0.85rem;
+    background: var(--wgp-on-surface);
+    color: var(--wgp-surface-container-lowest);
+    padding: 0.4rem 0.75rem;
     margin-left: 0.75rem;
+    font-size: 0.78rem;
 }
 
-.wgp-back-btn:hover,
-.wgp-secondary-btn:hover,
-.wgp-primary-btn:hover,
 .wgp-inline-btn:hover {
-    transform: translateY(-1px);
+    opacity: 0.85;
 }
 
 .wgp-secondary-btn:disabled,
 .wgp-primary-btn:disabled {
-    opacity: 0.55;
+    opacity: 0.45;
     cursor: not-allowed;
-    transform: none;
+    filter: none;
+    box-shadow: none;
 }
 
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   STATUS PILLS — Pill-shaped (matches mockup rounded-full)
+   Uses tertiary-container colors from mockup
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 .wgp-status-pill {
-    padding: 0.42rem 0.78rem;
-    border-radius: 12px;
-    font-size: 0.75rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: var(--wgp-radius-lg);
+    font-family: var(--wgp-font-label);
+    font-size: 0.625rem;
     font-weight: 700;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
 }
 
 .wgp-status-pill.pending {
-    background: #fef3c7;
-    color: #92400e;
+    background: var(--wgp-tertiary-container);
+    color: var(--wgp-on-tertiary-container);
 }
 
 .wgp-status-pill.editing {
-    background: #dbeafe;
-    color: #1d4ed8;
+    background: var(--wgp-primary-container);
+    color: var(--wgp-primary-dim);
 }
 
 .wgp-status-pill.published {
-    background: #dcfce7;
-    color: #166534;
+    background: var(--wgp-success-bg);
+    color: var(--wgp-success-text);
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TASK TABS — Tonal Shifts, No Borders
+   Active state uses primary gradient
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 .wgp-task-tabs {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.65rem;
-    padding: 1rem 0 0;
+    gap: 0.5rem;
+    padding: 0 0 1.25rem;
 }
 
-.wgp-task-tab,
-.wgp-panel-tab {
-    border-radius: 12px;
-    border: 2px solid #e5e7eb;
-    background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
-    color: #6b7280;
-    padding: 0.65rem 1rem;
-    font-size: 0.85rem;
-    font-weight: 700;
+.wgp-task-tab {
+    border-radius: var(--wgp-radius-md);
+    border: 1px solid var(--wgp-ghost-border);
+    background: var(--wgp-surface-container-lowest);
+    color: var(--wgp-on-surface-variant);
+    padding: 0.5rem 0.9rem;
+    font-family: var(--wgp-font-label);
+    font-size: 0.8rem;
+    font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.15s ease;
 }
 
-.wgp-task-tab.active,
-.wgp-panel-tab.active {
-    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-    border-color: #3b82f6;
-    color: #ffffff;
-    box-shadow: 0 6px 14px rgba(59, 130, 246, 0.2);
+.wgp-task-tab.active {
+    background: linear-gradient(135deg, var(--wgp-primary) 0%, var(--wgp-primary-container) 100%);
+    border-color: transparent;
+    color: var(--wgp-on-primary);
+    box-shadow: 0 3px 10px rgba(0, 82, 211, 0.16);
 }
 
-.wgp-task-tab:hover:not(.active),
-.wgp-panel-tab:hover:not(.active) {
-    border-color: #d1d5db;
-    background: #f9fafb;
-    color: #111827;
+.wgp-task-tab:hover:not(.active) {
+    background: var(--wgp-surface-container-low);
+    color: var(--wgp-on-surface);
 }
 
-.wgp-panel-tab:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BANNERS — Warnings & Alerts
+   Tonal background, no solid borders
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 .wgp-banner {
-    margin: 1rem 0 0;
-    padding: 0.95rem 1rem;
-    border-radius: 1rem;
-    border: 1px solid transparent;
-    font-size: 0.9rem;
-    line-height: 1.5;
-    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+    margin: 0 0 1rem;
+    padding: 0.85rem 1rem;
+    border-radius: var(--wgp-radius-lg);
+    border: none;
+    font-size: 0.84rem;
+    line-height: 1.55;
 }
 
 .wgp-banner-warning {
-    background: #fffbeb;
-    border-color: #fde68a;
-    color: #92400e;
+    background: var(--wgp-warning-bg);
+    color: var(--wgp-warning-text);
 }
 
 .wgp-banner-danger {
-    background: #fff1f2;
-    border-color: #fda4af;
-    color: #9f1239;
+    background: var(--wgp-danger-bg);
+    color: var(--wgp-danger-text);
 }
 
 .wgp-inline-note {
@@ -202,11 +364,17 @@
     font-weight: 600;
 }
 
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MAIN LAYOUT — Two-Column Grading Desk
+   Left: Essay editor (The Work Surface)
+   Right: Tooling panel (The Tooling Layer)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 .wgp-layout {
     display: grid;
-    grid-template-columns: minmax(0, 1.2fr) minmax(360px, 0.88fr);
-    gap: 1.25rem;
-    padding: 1rem 0 0;
+    grid-template-columns: minmax(0, 1.3fr) minmax(340px, 0.7fr);
+    gap: 2rem;
     align-items: start;
 }
 
@@ -218,22 +386,51 @@
 .wgp-right-column {
     display: flex;
     flex-direction: column;
-    gap: 0.9rem;
+    gap: 1.5rem;
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CARDS — Surface Layering (No Lines)
+   Work surface: surface_container_lowest (#FFF)
+   Tool panels: surface_container_low
+   Ghost borders only when white-on-white
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 .wgp-editor-card,
 .wgp-panel-card,
 .wgp-comments-card {
     position: relative;
-    background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
-    border: 1px solid #e5e7eb;
-    border-radius: 1.15rem;
-    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+    background: var(--wgp-surface-container-lowest);
+    border: 1px solid var(--wgp-ghost-border);
+    border-radius: var(--wgp-radius-xl);
+    box-shadow: var(--wgp-shadow-ambient);
+}
+
+/* Topbar row: Marked/Original tabs left, Undo/Redo right */
+.wgp-editor-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 0.75rem;
+}
+
+/* Wrapper for the editor card */
+.wgp-editor-card-wrapper {
+    position: relative;
 }
 
 .wgp-editor-card {
-    min-height: clamp(540px, 68vh, 720px);
-    overflow: hidden;
+    min-height: 800px;
+    overflow: visible;
+    padding: 2.5rem 3rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
+}
+
+/* Remove inner border from essay-editor-wrapper inside editor card */
+.wgp-editor-card .essay-editor-wrapper {
+    border: none;
+    border-radius: 0;
 }
 
 .wgp-editor-card-readonly .essay-editor-toolbar,
@@ -241,45 +438,131 @@
     display: none;
 }
 
-.wgp-panel-tabs {
-    display: inline-flex;
-    gap: 0.5rem;
+/* Editor View Toggle (Marked / Original) — left column */
+.wgp-editor-view-tabs {
+    max-width: 220px;
+    margin-inline: auto;
     margin-bottom: 0;
-    padding: 0.375rem;
-    border-radius: 14px;
-    background: rgba(243, 244, 246, 0.95);
-    border: 1px solid #e5e7eb;
-    width: fit-content;
 }
 
+
+/* (Score strip removed — scoring lives in sidebar) */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PANEL TABS — Capsule/Pill Nav (matches mockup)
+   Container: bg-surface-container rounded-full
+   Active: white bg with shadow, rounded-full
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.wgp-panel-tabs {
+    display: flex;
+    gap: 0;
+    background: var(--wgp-surface-container);
+    border: none;
+    border-radius: var(--wgp-radius-xl);
+    overflow: hidden;
+    box-shadow: none;
+    padding: 0.25rem;
+    margin-bottom: 0;
+}
+
+.wgp-panel-tab {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem 0.5rem;
+    border: none;
+    border-radius: var(--wgp-radius-lg);
+    background: transparent;
+    color: var(--wgp-on-surface-variant);
+    font-family: var(--wgp-font-label);
+    font-size: 0.875rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.wgp-panel-tab::after {
+    display: none;
+}
+
+.wgp-panel-tab.active {
+    color: var(--wgp-primary);
+    background: var(--wgp-surface-container-lowest);
+    box-shadow: var(--wgp-shadow-sm);
+}
+
+.wgp-panel-tab.active::after {
+    display: none;
+}
+
+.wgp-panel-tab:hover:not(.active) {
+    color: var(--wgp-on-surface);
+    background: transparent;
+}
+
+.wgp-panel-tab:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+
+/* ── Panel Content ──────────────────────────────────────────────────────── */
+
 .wgp-comments-card {
-    min-height: clamp(540px, 68vh, 720px);
+    min-height: clamp(420px, 56vh, 600px);
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    border-radius: var(--wgp-radius-xl);
+    border: 1px solid var(--wgp-ghost-border);
 }
 
 .wgp-panel-stack {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 1.5rem;
 }
 
 .wgp-panel-card {
-    padding: 1.1rem;
+    padding: 1rem;
+    border-radius: var(--wgp-radius-xl);
+}
+
+.wgp-panel-card.wgp-panel-card--seamless {
+    border-radius: var(--wgp-radius-xl);
+    border-top: 1px solid var(--wgp-ghost-border);
+}
+
+/* Flat variant — no white box, used in review mode */
+.wgp-panel-card--flat {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0;
 }
 
 .wgp-card-title {
-    margin-bottom: 0.9rem;
-    font-size: 0.94rem;
+    margin-bottom: 0.85rem;
+    font-size: 0.82rem;
     font-weight: 700;
-    color: #0f172a;
+    color: var(--wgp-on-surface);
+    letter-spacing: -0.005em;
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PROMPT PANEL
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 .wgp-prompt-image {
     width: 100%;
-    border-radius: 14px;
-    border: 1px solid #dbe3ef;
+    border-radius: var(--wgp-radius-lg);
+    border: 1px solid var(--wgp-ghost-border);
     margin-bottom: 1rem;
     object-fit: cover;
 }
@@ -287,15 +570,19 @@
 .wgp-prompt-text {
     margin: 0;
     white-space: pre-wrap;
-    line-height: 1.7;
-    color: #334155;
+    line-height: 1.72;
+    color: var(--wgp-on-surface-variant);
+    font-size: 0.9rem;
 }
+
+
+/* ── Meta Grid & Score Grid ──────────────────────────────────────────────── */
 
 .wgp-meta-grid,
 .wgp-score-grid,
 .wgp-feedback-columns {
     display: grid;
-    gap: 0.75rem;
+    gap: 0.625rem;
 }
 
 .wgp-meta-grid {
@@ -303,56 +590,206 @@
     margin-top: 1rem;
 }
 
-.wgp-meta-grid div,
+.wgp-meta-grid div {
+    padding: 0.75rem;
+    border-radius: var(--wgp-radius-lg);
+    background: var(--wgp-surface-container-low);
+    border: none;
+}
+
 .wgp-score-grid div {
-    padding: 0.85rem;
-    border-radius: 14px;
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
+    padding: 0.75rem;
+    border-radius: var(--wgp-radius-lg);
+    background: #ffffff;
+    border: 1px solid var(--wgp-ghost-border);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .wgp-meta-grid span,
 .wgp-score-grid span,
 .wgp-feedback-columns span {
     display: block;
-    margin-bottom: 0.28rem;
-    font-size: 0.74rem;
+    margin-bottom: 0.2rem;
+    font-family: var(--wgp-font-label);
+    font-size: 0.65rem;
     font-weight: 700;
-    letter-spacing: 0.03em;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: #64748b;
+    color: var(--wgp-on-surface-variant);
 }
 
 .wgp-score-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-bottom: 1rem;
 }
 
 .wgp-score-grid strong,
 .wgp-meta-grid strong {
-    font-size: 1.08rem;
-    color: #0f172a;
+    font-size: 1rem;
+    color: var(--wgp-on-surface);
 }
 
 .wgp-feedback-columns {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    margin-top: 1rem;
+    margin-top: 0.75rem;
 }
 
-.wgp-feedback-columns > div {
-    padding: 0.9rem;
-    border-radius: 14px;
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
+.wgp-feedback-columns div {
+    padding: 0.75rem;
+    border-radius: var(--wgp-radius-lg);
+    background: #ffffff;
+    border: 1px solid var(--wgp-ghost-border);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
+
+
+
 
 .wgp-rich-copy {
-    color: #334155;
+    color: var(--wgp-on-surface-variant);
     line-height: 1.65;
+    font-size: 0.88rem;
 }
 
 .wgp-rich-copy p:first-child {
     margin-top: 0;
 }
+
+
+/* (Student workspace card removed — student info is in header) */
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   READINESS CHECKLIST — Bottom of sidebar (matches mockup)
+   bg-surface-container-low, rounded-xl, Material Icons
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.wgp-readiness-checklist {
+    padding: 1rem;
+    background: var(--wgp-surface-container-low);
+    border: none;
+    border-radius: var(--wgp-radius-xl);
+    box-shadow: none;
+    margin-top: 0;
+}
+
+.wgp-readiness-title {
+    font-family: var(--wgp-font-label);
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--wgp-on-surface-variant);
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.wgp-readiness-items {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.wgp-readiness-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--wgp-font-label);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    color: var(--wgp-on-surface-variant);
+}
+
+.wgp-readiness-indicator {
+    font-family: 'Material Symbols Outlined';
+    font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 16;
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1;
+    width: auto;
+    height: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0;
+    background: none;
+}
+
+.wgp-readiness-indicator.ready {
+    color: #22c55e;
+    background: none;
+}
+
+.wgp-readiness-indicator.not-ready {
+    color: var(--wgp-error);
+    background: none;
+}
+
+/* ── Score Rail Scroll (hide scrollbar) ──────────────────────────────────── */
+.csp-score-rail {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.csp-score-rail::-webkit-scrollbar {
+    display: none;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   UTILITY LINKS — Bottom of sidebar, text-link style (matches mockup)
+   primary/60 opacity for links, error/60 for void
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.wgp-utility-links {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0.5rem;
+    margin-top: 0.25rem;
+}
+
+.wgp-utility-links-left {
+    display: flex;
+    gap: 1rem;
+}
+
+.wgp-utility-link {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    font-family: var(--wgp-font-label);
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: rgba(89, 94, 108, 0.6);
+    transition: color 0.2s ease;
+}
+
+.wgp-utility-link:hover {
+    color: var(--wgp-primary);
+}
+
+.wgp-utility-void-wrapper {
+    margin-left: auto;
+}
+
+.wgp-utility-void-wrapper .wgp-utility-link {
+    color: rgba(159, 64, 61, 0.6);
+}
+
+.wgp-utility-void-wrapper .wgp-utility-link:hover {
+    color: var(--wgp-error);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EMPTY STATE & LOADING
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 .wgp-empty-state,
 .wgp-loading {
@@ -368,14 +805,30 @@
     text-align: center;
 }
 
-.wgp-spinner {
-    width: 52px;
-    height: 52px;
-    border-radius: 999px;
-    border: 4px solid rgba(37, 99, 235, 0.16);
-    border-top-color: #2563eb;
-    animation: wgp-spin 1s linear infinite;
+.wgp-empty-state h1 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--wgp-on-surface);
 }
+
+.wgp-empty-state p {
+    color: var(--wgp-on-surface-variant);
+    font-size: 0.9rem;
+}
+
+.wgp-spinner {
+    width: 44px;
+    height: 44px;
+    border-radius: 999px;
+    border: 3px solid var(--wgp-surface-container-high);
+    border-top-color: var(--wgp-primary);
+    animation: wgp-spin 0.8s linear infinite;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MODALS — Architectural Overlay
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 .wgp-modal-backdrop {
     position: fixed;
@@ -385,61 +838,70 @@
     align-items: center;
     justify-content: center;
     padding: 1.5rem;
-    background: rgba(15, 23, 42, 0.56);
+    background: rgba(25, 28, 30, 0.5);
+    backdrop-filter: blur(4px);
 }
 
 .wgp-modal-card {
-    width: min(560px, 100%);
-    border-radius: 24px;
-    background: #ffffff;
-    box-shadow: 0 28px 70px rgba(15, 23, 42, 0.28);
+    width: min(520px, 100%);
+    border-radius: var(--wgp-radius-xl);
+    background: var(--wgp-surface-container-lowest);
+    box-shadow: var(--wgp-shadow-elevated);
     padding: 1.5rem;
 }
 
 .wgp-modal-title {
-    margin: 0 0 0.75rem;
-    font-size: 1.25rem;
+    margin: 0 0 0.6rem;
+    font-size: 1.15rem;
     font-weight: 700;
-    color: #0f172a;
+    color: var(--wgp-on-surface);
 }
 
 .wgp-modal-copy {
     margin: 0 0 1rem;
-    color: #475569;
+    color: var(--wgp-on-surface-variant);
     line-height: 1.6;
+    font-size: 0.88rem;
 }
 
 .wgp-modal-textarea {
     width: 100%;
-    min-height: 112px;
-    border: 1px solid #cbd5e1;
-    border-radius: 16px;
-    padding: 0.9rem 1rem;
+    min-height: 100px;
+    border: 1px solid var(--wgp-ghost-border);
+    border-radius: var(--wgp-radius-lg);
+    padding: 0.85rem 1rem;
     font: inherit;
-    color: #0f172a;
+    font-size: 0.88rem;
+    color: var(--wgp-on-surface);
     resize: vertical;
-    background: #f8fafc;
+    background: var(--wgp-surface-container-lowest);
+    box-sizing: border-box;
 }
 
 .wgp-modal-textarea:focus {
-    outline: 2px solid rgba(37, 99, 235, 0.2);
-    border-color: #2563eb;
+    outline: none;
+    border-color: var(--wgp-primary);
+    box-shadow: 0 0 0 3px rgba(0, 82, 211, 0.08);
 }
 
 .wgp-modal-error {
-    margin: 0.75rem 0 0;
-    color: #b91c1c;
-    font-size: 0.92rem;
+    margin: 0.625rem 0 0;
+    color: var(--wgp-error);
+    font-size: 0.84rem;
     font-weight: 600;
 }
 
 .wgp-modal-actions {
     display: flex;
     justify-content: flex-end;
-    gap: 0.75rem;
-    margin-top: 1rem;
-    flex-wrap: wrap;
+    gap: 0.625rem;
+    margin-top: 1.25rem;
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ANIMATIONS
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 @keyframes wgp-spin {
     to {
@@ -447,47 +909,52 @@
     }
 }
 
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RESPONSIVE — Graceful Degradation
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 @media (max-width: 1220px) {
-    .wgp-layout {
-        grid-template-columns: 1fr;
-    }
-
-    .wgp-editor-card {
-        min-height: 620px;
-    }
-
-    .wgp-comments-card {
-        min-height: 620px;
+    .wgp-header-left {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
     }
 }
 
 @media (max-width: 768px) {
     .wgp-shell-content {
-        padding: 1rem 0.75rem 2rem;
+        padding: 0 0.75rem 2rem;
     }
 
     .wgp-header {
         flex-direction: column;
         align-items: stretch;
+        gap: 0.75rem;
     }
 
-    .wgp-header-left,
-    .wgp-header-actions,
-    .wgp-task-tabs,
-    .wgp-panel-tabs {
+    .wgp-header-actions {
+        flex-wrap: wrap;
+        justify-content: flex-start;
+    }
+
+    .wgp-task-tabs {
         flex-wrap: wrap;
     }
 
-    .wgp-layout,
-    .wgp-task-tabs,
-    .wgp-banner {
-        padding-left: 1rem;
-        padding-right: 1rem;
+    .wgp-layout {
+        gap: 1rem;
     }
 
     .wgp-meta-grid,
     .wgp-score-grid,
     .wgp-feedback-columns {
         grid-template-columns: 1fr;
+    }
+
+
+
+    .wgp-modal-card {
+        padding: 1.25rem;
     }
 }

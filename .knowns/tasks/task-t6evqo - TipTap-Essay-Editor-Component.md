@@ -8,8 +8,8 @@ labels:
   - from-spec
   - grading-editor
 createdAt: '2026-03-01T06:43:56.129Z'
-updatedAt: '2026-04-02T10:05:32.563Z'
-timeSpent: 5013
+updatedAt: '2026-04-04T13:54:51.966Z'
+timeSpent: 5613
 assignee: '@me'
 spec: specs/grading-editor-redesign
 fulfills:
@@ -82,5 +82,12 @@ Full component with:
 2026-04-02 essay-tool hardening pass: enforced true read-only behavior in EssayEditor tool affordances, anchored quick-comment replay to explicit selection snapshots from the page, changed text-color Default to clear color marks instead of writing `inherit`, enabled keyboard/click activation parity on toolbar buttons, and constrained comment marks to one mark per text slice with exact-id removal during replay.
 2026-04-02: Added the essay-editor tool-contract architecture note to repo docs and Knowns, validated the linked IELTS writing architecture/spec docs, and prepared a narrow commit for the first hardening pass before starting the overlapping-mark composition pass.
 2026-04-02 second pass: made correction the dominant composition mark in EssayEditor. New correction creation now refuses ranges that already carry comment/correction marks; new highlight/comment/strikethrough/text-color actions refuse corrected ranges; correction apply strips highlight/strike/textStyle before persisting; and legacy correction+comment overlap now routes clicks to correction editing first. Added DOM-level regression tests for correction-vs-formatting cleanup, comment+highlight coexistence, and correction-click precedence on old overlapping content.
+2026-04-02 documentation consistency pass: verified the repo architecture docs and Knowns already reflect the second-pass correction-composition policy. No additional root architecture note was needed beyond the essay-editor tool-contract document.
+2026-04-04 follow-up hardening: kept `Marked` / `Original` as page-owned state so the editor no longer forces `marked` on mount/task change; normalized comment marks to a shared yellow highlight and aligned gutter dots to that same shared treatment; separated gutter-dot identity from essay mark identity so anchor queries cannot self-target gutter DOM; backfilled deterministic legacy correction ids in the editor layer so review-mode correction clicks can still focus the corresponding sidebar item.
+
+2026-04-04 follow-up:
+- documented the final teacher tool-surface split after the redesign: sticky editor bar (`undo`, `redo`, `comment`, `correction`), bubble menu (`comment`, `correction`, `strikethrough`), and separate quick-comments trigger
+- recorded that manual highlight and text-color authoring are intentionally removed from the active teacher workflow
+- synced the same contract into root architecture docs under documentation/architecture/ielts-writing
 <!-- SECTION:NOTES:END -->
 

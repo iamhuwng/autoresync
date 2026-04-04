@@ -29,7 +29,7 @@ declare module '@tiptap/core' {
             /**
              * Set a correction mark on the current selection.
              */
-            setCorrectionMark: (attributes: { correctionText: string }) => ReturnType;
+            setCorrectionMark: (attributes: { correctionId?: string; correctionText: string }) => ReturnType;
             /**
              * Remove a correction mark from the current selection.
              */
@@ -54,6 +54,17 @@ export const CorrectionMark = Mark.create<CorrectionMarkOptions>({
 
     addAttributes() {
         return {
+            correctionId: {
+                default: null,
+                parseHTML: (element: HTMLElement) => element.getAttribute('data-correction-id'),
+                renderHTML: (attributes: Record<string, string>) => {
+                    if (!attributes.correctionId) {
+                        return {};
+                    }
+
+                    return { 'data-correction-id': attributes.correctionId };
+                },
+            },
             correctionText: {
                 default: null,
                 parseHTML: (element: HTMLElement) => element.getAttribute('data-correction'),
@@ -78,12 +89,14 @@ export const CorrectionMark = Mark.create<CorrectionMarkOptions>({
 
     renderHTML({ HTMLAttributes }) {
         const correctionText = HTMLAttributes['data-correction'] || '';
+        const correctionId = HTMLAttributes['data-correction-id'] || '';
 
         return [
             'span',
             mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
                 class: 'correction-mark',
                 'data-correction': correctionText,
+                ...(correctionId ? { 'data-correction-id': correctionId } : {}),
             }),
             ['span', { class: 'correction-mark-original' }, 0],
             ['span', { class: 'correction-mark-replacement', contenteditable: 'false' }, ` -> ${correctionText}`],

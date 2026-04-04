@@ -14,10 +14,11 @@
 .comment-sidebar {
     display: flex;
     flex-direction: column;
+    gap: 0.625rem;
     min-height: 420px;
     overflow: hidden;
     position: relative;
-    background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+    background: transparent;
 }
 
 /* ─── Filter Pills ─────────────────────────────────────────── */
@@ -26,6 +27,8 @@
     display: inline-flex;
     flex-wrap: wrap;
     gap: 6px;
+    align-self: center;
+    justify-content: center;
     margin: 0;
     padding: 6px;
     border-bottom: none;
@@ -280,6 +283,30 @@
     line-height: 1.6;
 }
 
+.comment-card-correction .comment-card-text {
+    color: #0f172a;
+}
+
+.comment-card-correction-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.comment-card-correction-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #0369a1;
+}
+
+.comment-card-correction-value {
+    color: #0f172a;
+    font-weight: 600;
+    word-break: break-word;
+}
+
 .comment-card-rich-text p:first-child {
     margin-top: 0;
 }
@@ -357,6 +384,23 @@
 
 .comment-resolve-btn:hover {
     background: #10b981;
+    color: #ffffff;
+}
+
+.comment-delete-btn {
+    padding: 0.48rem 0.8rem;
+    border: 1px solid #ef4444;
+    background: transparent;
+    color: #ef4444;
+    font-size: 0.78rem;
+    font-weight: 700;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.12s ease;
+}
+
+.comment-delete-btn:hover {
+    background: #ef4444;
     color: #ffffff;
 }
 

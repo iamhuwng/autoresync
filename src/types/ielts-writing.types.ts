@@ -288,6 +288,8 @@ export const COMMENT_CATEGORIES: Record<CommentCategoryId, CommentCategoryDefini
     uncategorized: { id: 'uncategorized', label: 'General', color: '#64748b' },
 };
 
+export const COMMENT_HIGHLIGHT_COLOR = '#facc15';
+
 export interface QuickCommentPreset {
     id: string;
     text: string;
@@ -315,6 +317,15 @@ export interface GradingComment {
     updatedAt: number;
     resolvedAt?: number;
     deletedAt?: number;
+}
+
+export interface GradingCorrection {
+    id: string;
+    taskNumber: 1 | 2;
+    anchorText: string;
+    correctionText: string;
+    from: number;
+    to: number;
 }
 
 export interface WritingTaskMarkupState {

@@ -149,9 +149,6 @@ const TabbedFeedbackEditor: React.FC<TabbedFeedbackEditorProps> = ({
     // Update placeholder when tab changes
     useEffect(() => {
         if (!editor) return;
-        // Force placeholder update by destroying and re-adding the Placeholder extension
-        // This is a TipTap limitation — placeholder text is set at configure time
-        // Workaround: use a data attribute on the editor element
         const editorEl = editor.view.dom as HTMLElement;
         editorEl.setAttribute('data-placeholder-text', `Write your ${activeConfig.criterionName} feedback for Task ${taskNumber}...`);
     }, [editor, activeTab, activeConfig, taskNumber]);
@@ -174,7 +171,6 @@ const TabbedFeedbackEditor: React.FC<TabbedFeedbackEditorProps> = ({
                 ))}
             </div>
 
-            {/* ── Toolbar ── */}
             <div className="feedback-toolbar" id="feedback-toolbar">
                 <button
                     className={`feedback-toolbar-btn ${editor.isActive('bold') ? 'active' : ''}`}

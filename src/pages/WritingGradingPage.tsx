@@ -28,7 +28,7 @@ import {
     getTeacherQuickCommentPresets,
 } from '../services/writingQuickCommentPresetService';
 import AIMaintenanceBanner from '../components/ai/AIMaintenanceBanner';
-import EssayEditor, { type CorrectionMarkSelection, type EssaySelectionState } from '../components/writing-grading/EssayEditor';
+import EssayEditor, { type CorrectionMarkSelection, type EssaySelectionState, type EssayEditorHandle } from '../components/writing-grading/EssayEditor';
 import CommentSidebar, { type PendingCommentDraft } from '../components/writing-grading/CommentSidebar';
 import QuickCommentsDialog from '../components/writing-grading/QuickCommentsDialog';
 import CorrectionPopup from '../components/writing-grading/CorrectionPopup';
@@ -42,6 +42,7 @@ import { getOrCreateWritingSuggestionCache, updateWritingSuggestionReviewStatus 
 import type {
     CommentCategoryId,
     GradingComment,
+    GradingCorrection,
     PublishedWritingGrading,
     QuickCommentPreset,
     WritingGradingDraft,
@@ -53,7 +54,7 @@ import type {
     WritingSubmissionTask,
     WritingTaskMarkupState,
 } from '../types/ielts-writing.types';
-import { COMMENT_CATEGORIES } from '../types/ielts-writing.types';
+import { COMMENT_CATEGORIES, COMMENT_HIGHLIGHT_COLOR } from '../types/ielts-writing.types';
 import { calculateTaskBand } from '../utils/ieltsWritingBandCalculator';
 import './WritingGradingPage.css';
 
@@ -112,6 +113,7 @@ interface PendingCorrectionCommand {
     action: 'apply' | 'remove';
     from: number;
     to: number;
+    correctionId?: string;
     correctionText?: string;
     nonce: number;
 }
@@ -137,19 +139,6 @@ type PendingLeaveIntent =
     | { type: 'queue' }
     | { type: 'route'; route: string; reason: string }
     | { type: 'logout' };
-
-const COMMENT_HIGHLIGHT_COLORS = [
-    '#f59e0b',
-    '#10b981',
-    '#3b82f6',
-    '#8b5cf6',
-    '#ef4444',
-    '#ec4899',
-    '#14b8a6',
-    '#f97316',
-    '#84cc16',
-    '#6366f1',
-] as const;
 
 function createSessionId() {
     return `grading-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -306,14 +295,8 @@ function convertPlainTextToCommentHtml(value: string) {
         .join('');
 }
 
-function getNextCommentHighlightColor(comments: GradingComment[]) {
-    const usedColors = new Set(comments.map((comment) => comment.color));
-    const unusedColor = COMMENT_HIGHLIGHT_COLORS.find((color) => !usedColors.has(color));
-    if (unusedColor) {
-        return unusedColor;
-    }
-
-    return COMMENT_HIGHLIGHT_COLORS[comments.length % COMMENT_HIGHLIGHT_COLORS.length] || COMMENT_HIGHLIGHT_COLORS[0];
+function getNextCommentHighlightColor() {
+    return COMMENT_HIGHLIGHT_COLOR;
 }
 
 function formatAbsoluteDate(timestamp?: number) {
@@ -374,10 +357,12 @@ export default function WritingGradingPage() {
     const [panelTab, setPanelTab] = useState<PanelTab>('comments');
     const [editorViewMode, setEditorViewMode] = useState<'marked' | 'original'>('marked');
     const [activeTask, setActiveTask] = useState<1 | 2>(1);
+    const [reviewFeedbackTab, setReviewFeedbackTab] = useState<string>('taskSummary');
     const [focusedCommentId, setFocusedCommentId] = useState<string | null>(null);
     const [focusedCommentAnchorViewportTop, setFocusedCommentAnchorViewportTop] = useState<number | null>(null);
     const [hoveredCommentId, setHoveredCommentId] = useState<string | null>(null);
     const [anchorPositions, setAnchorPositions] = useState<CommentAnchorPosition[]>([]);
+    const [activeCorrections, setActiveCorrections] = useState<GradingCorrection[]>([]);
     const [editorScrollTop, setEditorScrollTop] = useState(0);
     const [hasSelectionInEditor, setHasSelectionInEditor] = useState(false);
     const [editorSelectionState, setEditorSelectionState] = useState<EssaySelectionState>({
@@ -406,6 +391,7 @@ export default function WritingGradingPage() {
     const [suggestionReviewOpen, setSuggestionReviewOpen] = useState(false);
     const [correctionRequest, setCorrectionRequest] = useState<{
         mode: 'create' | 'edit';
+        correctionId?: string;
         from: number;
         to: number;
         selectedText: string;
@@ -445,6 +431,9 @@ export default function WritingGradingPage() {
     const taskStatesRef = useRef<Record<1 | 2, TaskEditorState>>({} as Record<1 | 2, TaskEditorState>);
     const lockInfoRef = useRef<WritingGradingLock | null>(null);
     const pendingCommentDraftsRef = useRef<Partial<Record<1 | 2, PendingCommentDraft>>>({});
+    const previousActiveTaskRef = useRef<1 | 2>(activeTask);
+    const activeCorrectionsRef = useRef<GradingCorrection[]>([]);
+    const essayEditorRef = useRef<EssayEditorHandle>(null);
 
     useEffect(() => {
         dirtyRef.current = dirty;
@@ -453,6 +442,15 @@ export default function WritingGradingPage() {
     useEffect(() => {
         savedPendingCommentDraftSignatureRef.current = savedPendingCommentDraftSignature;
     }, [savedPendingCommentDraftSignature]);
+
+    useEffect(() => {
+        if (previousActiveTaskRef.current === activeTask) {
+            return;
+        }
+
+        previousActiveTaskRef.current = activeTask;
+        setReviewFeedbackTab('taskSummary');
+    }, [activeTask]);
 
     useEffect(() => {
         hasUnsavedChangesRef.current = dirty
@@ -486,6 +484,10 @@ export default function WritingGradingPage() {
     useEffect(() => {
         pendingCommentDraftsRef.current = pendingCommentDrafts;
     }, [pendingCommentDrafts]);
+
+    useEffect(() => {
+        activeCorrectionsRef.current = activeCorrections;
+    }, [activeCorrections]);
 
     const showStatus = useCallback((message: string) => {
         setStatusMessage(message);
@@ -649,6 +651,7 @@ export default function WritingGradingPage() {
         setPendingCommentMutation(null);
         setPendingSuggestionFocus(null);
         setCorrectionRequest(null);
+        setActiveCorrections([]);
         setSuggestionReviewOpen(false);
     }, []);
 
@@ -1386,10 +1389,20 @@ export default function WritingGradingPage() {
         }
 
         const updatePositions = () => {
-            const nextAnchors = (activeTaskState?.comments || [])
-                .filter((comment) => comment.status !== 'deleted')
-                .map((comment) => {
-                    const mark = editorContainer.querySelector(`[data-comment-id="${comment.id}"]`) as HTMLElement | null;
+            const nextAnchors = [
+                ...(activeTaskState?.comments || [])
+                    .filter((comment) => comment.status !== 'deleted')
+                    .map((comment) => ({
+                        id: comment.id,
+                        selector: `[data-comment-id="${comment.id}"]`,
+                    })),
+                ...activeCorrections.map((correction) => ({
+                    id: correction.id,
+                    selector: `.correction-mark[data-correction-id="${correction.id}"]`,
+                })),
+            ]
+                .map(({ id, selector }) => {
+                    const mark = editorContainer.querySelector(selector) as HTMLElement | null;
                     if (!mark) {
                         return null;
                     }
@@ -1397,7 +1410,7 @@ export default function WritingGradingPage() {
                     const markRect = mark.getBoundingClientRect();
                     const containerRect = editorContainer.getBoundingClientRect();
                     return {
-                        commentId: comment.id,
+                        commentId: id,
                         anchorTop: markRect.top - containerRect.top + editorContainer.scrollTop,
                         anchorRight: markRect.right - containerRect.left,
                         anchorCenterY: (markRect.top - containerRect.top + editorContainer.scrollTop) + (markRect.height / 2),
@@ -1419,7 +1432,7 @@ export default function WritingGradingPage() {
             editorContainer.removeEventListener('scroll', updatePositions);
             window.removeEventListener('resize', updatePositions);
         };
-    }, [activeTaskState?.comments, activeTaskState?.markedContent, activeTask, focusedCommentId, hoveredCommentId, mode, panelTab]);
+    }, [activeCorrections, activeTaskState?.comments, activeTaskState?.markedContent, activeTask, focusedCommentId, hoveredCommentId, mode, panelTab]);
 
     const handleTaskChange = useCallback((taskNumber: 1 | 2) => {
         if (taskNumber === activeTask) {
@@ -1475,13 +1488,13 @@ export default function WritingGradingPage() {
         }));
     }, [updateCommentState]);
 
-    const pushCommentMutation = useCallback((comment: GradingComment, action: 'remove' | 'apply', color?: string) => {
+    const pushCommentMutation = useCallback((comment: GradingComment, action: 'remove' | 'apply') => {
         mutationNonceRef.current += 1;
         setPendingCommentMutation({
             taskNumber: comment.taskNumber,
             action,
             commentId: comment.id,
-            color: color || comment.color,
+            color: COMMENT_HIGHLIGHT_COLOR,
             from: comment.from,
             to: comment.to,
             nonce: mutationNonceRef.current,
@@ -1493,7 +1506,6 @@ export default function WritingGradingPage() {
         html: string,
         preset?: QuickCommentPreset
     ) => {
-        const taskComments = taskStatesRef.current[draft.taskNumber]?.comments || [];
         const categoryId = preset?.categoryId || draft.categoryId;
         const category = COMMENT_CATEGORIES[categoryId] || COMMENT_CATEGORIES.uncategorized;
         const now = Date.now();
@@ -1503,7 +1515,7 @@ export default function WritingGradingPage() {
             text: html,
             categoryId,
             categoryLabel: preset?.categoryLabel || category.label,
-            color: getNextCommentHighlightColor(taskComments),
+            color: getNextCommentHighlightColor(),
             status: 'active',
             anchorText: draft.anchorText,
             from: draft.from,
@@ -1519,7 +1531,7 @@ export default function WritingGradingPage() {
         setPendingCommentDraft(draft.taskNumber, null);
         setFocusedCommentId(nextComment.id);
         setPanelTab('comments');
-        pushCommentMutation(nextComment, 'apply', nextComment.color);
+        pushCommentMutation(nextComment, 'apply');
         trackAction('addComment', {
             submissionId,
             taskNumber: draft.taskNumber,
@@ -1618,7 +1630,7 @@ export default function WritingGradingPage() {
             resolvedAt: undefined,
             updatedAt: Date.now(),
         }));
-        pushCommentMutation(comment, 'apply', comment.color);
+        pushCommentMutation(comment, 'apply');
         trackAction('recoverComment', { submissionId, taskNumber: activeTask });
     }, [activeTask, activeTaskState?.comments, pushCommentMutation, submissionId, trackAction, updateCommentState]);
 
@@ -1634,7 +1646,7 @@ export default function WritingGradingPage() {
             resolvedAt: undefined,
             updatedAt: Date.now(),
         }));
-        pushCommentMutation(comment, 'apply', comment.color);
+        pushCommentMutation(comment, 'apply');
     }, [activeTaskState?.comments, pushCommentMutation, updateCommentState]);
 
     const handleCategoryChange = useCallback((commentId: string, categoryId: CommentCategoryId) => {
@@ -1648,7 +1660,7 @@ export default function WritingGradingPage() {
 
         const comment = activeTaskState?.comments.find((entry) => entry.id === commentId);
         if (comment) {
-            pushCommentMutation(comment, 'apply', comment.color);
+            pushCommentMutation(comment, 'apply');
         }
     }, [activeTaskState?.comments, pushCommentMutation, updateCommentState]);
 
@@ -1791,6 +1803,10 @@ export default function WritingGradingPage() {
         trackAction('useQuickComment', { submissionId, presetId: preset.id });
     }, [activeTask, editorSelectionState, showStatus, submissionId, trackAction]);
 
+    const getActiveCorrectionById = useCallback((correctionId: string) => {
+        return activeCorrectionsRef.current.find((correction) => correction.id === correctionId) || null;
+    }, []);
+
     const getCorrectionPopupPosition = useCallback((anchorViewportTop: number | null, anchorViewportLeft: number | null) => {
         const fallback = { top: 96, left: 120 };
 
@@ -1811,6 +1827,7 @@ export default function WritingGradingPage() {
 
         setCorrectionRequest({
             mode: 'create',
+            correctionId: undefined,
             from,
             to,
             selectedText,
@@ -1820,15 +1837,24 @@ export default function WritingGradingPage() {
     }, [getCorrectionPopupPosition]);
 
     const handleCorrectionMarkClick = useCallback((selection: CorrectionMarkSelection) => {
+        setFocusedCommentId(selection.id);
+        setFocusedCommentAnchorViewportTop(selection.anchorViewportTop);
+        setPanelTab('comments');
+
+        if (mode !== 'editing') {
+            return;
+        }
+
         setCorrectionRequest({
             mode: 'edit',
+            correctionId: selection.id,
             from: selection.from,
             to: selection.to,
             selectedText: selection.selectedText,
             correctionText: selection.correctionText,
             position: getCorrectionPopupPosition(selection.anchorViewportTop, selection.anchorViewportLeft),
         });
-    }, [getCorrectionPopupPosition]);
+    }, [getCorrectionPopupPosition, mode]);
 
     const dismissCorrectionRequest = useCallback(() => {
         setCorrectionRequest(null);
@@ -1845,6 +1871,7 @@ export default function WritingGradingPage() {
             action: 'apply',
             from: correctionRequest.from,
             to: correctionRequest.to,
+            correctionId: correctionRequest.correctionId || `correction-${Date.now()}-${Math.random().toString(36).slice(2)}`,
             correctionText,
             nonce: correctionNonceRef.current,
         });
@@ -1866,11 +1893,56 @@ export default function WritingGradingPage() {
             action: 'remove',
             from: correctionRequest.from,
             to: correctionRequest.to,
+            correctionId: correctionRequest.correctionId,
             nonce: correctionNonceRef.current,
         });
         trackAction('deleteCorrection', { submissionId, taskNumber: activeTask });
         setCorrectionRequest(null);
     }, [activeTask, correctionRequest, submissionId, trackAction]);
+
+    const handleEditCorrectionFromSidebar = useCallback((correctionId: string) => {
+        const correction = getActiveCorrectionById(correctionId);
+        if (!correction || mode !== 'editing') {
+            return;
+        }
+
+        const correctionElement = pageRef.current?.querySelector(
+            `.correction-mark[data-correction-id="${correctionId}"]`,
+        ) as HTMLElement | null;
+        const rect = correctionElement?.getBoundingClientRect();
+
+        setFocusedCommentId(correctionId);
+        setFocusedCommentAnchorViewportTop(rect?.top ?? null);
+        setPanelTab('comments');
+        setCorrectionRequest({
+            mode: 'edit',
+            correctionId,
+            from: correction.from,
+            to: correction.to,
+            selectedText: correction.anchorText,
+            correctionText: correction.correctionText,
+            position: getCorrectionPopupPosition(rect?.top ?? null, rect?.left ?? null),
+        });
+    }, [getActiveCorrectionById, getCorrectionPopupPosition, mode]);
+
+    const handleDeleteCorrectionFromSidebar = useCallback((correctionId: string) => {
+        const correction = getActiveCorrectionById(correctionId);
+        if (!correction || mode !== 'editing') {
+            return;
+        }
+
+        correctionNonceRef.current += 1;
+        setPendingCorrection({
+            taskNumber: activeTask,
+            action: 'remove',
+            from: correction.from,
+            to: correction.to,
+            correctionId: correction.id,
+            nonce: correctionNonceRef.current,
+        });
+        setFocusedCommentId(null);
+        trackAction('deleteCorrection', { submissionId, taskNumber: activeTask });
+    }, [activeTask, getActiveCorrectionById, mode, submissionId, trackAction]);
 
     const focusSuggestionInEssay = useCallback((suggestion: WritingSuggestionItem) => {
         suggestionFocusNonceRef.current += 1;
@@ -2093,7 +2165,7 @@ export default function WritingGradingPage() {
     const commentPositions = anchorPositions
         .map((anchor) => {
             const comment = activeTaskState.comments.find((entry) => entry.id === anchor.commentId);
-            return comment ? { commentId: comment.id, color: comment.color, top: anchor.anchorTop - editorScrollTop } : null;
+            return comment ? { commentId: comment.id, color: COMMENT_HIGHLIGHT_COLOR, top: anchor.anchorTop - editorScrollTop } : null;
         })
         .filter(Boolean) as Array<{ commentId: string; color: string; top: number }>;
     const canStartTakeover = Boolean(
@@ -2107,21 +2179,23 @@ export default function WritingGradingPage() {
 
             <header className="wgp-header">
                 <div className="wgp-header-left">
-                    <button className="wgp-back-btn" onClick={() => void handleBackToQueue()}>
-                        Back to Queue
+                    <button className="wgp-back-link" onClick={() => void handleBackToQueue()}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>arrow_back</span>
+                        <span>Back to Queue</span>
                     </button>
-                    <div>
-                        <div className="wgp-student-name">{submission.studentName}</div>
-                        <div className="wgp-subtitle">
-                            {submission.testMeta.testTitle} | Submitted {formatAbsoluteDate(submission.submittedAt)}
+                    <div style={{ height: '2rem', width: '1px', background: '#a9b4b9', opacity: 0.3 }}></div>
+                    <div className="wgp-header-student">
+                        <div className="wgp-header-student-info">
+                            <span className="wgp-header-student-name">{submission.studentName || 'Student'}</span>
+                            <span className="wgp-header-student-id">ID: {submission.studentId?.slice(-4) || '—'}</span>
                         </div>
+                        <span className={`wgp-status-pill ${mode === 'editing' ? 'editing' : submission.markingStatus === 'graded' ? 'published' : 'pending'}`}>
+                            {mode === 'editing' ? 'EDITING' : submission.markingStatus === 'graded' ? 'GRADED' : 'IN REVIEW'}
+                        </span>
                     </div>
                 </div>
 
                 <div className="wgp-header-actions">
-                    <span className={`wgp-status-pill ${mode === 'editing' ? 'editing' : submission.markingStatus === 'graded' ? 'published' : 'pending'}`}>
-                        {mode === 'editing' ? 'Draft Editing' : submission.markingStatus === 'graded' ? 'Published' : 'Pending Review'}
-                    </span>
                     {statusMessage && <span className="wgp-status-text">{statusMessage}</span>}
 
                     {mode === 'review' ? (
@@ -2145,10 +2219,10 @@ export default function WritingGradingPage() {
                     ) : (
                         <>
                             <button className="wgp-secondary-btn" onClick={() => void persistDraft('manual')} disabled={saving || !hasUnsavedChanges || !currentLockIsOwned}>
-                                {saving ? 'Saving...' : 'Save Draft'}
+                                {saving ? 'Saving…' : 'Save Draft'}
                             </button>
                             <button className="wgp-primary-btn" onClick={() => void handlePublish()} disabled={publishing || hasPublishBlockingError || !currentLockIsOwned || hasAnyPendingCommentDraft}>
-                                {publishing ? 'Publishing...' : 'Submit Grading'}
+                                {publishing ? 'Publishing…' : 'Submit Grading'}
                             </button>
                         </>
                     )}
@@ -2201,7 +2275,25 @@ export default function WritingGradingPage() {
 
             <main className="wgp-layout">
                 <section className="wgp-left-column">
-                    <div className={`wgp-editor-card ${mode === 'review' ? 'wgp-editor-card-readonly' : ''}`}>
+                    {/* Marked / Original view toggle */}
+                    <div className="wgp-editor-topbar">
+                        <div className="wgp-panel-tabs wgp-editor-view-tabs">
+                            <button
+                                className={`wgp-panel-tab ${editorViewMode === 'marked' ? 'active' : ''}`}
+                                onClick={() => handleViewModeChange('marked')}
+                            >
+                                Marked
+                            </button>
+                            <button
+                                className={`wgp-panel-tab ${editorViewMode === 'original' ? 'active' : ''}`}
+                                onClick={() => handleViewModeChange('original')}
+                            >
+                                Original
+                            </button>
+                        </div>
+                    </div>
+                    <div className="wgp-editor-card-wrapper">
+                        <div className={`wgp-editor-card ${mode === 'review' ? 'wgp-editor-card-readonly' : ''}`}>
                         <EssayEditor
                             key={`essay-${submission.id}-${activeTask}-${editorHydrationNonce}`}
                             originalEssayText={activeTaskState.essayText}
@@ -2209,6 +2301,7 @@ export default function WritingGradingPage() {
                             wordCount={activeTaskState.wordCount}
                             activeTimeSeconds={activeTaskState.activeTimeSeconds}
                             taskNumber={activeTask}
+                            viewMode={editorViewMode}
                             onAddComment={handleAddComment}
                             onGutterDotClick={(commentId) => {
                                 setFocusedCommentId(commentId);
@@ -2223,13 +2316,13 @@ export default function WritingGradingPage() {
                                 setPanelTab('comments');
                             }}
                             onCommentMarkHover={setHoveredCommentId}
-                            onViewModeChange={handleViewModeChange}
                             onSelectionStateChange={handleEditorSelectionStateChange}
                             onContentChange={(json) => {
                                 setTaskState(activeTask, (current) => ({ ...current, markedContent: json as Record<string, any> }));
                             }}
                             onCorrectionRequest={handleCorrectionRequest}
                             onCorrectionMarkClick={handleCorrectionMarkClick}
+                            onCorrectionItemsChange={setActiveCorrections}
                             pendingQuickComment={pendingQuickComment}
                             pendingCorrection={pendingCorrection}
                             pendingCommentMutation={pendingCommentMutation}
@@ -2239,6 +2332,7 @@ export default function WritingGradingPage() {
                             focusedCommentId={focusedCommentId}
                             hoveredCommentId={hoveredCommentId}
                             readOnly={mode !== 'editing'}
+                            editorRef={essayEditorRef}
                         />
 
                         {mode === 'editing' && (
@@ -2263,9 +2357,13 @@ export default function WritingGradingPage() {
                             onDismiss={dismissCorrectionRequest}
                         />
                     </div>
+                    </div>{/* end wgp-editor-card-wrapper */}
+
+                    {/* Score strip removed — scoring is in sidebar per mockup */}
                 </section>
 
                 <aside className="wgp-right-column">
+                    {/* Plain Text Panel Tabs — matches mockup */}
                     <div className="wgp-panel-tabs">
                         <button className={`wgp-panel-tab ${panelTab === 'prompt' ? 'active' : ''}`} onClick={() => handlePanelTabChange('prompt')}>
                             Prompt
@@ -2286,7 +2384,7 @@ export default function WritingGradingPage() {
                     </div>
 
                     {panelTab === 'prompt' && (
-                        <div className="wgp-panel-card">
+                        <div className="wgp-panel-card wgp-panel-card--seamless">
                             <div className="wgp-card-title">Task {activeTask} Prompt</div>
                             {promptTask.promptImageUrl && (
                                 <img className="wgp-prompt-image" src={promptTask.promptImageUrl} alt={`Task ${activeTask} prompt`} />
@@ -2305,6 +2403,7 @@ export default function WritingGradingPage() {
                         <div className="wgp-comments-card">
                             <CommentSidebar
                                 comments={activeTaskState.comments}
+                                corrections={activeCorrections}
                                 taskNumber={activeTask}
                                 focusedCommentId={focusedCommentId}
                                 focusedCommentAnchorViewportTop={focusedCommentAnchorViewportTop}
@@ -2320,6 +2419,8 @@ export default function WritingGradingPage() {
                                 onDeleteComment={handleDeleteComment}
                                 onRecoverComment={handleRecoverComment}
                                 onCategoryChange={handleCategoryChange}
+                                onEditCorrection={handleEditCorrectionFromSidebar}
+                                onDeleteCorrection={handleDeleteCorrectionFromSidebar}
                                 onSavePendingComment={handleSavePendingComment}
                                 onPendingCommentChange={handlePendingCommentChange}
                                 onPendingCommentCategoryChange={handlePendingCommentCategoryChange}
@@ -2349,73 +2450,72 @@ export default function WritingGradingPage() {
                         <div className="wgp-panel-stack">
                             {mode === 'editing' ? (
                                 <>
-                                    <div className="wgp-panel-card">
-                                        <CriteriaScoringPanel
-                                            taskNumber={activeTask}
-                                            scores={activeTaskState.scores}
-                                            onChange={(scores) => handleTaskScoresChange(activeTask, scores)}
-                                            isVoided={activeTaskState.isVoided}
-                                        />
-                                    </div>
+                                    <CriteriaScoringPanel
+                                        taskNumber={activeTask}
+                                        scores={activeTaskState.scores}
+                                        onChange={(scores) => handleTaskScoresChange(activeTask, scores)}
+                                        isVoided={activeTaskState.isVoided}
+                                    />
 
-                                    <div className="wgp-panel-card">
-                                        <div className="wgp-card-title">Task {activeTask} Feedback</div>
-                                        <TabbedFeedbackEditor
-                                            key={`feedback-${submission.id}-${activeTask}-${editorHydrationNonce}`}
-                                            taskNumber={activeTask}
-                                            feedback={activeTaskState.feedback}
-                                            onChange={(feedback) => handleTaskFeedbackChange(activeTask, feedback)}
-                                            onTabChange={(tab) => trackAction('switchTab', { submissionId, tab: `feedback-${tab}` })}
-                                        />
-                                    </div>
-
-                                    <div className="wgp-panel-card">
-                                        <VoidTaskButton
-                                            taskNumber={activeTask}
-                                            isVoided={activeTaskState.isVoided}
-                                            voidReason={activeTaskState.voidReason}
-                                            onVoid={(reason) => handleVoidTask(activeTask, reason)}
-                                            onUnvoid={() => handleUnvoidTask(activeTask)}
-                                        />
-                                    </div>
+                                    <TabbedFeedbackEditor
+                                        key={`feedback-${submission.id}-${activeTask}-${editorHydrationNonce}`}
+                                        taskNumber={activeTask}
+                                        feedback={activeTaskState.feedback}
+                                        onChange={(feedback) => handleTaskFeedbackChange(activeTask, feedback)}
+                                        onTabChange={(tab) => trackAction('switchTab', { submissionId, tab: `feedback-${tab}` })}
+                                    />
                                 </>
                             ) : (
                                 <>
-                                    <div className="wgp-panel-card">
+                                    <div className="wgp-panel-card--flat">
                                         <div className="wgp-card-title">Published Scores</div>
                                         <div className="wgp-score-grid">
-                                            <div><span>{activeTask === 1 ? 'TA' : 'TR'}</span><strong>{publishedTask?.criteriaScores?.[activeTask === 1 ? 'TA' : 'TR'] ?? '-'}</strong></div>
-                                            <div><span>CC</span><strong>{publishedTask?.criteriaScores?.CC ?? '-'}</strong></div>
-                                            <div><span>LR</span><strong>{publishedTask?.criteriaScores?.LR ?? '-'}</strong></div>
-                                            <div><span>GRA</span><strong>{publishedTask?.criteriaScores?.GRA ?? '-'}</strong></div>
+                                            <div><span>{activeTask === 1 ? 'Task Achievement' : 'Task Response'}</span><strong>{publishedTask?.criteriaScores?.[activeTask === 1 ? 'TA' : 'TR'] ?? '-'}</strong></div>
+                                            <div><span>Coherence & Cohesion</span><strong>{publishedTask?.criteriaScores?.CC ?? '-'}</strong></div>
+                                            <div><span>Lexical Resource</span><strong>{publishedTask?.criteriaScores?.LR ?? '-'}</strong></div>
+                                            <div><span>Grammatical Range</span><strong>{publishedTask?.criteriaScores?.GRA ?? '-'}</strong></div>
                                             <div><span>Task Band</span><strong>{publishedTask?.isVoided ? 'Voided' : publishedTask?.taskBand ?? '-'}</strong></div>
                                             <div><span>Overall Band</span><strong>{publishedGrading?.overallBand ?? '-'}</strong></div>
                                         </div>
+                                        {/* ── Task Feedback (tabbed, same design as edit mode) ── */}
+                                        {(() => {
+                                            const feedbackTabs = [
+                                                { id: 'taskSummary', label: 'Task Summary' },
+                                                { id: activeTask === 1 ? 'TA' : 'TR', label: activeTask === 1 ? 'TA' : 'TR' },
+                                                { id: 'CC', label: 'CC' },
+                                                { id: 'LR', label: 'LR' },
+                                                { id: 'GRA', label: 'GRA' },
+                                            ];
+                                            const feedbackData: Record<string, string> = {
+                                                taskSummary: publishedTask?.taskSummary || activeTaskState.feedback.taskSummary || '',
+                                                [activeTask === 1 ? 'TA' : 'TR']: activeTask === 1
+                                                    ? (publishedTask?.perCriteriaFeedback?.TA || '')
+                                                    : (publishedTask?.perCriteriaFeedback?.TR || ''),
+                                                CC: publishedTask?.perCriteriaFeedback?.CC || '',
+                                                LR: publishedTask?.perCriteriaFeedback?.LR || '',
+                                                GRA: publishedTask?.perCriteriaFeedback?.GRA || '',
+                                            };
+                                            return (
+                                                <div className="tabbed-feedback-editor" id="review-feedback-viewer">
+                                                    <div className="feedback-tabs" id="review-feedback-tabs">
+                                                        {feedbackTabs.map(tab => (
+                                                            <button
+                                                                key={tab.id}
+                                                                className={`feedback-tab ${reviewFeedbackTab === tab.id ? 'active' : ''}`}
+                                                                onClick={() => setReviewFeedbackTab(tab.id)}
+                                                                id={`review-feedback-tab-${tab.id}`}
+                                                            >
+                                                                {tab.label}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                    <div className="feedback-editor-content">
+                                                        <RichContent className="wgp-rich-copy" content={feedbackData[reviewFeedbackTab] || ''} />
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
-
-                                    <div className="wgp-panel-card">
-                                        <div className="wgp-card-title">Task Summary</div>
-                                        <RichContent className="wgp-rich-copy" content={publishedTask?.taskSummary || activeTaskState.feedback.taskSummary} />
-                                        <div className="wgp-feedback-columns">
-                                            <div>
-                                                <span>{activeTask === 1 ? 'Task Achievement' : 'Task Response'}</span>
-                                                <RichContent className="wgp-rich-copy" content={activeTask === 1 ? (publishedTask?.perCriteriaFeedback.TA || '') : (publishedTask?.perCriteriaFeedback.TR || '')} />
-                                            </div>
-                                            <div>
-                                                <span>Coherence & Cohesion</span>
-                                                <RichContent className="wgp-rich-copy" content={publishedTask?.perCriteriaFeedback.CC || ''} />
-                                            </div>
-                                            <div>
-                                                <span>Lexical Resource</span>
-                                                <RichContent className="wgp-rich-copy" content={publishedTask?.perCriteriaFeedback.LR || ''} />
-                                            </div>
-                                            <div>
-                                                <span>Grammatical Range & Accuracy</span>
-                                                <RichContent className="wgp-rich-copy" content={publishedTask?.perCriteriaFeedback.GRA || ''} />
-                                            </div>
-                                        </div>
-                                    </div>
-
                                 </>
                             )}
 
@@ -2426,6 +2526,59 @@ export default function WritingGradingPage() {
                             )}
                         </div>
                     )}
+
+                    {/* Readiness Checklist — matches mockup */}
+                    {mode === 'editing' && (
+                        <div className="wgp-readiness-checklist">
+                            <div className="wgp-readiness-title">
+                                <span className="material-symbols-outlined" style={{ fontSize: '0.875rem' }}>fact_check</span>
+                                Readiness
+                            </div>
+                            <div className="wgp-readiness-items">
+                                <div className="wgp-readiness-item">
+                                    <span>Scores Set</span>
+                                    <span className={`wgp-readiness-indicator ${(activeTaskState.scores.ta != null && activeTaskState.scores.cc != null && activeTaskState.scores.lr != null && activeTaskState.scores.gra != null) ? 'ready' : 'not-ready'}`}>
+                                        {(activeTaskState.scores.ta != null && activeTaskState.scores.cc != null && activeTaskState.scores.lr != null && activeTaskState.scores.gra != null) ? 'check_circle' : 'cancel'}
+                                    </span>
+                                </div>
+                                <div className="wgp-readiness-item">
+                                    <span>Summary Required</span>
+                                    <span className={`wgp-readiness-indicator ${activeTaskState.feedback?.taskSummary ? 'ready' : 'not-ready'}`}>
+                                        {activeTaskState.feedback?.taskSummary ? 'check_circle' : 'cancel'}
+                                    </span>
+                                </div>
+                                <div className="wgp-readiness-item">
+                                    <span>Draft Comments</span>
+                                    <span className={`wgp-readiness-indicator ${(activeTaskState.comments?.filter(c => c.status === 'active').length > 0) ? 'ready' : 'not-ready'}`}>
+                                        {(activeTaskState.comments?.filter(c => c.status === 'active').length > 0) ? 'check_circle' : 'cancel'}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Bottom Utility Links — matches mockup */}
+                    <div className="wgp-utility-links">
+                        <button className="wgp-utility-link" onClick={() => { handlePanelTabChange('suggestions'); openSuggestionReview('summary'); }}>
+                            Review AI Suggestions
+                        </button>
+                        {Boolean(submission.auditTrail?.length) && (
+                            <button className="wgp-utility-link" onClick={() => handlePanelTabChange('scoring')}>
+                                Audit Trail
+                            </button>
+                        )}
+                        {mode === 'editing' && (
+                            <div className="wgp-utility-void-wrapper">
+                                <VoidTaskButton
+                                    taskNumber={activeTask}
+                                    isVoided={activeTaskState.isVoided}
+                                    voidReason={activeTaskState.voidReason}
+                                    onVoid={(reason) => handleVoidTask(activeTask, reason)}
+                                    onUnvoid={() => handleUnvoidTask(activeTask)}
+                                />
+                            </div>
+                        )}
+                    </div>
                 </aside>
             </main>
 

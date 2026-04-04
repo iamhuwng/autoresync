@@ -9,10 +9,10 @@ const baseProps: ComponentProps<typeof EssayEditor> = {
     wordCount: 2,
     activeTimeSeconds: 120,
     taskNumber: 1,
+    viewMode: 'marked',
     onAddComment: vi.fn(),
     onGutterDotClick: vi.fn(),
     onCommentMarkClick: vi.fn(),
-    onViewModeChange: vi.fn(),
 };
 
 function renderEditor(overrides: Partial<ComponentProps<typeof EssayEditor>> = {}) {
@@ -216,12 +216,37 @@ describe('EssayEditor', () => {
 
         await waitFor(() => {
             expect(onCorrectionMarkClick).toHaveBeenCalledWith(expect.objectContaining({
+                id: expect.stringMatching(/^correction-/),
                 from: 1,
                 to: 6,
                 selectedText: 'Hello',
                 correctionText: 'Hi',
             }));
         });
+    });
+
+    it('emits correction items for the comments tab when correction marks exist', async () => {
+        const onCorrectionItemsChange = vi.fn();
+
+        const { container } = renderEditor({
+            onCorrectionItemsChange,
+            pendingCorrection: buildPendingCorrection(),
+        });
+
+        await waitFor(() => {
+            expect(onCorrectionItemsChange).toHaveBeenLastCalledWith([
+                expect.objectContaining({
+                    id: expect.stringMatching(/^correction-/),
+                    taskNumber: 1,
+                    anchorText: 'Hello',
+                    correctionText: 'Hi',
+                    from: 1,
+                    to: 6,
+                }),
+            ]);
+        });
+
+        expect(container.querySelector('.correction-mark')).toHaveAttribute('data-correction-id');
     });
 
     it('removes the correction mark without deleting the student text', async () => {
@@ -260,15 +285,25 @@ describe('EssayEditor', () => {
             expect(container.querySelector('.correction-mark')).toBeTruthy();
         });
 
-        fireEvent.click(container.querySelector('#view-toggle-original') as Element);
+        rerender(
+            <EssayEditor
+                {...baseProps}
+                viewMode="original"
+                pendingCorrection={buildPendingCorrection()}
+            />,
+        );
 
-        expect(container.querySelector('#view-toggle-original')?.className).toContain('active');
+        await waitFor(() => {
+            expect(container.querySelector('#essay-original-view')).toBeTruthy();
+            expect(container.querySelector('.essay-original-text')?.textContent).toBe('Hello world');
+        });
 
         rerender(
             <EssayEditor
                 {...baseProps}
                 taskNumber={2}
                 originalEssayText="Second task response"
+                viewMode="marked"
                 pendingCorrection={null}
             />,
         );
@@ -276,7 +311,6 @@ describe('EssayEditor', () => {
         await waitFor(() => {
             expect(container.querySelector('.correction-mark')).toBeNull();
             expect(container.querySelector('.ProseMirror p')?.textContent).toBe('Second task response');
-            expect(container.querySelector('#view-toggle-marked')?.className).toContain('active');
         });
     });
 
@@ -323,9 +357,96 @@ describe('EssayEditor', () => {
         });
 
         expect(container.querySelector('.correction-mark')).toBeNull();
-        expect(container.querySelector('#toolbar-comment')).toBeDisabled();
-        expect(container.querySelector('#toolbar-correction')).toBeDisabled();
-        expect(container.querySelector('#toolbar-highlight')).toBeDisabled();
+        expect(container.querySelector('.essay-bubble-menu')).toBeNull();
+    });
+
+    it('renders the sticky editor tool strip in editable marked mode', async () => {
+        const { container } = renderEditor();
+
+        await waitFor(() => {
+            expect(container.querySelector('#essay-editor-toolbar')).toBeTruthy();
+        });
+
+        expect(container.querySelector('[title="Undo"]')).toBeTruthy();
+        expect(container.querySelector('[title="Redo"]')).toBeTruthy();
+        expect(container.querySelector('[title="Add comment"]')).toBeTruthy();
+        expect(container.querySelector('[title="Add correction"]')).toBeTruthy();
+        expect(container.querySelector('[title="Add comment"]')).toBeDisabled();
+        expect(container.querySelector('[title="Add correction"]')).toBeDisabled();
+    });
+
+    it('hides the sticky editor tool strip when the editor is not interactive', async () => {
+        const { container, rerender } = renderEditor({
+            readOnly: true,
+        });
+
+        await waitFor(() => {
+            expect(container.querySelector('#essay-editor-toolbar')).toBeNull();
+        });
+
+        rerender(
+            <EssayEditor
+                {...baseProps}
+                viewMode="original"
+            />,
+        );
+
+        await waitFor(() => {
+            expect(container.querySelector('#essay-editor-toolbar')).toBeNull();
+        });
+    });
+
+    it('renders gutter dots with a dedicated gutter identifier instead of comment mark selector attributes', async () => {
+        const onGutterDotClick = vi.fn();
+        const { container } = renderEditor({
+            commentPositions: [{ commentId: 'comment-1', color: '#facc15', top: 48 }],
+            onGutterDotClick,
+        });
+
+        await waitFor(() => {
+            expect(container.querySelector('#gutter-dot-comment-1')).toBeTruthy();
+        });
+
+        const gutterDot = container.querySelector('#gutter-dot-comment-1');
+        expect(gutterDot).toHaveAttribute('data-gutter-comment-id', 'comment-1');
+        expect(gutterDot).not.toHaveAttribute('data-comment-id');
+
+        fireEvent.click(gutterDot as Element);
+        expect(onGutterDotClick).toHaveBeenCalledWith('comment-1');
+    });
+
+    it('does not force the parent view mode back to marked on mount or task change', async () => {
+        const { rerender } = render(
+            <EssayEditor
+                {...baseProps}
+                viewMode="original"
+                onAddComment={vi.fn()}
+                onGutterDotClick={vi.fn()}
+                onCommentMarkClick={vi.fn()}
+                onSelectionStateChange={vi.fn()}
+            />,
+        );
+
+        await waitFor(() => {
+            expect(document.querySelector('#essay-original-view')).toBeTruthy();
+        });
+
+        rerender(
+            <EssayEditor
+                {...baseProps}
+                taskNumber={2}
+                originalEssayText="Second task response"
+                viewMode="original"
+                onAddComment={vi.fn()}
+                onGutterDotClick={vi.fn()}
+                onCommentMarkClick={vi.fn()}
+                onSelectionStateChange={vi.fn()}
+            />,
+        );
+
+        await waitFor(() => {
+            expect(document.querySelector('#essay-original-view')).toBeTruthy();
+        });
     });
 
     it('strips highlight, strike, and text color from a range before applying a correction', async () => {
@@ -371,6 +492,21 @@ describe('EssayEditor', () => {
         expect(container.querySelector('[data-comment-id="comment-1"] mark, mark [data-comment-id="comment-1"]')).toBeTruthy();
     });
 
+    it('renders comment marks with the shared yellow highlight color', async () => {
+        const { container } = renderEditor({
+            initialContent: buildInitialContent('Hello', [
+                { type: 'commentMark', attrs: { commentId: 'comment-1', color: '#22c55e' } },
+            ]),
+        });
+
+        await waitFor(() => {
+            expect(container.querySelector('[data-comment-id="comment-1"]')).toBeTruthy();
+        });
+
+        expect(container.querySelector('[data-comment-id="comment-1"]')).toHaveAttribute('data-comment-color', '#facc15');
+        expect(container.querySelector('[data-comment-id="comment-1"]')?.getAttribute('style')).toContain('rgba(250, 204, 21, 0.15)');
+    });
+
     it('prefers correction editing over comment clicks when old overlapping marks already exist', async () => {
         const onCommentMarkClick = vi.fn();
         const onCorrectionMarkClick = vi.fn();
@@ -411,5 +547,21 @@ describe('EssayEditor', () => {
         });
 
         expect(onCommentMarkClick).not.toHaveBeenCalled();
+    });
+
+    it('backfills a correction id for legacy review-mode corrections so focus styling still works', async () => {
+        const { container } = renderEditor({
+            readOnly: true,
+            focusedCommentId: 'correction-1-6',
+            initialContent: buildInitialContent('Hello', [
+                { type: 'correctionMark', attrs: { correctionText: 'Hi' } },
+            ]),
+        });
+
+        await waitFor(() => {
+            expect(container.querySelector('.correction-mark')).toHaveAttribute('data-correction-id', 'correction-1-6');
+        });
+
+        expect(container.querySelector('.correction-mark')).toHaveClass('correction-focused');
     });
 });
