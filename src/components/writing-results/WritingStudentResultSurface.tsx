@@ -2,7 +2,11 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 're
 import { RichContent } from '../../core/components/RichContent';
 import AnnotatedEssayReadOnly from './AnnotatedEssayReadOnly';
 import WritingPublishedMarkupViewer from './WritingPublishedMarkupViewer';
-import type { WritingResultSurfaceData, WritingResultTaskData } from './writingResultSurface';
+import type {
+    PublishedFeedbackItem,
+    WritingResultSurfaceData,
+    WritingResultTaskData,
+} from './writingResultSurface';
 import { formatElapsedTime, getVisibleCriteriaEntries } from './writingResultSurface';
 
 interface WritingStudentResultSurfaceProps {
@@ -39,8 +43,8 @@ export default function WritingStudentResultSurface({
     const [criteriaExpanded, setCriteriaExpanded] = useState(false);
     const [activeTaskNumber, setActiveTaskNumber] = useState<1 | 2>(data.tasks[0]?.taskNumber ?? 1);
     const [panelTab, setPanelTab] = useState<StudentPanelTab>('prompt');
-    const [selectedCommentId, setSelectedCommentId] = useState<string | null>(null);
-    const [selectedCommentAnchorViewportTop, setSelectedCommentAnchorViewportTop] = useState<number | null>(null);
+    const [selectedFeedbackId, setSelectedFeedbackId] = useState<string | null>(null);
+    const [selectedFeedbackAnchorViewportTop, setSelectedFeedbackAnchorViewportTop] = useState<number | null>(null);
     const isPanel = variant === 'panel';
     const useSplitLayout = variant === 'page' || forceWidePanelLayout;
     const bandColumnCount = data.bandSummaryItems.length >= 3 ? 3 : Math.max(1, data.bandSummaryItems.length);
@@ -52,7 +56,12 @@ export default function WritingStudentResultSurface({
         () => (activeTask ? getVisibleCriteriaEntries(activeTask) : []),
         [activeTask],
     );
-    const activeComments = activeTask?.comments ?? [];
+    const activeFeedbackItems = useMemo(
+        () => activeTask
+            ? [...activeTask.comments, ...activeTask.corrections].sort((left, right) => left.from - right.from)
+            : [],
+        [activeTask],
+    );
     const scoringLocked = data.phase !== 'published';
     const commentsLocked = data.phase !== 'published';
 
@@ -73,15 +82,15 @@ export default function WritingStudentResultSurface({
     }, [commentsLocked, panelTab, scoringLocked]);
 
     useEffect(() => {
-        if (!selectedCommentId) {
+        if (!selectedFeedbackId) {
             return;
         }
 
-        if (!activeComments.some((comment) => comment.id === selectedCommentId)) {
-            setSelectedCommentId(null);
-            setSelectedCommentAnchorViewportTop(null);
+        if (!activeFeedbackItems.some((item) => item.id === selectedFeedbackId)) {
+            setSelectedFeedbackId(null);
+            setSelectedFeedbackAnchorViewportTop(null);
         }
-    }, [activeComments, selectedCommentId]);
+    }, [activeFeedbackItems, selectedFeedbackId]);
 
     const handleCriteriaToggle = () => {
         const nextExpanded = !criteriaExpanded;
@@ -89,14 +98,14 @@ export default function WritingStudentResultSurface({
         onCriteriaToggle?.(nextExpanded);
     };
 
-    const handleEssayCommentSelect = (commentId: string, anchorViewportTop: number | null) => {
+    const handleEssayFeedbackSelect = (feedbackId: string, anchorViewportTop: number | null) => {
         if (commentsLocked) {
             return;
         }
 
         setPanelTab('comments');
-        setSelectedCommentId(commentId);
-        setSelectedCommentAnchorViewportTop(anchorViewportTop);
+        setSelectedFeedbackId(feedbackId);
+        setSelectedFeedbackAnchorViewportTop(anchorViewportTop);
     };
 
     if (!activeTask) {
@@ -220,14 +229,15 @@ export default function WritingStudentResultSurface({
 
                         <div style={{ marginTop: '1rem' }}>
                             {data.phase === 'published' ? (
-                                activeTask.markedContent || activeTask.comments.length > 0 ? (
+                                activeTask.markedContent || activeFeedbackItems.length > 0 ? (
                                     <WritingPublishedMarkupViewer
                                         originalEssayText={activeTask.essayText}
                                         markedContent={activeTask.markedContent}
                                         comments={activeTask.comments}
+                                        corrections={activeTask.corrections}
                                         compact={isPanel}
                                         onViewModeChange={(mode) => onMarkupViewChange?.(activeTask.taskNumber, mode)}
-                                        onCommentSelect={handleEssayCommentSelect}
+                                        onFeedbackSelect={handleEssayFeedbackSelect}
                                     />
                                 ) : activeTask.fallbackAnnotations.length > 0 ? (
                                     <AnnotatedEssayReadOnly essayText={activeTask.essayText} annotations={activeTask.fallbackAnnotations} />
@@ -276,10 +286,10 @@ export default function WritingStudentResultSurface({
 
                             {panelTab === 'comments' && (
                                 <CommentsTab
-                                    comments={activeComments}
+                                    feedbackItems={activeFeedbackItems}
                                     taskNumber={activeTask.taskNumber}
-                                    selectedCommentId={selectedCommentId}
-                                    selectedCommentAnchorViewportTop={selectedCommentAnchorViewportTop}
+                                    selectedFeedbackId={selectedFeedbackId}
+                                    selectedFeedbackAnchorViewportTop={selectedFeedbackAnchorViewportTop}
                                     alignToEssay={useSplitLayout}
                                 />
                             )}
@@ -345,8 +355,8 @@ function PromptTab({
                     </div>
                     <div style={{ display: 'grid', gap: '0.7rem', color: '#4b5563', fontSize: '0.88rem', lineHeight: 1.6 }}>
                         <div>Your teacher will grade this submission in the Writing grading tool.</div>
-                        <div>Comments and scores stay hidden until that feedback is published.</div>
-                        <div>Once published, this panel will show the same prompt, comments, and scoring structure in read-only form.</div>
+                        <div>Comments, corrections, and scores stay hidden until that feedback is published.</div>
+                        <div>Once published, this panel will show the same prompt, feedback, and scoring structure in read-only form.</div>
                     </div>
                 </div>
             )}
@@ -355,16 +365,16 @@ function PromptTab({
 }
 
 function CommentsTab({
-    comments,
+    feedbackItems,
     taskNumber,
-    selectedCommentId,
-    selectedCommentAnchorViewportTop,
+    selectedFeedbackId,
+    selectedFeedbackAnchorViewportTop,
     alignToEssay,
 }: {
-    comments: WritingResultTaskData['comments'];
+    feedbackItems: PublishedFeedbackItem[];
     taskNumber: 1 | 2;
-    selectedCommentId: string | null;
-    selectedCommentAnchorViewportTop: number | null;
+    selectedFeedbackId: string | null;
+    selectedFeedbackAnchorViewportTop: number | null;
     alignToEssay: boolean;
 }) {
     const commentRefs = useRef<Record<string, HTMLElement | null>>({});
@@ -374,29 +384,29 @@ function CommentsTab({
     const [commentsStackTranslateY, setCommentsStackTranslateY] = useState(0);
 
     useLayoutEffect(() => {
-        if (!selectedCommentId) {
+        if (!selectedFeedbackId) {
             setCommentsStackTranslateY(0);
             return;
         }
 
         const viewportElement = viewportRef.current;
         const stackElement = stackRef.current;
-        const selectedCommentElement = commentRefs.current[selectedCommentId];
-        const selectedCommentHeaderElement = commentHeaderRefs.current[selectedCommentId] ?? null;
+        const selectedCommentElement = commentRefs.current[selectedFeedbackId];
+        const selectedCommentHeaderElement = commentHeaderRefs.current[selectedFeedbackId] ?? null;
 
         if (!selectedCommentElement || !stackElement || !selectedCommentHeaderElement) {
             setCommentsStackTranslateY(0);
             return;
         }
 
-        if (alignToEssay && viewportElement && selectedCommentAnchorViewportTop !== null) {
+        if (alignToEssay && viewportElement && selectedFeedbackAnchorViewportTop !== null) {
             const measuredViewportRect = viewportElement.getBoundingClientRect();
             const measuredStackRect = stackElement.getBoundingClientRect();
             const measuredHeaderRect = selectedCommentHeaderElement.getBoundingClientRect();
             const headerHeight = measuredHeaderRect.height || selectedCommentHeaderElement.offsetHeight || 0;
             const railPadding = 12;
             const desiredHeaderTop = Math.min(
-                Math.max(selectedCommentAnchorViewportTop, measuredViewportRect.top + railPadding),
+                Math.max(selectedFeedbackAnchorViewportTop, measuredViewportRect.top + railPadding),
                 measuredViewportRect.bottom - railPadding - headerHeight,
             );
             const headerOffsetWithinStack = measuredHeaderRect.top - measuredStackRect.top;
@@ -414,18 +424,18 @@ function CommentsTab({
             behavior: 'smooth',
             block: 'nearest',
         });
-    }, [alignToEssay, selectedCommentAnchorViewportTop, selectedCommentId]);
+    }, [alignToEssay, selectedFeedbackAnchorViewportTop, selectedFeedbackId]);
 
     return (
         <div style={{ display: 'grid', gap: '1rem' }}>
             <div>
                 <div style={eyebrowStyle()}>Task {taskNumber}</div>
                 <h3 style={{ margin: '0.2rem 0 0', fontSize: '1.04rem', fontWeight: 800, color: '#111827' }}>
-                    Published Comments
+                    Published Feedback
                 </h3>
             </div>
 
-            {comments.length > 0 ? (
+            {feedbackItems.length > 0 ? (
                 <div
                     ref={viewportRef}
                     data-comments-viewport="true"
@@ -437,7 +447,7 @@ function CommentsTab({
                 >
                     <div
                         ref={stackRef}
-                        data-comments-shifted={alignToEssay && selectedCommentId && selectedCommentAnchorViewportTop !== null ? 'true' : 'false'}
+                        data-comments-shifted={alignToEssay && selectedFeedbackId && selectedFeedbackAnchorViewportTop !== null ? 'true' : 'false'}
                         data-comments-stack="true"
                         style={{
                             display: 'grid',
@@ -446,15 +456,15 @@ function CommentsTab({
                             transition: 'transform 0.22s ease',
                         }}
                     >
-                        {comments.map((comment) => {
-                            const selected = selectedCommentId === comment.id;
+                        {feedbackItems.map((item) => {
+                            const selected = selectedFeedbackId === item.id;
                             return (
                                 <article
-                                    key={comment.id}
+                                    key={item.id}
                                     ref={(node) => {
-                                        commentRefs.current[comment.id] = node;
+                                        commentRefs.current[item.id] = node;
                                     }}
-                                    data-comment-card-id={comment.id}
+                                    data-comment-card-id={item.id}
                                     data-highlighted={selected ? 'true' : 'false'}
                                     style={{
                                         ...mutedPanelStyle(),
@@ -466,26 +476,37 @@ function CommentsTab({
                                 >
                                     <div
                                         ref={(node) => {
-                                            commentHeaderRefs.current[comment.id] = node;
+                                            commentHeaderRefs.current[item.id] = node;
                                         }}
-                                        data-comment-header-id={comment.id}
+                                        data-comment-header-id={item.id}
                                         style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'baseline', marginBottom: '0.35rem', flexWrap: 'wrap' }}
                                     >
                                         <span style={{ fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#4f46e5' }}>
-                                            {comment.categoryLabel}
+                                            {item.kind === 'comment' ? item.categoryLabel : item.label}
                                         </span>
-                                        {comment.anchorText ? (
-                                            <span style={{ fontSize: '0.76rem', color: '#6b7280' }}>{comment.anchorText}</span>
+                                        {item.anchorText ? (
+                                            <span style={{ fontSize: '0.76rem', color: '#6b7280' }}>{item.anchorText}</span>
                                         ) : null}
                                     </div>
-                                    <RichContent content={comment.text} style={{ color: '#374151', lineHeight: 1.55, fontSize: '0.86rem' }} />
+                                    {item.kind === 'comment' ? (
+                                        <RichContent content={item.text} style={{ color: '#374151', lineHeight: 1.55, fontSize: '0.86rem' }} />
+                                    ) : (
+                                        <div style={{ display: 'grid', gap: '0.35rem', color: '#374151', fontSize: '0.86rem', lineHeight: 1.55 }}>
+                                            <div>
+                                                <span style={{ fontSize: '0.74rem', fontWeight: 700, letterSpacing: '0.03em', textTransform: 'uppercase', color: '#6b7280', marginRight: '0.45rem' }}>
+                                                    Replace with
+                                                </span>
+                                                <span>{item.correctionText || 'No replacement text'}</span>
+                                            </div>
+                                        </div>
+                                    )}
                                 </article>
                             );
                         })}
                     </div>
                 </div>
             ) : (
-                <EmptyPanelMessage message="No published comments for this task." />
+                <EmptyPanelMessage message="No published comments or corrections for this task." />
             )}
         </div>
     );

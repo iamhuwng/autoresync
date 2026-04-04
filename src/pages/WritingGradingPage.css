@@ -121,6 +121,13 @@
     transition: all 0.2s ease;
 }
 
+.wgp-back-link-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
 .wgp-back-link:hover {
     opacity: 0.8;
     color: var(--wgp-primary);
@@ -703,14 +710,10 @@
 }
 
 .wgp-readiness-indicator {
-    font-family: 'Material Symbols Outlined';
-    font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 16;
-    font-size: 1rem;
-    font-weight: 400;
     line-height: 1;
-    width: auto;
-    height: auto;
-    display: flex;
+    width: 1rem;
+    height: 1rem;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     border-radius: 0;

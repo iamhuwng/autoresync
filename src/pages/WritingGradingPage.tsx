@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useNavigation } from '../hooks/useNavigation';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
 import { FEATURE_IDS } from '../config/featureRegistry';
+import { IconArrowLeft, IconChecklist, IconCircleCheckFilled, IconCircleXFilled } from '@tabler/icons-react';
 import { storage } from '../core/platform';
 import { RichContent } from '../core/components/RichContent';
 import { TeacherHeader } from '../components/navigation';
@@ -142,6 +143,12 @@ type PendingLeaveIntent =
 
 function createSessionId() {
     return `grading-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function renderReadinessIcon(isReady: boolean) {
+    return isReady
+        ? <IconCircleCheckFilled size={16} stroke={1.8} aria-hidden="true" />
+        : <IconCircleXFilled size={16} stroke={1.8} aria-hidden="true" />;
 }
 
 function getDraftStorageKey(submissionId: string) {
@@ -2180,7 +2187,7 @@ export default function WritingGradingPage() {
             <header className="wgp-header">
                 <div className="wgp-header-left">
                     <button className="wgp-back-link" onClick={() => void handleBackToQueue()}>
-                        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>arrow_back</span>
+                        <span className="wgp-back-link-icon" aria-hidden="true"><IconArrowLeft size={16} stroke={2} /></span>
                         <span>Back to Queue</span>
                     </button>
                     <div style={{ height: '2rem', width: '1px', background: '#a9b4b9', opacity: 0.3 }}></div>
@@ -2531,26 +2538,26 @@ export default function WritingGradingPage() {
                     {mode === 'editing' && (
                         <div className="wgp-readiness-checklist">
                             <div className="wgp-readiness-title">
-                                <span className="material-symbols-outlined" style={{ fontSize: '0.875rem' }}>fact_check</span>
+                                <IconChecklist size={14} stroke={1.8} aria-hidden="true" />
                                 Readiness
                             </div>
                             <div className="wgp-readiness-items">
                                 <div className="wgp-readiness-item">
                                     <span>Scores Set</span>
                                     <span className={`wgp-readiness-indicator ${(activeTaskState.scores.ta != null && activeTaskState.scores.cc != null && activeTaskState.scores.lr != null && activeTaskState.scores.gra != null) ? 'ready' : 'not-ready'}`}>
-                                        {(activeTaskState.scores.ta != null && activeTaskState.scores.cc != null && activeTaskState.scores.lr != null && activeTaskState.scores.gra != null) ? 'check_circle' : 'cancel'}
+                                        {renderReadinessIcon(activeTaskState.scores.ta != null && activeTaskState.scores.cc != null && activeTaskState.scores.lr != null && activeTaskState.scores.gra != null)}
                                     </span>
                                 </div>
                                 <div className="wgp-readiness-item">
                                     <span>Summary Required</span>
                                     <span className={`wgp-readiness-indicator ${activeTaskState.feedback?.taskSummary ? 'ready' : 'not-ready'}`}>
-                                        {activeTaskState.feedback?.taskSummary ? 'check_circle' : 'cancel'}
+                                        {renderReadinessIcon(Boolean(activeTaskState.feedback?.taskSummary))}
                                     </span>
                                 </div>
                                 <div className="wgp-readiness-item">
                                     <span>Draft Comments</span>
                                     <span className={`wgp-readiness-indicator ${(activeTaskState.comments?.filter(c => c.status === 'active').length > 0) ? 'ready' : 'not-ready'}`}>
-                                        {(activeTaskState.comments?.filter(c => c.status === 'active').length > 0) ? 'check_circle' : 'cancel'}
+                                        {renderReadinessIcon((activeTaskState.comments?.filter(c => c.status === 'active').length > 0))}
                                     </span>
                                 </div>
                             </div>

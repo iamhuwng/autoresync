@@ -35,11 +35,13 @@ export interface WritingResultTaskData {
     criteriaFeedback: WritingCriteriaFeedbackMap;
     markedContent: Record<string, any> | null;
     comments: PublishedCommentData[];
+    corrections: PublishedCorrectionData[];
     fallbackAnnotations: WritingAnnotation[];
     usesLegacyProjection: boolean;
 }
 
 export interface PublishedCommentData {
+    kind: 'comment';
     id: string;
     text: string;
     color: string;
@@ -49,6 +51,18 @@ export interface PublishedCommentData {
     status: 'active' | 'resolved' | 'deleted';
     categoryLabel: string;
 }
+
+export interface PublishedCorrectionData {
+    kind: 'correction';
+    id: string;
+    anchorText: string;
+    correctionText: string;
+    from: number;
+    to: number;
+    label: string;
+}
+
+export type PublishedFeedbackItem = PublishedCommentData | PublishedCorrectionData;
 
 export interface WritingBandSummaryItem {
     key: string;
@@ -126,7 +140,7 @@ export function buildWritingResultSurfaceData(
         : null;
     const bandSummaryItems = buildBandSummaryItems(overallBand, activeTasks);
     const hasPublishedMarkup = hasVisiblePublishedData
-        && tasks.some((task) => Boolean(task.markedContent) || task.fallbackAnnotations.length > 0 || task.comments.length > 0);
+        && tasks.some((task) => Boolean(task.markedContent) || task.fallbackAnnotations.length > 0 || task.comments.length > 0 || task.corrections.length > 0);
     const hasAnyFeedback = hasVisiblePublishedData
         && (Boolean(stripHtml(overallSummary)) || tasks.some((task) => hasTaskFeedback(task)));
 
@@ -265,6 +279,7 @@ function buildTaskData(
 ): WritingResultTaskData {
     const publishedTask = published?.perTask?.[task.taskNumber] ?? null;
     const legacyTask = legacy?.perTask?.find((entry) => entry.taskNumber === task.taskNumber) ?? null;
+    const markedContent = publishedTask?.markedContent ?? null;
     const fallbackAnnotations = publishedTask
         ? []
         : (submission.annotations || []).filter((annotation) => annotation.taskNumber === task.taskNumber);
@@ -286,11 +301,16 @@ function buildTaskData(
         criteriaFeedback: publishedTask
             ? publishedTask.perCriteriaFeedback
             : buildLegacyCriteriaFeedback(task.taskNumber, legacy),
-        markedContent: publishedTask?.markedContent ?? null,
+        markedContent,
         comments: (publishedTask?.comments ?? [])
             .filter((comment) => comment.status === 'active')
             .slice()
+            .map((comment) => ({
+                kind: 'comment' as const,
+                ...comment,
+            }))
             .sort((left, right) => left.from - right.from),
+        corrections: extractPublishedCorrections(markedContent),
         fallbackAnnotations,
         usesLegacyProjection: Boolean(!publishedTask && legacyTask),
     };
@@ -339,6 +359,84 @@ function buildBandSummaryItems(
     });
 
     return items;
+}
+
+function extractPublishedCorrections(
+    markedContent: Record<string, any> | null,
+): PublishedCorrectionData[] {
+    if (!markedContent || typeof markedContent !== 'object') {
+        return [];
+    }
+
+    const correctionsById = new Map<string, PublishedCorrectionData>();
+    let textOffset = 0;
+
+    const visitNode = (node: any) => {
+        if (!node || typeof node !== 'object') {
+            return;
+        }
+
+        if (node.type === 'hardBreak') {
+            textOffset += 1;
+            return;
+        }
+
+        if (typeof node.text === 'string') {
+            const nodeText = node.text;
+            const correctionMark = Array.isArray(node.marks)
+                ? node.marks.find((mark: any) => mark?.type === 'correctionMark' && typeof mark?.attrs?.correctionText === 'string')
+                : null;
+
+            if (correctionMark && nodeText.length > 0) {
+                const correctionId = typeof correctionMark.attrs?.correctionId === 'string' && correctionMark.attrs.correctionId.trim()
+                    ? correctionMark.attrs.correctionId
+                    : `correction-${textOffset}-${textOffset + nodeText.length}`;
+                const correctionText = String(correctionMark.attrs?.correctionText || '').trim();
+                const existing = correctionsById.get(correctionId);
+
+                if (existing) {
+                    existing.anchorText += nodeText;
+                    existing.to = textOffset + nodeText.length;
+                    if (!existing.correctionText && correctionText) {
+                        existing.correctionText = correctionText;
+                    }
+                } else {
+                    correctionsById.set(correctionId, {
+                        kind: 'correction',
+                        id: correctionId,
+                        anchorText: nodeText,
+                        correctionText,
+                        from: textOffset,
+                        to: textOffset + nodeText.length,
+                        label: 'Correction',
+                    });
+                }
+            }
+
+            textOffset += nodeText.length;
+            return;
+        }
+
+        const content = Array.isArray(node.content) ? node.content : [];
+        content.forEach(visitNode);
+
+        if (content.length > 0 && insertsBlockSeparator(node.type)) {
+            textOffset += 1;
+        }
+    };
+
+    visitNode(markedContent);
+
+    return [...correctionsById.values()]
+        .filter((correction) => correction.anchorText.trim().length > 0 || correction.correctionText.length > 0)
+        .sort((left, right) => left.from - right.from);
+}
+
+function insertsBlockSeparator(nodeType: unknown) {
+    return nodeType === 'paragraph'
+        || nodeType === 'heading'
+        || nodeType === 'blockquote'
+        || nodeType === 'listItem';
 }
 
 function hasTaskFeedback(task: WritingResultTaskData) {

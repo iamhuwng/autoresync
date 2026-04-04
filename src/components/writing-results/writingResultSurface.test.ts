@@ -70,4 +70,87 @@ describe('writingResultSurface', () => {
         expect(surface.teacherName).toBe('Ms. Explicit');
         expect(surface.phase).toBe('published');
     });
+
+    it('derives published corrections from marked content for the student result surface', () => {
+        const submission = {
+            id: 'submission-1',
+            studentId: 'student-1',
+            studentName: 'Student One',
+            context: { type: 'solo-practice' },
+            testMeta: {
+                testId: 'test-1',
+                testTitle: 'IELTS Writing',
+                format: 'task1-only',
+                duration: 20,
+            },
+            tasks: [
+                {
+                    taskNumber: 1,
+                    taskType: 'bar-chart',
+                    promptText: 'Summarize the chart.',
+                    wordMinimum: 150,
+                    essayText: 'wrong phrase in essay',
+                    wordCount: 180,
+                    activeTimeSeconds: 900,
+                },
+            ],
+            submittedAt: 100,
+            totalElapsedTimeSeconds: 900,
+            pasteAttemptCount: 0,
+            markingStatus: 'graded',
+            publishedGrading: {
+                teacherId: 'teacher-1',
+                teacherName: 'Teacher One',
+                gradedAt: 200,
+                updatedAt: 210,
+                overallBand: 6.5,
+                overallSummary: '<p>Overall summary</p>',
+                auditVersion: 1,
+                perTask: {
+                    1: {
+                        taskNumber: 1,
+                        markedContent: {
+                            type: 'doc',
+                            content: [
+                                {
+                                    type: 'paragraph',
+                                    content: [
+                                        { type: 'text', text: 'wrong phrase', marks: [{ type: 'correctionMark', attrs: { correctionId: 'correction-1', correctionText: 'improved phrase' } }] },
+                                        { type: 'text', text: ' in essay' },
+                                    ],
+                                },
+                            ],
+                        },
+                        comments: [],
+                        isVoided: false,
+                        criteriaScores: { TA: 6, CC: 6, LR: 6, GRA: 6 },
+                        taskBand: 6,
+                        taskSummary: '<p>Task summary</p>',
+                        perCriteriaFeedback: { TA: '<p>TA</p>', CC: '', LR: '', GRA: '' },
+                    },
+                },
+            },
+            gradingDraftMeta: null,
+            grading: null,
+            annotations: [],
+            auditTrail: [],
+        } as any;
+
+        const surface = buildWritingResultSurfaceData(submission, {
+            viewerMode: 'student',
+        });
+
+        expect(surface.phase).toBe('published');
+        expect(surface.tasks[0].corrections).toEqual([
+            {
+                kind: 'correction',
+                id: 'correction-1',
+                anchorText: 'wrong phrase',
+                correctionText: 'improved phrase',
+                from: 0,
+                to: 12,
+                label: 'Correction',
+            },
+        ]);
+    });
 });

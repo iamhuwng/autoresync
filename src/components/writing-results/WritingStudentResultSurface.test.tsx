@@ -5,10 +5,15 @@ import type { WritingResultSurfaceData } from './writingResultSurface';
 
 vi.mock('./WritingPublishedMarkupViewer', () => ({
   __esModule: true,
-  default: ({ onCommentSelect }: { onCommentSelect?: (commentId: string, anchorViewportTop: number | null) => void }) => (
-    <button type="button" onClick={() => onCommentSelect?.('comment-2', 180)}>
-      Focus comment 2
-    </button>
+  default: ({ onFeedbackSelect }: { onFeedbackSelect?: (feedbackId: string, anchorViewportTop: number | null) => void }) => (
+    <>
+      <button type="button" onClick={() => onFeedbackSelect?.('comment-2', 180)}>
+        Focus comment 2
+      </button>
+      <button type="button" onClick={() => onFeedbackSelect?.('correction-1', 210)}>
+        Focus correction 1
+      </button>
+    </>
   ),
 }));
 
@@ -60,6 +65,7 @@ const surfaceData: WritingResultSurfaceData = {
       markedContent: { type: 'doc', content: [] },
       comments: [
         {
+          kind: 'comment',
           id: 'comment-1',
           text: '<p>First comment</p>',
           color: '#4f46e5',
@@ -70,6 +76,7 @@ const surfaceData: WritingResultSurfaceData = {
           categoryLabel: 'Task Response',
         },
         {
+          kind: 'comment',
           id: 'comment-2',
           text: '<p>Second comment</p>',
           color: '#4f46e5',
@@ -78,6 +85,17 @@ const surfaceData: WritingResultSurfaceData = {
           to: 10,
           status: 'active',
           categoryLabel: 'Grammar',
+        },
+      ],
+      corrections: [
+        {
+          kind: 'correction',
+          id: 'correction-1',
+          anchorText: 'wrong phrase',
+          correctionText: 'improved phrase',
+          from: 11,
+          to: 22,
+          label: 'Correction',
         },
       ],
       fallbackAnnotations: [],
@@ -98,6 +116,7 @@ const surfaceData: WritingResultSurfaceData = {
       criteriaFeedback: { TR: '<p>TR feedback</p>' },
       markedContent: null,
       comments: [],
+      corrections: [],
       fallbackAnnotations: [],
       usesLegacyProjection: false,
     },
@@ -193,6 +212,38 @@ describe('WritingStudentResultSurface', () => {
           };
         }
 
+        if (this?.getAttribute?.('data-comment-header-id') === 'correction-1') {
+          return {
+            x: 0,
+            y: 300,
+            width: 420,
+            height: 20,
+            top: 300,
+            left: 24,
+            right: 444,
+            bottom: 320,
+            toJSON() {
+              return this;
+            },
+          };
+        }
+
+        if (this?.getAttribute?.('data-comment-card-id') === 'correction-1') {
+          return {
+            x: 0,
+            y: 284,
+            width: 440,
+            height: 96,
+            top: 284,
+            left: 20,
+            right: 460,
+            bottom: 380,
+            toJSON() {
+              return this;
+            },
+          };
+        }
+
         return {
           x: 0,
           y: 0,
@@ -239,6 +290,35 @@ describe('WritingStudentResultSurface', () => {
     await waitFor(() => {
       expect(shiftedCommentsStack).toHaveStyle({
         transform: 'translateY(-40px)',
+      });
+      expect(scrollIntoViewMock).not.toHaveBeenCalled();
+    });
+  });
+
+  it('opens the comments tab and highlights the matching correction when essay markup is clicked', async () => {
+    render(
+      <WritingStudentResultSurface
+        data={surfaceData}
+        variant="panel"
+        forceWidePanelLayout
+      />,
+    );
+
+    expect(screen.queryByText('improved phrase')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Focus correction 1' }));
+
+    const correctionText = await screen.findByText('improved phrase');
+    const highlightedCard = correctionText.closest('article');
+    const shiftedCommentsStack = highlightedCard?.parentElement;
+
+    expect(highlightedCard).toHaveAttribute('data-highlighted', 'true');
+    expect(highlightedCard).toHaveTextContent('Correction');
+    expect(highlightedCard).toHaveTextContent('wrong phrase');
+
+    await waitFor(() => {
+      expect(shiftedCommentsStack).toHaveStyle({
+        transform: 'translateY(-50px)',
       });
       expect(scrollIntoViewMock).not.toHaveBeenCalled();
     });

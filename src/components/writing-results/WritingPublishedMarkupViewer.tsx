@@ -6,7 +6,7 @@ import { TextStyle } from '@tiptap/extension-text-style';
 import Color from '@tiptap/extension-color';
 import Placeholder from '@tiptap/extension-placeholder';
 import { RichContent } from '../../core/components/RichContent';
-import type { PublishedCommentData } from './writingResultSurface';
+import type { PublishedCommentData, PublishedCorrectionData, PublishedFeedbackItem } from './writingResultSurface';
 import { CommentMark, CorrectionMark, MarksOnlyMode } from '../writing-grading/extensions';
 import '../writing-grading/extensions/essayEditorStyles.css';
 import '../writing-grading/EssayEditor.css';
@@ -17,13 +17,14 @@ interface WritingPublishedMarkupViewerProps {
     originalEssayText: string;
     markedContent: Record<string, any> | null;
     comments: PublishedCommentData[];
+    corrections?: PublishedCorrectionData[];
     onViewModeChange?: (mode: MarkupViewMode) => void;
-    onCommentSelect?: (commentId: string, anchorViewportTop: number | null) => void;
+    onFeedbackSelect?: (feedbackId: string, anchorViewportTop: number | null) => void;
     compact?: boolean;
 }
 
 interface TooltipState {
-    commentId: string;
+    feedbackId: string;
     top: number;
     left: number;
 }
@@ -51,17 +52,19 @@ export default function WritingPublishedMarkupViewer({
     originalEssayText,
     markedContent,
     comments,
+    corrections = [],
     onViewModeChange,
-    onCommentSelect,
+    onFeedbackSelect,
     compact = false,
 }: WritingPublishedMarkupViewerProps) {
     const [viewMode, setViewMode] = useState<MarkupViewMode>('marked');
     const [tooltip, setTooltip] = useState<TooltipState | null>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
-    const commentsById = useMemo(
-        () => new Map(comments.map((comment) => [comment.id, comment])),
-        [comments],
+    const feedbackItemsById = useMemo(
+        () => new Map<string, PublishedFeedbackItem>([...comments, ...corrections].map((item) => [item.id, item])),
+        [comments, corrections],
     );
+    const totalFeedbackCount = comments.length + corrections.length;
 
     useEffect(() => {
         onViewModeChange?.(viewMode);
@@ -95,16 +98,14 @@ export default function WritingPublishedMarkupViewer({
             },
             handleDOMEvents: {
                 mouseover: (_view, event) => {
-                    const target = event.target as HTMLElement;
-                    const commentElement = target.closest('[data-comment-id]') as HTMLElement | null;
-                    const commentId = commentElement?.getAttribute('data-comment-id');
+                    const { element, feedbackId } = getFeedbackTarget(event.target);
 
-                    if (!commentId || !commentsById.has(commentId) || !commentElement) {
+                    if (!feedbackId || !feedbackItemsById.has(feedbackId) || !element) {
                         setTooltip(null);
                         return false;
                     }
 
-                    const rect = commentElement.getBoundingClientRect();
+                    const rect = element.getBoundingClientRect();
                     const containerRect = containerRef.current?.getBoundingClientRect();
                     const tooltipWidth = 320;
                     const relativeLeft = containerRect
@@ -120,7 +121,7 @@ export default function WritingPublishedMarkupViewer({
                         ? Math.max(rect.top - containerRect.top - 12, 16)
                         : rect.top - 12;
                     setTooltip({
-                        commentId,
+                        feedbackId,
                         top: relativeTop,
                         left: boundedLeft,
                     });
@@ -131,12 +132,10 @@ export default function WritingPublishedMarkupViewer({
                     return false;
                 },
                 click: (_view, event) => {
-                    const target = event.target as HTMLElement;
-                    const commentElement = target.closest('[data-comment-id]') as HTMLElement | null;
-                    const commentId = commentElement?.getAttribute('data-comment-id');
-                    const rect = commentElement?.getBoundingClientRect();
+                    const { element, feedbackId } = getFeedbackTarget(event.target);
+                    const rect = element?.getBoundingClientRect();
 
-                    if (!commentId || !commentsById.has(commentId)) {
+                    if (!feedbackId || !feedbackItemsById.has(feedbackId)) {
                         return false;
                     }
 
@@ -144,7 +143,7 @@ export default function WritingPublishedMarkupViewer({
                         ? rect.top
                         : null;
 
-                    onCommentSelect?.(commentId, anchorViewportTop);
+                    onFeedbackSelect?.(feedbackId, anchorViewportTop);
                     return false;
                 },
             },
@@ -180,7 +179,9 @@ export default function WritingPublishedMarkupViewer({
                 <div>
                     <strong style={{ display: 'block', fontSize: '0.94rem', color: '#111827' }}>Marked Response</strong>
                     <span style={{ fontSize: '0.78rem', color: '#6b7280' }}>
-                        {comments.length > 0 ? `${comments.length} published comment${comments.length === 1 ? '' : 's'}` : 'No published comments'}
+                        {totalFeedbackCount > 0
+                            ? `${totalFeedbackCount} published item${totalFeedbackCount === 1 ? '' : 's'}`
+                            : 'No published comments or corrections'}
                     </span>
                 </div>
                 <MarkupToggle value={viewMode} onChange={setViewMode} />
@@ -196,7 +197,7 @@ export default function WritingPublishedMarkupViewer({
                 )}
             </div>
 
-            {tooltip && commentsById.get(tooltip.commentId) && (
+            {tooltip && feedbackItemsById.get(tooltip.feedbackId) && (
                 <div
                     style={{
                         position: 'absolute',
@@ -214,14 +215,67 @@ export default function WritingPublishedMarkupViewer({
                     }}
                 >
                     <div style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#cbd5e1', marginBottom: '0.4rem' }}>
-                        {commentsById.get(tooltip.commentId)?.categoryLabel || 'Comment'}
+                        {renderTooltipLabel(feedbackItemsById.get(tooltip.feedbackId) || null)}
                     </div>
-                    <RichContent
-                        content={commentsById.get(tooltip.commentId)?.text || ''}
-                        className="essay-comment-tooltip-body"
-                    />
+                    {renderTooltipBody(feedbackItemsById.get(tooltip.feedbackId) || null)}
                 </div>
             )}
+        </div>
+    );
+}
+
+function getFeedbackTarget(target: EventTarget | null) {
+    if (!(target instanceof HTMLElement)) {
+        return { element: null, feedbackId: null };
+    }
+
+    const commentElement = target.closest('[data-comment-id]') as HTMLElement | null;
+    if (commentElement) {
+        return {
+            element: commentElement,
+            feedbackId: commentElement.getAttribute('data-comment-id'),
+        };
+    }
+
+    const correctionElement = target.closest('[data-correction-id]') as HTMLElement | null;
+    if (correctionElement) {
+        return {
+            element: correctionElement,
+            feedbackId: correctionElement.getAttribute('data-correction-id'),
+        };
+    }
+
+    return { element: null, feedbackId: null };
+}
+
+function renderTooltipLabel(item: PublishedFeedbackItem | null) {
+    if (!item) {
+        return 'Feedback';
+    }
+
+    return item.kind === 'comment' ? item.categoryLabel || 'Comment' : item.label;
+}
+
+function renderTooltipBody(item: PublishedFeedbackItem | null) {
+    if (!item) {
+        return null;
+    }
+
+    if (item.kind === 'comment') {
+        return (
+            <RichContent
+                content={item.text}
+                className="essay-comment-tooltip-body"
+            />
+        );
+    }
+
+    return (
+        <div style={{ display: 'grid', gap: '0.3rem', fontSize: '0.84rem', lineHeight: 1.5 }}>
+            <div style={{ color: '#cbd5e1' }}>Original</div>
+            <div>{item.anchorText || 'Selection unavailable'}</div>
+            <div style={{ color: '#cbd5e1', marginTop: '0.25rem' }}>Replace with</div>
+            <div>{item.correctionText || 'No replacement text'}</div>
         </div>
     );
 }
