@@ -569,9 +569,10 @@ const StudentDashboardPage = () => {
             const className = hw?.target?.className || hw?.target?.courseName || '';
             return {
                 label: dueLabel,
-                value: title.length > 18 ? title.slice(0, 16) + '…' : title,
+                value: title.length > 30 ? title.slice(0, 27) + '…' : title,
                 meta: className ? `${statusLabel} · ${className}` : statusLabel,
                 color: item.isOverdue ? '#b94a48' : studentTokens.textPrimary,
+                variant: 'assignment',
             };
         };
 
@@ -580,6 +581,7 @@ const StudentDashboardPage = () => {
             value: proficiencyLevel || '—',
             meta: proficiencyLevel ? 'Based on recent 25 tests' : 'No test data yet',
             color: studentTokens.accent,
+            variant: 'metric',
         };
 
         const weeklyTotalCard = {
@@ -587,13 +589,14 @@ const StudentDashboardPage = () => {
             value: weeklyCompletedCount,
             meta: 'tests, homework & practice',
             color: '#4c5458',
+            variant: 'metric',
         };
 
         // Build cards ensuring 3 or 6 are always populated
         const assignmentCards = thisWeekAssignments.slice(0, 6).map(makeAssignmentCard);
 
         if (N === 0) {
-            return [proficiencyCard, weeklyTotalCard, { label: 'This Week', value: '0', meta: 'No assignments due', color: studentTokens.textMuted }];
+            return [proficiencyCard, weeklyTotalCard, { label: 'This Week', value: '0', meta: 'No assignments due', color: studentTokens.textMuted, variant: 'metric' }];
         }
         if (N === 1) {
             return [assignmentCards[0], weeklyTotalCard, proficiencyCard];

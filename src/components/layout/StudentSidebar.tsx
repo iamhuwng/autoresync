@@ -231,7 +231,7 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
     }, [menuOpen]);
 
     const group1 = [
-        { id: 'feed', route: '/student/dashboard', label: 'Feed', icon: <IconHome /> },
+        { id: 'feed', route: '/student/dashboard', label: 'Dashboard', icon: <IconHome /> },
     ];
 
     const group2 = [

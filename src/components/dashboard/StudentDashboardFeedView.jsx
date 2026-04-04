@@ -229,6 +229,18 @@ const styles = {
         lineHeight: 1,
         color: studentTokens.textPrimary,
     },
+    assignmentSummaryValue: {
+        margin: 0,
+        maxWidth: '100%',
+        overflow: 'hidden',
+        fontSize: '1rem',
+        fontWeight: 500,
+        lineHeight: 1.25,
+        letterSpacing: '-0.01em',
+        whiteSpace: 'nowrap',
+        textOverflow: 'ellipsis',
+        color: studentTokens.textPrimary,
+    },
     summaryMeta: {
         margin: 0,
         maxWidth: 240,
@@ -569,7 +581,14 @@ export default function StudentDashboardFeedView({
                                     }}
                                 >
                                     <p style={styles.summaryLabel}>{card.label}</p>
-                                    <p style={{ ...styles.summaryValue, color: card.color || studentTokens.textPrimary }}>{card.value}</p>
+                                    <p
+                                        style={{
+                                            ...(card.variant === 'assignment' ? styles.assignmentSummaryValue : styles.summaryValue),
+                                            color: card.color || studentTokens.textPrimary,
+                                        }}
+                                    >
+                                        {card.value}
+                                    </p>
                                     <p style={styles.summaryMeta}>{card.meta}</p>
                                 </div>
                             );
