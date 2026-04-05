@@ -2,7 +2,7 @@
 title: IELTS Writing Grading Editor State And Compatibility 2026-04-02
 description: Architecture note for the 2026-04-02 stabilization pass covering task normalization, editor rehydration, draft/lock workflow, and RTDB compatibility metadata for teacher IELTS Writing grading.
 createdAt: '2026-04-02T07:17:57.239Z'
-updatedAt: '2026-04-04T13:54:27.413Z'
+updatedAt: '2026-04-05T07:01:38.221Z'
 tags:
   - architecture
   - ielts
@@ -53,13 +53,26 @@ Those defects interacted badly because stale task-local editor state could be sa
   - queued comment-mark mutation commands
   - correction popup state
 
-### Essay editor contract
-- The essay editor is task-scoped.
-- Incoming `initialContent` / `originalEssayText` changes must rehydrate the TipTap document.
-- Queued commands include `taskNumber` and must be ignored if they target another task.
-- Clicking an existing correction mark in edit mode must reopen correction editing.
-- Removing a correction removes only the correction mark, never the student's original essay text.
+### Essay Editor Contract
 
+- `EssayEditor` is task-scoped even when React reuses the page component.
+- incoming `initialContent` / `originalEssayText` changes must rehydrate the TipTap instance.
+- queued commands must include `taskNumber` and be ignored when they target another task.
+- selection-driven quick comments must carry an explicit `from` / `to` / `selectedText` snapshot from the page, not depend on whatever selection is live later.
+- correction-mark clicks must reopen correction editing without requiring a native reselection.
+- correction deletion removes only the mark metadata, never the student's original text.
+- `readOnly` disables tool mutations from toolbar, bubble menu, shortcuts, and queued command replay.
+- toolbar presence is controlled by editor interactivity: the persistent essay toolbar is available only in editable `marked` mode, not by whether a specific command currently has history or selection state.
+- the four persistent essay controls (`undo`, `redo`, `comment`, `correction`) must survive task switches and source rehydration unchanged.
+- one text slice may hold at most one comment mark, and comment removal must target the exact `commentId`.
+- text-color `Default` clears the color mark instead of persisting a literal `inherit` value.
+- toolbar controls must remain keyboard-activatable while still preventing editor blur on pointer interaction.
+- core toolbar icons must use self-contained SVG or React icon components with accessible labels instead of font-ligature icon families.
+- correction is the dominant composition mark:
+  - new corrections are blocked on ranges that already contain comment/correction marks
+  - new highlight/comment/strikethrough/text-color mutations are blocked on ranges that already contain a correction mark
+  - correction application strips highlight, strike, and text-color marks before persisting the correction mark
+  - legacy correction+comment overlap remains readable, but correction click handling wins over comment click routing
 ### Feedback editor contract
 - The feedback editor must rebuild its per-tab cache from incoming `feedback` props.
 - Real task changes reset the active tab to `taskSummary`.
@@ -208,11 +221,13 @@ Related doc:
 ## 2026-04-04 follow-up: current annotation workflow surfaces
 
 ### Supported teacher tool model
+
 - The grading page now uses a hybrid annotation model instead of the older full toolbar.
 - Persistent essay controls live in the sticky editor bar: `undo`, `redo`, `comment`, and `correction`.
+- The persistent four-button toolbar is owned by editable `marked` mode. Task rehydration, task switching, and command availability may disable individual actions but must not remove the toolbar surface.
+- Core persistent controls must render with self-contained SVG or React icons plus accessible labels; they must not rely on font-ligature icon families that can degrade into visible text.
 - Range-local controls live in the bubble menu: `comment`, `correction`, and optional `strikethrough`.
 - Manual `highlight` and manual `text color` creation are no longer part of the active teacher authoring workflow.
-
 ### Comment and correction parity in the sidebar
 - The `Comments` tab is the shared review surface for both comment annotations and correction annotations.
 - Focus, hover, edit, and delete flows must work when initiated from either the essay surface or the sidebar item.

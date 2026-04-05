@@ -42,9 +42,12 @@ It focuses on the parts that were previously brittle:
 - correction-mark clicks must reopen correction editing without requiring a native reselection
 - correction deletion removes only the mark metadata, never the student's original text
 - `readOnly` disables tool mutations from toolbar, bubble menu, shortcuts, and queued command replay
+- toolbar presence is controlled by editor interactivity: the persistent essay toolbar is available only in editable `marked` mode, not by whether a specific command currently has history or selection state
+- the four persistent essay controls (`undo`, `redo`, `comment`, `correction`) must survive task switches and source rehydration unchanged
 - one text slice may hold at most one comment mark, and comment removal must target the exact `commentId`
 - text-color `Default` clears the color mark instead of persisting a literal `inherit` value
 - toolbar controls must remain keyboard-activatable while still preventing editor blur on pointer interaction
+- core toolbar icons must use self-contained SVG or React icon components with accessible labels instead of font-ligature icon families
 - correction is the dominant composition mark:
   - new corrections are blocked on ranges that already contain comment/correction marks
   - new highlight/comment/strikethrough/text-color mutations are blocked on ranges that already contain a correction mark
@@ -177,6 +180,8 @@ Failure rules:
 ### Supported Teacher Tool Model
 - The grading page now uses a hybrid annotation model instead of the older full toolbar.
 - Persistent essay controls live in the sticky editor bar: `undo`, `redo`, `comment`, and `correction`.
+- The persistent four-button toolbar is owned by editable `marked` mode. Task rehydration, task switching, and command availability may disable individual actions but must not remove the toolbar surface.
+- Core persistent controls must render with self-contained SVG or React icons plus accessible labels; they must not rely on font-ligature icon families that can degrade into visible text.
 - Range-local controls live in the bubble menu: `comment`, `correction`, and optional `strikethrough`.
 - Manual `highlight` and manual `text color` creation are no longer part of the active teacher authoring workflow.
 

@@ -24,6 +24,7 @@ import Highlight from '@tiptap/extension-highlight';
 import { TextStyle } from '@tiptap/extension-text-style';
 import Color from '@tiptap/extension-color';
 import Placeholder from '@tiptap/extension-placeholder';
+import { IconArrowBackUp, IconArrowForwardUp, IconMessageCircle, IconPencil } from '@tabler/icons-react';
 import { CommentMark, CorrectionMark, MarksOnlyMode } from './extensions';
 import { RichContent } from '../../core/components/RichContent';
 import type { GradingComment, GradingCorrection, QuickCommentPreset } from '../../types/ielts-writing.types';
@@ -830,7 +831,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                                     title="Undo"
                                     aria-label="Undo"
                                 >
-                                    <span className="material-symbols-outlined">undo</span>
+                                    <IconArrowBackUp className="essay-toolbar-icon" size={16} stroke={1.8} aria-hidden="true" />
                                 </button>
                                 <button
                                     className="essay-toolbar-btn essay-toolbar-btn-icon"
@@ -841,7 +842,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                                     title="Redo"
                                     aria-label="Redo"
                                 >
-                                    <span className="material-symbols-outlined">redo</span>
+                                    <IconArrowForwardUp className="essay-toolbar-icon" size={16} stroke={1.8} aria-hidden="true" />
                                 </button>
                                 <div className="essay-toolbar-divider" aria-hidden="true" />
                                 <button
@@ -853,7 +854,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                                     title="Add comment"
                                     aria-label="Add comment"
                                 >
-                                    <span className="material-symbols-outlined">add_comment</span>
+                                    <IconMessageCircle className="essay-toolbar-icon" size={16} stroke={1.8} aria-hidden="true" />
                                     <span>Comment</span>
                                 </button>
                                 <button
@@ -865,7 +866,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                                     title="Add correction"
                                     aria-label="Add correction"
                                 >
-                                    <span className="material-symbols-outlined">edit_note</span>
+                                    <IconPencil className="essay-toolbar-icon" size={16} stroke={1.8} aria-hidden="true" />
                                     <span>Correction</span>
                                 </button>
                             </div>

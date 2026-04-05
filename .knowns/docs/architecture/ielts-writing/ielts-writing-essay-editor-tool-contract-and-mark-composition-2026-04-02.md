@@ -2,7 +2,7 @@
 title: IELTS Writing Essay Editor Tool Contract And Mark Composition 2026-04-02
 description: Architecture note for the essay-editor tool layer in teacher IELTS Writing grading, covering read-only behavior, selection anchoring, comment identity, and the remaining overlapping-mark composition boundary.
 createdAt: '2026-04-02T09:51:04.708Z'
-updatedAt: '2026-04-04T13:54:27.386Z'
+updatedAt: '2026-04-05T07:01:38.206Z'
 tags:
   - architecture
   - ielts
@@ -130,8 +130,10 @@ The essay editor currently exposes these tool surfaces:
 ### Undo / redo
 
 - Undo and redo operate on mark history only because the editor is in marks-only mode.
-- In read-only mode, undo and redo controls must be disabled.
-
+- In editable `marked` mode, undo and redo remain mounted as persistent toolbar controls even when no history is available.
+- Unavailable undo/redo state must be expressed as `disabled`, not by removing the controls from the sticky toolbar.
+- The persistent toolbar must use self-contained SVG or React icon components with accessible labels; it must not depend on font-ligature icon families that can degrade into visible text when the font is absent.
+- In read-only mode, the persistent essay toolbar is not interactive and undo/redo are not exposed as actionable controls.
 ## Accessibility And Input Semantics
 
 - Toolbar buttons must remain keyboard-activatable.
@@ -193,11 +195,13 @@ Rules:
 ## 2026-04-04 follow-up: current teacher tool surfaces after toolbar redesign
 
 ### Current persistent editor controls
-- The sticky top editor bar is now the persistent tool surface inside the essay area.
+
+- The sticky top editor bar is the persistent tool surface inside the essay area.
 - Supported persistent actions are `undo`, `redo`, `comment`, and `correction`.
+- These four controls must render as self-contained SVG or React icon buttons with accessible labels; the grading editor must not rely on unloaded font-ligature icon families for core controls.
+- In editable `marked` mode, the four-button toolbar must stay visible across task switches and source rehydration. Command availability may disable `undo` or `redo`, but it must not make the buttons disappear.
 - `Marked` / `Original` stays page-owned outside the editor chrome.
 - Quick comments remain a separate visible trigger and are not part of the sticky editor bar.
-
 ### Current bubble-menu scope
 - The bubble menu is now limited to selection-bound inline actions.
 - Supported bubble actions are `comment`, `correction`, and `strikethrough`.

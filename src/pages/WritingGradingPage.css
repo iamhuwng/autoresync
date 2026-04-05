@@ -3,6 +3,8 @@
    Design Philosophy: The Architectural Editor
    ═════════════════════════════════════════════════════════════════════════════ */
 
+@import url('https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500;600;700&display=swap');
+
 /* ── Design Tokens (aligned to mockup palette) ──────────────────────────── */
 :root {
     /* Surface Hierarchy — matches mockup Tailwind config */
@@ -62,10 +64,6 @@
     --wgp-font-label: 'Work Sans', 'Inter', system-ui, -apple-system, sans-serif;
     --wgp-font-manuscript: 'Newsreader', 'Georgia', serif;
 }
-
-/* ── Font Import (Work Sans + Newsreader from mockup) ────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500;600;700&display=swap');
-
 
 /* ═══════════════════════════════════════════════════════════════════════════
    SHELL — The Base Layer ("The Desk")

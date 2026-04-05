@@ -373,6 +373,8 @@ describe('EssayEditor', () => {
         expect(container.querySelector('[title="Add correction"]')).toBeTruthy();
         expect(container.querySelector('[title="Add comment"]')).toBeDisabled();
         expect(container.querySelector('[title="Add correction"]')).toBeDisabled();
+        expect(container.querySelectorAll('#essay-editor-toolbar svg')).toHaveLength(4);
+        expect(container.querySelector('.material-symbols-outlined')).toBeNull();
     });
 
     it('hides the sticky editor tool strip when the editor is not interactive', async () => {
