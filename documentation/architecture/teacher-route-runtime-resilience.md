@@ -61,3 +61,13 @@ Current repo anchor:
 - `src/routes/teacherRoutes.tsx`
 - `src/pages/TeacherLobbyPage.jsx`
 - `src/pages/TeacherClassDetailPage.tsx`
+## 2026-04-06 Runtime Hardening
+
+- `AuroraThemeProvider` is now a native token wrapper only. The authenticated app shell keeps the single global `MantineProvider` in `ThemeContext`; Aurora must not mount a nested Mantine provider inside a new file.
+- `TeacherLobbyPage` now lazy-loads `TestEditor`, `TestCreationModal`, `THCSTestEditorModal`, and `WritingTestEditModal` behind `Suspense`. These action-gated editors must not sit in the initial teacher-lobby route chunk.
+- Localhost browser verification confirmed `/lobby` loads without the previous `TeacherLobbyPage.jsx` dynamic-import crash, and the `@dnd-kit/*` optimize-dep requests return `200` only when the THCS editor is opened on demand.
+
+## Updated Implications
+
+- primary edit actions on the lobby may still exist on the page contract, but the editor implementation should be lazy-mounted when it is not required for first paint
+- nested Mantine providers are not an acceptable workaround for theme-specific styling while the app still depends on one shared authenticated provider boundary

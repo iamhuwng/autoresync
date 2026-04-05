@@ -2,7 +2,7 @@
 title: Teacher Route Runtime Resilience
 description: Runtime contract for teacher-route provider boundaries, lazy modal loading, and error-boundary fallbacks that prevent blank screens.
 createdAt: '2026-04-02T10:42:35.277Z'
-updatedAt: '2026-04-02T10:42:53.507Z'
+updatedAt: '2026-04-05T19:33:46.657Z'
 tags:
   - architecture
   - teacher
@@ -62,3 +62,9 @@ Current repo anchor:
 
 - @doc/architecture/routing-navigation
 - @doc/patterns/prd-0033-teacher-lobby-refactor-session-extraction
+
+## 2026-04-06 Runtime Hardening
+
+- `AuroraThemeProvider` is a native token wrapper only. The authenticated app shell keeps the single global `MantineProvider` in `ThemeContext`; Aurora must not mount a nested Mantine provider inside a new file.
+- `TeacherLobbyPage` now lazy-loads `TestEditor`, `TestCreationModal`, `THCSTestEditorModal`, and `WritingTestEditModal`. These action-gated editors must not sit in the initial teacher-lobby route chunk.
+- Browser verification on localhost confirmed `/lobby` loads without the previous `TeacherLobbyPage.jsx` dynamic-import crash, and the `@dnd-kit/*` optimize-dep requests return `200` only when the THCS editor is opened on demand.

@@ -1,15 +1,14 @@
 // TeacherLobbyPage — Composition Layer (PRD-0033 refactor)
 // Rule 15 Exception: AppShell, Modal, Select — moved code, see PRD-0033 NG-1
 import React, { Suspense, useState, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useNavigation } from '../hooks/useNavigation';
 import { useAuth } from '../hooks/useAuth';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
 import { FEATURE_IDS } from '../config/featureRegistry';
-import { buildRoute } from '../constants/routes';
 import { AppShell } from '@mantine/core';
 import { lazyWithRetry } from '../utils/lazyWithRetry.ts';
-import { Card, CardBody, Button, Input } from '../components/modern';
+import { Card, CardBody } from '../components/modern';
 import { TeacherHeader } from '../components/navigation';
 
 // Extracted hooks
@@ -31,14 +30,14 @@ import UseAsIsModal from '../components/UseAsIsModal';
 
 // Modals kept as direct imports (heavy components)
 // NOTE: QuizEditor removed — no legacy quiz items remain (PRD-0033 Task 2)
-import TestEditor from '../components/TestEditor.tsx';
-import TestCreationModal from '../components/test-creation/TestCreationModal';
-import THCSTestEditorModal from '../components/thcs-editor/THCSTestEditorModal';
-import WritingTestEditModal from '../components/writing/WritingTestEditModal';
+const TestEditor = lazyWithRetry(() => import('../components/TestEditor.tsx'));
+const TestCreationModal = lazyWithRetry(() => import('../components/test-creation/TestCreationModal'));
+const THCSTestEditorModal = lazyWithRetry(() => import('../components/thcs-editor/THCSTestEditorModal'));
+const WritingTestEditModal = lazyWithRetry(() => import('../components/writing/WritingTestEditModal'));
 
 const THCSHomeworkAssignDialog = lazyWithRetry(() => import('../components/thcs-editor/THCSHomeworkAssignDialog'));
 
-const homeworkDialogFallbackStyle = {
+const overlayFallbackStyle = {
   position: 'fixed',
   inset: 0,
   zIndex: 2200,
@@ -50,12 +49,33 @@ const homeworkDialogFallbackStyle = {
   backdropFilter: 'blur(8px)',
 };
 
+const overlayCardStyle = {
+  width: 'min(420px, 100%)',
+  padding: '1.5rem',
+  borderRadius: '1.25rem',
+  background: 'rgba(255, 255, 255, 0.98)',
+  border: '1px solid rgba(226, 232, 240, 0.9)',
+  boxShadow: '0 24px 70px rgba(15,23,42,0.28)',
+  textAlign: 'center',
+  color: '#334155',
+  fontWeight: 600,
+};
+
+function OverlayLoader({ label }) {
+  return (
+    <div style={overlayFallbackStyle}>
+      <div style={overlayCardStyle}>
+        {label}
+      </div>
+    </div>
+  );
+}
+
 const TeacherLobbyPage = () => {
   const { navigateTo } = useNavigation('teacher');
   const { sessionCode } = useParams();
   const { user, profile, logout } = useAuth();
   const { trackAction } = useFeatureTracking(FEATURE_IDS.testCreation);
-  const navigate = useNavigate();
 
   // ---------- Local UI State ----------
   const [contentFilter, setContentFilter] = useState('my'); // 'my' | 'public' | 'drafts'
@@ -197,7 +217,7 @@ const TeacherLobbyPage = () => {
       const { cloneFromPublicTest } = await import('../services/thcsDraftService');
       const result = await cloneFromPublicTest(test.id, user.uid);
       if (result.success && result.data) {
-        navigate(buildRoute('TEACHER_THCS_EDIT', { draftId: result.data.draftId }));
+        navigateTo('TEACHER_THCS_EDIT', { draftId: result.data.draftId }, { reason: 'teacher_lobby_clone_public_test' });
       } else {
         alert('Failed to clone test: ' + (result.error || 'Unknown error'));
       }
@@ -205,7 +225,7 @@ const TeacherLobbyPage = () => {
       console.error('Clone failed:', err);
       alert('Failed to clone test. Please try again.');
     }
-  }, [user?.uid, navigate]);
+  }, [navigateTo, user?.uid]);
 
   const handleUseAsIsStartLive = useCallback((test) => {
     modals.closeUseAsIs();
@@ -347,7 +367,7 @@ const TeacherLobbyPage = () => {
                               openWritingDraftEditor(draftToResume, 'teacher_lobby_draft_card');
                               return;
                             }
-                            navigate(buildRoute('TEACHER_THCS_EDIT', { draftId: draftToResume.id }));
+                            navigateTo('TEACHER_THCS_EDIT', { draftId: draftToResume.id }, { reason: 'teacher_lobby_resume_thcs_draft' });
                           }}
                           onDelete={handleDeleteDraft}
                         />
@@ -476,68 +496,60 @@ const TeacherLobbyPage = () => {
 
         {/* IELTS Test Editor — QuizEditor removed (no legacy quiz items, PRD-0033) */}
         {modals.state.editTest.show && modals.state.editTest.test && (
-          <TestEditor
-            show={modals.state.editTest.show}
-            handleClose={modals.closeEditTest}
-            test={modals.state.editTest.test}
-          />
+          <Suspense fallback={<OverlayLoader label="Loading IELTS editor..." />}>
+            <TestEditor
+              show={modals.state.editTest.show}
+              handleClose={modals.closeEditTest}
+              test={modals.state.editTest.test}
+            />
+          </Suspense>
         )}
 
         {/* THCS Test Editor */}
         {modals.state.editThcsTest.show && modals.state.editThcsTest.test && (
-          <THCSTestEditorModal
-            show={modals.state.editThcsTest.show}
-            handleClose={modals.closeEditThcsTest}
-            test={modals.state.editThcsTest.test}
-          />
+          <Suspense fallback={<OverlayLoader label="Loading THCS editor..." />}>
+            <THCSTestEditorModal
+              show={modals.state.editThcsTest.show}
+              handleClose={modals.closeEditThcsTest}
+              test={modals.state.editThcsTest.test}
+            />
+          </Suspense>
         )}
 
         {/* Test Creation Modal */}
-        <TestCreationModal
-          opened={modals.state.testCreation.show}
-          onClose={handleCloseTestCreation}
-          onComplete={(draftId) => {
-            handleCloseTestCreation();
-            navigate(`/teacher/test/review/${draftId}`);
-          }}
-        />
+        {modals.state.testCreation.show && (
+          <Suspense fallback={<OverlayLoader label="Loading test creation..." />}>
+            <TestCreationModal
+              opened={modals.state.testCreation.show}
+              onClose={handleCloseTestCreation}
+              onComplete={(draftId) => {
+                handleCloseTestCreation();
+                navigateTo('TEACHER_TEST_REVIEW', { draftId }, { reason: 'teacher_lobby_open_test_review' });
+              }}
+            />
+          </Suspense>
+        )}
 
-        <WritingTestEditModal
-          draft={editingWritingDraft}
-          isOpen={Boolean(editingWritingDraft)}
-          onClose={closeWritingDraftEditor}
-          onSaved={() => {
-            void refreshDrafts();
-          }}
-          onPublished={() => {
-            void refreshDrafts();
-            void refreshTests();
-          }}
-        />
+        {editingWritingDraft && (
+          <Suspense fallback={<OverlayLoader label="Loading writing editor..." />}>
+            <WritingTestEditModal
+              draft={editingWritingDraft}
+              isOpen={Boolean(editingWritingDraft)}
+              onClose={closeWritingDraftEditor}
+              onSaved={() => {
+                void refreshDrafts();
+              }}
+              onPublished={() => {
+                void refreshDrafts();
+                void refreshTests();
+              }}
+            />
+          </Suspense>
+        )}
 
         {/* THCS Homework Dialog */}
         {modals.state.hwDialog.show && modals.state.hwDialog.test && (
-          <Suspense
-            fallback={(
-              <div style={homeworkDialogFallbackStyle}>
-                <div
-                  style={{
-                    width: 'min(420px, 100%)',
-                    padding: '1.5rem',
-                    borderRadius: '1.25rem',
-                    background: 'rgba(255, 255, 255, 0.98)',
-                    border: '1px solid rgba(226, 232, 240, 0.9)',
-                    boxShadow: '0 24px 70px rgba(15,23,42,0.28)',
-                    textAlign: 'center',
-                    color: '#334155',
-                    fontWeight: 600,
-                  }}
-                >
-                  Loading homework assignment dialog...
-                </div>
-              </div>
-            )}
-          >
+          <Suspense fallback={<OverlayLoader label="Loading homework assignment dialog..." />}>
             <THCSHomeworkAssignDialog
               isOpen={true}
               onClose={modals.closeHwDialog}

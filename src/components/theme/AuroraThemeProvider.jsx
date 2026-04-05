@@ -1,97 +1,45 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { MantineProvider, createTheme } from '@mantine/core';
+
+const auroraThemeStyle = {
+  '--aurora-lavender-50': '#f5f3ff',
+  '--aurora-lavender-100': '#ede9fe',
+  '--aurora-lavender-200': '#ddd6fe',
+  '--aurora-lavender-300': '#c4b5fd',
+  '--aurora-lavender-400': '#a78bfa',
+  '--aurora-lavender-500': '#8b5cf6',
+  '--aurora-lavender-600': '#7c3aed',
+  '--aurora-lavender-700': '#6d28d9',
+  '--aurora-lavender-800': '#5b21b6',
+  '--aurora-lavender-900': '#4c1d95',
+  '--aurora-rose-500': '#f43f5e',
+  '--aurora-sky-500': '#0ea5e9',
+  '--aurora-mint-500': '#14b8a6',
+  '--aurora-peach-500': '#f97316',
+  '--aurora-shadow-xs': '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+  '--aurora-shadow-sm': '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1)',
+  '--aurora-shadow-md': '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1)',
+  '--aurora-shadow-lg': '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1)',
+  '--aurora-shadow-xl': '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+  '--aurora-radius-xs': '0.375rem',
+  '--aurora-radius-sm': '0.5rem',
+  '--aurora-radius-md': '0.75rem',
+  '--aurora-radius-lg': '1rem',
+  '--aurora-radius-xl': '1.5rem',
+  colorScheme: 'light',
+};
 
 /**
- * AuroraThemeProvider - Provides Aurora theme styling
+ * AuroraThemeProvider - Applies Aurora design tokens without mounting a nested UI provider.
+ *
+ * The authenticated app shell already owns the global MantineProvider boundary.
+ * This wrapper only scopes Aurora-specific CSS variables to the subtree.
  */
 export const AuroraThemeProvider = ({ children }) => {
-  const auroraTheme = createTheme({
-    primaryColor: 'lavender',
-    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-    defaultRadius: 'lg',
-    colors: {
-      lavender: [
-        '#f5f3ff',
-        '#ede9fe',
-        '#ddd6fe',
-        '#c4b5fd',
-        '#a78bfa',
-        '#8b5cf6',
-        '#7c3aed',
-        '#6d28d9',
-        '#5b21b6',
-        '#4c1d95',
-      ],
-      rose: [
-        '#fff1f2',
-        '#ffe4e6',
-        '#fecdd3',
-        '#fda4af',
-        '#fb7185',
-        '#f43f5e',
-        '#e11d48',
-        '#be123c',
-        '#9f1239',
-        '#881337',
-      ],
-      sky: [
-        '#f0f9ff',
-        '#e0f2fe',
-        '#bae6fd',
-        '#7dd3fc',
-        '#38bdf8',
-        '#0ea5e9',
-        '#0284c7',
-        '#0369a1',
-        '#075985',
-        '#0c4a6e',
-      ],
-      mint: [
-        '#f0fdfa',
-        '#ccfbf1',
-        '#99f6e4',
-        '#5eead4',
-        '#2dd4bf',
-        '#14b8a6',
-        '#0d9488',
-        '#0f766e',
-        '#115e59',
-        '#134e4a',
-      ],
-      peach: [
-        '#fff7ed',
-        '#ffedd5',
-        '#fed7aa',
-        '#fdba74',
-        '#fb923c',
-        '#f97316',
-        '#ea580c',
-        '#c2410c',
-        '#9a3412',
-        '#7c2d12',
-      ],
-    },
-    shadows: {
-      xs: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-      sm: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1)',
-      md: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1)',
-      lg: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1)',
-      xl: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
-    },
-    radius: {
-      xs: '0.375rem',
-      sm: '0.5rem',
-      md: '0.75rem',
-      lg: '1rem',
-      xl: '1.5rem',
-    },
-  });
-
   return (
-    <MantineProvider theme={auroraTheme} defaultColorScheme="light">
+    <div data-app-theme="aurora" style={auroraThemeStyle}>
       {children}
-    </MantineProvider>
+    </div>
   );
 };
 
