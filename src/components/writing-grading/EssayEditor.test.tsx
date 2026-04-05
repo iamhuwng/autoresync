@@ -225,7 +225,7 @@ describe('EssayEditor', () => {
         });
     });
 
-    it('emits correction items for the comments tab when correction marks exist', async () => {
+    it('emits correction items when correction marks exist', async () => {
         const onCorrectionItemsChange = vi.fn();
 
         const { container } = renderEditor({
@@ -326,11 +326,14 @@ describe('EssayEditor', () => {
         expect(container.querySelector('.correction-mark')).toBeNull();
     });
 
-    it('replays quick comments against the anchored selection provided by the page', async () => {
+    it('replays quick comments against the anchored selection provided by the page even when the range is corrected', async () => {
         const onAddComment = vi.fn();
 
         renderEditor({
             onAddComment,
+            initialContent: buildInitialContent('Hello', [
+                { type: 'correctionMark', attrs: { correctionText: 'Hi' } },
+            ]),
             pendingQuickComment: buildPendingQuickComment(),
         });
 
@@ -343,6 +346,39 @@ describe('EssayEditor', () => {
                 expect.objectContaining({ id: 'preset-1' }),
             );
         });
+    });
+
+    it('reapplies an edited correction even when the range already has both correction and comment marks', async () => {
+        const { container } = renderEditor({
+            comments: [{
+                id: 'comment-1',
+                taskNumber: 1,
+                text: '<p>Clarify the wording.</p>',
+                categoryId: 'cc',
+                categoryLabel: 'CC',
+                color: '#22c55e',
+                status: 'active',
+                anchorText: 'Hello',
+                from: 1,
+                to: 6,
+                createdAt: 1,
+                updatedAt: 1,
+            }],
+            initialContent: buildInitialContent('Hello', [
+                { type: 'commentMark', attrs: { commentId: 'comment-1', color: '#22c55e' } },
+                { type: 'correctionMark', attrs: { correctionId: 'correction-1', correctionText: 'Hi' } },
+            ]),
+            pendingCorrection: buildPendingCorrection({
+                correctionId: 'correction-1',
+                correctionText: 'Hey',
+            }),
+        });
+
+        await waitFor(() => {
+            expect(container.querySelector('.correction-mark-replacement')?.textContent).toBe(' -> Hey');
+        });
+
+        expect(container.querySelector('[data-comment-id="comment-1"]')).toBeTruthy();
     });
 
     it('does not apply queued tool commands while read-only', async () => {
@@ -551,10 +587,91 @@ describe('EssayEditor', () => {
         expect(onCommentMarkClick).not.toHaveBeenCalled();
     });
 
+    it('keeps the piggyback comment markup off the rendered correction replacement text', async () => {
+        const { container } = renderEditor({
+            comments: [{
+                id: 'comment-1',
+                taskNumber: 1,
+                text: '<p>Reason</p>',
+                categoryId: 'uncategorized',
+                categoryLabel: 'Uncategorized',
+                categoryColor: '#facc15',
+                status: 'active',
+                anchorText: 'Hello',
+                from: 1,
+                to: 6,
+                createdAt: 1,
+                updatedAt: 1,
+            }],
+            initialContent: buildInitialContent('Hello', [
+                { type: 'commentMark', attrs: { commentId: 'comment-1', color: '#facc15' } },
+                { type: 'correctionMark', attrs: { correctionId: 'correction-1', correctionText: 'Hi' } },
+            ]),
+        });
+
+        await waitFor(() => {
+            expect(container.querySelector('.correction-mark-replacement')).toBeTruthy();
+        });
+
+        expect(container.querySelector('.correction-mark-original [data-comment-id="comment-1"]')).toBeTruthy();
+        expect(container.querySelector('.correction-mark-replacement')?.closest('[data-comment-id="comment-1"]')).toBeNull();
+    });
+
+    it('renders the essay hover tooltip through a body portal instead of inside the editor tree', async () => {
+        const { container } = renderEditor({
+            comments: [{
+                id: 'comment-1',
+                taskNumber: 1,
+                text: '<p>Reason</p>',
+                categoryId: 'uncategorized',
+                categoryLabel: 'Uncategorized',
+                categoryColor: '#facc15',
+                status: 'active',
+                anchorText: 'Hello',
+                from: 1,
+                to: 6,
+                createdAt: 1,
+                updatedAt: 1,
+            }],
+            initialContent: buildInitialContent('Hello', [
+                { type: 'commentMark', attrs: { commentId: 'comment-1', color: '#facc15' } },
+            ]),
+        });
+
+        await waitFor(() => {
+            expect(container.querySelector('[data-comment-id="comment-1"]')).toBeTruthy();
+        });
+
+        const commentMark = container.querySelector('[data-comment-id="comment-1"]') as HTMLElement;
+        Object.defineProperty(commentMark, 'getBoundingClientRect', {
+            configurable: true,
+            value: () => ({
+                top: 100,
+                right: 180,
+                bottom: 120,
+                left: 140,
+                width: 40,
+                height: 20,
+                x: 140,
+                y: 100,
+                toJSON: () => ({}),
+            }),
+        });
+
+        fireEvent.mouseMove(commentMark);
+
+        await waitFor(() => {
+            expect(document.body.querySelector('.essay-comment-tooltip')).toBeTruthy();
+        });
+
+        expect(document.body.querySelector('.essay-comment-tooltip')).toHaveAttribute('data-placement', 'right');
+        expect(container.querySelector('.essay-comment-tooltip')).toBeNull();
+    });
+
     it('backfills a correction id for legacy review-mode corrections so focus styling still works', async () => {
         const { container } = renderEditor({
             readOnly: true,
-            focusedCommentId: 'correction-1-6',
+            focusedCorrectionId: 'correction-1-6',
             initialContent: buildInitialContent('Hello', [
                 { type: 'correctionMark', attrs: { correctionText: 'Hi' } },
             ]),

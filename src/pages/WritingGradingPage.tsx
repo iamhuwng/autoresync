@@ -43,7 +43,6 @@ import { getOrCreateWritingSuggestionCache, updateWritingSuggestionReviewStatus 
 import type {
     CommentCategoryId,
     GradingComment,
-    GradingCorrection,
     PublishedWritingGrading,
     QuickCommentPreset,
     WritingGradingDraft,
@@ -366,10 +365,10 @@ export default function WritingGradingPage() {
     const [activeTask, setActiveTask] = useState<1 | 2>(1);
     const [reviewFeedbackTab, setReviewFeedbackTab] = useState<string>('taskSummary');
     const [focusedCommentId, setFocusedCommentId] = useState<string | null>(null);
+    const [focusedCorrectionId, setFocusedCorrectionId] = useState<string | null>(null);
     const [focusedCommentAnchorViewportTop, setFocusedCommentAnchorViewportTop] = useState<number | null>(null);
     const [hoveredCommentId, setHoveredCommentId] = useState<string | null>(null);
     const [anchorPositions, setAnchorPositions] = useState<CommentAnchorPosition[]>([]);
-    const [activeCorrections, setActiveCorrections] = useState<GradingCorrection[]>([]);
     const [editorScrollTop, setEditorScrollTop] = useState(0);
     const [hasSelectionInEditor, setHasSelectionInEditor] = useState(false);
     const [editorSelectionState, setEditorSelectionState] = useState<EssaySelectionState>({
@@ -439,7 +438,6 @@ export default function WritingGradingPage() {
     const lockInfoRef = useRef<WritingGradingLock | null>(null);
     const pendingCommentDraftsRef = useRef<Partial<Record<1 | 2, PendingCommentDraft>>>({});
     const previousActiveTaskRef = useRef<1 | 2>(activeTask);
-    const activeCorrectionsRef = useRef<GradingCorrection[]>([]);
     const essayEditorRef = useRef<EssayEditorHandle>(null);
 
     useEffect(() => {
@@ -491,10 +489,6 @@ export default function WritingGradingPage() {
     useEffect(() => {
         pendingCommentDraftsRef.current = pendingCommentDrafts;
     }, [pendingCommentDrafts]);
-
-    useEffect(() => {
-        activeCorrectionsRef.current = activeCorrections;
-    }, [activeCorrections]);
 
     const showStatus = useCallback((message: string) => {
         setStatusMessage(message);
@@ -641,6 +635,7 @@ export default function WritingGradingPage() {
 
     const clearTaskScopedTransientState = useCallback(() => {
         setFocusedCommentId(null);
+        setFocusedCorrectionId(null);
         setFocusedCommentAnchorViewportTop(null);
         setHoveredCommentId(null);
         setAnchorPositions([]);
@@ -658,7 +653,6 @@ export default function WritingGradingPage() {
         setPendingCommentMutation(null);
         setPendingSuggestionFocus(null);
         setCorrectionRequest(null);
-        setActiveCorrections([]);
         setSuggestionReviewOpen(false);
     }, []);
 
@@ -1396,18 +1390,12 @@ export default function WritingGradingPage() {
         }
 
         const updatePositions = () => {
-            const nextAnchors = [
-                ...(activeTaskState?.comments || [])
-                    .filter((comment) => comment.status !== 'deleted')
-                    .map((comment) => ({
-                        id: comment.id,
-                        selector: `[data-comment-id="${comment.id}"]`,
-                    })),
-                ...activeCorrections.map((correction) => ({
-                    id: correction.id,
-                    selector: `.correction-mark[data-correction-id="${correction.id}"]`,
-                })),
-            ]
+            const nextAnchors = (activeTaskState?.comments || [])
+                .filter((comment) => comment.status !== 'deleted')
+                .map((comment) => ({
+                    id: comment.id,
+                    selector: `[data-comment-id="${comment.id}"]`,
+                }))
                 .map(({ id, selector }) => {
                     const mark = editorContainer.querySelector(selector) as HTMLElement | null;
                     if (!mark) {
@@ -1439,7 +1427,7 @@ export default function WritingGradingPage() {
             editorContainer.removeEventListener('scroll', updatePositions);
             window.removeEventListener('resize', updatePositions);
         };
-    }, [activeCorrections, activeTaskState?.comments, activeTaskState?.markedContent, activeTask, focusedCommentId, hoveredCommentId, mode, panelTab]);
+    }, [activeTaskState?.comments, activeTaskState?.markedContent, activeTask, focusedCommentId, hoveredCommentId, mode, panelTab]);
 
     const handleTaskChange = useCallback((taskNumber: 1 | 2) => {
         if (taskNumber === activeTask) {
@@ -1466,6 +1454,7 @@ export default function WritingGradingPage() {
 
     const handleFocusComment = useCallback((commentId: string | null) => {
         setFocusedCommentId(commentId);
+        setFocusedCorrectionId(null);
         setFocusedCommentAnchorViewportTop(null);
     }, []);
 
@@ -1511,7 +1500,11 @@ export default function WritingGradingPage() {
     const createSavedComment = useCallback((
         draft: PendingCommentDraft,
         html: string,
-        preset?: QuickCommentPreset
+        preset?: QuickCommentPreset,
+        options?: {
+            focusInSidebar?: boolean;
+            source?: 'comment-tool' | 'quick-comment' | 'suggestion' | 'correction-popup';
+        }
     ) => {
         const categoryId = preset?.categoryId || draft.categoryId;
         const category = COMMENT_CATEGORIES[categoryId] || COMMENT_CATEGORIES.uncategorized;
@@ -1536,13 +1529,19 @@ export default function WritingGradingPage() {
             comments: [...current.comments, nextComment],
         }));
         setPendingCommentDraft(draft.taskNumber, null);
-        setFocusedCommentId(nextComment.id);
-        setPanelTab('comments');
+        if (options?.focusInSidebar === false) {
+            setFocusedCommentId(null);
+        } else {
+            setFocusedCommentId(nextComment.id);
+            setFocusedCorrectionId(null);
+            setPanelTab('comments');
+        }
         pushCommentMutation(nextComment, 'apply');
         trackAction('addComment', {
             submissionId,
             taskNumber: draft.taskNumber,
             preset: preset?.id || null,
+            source: options?.source || (preset ? 'quick-comment' : 'comment-tool'),
         });
     }, [
         pushCommentMutation,
@@ -1575,12 +1574,13 @@ export default function WritingGradingPage() {
                 to,
                 categoryId: preset.categoryId,
                 html: preset.text,
-            }, preset.text, preset);
+            }, preset.text, preset, { source: 'quick-comment' });
             return;
         }
 
         setPanelTab('comments');
         setFocusedCommentId(null);
+        setFocusedCorrectionId(null);
         setPendingCommentDraft(activeTask, {
             commentId,
             taskNumber: activeTask,
@@ -1810,8 +1810,13 @@ export default function WritingGradingPage() {
         trackAction('useQuickComment', { submissionId, presetId: preset.id });
     }, [activeTask, editorSelectionState, showStatus, submissionId, trackAction]);
 
-    const getActiveCorrectionById = useCallback((correctionId: string) => {
-        return activeCorrectionsRef.current.find((correction) => correction.id === correctionId) || null;
+    const getActiveCommentForRange = useCallback((taskNumber: 1 | 2, from: number, to: number) => {
+        const taskState = taskStatesRef.current[taskNumber];
+        return taskState?.comments.find((comment) => (
+            comment.status === 'active'
+            && comment.from === from
+            && comment.to === to
+        )) || null;
     }, []);
 
     const getCorrectionPopupPosition = useCallback((anchorViewportTop: number | null, anchorViewportLeft: number | null) => {
@@ -1832,6 +1837,9 @@ export default function WritingGradingPage() {
         const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
         const rect = range?.getBoundingClientRect();
 
+        setFocusedCommentId(null);
+        setFocusedCorrectionId(null);
+        setFocusedCommentAnchorViewportTop(null);
         setCorrectionRequest({
             mode: 'create',
             correctionId: undefined,
@@ -1844,9 +1852,9 @@ export default function WritingGradingPage() {
     }, [getCorrectionPopupPosition]);
 
     const handleCorrectionMarkClick = useCallback((selection: CorrectionMarkSelection) => {
-        setFocusedCommentId(selection.id);
-        setFocusedCommentAnchorViewportTop(selection.anchorViewportTop);
-        setPanelTab('comments');
+        setFocusedCommentId(null);
+        setFocusedCorrectionId(selection.id);
+        setFocusedCommentAnchorViewportTop(null);
 
         if (mode !== 'editing') {
             return;
@@ -1865,29 +1873,68 @@ export default function WritingGradingPage() {
 
     const dismissCorrectionRequest = useCallback(() => {
         setCorrectionRequest(null);
+        setFocusedCorrectionId(null);
     }, []);
 
-    const applyCorrection = useCallback((correctionText: string) => {
+    const applyCorrection = useCallback((correctionText: string, commentText: string) => {
         if (!correctionRequest) {
             return;
         }
 
+        const nextCorrectionId = correctionRequest.correctionId || `correction-${Date.now()}-${Math.random().toString(36).slice(2)}`;
         correctionNonceRef.current += 1;
         setPendingCorrection({
             taskNumber: activeTask,
             action: 'apply',
             from: correctionRequest.from,
             to: correctionRequest.to,
-            correctionId: correctionRequest.correctionId || `correction-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            correctionId: nextCorrectionId,
             correctionText,
             nonce: correctionNonceRef.current,
         });
+        setFocusedCommentId(null);
+        setFocusedCorrectionId(nextCorrectionId);
         trackAction(correctionRequest.mode === 'edit' ? 'editCorrection' : 'addCorrection', {
             submissionId,
             taskNumber: activeTask,
         });
+
+        const trimmedCommentText = commentText.trim();
+        if (trimmedCommentText) {
+            const existingComment = getActiveCommentForRange(activeTask, correctionRequest.from, correctionRequest.to);
+            if (existingComment) {
+                showStatus('A comment already exists on this selected text. Edit it from the Comments tab if needed.');
+            } else if (pendingCommentDraftsRef.current[activeTask]) {
+                showStatus('Finish or cancel the open comment before adding another one.');
+            } else {
+                const html = convertPlainTextToCommentHtml(trimmedCommentText);
+                if (isHtmlMeaningful(html)) {
+                    createSavedComment({
+                        commentId: `comment-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                        taskNumber: activeTask,
+                        anchorText: correctionRequest.selectedText,
+                        from: correctionRequest.from,
+                        to: correctionRequest.to,
+                        categoryId: 'uncategorized',
+                        html,
+                    }, html, undefined, {
+                        focusInSidebar: false,
+                        source: 'correction-popup',
+                    });
+                }
+            }
+        }
+
         setCorrectionRequest(null);
-    }, [activeTask, correctionRequest, submissionId, trackAction]);
+    }, [
+        activeTask,
+        correctionRequest,
+        createSavedComment,
+        getActiveCommentForRange,
+        showStatus,
+        submissionId,
+        trackAction,
+    ]);
 
     const deleteCorrection = useCallback(() => {
         if (!correctionRequest || correctionRequest.mode !== 'edit') {
@@ -1903,53 +1950,10 @@ export default function WritingGradingPage() {
             correctionId: correctionRequest.correctionId,
             nonce: correctionNonceRef.current,
         });
+        setFocusedCorrectionId(null);
         trackAction('deleteCorrection', { submissionId, taskNumber: activeTask });
         setCorrectionRequest(null);
     }, [activeTask, correctionRequest, submissionId, trackAction]);
-
-    const handleEditCorrectionFromSidebar = useCallback((correctionId: string) => {
-        const correction = getActiveCorrectionById(correctionId);
-        if (!correction || mode !== 'editing') {
-            return;
-        }
-
-        const correctionElement = pageRef.current?.querySelector(
-            `.correction-mark[data-correction-id="${correctionId}"]`,
-        ) as HTMLElement | null;
-        const rect = correctionElement?.getBoundingClientRect();
-
-        setFocusedCommentId(correctionId);
-        setFocusedCommentAnchorViewportTop(rect?.top ?? null);
-        setPanelTab('comments');
-        setCorrectionRequest({
-            mode: 'edit',
-            correctionId,
-            from: correction.from,
-            to: correction.to,
-            selectedText: correction.anchorText,
-            correctionText: correction.correctionText,
-            position: getCorrectionPopupPosition(rect?.top ?? null, rect?.left ?? null),
-        });
-    }, [getActiveCorrectionById, getCorrectionPopupPosition, mode]);
-
-    const handleDeleteCorrectionFromSidebar = useCallback((correctionId: string) => {
-        const correction = getActiveCorrectionById(correctionId);
-        if (!correction || mode !== 'editing') {
-            return;
-        }
-
-        correctionNonceRef.current += 1;
-        setPendingCorrection({
-            taskNumber: activeTask,
-            action: 'remove',
-            from: correction.from,
-            to: correction.to,
-            correctionId: correction.id,
-            nonce: correctionNonceRef.current,
-        });
-        setFocusedCommentId(null);
-        trackAction('deleteCorrection', { submissionId, taskNumber: activeTask });
-    }, [activeTask, getActiveCorrectionById, mode, submissionId, trackAction]);
 
     const focusSuggestionInEssay = useCallback((suggestion: WritingSuggestionItem) => {
         suggestionFocusNonceRef.current += 1;
@@ -1983,7 +1987,7 @@ export default function WritingGradingPage() {
             to: suggestion.to,
             categoryId: suggestion.categoryId,
             html,
-        }, html);
+        }, html, undefined, { source: 'suggestion' });
         focusSuggestionInEssay(suggestion);
         return true;
     }, [createSavedComment, focusSuggestionInEssay, showStatus]);
@@ -1999,7 +2003,6 @@ export default function WritingGradingPage() {
         }
 
         correctionNonceRef.current += 1;
-        setPanelTab('comments');
         focusSuggestionInEssay(suggestion);
         setPendingCorrection({
             taskNumber: suggestion.taskNumber,
@@ -2169,6 +2172,18 @@ export default function WritingGradingPage() {
 
     const promptTask = submission.tasks.find((task) => task.taskNumber === activeTask) ?? submission.tasks[0]!;
     const publishedTask = publishedGrading?.perTask[activeTask] || null;
+    const correctionLinkedComment = correctionRequest
+        ? activeTaskState.comments.find((comment) => (
+            comment.status === 'active'
+            && comment.from === correctionRequest.from
+            && comment.to === correctionRequest.to
+        )) || null
+        : null;
+    const correctionCommentDisabledReason = correctionLinkedComment
+        ? 'An active comment already exists on this selected text. Edit it from the Comments tab if needed.'
+        : activePendingCommentDraft
+            ? 'Finish or cancel the open comment draft before adding another comment here.'
+            : null;
     const commentPositions = anchorPositions
         .map((anchor) => {
             const comment = activeTaskState.comments.find((entry) => entry.id === anchor.commentId);
@@ -2312,6 +2327,7 @@ export default function WritingGradingPage() {
                             onAddComment={handleAddComment}
                             onGutterDotClick={(commentId) => {
                                 setFocusedCommentId(commentId);
+                                setFocusedCorrectionId(null);
                                 setFocusedCommentAnchorViewportTop(
                                     anchorPositions.find((position) => position.commentId === commentId)?.anchorViewportTop ?? null,
                                 );
@@ -2319,6 +2335,7 @@ export default function WritingGradingPage() {
                             }}
                             onCommentMarkClick={(commentId, anchorViewportTop) => {
                                 setFocusedCommentId(commentId);
+                                setFocusedCorrectionId(null);
                                 setFocusedCommentAnchorViewportTop(anchorViewportTop);
                                 setPanelTab('comments');
                             }}
@@ -2329,7 +2346,6 @@ export default function WritingGradingPage() {
                             }}
                             onCorrectionRequest={handleCorrectionRequest}
                             onCorrectionMarkClick={handleCorrectionMarkClick}
-                            onCorrectionItemsChange={setActiveCorrections}
                             pendingQuickComment={pendingQuickComment}
                             pendingCorrection={pendingCorrection}
                             pendingCommentMutation={pendingCommentMutation}
@@ -2337,6 +2353,7 @@ export default function WritingGradingPage() {
                             commentPositions={commentPositions}
                             comments={activeTaskState.comments}
                             focusedCommentId={focusedCommentId}
+                            focusedCorrectionId={focusedCorrectionId}
                             hoveredCommentId={hoveredCommentId}
                             readOnly={mode !== 'editing'}
                             editorRef={essayEditorRef}
@@ -2359,6 +2376,7 @@ export default function WritingGradingPage() {
                             initialValue={correctionRequest?.correctionText || ''}
                             position={correctionRequest?.position || { top: 24, left: 24 }}
                             mode={correctionRequest?.mode || 'create'}
+                            commentDisabledReason={correctionCommentDisabledReason}
                             onApply={applyCorrection}
                             onDelete={correctionRequest?.mode === 'edit' ? deleteCorrection : undefined}
                             onDismiss={dismissCorrectionRequest}
@@ -2410,7 +2428,6 @@ export default function WritingGradingPage() {
                         <div className="wgp-comments-card">
                             <CommentSidebar
                                 comments={activeTaskState.comments}
-                                corrections={activeCorrections}
                                 taskNumber={activeTask}
                                 focusedCommentId={focusedCommentId}
                                 focusedCommentAnchorViewportTop={focusedCommentAnchorViewportTop}
@@ -2426,8 +2443,6 @@ export default function WritingGradingPage() {
                                 onDeleteComment={handleDeleteComment}
                                 onRecoverComment={handleRecoverComment}
                                 onCategoryChange={handleCategoryChange}
-                                onEditCorrection={handleEditCorrectionFromSidebar}
-                                onDeleteCorrection={handleDeleteCorrectionFromSidebar}
                                 onSavePendingComment={handleSavePendingComment}
                                 onPendingCommentChange={handlePendingCommentChange}
                                 onPendingCommentCategoryChange={handlePendingCommentCategoryChange}

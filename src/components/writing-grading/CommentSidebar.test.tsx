@@ -1,7 +1,7 @@
 import { fireEvent, render, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import CommentSidebar from './CommentSidebar';
-import type { GradingComment, GradingCorrection } from '../../types/ielts-writing.types';
+import type { GradingComment } from '../../types/ielts-writing.types';
 
 const scrollIntoViewMock = vi.fn();
 
@@ -33,17 +33,6 @@ const comments: GradingComment[] = [
         to: 10,
         createdAt: Date.now(),
         updatedAt: Date.now(),
-    },
-];
-
-const corrections: GradingCorrection[] = [
-    {
-        id: 'correction-1',
-        taskNumber: 1,
-        anchorText: 'third phrase',
-        correctionText: 'Use a more precise verb here.',
-        from: 11,
-        to: 16,
     },
 ];
 
@@ -171,22 +160,37 @@ describe('CommentSidebar', () => {
         });
     });
 
-    it('renders corrections in the comments tab and routes correction actions through the sidebar callbacks', async () => {
-        const onEditCorrection = vi.fn();
-        const onDeleteCorrection = vi.fn();
+    it('keeps the comments rail comment-only after correction/sidebar decoupling', async () => {
+        const commentsWithResolved: GradingComment[] = [
+            ...comments,
+            {
+                id: 'comment-3',
+                taskNumber: 1,
+                text: '<p>Resolved comment</p>',
+                categoryId: 'lr',
+                categoryLabel: 'Lexical Resource',
+                color: '#f59e0b',
+                status: 'resolved',
+                anchorText: 'third phrase',
+                from: 11,
+                to: 16,
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+                resolvedAt: Date.now(),
+            },
+        ];
 
-        const { getByText, getByRole, container } = render(
+        const { getByText, queryByText } = render(
             <CommentSidebar
-                comments={comments}
-                corrections={corrections}
+                comments={commentsWithResolved}
                 taskNumber={1}
-                focusedCommentId="correction-1"
-                focusedCommentAnchorViewportTop={220}
+                focusedCommentId="comment-1"
+                focusedCommentAnchorViewportTop={140}
                 hoveredCommentId={null}
                 anchorPositions={[
                     { commentId: 'comment-1', anchorTop: 100, anchorRight: 20, anchorCenterY: 110, anchorViewportTop: 140 },
                     { commentId: 'comment-2', anchorTop: 200, anchorRight: 20, anchorCenterY: 210, anchorViewportTop: 180 },
-                    { commentId: 'correction-1', anchorTop: 300, anchorRight: 20, anchorCenterY: 310, anchorViewportTop: 220 },
+                    { commentId: 'comment-3', anchorTop: 300, anchorRight: 20, anchorCenterY: 310, anchorViewportTop: 220 },
                 ]}
                 editorScrollTop={0}
                 onFocusComment={() => {}}
@@ -197,23 +201,13 @@ describe('CommentSidebar', () => {
                 onDeleteComment={() => {}}
                 onRecoverComment={() => {}}
                 onCategoryChange={() => {}}
-                onEditCorrection={onEditCorrection}
-                onDeleteCorrection={onDeleteCorrection}
             />,
         );
 
-        expect(getByText('Open (3)')).toBeTruthy();
-        expect(getByText('Correction')).toBeTruthy();
-        expect(getByText('Correct to')).toBeTruthy();
-        expect(getByText('Use a more precise verb here.')).toBeTruthy();
-
-        const correctionCard = container.querySelector('[data-comment-id="correction-1"]');
-        expect(correctionCard).toHaveClass('comment-card-correction');
-
-        fireEvent.click(getByRole('button', { name: 'Edit' }));
-        expect(onEditCorrection).toHaveBeenCalledWith('correction-1');
-
-        fireEvent.click(getByRole('button', { name: 'Delete' }));
-        expect(onDeleteCorrection).toHaveBeenCalledWith('correction-1');
+        await waitFor(() => {
+            expect(getByText('Open (2)')).toBeTruthy();
+            expect(getByText('Resolved (1)')).toBeTruthy();
+            expect(queryByText('Correction')).toBeNull();
+        });
     });
 });

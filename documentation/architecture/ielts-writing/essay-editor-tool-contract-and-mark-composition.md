@@ -201,3 +201,27 @@ Interaction boundary:
 - Saved comments and saved corrections must both materialize as first-class items in the `Comments` tab.
 - Clicking either a comment mark or a correction mark from the essay must open or focus the matching sidebar item.
 - Sidebar edit and delete actions for corrections must route back through the same correction editing and removal flow as the editor surface.
+
+## 2026-04-05 Follow-up - Correction Flow Separated From The Comments Rail
+
+- Correction interaction is no longer routed through the `Comments` tab.
+- Clicking a correction mark in the essay reopens correction editing only; it does not force-open the comment rail.
+- The correction popup may optionally create a normal comment anchored to the same selected source text.
+- `Comments` remains comment-only. Corrections no longer materialize as first-class comment-rail cards.
+- Same-range `commentMark` + `correctionMark` is now an intentional supported state:
+  - correction click routing still wins inside the essay surface
+  - the comment remains accessible through the comment rail and gutter-dot navigation
+  - correction application still strips highlight, strikethrough, and text-color marks, but it no longer blocks or removes comment marks on the same slice
+- Quick comments and manual comments may be applied to corrected text because comment interaction is now independent from correction-tab routing.
+
+## 2026-04-05 Second Follow-up - Correction/Comment Overlap Ownership And Essay Overlay Mounting
+
+- The piggyback comment created from the correction popup still persists as a normal `GradingComment` on the original source range; no range remapping or correction-owned note model was introduced in this pass.
+- The underlying bug was mark composition, not comment range data. `correctionMark` now remains the dominant outer mark when a correction overlaps a comment mark, so the comment highlight/anchor applies only to the original selected text and not to the rendered replacement text.
+- Essay-side hover tooltip and bubble-menu overlays now follow the same architectural rule as `CorrectionPopup`: they mount through a body portal and use viewport-fixed positioning. This keeps annotation overlays free of left-column/editor subtree clipping semantics instead of relying on local container overflow changes.
+
+## 2026-04-05 Third Follow-up - Tooltip Attachment Heuristic
+
+- Escaping the essay subtree was not sufficient by itself; hover tooltip placement now derives from the hovered mark rectangle rather than defaulting to `below/above + markRect.left`.
+- The essay comment tooltip now chooses the nearest intelligible attachment side in this order: right, left, bottom, then top, while still clamping to the viewport.
+- Tooltip rendering now includes explicit placement state so the UI can show a directional attachment cue (`data-placement`), making the hovered comment and the overlay legible as one interaction.

@@ -140,6 +140,18 @@ Overlay-containment rules:
 - those overlays should anchor from viewport coordinates and clamp to visible screen bounds so they remain usable near the top, bottom, or side edges of the grading surface
 - editor scroll and window resize must trigger overlay repositioning or dismissal so stale coordinates do not leave popups floating in the wrong place
 
+## 2026-04-05 Amendment - Grading Overlay Attachment And Same-Range Annotation Ownership
+
+Overlay attachment rules:
+- escaping clipping containers is necessary but not sufficient; the essay comment hover tooltip must also derive its placement from the hovered mark rectangle so the overlay reads as attached to the annotation instead of merely remaining onscreen
+- the tooltip should choose the nearest intelligible side in this order: right, left, bottom, then top, while still clamping to the viewport
+- tooltip rendering should carry explicit placement state so the UI can render a directional attachment cue
+
+Same-range ownership rules:
+- a correction action may optionally piggyback-create a normal comment anchored to the same selected source text, but that does not make corrections part of the `Comments` rail contract
+- same-range `commentMark` plus `correctionMark` is an intentional supported state; correction click/edit routing remains correction-owned, while comment discovery and editing remain comment-rail-owned
+- when both marks overlap, correction owns the outer visual wrapper so the saved comment stays attributable to the original selected text and does not visually extend across the rendered replacement text
+
 ## 2026-04-02 Amendment - Grading Draft, Lock, And Compatibility Ownership Contract
 
 Task-state rules:

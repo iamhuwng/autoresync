@@ -1,15 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RichContent } from '../../core/components/RichContent';
-import type { CommentCategoryId, GradingComment, GradingCorrection } from '../../types/ielts-writing.types';
+import type { CommentCategoryId, GradingComment } from '../../types/ielts-writing.types';
 import { COMMENT_CATEGORIES } from '../../types/ielts-writing.types';
 import CommentComposer, { isCommentHtmlMeaningful } from './CommentComposer';
 
-type SidebarAnnotationItem =
-    | ({ kind: 'comment' } & GradingComment)
-    | ({ kind: 'correction' } & GradingCorrection);
-
 export interface CommentCardProps {
-    comment: SidebarAnnotationItem;
+    comment: GradingComment;
     isFocused: boolean;
     isHovered: boolean;
     taskNumber: 1 | 2;
@@ -21,8 +17,6 @@ export interface CommentCardProps {
     onDelete: (commentId: string) => void;
     onRecover: (commentId: string) => void;
     onCategoryChange: (commentId: string, categoryId: CommentCategoryId) => void;
-    onEditCorrection?: (correctionId: string) => void;
-    onDeleteCorrection?: (correctionId: string) => void;
     onHeaderRefChange?: (node: HTMLDivElement | null) => void;
     readOnly?: boolean;
 }
@@ -55,27 +49,20 @@ const CommentCard: React.FC<CommentCardProps> = ({
     onDelete,
     onRecover,
     onCategoryChange,
-    onEditCorrection,
-    onDeleteCorrection,
     onHeaderRefChange,
     readOnly = false,
 }) => {
-    const isCorrection = comment.kind === 'correction';
     const [showMenu, setShowMenu] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
-    const [draftHtml, setDraftHtml] = useState(isCorrection ? '' : comment.text);
-    const [draftCategoryId, setDraftCategoryId] = useState<CommentCategoryId>(isCorrection ? 'uncategorized' : comment.categoryId);
+    const [draftHtml, setDraftHtml] = useState(comment.text);
+    const [draftCategoryId, setDraftCategoryId] = useState<CommentCategoryId>(comment.categoryId);
     const [isResolving, setIsResolving] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        if (isCorrection) {
-            return;
-        }
-
         setDraftHtml(comment.text);
         setDraftCategoryId(comment.categoryId);
-    }, [comment, isCorrection]);
+    }, [comment]);
 
     useEffect(() => {
         if (!showMenu) {
@@ -100,10 +87,10 @@ const CommentCard: React.FC<CommentCardProps> = ({
     }, [readOnly]);
 
     const handleClick = useCallback(() => {
-        if (isCorrection || comment.status !== 'deleted') {
+        if (comment.status !== 'deleted') {
             onFocus(comment.id);
         }
-    }, [comment, isCorrection, onFocus]);
+    }, [comment, onFocus]);
 
     const handleResolve = useCallback(() => {
         setIsResolving(true);
@@ -113,14 +100,9 @@ const CommentCard: React.FC<CommentCardProps> = ({
         }, 300);
     }, [comment.id, onResolve]);
 
-    const categoryDefinition = isCorrection
-        ? COMMENT_CATEGORIES.uncategorized
-        : (COMMENT_CATEGORIES[comment.categoryId] || COMMENT_CATEGORIES.uncategorized);
-    const previewText = useMemo(
-        () => (isCorrection ? `Correct to: ${comment.correctionText}` : stripHtml(comment.text)),
-        [comment, isCorrection],
-    );
-    const relativeTime = isCorrection ? null : getRelativeTime(comment.createdAt);
+    const categoryDefinition = COMMENT_CATEGORIES[comment.categoryId] || COMMENT_CATEGORIES.uncategorized;
+    const previewText = useMemo(() => stripHtml(comment.text), [comment.text]);
+    const relativeTime = getRelativeTime(comment.createdAt);
 
     const cardClasses = [
         'comment-card',
@@ -128,9 +110,8 @@ const CommentCard: React.FC<CommentCardProps> = ({
         isEditing ? 'comment-card-editing' : '',
         isHovered ? 'comment-card-hovered' : '',
         isResolving ? 'comment-card-resolving' : '',
-        !isCorrection && comment.status === 'resolved' ? 'comment-card-resolved' : '',
-        !isCorrection && comment.status === 'deleted' ? 'comment-card-deleted' : '',
-        isCorrection ? 'comment-card-correction' : '',
+        comment.status === 'resolved' ? 'comment-card-resolved' : '',
+        comment.status === 'deleted' ? 'comment-card-deleted' : '',
     ].filter(Boolean).join(' ');
 
     return (
@@ -150,10 +131,10 @@ const CommentCard: React.FC<CommentCardProps> = ({
                 <div className="comment-card-category">
                     <span
                         className="category-dot-inline"
-                        style={{ backgroundColor: isCorrection ? '#0ea5e9' : categoryDefinition.color }}
+                        style={{ backgroundColor: categoryDefinition.color }}
                     />
                     <span className="category-label">
-                        {isCorrection ? 'Correction' : (isEditing ? 'Editing' : comment.categoryLabel)}
+                        {isEditing ? 'Editing' : comment.categoryLabel}
                     </span>
                 </div>
                 <div className="comment-card-header-right">
@@ -174,32 +155,7 @@ const CommentCard: React.FC<CommentCardProps> = ({
                             </button>
                             {showMenu && (
                                 <div className="comment-card-menu" id={`comment-menu-${comment.id}`}>
-                                    {isCorrection ? (
-                                        <>
-                                            <button
-                                                className="menu-item"
-                                                onClick={(event) => {
-                                                    event.stopPropagation();
-                                                    onEditCorrection?.(comment.id);
-                                                    setShowMenu(false);
-                                                }}
-                                                type="button"
-                                            >
-                                                Edit
-                                            </button>
-                                            <button
-                                                className="menu-item menu-item-danger"
-                                                onClick={(event) => {
-                                                    event.stopPropagation();
-                                                    onDeleteCorrection?.(comment.id);
-                                                    setShowMenu(false);
-                                                }}
-                                                type="button"
-                                            >
-                                                Delete
-                                            </button>
-                                        </>
-                                    ) : comment.status === 'active' && (
+                                    {comment.status === 'active' && (
                                         <>
                                             <button
                                                 className="menu-item"
@@ -225,7 +181,7 @@ const CommentCard: React.FC<CommentCardProps> = ({
                                             </button>
                                         </>
                                     )}
-                                    {!isCorrection && comment.status === 'resolved' && (
+                                    {comment.status === 'resolved' && (
                                         <button
                                             className="menu-item"
                                             onClick={(event) => {
@@ -236,9 +192,9 @@ const CommentCard: React.FC<CommentCardProps> = ({
                                             type="button"
                                         >
                                             Re-open
-                                        </button>
+                                            </button>
                                     )}
-                                    {!isCorrection && comment.status === 'deleted' && (
+                                    {comment.status === 'deleted' && (
                                         <button
                                             className="menu-item"
                                             onClick={(event) => {
@@ -254,7 +210,7 @@ const CommentCard: React.FC<CommentCardProps> = ({
                                 </div>
                             )}
                         </div>
-                    ) : !readOnly && !isCorrection && comment.status === 'active' ? (
+                    ) : !readOnly && comment.status === 'active' ? (
                         <button
                             className="comment-card-close-btn"
                             onClick={(event) => {
@@ -277,7 +233,7 @@ const CommentCard: React.FC<CommentCardProps> = ({
                 </div>
             )}
 
-            {isEditing && !isCorrection ? (
+            {isEditing ? (
                 <div className="comment-card-edit-shell" onClick={(event) => event.stopPropagation()}>
                     <CommentComposer
                         value={draftHtml}
@@ -311,45 +267,13 @@ const CommentCard: React.FC<CommentCardProps> = ({
                 <>
                     <div className={`comment-card-text ${!isFocused ? 'text-truncated' : ''}`}>
                         {isFocused ? (
-                            isCorrection ? (
-                                <div className="comment-card-correction-detail">
-                                    <div className="comment-card-correction-label">Correct to</div>
-                                    <div className="comment-card-correction-value">{comment.correctionText}</div>
-                                </div>
-                            ) : (
-                                <RichContent content={comment.text} className="comment-card-rich-text" />
-                            )
+                            <RichContent content={comment.text} className="comment-card-rich-text" />
                         ) : (
                             previewText
                         )}
                     </div>
 
-                    {isFocused && isCorrection && !readOnly && (
-                        <div className="comment-card-actions">
-                            <button
-                                className="comment-resolve-btn"
-                                onClick={(event) => {
-                                    event.stopPropagation();
-                                    onEditCorrection?.(comment.id);
-                                }}
-                                type="button"
-                            >
-                                Edit
-                            </button>
-                            <button
-                                className="comment-delete-btn"
-                                onClick={(event) => {
-                                    event.stopPropagation();
-                                    onDeleteCorrection?.(comment.id);
-                                }}
-                                type="button"
-                            >
-                                Delete
-                            </button>
-                        </div>
-                    )}
-
-                    {isFocused && !isCorrection && comment.status === 'active' && !readOnly && (
+                    {isFocused && comment.status === 'active' && !readOnly && (
                         <div className="comment-card-actions">
                             <button
                                 className="comment-resolve-btn"
@@ -392,7 +316,7 @@ const CommentCard: React.FC<CommentCardProps> = ({
                 </>
             )}
 
-            {!isCorrection && comment.status === 'resolved' && (
+            {comment.status === 'resolved' && (
                 <div className="comment-card-resolved-badge">
                     Resolved
                 </div>

@@ -18,6 +18,7 @@
  */
 
 import React, { useState, useCallback, useRef, useEffect, useMemo, useImperativeHandle } from 'react';
+import { createPortal } from 'react-dom';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Highlight from '@tiptap/extension-highlight';
@@ -111,6 +112,8 @@ export interface EssayEditorProps {
     comments?: GradingComment[];
     /** ID of the currently focused comment (for highlighting) */
     focusedCommentId?: string | null;
+    /** ID of the currently focused correction (for highlighting) */
+    focusedCorrectionId?: string | null;
     /** ID of the currently hovered comment (for subtle highlighting) */
     hoveredCommentId?: string | null;
     /** Read-only review mode */
@@ -169,6 +172,17 @@ interface OverlayPosition {
     left: number;
 }
 
+type CommentTooltipPlacement = 'right' | 'left' | 'top' | 'bottom';
+
+interface CommentTooltipState extends OverlayPosition {
+    commentId: string;
+    placement: CommentTooltipPlacement;
+}
+
+interface CommentTooltipPosition extends OverlayPosition {
+    placement: CommentTooltipPlacement;
+}
+
 // ═══════════════════════════════════════════════════════════════
 // COMPONENT
 // ═══════════════════════════════════════════════════════════════
@@ -195,13 +209,14 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
     commentPositions = [],
     comments = [],
     focusedCommentId = null,
+    focusedCorrectionId = null,
     hoveredCommentId = null,
     readOnly = false,
     onSelectionStateChange,
     editorRef,
 }) => {
     const [bubbleMenuPos, setBubbleMenuPos] = useState<OverlayPosition | null>(null);
-    const [hoverTooltip, setHoverTooltip] = useState<{ commentId: string; top: number; left: number } | null>(null);
+    const [hoverTooltip, setHoverTooltip] = useState<CommentTooltipState | null>(null);
 
     const editorContainerRef = useRef<HTMLDivElement>(null);
     const editorEditableRef = useRef<HTMLDivElement>(null);
@@ -215,6 +230,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
     const commentsById = useMemo(() => {
         return new Map(comments.map((comment) => [comment.id, comment]));
     }, [comments]);
+    const overlayPortalRoot = typeof document !== 'undefined' ? document.body : null;
     const canAnnotate = !readOnly && viewMode === 'marked';
 
     // ─── TipTap Editor Setup ─────────────────────────────────
@@ -274,11 +290,10 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
     }, [taskNumber, originalEssayText]);
     const selectionState = editor ? getEssaySelectionState(editor) : EMPTY_SELECTION_STATE;
     const hasSelection = selectionState.hasSelection;
-    const selectionContainsComment = hasSelection && selectionState.containsComment;
     const selectionContainsCorrection = hasSelection && selectionState.containsCorrection;
-    const canAddComment = canAnnotate && hasSelection && !selectionContainsCorrection;
+    const canAddComment = canAnnotate && hasSelection;
     const canApplyStrikethrough = canAnnotate && hasSelection && !selectionContainsCorrection;
-    const canApplyCorrection = canAnnotate && hasSelection && !selectionContainsCorrection && !selectionContainsComment;
+    const canApplyCorrection = canAnnotate && hasSelection && !selectionContainsCorrection;
     const canUndo = !readOnly && (editor?.can().undo() ?? false);
     const canRedo = !readOnly && (editor?.can().redo() ?? false);
     const preventToolbarBlur = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
@@ -497,19 +512,21 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
         };
     }, [editor, onCorrectionMarkClick]);
 
-    // ─── Apply focused/hovered comment mark classes ──────────
+    // ─── Apply focused/hovered annotation mark classes ──────────
     useEffect(() => {
         if (!editorContainerRef.current) return;
         const container = editorContainerRef.current;
-        const findMarksForAnnotationId = (annotationId: string) => {
+        const findCommentMarks = (commentId: string) =>
+            Array.from(container.querySelectorAll(`[data-comment-id="${commentId}"]`));
+        const findCorrectionMarks = (correctionId: string) => {
             const matchedElements = Array.from(
-                container.querySelectorAll(`[data-comment-id="${annotationId}"], .correction-mark[data-correction-id="${annotationId}"]`),
+                container.querySelectorAll(`.correction-mark[data-correction-id="${correctionId}"]`),
             );
 
             if (editor) {
                 container.querySelectorAll('.correction-mark:not([data-correction-id])').forEach((element) => {
                     const correctionSelection = getCorrectionMarkSelection(editor.view, element as HTMLElement);
-                    if (correctionSelection?.id === annotationId) {
+                    if (correctionSelection?.id === correctionId) {
                         matchedElements.push(element);
                     }
                 });
@@ -524,25 +541,33 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
         container.querySelectorAll('.correction-focused').forEach(el => el.classList.remove('correction-focused'));
         container.querySelectorAll('.correction-hovered').forEach(el => el.classList.remove('correction-hovered'));
 
-        // Apply focused class + scroll into view
-        if (focusedCommentId) {
-            const marks = findMarksForAnnotationId(focusedCommentId);
-            marks.forEach(el => {
-                el.classList.add(el.classList.contains('correction-mark') ? 'correction-focused' : 'comment-focused');
-            });
-            // Scroll the first mark into view (card→essay direction)
+        const scrollFirstMarkIntoView = (marks: Element[]) => {
             const firstMark = marks[0];
             if (firstMark && typeof (firstMark as { scrollIntoView?: unknown }).scrollIntoView === 'function') {
                 (firstMark as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
+        };
+
+        if (focusedCommentId) {
+            const marks = findCommentMarks(focusedCommentId);
+            marks.forEach((element) => element.classList.add('comment-focused'));
+            scrollFirstMarkIntoView(marks);
         }
-        // Apply hovered class
+
+        if (focusedCorrectionId) {
+            const marks = findCorrectionMarks(focusedCorrectionId);
+            marks.forEach((element) => element.classList.add('correction-focused'));
+            if (!focusedCommentId) {
+                scrollFirstMarkIntoView(marks);
+            }
+        }
+
         if (hoveredCommentId && hoveredCommentId !== focusedCommentId) {
-            findMarksForAnnotationId(hoveredCommentId).forEach(el => {
-                el.classList.add(el.classList.contains('correction-mark') ? 'correction-hovered' : 'comment-hovered');
+            findCommentMarks(hoveredCommentId).forEach((element) => {
+                element.classList.add('comment-hovered');
             });
         }
-    }, [editor, focusedCommentId, hoveredCommentId]);
+    }, [editor, focusedCommentId, focusedCorrectionId, hoveredCommentId]);
 
     useEffect(() => {
         const container = editorContainerRef.current;
@@ -577,6 +602,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                     commentId,
                     top: nextTooltipPosition.top,
                     left: nextTooltipPosition.left,
+                    placement: nextTooltipPosition.placement,
                 };
 
                 if (
@@ -629,7 +655,6 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
     useEffect(() => {
         if (!editor || readOnly || !pendingQuickComment || pendingQuickComment.taskNumber !== taskNumber) return;
         if (lastQuickCommentNonceRef.current === pendingQuickComment.nonce) return;
-        if (rangeHasAnyMark(editor, pendingQuickComment.from, pendingQuickComment.to, ['correctionMark'])) return;
 
         lastQuickCommentNonceRef.current = pendingQuickComment.nonce;
         const commentId = `comment-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -659,8 +684,8 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
             return;
         }
 
-        if (rangeHasAnyMark(editor, normalizedRange.from, normalizedRange.to, ['correctionMark', 'commentMark'])) {
-            return;
+        if (rangeHasAnyMark(editor, normalizedRange.from, normalizedRange.to, ['correctionMark'])) {
+            removeCorrectionMark(editor, normalizedRange.from, normalizedRange.to);
         }
 
         removeMarksByType(editor, normalizedRange.from, normalizedRange.to, ['highlight', 'strike', 'textStyle']);
@@ -895,60 +920,118 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                     </div>
                     </div>
 
-                    {hoverTooltip && commentsById.get(hoverTooltip.commentId) && (
-                        <div
-                            className="essay-comment-tooltip"
-                            style={{
-                                top: hoverTooltip.top,
-                                left: hoverTooltip.left,
-                            }}
-                        >
-                            <RichContent
-                                className="essay-comment-tooltip-body"
-                                content={commentsById.get(hoverTooltip.commentId)?.text || ''}
-                            />
-                        </div>
-                    )}
+                    {hoverTooltip && commentsById.get(hoverTooltip.commentId) && (overlayPortalRoot
+                        ? createPortal(
+                            <div
+                                className="essay-comment-tooltip"
+                                data-placement={hoverTooltip.placement}
+                                style={{
+                                    top: hoverTooltip.top,
+                                    left: hoverTooltip.left,
+                                }}
+                            >
+                                <RichContent
+                                    className="essay-comment-tooltip-body"
+                                    content={commentsById.get(hoverTooltip.commentId)?.text || ''}
+                                />
+                            </div>,
+                            overlayPortalRoot,
+                        )
+                        : (
+                            <div
+                                className="essay-comment-tooltip"
+                                data-placement={hoverTooltip.placement}
+                                style={{
+                                    top: hoverTooltip.top,
+                                    left: hoverTooltip.left,
+                                }}
+                            >
+                                <RichContent
+                                    className="essay-comment-tooltip-body"
+                                    content={commentsById.get(hoverTooltip.commentId)?.text || ''}
+                                />
+                            </div>
+                        ))}
 
                     {/* Custom Bubble Menu positioned near selection */}
-                    {bubbleMenuPos && !readOnly && (
-                        <div
-                            ref={bubbleMenuRef}
-                            className="essay-bubble-menu"
-                            style={{
-                                top: bubbleMenuPos.top,
-                                left: bubbleMenuPos.left,
-                            }}
-                        >
-                            <button
-                                className="bubble-btn"
-                                onMouseDown={(e) => { e.preventDefault(); }}
-                                onClick={() => handleAddComment()}
-                                disabled={!canAddComment}
-                                title="Comment"
+                    {bubbleMenuPos && !readOnly && (overlayPortalRoot
+                        ? createPortal(
+                            <div
+                                ref={bubbleMenuRef}
+                                className="essay-bubble-menu"
+                                style={{
+                                    top: bubbleMenuPos.top,
+                                    left: bubbleMenuPos.left,
+                                }}
                             >
-                                💬
-                            </button>
-                            <button
-                                className="bubble-btn"
-                                onMouseDown={(e) => { e.preventDefault(); }}
-                                onClick={() => handleStrikethrough()}
-                                disabled={!canApplyStrikethrough}
-                                title="Strikethrough"
+                                <button
+                                    className="bubble-btn"
+                                    onMouseDown={(e) => { e.preventDefault(); }}
+                                    onClick={() => handleAddComment()}
+                                    disabled={!canAddComment}
+                                    title="Comment"
+                                >
+                                    💬
+                                </button>
+                                <button
+                                    className="bubble-btn"
+                                    onMouseDown={(e) => { e.preventDefault(); }}
+                                    onClick={() => handleStrikethrough()}
+                                    disabled={!canApplyStrikethrough}
+                                    title="Strikethrough"
+                                >
+                                    <span style={{ textDecoration: 'line-through', fontSize: '12px' }}>S</span>
+                                </button>
+                                <button
+                                    className="bubble-btn"
+                                    onMouseDown={(e) => { e.preventDefault(); }}
+                                    onClick={() => handleCorrection()}
+                                    disabled={!canApplyCorrection}
+                                    title="Correction"
+                                >
+                                    ✏️
+                                </button>
+                            </div>,
+                            overlayPortalRoot,
+                        )
+                        : (
+                            <div
+                                ref={bubbleMenuRef}
+                                className="essay-bubble-menu"
+                                style={{
+                                    top: bubbleMenuPos.top,
+                                    left: bubbleMenuPos.left,
+                                }}
                             >
-                                <span style={{ textDecoration: 'line-through', fontSize: '12px' }}>S</span>
-                            </button>
-                            <button
-                                className="bubble-btn"
-                                onMouseDown={(e) => { e.preventDefault(); }}
-                                onClick={() => handleCorrection()}
-                                disabled={!canApplyCorrection}
-                                title="Correction"
-                            >
-                                ✏️
-                            </button>
-                        </div>
-                    )}
+                                <button
+                                    className="bubble-btn"
+                                    onMouseDown={(e) => { e.preventDefault(); }}
+                                    onClick={() => handleAddComment()}
+                                    disabled={!canAddComment}
+                                    title="Comment"
+                                >
+                                    💬
+                                </button>
+                                <button
+                                    className="bubble-btn"
+                                    onMouseDown={(e) => { e.preventDefault(); }}
+                                    onClick={() => handleStrikethrough()}
+                                    disabled={!canApplyStrikethrough}
+                                    title="Strikethrough"
+                                >
+                                    <span style={{ textDecoration: 'line-through', fontSize: '12px' }}>S</span>
+                                </button>
+                                <button
+                                    className="bubble-btn"
+                                    onMouseDown={(e) => { e.preventDefault(); }}
+                                    onClick={() => handleCorrection()}
+                                    disabled={!canApplyCorrection}
+                                    title="Correction"
+                                >
+                                    ✏️
+                                </button>
+                            </div>
+                        ))}
                 </div>
             )}
         </div>
@@ -1090,21 +1173,55 @@ function getBubbleMenuOverlayPosition(
 
 function getCommentTooltipOverlayPosition(
     markRect: { top: number; bottom: number; left: number; right: number },
-): OverlayPosition {
+): CommentTooltipPosition {
     const tooltipWidth = 280;
     const tooltipHeight = 180;
     const margin = 16;
-    const preferredTop = markRect.bottom + 12;
-    const fallbackTop = markRect.top - tooltipHeight - 12;
+    const gap = 12;
+    const verticalCenter = (markRect.top + markRect.bottom) / 2;
+    const horizontalCenter = (markRect.left + markRect.right) / 2;
+    const availableRight = window.innerWidth - markRect.right - margin;
+    const availableLeft = markRect.left - margin;
+    const availableBottom = window.innerHeight - markRect.bottom - margin;
+    const availableTop = markRect.top - margin;
 
-    return clampOverlayToViewport(
-        {
-            top: preferredTop + tooltipHeight <= window.innerHeight - margin ? preferredTop : fallbackTop,
-            left: markRect.left,
-        },
-        { width: tooltipWidth, height: tooltipHeight },
-        margin,
-    );
+    let placement: CommentTooltipPlacement;
+    let position: OverlayPosition;
+
+    if (availableRight >= tooltipWidth + gap) {
+        placement = 'right';
+        position = {
+            top: verticalCenter - tooltipHeight / 2,
+            left: markRect.right + gap,
+        };
+    } else if (availableLeft >= tooltipWidth + gap) {
+        placement = 'left';
+        position = {
+            top: verticalCenter - tooltipHeight / 2,
+            left: markRect.left - tooltipWidth - gap,
+        };
+    } else if (availableBottom >= tooltipHeight + gap || availableBottom >= availableTop) {
+        placement = 'bottom';
+        position = {
+            top: markRect.bottom + gap,
+            left: horizontalCenter - tooltipWidth / 2,
+        };
+    } else {
+        placement = 'top';
+        position = {
+            top: markRect.top - tooltipHeight - gap,
+            left: horizontalCenter - tooltipWidth / 2,
+        };
+    }
+
+    return {
+        placement,
+        ...clampOverlayToViewport(
+            position,
+            { width: tooltipWidth, height: tooltipHeight },
+            margin,
+        ),
+    };
 }
 
 function clampOverlayToViewport(

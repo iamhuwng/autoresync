@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { CommentCategoryId, GradingComment, GradingCorrection } from '../../types/ielts-writing.types';
+import type { CommentCategoryId, GradingComment } from '../../types/ielts-writing.types';
 import CommentCard from './CommentCard';
 import CommentComposer from './CommentComposer';
 import './CommentSidebar.css';
@@ -26,7 +26,6 @@ export interface PendingCommentDraft {
 
 export interface CommentSidebarProps {
     comments: GradingComment[];
-    corrections?: GradingCorrection[];
     taskNumber: 1 | 2;
     focusedCommentId: string | null;
     focusedCommentAnchorViewportTop?: number | null;
@@ -42,8 +41,6 @@ export interface CommentSidebarProps {
     onDeleteComment: (commentId: string) => void;
     onRecoverComment: (commentId: string) => void;
     onCategoryChange: (commentId: string, categoryId: CommentCategoryId) => void;
-    onEditCorrection?: (correctionId: string) => void;
-    onDeleteCorrection?: (correctionId: string) => void;
     onSavePendingComment?: (html: string, categoryId: CommentCategoryId) => void;
     onPendingCommentChange?: (html: string) => void;
     onPendingCommentCategoryChange?: (categoryId: CommentCategoryId) => void;
@@ -53,7 +50,6 @@ export interface CommentSidebarProps {
 
 export default function CommentSidebar({
     comments,
-    corrections = [],
     taskNumber,
     focusedCommentId,
     focusedCommentAnchorViewportTop = null,
@@ -69,17 +65,12 @@ export default function CommentSidebar({
     onDeleteComment,
     onRecoverComment,
     onCategoryChange,
-    onEditCorrection,
-    onDeleteCorrection,
     onSavePendingComment,
     onPendingCommentChange,
     onPendingCommentCategoryChange,
     onCancelPendingComment,
     readOnly = false,
 }: CommentSidebarProps) {
-    type SidebarAnnotationItem =
-        | ({ kind: 'comment' } & GradingComment)
-        | ({ kind: 'correction' } & GradingCorrection);
     const [filter, setFilter] = useState<FilterMode>('open');
     const sidebarRef = useRef<HTMLDivElement>(null);
     const commentsViewportRef = useRef<HTMLDivElement>(null);
@@ -101,9 +92,6 @@ export default function CommentSidebar({
 
         const focusedComment = comments.find((comment) => comment.id === focusedCommentId);
         if (!focusedComment) {
-            if (corrections.some((correction) => correction.id === focusedCommentId) && filter !== 'open' && filter !== 'all') {
-                setFilter('open');
-            }
             return;
         }
 
@@ -116,41 +104,27 @@ export default function CommentSidebar({
         if (focusedComment.status === 'deleted' && filter !== 'deleted') {
             setFilter('deleted');
         }
-    }, [comments, corrections, filter, focusedCommentId]);
+    }, [comments, filter, focusedCommentId]);
 
     const positionLookup = useMemo(() => {
         return new Map(anchorPositions.map((position) => [position.commentId, position]));
     }, [anchorPositions]);
 
     const filteredComments = useMemo(() => {
-        let nextComments: SidebarAnnotationItem[];
+        let nextComments: GradingComment[];
         switch (filter) {
             case 'resolved':
-                nextComments = comments
-                    .filter((comment) => comment.status === 'resolved')
-                    .map((comment) => ({ ...comment, kind: 'comment' as const }));
+                nextComments = comments.filter((comment) => comment.status === 'resolved');
                 break;
             case 'deleted':
-                nextComments = comments
-                    .filter((comment) => comment.status === 'deleted')
-                    .map((comment) => ({ ...comment, kind: 'comment' as const }));
+                nextComments = comments.filter((comment) => comment.status === 'deleted');
                 break;
             case 'all':
-                nextComments = [
-                    ...comments
-                        .filter((comment) => comment.status !== 'deleted')
-                        .map((comment) => ({ ...comment, kind: 'comment' as const })),
-                    ...corrections.map((correction) => ({ ...correction, kind: 'correction' as const })),
-                ];
+                nextComments = comments.filter((comment) => comment.status !== 'deleted');
                 break;
             case 'open':
             default:
-                nextComments = [
-                    ...comments
-                        .filter((comment) => comment.status === 'active')
-                        .map((comment) => ({ ...comment, kind: 'comment' as const })),
-                    ...corrections.map((correction) => ({ ...correction, kind: 'correction' as const })),
-                ];
+                nextComments = comments.filter((comment) => comment.status === 'active');
                 break;
         }
 
@@ -159,14 +133,14 @@ export default function CommentSidebar({
             const rightPosition = positionLookup.get(right.id)?.anchorTop ?? right.from;
             return leftPosition - rightPosition;
         });
-    }, [comments, corrections, filter, positionLookup]);
+    }, [comments, filter, positionLookup]);
 
     const counts = useMemo(() => ({
-        all: comments.filter((comment) => comment.status !== 'deleted').length + corrections.length,
-        open: comments.filter((comment) => comment.status === 'active').length + corrections.length,
+        all: comments.filter((comment) => comment.status !== 'deleted').length,
+        open: comments.filter((comment) => comment.status === 'active').length,
         resolved: comments.filter((comment) => comment.status === 'resolved').length,
         deleted: comments.filter((comment) => comment.status === 'deleted').length,
-    }), [comments, corrections]);
+    }), [comments]);
 
     useLayoutEffect(() => {
         if (!focusedCommentId) {
@@ -306,8 +280,6 @@ export default function CommentSidebar({
                                                 onDelete={onDeleteComment}
                                                 onRecover={onRecoverComment}
                                                 onCategoryChange={onCategoryChange}
-                                                onEditCorrection={onEditCorrection}
-                                                onDeleteCorrection={onDeleteCorrection}
                                                 onHeaderRefChange={(node) => {
                                                     commentHeaderRefs.current[comment.id] = node;
                                                 }}

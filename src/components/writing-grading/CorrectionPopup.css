@@ -10,7 +10,7 @@
 .correction-popup {
     position: fixed;
     z-index: 120;
-    width: min(320px, calc(100vw - 24px));
+    width: min(380px, calc(100vw - 24px));
     background: #ffffff;
     border: 1px solid #e2e8f0;
     border-radius: 10px;
@@ -153,6 +153,53 @@
     display: flex;
     justify-content: flex-end;
     margin-top: 10px;
+}
+
+.correction-popup-comment-block {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.correction-popup-comment-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #475569;
+}
+
+.correction-popup-comment-note {
+    border: 1px solid #dbeafe;
+    border-radius: 8px;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-size: 12px;
+    line-height: 1.5;
+    padding: 9px 10px;
+}
+
+.correction-popup-comment-input {
+    width: 100%;
+    resize: vertical;
+    min-height: 88px;
+    padding: 9px 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font: inherit;
+    font-size: 13px;
+    color: #1e293b;
+    background: #ffffff;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.correction-popup-comment-input:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.correction-popup-comment-input::placeholder {
+    color: #94a3b8;
 }
 
 .correction-popup-delete {

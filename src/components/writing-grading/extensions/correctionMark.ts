@@ -41,7 +41,9 @@ declare module '@tiptap/core' {
 export const CorrectionMark = Mark.create<CorrectionMarkOptions>({
     name: 'correctionMark',
 
-    priority: 1000,
+    // Keep correction as the outer dominant annotation when it overlaps
+    // a comment mark so the comment stays anchored to the original text only.
+    priority: 1002,
     inclusive: false,
     // Corrections own the text slice visually; overlapping presentation marks are stripped on apply.
     excludes: 'correctionMark highlight strike textStyle',

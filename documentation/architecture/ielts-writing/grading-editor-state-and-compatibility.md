@@ -189,3 +189,27 @@ Failure rules:
 - The `Comments` tab is the shared review surface for both comment annotations and correction annotations.
 - Focus, hover, edit, and delete flows must work when initiated from either the essay surface or the sidebar item.
 - Review-mode interaction must preserve this parity for both current and legacy saved markup.
+
+## 2026-04-05 Follow-up - Correction/Comment Interaction Split
+
+- `Comments` tab is now comment-only. Correction cards and correction edit/delete actions no longer live in the comment rail.
+- Page/editor focus is split:
+  - comment focus remains rail-linked state
+  - correction focus is separate editor-local/page-local state used only for correction interaction
+- The correction popup can piggyback-create a normal comment on the same selected source range without auto-switching the right rail to `Comments`.
+- This pass keeps the persisted schema unchanged:
+  - comments remain first-class records in `WritingTaskMarkupState.comments`
+  - corrections remain markup-derived from `markedContent`
+- Legacy overlapping correction/comment markup remains supported, but the overlap is no longer modeled as shared sidebar identity.
+
+## 2026-04-05 Second Follow-up - Piggyback Comment Ownership And Overlay Escape
+
+- Piggyback comments created from the correction popup remain first-class entries in `WritingTaskMarkupState.comments` with the original selected source range as their persisted anchor.
+- Same-range correction + comment is still supported, but the render contract is now explicit: correction owns the outer visual wrapper, while the comment mark remains scoped to the original source text slice.
+- Teacher essay overlays are no longer mounted inside the essay subtree. Hover comment tooltips and selection bubble menus now escape through a body portal, matching the correction popup's viewport-overlay architecture.
+
+## 2026-04-05 Third Follow-up - Comment Tooltip Adjacency
+
+- Teacher essay hover tooltips now use anchor-aware side placement instead of a fixed left-aligned above/below heuristic.
+- This is a runtime interaction contract change only; persisted comment anchors remain unchanged.
+- The goal of the new heuristic is attribution clarity: the tooltip should read as attached to the hovered annotation, not merely remain visible inside the viewport.

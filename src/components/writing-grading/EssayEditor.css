@@ -153,6 +153,40 @@
     pointer-events: none;
 }
 
+.essay-comment-tooltip::before {
+    content: '';
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: rgba(15, 23, 42, 0.96);
+    border-inline-start: 1px solid rgba(148, 163, 184, 0.28);
+    border-top: 1px solid rgba(148, 163, 184, 0.28);
+    transform: rotate(45deg);
+}
+
+.essay-comment-tooltip[data-placement='right']::before {
+    top: calc(50% - 6px);
+    left: -7px;
+}
+
+.essay-comment-tooltip[data-placement='left']::before {
+    top: calc(50% - 6px);
+    right: -7px;
+    transform: rotate(225deg);
+}
+
+.essay-comment-tooltip[data-placement='top']::before {
+    left: calc(50% - 6px);
+    bottom: -7px;
+    transform: rotate(135deg);
+}
+
+.essay-comment-tooltip[data-placement='bottom']::before {
+    left: calc(50% - 6px);
+    top: -7px;
+    transform: rotate(-45deg);
+}
+
 .essay-comment-tooltip-body {
     font-size: 0.84rem;
     line-height: 1.55;

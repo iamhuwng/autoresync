@@ -30,8 +30,10 @@ export interface CorrectionPopupProps {
     position: { top: number; left: number };
     /** Popup mode */
     mode?: 'create' | 'edit';
-    /** Called with correction text when the teacher submits */
-    onApply: (correctionText: string) => void;
+    /** Optional message shown when comment creation is unavailable for this range */
+    commentDisabledReason?: string | null;
+    /** Called with correction text and optional comment text when the teacher submits */
+    onApply: (correctionText: string, commentText: string) => void;
     /** Called when the correction should be removed */
     onDelete?: () => void;
     /** Called when the popup is dismissed without applying */
@@ -44,11 +46,13 @@ const CorrectionPopup: React.FC<CorrectionPopupProps> = ({
     initialValue = '',
     position,
     mode = 'create',
+    commentDisabledReason = null,
     onApply,
     onDelete,
     onDismiss,
 }) => {
     const [correctionText, setCorrectionText] = useState('');
+    const [commentText, setCommentText] = useState('');
     const inputRef = useRef<HTMLInputElement>(null);
     const popupRef = useRef<HTMLDivElement>(null);
     const portalRoot = typeof document !== 'undefined' ? document.body : null;
@@ -58,6 +62,7 @@ const CorrectionPopup: React.FC<CorrectionPopupProps> = ({
     useEffect(() => {
         if (isOpen) {
             setCorrectionText(initialValue.trimEnd());
+            setCommentText('');
             // Small delay to ensure DOM is rendered
             requestAnimationFrame(() => {
                 inputRef.current?.focus();
@@ -91,20 +96,20 @@ const CorrectionPopup: React.FC<CorrectionPopupProps> = ({
         if (e.key === 'Enter') {
             e.preventDefault();
             if (correctionText.trim()) {
-                onApply(correctionText.trim());
+                onApply(correctionText.trim(), commentText.trim());
             }
         }
         if (e.key === 'Escape') {
             e.preventDefault();
             onDismiss();
         }
-    }, [correctionText, onApply, onDismiss]);
+    }, [commentText, correctionText, onApply, onDismiss]);
 
     const handleApply = useCallback(() => {
         if (correctionText.trim()) {
-            onApply(correctionText.trim());
+            onApply(correctionText.trim(), commentText.trim());
         }
-    }, [correctionText, onApply]);
+    }, [commentText, correctionText, onApply]);
 
     if (!isOpen) return null;
 
@@ -166,6 +171,24 @@ const CorrectionPopup: React.FC<CorrectionPopupProps> = ({
                 </button>
             </div>
 
+            <div className="correction-popup-comment-block">
+                <label className="correction-popup-comment-label" htmlFor="correction-popup-comment">
+                    Optional comment on the selected text
+                </label>
+                {commentDisabledReason ? (
+                    <div className="correction-popup-comment-note">{commentDisabledReason}</div>
+                ) : (
+                    <textarea
+                        id="correction-popup-comment"
+                        className="correction-popup-comment-input"
+                        value={commentText}
+                        onChange={(event) => setCommentText(event.target.value)}
+                        placeholder="Add a comment anchored to this selected text..."
+                        rows={4}
+                    />
+                )}
+            </div>
+
             {mode === 'edit' && onDelete && (
                 <div className="correction-popup-actions">
                     <button
@@ -189,8 +212,8 @@ function getClampedPopupPosition(position: { top: number; left: number }) {
         return position;
     }
 
-    const popupWidth = Math.min(320, window.innerWidth - 24);
-    const popupHeight = 190;
+    const popupWidth = Math.min(380, window.innerWidth - 24);
+    const popupHeight = 360;
     const margin = 12;
     const maxLeft = Math.max(margin, window.innerWidth - popupWidth - margin);
     const maxTop = Math.max(margin, window.innerHeight - popupHeight - margin);
