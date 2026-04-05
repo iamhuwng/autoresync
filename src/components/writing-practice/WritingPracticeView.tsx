@@ -28,6 +28,7 @@ import { ref, push } from 'firebase/database';
 import { database } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import { getStudentClasses, getClass } from '../../services/classManager';
+import { getHomeworkById } from '../../services/homeworkManager';
 import { getUserById } from '../../services/userService';
 import { createSubmission, materializeSubmissionResult } from '../../services/writingSubmissionService';
 import { submitHomework } from '../../services/homeworkSubmissionService';
@@ -38,6 +39,7 @@ import WritingPromptPanel from '../writing-student/WritingPromptPanel';
 import WritingEditor from '../writing-student/WritingEditor';
 import SubmitToTeacherModal from './SubmitToTeacherModal';
 import type { IELTSWritingTest, WritingSubmission } from '../../types/ielts-writing.types';
+import type { AntiCheatConfig } from '../../types/integrity.types';
 import { buildRoute } from '../../constants/routes';
 import './WritingPracticeView.css';
 
@@ -64,6 +66,7 @@ interface SavedPracticeState {
     essays: { 1: string; 2: string };
     activeTask: 1 | 2;
     startedAt: number;
+    pasteAttemptCount?: number;
 }
 
 interface TeacherInfo {
@@ -156,6 +159,11 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
     const [submitting, setSubmitting] = useState(false);
     const [showSubmitModal, setShowSubmitModal] = useState(false);
     const [showResumeModal, setShowResumeModal] = useState(false);
+    const [antiCheatConfig, setAntiCheatConfig] = useState<AntiCheatConfig | null>(null);
+    const [persistenceReady, setPersistenceReady] = useState(false);
+    const essaysRef = useRef<{ 1: string; 2: string }>(homeworkContext?.previousEssay || { 1: '', 2: '' });
+    const activeTaskRef = useRef<1 | 2>(defaultTask);
+    const pasteAttemptCountRef = useRef(0);
 
     // Teacher list for SubmitToTeacherModal
     const [teachers, setTeachers] = useState<TeacherInfo[]>([]);
@@ -175,7 +183,12 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
 
     // Hooks
     const activeTime = useActiveTimeTracking(taskCount as 1 | 2);
-    const pastePrevention = useExternalPastePrevention();
+    const pastePrevention = useExternalPastePrevention({
+        enabled: isHomework ? Boolean(antiCheatConfig?.detectCopyPaste) : true,
+        initialPasteAttemptCount: 0,
+    });
+    const { pasteAttemptCount, setPasteAttemptCount, attachToTextarea } = pastePrevention;
+    pasteAttemptCountRef.current = pasteAttemptCount;
 
     const saveKey = getSaveKey(materialId, studentId);
 
@@ -183,18 +196,23 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
         setEssays(saved.essays);
         setActiveTask(saved.activeTask);
 
+        if (isHomework) {
+            setPasteAttemptCount(saved.pasteAttemptCount ?? 0);
+        }
+
         const resolvedStartedAt = isHomework
             ? homeworkContext?.startedAt ?? saved.startedAt
             : saved.startedAt;
 
         startedAtRef.current = resolvedStartedAt;
         setTimeRemaining(getTimerSecondsRemaining(timerMinutes, resolvedStartedAt));
-    }, [homeworkContext?.startedAt, isHomework, timerMinutes]);
+    }, [homeworkContext?.startedAt, isHomework, setPasteAttemptCount, timerMinutes]);
 
     const resetPracticeSession = useCallback(() => {
         clearPracticeState(saveKey);
         setEssays({ 1: '', 2: '' });
         setActiveTask(defaultTask);
+        setPasteAttemptCount(0);
 
         const nextStartedAt = isHomework
             ? homeworkContext?.startedAt ?? Date.now()
@@ -204,7 +222,30 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
         timerExpiredRef.current = false;
         setTimeRemaining(getTimerSecondsRemaining(timerMinutes, isHomework ? nextStartedAt : null));
         setShowResumeModal(false);
-    }, [defaultTask, homeworkContext?.startedAt, isHomework, saveKey, timerMinutes]);
+    }, [defaultTask, homeworkContext?.startedAt, isHomework, saveKey, setPasteAttemptCount, timerMinutes]);
+
+    useEffect(() => {
+        if (!isHomework || !homeworkContext?.homeworkId) {
+            setAntiCheatConfig(null);
+            return;
+        }
+
+        let cancelled = false;
+
+        getHomeworkById(homeworkContext.homeworkId)
+            .then((homework) => {
+                if (!cancelled) {
+                    setAntiCheatConfig((homework?.antiCheatConfig as AntiCheatConfig) || null);
+                }
+            })
+            .catch((error) => {
+                console.warn('[WritingPracticeView] Failed to load anti-cheat config:', error);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [homeworkContext?.homeworkId, isHomework]);
 
     // ── Load saved state on mount ──────────────────────────
     useEffect(() => {
@@ -214,13 +255,20 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
         if (saved) {
             if (shouldForceResume) {
                 applySavedProgress(saved);
+                setPersistenceReady(true);
             } else {
                 setShowResumeModal(true);
             }
         } else {
             startedAtRef.current = homeworkContext?.startedAt ?? Date.now();
+            setPersistenceReady(true);
         }
     }, [applySavedProgress, homeworkContext?.startedAt, saveKey, shouldForceResume, studentId]);
+
+    useEffect(() => {
+        essaysRef.current = essays;
+        activeTaskRef.current = activeTask;
+    }, [activeTask, essays]);
 
     // ── Load teachers from enrolled classes ─────────────────
     useEffect(() => {
@@ -339,10 +387,24 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
                 essays: updatedEssays,
                 activeTask: task,
                 startedAt: startedAtRef.current,
+                pasteAttemptCount: isHomework ? pasteAttemptCountRef.current : undefined,
             });
             setAutoSaveStatus('saved');
         }, 2000);
-    }, [saveKey]);
+    }, [isHomework, saveKey]);
+
+    useEffect(() => {
+        if (!isHomework || !persistenceReady || !studentId) {
+            return;
+        }
+
+        savePracticeState(saveKey, {
+            essays: essaysRef.current,
+            activeTask: activeTaskRef.current,
+            startedAt: startedAtRef.current,
+            pasteAttemptCount,
+        });
+    }, [isHomework, pasteAttemptCount, persistenceReady, saveKey, studentId]);
 
     // ── Essay change handler ────────────────────────────────
     const handleEssayChange = useCallback((text: string) => {
@@ -360,11 +422,12 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
             essays,
             activeTask: taskNum,
             startedAt: startedAtRef.current,
+            pasteAttemptCount: isHomework ? pasteAttemptCount : undefined,
         });
         setAutoSaveStatus('saved');
         activeTime.switchTask(taskNum);
         setActiveTask(taskNum);
-    }, [saveKey, essays, activeTime]);
+    }, [activeTime, essays, isHomework, pasteAttemptCount, saveKey]);
 
     // ── Word count helper ───────────────────────────────────
     const getWordCount = (text: string) =>
@@ -376,11 +439,13 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
         if (saved) {
             applySavedProgress(saved);
         }
+        setPersistenceReady(true);
         setShowResumeModal(false);
     };
 
     const handleStartNew = () => {
         resetPracticeSession();
+        setPersistenceReady(true);
     };
 
     // ── Submit flow ─────────────────────────────────────────
@@ -466,7 +531,7 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
                 tasks: submissionTasks,
                 submittedAt: Date.now(),
                 totalElapsedTimeSeconds: Math.round((Date.now() - startedAtRef.current) / 1000),
-                pasteAttemptCount: pastePrevention.pasteAttemptCount,
+                pasteAttemptCount,
                 markingStatus: 'pending-review',
                 annotations: [],
                 auditTrail: [],
@@ -546,7 +611,7 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
         homeworkLateAllowed,
         isHomework,
         navigate,
-        pastePrevention.pasteAttemptCount,
+        pasteAttemptCount,
         saveKey,
         studentId,
         studentName,
@@ -694,6 +759,7 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
                     value={essays[activeTask]}
                     onChange={handleEssayChange}
                     disabled={submitting}
+                    attachToTextarea={attachToTextarea}
                 />
             </div>
 

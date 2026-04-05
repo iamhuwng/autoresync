@@ -1,4 +1,4 @@
-﻿# IELTS Writing Architecture Pack
+# IELTS Writing Architecture Pack
 
 This folder is the architecture front door for the IELTS Writing domain.
 
@@ -16,9 +16,10 @@ This pack does not replace the detailed PRD/spec/audit documents. It gives the s
 1. `lifecycle-and-surfaces.md`
 2. `authoring-edit-shell-and-publish-contract.md`
 3. `contracts-and-governance.md`
-4. `grading-editor-state-and-compatibility.md`
-5. `essay-editor-tool-contract-and-mark-composition.md`
-6. `ai-suggestions-and-injection.md`
+4. `copy-paste-toggle-and-attempt-persistence.md`
+5. `grading-editor-state-and-compatibility.md`
+6. `essay-editor-tool-contract-and-mark-composition.md`
+7. `ai-suggestions-and-injection.md`
 
 ## What This Pack Covers
 
@@ -26,6 +27,7 @@ This pack does not replace the detailed PRD/spec/audit documents. It gives the s
 - the current teacher authoring and shared edit-shell contract
 - the current teacher and student surfaces
 - the canonical storage contract
+- the live/homework copy-paste toggle and paste-attempt persistence contract
 - the grading editor's task-state, draft, lock, and AI-suggestion cache contract
 - the essay editor tool contract, mark-composition boundary, and internal suggestion-focus support used by direct approval
 - how teacher-only AI suggestions are generated, reviewed, cached, diagnostically captured, and injected into existing grading tools
@@ -51,6 +53,7 @@ Primary references:
 - `../../../.knowns/docs/specs/ielts-writing-result-surfaces-2026-03-30.md`
 - `../../../.knowns/docs/architecture/scheme/ielts-writing-current-state-scheme.md`
 - `../../../.knowns/docs/architecture/architecture-ielts-writing-grading-submit-compatibility-audit-2026-03-29.md`
+- `../../../.knowns/docs/architecture/ielts-writing/ielts-writing-copy-paste-toggle-and-attempt-persistence-2026-04-05.md`
 - `../../../.knowns/docs/architecture/ielts-writing/ielts-writing-ai-suggestions-and-injection-2026-04-02.md`
 
 Related shared architecture docs:
@@ -64,6 +67,7 @@ Related shared architecture docs:
 - If a Writing lifecycle state or host surface changes, update `lifecycle-and-surfaces.md`.
 - If the writing edit/resume shell, save/publish flow, settings-tab ownership, or shared-shell layout contract changes, update `authoring-edit-shell-and-publish-contract.md`.
 - If storage, release gating, ownership, teacher-private helper state, or compatibility rules change, update `contracts-and-governance.md`.
+- If live/homework Writing anti-copy behavior, `detectCopyPaste` ownership, or paste-attempt persistence changes, update `copy-paste-toggle-and-attempt-persistence.md`.
 - If grading-editor task state, draft behavior, suggestion-cache behavior, or result compatibility metadata changes, update `grading-editor-state-and-compatibility.md`.
 - If essay-editor tools, selection routing, internal suggestion-focus behavior, or mark-composition rules change, update `essay-editor-tool-contract-and-mark-composition.md`.
 - If AI run scope, review workflow, cache normalization, diagnostic artifacts, or injection rules change, update `ai-suggestions-and-injection.md`.

@@ -89,3 +89,20 @@ Resume rules:
 
 Timeout rule:
 - when a homework Writing timer expires, the attempt should auto-submit the homework payload instead of leaving a stranded local draft
+
+## 2026-04-05 Amendment - IELTS Writing Homework Copy Paste Toggle And Persistence Contract
+
+IELTS Writing homework now honors the homework anti-cheat copy/paste flag instead of running as an always-on exception.
+
+Homework Writing rules:
+- `WritingPracticeView` must load `homework_assignments/{homeworkId}` and derive the enable flag from `homework.antiCheatConfig?.detectCopyPaste`.
+- missing homework anti-cheat config means copy/paste prevention is off for homework Writing.
+- the homework delivery surface owns the shared writing paste-prevention hook and passes its attachment callback into `WritingEditor`.
+- homework saved local progress must persist `pasteAttemptCount` together with essays, active task, and timer anchor state.
+- homework resume must restore that persisted `pasteAttemptCount` before the submission flow materializes the Writing payload.
+
+Scope boundary:
+- this contract changes homework Writing only; solo Writing behavior remains unchanged in the same implementation pass.
+
+Detailed reference:
+- `ielts-writing/copy-paste-toggle-and-attempt-persistence.md`

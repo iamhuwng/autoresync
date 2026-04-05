@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ref, onValue } from 'firebase/database';
+import { ref, onValue, set } from 'firebase/database';
 // @ts-ignore - JS service file
 import { database } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -16,6 +16,7 @@ import WritingEditor from './WritingEditor';
 import WritingSubmitModal from './WritingSubmitModal';
 import { useActiveTimeTracking } from '../../hooks/useActiveTimeTracking';
 import { useWritingAutoSave } from '../../hooks/useWritingAutoSave';
+import { useExternalPastePrevention } from '../../hooks/useExternalPastePrevention';
 import { autoSubmitFromRTDB } from '../../services/writingSubmissionService';
 import type { IELTSWritingTest } from '../../types/ielts-writing.types';
 import './WritingTestPage.css';
@@ -47,11 +48,22 @@ export default function WritingTestPage({ testData, sessionCode }: WritingTestPa
     const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
     const [sessionStatus, setSessionStatus] = useState<string>('waiting');
     const [isPaused, setIsPaused] = useState(false);
+    const [detectCopyPaste, setDetectCopyPaste] = useState(false);
+    const [pasteAttemptCountHydrated, setPasteAttemptCountHydrated] = useState(false);
     const hasAutoSubmittedRef = useRef(false);
     const prevSessionStatusRef = useRef<string>('waiting');
+    const savedStatePromiseRef = useRef<Promise<void> | null>(null);
 
     const activeTime = useActiveTimeTracking(taskCount as 1 | 2);
     const autoSave = useWritingAutoSave(sessionCode, studentId);
+    const {
+        pasteAttemptCount,
+        setPasteAttemptCount,
+        attachToTextarea,
+    } = useExternalPastePrevention({
+        enabled: detectCopyPaste,
+        initialPasteAttemptCount: 0,
+    });
 
     useEffect(() => {
         if (!sessionCode) return;
@@ -63,6 +75,7 @@ export default function WritingTestPage({ testData, sessionCode }: WritingTestPa
             const data = snap.val();
             setSessionStatus(data.status || 'waiting');
             setIsPaused(data.isPaused || false);
+            setDetectCopyPaste(Boolean(data.antiCheatConfig?.detectCopyPaste));
 
             if (data.status === 'in-progress' && data.startTime && !data.isPaused) {
                 const duration = (testData.metadata.duration || 60) * 60;
@@ -116,24 +129,47 @@ export default function WritingTestPage({ testData, sessionCode }: WritingTestPa
     useEffect(() => {
         let cancelled = false;
 
-        autoSave.loadSavedState().then((saved) => {
-            if (cancelled || !saved) return;
-
-            setEssays({
-                1: saved.task1Text || '',
-                2: saved.task2Text || '',
-            });
-
-            if (saved.activeTask === 1 || saved.activeTask === 2) {
-                setActiveTask(saved.activeTask as 1 | 2);
+        const savedStatePromise = autoSave.loadSavedState().then((saved) => {
+            if (cancelled) {
+                return;
             }
+
+            if (saved) {
+                setEssays({
+                    1: saved.task1Text || '',
+                    2: saved.task2Text || '',
+                });
+
+                if (saved.activeTask === 1 || saved.activeTask === 2) {
+                    setActiveTask(saved.activeTask as 1 | 2);
+                }
+
+                if (typeof saved.pasteAttemptCount === 'number') {
+                    setPasteAttemptCount(saved.pasteAttemptCount);
+                }
+            }
+
+            setPasteAttemptCountHydrated(true);
         });
+        savedStatePromiseRef.current = savedStatePromise;
 
         return () => {
             cancelled = true;
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [autoSave, setPasteAttemptCount]);
+
+    useEffect(() => {
+        if (!pasteAttemptCountHydrated || !studentId || !sessionCode) {
+            return;
+        }
+
+        set(
+            ref(database, `game_sessions/${sessionCode}/students/${studentId}/writing/pasteAttemptCount`),
+            pasteAttemptCount,
+        ).catch((error) => {
+            console.error('Failed to sync writing pasteAttemptCount:', error);
+        });
+    }, [pasteAttemptCount, pasteAttemptCountHydrated, sessionCode, studentId]);
 
     useEffect(() => {
         if (!studentId || !sessionCode) return;
@@ -183,7 +219,12 @@ export default function WritingTestPage({ testData, sessionCode }: WritingTestPa
         setShowSubmitModal(false);
 
         try {
+            await savedStatePromiseRef.current;
             autoSave.flushPendingSave();
+            await set(
+                ref(database, `game_sessions/${sessionCode}/students/${studentId}/writing/pasteAttemptCount`),
+                pasteAttemptCount,
+            );
             await autoSubmitFromRTDB(sessionCode, studentId, studentName, testData);
             setSubmitted(true);
 
@@ -302,6 +343,7 @@ export default function WritingTestPage({ testData, sessionCode }: WritingTestPa
                     value={essays[activeTask]}
                     onChange={handleEssayChange}
                     disabled={submitted || submitting}
+                    attachToTextarea={attachToTextarea}
                 />
             </div>
 

@@ -861,7 +861,7 @@ describe('writingSubmissionService', () => {
                         submitted: false,
                         task1: { text: 'Essay text', activeTimeSeconds: 12 },
                         totalElapsedTime: 90,
-                        pasteAttemptCount: 0,
+                        pasteAttemptCount: 4,
                     }),
                 });
             }
@@ -922,6 +922,7 @@ describe('writingSubmissionService', () => {
             expect.objectContaining({
                 id: 'result-4',
                 studentId: 'student-4',
+                pasteAttemptCount: 4,
                 context: expect.objectContaining({
                     type: 'live-session',
                     sessionCode: 'SESSION-4',

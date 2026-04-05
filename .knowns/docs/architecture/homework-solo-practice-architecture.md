@@ -2,7 +2,7 @@
 title: Homework Solo Practice Architecture
 description: 'Solo practice and homework system: data flows, status machine, result context, access control.'
 createdAt: '2026-02-27T16:20:59.562Z'
-updatedAt: '2026-04-02T04:50:17.763Z'
+updatedAt: '2026-04-05T03:52:39.030Z'
 tags:
   - architecture
   - homework
@@ -181,3 +181,20 @@ Solo practice and homework Reading flows now share one source-of-truth renderer 
 - New solo student preferences must default `highlighterEnabled` to `false`, so the tool stays off until the student explicitly enables it.
 
 See @doc/architecture/reading-passage-highlighting-architecture.
+
+## 2026-04-05 Amendment — IELTS Writing Homework Copy Paste Toggle And Persistence Contract
+
+IELTS Writing homework now honors the homework anti-cheat copy/paste flag instead of running as an always-on exception.
+
+Homework Writing rules:
+- `WritingPracticeView` must load `homework_assignments/{homeworkId}` and derive the enable flag from `homework.antiCheatConfig?.detectCopyPaste`.
+- missing homework anti-cheat config means copy/paste prevention is off for homework Writing.
+- the homework delivery surface owns the shared writing paste-prevention hook and passes its attachment callback into `WritingEditor`.
+- homework saved local progress must persist `pasteAttemptCount` together with essays, active task, and timer anchor state.
+- homework resume must restore that persisted `pasteAttemptCount` before the submission flow materializes the Writing payload.
+
+Scope boundary:
+- this contract changes homework Writing only; solo Writing behavior remains unchanged in the same implementation pass.
+
+Detailed reference:
+- @doc/architecture/ielts-writing/ielts-writing-copy-paste-toggle-and-attempt-persistence-2026-04-05

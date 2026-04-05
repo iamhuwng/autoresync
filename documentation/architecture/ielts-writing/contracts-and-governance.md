@@ -222,3 +222,28 @@ Publish-action rules:
 
 Detailed reference:
 - `authoring-edit-shell-and-publish-contract.md`
+
+## 2026-04-05 Amendment - Live And Homework Copy Paste Toggle Governance
+
+Control-source rules:
+- IELTS Writing delivery must reuse the existing `AntiCheatConfig.detectCopyPaste` flag instead of adding a Writing-only metadata toggle.
+- live Writing resolves that flag from `game_sessions/{sessionCode}.antiCheatConfig.detectCopyPaste`.
+- homework Writing resolves that flag from `homework_assignments/{homeworkId}.antiCheatConfig.detectCopyPaste`.
+- missing config means copy/paste prevention is off for live Writing and homework Writing.
+
+Delivery-state rules:
+- `WritingEditor` must stay a thin textarea wrapper; it may attach paste-prevention listeners but must not own the hook instance or the attempt count.
+- the live/homework delivery host owns one shared `useExternalPastePrevention(...)` instance and passes `attachToTextarea` into `WritingEditor`.
+- the Writing domain still uses the specialized external paste/drop/bulk insert guard with internal-copy allowance; this amendment does not switch Writing onto the full generic anti-cheat container stack.
+
+Persistence rules:
+- live-session Writing must persist `pasteAttemptCount` under `game_sessions/{sessionCode}/students/{studentUid}/writing/pasteAttemptCount` so the promotion bridge reads the current value.
+- `autoSubmitFromRTDB()` remains the canonical bridge from RTDB draft state into Firestore submission state and must keep materializing that RTDB paste-attempt count into `writing_submissions/{submissionId}`.
+- homework Writing saved local progress must persist and restore `pasteAttemptCount` alongside essays and timer anchor state so refresh/resume does not silently reset integrity evidence.
+
+Scope boundary:
+- this amendment governs live Writing and homework Writing only.
+- solo Writing practice remains on its prior always-enabled Writing paste-prevention behavior in this implementation pass.
+
+Detailed reference:
+- `copy-paste-toggle-and-attempt-persistence.md`

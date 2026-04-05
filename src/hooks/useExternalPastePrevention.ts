@@ -1,159 +1,143 @@
 /**
- * useExternalPastePrevention — PRD-0030 Task 3.3
- * Prevents external paste/drop into writing textarea.
- * Internal copy/cut is tracked and allowed within 60s.
+ * useExternalPastePrevention
+ * Prevents external paste/drop into a writing textarea when enabled.
+ * Internal copy/cut is tracked and allowed within 60 seconds.
  */
 
-import { useRef, useCallback } from 'react';
+import { useCallback, useState } from 'react';
+import type { Dispatch, SetStateAction } from 'react';
+
+interface UseExternalPastePreventionOptions {
+    enabled: boolean;
+    initialPasteAttemptCount?: number;
+}
 
 interface PastePreventionResult {
     pasteAttemptCount: number;
+    setPasteAttemptCount: Dispatch<SetStateAction<number>>;
     attachToTextarea: (textarea: HTMLTextAreaElement) => () => void;
 }
 
-export function useExternalPastePrevention(): PastePreventionResult {
-    const pasteCountRef = useRef(0);
-    const lastInternalCopyRef = useRef<{ text: string; timestamp: number } | null>(null);
+function showBlockingToast(message: string, background: string) {
+    const toast = document.createElement('div');
+    toast.textContent = message;
+    Object.assign(toast.style, {
+        position: 'fixed',
+        bottom: '24px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        padding: '12px 24px',
+        background,
+        color: '#fff',
+        borderRadius: '8px',
+        fontSize: '14px',
+        fontWeight: '500',
+        zIndex: '9999',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+    });
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+
+export function useExternalPastePrevention({
+    enabled,
+    initialPasteAttemptCount = 0,
+}: UseExternalPastePreventionOptions): PastePreventionResult {
+    const [pasteAttemptCount, setPasteAttemptCount] = useState(initialPasteAttemptCount);
 
     const attachToTextarea = useCallback((textarea: HTMLTextAreaElement): () => void => {
-        // Track internal copy/cut
+        if (!enabled) {
+            return () => {};
+        }
+
+        let previousValue = textarea.value;
+        let lastInternalCopy: { text: string; timestamp: number } | null = null;
+
+        const incrementAttemptCount = () => {
+            setPasteAttemptCount((current) => current + 1);
+        };
+
         const handleCopy = () => {
             const selection = textarea.value.substring(
                 textarea.selectionStart,
-                textarea.selectionEnd
+                textarea.selectionEnd,
             );
+
             if (selection) {
-                lastInternalCopyRef.current = { text: selection, timestamp: Date.now() };
+                lastInternalCopy = {
+                    text: selection,
+                    timestamp: Date.now(),
+                };
             }
         };
 
         const handleCut = () => {
-            handleCopy(); // Track the cut text same as copy
+            handleCopy();
         };
 
-        // Block external paste
-        const handlePaste = (e: ClipboardEvent) => {
-            const pastedText = e.clipboardData?.getData('text/plain') || '';
+        const handlePaste = (event: ClipboardEvent) => {
+            const pastedText = event.clipboardData?.getData('text/plain') || '';
+            const isRecentInternalCopy = Boolean(
+                lastInternalCopy
+                && lastInternalCopy.text === pastedText
+                && Date.now() - lastInternalCopy.timestamp < 60_000,
+            );
 
-            // Check if this matches a recent internal copy
-            const internal = lastInternalCopyRef.current;
-            if (
-                internal &&
-                internal.text === pastedText &&
-                Date.now() - internal.timestamp < 60_000
-            ) {
-                // Allow internal paste — insert manually
-                e.preventDefault();
+            if (isRecentInternalCopy) {
+                event.preventDefault();
                 const start = textarea.selectionStart;
                 const end = textarea.selectionEnd;
                 const before = textarea.value.substring(0, start);
                 const after = textarea.value.substring(end);
                 textarea.value = before + pastedText + after;
                 textarea.selectionStart = textarea.selectionEnd = start + pastedText.length;
-
-                // Trigger React's onChange
                 textarea.dispatchEvent(new Event('input', { bubbles: true }));
                 return;
             }
 
-            // External paste — BLOCK
-            e.preventDefault();
-            pasteCountRef.current += 1;
-
-            // Show toast notification (simple approach)
-            const toast = document.createElement('div');
-            toast.textContent = '⚠️ External paste is not allowed during the writing test.';
-            Object.assign(toast.style, {
-                position: 'fixed',
-                bottom: '24px',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                padding: '12px 24px',
-                background: '#ef4444',
-                color: '#fff',
-                borderRadius: '8px',
-                fontSize: '14px',
-                fontWeight: '500',
-                zIndex: '9999',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            });
-            document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 3000);
+            event.preventDefault();
+            incrementAttemptCount();
+            showBlockingToast(
+                'External paste is not allowed during the writing test.',
+                '#ef4444',
+            );
         };
 
-        // Block drag & drop
-        const handleDrop = (e: DragEvent) => {
-            e.preventDefault();
-
-            const toast = document.createElement('div');
-            toast.textContent = '⚠️ Drag and drop is not allowed during the writing test.';
-            Object.assign(toast.style, {
-                position: 'fixed',
-                bottom: '24px',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                padding: '12px 24px',
-                background: '#f59e0b',
-                color: '#fff',
-                borderRadius: '8px',
-                fontSize: '14px',
-                fontWeight: '500',
-                zIndex: '9999',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            });
-            document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 3000);
+        const handleDrop = (event: DragEvent) => {
+            event.preventDefault();
+            incrementAttemptCount();
+            showBlockingToast(
+                'Drag and drop is not allowed during the writing test.',
+                '#f59e0b',
+            );
         };
 
-        // PRD §4.3.4 item 4: Input monitoring fallback
-        // Detects bulk character insertion (>10 chars) without internal copy flag.
-        // Threshold of 10 allows normal Vietnamese IME composition bursts.
-        let previousValue = textarea.value;
+        const handleDragOver = (event: DragEvent) => {
+            event.preventDefault();
+        };
 
         const handleBeforeInput = () => {
-            // Capture pre-edit state for reliable reversion
             previousValue = textarea.value;
         };
 
         const handleInput = () => {
             const currentValue = textarea.value;
             const delta = currentValue.length - previousValue.length;
+            const hasRecentInternalCopy = Boolean(
+                lastInternalCopy && Date.now() - lastInternalCopy.timestamp < 60_000,
+            );
 
-            // Only check insertions, not deletions
-            if (delta > 10) {
-                // Check if internal copy flag is active (within 60s)
-                const internal = lastInternalCopyRef.current;
-                const hasInternalCopy = internal && (Date.now() - internal.timestamp < 60_000);
-
-                if (!hasInternalCopy) {
-                    // Suspicious bulk insertion — revert
-                    textarea.value = previousValue;
-                    textarea.dispatchEvent(new Event('input', { bubbles: true }));
-                    pasteCountRef.current += 1;
-
-                    const toast = document.createElement('div');
-                    toast.textContent = '⚠️ Bulk text insertion is not allowed during the writing test.';
-                    Object.assign(toast.style, {
-                        position: 'fixed',
-                        bottom: '24px',
-                        left: '50%',
-                        transform: 'translateX(-50%)',
-                        padding: '12px 24px',
-                        background: '#ef4444',
-                        color: '#fff',
-                        borderRadius: '8px',
-                        fontSize: '14px',
-                        fontWeight: '500',
-                        zIndex: '9999',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                    });
-                    document.body.appendChild(toast);
-                    setTimeout(() => toast.remove(), 3000);
-                    return;
-                }
+            if (delta > 10 && !hasRecentInternalCopy) {
+                textarea.value = previousValue;
+                textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                incrementAttemptCount();
+                showBlockingToast(
+                    'Bulk text insertion is not allowed during the writing test.',
+                    '#ef4444',
+                );
+                return;
             }
 
-            // Update previousValue for next comparison
             previousValue = currentValue;
         };
 
@@ -161,25 +145,24 @@ export function useExternalPastePrevention(): PastePreventionResult {
         textarea.addEventListener('cut', handleCut);
         textarea.addEventListener('paste', handlePaste);
         textarea.addEventListener('drop', handleDrop);
-        textarea.addEventListener('dragover', (e) => e.preventDefault());
+        textarea.addEventListener('dragover', handleDragOver);
         textarea.addEventListener('beforeinput', handleBeforeInput);
         textarea.addEventListener('input', handleInput);
 
-        // Return cleanup function
         return () => {
             textarea.removeEventListener('copy', handleCopy);
             textarea.removeEventListener('cut', handleCut);
             textarea.removeEventListener('paste', handlePaste);
             textarea.removeEventListener('drop', handleDrop);
+            textarea.removeEventListener('dragover', handleDragOver);
             textarea.removeEventListener('beforeinput', handleBeforeInput);
             textarea.removeEventListener('input', handleInput);
         };
-    }, []);
+    }, [enabled]);
 
     return {
-        get pasteAttemptCount() {
-            return pasteCountRef.current;
-        },
+        pasteAttemptCount,
+        setPasteAttemptCount,
         attachToTextarea,
     };
 }

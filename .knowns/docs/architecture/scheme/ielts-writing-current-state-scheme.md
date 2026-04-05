@@ -2,7 +2,7 @@
 title: IELTS Writing Current State Scheme
 description: Current-state contract for IELTS Writing across routing, submission, grading, result access, and forbidden regressions.
 createdAt: '2026-03-29T07:59:36.729Z'
-updatedAt: '2026-04-03T00:11:58.149Z'
+updatedAt: '2026-04-05T03:52:32.442Z'
 tags:
   - architecture
   - scheme
@@ -279,3 +279,23 @@ Detailed reference:
 - the teacher review modal is sentence-ordered and grouped so the review list follows essay progression
 - approving a suggestion now materializes the saved comment or correction immediately through the existing grading infrastructure; there is no secondary confirmation step inside the suggestion modal
 - the review modal no longer exposes a separate `Focus in Essay` action
+
+## 2026-04-05 implementation update: live and homework copy paste toggle
+
+Live-session delivery amendments:
+- `WritingTestPage` now resolves essay copy/paste blocking from `game_sessions/{sessionCode}.antiCheatConfig?.detectCopyPaste` instead of treating Writing as always-on.
+- missing live-session anti-cheat config means copy/paste prevention is off for Writing.
+- `WritingEditor` no longer owns the paste-prevention hook; the page owns one shared hook instance and passes `attachToTextarea` into the editor.
+- saved RTDB writing state now restores `pasteAttemptCount`, and the page re-syncs that count to RTDB before submit so `autoSubmitFromRTDB()` snapshots the current value.
+
+Homework delivery amendments:
+- `WritingPracticeView` now resolves essay copy/paste blocking from `homework_assignments/{homeworkId}.antiCheatConfig?.detectCopyPaste`.
+- missing homework anti-cheat config means copy/paste prevention is off for homework Writing.
+- homework saved local Writing state now persists and restores `pasteAttemptCount` together with the essay draft and timer anchor.
+
+Scope boundary:
+- solo Writing practice remains on its prior always-enabled Writing paste-prevention behavior in this implementation pass.
+- the Writing domain still uses the specialized external paste/drop/bulk insert guard with internal-copy allowance instead of the generic container-wide anti-cheat stack.
+
+Detailed reference:
+- @doc/architecture/ielts-writing/ielts-writing-copy-paste-toggle-and-attempt-persistence-2026-04-05

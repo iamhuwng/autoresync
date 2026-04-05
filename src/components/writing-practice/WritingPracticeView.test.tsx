@@ -12,9 +12,12 @@ const {
     mockPush,
     mockGetStudentClasses,
     mockGetClass,
+    mockGetHomeworkById,
     mockGetUserById,
     mockUseActiveTimeTracking,
     mockUseExternalPastePrevention,
+    mockSetPasteAttemptCount,
+    mockAttachToTextarea,
 } = vi.hoisted(() => ({
     mockNavigate: vi.fn(),
     mockCreateSubmission: vi.fn(),
@@ -25,9 +28,12 @@ const {
     mockPush: vi.fn(() => ({ key: 'result-1' })),
     mockGetStudentClasses: vi.fn(),
     mockGetClass: vi.fn(),
+    mockGetHomeworkById: vi.fn(),
     mockGetUserById: vi.fn(),
     mockUseActiveTimeTracking: vi.fn(),
     mockUseExternalPastePrevention: vi.fn(),
+    mockSetPasteAttemptCount: vi.fn(),
+    mockAttachToTextarea: vi.fn(() => vi.fn()),
 }));
 
 vi.mock('react-router-dom', async () => {
@@ -76,6 +82,10 @@ vi.mock('../../services/classManager', () => ({
     getClass: (...args: unknown[]) => mockGetClass(...args),
 }));
 
+vi.mock('../../services/homeworkManager', () => ({
+    getHomeworkById: (...args: unknown[]) => mockGetHomeworkById(...args),
+}));
+
 vi.mock('../../services/userService', () => ({
     getUserById: (...args: unknown[]) => mockGetUserById(...args),
 }));
@@ -103,12 +113,17 @@ vi.mock('../writing-student/WritingEditor', () => ({
 }));
 
 vi.mock('./SubmitToTeacherModal', () => ({
-    default: ({ isOpen, onSubmit }: { isOpen: boolean; onSubmit: (data: { teacherId: string | null; note: string }) => void }) =>
-        isOpen ? (
-            <button type="button" onClick={() => onSubmit({ teacherId: 'teacher-1', note: '' })}>
-                confirm-submit
-            </button>
-        ) : null,
+    default: ({
+        isOpen,
+        onSubmit,
+    }: {
+        isOpen: boolean;
+        onSubmit: (data: { teacherId: string | null; note: string }) => void;
+    }) => isOpen ? (
+        <button type="button" onClick={() => onSubmit({ teacherId: 'teacher-1', note: '' })}>
+            confirm-submit
+        </button>
+    ) : null,
 }));
 
 describe('WritingPracticeView', () => {
@@ -120,12 +135,15 @@ describe('WritingPracticeView', () => {
 
         mockGetStudentClasses.mockResolvedValue([]);
         mockGetClass.mockResolvedValue(null);
+        mockGetHomeworkById.mockResolvedValue(null);
         mockGetUserById.mockResolvedValue(null);
         mockCreateSubmission.mockResolvedValue({ success: true });
         mockMaterializeSubmissionResult.mockResolvedValue({ success: true });
         mockSubmitHomework.mockResolvedValue(undefined);
         mockUseExternalPastePrevention.mockReturnValue({
             pasteAttemptCount: 2,
+            setPasteAttemptCount: mockSetPasteAttemptCount,
+            attachToTextarea: mockAttachToTextarea,
         });
         mockUseActiveTimeTracking.mockReturnValue({
             getActiveTime: vi.fn(() => 120),
@@ -134,7 +152,7 @@ describe('WritingPracticeView', () => {
         });
     });
 
-    it('delegates submit persistence through the canonical writing service', async () => {
+    it('keeps solo practice paste prevention enabled and submits the shared paste count', async () => {
         render(
             <WritingPracticeView
                 materialId="material-1"
@@ -158,6 +176,11 @@ describe('WritingPracticeView', () => {
             />,
         );
 
+        expect(mockUseExternalPastePrevention).toHaveBeenLastCalledWith({
+            enabled: true,
+            initialPasteAttemptCount: 0,
+        });
+
         fireEvent.change(screen.getByTestId('writing-editor'), {
             target: {
                 value: 'This is the first essay draft.',
@@ -176,6 +199,7 @@ describe('WritingPracticeView', () => {
         expect(submission).toEqual(expect.objectContaining({
             id: 'result-1',
             studentId: 'student-1',
+            pasteAttemptCount: 2,
             context: expect.objectContaining({
                 type: 'solo-practice',
             }),
@@ -206,7 +230,13 @@ describe('WritingPracticeView', () => {
         expect(mockNavigate).toHaveBeenCalledWith('/student/dashboard', { replace: true });
     });
 
-    it('delegates homework-mode submission through createSubmission and materializeSubmissionResult with homework context', async () => {
+    it('honors homework antiCheatConfig when enabling paste prevention', async () => {
+        mockGetHomeworkById.mockResolvedValue({
+            antiCheatConfig: {
+                detectCopyPaste: true,
+            },
+        });
+
         render(
             <WritingPracticeView
                 materialId="material-2"
@@ -219,6 +249,55 @@ describe('WritingPracticeView', () => {
                 }}
                 testData={{
                     id: 'test-homework-1',
+                    metadata: {
+                        title: 'Homework IELTS Writing',
+                        format: 'task1-only',
+                        duration: 45,
+                    },
+                    tasks: [
+                        {
+                            taskNumber: 1,
+                            taskType: 'task-1',
+                            promptText: 'Write about the chart',
+                            promptImageUrl: null,
+                            wordMinimum: 150,
+                        },
+                    ],
+                } as any}
+            />,
+        );
+
+        await waitFor(() => {
+            expect(mockGetHomeworkById).toHaveBeenCalledWith('homework-1');
+        });
+
+        await waitFor(() => {
+            expect(mockUseExternalPastePrevention).toHaveBeenLastCalledWith({
+                enabled: true,
+                initialPasteAttemptCount: 0,
+            });
+        });
+    });
+
+    it('delegates homework-mode submission through createSubmission and materializeSubmissionResult with homework context', async () => {
+        mockGetHomeworkById.mockResolvedValue({
+            antiCheatConfig: {
+                detectCopyPaste: false,
+            },
+        });
+
+        render(
+            <WritingPracticeView
+                materialId="material-3"
+                homeworkContext={{
+                    homeworkId: 'homework-2',
+                    submissionId: 'homework-submission-2',
+                    teacherId: 'teacher-1',
+                    dueDate: Date.now() + 60_000,
+                    lateSubmissionAllowed: true,
+                }}
+                testData={{
+                    id: 'test-homework-2',
                     metadata: {
                         title: 'Homework IELTS Writing',
                         format: 'full-test',
@@ -255,10 +334,11 @@ describe('WritingPracticeView', () => {
         expect(submission).toEqual(expect.objectContaining({
             id: 'result-1',
             studentId: 'student-1',
+            pasteAttemptCount: 2,
             context: expect.objectContaining({
                 type: 'homework',
-                homeworkId: 'homework-1',
-                homeworkSubmissionId: 'homework-submission-1',
+                homeworkId: 'homework-2',
+                homeworkSubmissionId: 'homework-submission-2',
                 assigningTeacherId: 'teacher-1',
             }),
             tasks: expect.arrayContaining([
@@ -275,7 +355,7 @@ describe('WritingPracticeView', () => {
             'homework',
         );
         expect(mockSubmitHomework).toHaveBeenCalledWith(
-            'homework-submission-1',
+            'homework-submission-2',
             'result-1',
             undefined,
             undefined,
@@ -300,17 +380,17 @@ describe('WritingPracticeView', () => {
 
         render(
             <WritingPracticeView
-                materialId="material-3"
+                materialId="material-4"
                 homeworkContext={{
-                    homeworkId: 'homework-2',
-                    submissionId: 'homework-submission-2',
+                    homeworkId: 'homework-4',
+                    submissionId: 'homework-submission-4',
                     teacherId: 'teacher-1',
                     timerMinutes: 1,
                     maxAttempts: 2,
                     startedAt,
                 }}
                 testData={{
-                    id: 'test-homework-2',
+                    id: 'test-homework-4',
                     metadata: {
                         title: 'Timed Homework IELTS Writing',
                         format: 'task1-only',
@@ -342,7 +422,7 @@ describe('WritingPracticeView', () => {
         });
 
         expect(mockSubmitHomework).toHaveBeenCalledWith(
-            'homework-submission-2',
+            'homework-submission-4',
             'result-1',
             undefined,
             undefined,
@@ -354,30 +434,31 @@ describe('WritingPracticeView', () => {
         expect(screen.queryByText(/confirm-submit/i)).not.toBeInTheDocument();
     });
 
-    it('auto-resumes single-attempt homework without offering restart', async () => {
+    it('restores saved homework paste attempts on auto-resume', async () => {
         const startedAt = Date.now() - 30_000;
         window.localStorage.setItem(
-            'writing_practice_material-4_student-1',
+            'writing_practice_material-5_student-1',
             JSON.stringify({
                 essays: { 1: 'Recovered homework essay.', 2: '' },
                 activeTask: 1,
                 startedAt,
+                pasteAttemptCount: 5,
             }),
         );
 
         render(
             <WritingPracticeView
-                materialId="material-4"
+                materialId="material-5"
                 homeworkContext={{
-                    homeworkId: 'homework-4',
-                    submissionId: 'homework-submission-4',
+                    homeworkId: 'homework-5',
+                    submissionId: 'homework-submission-5',
                     teacherId: 'teacher-1',
                     timerMinutes: 30,
                     maxAttempts: 1,
                     startedAt,
                 }}
                 testData={{
-                    id: 'test-homework-4',
+                    id: 'test-homework-5',
                     metadata: {
                         title: 'Single Attempt Homework',
                         format: 'task1-only',
@@ -400,6 +481,7 @@ describe('WritingPracticeView', () => {
             expect(screen.getByTestId('writing-editor')).toHaveValue('Recovered homework essay.');
         });
 
+        expect(mockSetPasteAttemptCount).toHaveBeenCalledWith(5);
         expect(screen.queryByText(/resume practice/i)).not.toBeInTheDocument();
         expect(screen.queryByRole('button', { name: /start new/i })).not.toBeInTheDocument();
     });

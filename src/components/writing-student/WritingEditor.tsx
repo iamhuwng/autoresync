@@ -1,35 +1,37 @@
 /**
- * WritingEditor — PRD-0030 Task 3.2
+ * WritingEditor
  * Plain textarea for student essay input.
- * [GAP-09] Paste prevention via useEffect with attachToTextarea.
  * NO MANTINE.
  */
 
-import { useRef, useEffect } from 'react';
-import { useExternalPastePrevention } from '../../hooks/useExternalPastePrevention';
+import { useEffect, useRef } from 'react';
 import './WritingTestPage.css';
 
 interface WritingEditorProps {
     value: string;
     onChange: (text: string) => void;
     disabled: boolean;
+    attachToTextarea?: (textarea: HTMLTextAreaElement) => (() => void) | void;
 }
 
-export default function WritingEditor({ value, onChange, disabled }: WritingEditorProps) {
+export default function WritingEditor({
+    value,
+    onChange,
+    disabled,
+    attachToTextarea,
+}: WritingEditorProps) {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const { attachToTextarea } = useExternalPastePrevention();
 
-    // [GAP-09] Attach paste prevention inside useEffect
     useEffect(() => {
-        if (textareaRef.current) {
+        if (textareaRef.current && attachToTextarea) {
             return attachToTextarea(textareaRef.current);
         }
+
         return undefined;
     }, [attachToTextarea]);
 
-    // Word count
     const wordCount = value.trim()
-        ? value.trim().split(/\s+/).filter((w: string) => w.length > 0).length
+        ? value.trim().split(/\s+/).filter((word: string) => word.length > 0).length
         : 0;
 
     return (
@@ -38,7 +40,7 @@ export default function WritingEditor({ value, onChange, disabled }: WritingEdit
                 ref={textareaRef}
                 className="wtp-editor-textarea"
                 value={value}
-                onChange={(e) => onChange(e.target.value)}
+                onChange={(event) => onChange(event.target.value)}
                 disabled={disabled}
                 spellCheck={false}
                 placeholder="Start writing your essay here..."
