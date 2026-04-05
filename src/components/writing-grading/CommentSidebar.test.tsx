@@ -49,6 +49,9 @@ describe('CommentSidebar', () => {
                 if (this?.getAttribute?.('data-comment-header-id') === 'comment-2') {
                     return 20;
                 }
+                if (this?.getAttribute?.('data-pending-comment-header-id') === 'comment-pending') {
+                    return 20;
+                }
                 return 80;
             },
         });
@@ -103,6 +106,22 @@ describe('CommentSidebar', () => {
                     };
                 }
 
+                if (this?.getAttribute?.('data-pending-comment-header-id') === 'comment-pending') {
+                    return {
+                        x: 0,
+                        y: 260,
+                        width: 420,
+                        height: 20,
+                        top: 260,
+                        left: 24,
+                        right: 444,
+                        bottom: 280,
+                        toJSON() {
+                            return this;
+                        },
+                    };
+                }
+
                 return {
                     x: 0,
                     y: 0,
@@ -117,6 +136,58 @@ describe('CommentSidebar', () => {
                     },
                 };
             },
+        });
+    });
+
+    it('treats a pending composer as an anchored rail item instead of a footer block', async () => {
+        const { container } = render(
+            <CommentSidebar
+                comments={comments}
+                taskNumber={1}
+                focusedCommentId={null}
+                hoveredCommentId={null}
+                anchorPositions={[
+                    { commentId: 'comment-1', anchorTop: 100, anchorRight: 20, anchorCenterY: 110, anchorViewportTop: 140 },
+                    { commentId: 'comment-2', anchorTop: 200, anchorRight: 20, anchorCenterY: 210, anchorViewportTop: 180 },
+                ]}
+                editorScrollTop={0}
+                pendingCommentDraft={{
+                    commentId: 'comment-pending',
+                    taskNumber: 1,
+                    anchorText: 'pending phrase',
+                    from: 5,
+                    to: 6,
+                    anchorViewportTop: 180,
+                    categoryId: 'uncategorized',
+                    html: '',
+                }}
+                onFocusComment={() => {}}
+                onHoverComment={() => {}}
+                onEditComment={() => {}}
+                onResolveComment={() => {}}
+                onReopenComment={() => {}}
+                onDeleteComment={() => {}}
+                onRecoverComment={() => {}}
+                onCategoryChange={() => {}}
+                onPendingCommentChange={() => {}}
+                onPendingCommentCategoryChange={() => {}}
+                onCancelPendingComment={() => {}}
+                onSavePendingComment={() => {}}
+            />,
+        );
+
+        const renderedOrder = Array.from(container.querySelectorAll('[data-rail-item-id]')).map((node) =>
+            node.getAttribute('data-rail-item-id'),
+        );
+        const shiftedCommentsStack = container.querySelector('[data-comments-stack="true"]');
+
+        expect(renderedOrder).toEqual(['comment-1', 'comment-pending', 'comment-2']);
+
+        await waitFor(() => {
+            expect(shiftedCommentsStack).toHaveStyle({
+                transform: 'translateY(-54px)',
+            });
+            expect(scrollIntoViewMock).not.toHaveBeenCalled();
         });
     });
 

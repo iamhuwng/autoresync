@@ -2,7 +2,7 @@
 title: IELTS Writing Essay Editor Tool Contract And Mark Composition 2026-04-02
 description: Architecture note for the essay-editor tool layer in teacher IELTS Writing grading, covering read-only behavior, selection anchoring, comment identity, and the remaining overlapping-mark composition boundary.
 createdAt: '2026-04-02T09:51:04.708Z'
-updatedAt: '2026-04-05T13:38:17.695Z'
+updatedAt: '2026-04-05T17:23:16.258Z'
 tags:
   - architecture
   - ielts
@@ -235,3 +235,12 @@ Rules:
 - Escaping the essay subtree was not sufficient by itself; hover tooltip placement now derives from the hovered mark rectangle rather than defaulting to `below/above + markRect.left`.
 - The essay comment tooltip now chooses the nearest intelligible attachment side in this order: right, left, bottom, then top, while still clamping to the viewport.
 - Tooltip rendering now includes explicit placement state so the UI can show a directional attachment cue (`data-placement`), making the hovered comment and the overlay legible as one interaction.
+
+## 2026-04-06 follow-up: pending comment composer joins the anchored rail
+
+- Manual comment creation from the essay no longer opens a footer-style composer appended after saved comments.
+- The editor now preserves the selected text's viewport anchor top when the comment action is triggered.
+- The pending comment composer is treated as a first-class comment-rail item with the same vertical alignment contract as a saved comment header.
+- The active rail target is now resolved in this order: focused saved comment first, otherwise the pending draft composer.
+- Rail ordering is now canonical essay order from comment ranges (`from`, then `to`) instead of mixing measured pixel offsets with document positions.
+- This keeps click-on-highlight behavior intact while making new comment creation stay parallel to the selected essay text.

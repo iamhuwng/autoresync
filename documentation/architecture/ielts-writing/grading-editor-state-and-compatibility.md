@@ -213,3 +213,11 @@ Failure rules:
 - Teacher essay hover tooltips now use anchor-aware side placement instead of a fixed left-aligned above/below heuristic.
 - This is a runtime interaction contract change only; persisted comment anchors remain unchanged.
 - The goal of the new heuristic is attribution clarity: the tooltip should read as attached to the hovered annotation, not merely remain visible inside the viewport.
+
+## 2026-04-06 Follow-up - Pending Draft Anchor Geometry And Rail Ordering
+
+- `WritingPendingCommentDraft` now carries optional `anchorViewportTop` geometry so an unsaved comment draft has a positioning source of truth.
+- The `Comments` rail no longer treats a pending draft as a footer-only block with `scrollIntoView()` as its primary positioning behavior.
+- Pending drafts participate in the same ordered rail model as saved comments and are inserted by canonical essay range order.
+- Saved-comment focus alignment remains the dominant behavior when a saved comment is actively selected; otherwise the pending draft drives rail alignment.
+- Older persisted drafts without `anchorViewportTop` remain compatible and fall back to ordinary in-rail rendering without precise cross-column alignment until a new anchor is captured.

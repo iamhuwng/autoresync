@@ -1532,6 +1532,7 @@ export default function WritingGradingPage() {
         if (options?.focusInSidebar === false) {
             setFocusedCommentId(null);
         } else {
+            setFocusedCommentAnchorViewportTop(draft.anchorViewportTop ?? null);
             setFocusedCommentId(nextComment.id);
             setFocusedCorrectionId(null);
             setPanelTab('comments');
@@ -1556,6 +1557,7 @@ export default function WritingGradingPage() {
         from: number,
         to: number,
         commentId: string,
+        anchorViewportTop: number | null,
         preset?: QuickCommentPreset
     ) => {
         const existingPendingDraft = pendingCommentDraftsRef.current[activeTask];
@@ -1572,6 +1574,7 @@ export default function WritingGradingPage() {
                 anchorText: selectedText,
                 from,
                 to,
+                anchorViewportTop,
                 categoryId: preset.categoryId,
                 html: preset.text,
             }, preset.text, preset, { source: 'quick-comment' });
@@ -1581,12 +1584,14 @@ export default function WritingGradingPage() {
         setPanelTab('comments');
         setFocusedCommentId(null);
         setFocusedCorrectionId(null);
+        setFocusedCommentAnchorViewportTop(anchorViewportTop);
         setPendingCommentDraft(activeTask, {
             commentId,
             taskNumber: activeTask,
             anchorText: selectedText,
             from,
             to,
+            anchorViewportTop,
             categoryId: 'uncategorized',
             html: '',
         });

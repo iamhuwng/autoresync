@@ -60,6 +60,7 @@ export interface EssayEditorProps {
         from: number,
         to: number,
         commentId: string,
+        anchorViewportTop: number | null,
         preset?: QuickCommentPreset
     ) => void;
     /** Callback when a comment gutter dot is clicked */
@@ -659,6 +660,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
             pendingQuickComment.from,
             pendingQuickComment.to,
             commentId,
+            getSelectionAnchorViewportTop(editor),
             pendingQuickComment.preset,
         );
     }, [editor, onAddComment, pendingQuickComment, readOnly, taskNumber]);
@@ -749,9 +751,10 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
     const handleAddComment = useCallback(() => {
         if (!editor || !canAddComment) return;
         const { from, to } = editor.state.selection;
+        const anchorViewportTop = getSelectionAnchorViewportTop(editor);
 
         const commentId = `comment-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-        onAddComment(selectionState.selectedText, from, to, commentId);
+        onAddComment(selectionState.selectedText, from, to, commentId, anchorViewportTop);
     }, [canAddComment, editor, onAddComment, selectionState.selectedText]);
 
     const handleStrikethrough = useCallback(() => {
@@ -1164,6 +1167,29 @@ function getBubbleMenuOverlayPosition(
         { width: menuWidth, height: menuHeight },
         margin,
     );
+}
+
+function getSelectionAnchorViewportTop(editor: {
+    state: {
+        selection: { from: number; to: number; empty: boolean };
+    };
+    view: {
+        coordsAtPos: (position: number) => { top: number; bottom: number; left: number; right: number };
+    };
+}) {
+    const { from, to, empty } = editor.state.selection;
+    if (empty) {
+        return null;
+    }
+
+    try {
+        const startCoords = editor.view.coordsAtPos(from);
+        const endCoords = editor.view.coordsAtPos(to);
+        const anchorViewportTop = Math.min(startCoords.top, endCoords.top);
+        return Number.isFinite(anchorViewportTop) ? anchorViewportTop : null;
+    } catch {
+        return null;
+    }
 }
 
 

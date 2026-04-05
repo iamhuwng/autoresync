@@ -358,6 +358,7 @@ export interface WritingPendingCommentDraft {
     anchorText: string;
     from: number;
     to: number;
+    anchorViewportTop?: number | null;
     categoryId: CommentCategoryId;
     html: string;
 }

@@ -503,8 +503,7 @@
 }
 
 .comment-sidebar-pending {
-    margin-top: 6px;
-    padding-top: 2px;
+    width: 100%;
 }
 
 .comment-sidebar-pending-label {
