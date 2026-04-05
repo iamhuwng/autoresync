@@ -221,3 +221,23 @@ Failure rules:
 - Pending drafts participate in the same ordered rail model as saved comments and are inserted by canonical essay range order.
 - Saved-comment focus alignment remains the dominant behavior when a saved comment is actively selected; otherwise the pending draft drives rail alignment.
 - Older persisted drafts without `anchorViewportTop` remain compatible and fall back to ordinary in-rail rendering without precise cross-column alignment until a new anchor is captured.
+
+## 2026-04-06 Second Follow-up - Pending Draft Preview And Local Rail Reveal
+
+- The remaining page-jump issue was not caused by draft ordering; it was caused by page-affecting focus/reveal paths after the draft opened.
+- New contract:
+  - pending-comment activation may move the right rail
+  - pending-comment activation must not move the page viewport to chase the rail
+- `CommentComposer` therefore focuses with `scrollIntoView: false`.
+- The comment rail and published feedback rail now share one local reveal helper:
+  - anchor-aware alignment uses viewport geometry when available
+  - fallback reveal scrolls the rail viewport itself
+  - `scrollIntoView()` is no longer the fallback path for annotation selection in these rails
+- `WritingPendingCommentDraft` is now also mirrored into the essay editor as transient decoration state.
+- That transient state is intentionally non-persistent:
+  - no orphan `commentMark` is written before save
+  - unsaved draft highlighting disappears when the draft is cleared
+- The visual contract for an open pending draft is:
+  - selected source text gets a subtle dotted underline with a soft glow
+  - the draft preview never expands onto rendered correction replacement text
+  - saved comments still upgrade to the normal shared yellow comment mark only after save

@@ -2354,6 +2354,7 @@ export default function WritingGradingPage() {
                             pendingQuickComment={pendingQuickComment}
                             pendingCorrection={pendingCorrection}
                             pendingCommentMutation={pendingCommentMutation}
+                            pendingCommentDraft={activePendingCommentDraft}
                             pendingFocusRange={pendingSuggestionFocus}
                             commentPositions={commentPositions}
                             comments={activeTaskState.comments}

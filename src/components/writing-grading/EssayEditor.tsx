@@ -26,9 +26,9 @@ import { TextStyle } from '@tiptap/extension-text-style';
 import Color from '@tiptap/extension-color';
 import Placeholder from '@tiptap/extension-placeholder';
 import { IconArrowBackUp, IconArrowForwardUp, IconMessageCircle, IconPencil } from '@tabler/icons-react';
-import { CommentMark, CorrectionMark, MarksOnlyMode } from './extensions';
+import { CommentMark, CorrectionMark, MarksOnlyMode, PendingCommentPreview, setPendingCommentPreview } from './extensions';
 import { RichContent } from '../../core/components/RichContent';
-import type { GradingComment, GradingCorrection, QuickCommentPreset } from '../../types/ielts-writing.types';
+import type { GradingComment, GradingCorrection, QuickCommentPreset, WritingPendingCommentDraft } from '../../types/ielts-writing.types';
 import {
     clampOverlayToViewport,
     getCommentTooltipOverlayPosition,
@@ -106,6 +106,8 @@ export interface EssayEditorProps {
         to: number;
         nonce: number;
     } | null;
+    /** Current unsaved comment draft for transient source-text decoration */
+    pendingCommentDraft?: WritingPendingCommentDraft | null;
     /** External focus-range command from the page */
     pendingFocusRange?: {
         taskNumber: 1 | 2;
@@ -201,6 +203,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
     pendingQuickComment = null,
     pendingCorrection = null,
     pendingCommentMutation = null,
+    pendingCommentDraft = null,
     pendingFocusRange = null,
     commentPositions = [],
     comments = [],
@@ -251,6 +254,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
             }),
             CommentMark,
             CorrectionMark,
+            PendingCommentPreview,
             MarksOnlyMode.configure({ enabled: true }),
         ],
         content: initialContent || convertTextToTipTapJson(originalEssayText),
@@ -725,6 +729,37 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
             })
             .run();
     }, [editor, pendingCommentMutation, readOnly, taskNumber]);
+
+    useEffect(() => {
+        if (!editor) {
+            return;
+        }
+
+        if (
+            readOnly
+            || viewMode !== 'marked'
+            || !pendingCommentDraft
+            || pendingCommentDraft.taskNumber !== taskNumber
+        ) {
+            setPendingCommentPreview(editor, null);
+            return;
+        }
+
+        const from = Math.max(1, pendingCommentDraft.from);
+        const maxPosition = editor.state.doc.content.size;
+        const to = Math.min(maxPosition, pendingCommentDraft.to);
+
+        if (from >= to) {
+            setPendingCommentPreview(editor, null);
+            return;
+        }
+
+        setPendingCommentPreview(editor, {
+            commentId: pendingCommentDraft.commentId,
+            from,
+            to,
+        });
+    }, [editor, pendingCommentDraft, readOnly, taskNumber, viewMode]);
 
     useEffect(() => {
         if (!editor || !pendingFocusRange || pendingFocusRange.taskNumber !== taskNumber) return;

@@ -151,6 +151,10 @@ Shared published-viewer rules:
 - `WritingPublishedMarkupViewer` is now the common read-only markup reader for both student and teacher result surfaces
 - the published viewer follows the same body-portal, viewport-clamped, side-adjacent hover-tooltip contract as the grading essay editor
 - read-only result surfaces keep their own published-feedback navigation model and do not inherit grading-editor-only correction/comment routing semantics
+- published feedback selection now follows the same local-rail reveal rule as the grading page:
+  - selecting a published annotation may move the feedback rail
+  - it must not use page-level scroll-to-element behavior to chase the selected card
+  - fallback reveal happens inside the feedback rail viewport itself when explicit anchor geometry is unavailable
 - task switching is a hard boundary for transient grading UI state and editor content rehydration
 - leaving with unsaved work is a three-way workflow (`save`, `discard`, `cancel`), not a binary confirm prompt
 - published submissions may re-enter the editor only through the explicit regrade workflow with a required reason

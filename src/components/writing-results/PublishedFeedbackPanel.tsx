@@ -1,6 +1,7 @@
 import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { RichContent } from '../../core/components/RichContent';
 import type { PublishedCommentData, PublishedCorrectionData } from './writingResultSurface';
+import { getAlignedRailTranslateY, revealRailItemInViewport } from '../writing-grading/annotationRailPosition';
 
 interface PublishedFeedbackPanelProps {
     comments: PublishedCommentData[];
@@ -53,30 +54,27 @@ export default function PublishedFeedbackPanel({
         }
 
         if (alignToEssay && viewportElement && selectedFeedbackAnchorViewportTop !== null) {
-            const measuredViewportRect = viewportElement.getBoundingClientRect();
-            const measuredStackRect = stackElement.getBoundingClientRect();
-            const measuredHeaderRect = selectedFeedbackHeaderElement.getBoundingClientRect();
-            const headerHeight = measuredHeaderRect.height || selectedFeedbackHeaderElement.offsetHeight || 0;
             const railPadding = 12;
-            const desiredHeaderTop = Math.min(
-                Math.max(selectedFeedbackAnchorViewportTop, measuredViewportRect.top + railPadding),
-                measuredViewportRect.bottom - railPadding - headerHeight,
-            );
-            const headerOffsetWithinStack = measuredHeaderRect.top - measuredStackRect.top;
-            const desiredHeaderTopWithinViewport = desiredHeaderTop - measuredViewportRect.top;
-            setFeedbackStackTranslateY(desiredHeaderTopWithinViewport - headerOffsetWithinStack);
-            return;
-        }
-
-        if (alignToEssay) {
+            setFeedbackStackTranslateY(getAlignedRailTranslateY({
+                viewportElement,
+                stackElement,
+                headerElement: selectedFeedbackHeaderElement,
+                anchorViewportTop: selectedFeedbackAnchorViewportTop,
+                paddingTop: railPadding,
+                paddingBottom: railPadding,
+            }));
             return;
         }
 
         setFeedbackStackTranslateY(0);
-        selectedFeedbackElement.scrollIntoView({
-            behavior: 'smooth',
-            block: 'nearest',
-        });
+        if (viewportElement) {
+            revealRailItemInViewport({
+                viewportElement,
+                itemElement: selectedFeedbackHeaderElement ?? selectedFeedbackElement,
+                paddingTop: 12,
+                paddingBottom: 12,
+            });
+        }
     }, [alignToEssay, selectedFeedbackAnchorViewportTop, selectedFeedbackId]);
 
     if (!hasFeedback) {

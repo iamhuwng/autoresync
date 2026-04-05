@@ -59,6 +59,22 @@ function buildPendingQuickComment(
     };
 }
 
+function buildPendingCommentDraft(
+    overrides: Partial<NonNullable<ComponentProps<typeof EssayEditor>['pendingCommentDraft']>> = {},
+): NonNullable<ComponentProps<typeof EssayEditor>['pendingCommentDraft']> {
+    return {
+        commentId: 'comment-draft-1',
+        taskNumber: 1,
+        anchorText: 'Hello',
+        from: 1,
+        to: 6,
+        anchorViewportTop: 180,
+        categoryId: 'uncategorized',
+        html: '',
+        ...overrides,
+    };
+}
+
 function buildInitialContent(
     text: string,
     marks: Array<{ type: string; attrs?: Record<string, unknown> }> = [],
@@ -343,6 +359,7 @@ describe('EssayEditor', () => {
                 1,
                 6,
                 expect.stringMatching(/^comment-/),
+                null,
                 expect.objectContaining({ id: 'preset-1' }),
             );
         });
@@ -543,6 +560,30 @@ describe('EssayEditor', () => {
 
         expect(container.querySelector('[data-comment-id="comment-1"]')).toHaveAttribute('data-comment-color', '#facc15');
         expect(container.querySelector('[data-comment-id="comment-1"]')?.getAttribute('style')).toContain('rgba(250, 204, 21, 0.15)');
+    });
+
+    it('renders a transient pending-comment underline on the selected source range without persisting a real comment mark', async () => {
+        const { container, rerender } = renderEditor({
+            pendingCommentDraft: buildPendingCommentDraft(),
+        });
+
+        await waitFor(() => {
+            expect(container.querySelector('.pending-comment-preview')).toBeTruthy();
+        });
+
+        expect(container.querySelector('.pending-comment-preview')).toHaveAttribute('data-pending-comment-id', 'comment-draft-1');
+        expect(container.querySelector('[data-comment-id]')).toBeNull();
+
+        rerender(
+            <EssayEditor
+                {...baseProps}
+                pendingCommentDraft={null}
+            />,
+        );
+
+        await waitFor(() => {
+            expect(container.querySelector('.pending-comment-preview')).toBeNull();
+        });
     });
 
     it('prefers correction editing over comment clicks when old overlapping marks already exist', async () => {

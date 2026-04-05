@@ -234,3 +234,20 @@ Interaction boundary:
 - The active rail target is now resolved in this order: focused saved comment first, otherwise the pending draft composer.
 - Rail ordering is now canonical essay order from comment ranges (`from`, then `to`) instead of mixing measured pixel offsets with document positions.
 - This keeps click-on-highlight behavior intact while making new comment creation stay parallel to the selected essay text.
+
+## 2026-04-06 Second Follow-up - Pending Comment Draft Stays Local To The Reader
+
+- Opening a new pending comment must never drag the browser viewport toward the right rail.
+- The right-side `Comments` rail now owns its own reveal behavior:
+  - alignment still uses the selected essay anchor when that geometry exists
+  - fallback reveal happens by scrolling the rail viewport itself, never via `scrollIntoView()` on the page
+- `CommentComposer` autofocus is now explicitly non-scrolling so keyboard readiness does not move the page away from the selected essay text.
+- Pending comment state is now visible in the essay before save through a transient preview decoration on the selected source range.
+- That preview is not a persisted `commentMark`:
+  - it exists only while a pending draft is open
+  - it is removed on save, cancel, task switch, or mode changes that clear the pending draft
+- The preview styling is intentionally lighter than a saved comment:
+  - subtle dotted underline
+  - soft glow/blur treatment
+  - applied to the original selected text only
+- Published result readers now share the same local-rail reveal rule for feedback selection so cross-column alignment remains consistent without page-level scroll jumps.

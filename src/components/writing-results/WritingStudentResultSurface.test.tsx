@@ -289,7 +289,7 @@ describe('WritingStudentResultSurface', () => {
 
     await waitFor(() => {
       expect(shiftedFeedbackStack).toHaveStyle({
-        transform: 'translateY(-40px)',
+        transform: 'translateY(-52px)',
       });
       expect(scrollIntoViewMock).not.toHaveBeenCalled();
     });
@@ -318,7 +318,7 @@ describe('WritingStudentResultSurface', () => {
 
     await waitFor(() => {
       expect(shiftedFeedbackStack).toHaveStyle({
-        transform: 'translateY(-50px)',
+        transform: 'translateY(-62px)',
       });
       expect(scrollIntoViewMock).not.toHaveBeenCalled();
     });

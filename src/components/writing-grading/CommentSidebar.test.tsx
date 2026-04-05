@@ -55,6 +55,11 @@ describe('CommentSidebar', () => {
                 return 80;
             },
         });
+        Object.defineProperty(HTMLElement.prototype, 'scrollTop', {
+            configurable: true,
+            writable: true,
+            value: 0,
+        });
         Object.defineProperty(HTMLElement.prototype, 'getBoundingClientRect', {
             configurable: true,
             value() {
@@ -116,6 +121,38 @@ describe('CommentSidebar', () => {
                         left: 24,
                         right: 444,
                         bottom: 280,
+                        toJSON() {
+                            return this;
+                        },
+                    };
+                }
+
+                if (this?.getAttribute?.('data-pending-comment-header-id') === 'comment-pending-fallback') {
+                    return {
+                        x: 0,
+                        y: 560,
+                        width: 420,
+                        height: 20,
+                        top: 560,
+                        left: 24,
+                        right: 444,
+                        bottom: 580,
+                        toJSON() {
+                            return this;
+                        },
+                    };
+                }
+
+                if (this?.getAttribute?.('data-pending-comment-id') === 'comment-pending-fallback') {
+                    return {
+                        x: 0,
+                        y: 544,
+                        width: 440,
+                        height: 96,
+                        top: 544,
+                        left: 20,
+                        right: 460,
+                        bottom: 640,
                         toJSON() {
                             return this;
                         },
@@ -187,6 +224,51 @@ describe('CommentSidebar', () => {
             expect(shiftedCommentsStack).toHaveStyle({
                 transform: 'translateY(-54px)',
             });
+            expect(scrollIntoViewMock).not.toHaveBeenCalled();
+        });
+    });
+
+    it('keeps fallback pending-draft movement inside the rail viewport instead of calling scrollIntoView', async () => {
+        const { container } = render(
+            <CommentSidebar
+                comments={comments}
+                taskNumber={1}
+                focusedCommentId={null}
+                hoveredCommentId={null}
+                anchorPositions={[
+                    { commentId: 'comment-1', anchorTop: 100, anchorRight: 20, anchorCenterY: 110, anchorViewportTop: 140 },
+                    { commentId: 'comment-2', anchorTop: 200, anchorRight: 20, anchorCenterY: 210, anchorViewportTop: 180 },
+                ]}
+                editorScrollTop={0}
+                pendingCommentDraft={{
+                    commentId: 'comment-pending-fallback',
+                    taskNumber: 1,
+                    anchorText: 'pending phrase',
+                    from: 12,
+                    to: 16,
+                    anchorViewportTop: null,
+                    categoryId: 'uncategorized',
+                    html: '',
+                }}
+                onFocusComment={() => {}}
+                onHoverComment={() => {}}
+                onEditComment={() => {}}
+                onResolveComment={() => {}}
+                onReopenComment={() => {}}
+                onDeleteComment={() => {}}
+                onRecoverComment={() => {}}
+                onCategoryChange={() => {}}
+                onPendingCommentChange={() => {}}
+                onPendingCommentCategoryChange={() => {}}
+                onCancelPendingComment={() => {}}
+                onSavePendingComment={() => {}}
+            />,
+        );
+
+        const viewport = container.querySelector('[data-comments-viewport="true"]') as HTMLElement | null;
+
+        await waitFor(() => {
+            expect(viewport?.scrollTop).toBe(102);
             expect(scrollIntoViewMock).not.toHaveBeenCalled();
         });
     });

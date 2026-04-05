@@ -196,7 +196,7 @@ describe('WritingTeacherResultSurface', () => {
 
         await waitFor(() => {
             expect(correctionCard.closest('[data-feedback-stack="true"]')).toHaveStyle({
-                transform: 'translateY(-50px)',
+                transform: 'translateY(-62px)',
             });
         });
     });

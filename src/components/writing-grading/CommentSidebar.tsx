@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import type { CommentCategoryId, GradingComment } from '../../types/ielts-writing.types';
 import CommentCard from './CommentCard';
 import CommentComposer from './CommentComposer';
+import { getAlignedRailTranslateY, revealRailItemInViewport } from './annotationRailPosition';
 import './CommentSidebar.css';
 
 type FilterMode = 'all' | 'open' | 'resolved' | 'deleted';
@@ -231,25 +232,32 @@ export default function CommentSidebar({
         }
 
         if (viewportElement && railElement && selectedRailHeaderElement && activeRailTarget.anchorViewportTop !== null) {
-            const viewportRect = viewportElement.getBoundingClientRect();
-            const railRect = railElement.getBoundingClientRect();
-            const headerRect = selectedRailHeaderElement.getBoundingClientRect();
-            const headerHeight = headerRect.height || selectedRailHeaderElement.offsetHeight || 0;
             const viewportStyles = window.getComputedStyle(viewportElement);
             const viewportPaddingTop = Number.parseFloat(viewportStyles.paddingTop || '0') || 0;
             const viewportPaddingBottom = Number.parseFloat(viewportStyles.paddingBottom || '0') || 0;
-            const desiredHeaderTop = Math.min(
-                Math.max(activeRailTarget.anchorViewportTop, viewportRect.top + viewportPaddingTop),
-                viewportRect.bottom - viewportPaddingBottom - headerHeight,
-            );
-            const headerOffsetWithinRail = headerRect.top - railRect.top;
-            const desiredHeaderTopWithinViewport = desiredHeaderTop - viewportRect.top - viewportPaddingTop;
-            setCommentsStackTranslateY(desiredHeaderTopWithinViewport - headerOffsetWithinRail);
+            setCommentsStackTranslateY(getAlignedRailTranslateY({
+                viewportElement,
+                stackElement: railElement,
+                headerElement: selectedRailHeaderElement,
+                anchorViewportTop: activeRailTarget.anchorViewportTop,
+                paddingTop: viewportPaddingTop,
+                paddingBottom: viewportPaddingBottom,
+            }));
             return;
         }
 
         setCommentsStackTranslateY(0);
-        selectedRailElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        if (viewportElement) {
+            const viewportStyles = window.getComputedStyle(viewportElement);
+            const viewportPaddingTop = Number.parseFloat(viewportStyles.paddingTop || '0') || 0;
+            const viewportPaddingBottom = Number.parseFloat(viewportStyles.paddingBottom || '0') || 0;
+            revealRailItemInViewport({
+                viewportElement,
+                itemElement: selectedRailHeaderElement ?? selectedRailElement,
+                paddingTop: viewportPaddingTop,
+                paddingBottom: viewportPaddingBottom,
+            });
+        }
     }, [activeRailTarget, railItems]);
 
     const handleSidebarClick = useCallback((event: React.MouseEvent) => {
