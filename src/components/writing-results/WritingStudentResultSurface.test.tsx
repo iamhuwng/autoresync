@@ -134,7 +134,7 @@ describe('WritingStudentResultSurface', () => {
     Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
       configurable: true,
       get() {
-        if (this?.getAttribute?.('data-comment-header-id') === 'comment-2') {
+        if (this?.getAttribute?.('data-feedback-header-id') === 'comment-2') {
           return 20;
         }
         return 80;
@@ -148,7 +148,7 @@ describe('WritingStudentResultSurface', () => {
     Object.defineProperty(HTMLElement.prototype, 'getBoundingClientRect', {
       configurable: true,
       value() {
-        if (this?.getAttribute?.('data-comments-viewport') === 'true') {
+        if (this?.getAttribute?.('data-feedback-viewport') === 'true') {
           return {
             x: 0,
             y: 100,
@@ -164,7 +164,7 @@ describe('WritingStudentResultSurface', () => {
           };
         }
 
-        if (this?.getAttribute?.('data-comments-stack') === 'true') {
+        if (this?.getAttribute?.('data-feedback-stack') === 'true') {
           return {
             x: 0,
             y: 140,
@@ -180,7 +180,7 @@ describe('WritingStudentResultSurface', () => {
           };
         }
 
-        if (this?.getAttribute?.('data-comment-header-id') === 'comment-2') {
+        if (this?.getAttribute?.('data-feedback-header-id') === 'comment-2') {
           return {
             x: 0,
             y: 260,
@@ -196,7 +196,7 @@ describe('WritingStudentResultSurface', () => {
           };
         }
 
-        if (this?.getAttribute?.('data-comment-card-id') === 'comment-2') {
+        if (this?.getAttribute?.('data-feedback-card-id') === 'comment-2') {
           return {
             x: 0,
             y: 244,
@@ -212,7 +212,7 @@ describe('WritingStudentResultSurface', () => {
           };
         }
 
-        if (this?.getAttribute?.('data-comment-header-id') === 'correction-1') {
+        if (this?.getAttribute?.('data-feedback-header-id') === 'correction-1') {
           return {
             x: 0,
             y: 300,
@@ -228,7 +228,7 @@ describe('WritingStudentResultSurface', () => {
           };
         }
 
-        if (this?.getAttribute?.('data-comment-card-id') === 'correction-1') {
+        if (this?.getAttribute?.('data-feedback-card-id') === 'correction-1') {
           return {
             x: 0,
             y: 284,
@@ -261,7 +261,7 @@ describe('WritingStudentResultSurface', () => {
     });
   });
 
-  it('opens the comments tab and highlights the matching comment when essay markup is clicked', async () => {
+  it('opens the feedback tab and highlights the matching comment when essay markup is clicked', async () => {
     render(
       <WritingStudentResultSurface
         data={surfaceData}
@@ -277,25 +277,25 @@ describe('WritingStudentResultSurface', () => {
 
     const highlightedComment = await screen.findByText('Second comment');
     const highlightedCard = highlightedComment.closest('article');
-    const shiftedCommentsStack = highlightedCard?.parentElement;
+    const shiftedFeedbackStack = highlightedCard?.closest('[data-feedback-stack="true"]');
 
-    expect(screen.getByRole('button', { name: 'Comments' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Feedback' })).toBeInTheDocument();
     expect(highlightedCard).toHaveAttribute('data-highlighted', 'true');
     expect(highlightedCard).toHaveStyle({
       background: '#eef2ff',
       border: '1px solid #818cf8',
     });
-    expect(shiftedCommentsStack).toHaveAttribute('data-comments-shifted', 'true');
+    expect(shiftedFeedbackStack).toHaveAttribute('data-feedback-shifted', 'true');
 
     await waitFor(() => {
-      expect(shiftedCommentsStack).toHaveStyle({
+      expect(shiftedFeedbackStack).toHaveStyle({
         transform: 'translateY(-40px)',
       });
       expect(scrollIntoViewMock).not.toHaveBeenCalled();
     });
   });
 
-  it('opens the comments tab and highlights the matching correction when essay markup is clicked', async () => {
+  it('opens the feedback tab and highlights the matching correction when essay markup is clicked', async () => {
     render(
       <WritingStudentResultSurface
         data={surfaceData}
@@ -310,14 +310,14 @@ describe('WritingStudentResultSurface', () => {
 
     const correctionText = await screen.findByText('improved phrase');
     const highlightedCard = correctionText.closest('article');
-    const shiftedCommentsStack = highlightedCard?.parentElement;
+    const shiftedFeedbackStack = highlightedCard?.closest('[data-feedback-stack="true"]');
 
     expect(highlightedCard).toHaveAttribute('data-highlighted', 'true');
     expect(highlightedCard).toHaveTextContent('Correction');
     expect(highlightedCard).toHaveTextContent('wrong phrase');
 
     await waitFor(() => {
-      expect(shiftedCommentsStack).toHaveStyle({
+      expect(shiftedFeedbackStack).toHaveStyle({
         transform: 'translateY(-50px)',
       });
       expect(scrollIntoViewMock).not.toHaveBeenCalled();

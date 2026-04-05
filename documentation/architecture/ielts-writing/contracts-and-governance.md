@@ -76,6 +76,20 @@ Shared interaction rules:
 
 This preserves interaction continuity between the authoring tool and the published reader.
 
+## 2026-04-05 Amendment - Published Result Feedback Contract
+
+Published-result reader rules:
+- student and teacher Writing result surfaces must consume the same read-only published-markup viewer instead of drifting into separate tooltip or correction-rendering behavior
+- published correction data is part of the canonical published feedback artifact and must remain visible on both student and teacher result readers
+- student result readers may expose a neutral `Feedback` rail instead of overloading the label `Comments`
+- published feedback panels should keep comments and corrections as separate ordered sections inside the same read-only surface instead of flattening them into one undifferentiated lane
+- teacher result readers must expose that grouped published feedback surface as well; they must not silently omit corrections or reduce published feedback to summaries-only sidebars
+
+Published overlay rules:
+- read-only published hover tooltips must follow the same viewport-overlay geometry contract as the grading editor instead of container-local absolute positioning
+- published tooltip placement should derive from the hovered mark rectangle and prefer right, left, bottom, then top placement while clamping to the viewport
+- published tooltip overlays should dismiss on scroll or resize when the current anchor geometry is no longer trustworthy
+
 ## 2026-04-01 Amendment - Homework Delivery Timer Contract
 
 IELTS Writing homework delivery now depends on explicit route-state handoff from the homework shells into `StudentPracticePage` and `WritingPracticeView`.
@@ -151,6 +165,18 @@ Same-range ownership rules:
 - a correction action may optionally piggyback-create a normal comment anchored to the same selected source text, but that does not make corrections part of the `Comments` rail contract
 - same-range `commentMark` plus `correctionMark` is an intentional supported state; correction click/edit routing remains correction-owned, while comment discovery and editing remain comment-rail-owned
 - when both marks overlap, correction owns the outer visual wrapper so the saved comment stays attributable to the original selected text and does not visually extend across the rendered replacement text
+
+## 2026-04-05 Amendment - Published Result Viewer Interaction Contract
+
+Read-only viewer rules:
+- `WritingPublishedMarkupViewer` is the shared published-markup reader for student and teacher result surfaces, so tooltip geometry and overlay-mounting rules must live at that shared viewer boundary rather than being reimplemented per shell
+- published-result hover tooltips must follow the same body-portal, viewport-clamped, side-adjacent placement contract as the grading essay editor
+- read-only viewer scroll/resize changes must dismiss stale tooltip geometry instead of leaving detached overlays on screen
+
+Published feedback rules:
+- student result surfaces may keep one published `Feedback` rail, but comments and corrections should render as separate sections inside that rail instead of being flattened under a comments-only label
+- teacher result readers must pass both published comments and published corrections into the shared viewer; corrections-only tasks still count as published markup
+- read-only result readers do not inherit grading-editor-only correction editing, comment drafting, or correction-owned sidebar routing semantics
 
 ## 2026-04-02 Amendment - Grading Draft, Lock, And Compatibility Ownership Contract
 

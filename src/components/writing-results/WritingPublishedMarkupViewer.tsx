@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Highlight from '@tiptap/extension-highlight';
@@ -8,6 +9,11 @@ import Placeholder from '@tiptap/extension-placeholder';
 import { RichContent } from '../../core/components/RichContent';
 import type { PublishedCommentData, PublishedCorrectionData, PublishedFeedbackItem } from './writingResultSurface';
 import { CommentMark, CorrectionMark, MarksOnlyMode } from '../writing-grading/extensions';
+import {
+    getCommentTooltipOverlayPosition,
+    type CommentTooltipPlacement,
+    type OverlayPosition,
+} from '../writing-grading/annotationOverlayPosition';
 import '../writing-grading/extensions/essayEditorStyles.css';
 import '../writing-grading/EssayEditor.css';
 
@@ -23,10 +29,9 @@ interface WritingPublishedMarkupViewerProps {
     compact?: boolean;
 }
 
-interface TooltipState {
+interface TooltipState extends OverlayPosition {
     feedbackId: string;
-    top: number;
-    left: number;
+    placement: CommentTooltipPlacement;
 }
 
 function convertTextToTipTapJson(text: string): object {
@@ -59,16 +64,34 @@ export default function WritingPublishedMarkupViewer({
 }: WritingPublishedMarkupViewerProps) {
     const [viewMode, setViewMode] = useState<MarkupViewMode>('marked');
     const [tooltip, setTooltip] = useState<TooltipState | null>(null);
-    const containerRef = useRef<HTMLDivElement | null>(null);
     const feedbackItemsById = useMemo(
         () => new Map<string, PublishedFeedbackItem>([...comments, ...corrections].map((item) => [item.id, item])),
         [comments, corrections],
     );
     const totalFeedbackCount = comments.length + corrections.length;
+    const overlayPortalRoot = typeof document !== 'undefined' ? document.body : null;
 
     useEffect(() => {
         onViewModeChange?.(viewMode);
     }, [onViewModeChange, viewMode]);
+
+    useEffect(() => {
+        if (!tooltip || typeof window === 'undefined') {
+            return undefined;
+        }
+
+        const dismissTooltip = () => {
+            setTooltip(null);
+        };
+
+        window.addEventListener('resize', dismissTooltip);
+        window.addEventListener('scroll', dismissTooltip, true);
+
+        return () => {
+            window.removeEventListener('resize', dismissTooltip);
+            window.removeEventListener('scroll', dismissTooltip, true);
+        };
+    }, [tooltip]);
 
     const editor = useEditor({
         extensions: [
@@ -106,24 +129,12 @@ export default function WritingPublishedMarkupViewer({
                     }
 
                     const rect = element.getBoundingClientRect();
-                    const containerRect = containerRef.current?.getBoundingClientRect();
-                    const tooltipWidth = 320;
-                    const relativeLeft = containerRect
-                        ? rect.left - containerRect.left + (rect.width / 2)
-                        : rect.left + (rect.width / 2);
-                    const boundedLeft = containerRect
-                        ? Math.min(
-                            Math.max(relativeLeft, (tooltipWidth / 2) + 16),
-                            Math.max((tooltipWidth / 2) + 16, containerRect.width - (tooltipWidth / 2) - 16),
-                        )
-                        : relativeLeft;
-                    const relativeTop = containerRect
-                        ? Math.max(rect.top - containerRect.top - 12, 16)
-                        : rect.top - 12;
+                    const position = getCommentTooltipOverlayPosition(rect);
                     setTooltip({
                         feedbackId,
-                        top: relativeTop,
-                        left: boundedLeft,
+                        top: position.top,
+                        left: position.left,
+                        placement: position.placement,
                     });
                     return false;
                 },
@@ -159,6 +170,12 @@ export default function WritingPublishedMarkupViewer({
         editor.commands.setContent(nextContent, false);
     }, [editor, markedContent, originalEssayText]);
 
+    useEffect(() => {
+        if (viewMode === 'original') {
+            setTooltip(null);
+        }
+    }, [viewMode]);
+
     if (viewMode === 'original') {
         return (
             <div style={{ border: '1px solid #dbe4ee', borderRadius: '18px', background: '#ffffff' }}>
@@ -174,7 +191,7 @@ export default function WritingPublishedMarkupViewer({
     }
 
     return (
-        <div ref={containerRef} style={{ position: 'relative', border: '1px solid #dbe4ee', borderRadius: '18px', background: '#ffffff' }}>
+        <div style={{ border: '1px solid #dbe4ee', borderRadius: '18px', background: '#ffffff' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: compact ? '0.9rem 1rem 0.75rem' : '1rem 1.25rem 0.85rem', borderBottom: '1px solid #eef2f7' }}>
                 <div>
                     <strong style={{ display: 'block', fontSize: '0.94rem', color: '#111827' }}>Marked Response</strong>
@@ -197,29 +214,48 @@ export default function WritingPublishedMarkupViewer({
                 )}
             </div>
 
-            {tooltip && feedbackItemsById.get(tooltip.feedbackId) && (
-                <div
-                    style={{
-                        position: 'absolute',
-                        top: tooltip.top,
-                        left: tooltip.left,
-                        transform: 'translate(-50%, -100%)',
-                        zIndex: 9999,
-                        maxWidth: 320,
-                        background: '#111827',
-                        color: '#f9fafb',
-                        borderRadius: 12,
-                        boxShadow: '0 18px 40px rgba(15, 23, 42, 0.28)',
-                        padding: '0.8rem 0.9rem',
-                        pointerEvents: 'none',
-                    }}
-                >
-                    <div style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#cbd5e1', marginBottom: '0.4rem' }}>
-                        {renderTooltipLabel(feedbackItemsById.get(tooltip.feedbackId) || null)}
-                    </div>
-                    {renderTooltipBody(feedbackItemsById.get(tooltip.feedbackId) || null)}
-                </div>
-            )}
+            {tooltip && feedbackItemsById.get(tooltip.feedbackId) && (overlayPortalRoot
+                ? createPortal(
+                    <PublishedFeedbackTooltip
+                        tooltip={tooltip}
+                        item={feedbackItemsById.get(tooltip.feedbackId) || null}
+                    />,
+                    overlayPortalRoot,
+                )
+                : (
+                    <PublishedFeedbackTooltip
+                        tooltip={tooltip}
+                        item={feedbackItemsById.get(tooltip.feedbackId) || null}
+                    />
+                ))}
+        </div>
+    );
+}
+
+function PublishedFeedbackTooltip({
+    tooltip,
+    item,
+}: {
+    tooltip: TooltipState;
+    item: PublishedFeedbackItem | null;
+}) {
+    return (
+        <div
+            className="essay-comment-tooltip"
+            data-comment-tooltip="true"
+            data-placement={tooltip.placement}
+            style={{
+                position: 'fixed',
+                top: tooltip.top,
+                left: tooltip.left,
+                zIndex: 9999,
+                maxWidth: 320,
+            }}
+        >
+            <div style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#cbd5e1', marginBottom: '0.4rem' }}>
+                {renderTooltipLabel(item)}
+            </div>
+            {renderTooltipBody(item)}
         </div>
     );
 }

@@ -2,7 +2,7 @@
 title: IELTS Writing Current State Scheme
 description: Current-state contract for IELTS Writing across routing, submission, grading, result access, and forbidden regressions.
 createdAt: '2026-03-29T07:59:36.729Z'
-updatedAt: '2026-04-05T03:52:32.442Z'
+updatedAt: '2026-04-05T14:14:52.418Z'
 tags:
   - architecture
   - scheme
@@ -299,3 +299,10 @@ Scope boundary:
 
 Detailed reference:
 - @doc/architecture/ielts-writing/ielts-writing-copy-paste-toggle-and-attempt-persistence-2026-04-05
+
+## 2026-04-05 implementation update: published result interaction parity
+
+Current-state amendments:
+- Student and teacher published Writing result readers now share the same read-only published-markup viewer contract for tooltip geometry and correction visibility.
+- This standardizes published correction visibility across both result-surface families without importing grading-editor-only correction/comment sidebar behavior into result readers.
+- Student result surfaces may still present one ordered published-feedback rail that contains both comments and corrections; this remains distinct from the teacher grading editor's comment-only sidebar.

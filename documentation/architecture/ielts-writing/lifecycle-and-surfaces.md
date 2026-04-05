@@ -77,7 +77,7 @@ In the wide student slide modal:
 ### Published
 - compact band strip
 - task-aware summaries and criteria feedback
-- published markup and ordered comments
+- published markup and ordered feedback items
 - audit metadata and re-open path when permissions allow
 
 ## Teacher Authoring Contract
@@ -112,6 +112,22 @@ Current contract:
 
 This supersedes any looser wording that implied the matching comment only scrolls nearby in the sidebar.
 
+## 2026-04-05 Amendment - Published Feedback Reader Contract
+
+The read-only Writing result readers now share a single published-markup interaction contract across student and teacher surfaces.
+
+Current published-reader rules:
+- `WritingPublishedMarkupViewer` is the shared marked-response renderer for both student and teacher result surfaces.
+- Published correction data must be passed through that shared viewer on both student and teacher result surfaces; teacher result readers must not silently drop corrections while student readers still show them.
+- Read-only result surfaces keep their own published-feedback rail model:
+  - student result surfaces may continue to merge published comments and published corrections into one ordered feedback rail
+  - this does not reintroduce the grading-editor comment-rail contract where corrections were removed from the editing sidebar
+- Published hover tooltips now follow the same viewport-overlay rule as the grading editor:
+  - mount outside local clipping containers
+  - position from viewport coordinates
+  - choose the nearest intelligible side in this order: right, left, bottom, then top
+  - clamp to the viewport and dismiss on scroll/resize if the anchor geometry becomes stale
+
 ## 2026-04-02 Amendment - Teacher Grading Operational States
 
 The teacher grading lifecycle now distinguishes the public result phase from the editor's operational state more strictly.
@@ -119,6 +135,22 @@ The teacher grading lifecycle now distinguishes the public result phase from the
 Current operational rules:
 - loading a pending-review submission no longer implies immediate edit mode before lock ownership is confirmed
 - lock acquisition is the gate that promotes the page from review/read-only assumptions into active editing
+
+## 2026-04-05 Amendment - Published Feedback Rail And Viewer Overlay Contract
+
+Student published-reader rules:
+- the wide student result surface now exposes a `Feedback` tab instead of overloading the label `Comments`
+- published comments and published corrections remain one read-only rail, but they render as separate ordered sections inside that rail
+- clicking highlighted essay text still forces the published-feedback rail open and preserves the cross-column anchor-alignment rule
+
+Teacher published-reader rules:
+- teacher result readers must pass both published comments and published corrections into the shared published markup viewer
+- corrections-only tasks still count as published markup and must not fall back to plain essay rendering just because there are no comment records
+
+Shared published-viewer rules:
+- `WritingPublishedMarkupViewer` is now the common read-only markup reader for both student and teacher result surfaces
+- the published viewer follows the same body-portal, viewport-clamped, side-adjacent hover-tooltip contract as the grading essay editor
+- read-only result surfaces keep their own published-feedback navigation model and do not inherit grading-editor-only correction/comment routing semantics
 - task switching is a hard boundary for transient grading UI state and editor content rehydration
 - leaving with unsaved work is a three-way workflow (`save`, `discard`, `cancel`), not a binary confirm prompt
 - published submissions may re-enter the editor only through the explicit regrade workflow with a required reason

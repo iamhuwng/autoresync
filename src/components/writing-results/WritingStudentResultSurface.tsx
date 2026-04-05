@@ -1,9 +1,11 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { RichContent } from '../../core/components/RichContent';
 import AnnotatedEssayReadOnly from './AnnotatedEssayReadOnly';
+import PublishedFeedbackPanel from './PublishedFeedbackPanel';
 import WritingPublishedMarkupViewer from './WritingPublishedMarkupViewer';
 import type {
-    PublishedFeedbackItem,
+    PublishedCommentData,
+    PublishedCorrectionData,
     WritingResultSurfaceData,
     WritingResultTaskData,
 } from './writingResultSurface';
@@ -22,7 +24,7 @@ interface WritingStudentResultSurfaceProps {
     onCriteriaToggle?: (expanded: boolean) => void;
 }
 
-type StudentPanelTab = 'prompt' | 'comments' | 'scoring';
+type StudentPanelTab = 'prompt' | 'feedback' | 'scoring';
 
 const CRITERIA_LABELS: Record<string, string> = {
     TA: 'Task Achievement',
@@ -63,7 +65,7 @@ export default function WritingStudentResultSurface({
         [activeTask],
     );
     const scoringLocked = data.phase !== 'published';
-    const commentsLocked = data.phase !== 'published';
+    const feedbackLocked = data.phase !== 'published';
 
     useEffect(() => {
         if (!activeTask) {
@@ -76,10 +78,10 @@ export default function WritingStudentResultSurface({
     }, [activeTask, activeTaskNumber, data.tasks]);
 
     useEffect(() => {
-        if ((panelTab === 'comments' && commentsLocked) || (panelTab === 'scoring' && scoringLocked)) {
+        if ((panelTab === 'feedback' && feedbackLocked) || (panelTab === 'scoring' && scoringLocked)) {
             setPanelTab('prompt');
         }
-    }, [commentsLocked, panelTab, scoringLocked]);
+    }, [feedbackLocked, panelTab, scoringLocked]);
 
     useEffect(() => {
         if (!selectedFeedbackId) {
@@ -99,11 +101,11 @@ export default function WritingStudentResultSurface({
     };
 
     const handleEssayFeedbackSelect = (feedbackId: string, anchorViewportTop: number | null) => {
-        if (commentsLocked) {
+        if (feedbackLocked) {
             return;
         }
 
-        setPanelTab('comments');
+        setPanelTab('feedback');
         setSelectedFeedbackId(feedbackId);
         setSelectedFeedbackAnchorViewportTop(anchorViewportTop);
     };
@@ -263,11 +265,11 @@ export default function WritingStudentResultSurface({
                             </button>
                             <button
                                 type="button"
-                                onClick={() => !commentsLocked && setPanelTab('comments')}
-                                style={panelTabButtonStyle(panelTab === 'comments', commentsLocked)}
-                                disabled={commentsLocked}
+                                onClick={() => !feedbackLocked && setPanelTab('feedback')}
+                                style={panelTabButtonStyle(panelTab === 'feedback', feedbackLocked)}
+                                disabled={feedbackLocked}
                             >
-                                Comments
+                                Feedback
                             </button>
                             <button
                                 type="button"
@@ -284,9 +286,10 @@ export default function WritingStudentResultSurface({
                                 <PromptTab task={activeTask} phase={data.phase} />
                             )}
 
-                            {panelTab === 'comments' && (
-                                <CommentsTab
-                                    feedbackItems={activeFeedbackItems}
+                            {panelTab === 'feedback' && (
+                                <FeedbackTab
+                                    comments={activeTask.comments}
+                                    corrections={activeTask.corrections}
                                     taskNumber={activeTask.taskNumber}
                                     selectedFeedbackId={selectedFeedbackId}
                                     selectedFeedbackAnchorViewportTop={selectedFeedbackAnchorViewportTop}
@@ -364,68 +367,21 @@ function PromptTab({
     );
 }
 
-function CommentsTab({
-    feedbackItems,
+function FeedbackTab({
+    comments,
+    corrections,
     taskNumber,
     selectedFeedbackId,
     selectedFeedbackAnchorViewportTop,
     alignToEssay,
 }: {
-    feedbackItems: PublishedFeedbackItem[];
+    comments: PublishedCommentData[];
+    corrections: PublishedCorrectionData[];
     taskNumber: 1 | 2;
     selectedFeedbackId: string | null;
     selectedFeedbackAnchorViewportTop: number | null;
     alignToEssay: boolean;
 }) {
-    const commentRefs = useRef<Record<string, HTMLElement | null>>({});
-    const commentHeaderRefs = useRef<Record<string, HTMLDivElement | null>>({});
-    const viewportRef = useRef<HTMLDivElement | null>(null);
-    const stackRef = useRef<HTMLDivElement | null>(null);
-    const [commentsStackTranslateY, setCommentsStackTranslateY] = useState(0);
-
-    useLayoutEffect(() => {
-        if (!selectedFeedbackId) {
-            setCommentsStackTranslateY(0);
-            return;
-        }
-
-        const viewportElement = viewportRef.current;
-        const stackElement = stackRef.current;
-        const selectedCommentElement = commentRefs.current[selectedFeedbackId];
-        const selectedCommentHeaderElement = commentHeaderRefs.current[selectedFeedbackId] ?? null;
-
-        if (!selectedCommentElement || !stackElement || !selectedCommentHeaderElement) {
-            setCommentsStackTranslateY(0);
-            return;
-        }
-
-        if (alignToEssay && viewportElement && selectedFeedbackAnchorViewportTop !== null) {
-            const measuredViewportRect = viewportElement.getBoundingClientRect();
-            const measuredStackRect = stackElement.getBoundingClientRect();
-            const measuredHeaderRect = selectedCommentHeaderElement.getBoundingClientRect();
-            const headerHeight = measuredHeaderRect.height || selectedCommentHeaderElement.offsetHeight || 0;
-            const railPadding = 12;
-            const desiredHeaderTop = Math.min(
-                Math.max(selectedFeedbackAnchorViewportTop, measuredViewportRect.top + railPadding),
-                measuredViewportRect.bottom - railPadding - headerHeight,
-            );
-            const headerOffsetWithinStack = measuredHeaderRect.top - measuredStackRect.top;
-            const desiredHeaderTopWithinViewport = desiredHeaderTop - measuredViewportRect.top;
-            setCommentsStackTranslateY(desiredHeaderTopWithinViewport - headerOffsetWithinStack);
-            return;
-        }
-
-        if (alignToEssay) {
-            return;
-        }
-
-        setCommentsStackTranslateY(0);
-        selectedCommentElement.scrollIntoView({
-            behavior: 'smooth',
-            block: 'nearest',
-        });
-    }, [alignToEssay, selectedFeedbackAnchorViewportTop, selectedFeedbackId]);
-
     return (
         <div style={{ display: 'grid', gap: '1rem' }}>
             <div>
@@ -435,79 +391,13 @@ function CommentsTab({
                 </h3>
             </div>
 
-            {feedbackItems.length > 0 ? (
-                <div
-                    ref={viewportRef}
-                    data-comments-viewport="true"
-                    style={{
-                        maxHeight: alignToEssay ? 'min(68vh, 720px)' : undefined,
-                        overflowY: alignToEssay ? 'auto' : undefined,
-                        paddingRight: alignToEssay ? '0.25rem' : undefined,
-                    }}
-                >
-                    <div
-                        ref={stackRef}
-                        data-comments-shifted={alignToEssay && selectedFeedbackId && selectedFeedbackAnchorViewportTop !== null ? 'true' : 'false'}
-                        data-comments-stack="true"
-                        style={{
-                            display: 'grid',
-                            gap: '0.8rem',
-                            transform: alignToEssay ? `translateY(${commentsStackTranslateY}px)` : 'none',
-                            transition: 'transform 0.22s ease',
-                        }}
-                    >
-                        {feedbackItems.map((item) => {
-                            const selected = selectedFeedbackId === item.id;
-                            return (
-                                <article
-                                    key={item.id}
-                                    ref={(node) => {
-                                        commentRefs.current[item.id] = node;
-                                    }}
-                                    data-comment-card-id={item.id}
-                                    data-highlighted={selected ? 'true' : 'false'}
-                                    style={{
-                                        ...mutedPanelStyle(),
-                                        border: selected ? '1px solid #818cf8' : '1px solid #e5e7eb',
-                                        background: selected ? '#eef2ff' : '#f9fafb',
-                                        boxShadow: selected ? '0 0 0 3px rgba(99, 102, 241, 0.18), 0 16px 32px rgba(79, 70, 229, 0.12)' : 'none',
-                                        transition: 'border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease',
-                                    }}
-                                >
-                                    <div
-                                        ref={(node) => {
-                                            commentHeaderRefs.current[item.id] = node;
-                                        }}
-                                        data-comment-header-id={item.id}
-                                        style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'baseline', marginBottom: '0.35rem', flexWrap: 'wrap' }}
-                                    >
-                                        <span style={{ fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#4f46e5' }}>
-                                            {item.kind === 'comment' ? item.categoryLabel : item.label}
-                                        </span>
-                                        {item.anchorText ? (
-                                            <span style={{ fontSize: '0.76rem', color: '#6b7280' }}>{item.anchorText}</span>
-                                        ) : null}
-                                    </div>
-                                    {item.kind === 'comment' ? (
-                                        <RichContent content={item.text} style={{ color: '#374151', lineHeight: 1.55, fontSize: '0.86rem' }} />
-                                    ) : (
-                                        <div style={{ display: 'grid', gap: '0.35rem', color: '#374151', fontSize: '0.86rem', lineHeight: 1.55 }}>
-                                            <div>
-                                                <span style={{ fontSize: '0.74rem', fontWeight: 700, letterSpacing: '0.03em', textTransform: 'uppercase', color: '#6b7280', marginRight: '0.45rem' }}>
-                                                    Replace with
-                                                </span>
-                                                <span>{item.correctionText || 'No replacement text'}</span>
-                                            </div>
-                                        </div>
-                                    )}
-                                </article>
-                            );
-                        })}
-                    </div>
-                </div>
-            ) : (
-                <EmptyPanelMessage message="No published comments or corrections for this task." />
-            )}
+            <PublishedFeedbackPanel
+                comments={comments}
+                corrections={corrections}
+                selectedFeedbackId={selectedFeedbackId}
+                selectedFeedbackAnchorViewportTop={selectedFeedbackAnchorViewportTop}
+                alignToEssay={alignToEssay}
+            />
         </div>
     );
 }

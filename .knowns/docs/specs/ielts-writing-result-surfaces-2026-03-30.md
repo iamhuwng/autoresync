@@ -2,7 +2,7 @@
 title: IELTS Writing Result Surfaces 2026-03-30
 description: Source of truth for the redesigned IELTS Writing result surfaces in student and teacher views, including shell mappings, phase model, data contract, approved Stitch references, and superseded guidance.
 createdAt: '2026-03-29T23:38:36.812Z'
-updatedAt: '2026-03-30T02:03:33.024Z'
+updatedAt: '2026-04-05T14:16:13.768Z'
 tags:
   - spec
   - ielts
@@ -157,3 +157,24 @@ Behavioral guardrails:
 Verification note:
 - Live verification on `?result=-OosUDrZdaDhAb6vxk34` showed `deltaHeaderTop = 0px` across multiple clicked annotations in the published markup path.
 - This supersedes the earlier looser wording that described focused-card or center-based alignment.
+
+## 2026-04-05 Amendment - Published Markup Viewer Standardization
+
+Published-reader rules:
+- `WritingPublishedMarkupViewer` is the shared marked-response renderer for both student and teacher Writing result surfaces.
+- Published correction data must be passed through that shared viewer on both student and teacher result surfaces; teacher result readers must not silently drop corrections while student readers still show them.
+- Published result surfaces may keep a merged ordered feedback rail for comments plus corrections because this is a read-only reader contract, not the grading-editor sidebar contract.
+
+Published-overlay rules:
+- Read-only published hover tooltips now follow the same viewport-overlay geometry contract as the grading editor instead of container-local absolute positioning.
+- Tooltip placement derives from the hovered mark rectangle and prefers right, left, bottom, then top while clamping to the viewport.
+- Published tooltip overlays dismiss on scroll or resize when anchor geometry becomes stale.
+
+## 2026-04-05 Amendment — Shared Published Feedback Panel And Viewer Tooltip Contract
+
+Published reader rules:
+- `WritingPublishedMarkupViewer` remains the single read-only marked-response renderer for both student and teacher Writing result surfaces.
+- Published hover tooltips now follow the same body-portal, viewport-clamped, side-adjacent placement contract as the grading essay editor instead of container-local absolute positioning.
+- Student result readers may expose a neutral `Feedback` tab instead of overloading the label `Comments`.
+- Published feedback remains a read-only result-surface model, but comments and corrections must render as separate ordered sections inside that shared feedback surface.
+- Teacher result readers must expose the same grouped published feedback surface and must pass published corrections through both the viewer and the feedback panel.
