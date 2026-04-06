@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import WritingSuggestionsReviewModal from './WritingSuggestionsReviewModal';
 import type { WritingSuggestionCacheDoc } from '../../types/ielts-writing.types';
@@ -97,6 +97,9 @@ describe('WritingSuggestionsReviewModal', () => {
         );
 
         expect(screen.getByText('Verb agreement')).toBeInTheDocument();
+        expect(screen.getByText('Review Status')).toBeInTheDocument();
+        expect(screen.getByText('Focus Area')).toBeInTheDocument();
+        expect(screen.getByText('Edit Type')).toBeInTheDocument();
         fireEvent.click(screen.getByText('Approve'));
         fireEvent.click(screen.getByText('Dismiss'));
 
@@ -130,7 +133,10 @@ describe('WritingSuggestionsReviewModal', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Approved 1' }));
 
-        expect(screen.getByText('Verb tense')).toBeInTheDocument();
+        const approvedCard = screen.getByText('Verb tense').closest('.wsm-card');
+        expect(approvedCard).toBeTruthy();
+        expect(within(approvedCard as HTMLElement).getByText('Lexical')).toBeInTheDocument();
+        expect(within(approvedCard as HTMLElement).getByText('Correction')).toBeInTheDocument();
         fireEvent.click(screen.getByText('Restore to Pending'));
         expect(onRestoreSuggestion).toHaveBeenCalledTimes(1);
     });

@@ -2491,6 +2491,12 @@ export default function WritingGradingPage() {
                                         feedback={activeTaskState.feedback}
                                         onChange={(feedback) => handleTaskFeedbackChange(activeTask, feedback)}
                                         onTabChange={(tab) => trackAction('switchTab', { submissionId, tab: `feedback-${tab}` })}
+                                        onEditorAction={(action, tab) => trackAction('formatFeedback', {
+                                            submissionId,
+                                            taskNumber: activeTask,
+                                            tab: `feedback-${tab}`,
+                                            action,
+                                        })}
                                     />
                                 </>
                             ) : (

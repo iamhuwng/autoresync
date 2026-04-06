@@ -22,6 +22,7 @@ import './TabbedFeedbackEditor.css';
 // ═══════════════════════════════════════════════════════════════
 
 type FeedbackTab = 'taskSummary' | 'ta' | 'cc' | 'lr' | 'gra';
+type FeedbackEditorAction = 'bold' | 'italic' | 'underline' | 'bulletList' | 'orderedList' | 'undo' | 'redo';
 
 export interface FeedbackContent {
     taskSummary: string;
@@ -38,6 +39,7 @@ export interface TabbedFeedbackEditorProps {
     /** Called on every content change with updated feedback */
     onChange: (feedback: FeedbackContent) => void;
     onTabChange?: (tab: FeedbackTab) => void;
+    onEditorAction?: (action: FeedbackEditorAction, tab: FeedbackTab) => void;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -47,7 +49,7 @@ export interface TabbedFeedbackEditorProps {
 interface TabConfig {
     id: FeedbackTab;
     label: string;
-    criterionName: string;
+    placeholderLabel: string;
 }
 
 function normalizeFeedbackHtml(content: string) {
@@ -56,12 +58,16 @@ function normalizeFeedbackHtml(content: string) {
 
 function getTabs(taskNumber: 1 | 2): TabConfig[] {
     return [
-        { id: 'taskSummary', label: 'Task Summary', criterionName: 'task summary' },
-        { id: 'ta', label: taskNumber === 1 ? 'TA' : 'TR', criterionName: taskNumber === 1 ? 'Task Achievement' : 'Task Response' },
-        { id: 'cc', label: 'CC', criterionName: 'Coherence & Cohesion' },
-        { id: 'lr', label: 'LR', criterionName: 'Lexical Resource' },
-        { id: 'gra', label: 'GRA', criterionName: 'Grammatical Range & Accuracy' },
+        { id: 'taskSummary', label: 'Task Summary', placeholderLabel: 'Task Summary' },
+        { id: 'ta', label: taskNumber === 1 ? 'TA' : 'TR', placeholderLabel: taskNumber === 1 ? 'TA' : 'TR' },
+        { id: 'cc', label: 'CC', placeholderLabel: 'CC' },
+        { id: 'lr', label: 'LR', placeholderLabel: 'LR' },
+        { id: 'gra', label: 'GRA', placeholderLabel: 'GRA' },
     ];
+}
+
+function getPlaceholder(tab: TabConfig) {
+    return `Type detailed feedback for the ${tab.placeholderLabel} here...`;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -73,6 +79,7 @@ const TabbedFeedbackEditor: React.FC<TabbedFeedbackEditorProps> = ({
     feedback,
     onChange,
     onTabChange,
+    onEditorAction,
 }) => {
     const [activeTab, setActiveTab] = useState<FeedbackTab>('taskSummary');
     const contentRef = useRef<FeedbackContent>({ ...feedback });
@@ -82,7 +89,6 @@ const TabbedFeedbackEditor: React.FC<TabbedFeedbackEditorProps> = ({
     const preventToolbarBlur = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
         event.preventDefault();
     }, []);
-
     // TipTap Editor
     const editor = useEditor({
         extensions: [
@@ -95,7 +101,7 @@ const TabbedFeedbackEditor: React.FC<TabbedFeedbackEditorProps> = ({
             }),
             Underline,
             Placeholder.configure({
-                placeholder: `Write your ${activeConfig.criterionName} feedback for Task ${taskNumber}...`,
+                placeholder: getPlaceholder(activeConfig),
             }),
         ],
         content: normalizeFeedbackHtml(feedback[activeTab]),
@@ -105,6 +111,40 @@ const TabbedFeedbackEditor: React.FC<TabbedFeedbackEditorProps> = ({
             onChange(contentRef.current);
         },
     });
+
+    const runToolbarCommand = useCallback((action: FeedbackEditorAction) => {
+        if (!editor) {
+            return;
+        }
+
+        switch (action) {
+        case 'bold':
+            editor.chain().focus().toggleBold().run();
+            break;
+        case 'italic':
+            editor.chain().focus().toggleItalic().run();
+            break;
+        case 'underline':
+            editor.chain().focus().toggleUnderline().run();
+            break;
+        case 'bulletList':
+            editor.chain().focus().toggleBulletList().run();
+            break;
+        case 'orderedList':
+            editor.chain().focus().toggleOrderedList().run();
+            break;
+        case 'undo':
+            editor.chain().focus().undo().run();
+            break;
+        case 'redo':
+            editor.chain().focus().redo().run();
+            break;
+        default:
+            return;
+        }
+
+        onEditorAction?.(action, activeTab);
+    }, [activeTab, editor, onEditorAction]);
 
     useEffect(() => {
         const taskChanged = previousTaskNumberRef.current !== taskNumber;
@@ -150,14 +190,13 @@ const TabbedFeedbackEditor: React.FC<TabbedFeedbackEditorProps> = ({
     useEffect(() => {
         if (!editor) return;
         const editorEl = editor.view.dom as HTMLElement;
-        editorEl.setAttribute('data-placeholder-text', `Write your ${activeConfig.criterionName} feedback for Task ${taskNumber}...`);
-    }, [editor, activeTab, activeConfig, taskNumber]);
+        editorEl.setAttribute('data-placeholder-text', getPlaceholder(activeConfig));
+    }, [activeConfig, editor]);
 
     if (!editor) return null;
 
     return (
         <div className="tabbed-feedback-editor" id="tabbed-feedback-editor">
-            {/* ── Tab Pills ── */}
             <div className="feedback-tabs" id="feedback-tabs">
                 {tabs.map(tab => (
                     <button
@@ -170,12 +209,11 @@ const TabbedFeedbackEditor: React.FC<TabbedFeedbackEditorProps> = ({
                     </button>
                 ))}
             </div>
-
             <div className="feedback-toolbar" id="feedback-toolbar">
                 <button
                     className={`feedback-toolbar-btn ${editor.isActive('bold') ? 'active' : ''}`}
                     onMouseDown={preventToolbarBlur}
-                    onClick={() => editor.chain().focus().toggleBold().run()}
+                    onClick={() => runToolbarCommand('bold')}
                     type="button"
                     title="Bold (Ctrl+B)"
                 >
@@ -184,7 +222,7 @@ const TabbedFeedbackEditor: React.FC<TabbedFeedbackEditorProps> = ({
                 <button
                     className={`feedback-toolbar-btn ${editor.isActive('italic') ? 'active' : ''}`}
                     onMouseDown={preventToolbarBlur}
-                    onClick={() => editor.chain().focus().toggleItalic().run()}
+                    onClick={() => runToolbarCommand('italic')}
                     type="button"
                     title="Italic (Ctrl+I)"
                 >
@@ -193,7 +231,7 @@ const TabbedFeedbackEditor: React.FC<TabbedFeedbackEditorProps> = ({
                 <button
                     className={`feedback-toolbar-btn ${editor.isActive('underline') ? 'active' : ''}`}
                     onMouseDown={preventToolbarBlur}
-                    onClick={() => editor.chain().focus().toggleUnderline().run()}
+                    onClick={() => runToolbarCommand('underline')}
                     type="button"
                     title="Underline (Ctrl+U)"
                 >
@@ -205,7 +243,7 @@ const TabbedFeedbackEditor: React.FC<TabbedFeedbackEditorProps> = ({
                 <button
                     className={`feedback-toolbar-btn ${editor.isActive('bulletList') ? 'active' : ''}`}
                     onMouseDown={preventToolbarBlur}
-                    onClick={() => editor.chain().focus().toggleBulletList().run()}
+                    onClick={() => runToolbarCommand('bulletList')}
                     type="button"
                     title="Bullet List"
                 >
@@ -214,7 +252,7 @@ const TabbedFeedbackEditor: React.FC<TabbedFeedbackEditorProps> = ({
                 <button
                     className={`feedback-toolbar-btn ${editor.isActive('orderedList') ? 'active' : ''}`}
                     onMouseDown={preventToolbarBlur}
-                    onClick={() => editor.chain().focus().toggleOrderedList().run()}
+                    onClick={() => runToolbarCommand('orderedList')}
                     type="button"
                     title="Numbered List"
                 >
@@ -226,7 +264,7 @@ const TabbedFeedbackEditor: React.FC<TabbedFeedbackEditorProps> = ({
                 <button
                     className="feedback-toolbar-btn"
                     onMouseDown={preventToolbarBlur}
-                    onClick={() => editor.chain().focus().undo().run()}
+                    onClick={() => runToolbarCommand('undo')}
                     disabled={!editor.can().undo()}
                     type="button"
                     title="Undo (Ctrl+Z)"
@@ -236,7 +274,7 @@ const TabbedFeedbackEditor: React.FC<TabbedFeedbackEditorProps> = ({
                 <button
                     className="feedback-toolbar-btn"
                     onMouseDown={preventToolbarBlur}
-                    onClick={() => editor.chain().focus().redo().run()}
+                    onClick={() => runToolbarCommand('redo')}
                     disabled={!editor.can().redo()}
                     type="button"
                     title="Redo (Ctrl+Y)"
@@ -244,8 +282,6 @@ const TabbedFeedbackEditor: React.FC<TabbedFeedbackEditorProps> = ({
                     ↪
                 </button>
             </div>
-
-            {/* ── Editor ── */}
             <div className="feedback-editor-content">
                 <EditorContent editor={editor} />
             </div>

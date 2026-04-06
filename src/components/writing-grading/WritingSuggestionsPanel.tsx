@@ -62,43 +62,42 @@ function SuggestionHeader({
     openDisabled: boolean;
 }) {
     return (
-        <div className="wgp-panel-card">
-            <div className="wsp-toolbar">
-                <div>
-                    <div className="wgp-card-title">Suggestions</div>
-                    <p className="wsp-status-copy">{message}</p>
-                    {secondaryMessage && <p className="wsp-status-copy">{secondaryMessage}</p>}
-                </div>
-                <div className="wsp-toolbar-actions">
+        <>
+            <div className="wsp-header">
+                <div className="wsp-eyebrow">Suggestions</div>
+                <p className="wsp-status-copy">{message}</p>
+                {secondaryMessage && <p className="wsp-status-copy wsp-status-copy--secondary">{secondaryMessage}</p>}
+            </div>
+
+            <div className="wsp-toolbar-actions">
+                <button
+                    type="button"
+                    className="wsp-secondary-btn"
+                    onClick={onReload}
+                    disabled={reloadDisabled}
+                >
+                    {reloadLabel}
+                </button>
+                {showGenerateMore && (
                     <button
                         type="button"
                         className="wsp-secondary-btn"
-                        onClick={onReload}
-                        disabled={reloadDisabled}
+                        onClick={onGenerateMore}
+                        disabled={generateMoreDisabled}
                     >
-                        {reloadLabel}
+                        Generate More
                     </button>
-                    {showGenerateMore && (
-                        <button
-                            type="button"
-                            className="wsp-secondary-btn"
-                            onClick={onGenerateMore}
-                            disabled={generateMoreDisabled}
-                        >
-                            Generate More
-                        </button>
-                    )}
-                    <button
-                        type="button"
-                        className="wsp-primary-btn"
-                        onClick={onOpenReview}
-                        disabled={openDisabled}
-                    >
-                        Open Review
-                    </button>
-                </div>
+                )}
+                <button
+                    type="button"
+                    className="wsp-primary-btn"
+                    onClick={onOpenReview}
+                    disabled={openDisabled}
+                >
+                    Open Review
+                </button>
             </div>
-        </div>
+        </>
     );
 }
 
@@ -135,41 +134,45 @@ export default function WritingSuggestionsPanel({
 
     if (isGenerating) {
         return (
-            <SuggestionHeader
-                message={`Scanning Task ${taskNumber} suggestions in this browser.`}
-                secondaryMessage={progressMessage
-                    ? `Safe: keep reading or grading on this page. Avoid refreshing, closing the tab, navigating away, signing out, or starting another suggestion run until this finishes. ${progressMessage}`
-                    : 'Safe: keep reading or grading on this page. Avoid refreshing, closing the tab, navigating away, signing out, or starting another suggestion run until this finishes.'}
-                onReload={onReload}
-                onGenerateMore={onGenerateMore}
-                onOpenReview={onOpenReview}
-                reloadLabel={reloadButtonLabel}
-                reloadDisabled
-                generateMoreDisabled
-                showGenerateMore={false}
-                openDisabled
-            />
+            <section className="wsp-card" aria-label={`Task ${taskNumber} suggestions`}>
+                <SuggestionHeader
+                    message={`Scanning Task ${taskNumber} suggestions in this browser.`}
+                    secondaryMessage={progressMessage
+                        ? `Safe: keep reading or grading on this page. Avoid refreshing, closing the tab, navigating away, signing out, or starting another suggestion run until this finishes. ${progressMessage}`
+                        : 'Safe: keep reading or grading on this page. Avoid refreshing, closing the tab, navigating away, signing out, or starting another suggestion run until this finishes.'}
+                    onReload={onReload}
+                    onGenerateMore={onGenerateMore}
+                    onOpenReview={onOpenReview}
+                    reloadLabel={reloadButtonLabel}
+                    reloadDisabled
+                    generateMoreDisabled
+                    showGenerateMore={false}
+                    openDisabled
+                />
+            </section>
         );
     }
 
     if (cache?.status === 'failed') {
         return (
-            <SuggestionHeader
-                message={cache.error || 'Suggestions could not be generated.'}
-                onReload={onReload}
-                onGenerateMore={onGenerateMore}
-                onOpenReview={onOpenReview}
-                reloadLabel={reloadButtonLabel}
-                reloadDisabled={reloading}
-                generateMoreDisabled
-                showGenerateMore={false}
-                openDisabled
-            />
+            <section className="wsp-card" aria-label={`Task ${taskNumber} suggestions`}>
+                <SuggestionHeader
+                    message={cache.error || 'Suggestions could not be generated.'}
+                    onReload={onReload}
+                    onGenerateMore={onGenerateMore}
+                    onOpenReview={onOpenReview}
+                    reloadLabel={reloadButtonLabel}
+                    reloadDisabled={reloading}
+                    generateMoreDisabled
+                    showGenerateMore={false}
+                    openDisabled
+                />
+            </section>
         );
     }
 
     return (
-        <div className="wgp-panel-stack">
+        <section className="wsp-card" aria-label={`Task ${taskNumber} suggestions`}>
             <SuggestionHeader
                 message={counts.total > 0
                     ? `${counts.total} suggestion${counts.total === 1 ? '' : 's'} ready for Task ${taskNumber}.`
@@ -187,34 +190,28 @@ export default function WritingSuggestionsPanel({
                 openDisabled={counts.total === 0}
             />
 
-            <div className="wgp-panel-card">
-                <div className="wsp-summary-grid">
-                    <div className="wsp-summary-tile">
-                        <span>Pending</span>
-                        <strong>{counts.pending}</strong>
-                    </div>
-                    <div className="wsp-summary-tile">
-                        <span>Approved</span>
-                        <strong>{counts.approved}</strong>
-                    </div>
-                    <div className="wsp-summary-tile">
-                        <span>Dismissed</span>
-                        <strong>{counts.dismissed}</strong>
-                    </div>
+            <div className="wsp-summary-grid">
+                <div className="wsp-summary-tile">
+                    <span>Pending</span>
+                    <strong>{counts.pending}</strong>
+                </div>
+                <div className="wsp-summary-tile">
+                    <span>Approved</span>
+                    <strong>{counts.approved}</strong>
+                </div>
+                <div className="wsp-summary-tile">
+                    <span>Dismissed</span>
+                    <strong>{counts.dismissed}</strong>
                 </div>
             </div>
 
             {!canApprove && (
-                <div className="wgp-panel-card">
-                    <p className="wsp-note">Open the grading session to approve suggestions into comments or corrections.</p>
-                </div>
+                <p className="wsp-note">Open the grading session to approve suggestions into comments or corrections.</p>
             )}
 
             {canApprove && approvalBlockedReason && (
-                <div className="wgp-panel-card">
-                    <p className="wsp-note">{approvalBlockedReason}</p>
-                </div>
+                <p className="wsp-note">{approvalBlockedReason}</p>
             )}
-        </div>
+        </section>
     );
 }

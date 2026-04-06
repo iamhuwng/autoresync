@@ -1,4 +1,4 @@
-﻿# IELTS Writing Lifecycle And Surfaces
+# IELTS Writing Lifecycle And Surfaces
 
 ## Lifecycle
 
@@ -183,3 +183,16 @@ Current amendment:
 - the browser page must not move to chase the composer
 
 This refines the teacher grading editor contract without changing the published read-only result surface model.
+
+## 2026-04-06 Amendment - Shared Scoring Rail Ownership
+
+- The scoring rail redesign applies to the shared `CriteriaScoringPanel`, not to one task-specific branch.
+- Task 1 and Task 2 scoring must render through the same panel structure and the same CSS contract.
+- The only allowed task-specific divergence in that panel is the criterion naming boundary (`Task Achievement` vs `Task Response`).
+
+## 2026-04-06 Amendment - Edit-Mode Feedback Formatting Surface
+
+- The edit-mode `Scoring` tab includes the live feedback rich-text toolbar as part of the grading workflow surface.
+- Formatting actions remain scoped to the active feedback tab and are tracked through the existing grading action pipeline instead of becoming an isolated editor-only concern.
+- Criterion-card geometry must remain stable when values are selected so the right-rail scoring grid preserves visual symmetry across all four criteria.
+

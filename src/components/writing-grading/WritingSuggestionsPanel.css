@@ -1,32 +1,65 @@
-.wsp-toolbar {
+.wsp-card {
     display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
+    flex-direction: column;
+    gap: 1.25rem;
+    padding: 1.5rem;
+    border: 1px solid rgba(169, 180, 185, 0.1);
+    border-radius: 1rem;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+    text-align: center;
+}
+
+.wsp-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.55rem;
+}
+
+.wsp-eyebrow {
+    color: #64748b;
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-family: 'Work Sans', sans-serif;
 }
 
 .wsp-toolbar-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
+    justify-content: center;
 }
 
 .wsp-status-copy,
 .wsp-note {
-    margin: 8px 0 0;
+    margin: 0;
     color: #5f6b7a;
     font-size: 0.94rem;
     line-height: 1.45;
+    max-width: 34rem;
 }
 
 .wsp-note {
     color: #8a5a00;
+    align-self: center;
+    padding: 0.875rem 1rem;
+    border-radius: 0.875rem;
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+}
+
+.wsp-status-copy--secondary {
+    color: #748091;
 }
 
 .wsp-summary-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 12px;
+    width: 100%;
 }
 
 .wsp-summary-tile {
@@ -37,6 +70,8 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+    align-items: center;
+    text-align: center;
 }
 
 .wsp-summary-tile span {
@@ -82,8 +117,8 @@
 }
 
 @media (max-width: 720px) {
-    .wsp-toolbar {
-        flex-direction: column;
+    .wsp-card {
+        padding: 1.125rem;
     }
 
     .wsp-summary-grid {

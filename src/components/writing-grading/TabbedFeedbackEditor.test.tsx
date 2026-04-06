@@ -91,18 +91,77 @@ describe('TabbedFeedbackEditor', () => {
         });
     });
 
-    it('keeps bullet list markup after the parent re-renders with controlled feedback state', async () => {
+    it('renders the feedback toolbar and reports toolbar actions', () => {
+        const onEditorAction = vi.fn();
         const { container } = render(
-            <ControlledTabbedFeedbackEditor initialFeedback={buildFeedback('List draft')} />,
+            <TabbedFeedbackEditor
+                taskNumber={1}
+                feedback={buildFeedback('Draft')}
+                onChange={vi.fn()}
+                onEditorAction={onEditorAction}
+            />,
         );
 
+        expect(container.querySelector('#feedback-toolbar')).toBeTruthy();
         const bulletButton = container.querySelector('[title="Bullet List"]') as HTMLButtonElement;
+        expect(bulletButton).toBeTruthy();
+
         fireEvent.mouseDown(bulletButton);
         fireEvent.click(bulletButton);
+
+        expect(onEditorAction).toHaveBeenCalledWith('bulletList', 'taskSummary');
+    });
+
+    it('uses edit-mode workspace placeholder copy for each tab', async () => {
+        const { container } = render(
+            <TabbedFeedbackEditor
+                taskNumber={2}
+                feedback={buildFeedback('Draft')}
+                onChange={vi.fn()}
+            />,
+        );
+
+        await waitFor(() => {
+            expect(container.querySelector('.ProseMirror')?.getAttribute('data-placeholder-text'))
+                .toBe('Type detailed feedback for the Task Summary here...');
+        });
+
+        fireEvent.click(container.querySelector('#feedback-tab-ta') as Element);
+
+        await waitFor(() => {
+            expect(container.querySelector('.ProseMirror')?.getAttribute('data-placeholder-text'))
+                .toBe('Type detailed feedback for the TR here...');
+        });
+    });
+
+    it('preserves incoming list markup with the live toolbar restored', async () => {
+        const feedback = buildFeedback('List draft');
+        feedback.taskSummary = '<ul><li>List draft summary</li></ul>';
+
+        const { container } = render(
+            <ControlledTabbedFeedbackEditor initialFeedback={feedback} />,
+        );
 
         await waitFor(() => {
             expect(container.querySelector('.ProseMirror ul li')).toBeTruthy();
             expect(container.querySelector('.ProseMirror ul li')?.textContent).toContain('List draft summary');
+        });
+    });
+
+    it('keeps the task summary tab active when its pill is clicked again', async () => {
+        render(
+            <TabbedFeedbackEditor
+                taskNumber={1}
+                feedback={buildFeedback('Draft')}
+                onChange={vi.fn()}
+            />,
+        );
+
+        const summaryTab = document.querySelector('#feedback-tab-taskSummary') as HTMLButtonElement;
+        fireEvent.click(summaryTab);
+
+        await waitFor(() => {
+            expect(summaryTab).toHaveClass('active');
         });
     });
 });

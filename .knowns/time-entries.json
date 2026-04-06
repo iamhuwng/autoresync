@@ -37,6 +37,21 @@
       "duration": 48
     }
   ],
+  "4ec4ge": [
+    {
+      "id": "te-1775449852210-4ec4ge",
+      "startedAt": "2026-04-06T04:24:32.805Z",
+      "endedAt": "2026-04-06T04:30:52.2108524Z",
+      "duration": 379
+    },
+    {
+      "id": "te-1775457701944-4ec4ge",
+      "startedAt": "2026-04-06T06:41:41.9447336Z",
+      "endedAt": "2026-04-06T07:16:41.9447336Z",
+      "duration": 2100,
+      "note": "Restore feedback toolbar, track formatting actions, and stabilize scoring-card symmetry in teacher IELTS Writing grading."
+    }
+  ],
   "4f54n5": [
     {
       "id": "te-1772666056270-4f54n5",

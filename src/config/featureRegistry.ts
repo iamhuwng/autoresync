@@ -199,6 +199,7 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       'cancelRegrade',
       'switchTask',
       'switchTab',
+      'formatFeedback',
       'toggleOriginalView',
       'addComment',
       'addCorrection',

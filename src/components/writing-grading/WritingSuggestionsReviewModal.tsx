@@ -55,6 +55,14 @@ function getProposalText(suggestion: WritingSuggestionItem) {
         : suggestion.replacementText || '';
 }
 
+function getFocusLabel(focus: WritingSuggestionFocus) {
+    return focus === 'grammar' ? 'Grammar' : 'Lexical';
+}
+
+function getKindLabel(kind: WritingSuggestionKind) {
+    return kind === 'comment' ? 'Enhancement' : 'Correction';
+}
+
 export default function WritingSuggestionsReviewModal({
     open,
     cache,
@@ -165,7 +173,7 @@ export default function WritingSuggestionsReviewModal({
                 <div className="wsm-header">
                     <div>
                         <h2>Task {taskNumber} Suggestion Review</h2>
-                        <p>Review, approve, dismiss, or restore grammar and vocabulary suggestions.</p>
+                        <p>Review, approve, dismiss, or restore grammar and lexical suggestions.</p>
                     </div>
                     <div className="wsm-header-actions">
                         <button type="button" className="wsp-secondary-btn" onClick={onReload} disabled={reloading || isGenerating}>
@@ -208,7 +216,7 @@ export default function WritingSuggestionsReviewModal({
 
                         <div className="wsm-toolbar">
                             <div className="wsm-filter-group">
-                                <span>Status</span>
+                                <span>Review Status</span>
                                 <div className="wsm-chip-row">
                                     <button type="button" className={`wsm-chip ${reviewFilter === 'pending' ? 'active' : ''}`} onClick={() => setReviewFilter('pending')}>
                                         Pending {counts.pending}
@@ -226,7 +234,7 @@ export default function WritingSuggestionsReviewModal({
                             </div>
 
                             <div className="wsm-filter-group">
-                                <span>Focus</span>
+                                <span>Focus Area</span>
                                 <div className="wsm-chip-row">
                                     <button type="button" className={`wsm-chip ${focusFilter === 'all' ? 'active' : ''}`} onClick={() => setFocusFilter('all')}>
                                         All
@@ -235,19 +243,19 @@ export default function WritingSuggestionsReviewModal({
                                         Grammar
                                     </button>
                                     <button type="button" className={`wsm-chip ${focusFilter === 'vocabulary-expression' ? 'active' : ''}`} onClick={() => setFocusFilter('vocabulary-expression')}>
-                                        Vocabulary
+                                        Lexical
                                     </button>
                                 </div>
                             </div>
 
                             <div className="wsm-filter-group">
-                                <span>Type</span>
+                                <span>Edit Type</span>
                                 <div className="wsm-chip-row">
                                     <button type="button" className={`wsm-chip ${kindFilter === 'all' ? 'active' : ''}`} onClick={() => setKindFilter('all')}>
                                         All
                                     </button>
                                     <button type="button" className={`wsm-chip ${kindFilter === 'comment' ? 'active' : ''}`} onClick={() => setKindFilter('comment')}>
-                                        Comment
+                                        Enhancement
                                     </button>
                                     <button type="button" className={`wsm-chip ${kindFilter === 'correction' ? 'active' : ''}`} onClick={() => setKindFilter('correction')}>
                                         Correction
@@ -283,8 +291,8 @@ export default function WritingSuggestionsReviewModal({
                                                     <div>
                                                         <strong>{suggestion.title}</strong>
                                                         <div className="wsm-meta-row">
-                                                            <span className="wsm-meta-pill">{suggestion.focus === 'grammar' ? 'Grammar' : 'Vocabulary'}</span>
-                                                            <span className="wsm-meta-pill">{suggestion.kind === 'comment' ? 'Comment' : 'Correction'}</span>
+                                                            <span className="wsm-meta-pill">{getFocusLabel(suggestion.focus)}</span>
+                                                            <span className="wsm-meta-pill">{getKindLabel(suggestion.kind)}</span>
                                                             <span className={`wsm-meta-pill status-${suggestion.reviewStatus}`}>{suggestion.reviewStatus}</span>
                                                         </div>
                                                     </div>

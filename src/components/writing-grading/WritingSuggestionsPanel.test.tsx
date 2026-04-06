@@ -93,8 +93,7 @@ describe('WritingSuggestionsPanel', () => {
     it('renders summary counts and delegates review actions', () => {
         const onReload = vi.fn();
         const onOpenReview = vi.fn();
-
-        render(
+        const { container } = render(
             <WritingSuggestionsPanel
                 cache={createReadyCache()}
                 taskNumber={1}
@@ -114,6 +113,8 @@ describe('WritingSuggestionsPanel', () => {
         expect(screen.getByText('Approved')).toBeInTheDocument();
         expect(screen.getByText('Dismissed')).toBeInTheDocument();
         expect(screen.getByText('Finish the open comment first.')).toBeInTheDocument();
+        expect(container.querySelectorAll('.wsp-card')).toHaveLength(1);
+        expect(container.querySelector('.wgp-panel-card')).toBeNull();
 
         fireEvent.click(screen.getByText('Open Review'));
         fireEvent.click(screen.getByText('Force Regenerate'));
@@ -124,8 +125,7 @@ describe('WritingSuggestionsPanel', () => {
 
     it('shows failed state with reload action', () => {
         const onReload = vi.fn();
-
-        render(
+        const { container } = render(
             <WritingSuggestionsPanel
                 cache={{
                     submissionId: 'submission-1',
@@ -150,13 +150,14 @@ describe('WritingSuggestionsPanel', () => {
         );
 
         expect(screen.getByText('AI suggestions unavailable.')).toBeInTheDocument();
+        expect(container.querySelectorAll('.wsp-card')).toHaveLength(1);
         fireEvent.click(screen.getByText('Force Regenerate'));
         expect(onReload).toHaveBeenCalledTimes(1);
         expect(screen.getByRole('button', { name: 'Open Review' })).toBeDisabled();
     });
 
     it('disables review while suggestions are generating', () => {
-        render(
+        const { container } = render(
             <WritingSuggestionsPanel
                 cache={null}
                 taskNumber={1}
@@ -178,6 +179,7 @@ describe('WritingSuggestionsPanel', () => {
         );
 
         expect(screen.getByText('Scanning Task 1 suggestions in this browser.')).toBeInTheDocument();
+        expect(container.querySelectorAll('.wsp-card')).toHaveLength(1);
         expect(screen.getByRole('button', { name: 'Force Regenerate' })).toBeDisabled();
         expect(screen.getByRole('button', { name: 'Open Review' })).toBeDisabled();
     });

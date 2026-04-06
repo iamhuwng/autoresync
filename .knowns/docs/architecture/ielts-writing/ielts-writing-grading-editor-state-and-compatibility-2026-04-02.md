@@ -2,7 +2,7 @@
 title: IELTS Writing Grading Editor State And Compatibility 2026-04-02
 description: Architecture note for the 2026-04-02 stabilization pass covering task normalization, editor rehydration, draft/lock workflow, and RTDB compatibility metadata for teacher IELTS Writing grading.
 createdAt: '2026-04-02T07:17:57.239Z'
-updatedAt: '2026-04-06T04:07:45.978Z'
+updatedAt: '2026-04-06T06:41:41.895Z'
 tags:
   - architecture
   - ielts
@@ -297,3 +297,32 @@ Related doc:
   - no persisted draft shape changed in this pass
   - older drafts remain compatible
   - published result rails reuse the same visible-lane geometry helper for selection reveal, but they do not need the grading-only pending-composer max-height rule because they do not host pending drafts
+
+## 2026-04-06 Fourth Follow-up - Shared Scoring Surface Contract
+
+- The teacher grading `Scoring` tab is a shared right-rail surface for both Task 1 and Task 2.
+- `CriteriaScoringPanel` now owns one shared structural and styling contract; task-specific variation is semantic only:
+  - Task 1 uses `Task Achievement`
+  - Task 2 uses `Task Response`
+- Task-specific layout branches and task-specific scoring-panel theming are intentionally disallowed.
+- The scoring panel should not remain a legacy inline-style island once the rest of the right rail has been redesigned.
+- The scoring panel now owns its stylesheet contract directly instead of depending on partial page-level CSS fragments.
+
+## 2026-04-06 Fifth Follow-up - Feedback Toolbar And Scoring Card Geometry
+
+- The edit-mode `Scoring` tab keeps the shared decimal scoring contract (`0.5` steps, shared Task 1/Task 2 structure), but the scoring cards now reserve header space explicitly.
+- Long labels such as `Coherence & Cohesion` and `Grammatical Range & Accuracy` must not push only some cards taller or distort the two-column grid when a score value is present.
+- `CriteriaScoringPanel` therefore treats the criterion header as a two-column layout with a reserved value lane and a stable minimum header height.
+- `TabbedFeedbackEditor` once again includes the live rich-text toolbar in edit mode:
+  - bold
+  - italic
+  - underline
+  - bullet list
+  - numbered list
+  - undo
+  - redo
+- Toolbar interactions are part of the grading workflow contract, not incidental UI:
+  - buttons must preserve editor selection on pointer interaction
+  - actions remain task-scoped to the active feedback tab
+  - page-level grading telemetry records these actions through the existing grading feature tracking path
+- The five-tab feedback workflow remains unchanged (`Task Summary`, `TA/TR`, `CC`, `LR`, `GRA`); this pass restores the live formatting controls while keeping the edit-mode tab/content contract aligned to the Stitch workspace.
