@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import type { CommentCategoryId, GradingComment } from '../../types/ielts-writing.types';
 import CommentCard from './CommentCard';
 import CommentComposer from './CommentComposer';
-import { getAlignedRailTranslateY, revealRailItemInViewport } from './annotationRailPosition';
+import { getAlignedRailTranslateY, getVisibleRailLaneBounds, revealRailItemInViewport } from './annotationRailPosition';
 import './CommentSidebar.css';
 
 type FilterMode = 'all' | 'open' | 'resolved' | 'deleted';
@@ -182,7 +182,7 @@ export default function CommentSidebar({
 
             return left.kind === 'comment' ? -1 : 1;
         });
-    }, [filteredComments, pendingCommentDraft, positionLookup, readOnly]);
+    }, [filteredComments, pendingCommentDraft, readOnly]);
 
     const counts = useMemo(() => ({
         all: comments.filter((comment) => comment.status !== 'deleted').length,
@@ -204,7 +204,9 @@ export default function CommentSidebar({
             return {
                 kind: 'pending' as const,
                 id: pendingCommentDraft.commentId,
-                anchorViewportTop: pendingCommentDraft.anchorViewportTop ?? null,
+                anchorViewportTop: positionLookup.get(pendingCommentDraft.commentId)?.anchorViewportTop
+                    ?? pendingCommentDraft.anchorViewportTop
+                    ?? null,
             };
         }
 
@@ -231,6 +233,24 @@ export default function CommentSidebar({
             return;
         }
 
+        if (activeRailTarget.kind === 'pending' && viewportElement) {
+            const viewportStyles = window.getComputedStyle(viewportElement);
+            const viewportPaddingTop = Number.parseFloat(viewportStyles.paddingTop || '0') || 0;
+            const viewportPaddingBottom = Number.parseFloat(viewportStyles.paddingBottom || '0') || 0;
+            const { height } = getVisibleRailLaneBounds({
+                viewportElement,
+                paddingTop: viewportPaddingTop,
+                paddingBottom: viewportPaddingBottom,
+            });
+            if (height > 0) {
+                selectedRailElement.style.maxHeight = `${Math.round(height)}px`;
+            } else {
+                selectedRailElement.style.removeProperty('max-height');
+            }
+        } else if (pendingComposerContainerRef.current) {
+            pendingComposerContainerRef.current.style.removeProperty('max-height');
+        }
+
         if (viewportElement && railElement && selectedRailHeaderElement && activeRailTarget.anchorViewportTop !== null) {
             const viewportStyles = window.getComputedStyle(viewportElement);
             const viewportPaddingTop = Number.parseFloat(viewportStyles.paddingTop || '0') || 0;
@@ -239,6 +259,7 @@ export default function CommentSidebar({
                 viewportElement,
                 stackElement: railElement,
                 headerElement: selectedRailHeaderElement,
+                fitElement: selectedRailElement,
                 anchorViewportTop: activeRailTarget.anchorViewportTop,
                 paddingTop: viewportPaddingTop,
                 paddingBottom: viewportPaddingBottom,
@@ -253,7 +274,7 @@ export default function CommentSidebar({
             const viewportPaddingBottom = Number.parseFloat(viewportStyles.paddingBottom || '0') || 0;
             revealRailItemInViewport({
                 viewportElement,
-                itemElement: selectedRailHeaderElement ?? selectedRailElement,
+                itemElement: selectedRailElement,
                 paddingTop: viewportPaddingTop,
                 paddingBottom: viewportPaddingBottom,
             });

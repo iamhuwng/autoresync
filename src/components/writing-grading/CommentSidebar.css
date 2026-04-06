@@ -504,6 +504,10 @@
 
 .comment-sidebar-pending {
     width: 100%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
 }
 
 .comment-sidebar-pending-label {
@@ -518,4 +522,38 @@
 
 .comment-sidebar-card-row {
     width: 100%;
+}
+
+.comment-sidebar-card-row-pending {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.comment-sidebar-card-row-pending .comment-composer {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
+    max-height: 100%;
+}
+
+.comment-sidebar-card-row-pending .comment-composer-header,
+.comment-sidebar-card-row-pending .comment-composer-toolbar,
+.comment-sidebar-card-row-pending .comment-composer-actions {
+    flex-shrink: 0;
+}
+
+.comment-sidebar-card-row-pending .comment-composer-editor {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.comment-sidebar-card-row-pending .comment-composer-editor .ProseMirror {
+    min-height: 112px;
+    height: 100%;
+    overflow-y: auto;
 }

@@ -9,7 +9,7 @@ labels:
   - comments
   - alignment
 createdAt: '2026-04-05T17:06:03.683Z'
-updatedAt: '2026-04-05T17:23:35.300Z'
+updatedAt: '2026-04-06T04:07:51.570Z'
 timeSpent: 976
 assignee: '@me'
 ---
@@ -44,5 +44,6 @@ Bring new comment creation onto the same comment-rail alignment contract as save
 
 <!-- SECTION:NOTES:BEGIN -->
 Implemented the pending-comment structural fix in the grading editor. The editor now preserves selection anchor viewport geometry when opening a new comment, pending drafts carry that anchor in draft state, and the Comments sidebar treats the pending composer as a first-class rail item ordered by canonical essay range instead of a footer block. Added targeted regression coverage in CommentSidebar.test.tsx and verified with targeted Vitest, UTF-8 checks, and a full production build.
+2026-04-06 follow-up: the earlier anchored-rail change still allowed the pending composer to extend below the visible browser viewport when the selected text was low on screen. Fixed the root cause by constraining the pending rail row to the intersection of the rail viewport and the actual browser viewport, then letting the composer scroll internally. Updated `annotationRailPosition`, `CommentSidebar`, and `CommentSidebar.css`; added regression coverage for low-screen pending drafts; rebuilt successfully.
 <!-- SECTION:NOTES:END -->
 

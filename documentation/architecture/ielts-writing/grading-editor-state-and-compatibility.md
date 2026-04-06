@@ -241,3 +241,15 @@ Failure rules:
   - selected source text gets a subtle dotted underline with a soft glow
   - the draft preview never expands onto rendered correction replacement text
   - saved comments still upgrade to the normal shared yellow comment mark only after save
+## 2026-04-06 Third Follow-up - Pending Composer Lane-Fit Contract
+
+- The earlier local-rail rule was necessary but not sufficient because the pending comment composer can be taller than the visible portion of the comments rail.
+- New state/compatibility contract:
+  - pending comment drafts still preserve `anchorViewportTop` when available
+  - but rail alignment must be computed against the visible lane only, not the full off-screen height of the rail viewport card
+  - the pending rail row may receive a runtime max-height derived from that visible lane
+  - overflow must remain inside the composer editor/card shell rather than pushing the actionable save/cancel controls below the screen
+- This is a runtime layout contract only:
+  - no persisted draft shape changed in this pass
+  - older drafts remain compatible
+  - published result rails reuse the same visible-lane geometry helper for selection reveal, but they do not need the grading-only pending-composer max-height rule because they do not host pending drafts

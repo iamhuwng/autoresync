@@ -251,3 +251,15 @@ Interaction boundary:
   - soft glow/blur treatment
   - applied to the original selected text only
 - Published result readers now share the same local-rail reveal rule for feedback selection so cross-column alignment remains consistent without page-level scroll jumps.
+## 2026-04-06 Fifth Follow-up - Pending Composer Must Fit The Visible Rail Lane
+
+- Rail translation alone is not sufficient when the pending comment composer is taller than the on-screen portion of the right rail.
+- The active pending comment row must therefore be constrained against the intersection of:
+  - the rail viewport
+  - the actual browser viewport
+- New contract:
+  - pending comment alignment still targets the selected essay text
+  - but the pending composer card must be capped to the visible rail lane height
+  - any remaining overflow must scroll inside the composer itself, not below the screen and not by moving the page
+- This turns the pending composer into a lane-fitted rail item rather than assuming the full card can always fit in the sidebar viewport.
+- Published result rails still reuse the same visible-lane geometry helper for selection reveal, but this internal-composer overflow rule is grading-only because read-only result surfaces do not host a pending composer.

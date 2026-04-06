@@ -172,3 +172,14 @@ Workflow rules:
 - `Focus in Essay` is a navigation action within the grading session
 - `Inject to Comment` and `Inject to Correction` are shortcuts into the existing authoring tools, not direct feedback publication actions
 - normal grading and publishing remain valid even when the Suggestions tab is unavailable or failed
+## 2026-04-06 Amendment - Pending Composer Must Fit The Visible Rail Lane
+
+The earlier cross-column alignment wording was incomplete for the pending comment path.
+
+Current amendment:
+- the pending comment composer still aligns against the selected essay text
+- but the composer must also fit inside the visible on-screen portion of the right rail
+- when the composer is taller than that visible lane, the rail item is capped to the visible lane and the composer scrolls internally
+- the browser page must not move to chase the composer
+
+This refines the teacher grading editor contract without changing the published read-only result surface model.
