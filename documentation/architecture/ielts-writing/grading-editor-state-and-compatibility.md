@@ -299,3 +299,15 @@ Failure rules:
   - they block suggestion approval while editing
   - saved comment count does not contribute to publish readiness
 - The canonical service publish path now enforces the same readiness rules as the page-level gate, including pending-comment-draft blocking and meaningful-summary detection.
+
+## 2026-04-06 Seventh Follow-up - Focused Comment Rail Stability
+
+- Once a comment is actively focused in the `Comments` rail, its cross-column alignment anchor becomes a captured interaction snapshot rather than a live subscription to continuously refreshed essay mark geometry.
+- Scrolling the page or essay after that focus event must not move the already-positioned comment card unless the teacher explicitly focuses another comment or opens a new pending comment draft.
+- Sidebar-origin comment focus therefore captures the current anchor viewport top immediately instead of clearing back to live fallback behavior.
+- `CommentSidebar` must not fall back to refreshed `anchorPositions` for an already-focused comment, because those positions are viewport-relative and change during ordinary scroll.
+- This is a runtime stability rule only:
+  - persisted comment data is unchanged
+  - comment ordering is unchanged
+  - pending-draft alignment behavior is unchanged
+  - only focused-comment drift after scroll is removed

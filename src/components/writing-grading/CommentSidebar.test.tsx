@@ -484,6 +484,71 @@ describe('CommentSidebar', () => {
         });
     });
 
+    it('keeps a focused comment anchored to its captured focus position when live anchor data changes', async () => {
+        const { container, rerender } = render(
+            <CommentSidebar
+                comments={comments}
+                taskNumber={1}
+                focusedCommentId="comment-2"
+                focusedCommentAnchorViewportTop={180}
+                hoveredCommentId={null}
+                anchorPositions={[
+                    { commentId: 'comment-1', anchorTop: 100, anchorRight: 20, anchorCenterY: 110, anchorViewportTop: 140 },
+                    { commentId: 'comment-2', anchorTop: 200, anchorRight: 20, anchorCenterY: 210, anchorViewportTop: 180 },
+                ]}
+                editorScrollTop={0}
+                onFocusComment={() => {}}
+                onHoverComment={() => {}}
+                onEditComment={() => {}}
+                onResolveComment={() => {}}
+                onReopenComment={() => {}}
+                onDeleteComment={() => {}}
+                onRecoverComment={() => {}}
+                onCategoryChange={() => {}}
+                readOnly
+            />,
+        );
+
+        const shiftedCommentsStack = container.querySelector('[data-comments-stack="true"]');
+
+        await waitFor(() => {
+            expect(shiftedCommentsStack).toHaveStyle({
+                transform: 'translateY(-54px)',
+            });
+        });
+
+        rerender(
+            <CommentSidebar
+                comments={comments}
+                taskNumber={1}
+                focusedCommentId="comment-2"
+                focusedCommentAnchorViewportTop={180}
+                hoveredCommentId={null}
+                anchorPositions={[
+                    { commentId: 'comment-1', anchorTop: 80, anchorRight: 20, anchorCenterY: 90, anchorViewportTop: 90 },
+                    { commentId: 'comment-2', anchorTop: 160, anchorRight: 20, anchorCenterY: 170, anchorViewportTop: 110 },
+                ]}
+                editorScrollTop={0}
+                onFocusComment={() => {}}
+                onHoverComment={() => {}}
+                onEditComment={() => {}}
+                onResolveComment={() => {}}
+                onReopenComment={() => {}}
+                onDeleteComment={() => {}}
+                onRecoverComment={() => {}}
+                onCategoryChange={() => {}}
+                readOnly
+            />,
+        );
+
+        await waitFor(() => {
+            expect(shiftedCommentsStack).toHaveStyle({
+                transform: 'translateY(-54px)',
+            });
+            expect(scrollIntoViewMock).not.toHaveBeenCalled();
+        });
+    });
+
     it('keeps the comments rail comment-only after correction/sidebar decoupling', async () => {
         const commentsWithResolved: GradingComment[] = [
             ...comments,

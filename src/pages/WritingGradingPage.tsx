@@ -1455,8 +1455,12 @@ export default function WritingGradingPage() {
     const handleFocusComment = useCallback((commentId: string | null) => {
         setFocusedCommentId(commentId);
         setFocusedCorrectionId(null);
-        setFocusedCommentAnchorViewportTop(null);
-    }, []);
+        setFocusedCommentAnchorViewportTop(
+            commentId
+                ? anchorPositions.find((position) => position.commentId === commentId)?.anchorViewportTop ?? null
+                : null,
+        );
+    }, [anchorPositions]);
 
     const handleViewModeChange = useCallback((viewMode: 'marked' | 'original') => {
         setEditorViewMode(viewMode);

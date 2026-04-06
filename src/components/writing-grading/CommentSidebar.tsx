@@ -196,7 +196,7 @@ export default function CommentSidebar({
             return {
                 kind: 'comment' as const,
                 id: focusedCommentId,
-                anchorViewportTop: focusedCommentAnchorViewportTop ?? positionLookup.get(focusedCommentId)?.anchorViewportTop ?? null,
+                anchorViewportTop: focusedCommentAnchorViewportTop ?? null,
             };
         }
 
