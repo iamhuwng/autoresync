@@ -231,7 +231,13 @@ export default function WritingStudentResultSurface({
 
                         <div style={{ marginTop: '1rem' }}>
                             {data.phase === 'published' ? (
-                                activeTask.markedContent || activeFeedbackItems.length > 0 ? (
+                                activeTask.fallbackAnnotations.length > 0 && !activeTask.markedContent ? (
+                                    <AnnotatedEssayReadOnly
+                                        essayText={activeTask.essayText}
+                                        annotations={activeTask.fallbackAnnotations}
+                                        onFeedbackSelect={handleEssayFeedbackSelect}
+                                    />
+                                ) : activeTask.markedContent || activeFeedbackItems.length > 0 ? (
                                     <WritingPublishedMarkupViewer
                                         originalEssayText={activeTask.essayText}
                                         markedContent={activeTask.markedContent}
@@ -241,8 +247,6 @@ export default function WritingStudentResultSurface({
                                         onViewModeChange={(mode) => onMarkupViewChange?.(activeTask.taskNumber, mode)}
                                         onFeedbackSelect={handleEssayFeedbackSelect}
                                     />
-                                ) : activeTask.fallbackAnnotations.length > 0 ? (
-                                    <AnnotatedEssayReadOnly essayText={activeTask.essayText} annotations={activeTask.fallbackAnnotations} />
                                 ) : (
                                     <PlainEssayCard essayText={activeTask.essayText} />
                                 )

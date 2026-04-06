@@ -2,7 +2,7 @@
 title: IELTS Writing Published Result Interaction Contract 2026-04-05
 description: Architecture note for the 2026-04-05 result-surface standardization pass covering published viewer overlay geometry, student feedback-rail structure, and teacher correction visibility across read-only IELTS Writing result surfaces.
 createdAt: '2026-04-05T14:14:25.033Z'
-updatedAt: '2026-04-05T18:43:30.018Z'
+updatedAt: '2026-04-06T08:01:43.095Z'
 tags:
   - architecture
   - ielts
@@ -58,3 +58,12 @@ Record the read-only interaction contract for published IELTS Writing markup aft
 - When explicit anchor geometry is available, the rail still aligns the selected feedback header against the essay-side anchor.
 - When anchor geometry is unavailable, fallback reveal now scrolls the feedback rail viewport itself instead of moving the whole page.
 - This preserves the cross-column mental model on student and teacher result surfaces while avoiding viewport jumps that make the selected essay text hard to follow.
+
+## 2026-04-06 Compatibility Follow-up - Legacy Fallback Annotation Selection
+
+- The current live published-result layout remains the active contract; this follow-up does not redesign student or teacher result surfaces.
+- Legacy fallback annotations (`submission.annotations`) must still participate in the same feedback-selection workflow as the primary published markup path.
+- Result-surface task adapters now project legacy annotations into the shared published feedback data shape so the feedback rail remains authoritative even when no canonical markup artifact exists.
+- `AnnotatedEssayReadOnly` remains a compatibility renderer for fallback data, but it no longer owns an isolated interaction model:
+  - tooltip placement follows the shared overlay-positioning rules
+  - clicking a fallback annotation selects the matching shared feedback-rail item using the same callback contract as `WritingPublishedMarkupViewer`

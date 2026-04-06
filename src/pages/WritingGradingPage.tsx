@@ -56,6 +56,11 @@ import type {
 } from '../types/ielts-writing.types';
 import { COMMENT_CATEGORIES, COMMENT_HIGHLIGHT_COLOR } from '../types/ielts-writing.types';
 import { calculateTaskBand } from '../utils/ieltsWritingBandCalculator';
+import {
+    evaluateWritingSubmissionReadiness,
+    isMeaningfulHtml,
+    type WritingReadinessTaskInput,
+} from '../utils/writingGradingReadiness';
 import './WritingGradingPage.css';
 
 type PanelTab = 'prompt' | 'comments' | 'suggestions' | 'scoring';
@@ -229,7 +234,7 @@ function buildTaskMarkupState(task: TaskEditorState): WritingTaskMarkupState {
 
 function buildDerivedOverallSummary(taskStates: Record<1 | 2, TaskEditorState>) {
     return Object.values(taskStates)
-        .filter((task) => !task.isVoided && isHtmlMeaningful(task.feedback.taskSummary))
+        .filter((task) => !task.isVoided && isMeaningfulHtml(task.feedback.taskSummary))
         .sort((left, right) => left.taskNumber - right.taskNumber)
         .map((task) => `<p><strong>Task ${task.taskNumber} Summary</strong></p>${task.feedback.taskSummary}`)
         .join('');
@@ -279,8 +284,20 @@ function calculateLiveTaskBand(task: TaskEditorState): number | null {
         : calculateTaskBand({ TR: task.scores.ta, CC: task.scores.cc, LR: task.scores.lr, GRA: task.scores.gra });
 }
 
-function isHtmlMeaningful(html: string) {
-    return html.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').trim().length > 0;
+function createReadinessTaskInput(
+    task: TaskEditorState,
+    hasPendingCommentDraft: boolean,
+): WritingReadinessTaskInput {
+    return {
+        taskNumber: task.taskNumber,
+        isVoided: task.isVoided,
+        responseScore: task.scores.ta,
+        ccScore: task.scores.cc,
+        lrScore: task.scores.lr,
+        graScore: task.scores.gra,
+        summaryHtml: task.feedback.taskSummary,
+        hasPendingCommentDraft,
+    };
 }
 
 function escapeHtml(value: string) {
@@ -584,7 +601,6 @@ export default function WritingGradingPage() {
     const ownsDraft = Boolean(user?.uid && serverDraft?.ownerTeacherId === user.uid);
     const foreignDraftOwnerId = submission?.gradingDraftMeta?.ownerTeacherId;
     const hasForeignDraft = Boolean(foreignDraftOwnerId && foreignDraftOwnerId !== user?.uid);
-    const hasAnyPendingCommentDraft = Object.keys(pendingCommentDrafts).length > 0;
     const hasUnsavedPendingCommentDrafts = serializePendingCommentDrafts(pendingCommentDrafts) !== savedPendingCommentDraftSignature;
     const hasUnsavedChanges = dirty || hasUnsavedPendingCommentDrafts;
     const currentLockIsOwned = Boolean(
@@ -593,26 +609,15 @@ export default function WritingGradingPage() {
         && lockInfo.sessionId === sessionIdRef.current
         && lockInfo.expiresAt > Date.now()
     );
-    const hasPublishBlockingError = useMemo(() => {
-        if (!submission) {
-            return true;
-        }
+    const submissionReadiness = useMemo(() => {
+        const readinessTasks = Object.values(taskStates)
+            .map((task) => createReadinessTaskInput(task, Boolean(pendingCommentDrafts[task.taskNumber])));
 
-        return submission.tasks.some((task) => {
-            const state = taskStates[task.taskNumber];
-            if (!state || state.isVoided) {
-                return false;
-            }
-
-            return (
-                state.scores.ta === null
-                || state.scores.cc === null
-                || state.scores.lr === null
-                || state.scores.gra === null
-                || !isHtmlMeaningful(state.feedback.taskSummary)
-            );
-        });
-    }, [submission, taskStates]);
+        return evaluateWritingSubmissionReadiness(readinessTasks);
+    }, [pendingCommentDrafts, taskStates]);
+    const activeTaskReadiness = submissionReadiness.tasks[activeTask];
+    const hasAnyPendingCommentDraft = submissionReadiness.hasAnyPendingCommentDraft;
+    const hasPublishBlockingError = !submissionReadiness.canPublish;
     const suggestionApprovalBlockedReason = mode !== 'editing'
         ? 'Open the grading session to approve suggestions into comments or corrections.'
         : hasAnyPendingCommentDraft
@@ -1121,13 +1126,8 @@ export default function WritingGradingPage() {
             return;
         }
 
-        if (hasAnyPendingCommentDraft) {
-            showStatus('Finish or cancel the open comment composer before publishing.');
-            return;
-        }
-
         if (hasPublishBlockingError) {
-            showStatus('Complete all non-voided scores and write a task summary for each active task before publishing');
+            showStatus(submissionReadiness.firstBlockingReason || 'Complete all non-voided scores and summaries before publishing.');
             return;
         }
 
@@ -1184,11 +1184,11 @@ export default function WritingGradingPage() {
         buildCurrentDraft,
         enqueueWrite,
         hasPublishBlockingError,
-        hasAnyPendingCommentDraft,
         currentLockIsOwned,
         releaseLock,
         reloadLatestGradingState,
         showStatus,
+        submissionReadiness.firstBlockingReason,
         submission,
         submissionId,
         trackAction,
@@ -1707,7 +1707,7 @@ export default function WritingGradingPage() {
             return;
         }
 
-        if (!isHtmlMeaningful(html)) {
+        if (!isMeaningfulHtml(html)) {
             showStatus('Comment text cannot be empty.');
             return;
         }
@@ -1913,7 +1913,7 @@ export default function WritingGradingPage() {
                 showStatus('Finish or cancel the open comment before adding another one.');
             } else {
                 const html = convertPlainTextToCommentHtml(trimmedCommentText);
-                if (isHtmlMeaningful(html)) {
+                if (isMeaningfulHtml(html)) {
                     createSavedComment({
                         commentId: `comment-${Date.now()}-${Math.random().toString(36).slice(2)}`,
                         taskNumber: activeTask,
@@ -1978,7 +1978,7 @@ export default function WritingGradingPage() {
         }
 
         const html = convertPlainTextToCommentHtml(suggestion.suggestedCommentText || '');
-        if (!isHtmlMeaningful(html)) {
+        if (!isMeaningfulHtml(html)) {
             showStatus('This suggestion is missing comment text and cannot be approved automatically.');
             return false;
         }
@@ -2248,7 +2248,7 @@ export default function WritingGradingPage() {
                             <button className="wgp-secondary-btn" onClick={() => void persistDraft('manual')} disabled={saving || !hasUnsavedChanges || !currentLockIsOwned}>
                                 {saving ? 'Saving…' : 'Save Draft'}
                             </button>
-                            <button className="wgp-primary-btn" onClick={() => void handlePublish()} disabled={publishing || hasPublishBlockingError || !currentLockIsOwned || hasAnyPendingCommentDraft}>
+                            <button className="wgp-primary-btn" onClick={() => void handlePublish()} disabled={publishing || hasPublishBlockingError || !currentLockIsOwned}>
                                 {publishing ? 'Publishing…' : 'Submit Grading'}
                             </button>
                         </>
@@ -2571,22 +2571,28 @@ export default function WritingGradingPage() {
                             <div className="wgp-readiness-items">
                                 <div className="wgp-readiness-item">
                                     <span>Scores Set</span>
-                                    <span className={`wgp-readiness-indicator ${(activeTaskState.scores.ta != null && activeTaskState.scores.cc != null && activeTaskState.scores.lr != null && activeTaskState.scores.gra != null) ? 'ready' : 'not-ready'}`}>
-                                        {renderReadinessIcon(activeTaskState.scores.ta != null && activeTaskState.scores.cc != null && activeTaskState.scores.lr != null && activeTaskState.scores.gra != null)}
+                                    <span className={`wgp-readiness-indicator ${activeTaskReadiness?.scoresReady ? 'ready' : 'not-ready'}`}>
+                                        {renderReadinessIcon(Boolean(activeTaskReadiness?.scoresReady))}
                                     </span>
                                 </div>
                                 <div className="wgp-readiness-item">
                                     <span>Summary Required</span>
-                                    <span className={`wgp-readiness-indicator ${activeTaskState.feedback?.taskSummary ? 'ready' : 'not-ready'}`}>
-                                        {renderReadinessIcon(Boolean(activeTaskState.feedback?.taskSummary))}
+                                    <span className={`wgp-readiness-indicator ${activeTaskReadiness?.summaryReady ? 'ready' : 'not-ready'}`}>
+                                        {renderReadinessIcon(Boolean(activeTaskReadiness?.summaryReady))}
                                     </span>
                                 </div>
                                 <div className="wgp-readiness-item">
-                                    <span>Draft Comments</span>
-                                    <span className={`wgp-readiness-indicator ${(activeTaskState.comments?.filter(c => c.status === 'active').length > 0) ? 'ready' : 'not-ready'}`}>
-                                        {renderReadinessIcon((activeTaskState.comments?.filter(c => c.status === 'active').length > 0))}
+                                    <span>Comment Draft Clear</span>
+                                    <span className={`wgp-readiness-indicator ${activeTaskReadiness?.commentDraftClear ? 'ready' : 'not-ready'}`}>
+                                        {renderReadinessIcon(Boolean(activeTaskReadiness?.commentDraftClear))}
                                     </span>
                                 </div>
+                            </div>
+                            <div className={`wgp-readiness-summary ${submissionReadiness.canPublish ? 'ready' : 'not-ready'}`}>
+                                <span>Ready to Submit</span>
+                                <span>
+                                    {submissionReadiness.readyTaskCount}/{submissionReadiness.activeTaskCount} tasks ready
+                                </span>
                             </div>
                         </div>
                     )}

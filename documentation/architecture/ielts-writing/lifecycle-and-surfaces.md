@@ -196,3 +196,13 @@ This refines the teacher grading editor contract without changing the published 
 - Formatting actions remain scoped to the active feedback tab and are tracked through the existing grading action pipeline instead of becoming an isolated editor-only concern.
 - Criterion-card geometry must remain stable when values are selected so the right-rail scoring grid preserves visual symmetry across all four criteria.
 
+
+## 2026-04-06 Amendment - Legacy Published Annotation Compatibility
+
+- The current live published-result layout remains the active contract; this pass does not redesign student or teacher result surfaces.
+- Legacy fallback annotations (`submission.annotations`) must still participate in the same feedback-selection workflow as the primary published markup path.
+- Result-surface task adapters now project legacy annotations into the shared published feedback data shape so the feedback rail remains authoritative even when no canonical markup artifact exists.
+- `AnnotatedEssayReadOnly` remains a compatibility renderer for fallback data, but it no longer owns an isolated interaction model:
+  - tooltip placement follows the shared overlay-positioning rules
+  - clicking a fallback annotation selects the matching shared feedback-rail item using the same callback contract as `WritingPublishedMarkupViewer`
+- This keeps compatibility-only results visually familiar while preventing them from silently drifting into a different annotation workflow.

@@ -283,6 +283,12 @@ function buildTaskData(
     const fallbackAnnotations = publishedTask
         ? []
         : (submission.annotations || []).filter((annotation) => annotation.taskNumber === task.taskNumber);
+    const fallbackComments = publishedTask
+        ? []
+        : buildPublishedCommentsFromFallbackAnnotations(task.essayText, fallbackAnnotations);
+    const fallbackCorrections = publishedTask
+        ? []
+        : buildPublishedCorrectionsFromFallbackAnnotations(task.essayText, fallbackAnnotations);
 
     return {
         taskNumber: task.taskNumber,
@@ -302,18 +308,70 @@ function buildTaskData(
             ? publishedTask.perCriteriaFeedback
             : buildLegacyCriteriaFeedback(task.taskNumber, legacy),
         markedContent,
-        comments: (publishedTask?.comments ?? [])
-            .filter((comment) => comment.status === 'active')
-            .slice()
-            .map((comment) => ({
-                kind: 'comment' as const,
-                ...comment,
-            }))
-            .sort((left, right) => left.from - right.from),
-        corrections: extractPublishedCorrections(markedContent),
+        comments: publishedTask
+            ? (publishedTask.comments ?? [])
+                .filter((comment) => comment.status === 'active')
+                .slice()
+                .map((comment) => ({
+                    kind: 'comment' as const,
+                    ...comment,
+                }))
+                .sort((left, right) => left.from - right.from)
+            : fallbackComments,
+        corrections: publishedTask
+            ? extractPublishedCorrections(markedContent)
+            : fallbackCorrections,
         fallbackAnnotations,
         usesLegacyProjection: Boolean(!publishedTask && legacyTask),
     };
+}
+
+function buildPublishedCommentsFromFallbackAnnotations(
+    essayText: string,
+    annotations: WritingAnnotation[],
+): PublishedCommentData[] {
+    return annotations
+        .filter((annotation) => annotation.type === 'comment' && typeof annotation.commentText === 'string' && annotation.commentText.trim())
+        .map((annotation) => ({
+            kind: 'comment' as const,
+            id: annotation.id,
+            text: annotation.commentText || '',
+            color: annotation.color,
+            anchorText: getAnnotationAnchorText(essayText, annotation.startOffset, annotation.endOffset),
+            from: annotation.startOffset,
+            to: annotation.endOffset,
+            status: 'active' as const,
+            categoryLabel: annotation.categoryLabel || 'Comment',
+        }))
+        .sort((left, right) => left.from - right.from);
+}
+
+function buildPublishedCorrectionsFromFallbackAnnotations(
+    essayText: string,
+    annotations: WritingAnnotation[],
+): PublishedCorrectionData[] {
+    return annotations
+        .filter((annotation) => annotation.type === 'correction' && typeof annotation.correctionText === 'string' && annotation.correctionText.trim())
+        .map((annotation) => ({
+            kind: 'correction' as const,
+            id: annotation.id,
+            anchorText: getAnnotationAnchorText(essayText, annotation.startOffset, annotation.endOffset),
+            correctionText: annotation.correctionText || '',
+            from: annotation.startOffset,
+            to: annotation.endOffset,
+            label: annotation.categoryLabel || 'Correction',
+        }))
+        .sort((left, right) => left.from - right.from);
+}
+
+function getAnnotationAnchorText(
+    essayText: string,
+    startOffset: number,
+    endOffset: number,
+): string {
+    const anchorText = essayText.slice(Math.max(0, startOffset), Math.max(startOffset, endOffset)).trim();
+
+    return anchorText || 'Selection unavailable';
 }
 
 function buildLegacyCriteriaFeedback(

@@ -283,3 +283,19 @@ Failure rules:
   - page-level grading telemetry records these actions through the existing grading feature tracking path
 - The five-tab feedback workflow remains unchanged (`Task Summary`, `TA/TR`, `CC`, `LR`, `GRA`); this pass restores the live formatting controls while keeping the edit-mode tab/content contract aligned to the Stitch workspace.
 
+
+## 2026-04-06 Sixth Follow-up - Shared Readiness And Publish Contract
+
+- The current live edit-mode `Scoring`, `Suggestions`, and feedback-toolbar behavior is the active contract.
+- Older Stitch conversations remain useful history, but when they conflict with the current documented live state they must not override the current contract implicitly.
+- `WritingGradingPage` now computes task readiness and submission publish readiness through one shared evaluator instead of separate ad hoc checks.
+- The visible `Readiness` block remains task-focused, but its rows now represent the real task-level gate inputs:
+  - `Scores Set`
+  - `Summary Required`
+  - `Comment Draft Clear`
+- The block also exposes a submission-level `Ready to Submit` summary so the right rail reflects the same cross-task truth as `Submit Grading`.
+- Pending comment drafts are blocking state, not a cosmetic editor detail:
+  - they block `Submit Grading`
+  - they block suggestion approval while editing
+  - saved comment count does not contribute to publish readiness
+- The canonical service publish path now enforces the same readiness rules as the page-level gate, including pending-comment-draft blocking and meaningful-summary detection.

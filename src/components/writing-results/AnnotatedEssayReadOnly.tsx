@@ -1,59 +1,76 @@
 /**
- * AnnotatedEssayReadOnly — PRD-0030 Task 6.2
- * Read-only rendition of an annotated essay.
+ * AnnotatedEssayReadOnly - PRD-0030 Task 6.2
+ * Read-only rendition of legacy compatibility annotations.
  * [GAP-16] MUST reuse renderAnnotatedText() from shared utility.
- * Comment click shows tooltip at click position.
+ * Aligns tooltip and feedback-selection behavior with the published viewer.
  * NO MANTINE.
  */
 
-import { useState, useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { RichContent } from '../../core/components/RichContent';
 import { renderAnnotatedText } from '../../utils/annotationRenderer';
 import type { WritingAnnotation } from '../../types/ielts-writing.types';
+import {
+    getCommentTooltipOverlayPosition,
+    type CommentTooltipPlacement,
+    type OverlayPosition,
+} from '../writing-grading/annotationOverlayPosition';
 
 interface AnnotatedEssayReadOnlyProps {
     essayText: string;
     annotations: WritingAnnotation[];
+    onFeedbackSelect?: (feedbackId: string, anchorViewportTop: number | null) => void;
 }
 
-interface Tooltip {
-    text: string;
-    left: number;
-    top: number;
+interface TooltipState extends OverlayPosition {
+    annotation: WritingAnnotation;
+    placement: CommentTooltipPlacement;
 }
 
 export default function AnnotatedEssayReadOnly({
     essayText,
     annotations,
+    onFeedbackSelect,
 }: AnnotatedEssayReadOnlyProps) {
-    const [tooltip, setTooltip] = useState<Tooltip | null>(null);
+    const [tooltip, setTooltip] = useState<TooltipState | null>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
+    const overlayPortalRoot = typeof document !== 'undefined' ? document.body : null;
 
     const handleAnnotationClick = useCallback((annotation: WritingAnnotation, anchorElement?: HTMLElement | null) => {
-        if (!annotation.commentText) return;
-        const containerRect = containerRef.current?.getBoundingClientRect();
         const anchorRect = anchorElement?.getBoundingClientRect();
 
-        if (containerRect && anchorRect) {
-            const tooltipWidth = 280;
-            const centeredLeft = anchorRect.left - containerRect.left + (anchorRect.width / 2);
-            const boundedLeft = Math.min(
-                Math.max(centeredLeft, (tooltipWidth / 2) + 12),
-                Math.max((tooltipWidth / 2) + 12, containerRect.width - (tooltipWidth / 2) - 12),
-            );
-            const relativeTop = Math.max(anchorRect.top - containerRect.top - 56, 12);
-
-            setTooltip({
-                text: annotation.commentText,
-                left: boundedLeft,
-                top: relativeTop,
-            });
-        } else {
-            setTooltip({ text: annotation.commentText, left: 160, top: 12 });
+        if (!anchorRect) {
+            return;
         }
 
-        // Auto-dismiss after 4s
-        setTimeout(() => setTooltip(null), 4000);
-    }, []);
+        const position = getCommentTooltipOverlayPosition(anchorRect);
+        setTooltip({
+            annotation,
+            top: position.top,
+            left: position.left,
+            placement: position.placement,
+        });
+        onFeedbackSelect?.(annotation.id, anchorRect.top);
+    }, [onFeedbackSelect]);
+
+    useEffect(() => {
+        if (!tooltip || typeof window === 'undefined') {
+            return undefined;
+        }
+
+        const dismissTooltip = () => {
+            setTooltip(null);
+        };
+
+        window.addEventListener('resize', dismissTooltip);
+        window.addEventListener('scroll', dismissTooltip, true);
+
+        return () => {
+            window.removeEventListener('resize', dismissTooltip);
+            window.removeEventListener('scroll', dismissTooltip, true);
+        };
+    }, [tooltip]);
 
     const rendered = renderAnnotatedText(essayText, annotations, {
         readOnly: true,
@@ -80,30 +97,50 @@ export default function AnnotatedEssayReadOnly({
                 {rendered}
             </div>
 
-            {/* Floating tooltip for comments */}
-            {tooltip && (
-                <div
-                    style={{
-                        position: 'absolute',
-                        left: tooltip.left,
-                        top: tooltip.top,
-                        transform: 'translate(-50%, -100%)',
-                        maxWidth: '280px',
-                        padding: '10px 14px',
-                        background: '#1e293b',
-                        color: '#fff',
-                        borderRadius: '8px',
-                        fontSize: '0.8rem',
-                        lineHeight: '1.4',
-                        zIndex: 9999,
-                        boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
-                        pointerEvents: 'none',
-                        animation: 'fadeIn 0.15s ease',
-                    }}
-                    onClick={() => setTooltip(null)}
-                >
-                    💬 {tooltip.text}
+            {tooltip && (overlayPortalRoot
+                ? createPortal(
+                    <LegacyAnnotationTooltip tooltip={tooltip} />,
+                    overlayPortalRoot,
+                )
+                : <LegacyAnnotationTooltip tooltip={tooltip} />)}
+        </div>
+    );
+}
+
+function LegacyAnnotationTooltip({
+    tooltip,
+}: {
+    tooltip: TooltipState;
+}) {
+    const { annotation } = tooltip;
+    const isCorrection = annotation.type === 'correction';
+
+    return (
+        <div
+            className="essay-comment-tooltip"
+            data-comment-tooltip="true"
+            data-placement={tooltip.placement}
+            style={{
+                position: 'fixed',
+                top: tooltip.top,
+                left: tooltip.left,
+                zIndex: 9999,
+                maxWidth: 320,
+            }}
+        >
+            <div style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#cbd5e1', marginBottom: '0.4rem' }}>
+                {isCorrection ? (annotation.categoryLabel || 'Correction') : (annotation.categoryLabel || 'Comment')}
+            </div>
+            {isCorrection ? (
+                <div style={{ display: 'grid', gap: '0.3rem', fontSize: '0.84rem', lineHeight: 1.5 }}>
+                    <div style={{ color: '#cbd5e1' }}>Replace with</div>
+                    <div>{annotation.correctionText || 'No replacement text'}</div>
                 </div>
+            ) : (
+                <RichContent
+                    content={annotation.commentText || ''}
+                    className="essay-comment-tooltip-body"
+                />
             )}
         </div>
     );

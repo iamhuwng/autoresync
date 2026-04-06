@@ -17,6 +17,15 @@ vi.mock('./WritingPublishedMarkupViewer', () => ({
   ),
 }));
 
+vi.mock('./AnnotatedEssayReadOnly', () => ({
+  __esModule: true,
+  default: ({ onFeedbackSelect }: { onFeedbackSelect?: (feedbackId: string, anchorViewportTop: number | null) => void }) => (
+    <button type="button" onClick={() => onFeedbackSelect?.('comment-legacy', 150)}>
+      Focus fallback comment
+    </button>
+  ),
+}));
+
 const scrollIntoViewMock = vi.fn();
 
 const surfaceData: WritingResultSurfaceData = {
@@ -322,5 +331,50 @@ describe('WritingStudentResultSurface', () => {
       });
       expect(scrollIntoViewMock).not.toHaveBeenCalled();
     });
+  });
+
+  it('keeps legacy fallback annotations on the shared feedback rail contract', async () => {
+    render(
+      <WritingStudentResultSurface
+        data={{
+          ...surfaceData,
+          tasks: [{
+            ...surfaceData.tasks[0],
+            markedContent: null,
+            comments: [{
+              kind: 'comment',
+              id: 'comment-legacy',
+              text: '<p>Legacy fallback comment</p>',
+              color: '#4f46e5',
+              anchorText: 'legacy phrase',
+              from: 1,
+              to: 5,
+              status: 'active',
+              categoryLabel: 'Grammar',
+            }],
+            corrections: [],
+            fallbackAnnotations: [{
+              id: 'comment-legacy',
+              taskNumber: 1,
+              type: 'comment',
+              startOffset: 1,
+              endOffset: 5,
+              color: '#4f46e5',
+              categoryId: 'gra',
+              categoryLabel: 'Grammar',
+              commentText: '<p>Legacy fallback comment</p>',
+              createdAt: 100,
+            }],
+          }, surfaceData.tasks[1]],
+        }}
+        variant="panel"
+        forceWidePanelLayout
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Focus fallback comment' }));
+
+    const highlightedComment = await screen.findByText('Legacy fallback comment');
+    expect(highlightedComment.closest('article')).toHaveAttribute('data-highlighted', 'true');
   });
 });

@@ -153,4 +153,104 @@ describe('writingResultSurface', () => {
             },
         ]);
     });
+
+    it('maps legacy fallback annotations into the shared published feedback shape', () => {
+        const submission = {
+            id: 'submission-2',
+            studentId: 'student-1',
+            studentName: 'Student One',
+            context: { type: 'solo-practice' },
+            testMeta: {
+                testId: 'test-1',
+                testTitle: 'IELTS Writing',
+                format: 'task1-only',
+                duration: 20,
+            },
+            tasks: [
+                {
+                    taskNumber: 1,
+                    taskType: 'bar-chart',
+                    promptText: 'Summarize the chart.',
+                    wordMinimum: 150,
+                    essayText: 'wrong phrase in essay',
+                    wordCount: 180,
+                    activeTimeSeconds: 900,
+                },
+            ],
+            submittedAt: 100,
+            totalElapsedTimeSeconds: 900,
+            pasteAttemptCount: 0,
+            markingStatus: 'graded',
+            publishedGrading: null,
+            gradingDraftMeta: null,
+            grading: {
+                teacherId: 'teacher-1',
+                teacherName: 'Teacher One',
+                gradedAt: 200,
+                overallBand: 6.5,
+                perTask: [],
+                feedback: {
+                    overall: '<p>Overall</p>',
+                    perCriteria: { TA: '', CC: '', LR: '', GRA: '' },
+                },
+            },
+            annotations: [
+                {
+                    id: 'comment-legacy',
+                    taskNumber: 1,
+                    type: 'comment',
+                    startOffset: 0,
+                    endOffset: 5,
+                    color: '#facc15',
+                    categoryId: 'cc',
+                    categoryLabel: 'Coherence & Cohesion',
+                    commentText: '<p>Legacy comment</p>',
+                    createdAt: 100,
+                },
+                {
+                    id: 'correction-legacy',
+                    taskNumber: 1,
+                    type: 'correction',
+                    startOffset: 0,
+                    endOffset: 12,
+                    color: '#facc15',
+                    categoryId: 'gra',
+                    categoryLabel: 'Correction',
+                    correctionText: 'improved phrase',
+                    createdAt: 100,
+                },
+            ],
+            auditTrail: [],
+        } as any;
+
+        const surface = buildWritingResultSurfaceData(submission, {
+            viewerMode: 'student',
+        });
+
+        expect(surface.tasks[0].fallbackAnnotations).toHaveLength(2);
+        expect(surface.tasks[0].comments).toEqual([
+            {
+                kind: 'comment',
+                id: 'comment-legacy',
+                text: '<p>Legacy comment</p>',
+                color: '#facc15',
+                anchorText: 'wrong',
+                from: 0,
+                to: 5,
+                status: 'active',
+                categoryLabel: 'Coherence & Cohesion',
+            },
+        ]);
+        expect(surface.tasks[0].corrections).toEqual([
+            {
+                kind: 'correction',
+                id: 'correction-legacy',
+                anchorText: 'wrong phrase',
+                correctionText: 'improved phrase',
+                from: 0,
+                to: 12,
+                label: 'Correction',
+            },
+        ]);
+    });
 });

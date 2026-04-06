@@ -52,6 +52,11 @@ import {
     isScopedIndexBackfillEligible,
 } from './resultVisibilityReindex.service';
 import { calculateOverallBand } from '../utils/ieltsWritingBandCalculator';
+import {
+    evaluateWritingSubmissionReadiness,
+    isMeaningfulHtml,
+    type WritingReadinessTaskInput,
+} from '../utils/writingGradingReadiness';
 
 // ═══════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -522,9 +527,24 @@ function calculatePublishedOverallBand(
     return calculateOverallBand(taskResults, submission.testMeta.format);
 }
 
-function isMeaningfulHtml(content?: string | null): boolean {
-    return typeof content === 'string'
-        && content.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').trim().length > 0;
+function buildDraftReadinessTasks(
+    submission: WritingSubmission,
+    draft: WritingGradingDraft,
+): WritingReadinessTaskInput[] {
+    return submission.tasks.map((task) => {
+        const taskState = draft.perTask[task.taskNumber];
+
+        return {
+            taskNumber: task.taskNumber,
+            isVoided: taskState?.isVoided ?? false,
+            responseScore: task.taskNumber === 1 ? taskState?.criteriaScores.TA : taskState?.criteriaScores.TR,
+            ccScore: taskState?.criteriaScores.CC,
+            lrScore: taskState?.criteriaScores.LR,
+            graScore: taskState?.criteriaScores.GRA,
+            summaryHtml: taskState?.taskSummary || '',
+            hasPendingCommentDraft: Boolean(draft.pendingCommentDrafts?.[task.taskNumber]),
+        };
+    });
 }
 
 function buildDerivedOverallSummaryFromTasks(
@@ -1078,37 +1098,17 @@ export const publishGrading = withRestoreGuard<{
         }
 
         for (const task of submission.tasks) {
-            const taskState = draft.perTask[task.taskNumber];
-            if (!taskState) {
+            if (!draft.perTask[task.taskNumber]) {
                 return { success: false, error: `Task ${task.taskNumber} is missing grading data` };
             }
+        }
 
-            if (taskState.isVoided) {
-                continue;
-            }
-
-            const responseScore = task.taskNumber === 1
-                ? taskState.criteriaScores.TA
-                : taskState.criteriaScores.TR;
-
-            if (
-                typeof responseScore !== 'number'
-                || typeof taskState.criteriaScores.CC !== 'number'
-                || typeof taskState.criteriaScores.LR !== 'number'
-                || typeof taskState.criteriaScores.GRA !== 'number'
-            ) {
-                return {
-                    success: false,
-                    error: `Task ${task.taskNumber} must include all non-voided criterion scores`,
-                };
-            }
-
-            if (!isMeaningfulHtml(taskState.taskSummary)) {
-                return {
-                    success: false,
-                    error: `Task ${task.taskNumber} summary is required before publishing`,
-                };
-            }
+        const submissionReadiness = evaluateWritingSubmissionReadiness(buildDraftReadinessTasks(submission, draft));
+        if (!submissionReadiness.canPublish) {
+            return {
+                success: false,
+                error: submissionReadiness.firstBlockingReason || 'Draft is not ready for publishing',
+            };
         }
 
         const now = Date.now();
