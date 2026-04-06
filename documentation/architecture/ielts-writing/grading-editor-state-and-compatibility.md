@@ -311,3 +311,14 @@ Failure rules:
   - comment ordering is unchanged
   - pending-draft alignment behavior is unchanged
   - only focused-comment drift after scroll is removed
+
+## 2026-04-06 Eighth Follow-up - Piggyback Comment Focus Routing
+
+- Comments created from the correction popup remain normal `GradingComment` records on the original selected source range.
+- When the teacher later clicks that original source text in the essay, the page must transition fully into comment-rail interaction:
+  - focus the matching comment item
+  - open or keep the `Comments` tab active
+  - reuse the clicked mark's viewport anchor for rail alignment
+  - clear correction focus and dismiss any open correction popup
+- Essay-click, gutter-click, and sidebar-origin comment focus must therefore share one canonical page-level focus transition instead of duplicating partial state changes in separate handlers.
+- This follow-up changes runtime orchestration only; persisted comment and correction data stay unchanged.

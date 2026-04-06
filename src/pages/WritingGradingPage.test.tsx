@@ -23,6 +23,8 @@ const {
     deleteTeacherQuickCommentPresetMock,
     getOrCreateWritingSuggestionCacheMock,
     updateWritingSuggestionReviewStatusMock,
+    essayEditorPropsRef,
+    commentSidebarPropsRef,
 } = vi.hoisted(() => ({
     trackActionMock: vi.fn(),
     navigateToMock: vi.fn(),
@@ -43,6 +45,8 @@ const {
     deleteTeacherQuickCommentPresetMock: vi.fn(),
     getOrCreateWritingSuggestionCacheMock: vi.fn(),
     updateWritingSuggestionReviewStatusMock: vi.fn(),
+    essayEditorPropsRef: { current: null as any },
+    commentSidebarPropsRef: { current: null as any },
 }));
 
 vi.mock('./WritingGradingPage.css', () => ({}));
@@ -127,7 +131,8 @@ vi.mock('../services/writingSuggestionService', () => ({
 }));
 
 vi.mock('../components/writing-grading/EssayEditor', () => {
-    const MockEssayEditor = forwardRef((_props: unknown, ref) => {
+    const MockEssayEditor = forwardRef((props: any, ref) => {
+        essayEditorPropsRef.current = props;
         useImperativeHandle(ref, () => ({
             undo: vi.fn(),
             redo: vi.fn(),
@@ -135,7 +140,23 @@ vi.mock('../components/writing-grading/EssayEditor', () => {
             canRedo: false,
         }));
 
-        return <div data-testid="essay-editor">Essay Editor</div>;
+        return (
+            <div data-testid="essay-editor">
+                Essay Editor
+                <button
+                    type="button"
+                    onClick={() => props.onCorrectionRequest?.(1, 6, 'Hello')}
+                >
+                    Mock Open Correction
+                </button>
+                <button
+                    type="button"
+                    onClick={() => props.onCommentMarkClick?.('comment-1', 222)}
+                >
+                    Mock Click Comment Mark
+                </button>
+            </div>
+        );
     });
 
     return {
@@ -146,7 +167,14 @@ vi.mock('../components/writing-grading/EssayEditor', () => {
 
 vi.mock('../components/writing-grading/CommentSidebar', () => ({
     __esModule: true,
-    default: () => <div>Comment Sidebar</div>,
+    default: (props: any) => {
+        commentSidebarPropsRef.current = props;
+        return (
+            <div data-testid="comment-sidebar-props">
+                {`focused:${props.focusedCommentId ?? 'none'};anchor:${props.focusedCommentAnchorViewportTop ?? 'null'}`}
+            </div>
+        );
+    },
 }));
 
 vi.mock('../components/writing-grading/QuickCommentsDialog', () => ({
@@ -156,7 +184,13 @@ vi.mock('../components/writing-grading/QuickCommentsDialog', () => ({
 
 vi.mock('../components/writing-grading/CorrectionPopup', () => ({
     __esModule: true,
-    default: () => null,
+    default: (props: any) => (
+        props.isOpen ? (
+            <div data-testid="correction-popup">
+                {props.selectedText}
+            </div>
+        ) : null
+    ),
 }));
 
 vi.mock('../components/writing-grading/CriteriaScoringPanel', () => ({
@@ -297,6 +331,8 @@ async function openEditingMode() {
 describe('WritingGradingPage', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        essayEditorPropsRef.current = null;
+        commentSidebarPropsRef.current = null;
         storageGetMock.mockResolvedValue(null);
         storageSetMock.mockResolvedValue(undefined);
         storageRemoveMock.mockResolvedValue(undefined);
@@ -423,5 +459,38 @@ describe('WritingGradingPage', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Suggestions' }));
 
         expect(await screen.findByText('Finish or cancel the open comment before approving another suggestion.')).toBeInTheDocument();
+    });
+
+    it('routes correction-popup comments into the comment rail when the original source text is clicked', async () => {
+        getWritingSubmissionForGradingMock.mockResolvedValue(createSubmissionForGrading({
+            task1: {
+                comments: [{
+                    id: 'comment-1',
+                    taskNumber: 1,
+                    text: '<p>Reason</p>',
+                    categoryId: 'uncategorized',
+                    categoryLabel: 'Uncategorized',
+                    color: '#facc15',
+                    status: 'active',
+                    anchorText: 'Hello',
+                    from: 1,
+                    to: 6,
+                    createdAt: 1,
+                    updatedAt: 1,
+                }],
+            },
+        }));
+
+        await openEditingMode();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Mock Open Correction' }));
+        expect(screen.getByTestId('correction-popup')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Mock Click Comment Mark' }));
+
+        await waitFor(() => {
+            expect(screen.getByTestId('comment-sidebar-props')).toHaveTextContent('focused:comment-1;anchor:222');
+        });
+        expect(screen.queryByTestId('correction-popup')).toBeNull();
     });
 });

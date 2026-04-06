@@ -1452,15 +1452,49 @@ export default function WritingGradingPage() {
         }
     }, [activeTask, openSuggestionReview, panelTab, submissionId, trackAction]);
 
-    const handleFocusComment = useCallback((commentId: string | null) => {
+    const resolveCommentAnchorViewportTop = useCallback((
+        commentId: string | null,
+        explicitAnchorViewportTop?: number | null,
+    ) => {
+        if (!commentId) {
+            return null;
+        }
+
+        if (explicitAnchorViewportTop !== undefined) {
+            return explicitAnchorViewportTop;
+        }
+
+        return anchorPositions.find((position) => position.commentId === commentId)?.anchorViewportTop ?? null;
+    }, [anchorPositions]);
+
+    const focusCommentInRail = useCallback((
+        commentId: string | null,
+        options?: {
+            anchorViewportTop?: number | null;
+            openCommentsTab?: boolean;
+            dismissCorrectionRequest?: boolean;
+        },
+    ) => {
         setFocusedCommentId(commentId);
         setFocusedCorrectionId(null);
         setFocusedCommentAnchorViewportTop(
-            commentId
-                ? anchorPositions.find((position) => position.commentId === commentId)?.anchorViewportTop ?? null
-                : null,
+            resolveCommentAnchorViewportTop(commentId, options?.anchorViewportTop),
         );
-    }, [anchorPositions]);
+
+        if (options?.dismissCorrectionRequest !== false) {
+            setCorrectionRequest(null);
+        }
+
+        if (commentId && options?.openCommentsTab !== false) {
+            setPanelTab('comments');
+        }
+    }, [resolveCommentAnchorViewportTop]);
+
+    const handleFocusComment = useCallback((commentId: string | null) => {
+        focusCommentInRail(commentId, {
+            openCommentsTab: false,
+        });
+    }, [focusCommentInRail]);
 
     const handleViewModeChange = useCallback((viewMode: 'marked' | 'original') => {
         setEditorViewMode(viewMode);
@@ -1535,11 +1569,11 @@ export default function WritingGradingPage() {
         setPendingCommentDraft(draft.taskNumber, null);
         if (options?.focusInSidebar === false) {
             setFocusedCommentId(null);
+            setFocusedCommentAnchorViewportTop(null);
         } else {
-            setFocusedCommentAnchorViewportTop(draft.anchorViewportTop ?? null);
-            setFocusedCommentId(nextComment.id);
-            setFocusedCorrectionId(null);
-            setPanelTab('comments');
+            focusCommentInRail(nextComment.id, {
+                anchorViewportTop: draft.anchorViewportTop ?? null,
+            });
         }
         pushCommentMutation(nextComment, 'apply');
         trackAction('addComment', {
@@ -1552,6 +1586,7 @@ export default function WritingGradingPage() {
         pushCommentMutation,
         setPendingCommentDraft,
         setTaskState,
+        focusCommentInRail,
         submissionId,
         trackAction,
     ]);
@@ -2335,18 +2370,12 @@ export default function WritingGradingPage() {
                             viewMode={editorViewMode}
                             onAddComment={handleAddComment}
                             onGutterDotClick={(commentId) => {
-                                setFocusedCommentId(commentId);
-                                setFocusedCorrectionId(null);
-                                setFocusedCommentAnchorViewportTop(
-                                    anchorPositions.find((position) => position.commentId === commentId)?.anchorViewportTop ?? null,
-                                );
-                                setPanelTab('comments');
+                                focusCommentInRail(commentId);
                             }}
                             onCommentMarkClick={(commentId, anchorViewportTop) => {
-                                setFocusedCommentId(commentId);
-                                setFocusedCorrectionId(null);
-                                setFocusedCommentAnchorViewportTop(anchorViewportTop);
-                                setPanelTab('comments');
+                                focusCommentInRail(commentId, {
+                                    anchorViewportTop,
+                                });
                             }}
                             onCommentMarkHover={setHoveredCommentId}
                             onSelectionStateChange={handleEditorSelectionStateChange}
