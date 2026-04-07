@@ -1,0 +1,162 @@
+- generic [ref=e44]:
+  - generic [ref=e46]:
+    - heading "Materials" [level=1] [ref=e48]
+    - generic [ref=e50]:
+      - button "Materials" [ref=e51] [cursor=pointer]:
+        - generic [ref=e52]: Materials
+      - generic [ref=e54]:
+        - button "Students" [ref=e55] [cursor=pointer]:
+          - generic [ref=e56]: Students
+        - button "Classes" [ref=e57] [cursor=pointer]:
+          - generic [ref=e58]: Classes
+        - button "Courses" [ref=e59] [cursor=pointer]:
+          - generic [ref=e60]: Courses
+        - button "Homework" [ref=e61] [cursor=pointer]:
+          - generic [ref=e62]: Homework
+        - button "Grading" [ref=e63] [cursor=pointer]:
+          - generic [ref=e64]: Grading
+      - button "Sessions" [ref=e66] [cursor=pointer]:
+        - generic [ref=e67]: Sessions
+      - generic [ref=e69]:
+        - button "Notifications" [ref=e73] [cursor=pointer]:
+          - img [ref=e74]
+        - button "Open profile menu" [ref=e78] [cursor=pointer]:
+          - img "Teacher Test" [ref=e80]
+          - generic [ref=e81]: Teacher Test
+  - main [ref=e82]:
+    - generic [ref=e83]:
+      - generic [ref=e84]:
+        - heading "Test Dashboard" [level=1] [ref=e85]
+        - paragraph [ref=e86]: Manage your tests and start formal assessment sessions
+        - generic [ref=e87]:
+          - button "📁 My Content" [ref=e88] [cursor=pointer]:
+            - generic [ref=e89]: 📁 My Content
+          - button "🌐 Public Library" [ref=e90] [cursor=pointer]:
+            - generic [ref=e91]: 🌐 Public Library
+          - button "📝 Drafts" [ref=e92] [cursor=pointer]:
+            - generic [ref=e93]: 📝 Drafts
+      - generic [ref=e96]:
+        - textbox "🔍 Search by title or keyword..." [ref=e100]
+        - button "Create New Test" [ref=e101] [cursor=pointer]:
+          - generic [ref=e102]:
+            - img [ref=e103]
+            - text: Create New Test
+      - generic [ref=e105]:
+        - generic [ref=e106]:
+          - generic [ref=e108]:
+            - heading "Inter - Task 1 - Lesson 2" [level=3] [ref=e110]
+            - generic [ref=e111]:
+              - generic [ref=e112]: 1 task
+              - generic [ref=e113]: IELTS - Writing
+              - generic [ref=e114]: 60 min
+          - generic [ref=e115]:
+            - button "Edit" [ref=e116] [cursor=pointer]:
+              - generic [ref=e117]:
+                - img [ref=e118]
+                - text: Edit
+            - button "Delete" [ref=e121] [cursor=pointer]:
+              - generic [ref=e122]:
+                - img [ref=e123]
+                - text: Delete
+            - button "Start Test" [ref=e125] [cursor=pointer]:
+              - generic [ref=e126]:
+                - img [ref=e127]
+                - text: Start Test
+        - generic [ref=e129]:
+          - generic [ref=e131]:
+            - heading "Inter - Supplement - Reading - Lesson 6" [level=3] [ref=e133]
+            - generic [ref=e134]:
+              - generic [ref=e135]: 19 questions
+              - generic [ref=e136]: IELTS - Reading
+              - generic [ref=e137]: 60 min
+          - generic [ref=e138]:
+            - button "Edit" [ref=e139] [cursor=pointer]:
+              - generic [ref=e140]:
+                - img [ref=e141]
+                - text: Edit
+            - button "Delete" [ref=e144] [cursor=pointer]:
+              - generic [ref=e145]:
+                - img [ref=e146]
+                - text: Delete
+            - button "Start Test" [ref=e148] [cursor=pointer]:
+              - generic [ref=e149]:
+                - img [ref=e150]
+                - text: Start Test
+        - generic [ref=e152]:
+          - generic [ref=e154]:
+            - generic [ref=e155]:
+              - heading "TEST 3" [level=3] [ref=e156]
+              - generic [ref=e157]: THCS-THPT
+            - generic [ref=e158]:
+              - generic [ref=e159]: 40 questions
+              - generic [ref=e160]: Grade 12 · giữa kì
+              - generic [ref=e161]: 60 min
+          - generic [ref=e162]:
+            - button "Edit" [ref=e163] [cursor=pointer]:
+              - generic [ref=e164]:
+                - img [ref=e165]
+                - text: Edit
+            - button "Delete" [ref=e168] [cursor=pointer]:
+              - generic [ref=e169]:
+                - img [ref=e170]
+                - text: Delete
+            - button "Start Test" [ref=e172] [cursor=pointer]:
+              - generic [ref=e173]:
+                - img [ref=e174]
+                - text: Start Test
+            - button "Assign HW" [ref=e176] [cursor=pointer]:
+              - generic [ref=e177]:
+                - img [ref=e178]
+                - text: Assign HW
+        - generic [ref=e181]:
+          - generic [ref=e183]:
+            - generic [ref=e184]:
+              - heading "TEST 1 - GK2 GLOBAL 12" [level=3] [ref=e185]
+              - generic [ref=e186]: THCS-THPT
+            - generic [ref=e187]:
+              - generic [ref=e188]: 40 questions
+              - generic [ref=e189]: Grade 12 · giữa kì
+              - generic [ref=e190]: 60 min
+          - generic [ref=e191]:
+            - button "Edit" [ref=e192] [cursor=pointer]:
+              - generic [ref=e193]:
+                - img [ref=e194]
+                - text: Edit
+            - button "Delete" [ref=e197] [cursor=pointer]:
+              - generic [ref=e198]:
+                - img [ref=e199]
+                - text: Delete
+            - button "Start Test" [ref=e201] [cursor=pointer]:
+              - generic [ref=e202]:
+                - img [ref=e203]
+                - text: Start Test
+            - button "Assign HW" [ref=e205] [cursor=pointer]:
+              - generic [ref=e206]:
+                - img [ref=e207]
+                - text: Assign HW
+        - generic [ref=e210]:
+          - generic [ref=e212]:
+            - generic [ref=e213]:
+              - heading "TEST 4 - GK2 GLOBAL 12" [level=3] [ref=e214]
+              - generic [ref=e215]: THCS-THPT
+            - generic [ref=e216]:
+              - generic [ref=e217]: 40 questions
+              - generic [ref=e218]: Grade 12 · giữa kì
+              - generic [ref=e219]: 60 min
+          - generic [ref=e220]:
+            - button "Edit" [ref=e221] [cursor=pointer]:
+              - generic [ref=e222]:
+                - img [ref=e223]
+                - text: Edit
+            - button "Delete" [ref=e226] [cursor=pointer]:
+              - generic [ref=e227]:
+                - img [ref=e228]
+                - text: Delete
+            - button "Start Test" [ref=e230] [cursor=pointer]:
+              - generic [ref=e231]:
+                - img [ref=e232]
+                - text: Start Test
+            - button "Assign HW" [ref=e234] [cursor=pointer]:
+              - generic [ref=e235]:
+                - img [ref=e236]
+                - text: Assign HW

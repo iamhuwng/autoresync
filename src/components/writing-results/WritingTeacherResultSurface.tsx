@@ -37,6 +37,7 @@ export default function WritingTeacherResultSurface({
     const hasDraft = data.phase === 'pending-review' && Boolean(data.draftOwnerTeacherId);
     const [selectedFeedbackId, setSelectedFeedbackId] = useState<string | null>(null);
     const [selectedFeedbackAnchorViewportTop, setSelectedFeedbackAnchorViewportTop] = useState<number | null>(null);
+    const [selectedFeedbackRequestKey, setSelectedFeedbackRequestKey] = useState(0);
     const publishedFeedbackIds = useMemo(
         () => new Set(data.tasks.flatMap((task) => [...task.comments, ...task.corrections].map((item) => item.id))),
         [data.tasks],
@@ -54,6 +55,7 @@ export default function WritingTeacherResultSurface({
     const handleEssayFeedbackSelect = (feedbackId: string, anchorViewportTop: number | null) => {
         setSelectedFeedbackId(feedbackId);
         setSelectedFeedbackAnchorViewportTop(anchorViewportTop);
+        setSelectedFeedbackRequestKey((current) => current + 1);
     };
 
     return (
@@ -235,6 +237,7 @@ export default function WritingTeacherResultSurface({
                                                 corrections={task.corrections}
                                                 selectedFeedbackId={selectedFeedbackId}
                                                 selectedFeedbackAnchorViewportTop={selectedFeedbackAnchorViewportTop}
+                                                selectionRequestKey={selectedFeedbackRequestKey}
                                                 alignToEssay
                                                 maxHeight="min(52vh, 560px)"
                                             />

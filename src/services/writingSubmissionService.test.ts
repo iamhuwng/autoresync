@@ -3,6 +3,7 @@ import { get, push, set, update } from 'firebase/database';
 import { deleteDoc, getDoc, getDocs, setDoc, updateDoc } from 'firebase/firestore';
 import {
     autoSubmitFromRTDB,
+    getWritingSubmissionForGrading,
     materializeSubmissionResult,
     publishGrading,
     updateGrading,
@@ -1066,5 +1067,214 @@ describe('writingSubmissionService', () => {
         });
         expect(updateDoc).not.toHaveBeenCalled();
         expect(deleteDoc).not.toHaveBeenCalled();
+    });
+
+    it('normalizes legacy correction marks into canonical draft corrections on load', async () => {
+        const submission = {
+            id: 'submission-1',
+            studentId: 'student-1',
+            studentName: 'Student One',
+            context: { type: 'solo-practice' },
+            testMeta: {
+                testId: 'test-1',
+                testTitle: 'IELTS Writing',
+                format: 'task1-only',
+                duration: 20,
+            },
+            tasks: [{
+                taskNumber: 1,
+                taskType: 'bar-chart',
+                promptText: 'Prompt',
+                wordMinimum: 150,
+                essayText: 'wrong phrase in essay',
+                wordCount: 160,
+                activeTimeSeconds: 900,
+            }],
+            submittedAt: 100,
+            totalElapsedTimeSeconds: 900,
+            pasteAttemptCount: 0,
+            markingStatus: 'pending-review',
+            publishedGrading: null,
+            gradingDraftMeta: null,
+            grading: null,
+            annotations: [],
+            auditTrail: [],
+        } as any;
+        const draft = {
+            submissionId: 'submission-1',
+            version: 1,
+            ownerTeacherId: 'teacher-1',
+            ownerTeacherName: 'Teacher One',
+            basedOnPublishedVersion: 0,
+            createdAt: 100,
+            updatedAt: 200,
+            overallSummary: '',
+            perTask: {
+                1: {
+                    taskNumber: 1,
+                    markedContent: {
+                        type: 'doc',
+                        content: [
+                            {
+                                type: 'paragraph',
+                                content: [
+                                    {
+                                        type: 'text',
+                                        text: 'wrong phrase',
+                                        marks: [{ type: 'correctionMark', attrs: { correctionId: 'correction-1', correctionText: 'improved phrase' } }],
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                    comments: [],
+                    isVoided: false,
+                    criteriaScores: { TA: 6, CC: 6, LR: 6, GRA: 6 },
+                    taskBand: 6,
+                    taskSummary: '<p>Task summary</p>',
+                    perCriteriaFeedback: { TA: '', CC: '', LR: '', GRA: '' },
+                },
+            },
+            pendingCommentDrafts: {},
+        } as any;
+
+        (getDoc as any).mockImplementation((refPath: string) => {
+            if (refPath.includes('writing_submissions')) {
+                return Promise.resolve({
+                    exists: () => true,
+                    data: () => submission,
+                });
+            }
+
+            return Promise.resolve({
+                exists: () => true,
+                data: () => draft,
+            });
+        });
+
+        const result = await getWritingSubmissionForGrading('submission-1', 'teacher-1');
+
+        expect(result.success).toBe(true);
+        expect(result.data?.gradingDraft?.perTask[1]?.corrections).toEqual([
+            {
+                id: 'correction-1',
+                taskNumber: 1,
+                anchorText: 'wrong phrase',
+                correctionText: 'improved phrase',
+                from: 0,
+                to: 12,
+                createdAt: 200,
+                updatedAt: 200,
+            },
+        ]);
+    });
+
+    it('projects canonical corrections into compatibility annotations when publishing', async () => {
+        const submission = {
+            id: 'submission-1',
+            studentId: 'student-1',
+            studentName: 'Student One',
+            context: { type: 'solo-practice' },
+            testMeta: {
+                testId: 'test-1',
+                testTitle: 'IELTS Writing',
+                format: 'task1-only',
+                duration: 20,
+            },
+            tasks: [{
+                taskNumber: 1,
+                taskType: 'bar-chart',
+                promptText: 'Prompt',
+                wordMinimum: 150,
+                essayText: 'wrong phrase in essay',
+                wordCount: 160,
+                activeTimeSeconds: 900,
+            }],
+            submittedAt: 100,
+            totalElapsedTimeSeconds: 900,
+            pasteAttemptCount: 0,
+            markingStatus: 'pending-review',
+            publishedGrading: null,
+            gradingDraftMeta: null,
+            grading: null,
+            annotations: [],
+            auditTrail: [],
+        } as any;
+        const draft = {
+            submissionId: 'submission-1',
+            version: 1,
+            ownerTeacherId: 'teacher-1',
+            ownerTeacherName: 'Teacher One',
+            basedOnPublishedVersion: 0,
+            createdAt: 100,
+            updatedAt: 200,
+            overallSummary: '<p>Overall summary</p>',
+            perTask: {
+                1: {
+                    taskNumber: 1,
+                    markedContent: null,
+                    comments: [],
+                    corrections: [
+                        {
+                            id: 'correction-1',
+                            taskNumber: 1,
+                            anchorText: 'wrong phrase',
+                            correctionText: 'improved phrase',
+                            from: 0,
+                            to: 12,
+                            createdAt: 150,
+                            updatedAt: 200,
+                        },
+                    ],
+                    isVoided: false,
+                    criteriaScores: { TA: 6, CC: 6, LR: 6, GRA: 6 },
+                    taskBand: 6,
+                    taskSummary: '<p>Task summary</p>',
+                    perCriteriaFeedback: { TA: '', CC: '', LR: '', GRA: '' },
+                },
+            },
+            pendingCommentDrafts: {},
+        } as any;
+
+        (getDoc as any).mockImplementation((refPath: string) => {
+            if (refPath.includes('writing_submissions')) {
+                return Promise.resolve({
+                    exists: () => true,
+                    data: () => submission,
+                });
+            }
+
+            return Promise.resolve({
+                exists: () => true,
+                data: () => draft,
+            });
+        });
+        (get as any).mockResolvedValue({
+            exists: () => false,
+            val: () => null,
+        });
+
+        const result = await publishGrading('submission-1', draft, {
+            expectedDraftVersion: 1,
+            expectedPublishedVersion: 0,
+            skipNotification: true,
+        });
+
+        expect(result.success).toBe(true);
+        const compatibilityProjectionCall = (updateDoc as any).mock.calls.find(([_refPath, payload]: [string, any]) => Array.isArray(payload?.annotations));
+        expect(compatibilityProjectionCall?.[1]?.annotations).toEqual([
+            {
+                id: 'correction-1',
+                taskNumber: 1,
+                type: 'correction',
+                startOffset: 0,
+                endOffset: 12,
+                color: '#818cf8',
+                categoryId: 'correction',
+                categoryLabel: 'Correction',
+                correctionText: 'improved phrase',
+                createdAt: 150,
+            },
+        ]);
     });
 });

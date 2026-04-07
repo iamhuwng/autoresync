@@ -13,6 +13,8 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useNavigation } from '../../hooks/useNavigation';
 import { storage } from '../../core/platform/storage';
+import { useMobileExamMode } from '../../core/platform/hooks/useMobileExamMode';
+import { MobileReadingExamScaffold } from '../test/mobile/MobileReadingExamScaffold';
 import { useAuth } from '../../hooks/useAuth';
 import { useSoloTestData } from '../../hooks/solo/useSoloTestData';
 import { useSoloTimer } from '../../hooks/solo/useSoloTimer';
@@ -71,6 +73,7 @@ export const IELTSPracticeView: React.FC<IELTSPracticeViewProps> = ({
     practiceContext,
 }) => {
     const { navigateTo } = useNavigation('student');
+    const { isMobileExamMode } = useMobileExamMode();
     const { user, profile } = useAuth();
 
     // ── Student Preferences (persisted to platform storage) ──────────────────
@@ -452,6 +455,98 @@ export const IELTSPracticeView: React.FC<IELTSPracticeViewProps> = ({
         percentage: testResults.percentage ?? 0,
         questionResults: testResults.questionResults,
     } : null;
+
+    // ═══════════════════════════════════════════════════════════════
+    // MOBILE EXAM MODE — Phone-optimized scaffold (PRD-0043)
+    // ═══════════════════════════════════════════════════════════════
+
+    if (isMobileExamMode) {
+        return (
+            <>
+                {/* Resume Modal (responsive, works on mobile) */}
+                {showResumeModal && savedProgress && (
+                    <SoloResumeModal
+                        opened={showResumeModal}
+                        onResume={() => setResumeDecision('resume')}
+                        onStartNew={() => { discardProgress(); setResumeDecision('fresh'); }}
+                        onClose={() => setResumeDecision('fresh')}
+                        savedProgress={savedProgress}
+                        totalQuestions={testData.questionCount || 0}
+                    />
+                )}
+
+                {/* Pause Overlay */}
+                {isPaused && !testSubmitted && (
+                    <div style={{
+                        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9000,
+                    }}>
+                        <div style={{ background: 'white', borderRadius: 16, padding: '2rem 3rem', textAlign: 'center' }}>
+                            <div style={{ fontSize: '3rem', marginBottom: 12 }}>⏸️</div>
+                            <h2 style={{ fontWeight: 700, color: '#111827', margin: '0 0 8px' }}>Test Paused</h2>
+                            <p style={{ color: '#6b7280', margin: '0 0 24px' }}>Your progress is saved. Click Resume to continue.</p>
+                            <button
+                                onClick={togglePause}
+                                style={{ padding: '10px 28px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: 999, fontWeight: 700, fontSize: '1rem', cursor: 'pointer' }}
+                            >
+                                Resume
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Mobile Reading Exam Scaffold */}
+                <MobileReadingExamScaffold
+                    mode={isHomework ? 'homework' : 'solo'}
+                    passages={(testData.passages || []).map((p: any, i: number) => ({ id: p.id, title: p.title || `Passage ${i + 1}` }))}
+                    questions={displayQuestions}
+                    totalQuestions={testData.questionCount || displayQuestions.length}
+                    activePassageId={activePassageId || ''}
+                    onPassageChange={setActivePassageId}
+                    currentPassage={currentPassage}
+                    PassageRendererComponent={PassageRenderer}
+                    answers={answers}
+                    onAnswerChange={inputsDisabled ? () => {} : handleAnswerChange}
+                    activeQuestionNumber={currentQuestionNumber}
+                    onQuestionClick={goToQuestion}
+                    timeRemaining={isFinite(timeRemaining) ? timeRemaining : Infinity}
+                    formatTime={formatTime}
+                    testSubmitted={testSubmitted}
+                    isSubmitting={isSubmitting}
+                    questionResults={testResults?.questionResults || {}}
+                    onManualSubmit={handleManualSubmit}
+                    onAutoSubmit={() => { submitTestRef.current?.(true); }}
+                    isConnected={true}
+                    sessionStatus={'in-progress'}
+                    isPaused={false}
+                    fontSize={fontSize}
+                    lineSpacing={lineSpacing}
+                    highlighterActive={false} // FR-99/100: suppress highlighter on mobile
+                    highlightColor={highlightColor}
+                    clearHighlightsTrigger={clearHighlightsTrigger}
+                    questionSheetOpen={false}
+                    onOpenQuestionSheet={() => {}}
+                    onCloseQuestionSheet={() => {}}
+                    reviewSummaryOpen={false}
+                    onOpenReviewSummary={() => {}}
+                    onCloseReviewSummary={() => {}}
+                    antiSelectClass={isHomework && antiCheatConfig?.detectCopyPaste ? 'anti-select' : undefined}
+                />
+
+                {/* Time Up Overlay */}
+                {showTimeUpOverlay && (
+                    <TimeUpOverlay
+                        onComplete={() => console.log('⏰ [Practice] Grace period complete')}
+                        countdownSeconds={gracePeriodRemaining}
+                    />
+                )}
+            </>
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // DESKTOP/TABLET UI RENDER (existing layout)
+    // ═══════════════════════════════════════════════════════════════
 
     return (
         <div

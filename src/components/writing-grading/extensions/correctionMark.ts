@@ -101,7 +101,16 @@ export const CorrectionMark = Mark.create<CorrectionMarkOptions>({
                 ...(correctionId ? { 'data-correction-id': correctionId } : {}),
             }),
             ['span', { class: 'correction-mark-original' }, 0],
-            ['span', { class: 'correction-mark-replacement', contenteditable: 'false' }, ` -> ${correctionText}`],
+            [
+                'span',
+                {
+                    class: 'correction-mark-replacement',
+                    contenteditable: 'false',
+                    'data-correction-edit-target': 'true',
+                    title: 'Edit correction',
+                },
+                ` -> ${correctionText}`,
+            ],
         ];
     },
 

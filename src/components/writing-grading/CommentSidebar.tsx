@@ -45,6 +45,7 @@ export interface CommentSidebarProps {
     taskNumber: 1 | 2;
     focusedCommentId: string | null;
     focusedCommentAnchorViewportTop?: number | null;
+    focusedCommentRequestKey?: number;
     hoveredCommentId: string | null;
     anchorPositions: CommentAnchorPosition[];
     editorScrollTop: number;
@@ -69,6 +70,7 @@ export default function CommentSidebar({
     taskNumber,
     focusedCommentId,
     focusedCommentAnchorViewportTop = null,
+    focusedCommentRequestKey = 0,
     hoveredCommentId,
     anchorPositions,
     editorScrollTop: _editorScrollTop,
@@ -196,7 +198,10 @@ export default function CommentSidebar({
             return {
                 kind: 'comment' as const,
                 id: focusedCommentId,
-                anchorViewportTop: focusedCommentAnchorViewportTop ?? null,
+                anchorViewportTop: focusedCommentAnchorViewportTop
+                    ?? positionLookup.get(focusedCommentId)?.anchorViewportTop
+                    ?? null,
+                requestKey: focusedCommentRequestKey,
             };
         }
 
@@ -207,11 +212,19 @@ export default function CommentSidebar({
                 anchorViewportTop: positionLookup.get(pendingCommentDraft.commentId)?.anchorViewportTop
                     ?? pendingCommentDraft.anchorViewportTop
                     ?? null,
+                requestKey: 0,
             };
         }
 
         return null;
-    }, [focusedCommentAnchorViewportTop, focusedCommentId, pendingCommentDraft, positionLookup, readOnly]);
+    }, [
+        focusedCommentAnchorViewportTop,
+        focusedCommentId,
+        focusedCommentRequestKey,
+        pendingCommentDraft,
+        positionLookup,
+        readOnly,
+    ]);
 
     useLayoutEffect(() => {
         if (!activeRailTarget) {

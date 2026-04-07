@@ -57,6 +57,7 @@ import {
     isMeaningfulHtml,
     type WritingReadinessTaskInput,
 } from '../utils/writingGradingReadiness';
+import { normalizeTaskCorrections } from '../utils/writingCorrections';
 
 // ═══════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -393,7 +394,7 @@ function getGradingDraftRef(submissionId: string) {
 }
 
 function getCurrentPublishedGrading(submission: WritingSubmission): PublishedWritingGrading | null {
-    return submission.publishedGrading ?? null;
+    return normalizePublishedWritingGrading(submission.publishedGrading ?? null);
 }
 
 function getCurrentPublishedVersion(submission: WritingSubmission): number {
@@ -406,6 +407,72 @@ function getSortedTaskMarkupStates(
     return Object.values(perTask)
         .filter((task): task is WritingTaskMarkupState => Boolean(task))
         .sort((left, right) => left.taskNumber - right.taskNumber);
+}
+
+function normalizeTaskMarkupState(
+    task: WritingTaskMarkupState,
+    fallbackTimestamp: number,
+): WritingTaskMarkupState {
+    return {
+        ...task,
+        comments: Array.isArray(task.comments) ? task.comments : [],
+        corrections: normalizeTaskCorrections({
+            taskNumber: task.taskNumber,
+            markedContent: task.markedContent,
+            corrections: task.corrections,
+            fallbackTimestamp,
+        }),
+    };
+}
+
+function normalizePerTaskMarkupStates(
+    perTask: Partial<Record<1 | 2, WritingTaskMarkupState>>,
+    fallbackTimestamp: number,
+): Partial<Record<1 | 2, WritingTaskMarkupState>> {
+    return Object.entries(perTask || {}).reduce((accumulator, [taskNumber, task]) => {
+        if (!task) {
+            return accumulator;
+        }
+
+        const normalizedTaskNumber = task.taskNumber ?? Number(taskNumber);
+        if (normalizedTaskNumber !== 1 && normalizedTaskNumber !== 2) {
+            return accumulator;
+        }
+
+        accumulator[normalizedTaskNumber] = normalizeTaskMarkupState({
+            ...task,
+            taskNumber: normalizedTaskNumber,
+        }, fallbackTimestamp);
+        return accumulator;
+    }, {} as Partial<Record<1 | 2, WritingTaskMarkupState>>);
+}
+
+function normalizePublishedWritingGrading(
+    publishedGrading: PublishedWritingGrading | null,
+): PublishedWritingGrading | null {
+    if (!publishedGrading) {
+        return null;
+    }
+
+    const fallbackTimestamp = publishedGrading.updatedAt ?? publishedGrading.gradedAt ?? Date.now();
+    return {
+        ...publishedGrading,
+        perTask: normalizePerTaskMarkupStates(publishedGrading.perTask, fallbackTimestamp),
+    };
+}
+
+function normalizeWritingGradingDraft(
+    draft: WritingGradingDraft | null,
+): WritingGradingDraft | null {
+    if (!draft) {
+        return null;
+    }
+
+    const fallbackTimestamp = draft.updatedAt ?? draft.createdAt ?? Date.now();
+    return {
+        ...draft,
+        perTask: normalizePerTaskMarkupStates(draft.perTask, fallbackTimestamp),
+    };
 }
 
 function buildTaskGradingResultsFromMarkup(
@@ -474,20 +541,36 @@ function buildCompatibilityAnnotationsFromPublished(
     publishedGrading: PublishedWritingGrading
 ): WritingAnnotation[] {
     return getSortedTaskMarkupStates(publishedGrading.perTask)
-        .flatMap((task) => task.comments
-            .filter((comment) => comment.status === 'active')
-            .map((comment) => ({
-                id: comment.id,
+        .flatMap((task) => {
+            const commentAnnotations = task.comments
+                .filter((comment) => comment.status === 'active')
+                .map((comment) => ({
+                    id: comment.id,
+                    taskNumber: task.taskNumber,
+                    type: 'comment' as const,
+                    startOffset: comment.from,
+                    endOffset: comment.to,
+                    color: comment.color,
+                    categoryId: comment.categoryLabel,
+                    categoryLabel: comment.categoryLabel,
+                    commentText: comment.text,
+                    createdAt: comment.createdAt,
+                }));
+            const correctionAnnotations = task.corrections.map((correction) => ({
+                id: correction.id,
                 taskNumber: task.taskNumber,
-                type: 'comment' as const,
-                startOffset: comment.from,
-                endOffset: comment.to,
-                color: comment.color,
-                categoryId: comment.categoryLabel,
-                categoryLabel: comment.categoryLabel,
-                commentText: comment.text,
-                createdAt: comment.createdAt,
-            })));
+                type: 'correction' as const,
+                startOffset: correction.from,
+                endOffset: correction.to,
+                color: '#818cf8',
+                categoryId: 'correction',
+                categoryLabel: 'Correction',
+                correctionText: correction.correctionText,
+                createdAt: correction.createdAt,
+            }));
+
+            return [...commentAnnotations, ...correctionAnnotations];
+        });
 }
 
 function buildAuditScoreSnapshot(
@@ -563,8 +646,9 @@ async function persistPublishedWritingProjection(
     submission: WritingSubmission,
     publishedGrading: PublishedWritingGrading
 ): Promise<void> {
-    const compatibilityGrading = buildCompatibilityGradingFromPublished(publishedGrading);
-    const annotations = buildCompatibilityAnnotationsFromPublished(publishedGrading);
+    const normalizedPublishedGrading = normalizePublishedWritingGrading(publishedGrading) ?? publishedGrading;
+    const compatibilityGrading = buildCompatibilityGradingFromPublished(normalizedPublishedGrading);
+    const annotations = buildCompatibilityAnnotationsFromPublished(normalizedPublishedGrading);
     const submissionRef = getSubmissionRef(submission.id);
 
     await updateDoc(submissionRef, deepRemoveUndefined({
@@ -577,7 +661,7 @@ async function persistPublishedWritingProjection(
     const projectedSubmission: WritingSubmission = {
         ...submission,
         markingStatus: 'graded',
-        publishedGrading,
+        publishedGrading: normalizedPublishedGrading,
         grading: compatibilityGrading,
         annotations,
         gradingDraftMeta: null,
@@ -608,19 +692,19 @@ async function persistPublishedWritingProjection(
 
     const syncedResultRecord = deepRemoveUndefined({
         ...baseResultRecord,
-        bandScore: publishedGrading.overallBand,
-        overallFeedback: publishedGrading.overallSummary || null,
-        feedbackUpdatedAt: publishedGrading.updatedAt,
-        feedbackUpdatedBy: publishedGrading.teacherId,
-        feedbackUpdatedByTeacherId: publishedGrading.teacherId,
-        feedbackUpdatedByTeacherName: publishedGrading.teacherName,
-        updatedAt: publishedGrading.updatedAt,
+        bandScore: normalizedPublishedGrading.overallBand,
+        overallFeedback: normalizedPublishedGrading.overallSummary || null,
+        feedbackUpdatedAt: normalizedPublishedGrading.updatedAt,
+        feedbackUpdatedBy: normalizedPublishedGrading.teacherId,
+        feedbackUpdatedByTeacherId: normalizedPublishedGrading.teacherId,
+        feedbackUpdatedByTeacherName: normalizedPublishedGrading.teacherName,
+        updatedAt: normalizedPublishedGrading.updatedAt,
         markingStatus: 'graded',
         context: baseResultRecord.context || resultContext,
         writingData: {
             ...(baseResultRecord.writingData || {}),
             submissionId: projectedSubmission.id,
-            overallBand: publishedGrading.overallBand,
+            overallBand: normalizedPublishedGrading.overallBand,
             markingStatus: 'graded',
             tasks: toWritingTaskIndex(projectedSubmission.tasks),
         },
@@ -922,13 +1006,15 @@ export async function getWritingSubmissionForGrading(
         const draft = draftSnap.exists()
             ? (draftSnap.data() as WritingGradingDraft)
             : null;
+        const normalizedPublishedGrading = getCurrentPublishedGrading(submission);
+        const normalizedDraft = normalizeWritingGradingDraft(draft);
 
         return {
             success: true,
             data: {
                 submission,
-                publishedGrading: getCurrentPublishedGrading(submission),
-                gradingDraft: draft && teacherId && draft.ownerTeacherId !== teacherId ? null : draft,
+                publishedGrading: normalizedPublishedGrading,
+                gradingDraft: normalizedDraft && teacherId && normalizedDraft.ownerTeacherId !== teacherId ? null : normalizedDraft,
             },
         };
     } catch (error) {
@@ -987,12 +1073,13 @@ export const saveGradingDraft = withRestoreGuard<{
         }
 
         const now = Date.now();
+        const normalizedInputDraft = normalizeWritingGradingDraft(draft) ?? draft;
         const nextDraft: WritingGradingDraft = deepRemoveUndefined({
-            ...draft,
+            ...normalizedInputDraft,
             submissionId,
             version: (currentDraft?.version ?? 0) + 1,
             basedOnPublishedVersion: currentPublishedVersion,
-            createdAt: currentDraft?.createdAt ?? draft.createdAt ?? now,
+            createdAt: currentDraft?.createdAt ?? normalizedInputDraft.createdAt ?? now,
             updatedAt: now,
         }) as WritingGradingDraft;
 
@@ -1078,6 +1165,7 @@ export const publishGrading = withRestoreGuard<{
         const currentDraft = currentDraftSnap.exists()
             ? (currentDraftSnap.data() as WritingGradingDraft)
             : null;
+        const normalizedInputDraft = normalizeWritingGradingDraft(draft) ?? draft;
 
         if (
             typeof options.expectedPublishedVersion === 'number'
@@ -1093,17 +1181,17 @@ export const publishGrading = withRestoreGuard<{
             return { success: false, error: 'A newer grading draft already exists' };
         }
 
-        if (currentDraft && currentDraft.ownerTeacherId !== draft.ownerTeacherId) {
+        if (currentDraft && currentDraft.ownerTeacherId !== normalizedInputDraft.ownerTeacherId) {
             return { success: false, error: 'Another teacher owns the current grading draft' };
         }
 
         for (const task of submission.tasks) {
-            if (!draft.perTask[task.taskNumber]) {
+            if (!normalizedInputDraft.perTask[task.taskNumber]) {
                 return { success: false, error: `Task ${task.taskNumber} is missing grading data` };
             }
         }
 
-        const submissionReadiness = evaluateWritingSubmissionReadiness(buildDraftReadinessTasks(submission, draft));
+        const submissionReadiness = evaluateWritingSubmissionReadiness(buildDraftReadinessTasks(submission, normalizedInputDraft));
         if (!submissionReadiness.canPublish) {
             return {
                 success: false,
@@ -1113,24 +1201,24 @@ export const publishGrading = withRestoreGuard<{
 
         const now = Date.now();
         const auditVersion = currentPublishedVersion + 1;
-        const derivedOverallSummary = draft.overallSummary?.trim()
-            || buildDerivedOverallSummaryFromTasks(submission, draft.perTask);
+        const derivedOverallSummary = normalizedInputDraft.overallSummary?.trim()
+            || buildDerivedOverallSummaryFromTasks(submission, normalizedInputDraft.perTask);
         const publishedGrading: PublishedWritingGrading = deepRemoveUndefined({
-            teacherId: draft.ownerTeacherId,
-            teacherName: draft.ownerTeacherName,
+            teacherId: normalizedInputDraft.ownerTeacherId,
+            teacherName: normalizedInputDraft.ownerTeacherName,
             gradedAt: now,
             updatedAt: now,
-            overallBand: calculatePublishedOverallBand(submission, draft.perTask),
+            overallBand: calculatePublishedOverallBand(submission, normalizedInputDraft.perTask),
             overallSummary: derivedOverallSummary,
             auditVersion,
-            perTask: draft.perTask,
+            perTask: normalizedInputDraft.perTask,
         }) as PublishedWritingGrading;
 
         const auditEntry: WritingGradingAudit = {
             version: auditVersion,
             gradedAt: now,
-            teacherId: draft.ownerTeacherId,
-            teacherName: draft.ownerTeacherName,
+            teacherId: normalizedInputDraft.ownerTeacherId,
+            teacherName: normalizedInputDraft.ownerTeacherName,
             action: currentPublished ? 'regraded' : 'published',
             reason: options.reason || (currentPublished ? 'Regraded submission' : 'Initial publish'),
             previousScores: buildAuditScoreSnapshot(currentPublished),

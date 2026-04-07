@@ -171,7 +171,7 @@ vi.mock('../components/writing-grading/CommentSidebar', () => ({
         commentSidebarPropsRef.current = props;
         return (
             <div data-testid="comment-sidebar-props">
-                {`focused:${props.focusedCommentId ?? 'none'};anchor:${props.focusedCommentAnchorViewportTop ?? 'null'}`}
+                {`focused:${props.focusedCommentId ?? 'none'};anchor:${props.focusedCommentAnchorViewportTop ?? 'null'};request:${props.focusedCommentRequestKey ?? 0}`}
             </div>
         );
     },
@@ -188,6 +188,14 @@ vi.mock('../components/writing-grading/CorrectionPopup', () => ({
         props.isOpen ? (
             <div data-testid="correction-popup">
                 {props.selectedText}
+                <button type="button" onClick={() => props.onApply?.('Improved text', 'Reason from correction')}>
+                    Mock Apply Correction
+                </button>
+                {props.onDelete ? (
+                    <button type="button" onClick={() => props.onDelete?.()}>
+                        Mock Delete Correction
+                    </button>
+                ) : null}
             </div>
         ) : null
     ),
@@ -232,6 +240,7 @@ function createTaskState(taskNumber: 1 | 2, overrides: Record<string, unknown> =
         taskNumber,
         markedContent: null,
         comments: [],
+        corrections: [],
         isVoided: false,
         criteriaScores: taskNumber === 1
             ? { TA: 6, CC: 6, LR: 6, GRA: 6 }
@@ -492,5 +501,68 @@ describe('WritingGradingPage', () => {
             expect(screen.getByTestId('comment-sidebar-props')).toHaveTextContent('focused:comment-1;anchor:222');
         });
         expect(screen.queryByTestId('correction-popup')).toBeNull();
+    });
+
+    it('persists canonical corrections in the grading draft after applying a correction', async () => {
+        getWritingSubmissionForGradingMock.mockResolvedValue(createSubmissionForGrading({}));
+
+        await openEditingMode();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Mock Open Correction' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Mock Apply Correction' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Save Draft' }));
+
+        await waitFor(() => {
+            expect(saveGradingDraftMock).toHaveBeenCalled();
+        });
+
+        const [, savedDraft] = saveGradingDraftMock.mock.calls.at(-1) ?? [];
+        expect(savedDraft.perTask[1].corrections).toEqual([
+            {
+                id: expect.any(String),
+                taskNumber: 1,
+                anchorText: 'Hello',
+                correctionText: 'Improved text',
+                from: 1,
+                to: 6,
+                createdAt: expect.any(Number),
+                updatedAt: expect.any(Number),
+            },
+        ]);
+    });
+
+    it('treats repeated essay clicks on the same comment as fresh rail-focus requests', async () => {
+        getWritingSubmissionForGradingMock.mockResolvedValue(createSubmissionForGrading({
+            task1: {
+                comments: [{
+                    id: 'comment-1',
+                    taskNumber: 1,
+                    text: '<p>Reason</p>',
+                    categoryId: 'uncategorized',
+                    categoryLabel: 'Uncategorized',
+                    color: '#facc15',
+                    status: 'active',
+                    anchorText: 'Hello',
+                    from: 1,
+                    to: 6,
+                    createdAt: 1,
+                    updatedAt: 1,
+                }],
+            },
+        }));
+
+        await openEditingMode();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Mock Click Comment Mark' }));
+
+        await waitFor(() => {
+            expect(screen.getByTestId('comment-sidebar-props')).toHaveTextContent('focused:comment-1;anchor:222;request:1');
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Mock Click Comment Mark' }));
+
+        await waitFor(() => {
+            expect(screen.getByTestId('comment-sidebar-props')).toHaveTextContent('focused:comment-1;anchor:222;request:2');
+        });
     });
 });

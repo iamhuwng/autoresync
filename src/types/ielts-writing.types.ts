@@ -326,12 +326,15 @@ export interface GradingCorrection {
     correctionText: string;
     from: number;
     to: number;
+    createdAt: number;
+    updatedAt: number;
 }
 
 export interface WritingTaskMarkupState {
     taskNumber: 1 | 2;
     markedContent: Record<string, any> | null;
     comments: GradingComment[];
+    corrections: GradingCorrection[];
     isVoided: boolean;
     voidReason?: string;
     criteriaScores: {

@@ -1,0 +1,426 @@
+- generic [ref=e523]:
+  - generic [ref=e525]:
+    - heading "Writing Grading" [level=1] [ref=e527]
+    - generic [ref=e529]:
+      - button "Materials" [ref=e530] [cursor=pointer]:
+        - generic [ref=e531]: Materials
+      - generic [ref=e533]:
+        - button "Students" [ref=e534] [cursor=pointer]:
+          - generic [ref=e535]: Students
+        - button "Classes" [ref=e536] [cursor=pointer]:
+          - generic [ref=e537]: Classes
+        - button "Courses" [ref=e538] [cursor=pointer]:
+          - generic [ref=e539]: Courses
+        - button "Homework" [ref=e540] [cursor=pointer]:
+          - generic [ref=e541]: Homework
+        - button "Grading" [ref=e542] [cursor=pointer]:
+          - generic [ref=e543]: Grading
+      - button "Sessions" [ref=e545] [cursor=pointer]:
+        - generic [ref=e546]: Sessions
+      - generic [ref=e548]:
+        - button "Notifications" [ref=e552] [cursor=pointer]:
+          - img [ref=e553]
+        - button "Open profile menu" [ref=e557] [cursor=pointer]:
+          - img "Teacher Test" [ref=e559]
+          - generic [ref=e560]: Teacher Test
+  - generic [ref=e563]:
+    - banner [ref=e564]:
+      - generic [ref=e565]:
+        - button "Back to Queue" [ref=e566] [cursor=pointer]:
+          - img [ref=e568]
+          - generic [ref=e571]: Back to Queue
+        - generic [ref=e573]:
+          - generic [ref=e574]:
+            - generic [ref=e575]: student@test.com
+            - generic [ref=e576]: "ID: Bk62"
+          - generic [ref=e577]: EDITING
+      - generic [ref=e578]:
+        - button "Save Draft" [disabled] [ref=e642]
+        - button "Submit Grading" [disabled] [ref=e643]
+    - main [ref=e580]:
+      - generic [ref=e581]:
+        - generic [ref=e583]:
+          - button "Marked" [ref=e584] [cursor=pointer]
+          - button "Original" [ref=e585] [cursor=pointer]
+        - generic [ref=e587]:
+          - generic [ref=e589]:
+            - generic [ref=e644]:
+              - button "Undo" [disabled] [ref=e645]:
+                - img [ref=e646]
+              - button "Redo" [disabled] [ref=e649]:
+                - img [ref=e650]
+              - button "Add comment" [disabled] [ref=e654]:
+                - img [ref=e655]
+                - generic [ref=e657]: Comment
+              - button "Add correction" [disabled] [ref=e658]:
+                - img [ref=e659]
+                - generic [ref=e662]: Correction
+            - generic [ref=e590]:
+              - generic [ref=e591]:
+                - generic "Go to comment" [ref=e592] [cursor=pointer]
+                - generic "Go to comment" [ref=e593] [cursor=pointer]
+              - generic [ref=e596]:
+                - paragraph [ref=e965]:
+                  - generic [ref=e966]: The cha -> The chart
+                  - text: t illustrates the amount of greenhouse emission from three sources such as Oil, Coal and gas from the country of United Kingdom in a period of twenty years Started from 1990.
+                - paragraph [ref=e967]: Overview There is A downward trend Witnesses to the amounts of greenhouse gases. Output from oil and coal. The opposite was true for gas. Besides the amount of CO2 Stan at first place in every year except for the year of nineteen ninety
+                - paragraph [ref=e968]:
+                  - text: in the year of 1990, coal Is release the largest amount of CO2 at 310 million tons. followed by oil 270 million tons. Gas was the smallest output in
+                  - generic [ref=e969]:
+                    - generic [ref=e970]: the beginning of the period
+                    - text: "-> moew"
+                  - text: on the rich 220 million tons.
+          - button "Quick Comments" [ref=e664] [cursor=pointer]:
+            - img [ref=e665]
+            - generic [ref=e667]: Quick Comments
+      - complementary [ref=e603]:
+        - generic [ref=e604]:
+          - button "Prompt" [ref=e605] [cursor=pointer]
+          - button "Comments" [ref=e606] [cursor=pointer]
+          - button "Suggestions" [active] [ref=e607] [cursor=pointer]
+          - button "Scoring" [ref=e608] [cursor=pointer]
+        - generic [ref=e971]:
+          - generic [ref=e973]:
+            - generic [ref=e974]:
+              - generic [ref=e975]: Suggestions
+              - paragraph [ref=e976]: 21 suggestions ready for Task 1.
+            - generic [ref=e977]:
+              - button "Force Regenerate" [ref=e978] [cursor=pointer]
+              - button "Generate More" [ref=e979] [cursor=pointer]
+              - button "Open Review" [ref=e980] [cursor=pointer]
+          - generic [ref=e982]:
+            - generic [ref=e983]:
+              - generic [ref=e984]: Pending
+              - strong [ref=e985]: "19"
+            - generic [ref=e986]:
+              - generic [ref=e987]: Approved
+              - strong [ref=e988]: "2"
+            - generic [ref=e989]:
+              - generic [ref=e990]: Dismissed
+              - strong [ref=e991]: "0"
+          - paragraph [ref=e993]: Finish or cancel the open comment before approving another suggestion.
+        - generic [ref=e698]:
+          - generic [ref=e699]:
+            - img [ref=e700]
+            - text: Readiness
+          - generic [ref=e703]:
+            - generic [ref=e704]:
+              - generic [ref=e705]: Scores Set
+              - img [ref=e707]
+            - generic [ref=e709]:
+              - generic [ref=e710]: Summary Required
+              - img [ref=e712]
+            - generic [ref=e714]:
+              - generic [ref=e715]: Draft Comments
+              - img [ref=e717]
+        - button "Review AI Suggestions" [ref=e641] [cursor=pointer]
+    - dialog "Task 1 suggestion review" [ref=e995]:
+      - generic [ref=e996]:
+        - generic [ref=e997]:
+          - heading "Task 1 Suggestion Review" [level=2] [ref=e998]
+          - paragraph [ref=e999]: Review, approve, dismiss, or restore grammar and vocabulary suggestions.
+        - generic [ref=e1000]:
+          - button "Force Regenerate" [ref=e1001] [cursor=pointer]
+          - button "Generate More" [ref=e1002] [cursor=pointer]
+          - button "Close" [ref=e1003] [cursor=pointer]
+      - generic [ref=e1004]:
+        - generic [ref=e1005]:
+          - generic [ref=e1006]: Status
+          - generic [ref=e1007]:
+            - button "Pending 19" [ref=e1008] [cursor=pointer]
+            - button "Approved 2" [ref=e1009] [cursor=pointer]
+            - button "Dismissed 0" [ref=e1010] [cursor=pointer]
+            - button "All 21" [ref=e1011] [cursor=pointer]
+        - generic [ref=e1012]:
+          - generic [ref=e1013]: Focus
+          - generic [ref=e1014]:
+            - button "All" [ref=e1015] [cursor=pointer]
+            - button "Grammar" [ref=e1016] [cursor=pointer]
+            - button "Vocabulary" [ref=e1017] [cursor=pointer]
+        - generic [ref=e1018]:
+          - generic [ref=e1019]: Type
+          - generic [ref=e1020]:
+            - button "All" [ref=e1021] [cursor=pointer]
+            - button "Comment" [ref=e1022] [cursor=pointer]
+            - button "Correction" [ref=e1023] [cursor=pointer]
+      - paragraph [ref=e1025]: Finish or cancel the open comment before approving another suggestion.
+      - generic [ref=e1026]:
+        - generic [ref=e1027]:
+          - generic [ref=e1028]:
+            - generic [ref=e1029]: Sentence 1
+            - generic [ref=e1030]: 5 items
+          - article [ref=e1031]:
+            - generic [ref=e1033]:
+              - strong [ref=e1034]: Incorrect Noun Form
+              - generic [ref=e1035]:
+                - generic [ref=e1036]: Grammar
+                - generic [ref=e1037]: Correction
+                - generic [ref=e1038]: pending
+            - generic [ref=e1039]: "\"emission\""
+            - paragraph [ref=e1040]: The noun 'emission' should be plural when referring to multiple releases from different sources.
+            - generic [ref=e1041]: emissions
+            - generic [ref=e1042]:
+              - button "Approve" [disabled] [ref=e1043]
+              - button "Dismiss" [ref=e1044] [cursor=pointer]
+          - article [ref=e1045]:
+            - generic [ref=e1047]:
+              - strong [ref=e1048]: Incorrect Capitalization of Common Nouns
+              - generic [ref=e1049]:
+                - generic [ref=e1050]: Grammar
+                - generic [ref=e1051]: Correction
+                - generic [ref=e1052]: pending
+            - generic [ref=e1053]: "\"Oil, Coal and gas\""
+            - paragraph [ref=e1054]: "'Oil', 'coal', and 'gas' are common nouns and should not be capitalized unless they are at the beginning of a sentence or part of a proper noun."
+            - generic [ref=e1055]: oil, coal and gas
+            - generic [ref=e1056]:
+              - button "Approve" [disabled] [ref=e1057]
+              - button "Dismiss" [ref=e1058] [cursor=pointer]
+          - article [ref=e1059]:
+            - generic [ref=e1061]:
+              - strong [ref=e1062]: Redundant Phrasing
+              - generic [ref=e1063]:
+                - generic [ref=e1064]: Vocabulary
+                - generic [ref=e1065]: Correction
+                - generic [ref=e1066]: pending
+            - generic [ref=e1067]: "\"from the country of United Kingdom\""
+            - paragraph [ref=e1068]: The phrase 'from the country of' is redundant when referring to a country by name. 'In' is the appropriate preposition for location.
+            - generic [ref=e1069]: in the United Kingdom
+            - generic [ref=e1070]:
+              - button "Approve" [disabled] [ref=e1071]
+              - button "Dismiss" [ref=e1072] [cursor=pointer]
+          - article [ref=e1073]:
+            - generic [ref=e1075]:
+              - strong [ref=e1076]: Missing Definite Article
+              - generic [ref=e1077]:
+                - generic [ref=e1078]: Grammar
+                - generic [ref=e1079]: Correction
+                - generic [ref=e1080]: pending
+            - generic [ref=e1081]: "\"United Kingdom\""
+            - paragraph [ref=e1082]: The definite article 'the' is required before 'United Kingdom'.
+            - generic [ref=e1083]: the United Kingdom
+            - generic [ref=e1084]:
+              - button "Approve" [disabled] [ref=e1085]
+              - button "Dismiss" [ref=e1086] [cursor=pointer]
+          - article [ref=e1087]:
+            - generic [ref=e1089]:
+              - strong [ref=e1090]: Awkward and Grammatically Incorrect Time Phrase
+              - generic [ref=e1091]:
+                - generic [ref=e1092]: Grammar
+                - generic [ref=e1093]: Comment
+                - generic [ref=e1094]: pending
+            - generic [ref=e1095]: "\"in a period of twenty years Started from 1990.\""
+            - paragraph [ref=e1096]: The phrase is awkwardly constructed and uses 'Started' incorrectly as a past participle modifying 'years'. It should be rephrased to clearly indicate the duration and start point.
+            - generic [ref=e1097]: The phrase is awkwardly constructed and uses 'Started' incorrectly as a past participle modifying 'years'. It should be rephrased to clearly indicate the duration and start point.
+            - generic [ref=e1098]:
+              - button "Approve" [disabled] [ref=e1099]
+              - button "Dismiss" [ref=e1100] [cursor=pointer]
+        - generic [ref=e1101]:
+          - generic [ref=e1102]:
+            - generic [ref=e1103]: Sentence 2
+            - generic [ref=e1104]: 3 items
+          - article [ref=e1105]:
+            - generic [ref=e1107]:
+              - strong [ref=e1108]: Grammatical Error and Awkward Phrasing
+              - generic [ref=e1109]:
+                - generic [ref=e1110]: Grammar
+                - generic [ref=e1111]: Comment
+                - generic [ref=e1112]: pending
+            - generic [ref=e1113]: "\"Overview There is A downward trend Witnesses\""
+            - paragraph [ref=e1114]: The sentence incorrectly uses 'Witnesses' as a verb and has an awkward structure. 'Overview' should either be a heading or integrated smoothly into the sentence, and the verb needs to be in a passive voice or rephrased.
+            - generic [ref=e1115]: The sentence incorrectly uses 'Witnesses' as a verb and has an awkward structure. 'Overview' should either be a heading or integrated smoothly into the sentence, and the verb needs to be in a passive voice or rephrased.
+            - generic [ref=e1116]:
+              - button "Approve" [disabled] [ref=e1117]
+              - button "Dismiss" [ref=e1118] [cursor=pointer]
+          - article [ref=e1119]:
+            - generic [ref=e1121]:
+              - strong [ref=e1122]: Incorrect Capitalization
+              - generic [ref=e1123]:
+                - generic [ref=e1124]: Grammar
+                - generic [ref=e1125]: Correction
+                - generic [ref=e1126]: pending
+            - generic [ref=e1127]: "\"A downward trend\""
+            - paragraph [ref=e1128]: The word 'A' should not be capitalized in the middle of a sentence unless it's part of a proper noun.
+            - generic [ref=e1129]: a downward trend
+            - generic [ref=e1130]:
+              - button "Approve" [disabled] [ref=e1131]
+              - button "Dismiss" [ref=e1132] [cursor=pointer]
+          - article [ref=e1133]:
+            - generic [ref=e1135]:
+              - strong [ref=e1136]: Incorrect Preposition
+              - generic [ref=e1137]:
+                - generic [ref=e1138]: Grammar
+                - generic [ref=e1139]: Comment
+                - generic [ref=e1140]: pending
+            - generic [ref=e1141]: "\"to the amounts of greenhouse gases.\""
+            - paragraph [ref=e1142]: The preposition 'to' is not appropriate here. 'In' or 'for' would be more suitable to describe the trend in quantities.
+            - generic [ref=e1143]: The preposition 'to' is not appropriate here. 'In' or 'for' would be more suitable to describe the trend in quantities.
+            - generic [ref=e1144]:
+              - button "Approve" [disabled] [ref=e1145]
+              - button "Dismiss" [ref=e1146] [cursor=pointer]
+        - generic [ref=e1147]:
+          - generic [ref=e1148]:
+            - generic [ref=e1149]: Sentence 3
+            - generic [ref=e1150]: 1 item
+          - article [ref=e1151]:
+            - generic [ref=e1153]:
+              - strong [ref=e1154]: Sentence Fragment
+              - generic [ref=e1155]:
+                - generic [ref=e1156]: Grammar
+                - generic [ref=e1157]: Comment
+                - generic [ref=e1158]: pending
+            - generic [ref=e1159]: "\"Output from oil and coal.\""
+            - paragraph [ref=e1160]: This is an incomplete sentence lacking a main verb and subject, making it a fragment. It needs to be combined with another sentence or expanded.
+            - generic [ref=e1161]: This is an incomplete sentence lacking a main verb and subject, making it a fragment. It needs to be combined with another sentence or expanded.
+            - generic [ref=e1162]:
+              - button "Approve" [disabled] [ref=e1163]
+              - button "Dismiss" [ref=e1164] [cursor=pointer]
+        - generic [ref=e1165]:
+          - generic [ref=e1166]:
+            - generic [ref=e1167]: Sentence 4
+            - generic [ref=e1168]: 1 item
+          - article [ref=e1169]:
+            - generic [ref=e1171]:
+              - strong [ref=e1172]: Vague Statement
+              - generic [ref=e1173]:
+                - generic [ref=e1174]: Vocabulary
+                - generic [ref=e1175]: Comment
+                - generic [ref=e1176]: pending
+            - generic [ref=e1177]: "\"The opposite was true for gas.\""
+            - paragraph [ref=e1178]: While grammatically correct, this statement is vague in a Task 1 essay. It's better to explicitly state what the opposite trend was (e.g., 'an upward trend was observed for gas').
+            - generic [ref=e1179]: While grammatically correct, this statement is vague in a Task 1 essay. It's better to explicitly state what the opposite trend was (e.g., 'an upward trend was observed for gas').
+            - generic [ref=e1180]:
+              - button "Approve" [disabled] [ref=e1181]
+              - button "Dismiss" [ref=e1182] [cursor=pointer]
+        - generic [ref=e1183]:
+          - generic [ref=e1184]:
+            - generic [ref=e1185]: Sentence 5
+            - generic [ref=e1186]: 4 items
+          - article [ref=e1187]:
+            - generic [ref=e1189]:
+              - strong [ref=e1190]: Incorrect Conjunction/Transition Word
+              - generic [ref=e1191]:
+                - generic [ref=e1192]: Vocabulary
+                - generic [ref=e1193]: Correction
+                - generic [ref=e1194]: pending
+            - generic [ref=e1195]: "\"Besides\""
+            - paragraph [ref=e1196]: "'Besides' means 'in addition to' or 'apart from'. Here, a transition word like 'Furthermore' or 'In addition' is needed to introduce another point."
+            - generic [ref=e1197]: Furthermore,
+            - generic [ref=e1198]:
+              - button "Approve" [disabled] [ref=e1199]
+              - button "Dismiss" [ref=e1200] [cursor=pointer]
+          - article [ref=e1201]:
+            - generic [ref=e1203]:
+              - strong [ref=e1204]: Incorrect Verb Tense and Form
+              - generic [ref=e1205]:
+                - generic [ref=e1206]: Grammar
+                - generic [ref=e1207]: Comment
+                - generic [ref=e1208]: pending
+            - generic [ref=e1209]: "\"the amount of CO2 Stan at first place\""
+            - paragraph [ref=e1210]: "'Stan' is not the correct past tense form of 'stand' and is used incorrectly here. The correct past tense is 'stood' or a phrase like 'remained in'."
+            - generic [ref=e1211]: "'Stan' is not the correct past tense form of 'stand' and is used incorrectly here. The correct past tense is 'stood' or a phrase like 'remained in'."
+            - generic [ref=e1212]:
+              - button "Approve" [disabled] [ref=e1213]
+              - button "Dismiss" [ref=e1214] [cursor=pointer]
+          - article [ref=e1215]:
+            - generic [ref=e1217]:
+              - strong [ref=e1218]: Incorrect Preposition with 'First Place'
+              - generic [ref=e1219]:
+                - generic [ref=e1220]: Grammar
+                - generic [ref=e1221]: Correction
+                - generic [ref=e1222]: pending
+            - generic [ref=e1223]: "\"at first place\""
+            - paragraph [ref=e1224]: The correct preposition to use with 'first place' is 'in', not 'at'.
+            - generic [ref=e1225]: in first place
+            - generic [ref=e1226]:
+              - button "Approve" [disabled] [ref=e1227]
+              - button "Dismiss" [ref=e1228] [cursor=pointer]
+          - article [ref=e1229]:
+            - generic [ref=e1231]:
+              - strong [ref=e1232]: Redundant and Awkward Time Expression
+              - generic [ref=e1233]:
+                - generic [ref=e1234]: Vocabulary
+                - generic [ref=e1235]: Comment
+                - generic [ref=e1236]: pending
+            - generic [ref=e1237]: "\"in every year except for the year of nineteen ninety\""
+            - paragraph [ref=e1238]: The phrase 'for the year of' is redundant. 'Except for 1990' or 'in all years except 1990' is more concise. 'nineteen ninety' should be '1990' for consistency with other numbers.
+            - generic [ref=e1239]: The phrase 'for the year of' is redundant. 'Except for 1990' or 'in all years except 1990' is more concise. 'nineteen ninety' should be '1990' for consistency with other numbers.
+            - generic [ref=e1240]:
+              - button "Approve" [disabled] [ref=e1241]
+              - button "Dismiss" [ref=e1242] [cursor=pointer]
+        - generic [ref=e1243]:
+          - generic [ref=e1244]:
+            - generic [ref=e1245]: Sentence 6
+            - generic [ref=e1246]: 3 items
+          - article [ref=e1247]:
+            - generic [ref=e1249]:
+              - strong [ref=e1250]: Redundant Time Expression
+              - generic [ref=e1251]:
+                - generic [ref=e1252]: Vocabulary
+                - generic [ref=e1253]: Correction
+                - generic [ref=e1254]: pending
+            - generic [ref=e1255]: "\"in the year of 1990\""
+            - paragraph [ref=e1256]: "'In 1990' is more concise and natural than 'in the year of 1990'."
+            - generic [ref=e1257]: In 1990,
+            - generic [ref=e1258]:
+              - button "Approve" [disabled] [ref=e1259]
+              - button "Dismiss" [ref=e1260] [cursor=pointer]
+          - article [ref=e1261]:
+            - generic [ref=e1263]:
+              - strong [ref=e1264]: Incorrect Verb Form and Tense
+              - generic [ref=e1265]:
+                - generic [ref=e1266]: Grammar
+                - generic [ref=e1267]: Correction
+                - generic [ref=e1268]: pending
+            - generic [ref=e1269]: "\"coal Is release\""
+            - paragraph [ref=e1270]: The auxiliary verb 'Is' is incorrectly used with the base form 'release'. For a past event, it should be 'released' (simple past).
+            - generic [ref=e1271]: coal released
+            - generic [ref=e1272]:
+              - button "Approve" [disabled] [ref=e1273]
+              - button "Dismiss" [ref=e1274] [cursor=pointer]
+          - article [ref=e1275]:
+            - generic [ref=e1277]:
+              - strong [ref=e1278]: Incorrect Preposition for Quantity
+              - generic [ref=e1279]:
+                - generic [ref=e1280]: Grammar
+                - generic [ref=e1281]: Correction
+                - generic [ref=e1282]: pending
+            - generic [ref=e1283]: "\"at 310 million tons.\""
+            - paragraph [ref=e1284]: When stating a specific quantity or amount, 'at' is generally not the most appropriate preposition. 'Of' or 'amounting to' would be better.
+            - generic [ref=e1285]: of 310 million tons.
+            - generic [ref=e1286]:
+              - button "Approve" [disabled] [ref=e1287]
+              - button "Dismiss" [ref=e1288] [cursor=pointer]
+        - generic [ref=e1289]:
+          - generic [ref=e1290]:
+            - generic [ref=e1291]: Sentence 7
+            - generic [ref=e1292]: 1 item
+          - article [ref=e1293]:
+            - generic [ref=e1295]:
+              - strong [ref=e1296]: Sentence Fragment
+              - generic [ref=e1297]:
+                - generic [ref=e1298]: Grammar
+                - generic [ref=e1299]: Comment
+                - generic [ref=e1300]: pending
+            - generic [ref=e1301]: "\"followed by oil 270 million tons.\""
+            - paragraph [ref=e1302]: This is an incomplete sentence lacking a main verb and subject. It needs to be integrated into the previous sentence or expanded into a full sentence.
+            - generic [ref=e1303]: This is an incomplete sentence lacking a main verb and subject. It needs to be integrated into the previous sentence or expanded into a full sentence.
+            - generic [ref=e1304]:
+              - button "Approve" [disabled] [ref=e1305]
+              - button "Dismiss" [ref=e1306] [cursor=pointer]
+        - generic [ref=e1307]:
+          - generic [ref=e1308]:
+            - generic [ref=e1309]: Sentence 8
+            - generic [ref=e1310]: 1 item
+          - article [ref=e1311]:
+            - generic [ref=e1313]:
+              - strong [ref=e1314]: Incomprehensible Phrase
+              - generic [ref=e1315]:
+                - generic [ref=e1316]: Vocabulary
+                - generic [ref=e1317]: Correction
+                - generic [ref=e1318]: pending
+            - generic [ref=e1319]: "\"on the rich 220 million tons.\""
+            - paragraph [ref=e1320]: The phrase 'on the rich' makes no sense in this context and appears to be a significant error in word choice or transcription. It should state the amount directly.
+            - generic [ref=e1321]: at 220 million tons.
+            - generic [ref=e1322]:
+              - button "Approve" [disabled] [ref=e1323]
+              - button "Dismiss" [ref=e1324] [cursor=pointer]

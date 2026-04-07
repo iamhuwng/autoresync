@@ -9,9 +9,6 @@
   "hosting": [
     {
       "target": "kahut1",
-      "predeploy": [
-        "node scripts/build-app.mjs"
-      ],
       "public": "dist",
       "ignore": [
         "firebase.json",

@@ -1,0 +1,83 @@
+- generic [ref=e335]:
+  - generic [ref=e337]:
+    - heading "Writing Grading" [level=1] [ref=e339]
+    - generic [ref=e341]:
+      - button "Materials" [ref=e342] [cursor=pointer]:
+        - generic [ref=e343]: Materials
+      - generic [ref=e345]:
+        - button "Students" [ref=e346] [cursor=pointer]:
+          - generic [ref=e347]: Students
+        - button "Classes" [ref=e348] [cursor=pointer]:
+          - generic [ref=e349]: Classes
+        - button "Courses" [ref=e350] [cursor=pointer]:
+          - generic [ref=e351]: Courses
+        - button "Homework" [ref=e352] [cursor=pointer]:
+          - generic [ref=e353]: Homework
+        - button "Grading" [ref=e354] [cursor=pointer]:
+          - generic [ref=e355]: Grading
+      - button "Sessions" [ref=e357] [cursor=pointer]:
+        - generic [ref=e358]: Sessions
+      - generic [ref=e360]:
+        - button "Notifications" [ref=e364] [cursor=pointer]:
+          - img [ref=e365]
+        - button "Open profile menu" [ref=e369] [cursor=pointer]:
+          - img "Teacher Test" [ref=e371]
+          - generic [ref=e372]: Teacher Test
+  - generic [ref=e375]:
+    - banner [ref=e376]:
+      - generic [ref=e377]:
+        - button "Back to Queue" [ref=e378] [cursor=pointer]:
+          - img [ref=e380]
+          - generic [ref=e383]: Back to Queue
+        - generic [ref=e385]:
+          - generic [ref=e386]:
+            - generic [ref=e387]: student@test.com
+            - generic [ref=e388]: "ID: Bk62"
+          - generic [ref=e389]: IN REVIEW
+      - button "Start Grading" [ref=e391] [cursor=pointer]
+    - main [ref=e392]:
+      - generic [ref=e393]:
+        - generic [ref=e395]:
+          - button "Marked" [ref=e396] [cursor=pointer]
+          - button "Original" [ref=e397] [cursor=pointer]
+        - generic [ref=e402]:
+          - generic [ref=e403]:
+            - generic "Go to comment" [ref=e404] [cursor=pointer]
+            - generic "Go to comment" [ref=e405] [cursor=pointer]
+          - generic [ref=e408]:
+            - paragraph [ref=e409]:
+              - generic [ref=e410]: The cha -> The chart
+              - text: t illustrates the amount of greenhouse emission from three sources such as Oil, Coal and gas from the country of United Kingdom in a period of twenty years Started from 1990.
+            - paragraph [ref=e411]: Overview There is A downward trend Witnesses to the amounts of greenhouse gases. Output from oil and coal. The opposite was true for gas. Besides the amount of CO2 Stan at first place in every year except for the year of nineteen ninety
+            - paragraph [ref=e412]:
+              - text: in the year of 1990, coal Is release the largest amount of CO2 at 310 million tons. followed by oil 270 million tons. Gas was the smallest output in
+              - generic [ref=e413]:
+                - generic [ref=e414]: the beginning of the period
+                - text: "-> moew"
+              - text: on the rich 220 million tons.
+      - complementary [ref=e415]:
+        - generic [ref=e416]:
+          - button "Prompt" [ref=e417] [cursor=pointer]
+          - button "Comments" [ref=e418] [cursor=pointer]
+          - button "Suggestions" [ref=e419] [cursor=pointer]
+          - button "Scoring" [ref=e420] [cursor=pointer]
+        - generic [ref=e422]:
+          - generic [ref=e423]:
+            - button "All (2)" [ref=e424] [cursor=pointer]
+            - button "Open (2)" [ref=e425] [cursor=pointer]
+            - button "Resolved (0)" [ref=e426] [cursor=pointer]
+            - button "Deleted (0)" [ref=e427] [cursor=pointer]
+          - generic [ref=e431]:
+            - generic [ref=e433] [cursor=pointer]:
+              - generic [ref=e434]:
+                - generic [ref=e437]: LR
+                - generic [ref=e439]: 2d
+              - generic [ref=e440]: "\"the amount of greenhouse emission from three sources such as Oil, Coal and gas\""
+              - generic [ref=e441]: While 'amount' can be used for uncountable nouns, 'emissions' are often treated as measurable in specific units, making 'level' or simply 'emissions' more precise. Also, 'such as' is typically followed by examples, while 'including' is better for a comprehensive list of sources.
+            - generic [ref=e443] [cursor=pointer]:
+              - generic [ref=e444]:
+                - generic [ref=e447]: General
+                - generic [ref=e449]: 10m
+              - generic [ref=e450]: "\"the beginning of the period\""
+              - generic [ref=e451]: moa
+        - button "Review AI Suggestions" [ref=e453] [cursor=pointer]

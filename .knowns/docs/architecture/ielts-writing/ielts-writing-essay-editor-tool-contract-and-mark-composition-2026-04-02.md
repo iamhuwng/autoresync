@@ -2,7 +2,7 @@
 title: IELTS Writing Essay Editor Tool Contract And Mark Composition 2026-04-02
 description: Architecture note for the essay-editor tool layer in teacher IELTS Writing grading, covering read-only behavior, selection anchoring, comment identity, and the remaining overlapping-mark composition boundary.
 createdAt: '2026-04-02T09:51:04.708Z'
-updatedAt: '2026-04-06T04:07:37.978Z'
+updatedAt: '2026-04-06T04:30:21.937Z'
 tags:
   - architecture
   - ielts
@@ -274,3 +274,9 @@ Rules:
   - any remaining overflow must scroll inside the composer itself, not below the screen and not by moving the page
 - This turns the pending composer into a lane-fitted rail item rather than assuming the full card can always fit in the sidebar viewport.
 - Published result rails still reuse the same visible-lane geometry helper for selection reveal, but this internal-composer overflow rule is grading-only because read-only result surfaces do not host a pending composer.
+
+## 2026-04-06 Sixth Follow-up - Shared Scoring Rail Ownership
+
+- The scoring rail redesign applies to the shared `CriteriaScoringPanel`, not to one task-specific branch.
+- Task 1 and Task 2 scoring must render through the same panel structure and the same CSS contract.
+- The only allowed task-specific divergence in that panel is the criterion naming boundary (`Task Achievement` vs `Task Response`).

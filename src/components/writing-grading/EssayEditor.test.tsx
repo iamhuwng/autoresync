@@ -3,6 +3,8 @@ import type { ComponentProps } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import EssayEditor from './EssayEditor';
 
+const scrollIntoViewMock = vi.fn();
+
 const baseProps: ComponentProps<typeof EssayEditor> = {
     originalEssayText: 'Hello world',
     initialContent: null,
@@ -117,9 +119,14 @@ const rect = {
 
 describe('EssayEditor', () => {
     beforeEach(() => {
+        scrollIntoViewMock.mockClear();
         Object.defineProperty(HTMLElement.prototype, 'getBoundingClientRect', {
             configurable: true,
             value: () => rect,
+        });
+        Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+            configurable: true,
+            value: scrollIntoViewMock,
         });
         Object.defineProperty(HTMLElement.prototype, 'getClientRects', {
             configurable: true,
@@ -239,6 +246,22 @@ describe('EssayEditor', () => {
                 correctionText: 'Hi',
             }));
         });
+    });
+
+    it('does not open correction editing when only the struck source text is clicked', async () => {
+        const onCorrectionMarkClick = vi.fn();
+        const { container } = renderEditor({
+            onCorrectionMarkClick,
+            pendingCorrection: buildPendingCorrection(),
+        });
+
+        await waitFor(() => {
+            expect(container.querySelector('.correction-mark-original')).toBeTruthy();
+        });
+
+        fireEvent.click(container.querySelector('.correction-mark-original') as Element);
+
+        expect(onCorrectionMarkClick).not.toHaveBeenCalled();
     });
 
     it('emits correction items when correction marks exist', async () => {
@@ -628,6 +651,42 @@ describe('EssayEditor', () => {
         expect(onCommentMarkClick).not.toHaveBeenCalled();
     });
 
+    it('lets the original source text keep comment-click behavior when a piggyback comment overlaps a correction', async () => {
+        const onCommentMarkClick = vi.fn();
+        const onCorrectionMarkClick = vi.fn();
+        const { container } = renderEditor({
+            onCommentMarkClick,
+            onCorrectionMarkClick,
+            comments: [{
+                id: 'comment-1',
+                taskNumber: 1,
+                text: 'Keep this precise.',
+                categoryId: 'cc',
+                categoryLabel: 'CC',
+                color: '#22c55e',
+                status: 'active',
+                anchorText: 'Hello',
+                from: 1,
+                to: 6,
+                createdAt: 1,
+                updatedAt: 1,
+            }],
+            initialContent: buildInitialContent('Hello', [
+                { type: 'commentMark', attrs: { commentId: 'comment-1', color: '#22c55e' } },
+                { type: 'correctionMark', attrs: { correctionText: 'Hi' } },
+            ]),
+        });
+
+        await waitFor(() => {
+            expect(container.querySelector('.correction-mark-original [data-comment-id="comment-1"]')).toBeTruthy();
+        });
+
+        fireEvent.click(container.querySelector('.correction-mark-original [data-comment-id="comment-1"]') as Element);
+
+        expect(onCommentMarkClick).toHaveBeenCalledWith('comment-1', 0);
+        expect(onCorrectionMarkClick).not.toHaveBeenCalled();
+    });
+
     it('keeps the piggyback comment markup off the rendered correction replacement text', async () => {
         const { container } = renderEditor({
             comments: [{
@@ -723,5 +782,49 @@ describe('EssayEditor', () => {
         });
 
         expect(container.querySelector('.correction-mark')).toHaveClass('correction-focused');
+    });
+
+    it('does not scroll the page when a saved comment becomes focused', async () => {
+        const { container } = renderEditor({
+            focusedCommentId: 'comment-1',
+            comments: [{
+                id: 'comment-1',
+                taskNumber: 1,
+                text: '<p>Reason</p>',
+                categoryId: 'uncategorized',
+                categoryLabel: 'Uncategorized',
+                color: '#facc15',
+                status: 'active',
+                anchorText: 'Hello',
+                from: 1,
+                to: 6,
+                createdAt: 1,
+                updatedAt: 1,
+            }],
+            initialContent: buildInitialContent('Hello', [
+                { type: 'commentMark', attrs: { commentId: 'comment-1', color: '#facc15' } },
+            ]),
+        });
+
+        await waitFor(() => {
+            expect(container.querySelector('[data-comment-id="comment-1"]')).toHaveClass('comment-focused');
+        });
+
+        expect(scrollIntoViewMock).not.toHaveBeenCalled();
+    });
+
+    it('does not scroll the page when a correction becomes focused', async () => {
+        const { container } = renderEditor({
+            focusedCorrectionId: 'correction-1',
+            initialContent: buildInitialContent('Hello', [
+                { type: 'correctionMark', attrs: { correctionId: 'correction-1', correctionText: 'Hi' } },
+            ]),
+        });
+
+        await waitFor(() => {
+            expect(container.querySelector('.correction-mark')).toHaveClass('correction-focused');
+        });
+
+        expect(scrollIntoViewMock).not.toHaveBeenCalled();
     });
 });

@@ -1,15 +1,14 @@
 ---
 title: README
+description: Project overview, tech stack, key domains, and critical rules. The primary entry point for understanding this project.
 createdAt: '2026-02-27T15:56:46.139Z'
-updatedAt: '2026-02-27T15:57:10.500Z'
-description: >-
-  Project overview, tech stack, key domains, and critical rules. The primary
-  entry point for understanding this project.
+updatedAt: '2026-04-05T14:27:03.306Z'
 tags:
   - core
   - overview
   - entry-point
 ---
+
 # Kahoot — Interactive Learning Platform
 
 ## What This Is
@@ -84,5 +83,10 @@ See @doc/architecture for detailed architecture breakdown.
 ```bash
 npm run dev      # Vite dev server
 npm test         # Vitest
-npm run build    # Production build
+npm run build    # Raw Vite production build + bundle-budget check
+npm run deploy:hosting    # Build, then deploy Hosting target kahut1
 ```
+
+If you want an upload-only step after inspecting `dist/`, run `firebase deploy --only hosting:kahut1`.
+
+On Windows, if raw Vite hits the esbuild temp-file lock issue, follow @doc/troubleshooting/troubleshooting-vite-esbuild-file-lock-on-windows to set `TMPDIR`, `TEMP`, and `TMP` manually for the current shell session before rebuilding.

@@ -1,0 +1,176 @@
+- generic [ref=e523]:
+  - generic [ref=e525]:
+    - heading "Writing Grading" [level=1] [ref=e527]
+    - generic [ref=e529]:
+      - button "Materials" [ref=e530] [cursor=pointer]:
+        - generic [ref=e531]: Materials
+      - generic [ref=e533]:
+        - button "Students" [ref=e534] [cursor=pointer]:
+          - generic [ref=e535]: Students
+        - button "Classes" [ref=e536] [cursor=pointer]:
+          - generic [ref=e537]: Classes
+        - button "Courses" [ref=e538] [cursor=pointer]:
+          - generic [ref=e539]: Courses
+        - button "Homework" [ref=e540] [cursor=pointer]:
+          - generic [ref=e541]: Homework
+        - button "Grading" [ref=e542] [cursor=pointer]:
+          - generic [ref=e543]: Grading
+      - button "Sessions" [ref=e545] [cursor=pointer]:
+        - generic [ref=e546]: Sessions
+      - generic [ref=e548]:
+        - button "Notifications" [ref=e552] [cursor=pointer]:
+          - img [ref=e553]
+        - button "Open profile menu" [ref=e557] [cursor=pointer]:
+          - img "Teacher Test" [ref=e559]
+          - generic [ref=e560]: Teacher Test
+  - generic [ref=e563]:
+    - banner [ref=e564]:
+      - generic [ref=e565]:
+        - button "Back to Queue" [ref=e566] [cursor=pointer]:
+          - img [ref=e568]
+          - generic [ref=e571]: Back to Queue
+        - generic [ref=e573]:
+          - generic [ref=e574]:
+            - generic [ref=e575]: student@test.com
+            - generic [ref=e576]: "ID: Bk62"
+          - generic [ref=e577]: EDITING
+      - generic [ref=e578]:
+        - button "Save Draft" [ref=e642] [cursor=pointer]
+        - button "Submit Grading" [disabled] [ref=e643]
+    - main [ref=e580]:
+      - generic [ref=e581]:
+        - generic [ref=e583]:
+          - button "Marked" [ref=e584] [cursor=pointer]
+          - button "Original" [ref=e585] [cursor=pointer]
+        - generic [ref=e587]:
+          - generic [ref=e589]:
+            - generic [ref=e644]:
+              - button "Undo" [disabled] [ref=e645]:
+                - img [ref=e646]
+              - button "Redo" [disabled] [ref=e649]:
+                - img [ref=e650]
+              - button "Add comment" [disabled] [ref=e654]:
+                - img [ref=e655]
+                - generic [ref=e657]: Comment
+              - button "Add correction" [disabled] [ref=e658]:
+                - img [ref=e659]
+                - generic [ref=e662]: Correction
+            - generic [ref=e590]:
+              - generic [ref=e591]:
+                - generic "Go to comment" [ref=e592] [cursor=pointer]
+                - generic "Go to comment" [ref=e593] [cursor=pointer]
+              - generic [ref=e596]:
+                - paragraph [ref=e808]:
+                  - generic [ref=e809]: The cha -> The chart
+                  - text: t illustrates the amount of greenhouse emission from three sources such as Oil, Coal and gas from the country of United Kingdom in a period of twenty years Started from 1990.
+                - paragraph [ref=e810]: Overview There is A downward trend Witnesses to the amounts of greenhouse gases. Output from oil and coal. The opposite was true for gas. Besides the amount of CO2 Stan at first place in every year except for the year of nineteen ninety
+                - paragraph [ref=e811]:
+                  - text: in the year of 1990, coal Is release the largest amount of CO2 at 310 million tons. followed by oil 270 million tons. Gas was the smallest output in
+                  - generic [ref=e812]:
+                    - generic [ref=e813]: the beginning of the period
+                    - text: "-> moew"
+                  - text: on the rich 220 million tons.
+          - button "Quick Comments" [ref=e664] [cursor=pointer]:
+            - img [ref=e665]
+            - generic [ref=e667]: Quick Comments
+      - complementary [ref=e603]:
+        - generic [ref=e604]:
+          - button "Prompt" [ref=e605] [cursor=pointer]
+          - button "Comments" [ref=e606] [cursor=pointer]
+          - button "Suggestions" [ref=e607] [cursor=pointer]
+          - button "Scoring" [active] [ref=e608] [cursor=pointer]
+        - generic [ref=e875]:
+          - generic [ref=e876]:
+            - generic [ref=e878]: Task 1 Criteria
+            - generic [ref=e879]:
+              - generic [ref=e880]:
+                - generic [ref=e881]: Task Achievement
+                - generic [ref=e882]: 5/9
+              - generic [ref=e883]:
+                - button "0" [ref=e884] [cursor=pointer]
+                - button "1" [ref=e885] [cursor=pointer]
+                - button "2" [ref=e886] [cursor=pointer]
+                - button "3" [ref=e887] [cursor=pointer]
+                - button "4" [ref=e888] [cursor=pointer]
+                - button "5" [ref=e889] [cursor=pointer]
+                - button "6" [ref=e890] [cursor=pointer]
+                - button "7" [ref=e891] [cursor=pointer]
+                - button "8" [ref=e892] [cursor=pointer]
+                - button "9" [ref=e893] [cursor=pointer]
+            - generic [ref=e894]:
+              - generic [ref=e896]: Coherence & Cohesion
+              - generic [ref=e897]:
+                - button "0" [ref=e898] [cursor=pointer]
+                - button "1" [ref=e899] [cursor=pointer]
+                - button "2" [ref=e900] [cursor=pointer]
+                - button "3" [ref=e901] [cursor=pointer]
+                - button "4" [ref=e902] [cursor=pointer]
+                - button "5" [ref=e903] [cursor=pointer]
+                - button "6" [ref=e904] [cursor=pointer]
+                - button "7" [ref=e905] [cursor=pointer]
+                - button "8" [ref=e906] [cursor=pointer]
+                - button "9" [ref=e907] [cursor=pointer]
+            - generic [ref=e908]:
+              - generic [ref=e910]: Lexical Resource
+              - generic [ref=e911]:
+                - button "0" [ref=e912] [cursor=pointer]
+                - button "1" [ref=e913] [cursor=pointer]
+                - button "2" [ref=e914] [cursor=pointer]
+                - button "3" [ref=e915] [cursor=pointer]
+                - button "4" [ref=e916] [cursor=pointer]
+                - button "5" [ref=e917] [cursor=pointer]
+                - button "6" [ref=e918] [cursor=pointer]
+                - button "7" [ref=e919] [cursor=pointer]
+                - button "8" [ref=e920] [cursor=pointer]
+                - button "9" [ref=e921] [cursor=pointer]
+            - generic [ref=e922]:
+              - generic [ref=e924]: Grammatical Range
+              - generic [ref=e925]:
+                - button "0" [ref=e926] [cursor=pointer]
+                - button "1" [ref=e927] [cursor=pointer]
+                - button "2" [ref=e928] [cursor=pointer]
+                - button "3" [ref=e929] [cursor=pointer]
+                - button "4" [ref=e930] [cursor=pointer]
+                - button "5" [ref=e931] [cursor=pointer]
+                - button "6" [ref=e932] [cursor=pointer]
+                - button "7" [ref=e933] [cursor=pointer]
+                - button "8" [ref=e934] [cursor=pointer]
+                - button "9" [ref=e935] [cursor=pointer]
+          - generic [ref=e936]:
+            - generic [ref=e937]: Task 1 Feedback
+            - generic [ref=e938]:
+              - generic [ref=e939]:
+                - button "Task Summary" [ref=e940] [cursor=pointer]
+                - button "TA" [ref=e941] [cursor=pointer]
+                - button "CC" [ref=e942] [cursor=pointer]
+                - button "LR" [ref=e943] [cursor=pointer]
+                - button "GRA" [ref=e944] [cursor=pointer]
+              - generic [ref=e945]:
+                - button "B" [ref=e946] [cursor=pointer]:
+                  - strong [ref=e947]: B
+                - button "I" [ref=e948] [cursor=pointer]:
+                  - emphasis [ref=e949]: I
+                - button "U" [ref=e950] [cursor=pointer]:
+                  - generic [ref=e951]: U
+                - button "•" [ref=e953] [cursor=pointer]
+                - button "1." [ref=e954] [cursor=pointer]
+                - button "↩" [disabled] [ref=e956]
+                - button "↪" [disabled] [ref=e957]
+              - textbox [ref=e960]:
+                - paragraph [ref=e961]
+          - button "🚫 Void Task 1" [ref=e963] [cursor=pointer]
+        - generic [ref=e698]:
+          - generic [ref=e699]:
+            - img [ref=e700]
+            - text: Readiness
+          - generic [ref=e703]:
+            - generic [ref=e704]:
+              - generic [ref=e705]: Scores Set
+              - img [ref=e707]
+            - generic [ref=e709]:
+              - generic [ref=e710]: Summary Required
+              - img [ref=e712]
+            - generic [ref=e714]:
+              - generic [ref=e715]: Draft Comments
+              - img [ref=e717]
+        - button "Review AI Suggestions" [ref=e641] [cursor=pointer]

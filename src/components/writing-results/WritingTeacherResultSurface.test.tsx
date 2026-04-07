@@ -91,6 +91,22 @@ describe('WritingTeacherResultSurface', () => {
                     };
                 }
 
+                if (this?.getAttribute?.('data-feedback-card-id') === 'correction-1') {
+                    return {
+                        x: 0,
+                        y: 284,
+                        width: 440,
+                        height: 96,
+                        top: 284,
+                        left: 20,
+                        right: 460,
+                        bottom: 380,
+                        toJSON() {
+                            return this;
+                        },
+                    };
+                }
+
                 return {
                     x: 0,
                     y: 0,

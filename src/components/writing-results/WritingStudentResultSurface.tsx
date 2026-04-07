@@ -47,6 +47,7 @@ export default function WritingStudentResultSurface({
     const [panelTab, setPanelTab] = useState<StudentPanelTab>('prompt');
     const [selectedFeedbackId, setSelectedFeedbackId] = useState<string | null>(null);
     const [selectedFeedbackAnchorViewportTop, setSelectedFeedbackAnchorViewportTop] = useState<number | null>(null);
+    const [selectedFeedbackRequestKey, setSelectedFeedbackRequestKey] = useState(0);
     const isPanel = variant === 'panel';
     const useSplitLayout = variant === 'page' || forceWidePanelLayout;
     const bandColumnCount = data.bandSummaryItems.length >= 3 ? 3 : Math.max(1, data.bandSummaryItems.length);
@@ -108,6 +109,7 @@ export default function WritingStudentResultSurface({
         setPanelTab('feedback');
         setSelectedFeedbackId(feedbackId);
         setSelectedFeedbackAnchorViewportTop(anchorViewportTop);
+        setSelectedFeedbackRequestKey((current) => current + 1);
     };
 
     if (!activeTask) {
@@ -297,6 +299,7 @@ export default function WritingStudentResultSurface({
                                     taskNumber={activeTask.taskNumber}
                                     selectedFeedbackId={selectedFeedbackId}
                                     selectedFeedbackAnchorViewportTop={selectedFeedbackAnchorViewportTop}
+                                    selectedFeedbackRequestKey={selectedFeedbackRequestKey}
                                     alignToEssay={useSplitLayout}
                                 />
                             )}
@@ -377,6 +380,7 @@ function FeedbackTab({
     taskNumber,
     selectedFeedbackId,
     selectedFeedbackAnchorViewportTop,
+    selectedFeedbackRequestKey,
     alignToEssay,
 }: {
     comments: PublishedCommentData[];
@@ -384,6 +388,7 @@ function FeedbackTab({
     taskNumber: 1 | 2;
     selectedFeedbackId: string | null;
     selectedFeedbackAnchorViewportTop: number | null;
+    selectedFeedbackRequestKey: number;
     alignToEssay: boolean;
 }) {
     return (
@@ -400,6 +405,7 @@ function FeedbackTab({
                 corrections={corrections}
                 selectedFeedbackId={selectedFeedbackId}
                 selectedFeedbackAnchorViewportTop={selectedFeedbackAnchorViewportTop}
+                selectionRequestKey={selectedFeedbackRequestKey}
                 alignToEssay={alignToEssay}
             />
         </div>

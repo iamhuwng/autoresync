@@ -7,6 +7,10 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 
+// Mobile Exam Mode
+import { useMobileExamMode } from '../../../core/platform/hooks/useMobileExamMode';
+import { MobileReadingExamScaffold } from '../../../components/test/mobile/MobileReadingExamScaffold';
+
 // Generic Test Components (shared across all skills)
 import { IELTSQuestionsPanel } from '../../../components/test/IELTSQuestionsPanel';
 import { TwoColumnLayout } from '../../../components/test/TwoColumnLayout';
@@ -50,6 +54,7 @@ import { sessionService } from '../../../services/sessionService';
 const ReadingTestPageContent: React.FC = () => {
   const { sessionCode } = useParams<{ sessionCode: string }>();
   const { navigateTo, handleSessionChange } = useNavigation('student');
+  const { isMobileExamMode } = useMobileExamMode();
   const { checkAndRedirect } = useTeacherEndRedirect({ sessionCode }); // BUG-FIX: Redirect to results on teacher-end
   const submitTestRef = useRef<
     ((isAutoSubmit?: boolean) => Promise<void>) | null
@@ -490,7 +495,118 @@ const ReadingTestPageContent: React.FC = () => {
   const currentPassage = testData.passages.find(p => p.id === activePassageId);
 
   // ═══════════════════════════════════════════════════════════════
-  // MAIN UI RENDER
+  // MOBILE EXAM MODE — Phone-optimized scaffold (PRD-0043)
+  // ═══════════════════════════════════════════════════════════════
+
+  if (isMobileExamMode) {
+    return (
+      <>
+        {/* Connection Monitor (always active) */}
+        <ConnectionMonitor
+          sessionCode={sessionCode}
+          onConnectionChange={(connected) => {
+            if (!connected && !testSubmitted) {
+              console.log('Connection lost during test');
+            }
+          }}
+        />
+
+        {/* Connection Status Indicator */}
+        {!isConnected && (
+          <div style={{
+            position: 'fixed',
+            top: '80px',
+            right: '20px',
+            zIndex: 9998,
+            background: '#fef2f2',
+            border: '2px solid #fecaca',
+            borderRadius: '0.5rem',
+            padding: '0.75rem 1rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+          }}>
+            <span style={{ fontSize: '1.25rem' }}>⚠️</span>
+            <div>
+              <div style={{ fontWeight: '600', color: '#dc2626', fontSize: '0.875rem' }}>
+                Connection Issue
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#991b1b' }}>
+                Your answers are being saved locally
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Waiting/Paused Overlay (renders above scaffold) */}
+        <TestWaitingOverlay
+          sessionStatus={sessionStatus}
+          isPaused={isPaused}
+          sessionCode={sessionCode}
+        />
+
+        {/* Mobile Reading Exam Scaffold */}
+        <MobileReadingExamScaffold
+          mode="live"
+          passages={testData.passages.map((p, i) => ({ id: p.id, title: p.title || `Passage ${i + 1}` }))}
+          questions={displayQuestions}
+          totalQuestions={testData.questionCount || displayQuestions.length}
+          activePassageId={activePassageId || ''}
+          onPassageChange={setActivePassageId}
+          currentPassage={currentPassage}
+          PassageRendererComponent={PassageRenderer}
+          answers={answers}
+          onAnswerChange={(testSubmitted || isLocked) ? () => {} : handleAnswerChange}
+          activeQuestionNumber={currentQuestionNumber}
+          onQuestionClick={goToQuestion}
+          timeRemaining={timeRemaining}
+          formatTime={formatTime}
+          testSubmitted={testSubmitted}
+          isSubmitting={false}
+          questionResults={mergedQuestionResults}
+          onManualSubmit={handleSubmit}
+          onAutoSubmit={() => { submitTestRef.current?.(true); }}
+          isConnected={isConnected}
+          sessionStatus={sessionStatus}
+          isPaused={isPaused}
+          fontSize={fontSize}
+          lineSpacing={lineSpacing}
+          highlighterActive={false} // FR-99/100: suppress highlighter on mobile
+          highlightColor={highlightColor}
+          clearHighlightsTrigger={clearHighlightsTrigger}
+          questionSheetOpen={false}
+          onOpenQuestionSheet={() => {}}
+          onCloseQuestionSheet={() => {}}
+          reviewSummaryOpen={false}
+          onOpenReviewSummary={() => {}}
+          onCloseReviewSummary={() => {}}
+          antiSelectClass={antiCheatConfig?.detectCopyPaste ? 'anti-select' : undefined}
+        />
+
+        {/* Re-marking Modal (Generic) */}
+        <ReMarkingModal
+          show={showReMarkModal}
+          reMarkingData={reMarkingData}
+          totalQuestions={testData?.questionCount || 0}
+          onClose={() => setShowReMarkModal(false)}
+        />
+
+        {/* PRD-0019: Time Up Overlay */}
+        {showTimeUpOverlay && (
+          <TimeUpOverlay
+            onComplete={() => {
+              console.log('⏰ [PRD-0019] Grace period complete, auto-submitting...');
+            }}
+            countdownSeconds={gracePeriodRemaining}
+          />
+        )}
+      </>
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // DESKTOP/TABLET UI RENDER (existing layout)
   // ═══════════════════════════════════════════════════════════════
 
   return (

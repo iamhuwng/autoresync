@@ -263,25 +263,6 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
                 class: 'essay-editor-content marks-only-mode',
                 id: 'essay-editor-content',
             },
-            // Handle clicks on comment marks
-            handleClick: (_view, _pos, event) => {
-                const target = event.target as HTMLElement;
-                if (target.closest('.correction-mark')) {
-                    return false;
-                }
-
-                const commentEl = target.closest('[data-comment-id]');
-                if (commentEl) {
-                    const commentId = commentEl.getAttribute('data-comment-id');
-                    if (commentId) {
-                        const rect = (commentEl as HTMLElement).getBoundingClientRect();
-                        onCommentMarkClick(commentId, rect.top);
-                        return true;
-                    }
-                }
-
-                return false;
-            },
         },
         onUpdate: ({ editor: ed }) => {
             onContentChange?.(ed.getJSON());
@@ -479,7 +460,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
     }, [clearScheduledBubbleMenu, editor, scheduleBubbleMenuUpdate, updateBubbleMenu]);
 
     useEffect(() => {
-        if (!editor || !onCorrectionMarkClick) {
+        if (!editor) {
             return;
         }
 
@@ -488,29 +469,44 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
             return;
         }
 
-        const handleCorrectionClick = (event: MouseEvent) => {
+        const handleAnnotationClick = (event: MouseEvent) => {
             const target = event.target as HTMLElement | null;
-            const correctionEl = target?.closest('.correction-mark') as HTMLElement | null;
+            const correctionTriggerEl = target?.closest('[data-correction-edit-target="true"]') as HTMLElement | null;
+            const correctionEl = correctionTriggerEl?.closest('.correction-mark') as HTMLElement | null;
 
-            if (!correctionEl || !editorEditable.contains(correctionEl)) {
+            if (correctionTriggerEl && correctionEl && editorEditable.contains(correctionEl) && onCorrectionMarkClick) {
+                const correctionSelection = getCorrectionMarkSelection(editor.view, correctionEl, correctionTriggerEl);
+                if (!correctionSelection) {
+                    return;
+                }
+
+                event.preventDefault();
+                event.stopPropagation();
+                onCorrectionMarkClick(correctionSelection);
                 return;
             }
 
-            const correctionSelection = getCorrectionMarkSelection(editor.view, correctionEl);
-            if (!correctionSelection) {
+            const commentEl = target?.closest('[data-comment-id]') as HTMLElement | null;
+            if (!commentEl || !editorEditable.contains(commentEl)) {
                 return;
             }
 
+            const commentId = commentEl.getAttribute('data-comment-id');
+            if (!commentId) {
+                return;
+            }
+
+            const rect = commentEl.getBoundingClientRect();
             event.preventDefault();
             event.stopPropagation();
-            onCorrectionMarkClick(correctionSelection);
+            onCommentMarkClick(commentId, Number.isFinite(rect.top) ? rect.top : null);
         };
 
-        editorEditable.addEventListener('click', handleCorrectionClick);
+        editorEditable.addEventListener('click', handleAnnotationClick);
         return () => {
-            editorEditable.removeEventListener('click', handleCorrectionClick);
+            editorEditable.removeEventListener('click', handleAnnotationClick);
         };
-    }, [editor, onCorrectionMarkClick]);
+    }, [editor, onCommentMarkClick, onCorrectionMarkClick]);
 
     // ─── Apply focused/hovered annotation mark classes ──────────
     useEffect(() => {
@@ -541,25 +537,14 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
         container.querySelectorAll('.correction-focused').forEach(el => el.classList.remove('correction-focused'));
         container.querySelectorAll('.correction-hovered').forEach(el => el.classList.remove('correction-hovered'));
 
-        const scrollFirstMarkIntoView = (marks: Element[]) => {
-            const firstMark = marks[0];
-            if (firstMark && typeof (firstMark as { scrollIntoView?: unknown }).scrollIntoView === 'function') {
-                (firstMark as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-        };
-
         if (focusedCommentId) {
             const marks = findCommentMarks(focusedCommentId);
             marks.forEach((element) => element.classList.add('comment-focused'));
-            scrollFirstMarkIntoView(marks);
         }
 
         if (focusedCorrectionId) {
             const marks = findCorrectionMarks(focusedCorrectionId);
             marks.forEach((element) => element.classList.add('correction-focused'));
-            if (!focusedCommentId) {
-                scrollFirstMarkIntoView(marks);
-            }
         }
 
         if (hoveredCommentId && hoveredCommentId !== focusedCommentId) {
@@ -720,14 +705,10 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
             return;
         }
 
-        editor.chain()
-            .focus()
-            .setTextSelection({ from: pendingCommentMutation.from, to: pendingCommentMutation.to })
-            .setCommentMark({
-                commentId: pendingCommentMutation.commentId,
-                color: pendingCommentMutation.color,
-            })
-            .run();
+        applyCommentMark(editor, pendingCommentMutation.from, pendingCommentMutation.to, {
+            commentId: pendingCommentMutation.commentId,
+            color: pendingCommentMutation.color,
+        });
     }, [editor, pendingCommentMutation, readOnly, taskNumber]);
 
     useEffect(() => {
@@ -1377,9 +1358,40 @@ function removeCommentMarkById(
     }
 }
 
+function applyCommentMark(
+    editor: {
+        state: {
+            schema: {
+                marks: Record<string, { create: (attrs?: Record<string, unknown>) => unknown } | undefined>;
+            };
+            tr: {
+                addMark: (from: number, to: number, mark: unknown) => { steps: unknown[] };
+            };
+        };
+        view: { dispatch: (transaction: { steps: unknown[] }) => void };
+    },
+    from: number,
+    to: number,
+    attrs: {
+        commentId: string;
+        color: string;
+    },
+) {
+    const commentMarkType = editor.state.schema.marks.commentMark;
+    if (!commentMarkType || from >= to) {
+        return;
+    }
+
+    const transaction = editor.state.tr.addMark(from, to, commentMarkType.create(attrs));
+    if (transaction.steps.length > 0) {
+        editor.view.dispatch(transaction);
+    }
+}
+
 function getCorrectionMarkSelection(
     editorView: { posAtDOM: (node: Node, offset: number) => number },
     correctionElement: HTMLElement,
+    anchorElement: HTMLElement = correctionElement,
 ): CorrectionMarkSelection | null {
     const originalTextNode = findTextNode(correctionElement.querySelector('.correction-mark-original'));
     const selectedText = originalTextNode?.textContent || '';
@@ -1389,7 +1401,7 @@ function getCorrectionMarkSelection(
 
     const from = editorView.posAtDOM(originalTextNode, 0);
     const to = editorView.posAtDOM(originalTextNode, selectedText.length);
-    const rect = correctionElement.getBoundingClientRect();
+    const rect = anchorElement.getBoundingClientRect();
 
     return {
         id: correctionElement.getAttribute('data-correction-id') || `correction-${from}-${to}`,

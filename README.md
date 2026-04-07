@@ -307,8 +307,8 @@ When working on anything result-related, start with [PRD-0040](./documentation/t
 | Script | Purpose |
 |--------|---------|
 | `npm run dev` | Start Vite dev server |
-| `npm run build` | Production build with required env validation and worktree `.env` fallback |
-| `npm run deploy:hosting` | Hosting deploy with the same env guard and Firebase predeploy build |
+| `npm run build` | Direct Vite production build plus bundle-budget check |
+| `npm run deploy:hosting` | Run `npm run build`, then deploy Hosting target `kahut1` |
 | `npm test` | Run Vitest unit tests |
 | `npm run test:e2e` | Run Playwright E2E tests |
 | `npm run lint` | ESLint check |
@@ -316,9 +316,9 @@ When working on anything result-related, start with [PRD-0040](./documentation/t
 | `npm run enforce:check` | Dry-run enforcement check |
 
 Deployment note:
-- detached or temporary git worktrees do not carry the untracked root `.env` file by default
-- `npm run build` and `npm run deploy:hosting` now load env files from the current worktree first, then fall back to the main worktree env files discovered via `git worktree list`
-- if required Firebase web config is still missing, the build fails before a broken hosting artifact can be published
+- `npm run build` now uses the direct Vite build path and then runs `scripts/check-bundle-budget.mjs`
+- `npm run deploy:hosting` builds once and uploads the resulting `dist` with `firebase deploy --only hosting:kahut1`
+- if Windows file locking breaks the build, set `TMPDIR`, `TEMP`, and `TMP` to a writable temp folder in that shell before rerunning the command
 
 ---
 

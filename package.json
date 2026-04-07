@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/build-app.mjs",
-    "deploy:hosting": "node scripts/deploy-hosting.mjs",
+    "build": "node node_modules/vite/bin/vite.js build && node scripts/check-bundle-budget.mjs",
+    "deploy:hosting": "npm run build && node node_modules/firebase-tools/lib/bin/firebase.js deploy --only hosting:kahut1",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest",

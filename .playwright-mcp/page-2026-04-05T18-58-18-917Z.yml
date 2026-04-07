@@ -1,0 +1,44 @@
+- generic [ref=e45]:
+  - generic [ref=e47]:
+    - heading "Materials" [level=1] [ref=e49]
+    - generic [ref=e51]:
+      - button "Materials" [ref=e52] [cursor=pointer]:
+        - generic [ref=e53]: Materials
+      - generic [ref=e55]:
+        - button "Students" [ref=e56] [cursor=pointer]:
+          - generic [ref=e57]: Students
+        - button "Classes" [ref=e58] [cursor=pointer]:
+          - generic [ref=e59]: Classes
+        - button "Courses" [ref=e60] [cursor=pointer]:
+          - generic [ref=e61]: Courses
+        - button "Homework" [ref=e62] [cursor=pointer]:
+          - generic [ref=e63]: Homework
+        - button "Grading" [ref=e64] [cursor=pointer]:
+          - generic [ref=e65]: Grading
+      - button "Sessions" [ref=e67] [cursor=pointer]:
+        - generic [ref=e68]: Sessions
+      - generic [ref=e70]:
+        - button "Notifications" [ref=e74] [cursor=pointer]:
+          - img [ref=e75]
+        - button "Open profile menu" [ref=e79] [cursor=pointer]:
+          - img "Teacher Test" [ref=e81]
+          - generic [ref=e82]: Teacher Test
+  - main [ref=e83]:
+    - generic [ref=e84]:
+      - generic [ref=e85]:
+        - heading "Test Dashboard" [level=1] [ref=e86]
+        - paragraph [ref=e87]: Manage your tests and start formal assessment sessions
+        - generic [ref=e88]:
+          - button "📁 My Content" [ref=e89] [cursor=pointer]:
+            - generic [ref=e90]: 📁 My Content
+          - button "🌐 Public Library" [ref=e91] [cursor=pointer]:
+            - generic [ref=e92]: 🌐 Public Library
+          - button "📝 Drafts" [ref=e93] [cursor=pointer]:
+            - generic [ref=e94]: 📝 Drafts
+      - generic [ref=e97]:
+        - textbox "🔍 Search by title or keyword..." [active] [ref=e101]
+        - button "Create New Test" [ref=e102] [cursor=pointer]:
+          - generic [ref=e103]:
+            - img [ref=e104]
+            - text: Create New Test
+      - paragraph [ref=e108]: Loading tests...

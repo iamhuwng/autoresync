@@ -549,6 +549,68 @@ describe('CommentSidebar', () => {
         });
     });
 
+    it('falls back to live anchor geometry for a focused comment when the captured focus anchor is initially unavailable', async () => {
+        const { container, rerender } = render(
+            <CommentSidebar
+                comments={comments}
+                taskNumber={1}
+                focusedCommentId="comment-2"
+                focusedCommentAnchorViewportTop={null}
+                hoveredCommentId={null}
+                anchorPositions={[]}
+                editorScrollTop={0}
+                onFocusComment={() => {}}
+                onHoverComment={() => {}}
+                onEditComment={() => {}}
+                onResolveComment={() => {}}
+                onReopenComment={() => {}}
+                onDeleteComment={() => {}}
+                onRecoverComment={() => {}}
+                onCategoryChange={() => {}}
+                readOnly
+            />,
+        );
+
+        const shiftedCommentsStack = container.querySelector('[data-comments-stack="true"]');
+
+        await waitFor(() => {
+            expect(shiftedCommentsStack).toHaveStyle({
+                transform: 'translateY(0px)',
+            });
+        });
+
+        rerender(
+            <CommentSidebar
+                comments={comments}
+                taskNumber={1}
+                focusedCommentId="comment-2"
+                focusedCommentAnchorViewportTop={null}
+                hoveredCommentId={null}
+                anchorPositions={[
+                    { commentId: 'comment-1', anchorTop: 100, anchorRight: 20, anchorCenterY: 110, anchorViewportTop: 140 },
+                    { commentId: 'comment-2', anchorTop: 200, anchorRight: 20, anchorCenterY: 210, anchorViewportTop: 180 },
+                ]}
+                editorScrollTop={0}
+                onFocusComment={() => {}}
+                onHoverComment={() => {}}
+                onEditComment={() => {}}
+                onResolveComment={() => {}}
+                onReopenComment={() => {}}
+                onDeleteComment={() => {}}
+                onRecoverComment={() => {}}
+                onCategoryChange={() => {}}
+                readOnly
+            />,
+        );
+
+        await waitFor(() => {
+            expect(shiftedCommentsStack).toHaveStyle({
+                transform: 'translateY(-54px)',
+            });
+            expect(scrollIntoViewMock).not.toHaveBeenCalled();
+        });
+    });
+
     it('keeps the comments rail comment-only after correction/sidebar decoupling', async () => {
         const commentsWithResolved: GradingComment[] = [
             ...comments,

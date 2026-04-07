@@ -8,6 +8,7 @@ interface PublishedFeedbackPanelProps {
     corrections: PublishedCorrectionData[];
     selectedFeedbackId?: string | null;
     selectedFeedbackAnchorViewportTop?: number | null;
+    selectionRequestKey?: number;
     alignToEssay?: boolean;
     emptyMessage?: string;
     maxHeight?: string;
@@ -18,6 +19,7 @@ export default function PublishedFeedbackPanel({
     corrections,
     selectedFeedbackId = null,
     selectedFeedbackAnchorViewportTop = null,
+    selectionRequestKey = 0,
     alignToEssay = false,
     emptyMessage = 'No published comments or corrections for this task.',
     maxHeight = 'min(68vh, 720px)',
@@ -59,6 +61,7 @@ export default function PublishedFeedbackPanel({
                 viewportElement,
                 stackElement,
                 headerElement: selectedFeedbackHeaderElement,
+                fitElement: selectedFeedbackElement,
                 anchorViewportTop: selectedFeedbackAnchorViewportTop,
                 paddingTop: railPadding,
                 paddingBottom: railPadding,
@@ -70,12 +73,12 @@ export default function PublishedFeedbackPanel({
         if (viewportElement) {
             revealRailItemInViewport({
                 viewportElement,
-                itemElement: selectedFeedbackHeaderElement ?? selectedFeedbackElement,
+                itemElement: selectedFeedbackElement,
                 paddingTop: 12,
                 paddingBottom: 12,
             });
         }
-    }, [alignToEssay, selectedFeedbackAnchorViewportTop, selectedFeedbackId]);
+    }, [alignToEssay, selectedFeedbackAnchorViewportTop, selectedFeedbackId, selectionRequestKey]);
 
     if (!hasFeedback) {
         return <EmptyPanelMessage message={emptyMessage} />;

@@ -6,6 +6,7 @@ import type {
     WritingTaskMarkupState,
 } from '../../types/ielts-writing.types';
 import type { TestResultRecord } from '../../services/testResults.service';
+import { normalizeTaskCorrections } from '../../utils/writingCorrections';
 
 export type WritingResultPhase = 'pending-review' | 'published';
 export type WritingResultViewerMode = 'student' | 'teacher-actionable' | 'teacher-read-only';
@@ -319,7 +320,20 @@ function buildTaskData(
                 .sort((left, right) => left.from - right.from)
             : fallbackComments,
         corrections: publishedTask
-            ? extractPublishedCorrections(markedContent)
+            ? normalizeTaskCorrections({
+                taskNumber: task.taskNumber,
+                markedContent,
+                corrections: publishedTask.corrections,
+                fallbackTimestamp: published?.updatedAt ?? published?.gradedAt ?? submission.submittedAt,
+            }).map((correction) => ({
+                kind: 'correction' as const,
+                id: correction.id,
+                anchorText: correction.anchorText,
+                correctionText: correction.correctionText,
+                from: correction.from,
+                to: correction.to,
+                label: 'Correction',
+            }))
             : fallbackCorrections,
         fallbackAnnotations,
         usesLegacyProjection: Boolean(!publishedTask && legacyTask),
@@ -417,84 +431,6 @@ function buildBandSummaryItems(
     });
 
     return items;
-}
-
-function extractPublishedCorrections(
-    markedContent: Record<string, any> | null,
-): PublishedCorrectionData[] {
-    if (!markedContent || typeof markedContent !== 'object') {
-        return [];
-    }
-
-    const correctionsById = new Map<string, PublishedCorrectionData>();
-    let textOffset = 0;
-
-    const visitNode = (node: any) => {
-        if (!node || typeof node !== 'object') {
-            return;
-        }
-
-        if (node.type === 'hardBreak') {
-            textOffset += 1;
-            return;
-        }
-
-        if (typeof node.text === 'string') {
-            const nodeText = node.text;
-            const correctionMark = Array.isArray(node.marks)
-                ? node.marks.find((mark: any) => mark?.type === 'correctionMark' && typeof mark?.attrs?.correctionText === 'string')
-                : null;
-
-            if (correctionMark && nodeText.length > 0) {
-                const correctionId = typeof correctionMark.attrs?.correctionId === 'string' && correctionMark.attrs.correctionId.trim()
-                    ? correctionMark.attrs.correctionId
-                    : `correction-${textOffset}-${textOffset + nodeText.length}`;
-                const correctionText = String(correctionMark.attrs?.correctionText || '').trim();
-                const existing = correctionsById.get(correctionId);
-
-                if (existing) {
-                    existing.anchorText += nodeText;
-                    existing.to = textOffset + nodeText.length;
-                    if (!existing.correctionText && correctionText) {
-                        existing.correctionText = correctionText;
-                    }
-                } else {
-                    correctionsById.set(correctionId, {
-                        kind: 'correction',
-                        id: correctionId,
-                        anchorText: nodeText,
-                        correctionText,
-                        from: textOffset,
-                        to: textOffset + nodeText.length,
-                        label: 'Correction',
-                    });
-                }
-            }
-
-            textOffset += nodeText.length;
-            return;
-        }
-
-        const content = Array.isArray(node.content) ? node.content : [];
-        content.forEach(visitNode);
-
-        if (content.length > 0 && insertsBlockSeparator(node.type)) {
-            textOffset += 1;
-        }
-    };
-
-    visitNode(markedContent);
-
-    return [...correctionsById.values()]
-        .filter((correction) => correction.anchorText.trim().length > 0 || correction.correctionText.length > 0)
-        .sort((left, right) => left.from - right.from);
-}
-
-function insertsBlockSeparator(nodeType: unknown) {
-    return nodeType === 'paragraph'
-        || nodeType === 'heading'
-        || nodeType === 'blockquote'
-        || nodeType === 'listItem';
 }
 
 function hasTaskFeedback(task: WritingResultTaskData) {

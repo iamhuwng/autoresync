@@ -1,0 +1,22 @@
+- generic [ref=e3]:
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - heading "Welcome" [level=1] [ref=e9]
+      - paragraph [ref=e10]: Sign in to access your account
+    - generic [ref=e11]:
+      - button "Sign in with Google" [ref=e12] [cursor=pointer]:
+        - generic [ref=e13]:
+          - img [ref=e14]
+          - text: Sign in with Google
+      - paragraph [ref=e16]: New users will be registered as students by default
+      - generic [ref=e24]:
+        - generic [ref=e27]: Dev Quick Login
+        - generic [ref=e29]:
+          - button "Teacher" [ref=e30] [cursor=pointer]:
+            - img [ref=e31]
+            - text: Teacher
+          - button "Student" [ref=e36] [cursor=pointer]:
+            - img [ref=e37]
+            - text: Student
+  - button "Hide dev quick login" [active] [pressed] [ref=e40] [cursor=pointer]:
+    - img [ref=e18]
