@@ -460,6 +460,16 @@ export const IELTSPracticeView: React.FC<IELTSPracticeViewProps> = ({
     // MOBILE EXAM MODE — Phone-optimized scaffold (PRD-0043)
     // ═══════════════════════════════════════════════════════════════
 
+    // Host-owned mobile shell state (PRD-0043 Section 7.3, Task 3.8)
+    const [questionSheetOpen, setQuestionSheetOpen] = React.useState(false);
+    const [passageScrollByPassage, setPassageScrollByPassage] = React.useState<Record<string, number>>({});
+
+    const handleOpenQuestionSheet = React.useCallback(() => setQuestionSheetOpen(true), []);
+    const handleCloseQuestionSheet = React.useCallback(() => setQuestionSheetOpen(false), []);
+    const handlePassageScroll = React.useCallback((passageId: string, scrollTop: number) => {
+        setPassageScrollByPassage(prev => ({ ...prev, [passageId]: scrollTop }));
+    }, []);
+
     if (isMobileExamMode) {
         return (
             <>
@@ -524,13 +534,15 @@ export const IELTSPracticeView: React.FC<IELTSPracticeViewProps> = ({
                     highlighterActive={false} // FR-99/100: suppress highlighter on mobile
                     highlightColor={highlightColor}
                     clearHighlightsTrigger={clearHighlightsTrigger}
-                    questionSheetOpen={false}
-                    onOpenQuestionSheet={() => {}}
-                    onCloseQuestionSheet={() => {}}
+                    questionSheetOpen={questionSheetOpen}
+                    onOpenQuestionSheet={handleOpenQuestionSheet}
+                    onCloseQuestionSheet={handleCloseQuestionSheet}
                     reviewSummaryOpen={false}
                     onOpenReviewSummary={() => {}}
                     onCloseReviewSummary={() => {}}
                     antiSelectClass={isHomework && antiCheatConfig?.detectCopyPaste ? 'anti-select' : undefined}
+                    passageScrollByPassage={passageScrollByPassage}
+                    onPassageScroll={handlePassageScroll}
                 />
 
                 {/* Time Up Overlay */}

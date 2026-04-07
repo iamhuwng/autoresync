@@ -22,3 +22,17 @@
 
 **Finding:** The sheet uses `document.body.style.overflow = 'hidden'` to lock scroll when open. This is a direct DOM mutation (Rule 19 trigger) but is acceptable here because: (a) this component is explicitly mobile-only and lives in the `test/mobile/` directory, (b) both Capacitor WebView and mobile Safari need body scroll lock to prevent background scroll-through, (c) the cleanup function in `useEffect` restores the previous overflow value, making it non-destructive.
 
+## Task 3.6 — Scaffold wiring
+
+**Finding:** The scaffold computes per-passage derived data (answered count, question range, flagged count) from host-provided `questions` and `answers` props using `useMemo`. This is pure derivation, not state ownership, which is permitted under the pure-presentation constraint. The `handleOverflowMenuToggle` callback is a no-op placeholder pending Phase 8 (overflow menu).
+
+## Task 3.7 — Desktop element suppression
+
+**Finding:** Task 3.7 is structurally enforced by the `if (isMobileExamMode) { return ...; }` early-return pattern in both `ReadingTestPage` and `IELTSPracticeView`. All desktop-only elements (`TwoColumnLayout`, `InspiraFooterNav`, `PassageControls`, floating ←/→ arrows, `ReadingHeader`, `TestHeader`) render only in the code path below the mobile return. `highlighterActive={false}` is already passed in both hosts. No code changes were needed.
+
+## Task 3.8 — Host-owned mobile shell state
+
+**Finding (foundational fix):** `ReadingTestPage` had `isSubmitting={false}` hardcoded in the scaffold props. `useTestSubmission` returns `isSubmitting` but it was not destructured. Fixed by adding `isSubmitting` to the destructured return and passing the real value to the scaffold.
+
+**Finding:** Both hosts now declare `questionSheetOpen` and `passageScrollByPassage` state at the component level (outside the `if (isMobileExamMode)` guard). This ensures React hook ordering is deterministic regardless of the conditional render path. The scroll persistence logic (save on passage switch, restore via `requestAnimationFrame`) lives in the scaffold since it owns the DOM ref for the passage content scroller, while the host owns the state map.
+
