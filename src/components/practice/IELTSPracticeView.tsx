@@ -11,7 +11,8 @@
  */
 
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigation } from '../../hooks/useNavigation';
+import { storage } from '../../core/platform/storage';
 import { useAuth } from '../../hooks/useAuth';
 import { useSoloTestData } from '../../hooks/solo/useSoloTestData';
 import { useSoloTimer } from '../../hooks/solo/useSoloTimer';
@@ -69,29 +70,36 @@ export const IELTSPracticeView: React.FC<IELTSPracticeViewProps> = ({
     resolvedSettings,
     practiceContext,
 }) => {
-    const navigate = useNavigate();
+    const { navigateTo } = useNavigation('student');
     const { user, profile } = useAuth();
 
-    // ── Student Preferences (persisted to localStorage) ──────────────────────
-    const [studentPrefs, setStudentPrefs] = useState<StudentSoloPreferences>(() => {
-        try {
-            const stored = localStorage.getItem(`solo_student_prefs_${user?.uid}`);
-            return stored ? { ...DEFAULT_STUDENT_PREFS, ...JSON.parse(stored) } : DEFAULT_STUDENT_PREFS;
-        } catch {
-            return DEFAULT_STUDENT_PREFS;
-        }
-    });
+    // ── Student Preferences (persisted to platform storage) ──────────────────
+    const [studentPrefs, setStudentPrefs] = useState<StudentSoloPreferences>(DEFAULT_STUDENT_PREFS);
+
+    // Load saved preferences asynchronously on mount
+    useEffect(() => {
+        if (!user?.uid) return;
+        const loadPrefs = async () => {
+            try {
+                const stored = await storage.get<StudentSoloPreferences>(`solo_student_prefs_${user.uid}`);
+                if (stored) {
+                    setStudentPrefs({ ...DEFAULT_STUDENT_PREFS, ...stored });
+                }
+            } catch {
+                // Silently fall back to defaults
+            }
+        };
+        loadPrefs();
+    }, [user?.uid]);
 
     const [settingsModalOpen, setSettingsModalOpen] = useState(false);
 
     const handlePrefsChange = useCallback((newPrefs: StudentSoloPreferences) => {
         setStudentPrefs(newPrefs);
         if (user?.uid) {
-            try {
-                localStorage.setItem(`solo_student_prefs_${user.uid}`, JSON.stringify(newPrefs));
-            } catch (err) {
+            storage.set(`solo_student_prefs_${user.uid}`, newPrefs).catch((err: unknown) => {
                 console.warn('Failed to persist student preferences:', err);
-            }
+            });
         }
     }, [user?.uid]);
 
@@ -371,13 +379,13 @@ export const IELTSPracticeView: React.FC<IELTSPracticeViewProps> = ({
     // ── Back navigation (context-aware) ───────────────────────────────────────
     const handleBack = useCallback(() => {
         if (practiceContext.type === 'homework') {
-            navigate('/student/homework');
+            navigateTo('STUDENT_HOMEWORK');
         } else if (practiceContext.courseId) {
-            navigate(`/student/courses/${practiceContext.courseId}`);
+            navigateTo('STUDENT_COURSE_DETAIL', { courseId: practiceContext.courseId });
         } else {
-            navigate('/student/library');
+            navigateTo('STUDENT_LIBRARY');
         }
-    }, [navigate, practiceContext]);
+    }, [navigateTo, practiceContext]);
 
     // ── Warn on page leave ────────────────────────────────────────────────────
     useBeforeUnloadWarning({
@@ -424,7 +432,7 @@ export const IELTSPracticeView: React.FC<IELTSPracticeViewProps> = ({
                     <div style={{ fontSize: '1.25rem', fontWeight: 600, color: '#1e293b', marginBottom: '0.5rem' }}>Test Not Found</div>
                     <div style={{ color: '#64748b', marginBottom: '1.5rem', fontSize: '0.875rem' }}>{error || 'Unable to load this material.'}</div>
                     <button
-                        onClick={() => navigate(-1)}
+                        onClick={handleBack}
                         style={{ padding: '0.75rem 1.5rem', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '0.5rem', fontWeight: 600, cursor: 'pointer' }}
                     >
                         Go Back

@@ -167,11 +167,11 @@ class NavigationService {
         if (options?.delay) {
           // Delayed navigation
           setTimeout(() => {
-            this.navigateFunction!(to, { replace: options?.replace, state: params });
+            this.navigateFunction!(to, { replace: options?.replace, state: options?.state ?? params });
           }, options.delay);
         } else {
           // Immediate navigation - pass params as state for routes that don't use URL params
-          this.navigateFunction(to, { replace: options?.replace, state: params });
+          this.navigateFunction(to, { replace: options?.replace, state: options?.state ?? params });
         }
 
         return { success: true, destination: to };

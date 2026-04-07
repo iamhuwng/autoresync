@@ -62,6 +62,8 @@ export interface NavigationOptions {
   force?: boolean;
   /** Delay navigation by X milliseconds */
   delay?: number;
+  /** Explicit router state to forward to the destination (e.g. { resultId, showResult }) */
+  state?: unknown;
 }
 
 /**

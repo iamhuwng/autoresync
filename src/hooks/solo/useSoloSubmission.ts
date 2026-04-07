@@ -1,7 +1,7 @@
-﻿// File: src/hooks/solo/useSoloSubmission.ts
+// File: src/hooks/solo/useSoloSubmission.ts
 import { useState } from 'react';
 import type { MutableRefObject } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigation } from '../useNavigation';
 import { scoreQuestion } from '../../services/autoMarking.service';
 import { calculateIELTSReadingBandScore } from '../../config/scoring.config';
 import { saveTestResult } from '../../services/testResults.service';
@@ -82,6 +82,8 @@ interface UseSoloSubmissionOptions {
     integrity?: HomeworkIntegrity;
     attemptsNullified?: boolean;
     telemetrySurface?: string;
+    /** When true, skip the window.confirm prompt for unanswered questions (mobile UI provides its own) */
+    skipConfirm?: boolean;
 }
 
 interface UseSoloSubmissionReturn {
@@ -111,9 +113,10 @@ export const useSoloSubmission = ({
     integrity,
     attemptsNullified = false,
     telemetrySurface = 'solo_submission',
+    skipConfirm = false,
 }: UseSoloSubmissionOptions): UseSoloSubmissionReturn => {
     const isHomework = context.type === 'homework' && !!homeworkId;
-    const navigate = useNavigate();
+    const { navigateTo } = useNavigation('student');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [testSubmitted, setTestSubmitted] = useState(false);
     const [testResults, setTestResults] = useState<TestResults | null>(null);
@@ -256,7 +259,7 @@ export const useSoloSubmission = ({
         }
 
         const unansweredCount = testData.questionCount - Object.keys(answers).length;
-        if (!isAutoSubmit && unansweredCount > 0) {
+        if (!isAutoSubmit && !skipConfirm && unansweredCount > 0) {
             const confirmed = window.confirm(
                 `You have ${unansweredCount} unanswered question(s). Are you sure you want to submit?`
             );
@@ -442,15 +445,17 @@ export const useSoloSubmission = ({
             // Navigate to the appropriate page
             if (isHomework) {
                 // Homework: go back to the homework list
-                navigate('/student/homework', {
+                navigateTo('STUDENT_HOMEWORK', undefined, {
                     replace: true,
                     state: { justSubmitted: true },
+                    reason: 'test_submission_homework',
                 });
             } else {
                 // Solo/Course: go to Academic Record page
-                navigate('/student/academic-record', {
+                navigateTo('STUDENT_ACADEMIC_RECORD', undefined, {
                     replace: true,
                     state: { resultId, showResult: true },
+                    reason: 'test_submission_solo',
                 });
             }
         } catch (err) {
