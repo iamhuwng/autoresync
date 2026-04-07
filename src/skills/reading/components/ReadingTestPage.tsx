@@ -10,6 +10,7 @@ import { useParams } from 'react-router-dom';
 // Mobile Exam Mode
 import { useMobileExamMode } from '../../../core/platform/hooks/useMobileExamMode';
 import { MobileReadingExamScaffold } from '../../../components/test/mobile/MobileReadingExamScaffold';
+import { MobileStartScreen } from '../../../components/test/mobile/MobileStartScreen';
 
 // Generic Test Components (shared across all skills)
 import { IELTSQuestionsPanel } from '../../../components/test/IELTSQuestionsPanel';
@@ -548,6 +549,20 @@ const ReadingTestPageContent: React.FC = () => {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Mobile Start Screen behind waiting overlay (PRD-0043 Task 2A.4) */}
+        {sessionStatus === 'waiting' && (
+          <MobileStartScreen
+            mode="live"
+            testTitle={testData.title || 'Reading Test'}
+            testSkill={testData.skill || 'Reading'}
+            passageCount={testData.passages?.length || 0}
+            questionCount={testData.questionCount || displayQuestions.length}
+            timeLimit={testData?.duration || null}
+            onStart={() => {}} // Teacher controls start in live mode
+            showStartButton={false}
+          />
         )}
 
         {/* Waiting/Paused Overlay (renders above scaffold) */}

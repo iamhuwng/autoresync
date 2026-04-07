@@ -15,6 +15,7 @@ import { useNavigation } from '../../hooks/useNavigation';
 import { storage } from '../../core/platform/storage';
 import { useMobileExamMode } from '../../core/platform/hooks/useMobileExamMode';
 import { MobileReadingExamScaffold } from '../test/mobile/MobileReadingExamScaffold';
+import { MobileStartScreen } from '../test/mobile/MobileStartScreen';
 import { useAuth } from '../../hooks/useAuth';
 import { useSoloTestData } from '../../hooks/solo/useSoloTestData';
 import { useSoloTimer } from '../../hooks/solo/useSoloTimer';
@@ -470,6 +471,16 @@ export const IELTSPracticeView: React.FC<IELTSPracticeViewProps> = ({
         setPassageScrollByPassage(prev => ({ ...prev, [passageId]: scrollTop }));
     }, []);
 
+    // ── Mobile Start Screen state (PRD-0043 Task 2A.3) ────────────────────────
+    const [mobileTestStarted, setMobileTestStarted] = React.useState(false);
+
+    // Auto-skip start screen when resuming a saved session
+    React.useEffect(() => {
+        if (isMobileExamMode && resumeDecision === 'resume') {
+            setMobileTestStarted(true);
+        }
+    }, [isMobileExamMode, resumeDecision]);
+
     if (isMobileExamMode) {
         return (
             <>
@@ -485,72 +496,90 @@ export const IELTSPracticeView: React.FC<IELTSPracticeViewProps> = ({
                     />
                 )}
 
-                {/* Pause Overlay */}
-                {isPaused && !testSubmitted && (
-                    <div style={{
-                        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9000,
-                    }}>
-                        <div style={{ background: 'white', borderRadius: 16, padding: '2rem 3rem', textAlign: 'center' }}>
-                            <div style={{ fontSize: '3rem', marginBottom: 12 }}>⏸️</div>
-                            <h2 style={{ fontWeight: 700, color: '#111827', margin: '0 0 8px' }}>Test Paused</h2>
-                            <p style={{ color: '#6b7280', margin: '0 0 24px' }}>Your progress is saved. Click Resume to continue.</p>
-                            <button
-                                onClick={togglePause}
-                                style={{ padding: '10px 28px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: 999, fontWeight: 700, fontSize: '1rem', cursor: 'pointer' }}
-                            >
-                                Resume
-                            </button>
-                        </div>
-                    </div>
-                )}
-
-                {/* Mobile Reading Exam Scaffold */}
-                <MobileReadingExamScaffold
-                    mode={isHomework ? 'homework' : 'solo'}
-                    passages={(testData.passages || []).map((p: any, i: number) => ({ id: p.id, title: p.title || `Passage ${i + 1}` }))}
-                    questions={displayQuestions}
-                    totalQuestions={testData.questionCount || displayQuestions.length}
-                    activePassageId={activePassageId || ''}
-                    onPassageChange={setActivePassageId}
-                    currentPassage={currentPassage}
-                    PassageRendererComponent={PassageRenderer}
-                    answers={answers}
-                    onAnswerChange={inputsDisabled ? () => {} : handleAnswerChange}
-                    activeQuestionNumber={currentQuestionNumber}
-                    onQuestionClick={goToQuestion}
-                    timeRemaining={isFinite(timeRemaining) ? timeRemaining : Infinity}
-                    formatTime={formatTime}
-                    testSubmitted={testSubmitted}
-                    isSubmitting={isSubmitting}
-                    questionResults={testResults?.questionResults || {}}
-                    onManualSubmit={handleManualSubmit}
-                    onAutoSubmit={() => { submitTestRef.current?.(true); }}
-                    isConnected={true}
-                    sessionStatus={'in-progress'}
-                    isPaused={false}
-                    fontSize={fontSize}
-                    lineSpacing={lineSpacing}
-                    highlighterActive={false} // FR-99/100: suppress highlighter on mobile
-                    highlightColor={highlightColor}
-                    clearHighlightsTrigger={clearHighlightsTrigger}
-                    questionSheetOpen={questionSheetOpen}
-                    onOpenQuestionSheet={handleOpenQuestionSheet}
-                    onCloseQuestionSheet={handleCloseQuestionSheet}
-                    reviewSummaryOpen={false}
-                    onOpenReviewSummary={() => {}}
-                    onCloseReviewSummary={() => {}}
-                    antiSelectClass={isHomework && antiCheatConfig?.detectCopyPaste ? 'anti-select' : undefined}
-                    passageScrollByPassage={passageScrollByPassage}
-                    onPassageScroll={handlePassageScroll}
-                />
-
-                {/* Time Up Overlay */}
-                {showTimeUpOverlay && (
-                    <TimeUpOverlay
-                        onComplete={() => console.log('⏰ [Practice] Grace period complete')}
-                        countdownSeconds={gracePeriodRemaining}
+                {/* Mobile Start Screen (PRD-0043 Task 2A.3) */}
+                {!mobileTestStarted && resumeDecision !== 'pending' ? (
+                    <MobileStartScreen
+                        mode={isHomework ? 'homework' : 'solo'}
+                        testTitle={testData.title || 'Reading Test'}
+                        testSkill={testData.skill || 'Reading'}
+                        passageCount={testData.passages?.length || 0}
+                        questionCount={testData.questionCount || displayQuestions.length}
+                        timeLimit={resolvedSettings?.timerMinutes ?? null}
+                        onStart={() => setMobileTestStarted(true)}
+                        showStartButton={true}
+                        practiceContext={practiceContext}
+                        resolvedSettings={resolvedSettings}
                     />
+                ) : (
+                    <>
+                        {/* Pause Overlay */}
+                        {isPaused && !testSubmitted && (
+                            <div style={{
+                                position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9000,
+                            }}>
+                                <div style={{ background: 'white', borderRadius: 16, padding: '2rem 3rem', textAlign: 'center' }}>
+                                    <div style={{ fontSize: '3rem', marginBottom: 12 }}>⏸️</div>
+                                    <h2 style={{ fontWeight: 700, color: '#111827', margin: '0 0 8px' }}>Test Paused</h2>
+                                    <p style={{ color: '#6b7280', margin: '0 0 24px' }}>Your progress is saved. Click Resume to continue.</p>
+                                    <button
+                                        onClick={togglePause}
+                                        style={{ padding: '10px 28px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: 999, fontWeight: 700, fontSize: '1rem', cursor: 'pointer' }}
+                                    >
+                                        Resume
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Mobile Reading Exam Scaffold */}
+                        <MobileReadingExamScaffold
+                            mode={isHomework ? 'homework' : 'solo'}
+                            passages={(testData.passages || []).map((p: any, i: number) => ({ id: p.id, title: p.title || `Passage ${i + 1}` }))}
+                            questions={displayQuestions}
+                            totalQuestions={testData.questionCount || displayQuestions.length}
+                            activePassageId={activePassageId || ''}
+                            onPassageChange={setActivePassageId}
+                            currentPassage={currentPassage}
+                            PassageRendererComponent={PassageRenderer}
+                            answers={answers}
+                            onAnswerChange={inputsDisabled ? () => {} : handleAnswerChange}
+                            activeQuestionNumber={currentQuestionNumber}
+                            onQuestionClick={goToQuestion}
+                            timeRemaining={isFinite(timeRemaining) ? timeRemaining : Infinity}
+                            formatTime={formatTime}
+                            testSubmitted={testSubmitted}
+                            isSubmitting={isSubmitting}
+                            questionResults={testResults?.questionResults || {}}
+                            onManualSubmit={handleManualSubmit}
+                            onAutoSubmit={() => { submitTestRef.current?.(true); }}
+                            isConnected={true}
+                            sessionStatus={'in-progress'}
+                            isPaused={false}
+                            fontSize={fontSize}
+                            lineSpacing={lineSpacing}
+                            highlighterActive={false}
+                            highlightColor={highlightColor}
+                            clearHighlightsTrigger={clearHighlightsTrigger}
+                            questionSheetOpen={questionSheetOpen}
+                            onOpenQuestionSheet={handleOpenQuestionSheet}
+                            onCloseQuestionSheet={handleCloseQuestionSheet}
+                            reviewSummaryOpen={false}
+                            onOpenReviewSummary={() => {}}
+                            onCloseReviewSummary={() => {}}
+                            antiSelectClass={isHomework && antiCheatConfig?.detectCopyPaste ? 'anti-select' : undefined}
+                            passageScrollByPassage={passageScrollByPassage}
+                            onPassageScroll={handlePassageScroll}
+                        />
+
+                        {/* Time Up Overlay */}
+                        {showTimeUpOverlay && (
+                            <TimeUpOverlay
+                                onComplete={() => console.log('⏰ [Practice] Grace period complete')}
+                                countdownSeconds={gracePeriodRemaining}
+                            />
+                        )}
+                    </>
                 )}
             </>
         );

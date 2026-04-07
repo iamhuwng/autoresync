@@ -59,3 +59,45 @@ See reassessment summary delivered in chat.
 
 ### Findings
 Full assessment delivered in chat response below.
+
+## 3. PRD-0043 Tasks 3.6–3.8 Implementation
+
+**User request:** Continue implementing tasks 3.6-3.8 from the PRD-0043 task list, following `process-task-list.md` guidelines. Fix foundational issues if found.
+
+### Actions Taken
+
+**Task 3.6 — Scaffold wiring:**
+- Replaced the stub in `MobileReadingExamScaffold.tsx` with full mobile layout
+- Layout: MobileReadingHeader → MobilePassageTabs (page-level) → scrollable passage content area → MobileQuestionsFab (floating)
+- MobileQuestionSheet overlay: info bar (passage label + question range + progress) → synced MobilePassageTabs → placeholder body for Task 4.0
+- Added per-passage derived data computation (answered count, question range, flagged count) via useMemo
+- Added scroll persistence logic: debounced save on scroll, save+restore on passage switch
+
+**Task 3.7 — Desktop element suppression:**
+- Verified structurally enforced by `if (isMobileExamMode) { return ...; }` early-return in both hosts
+- All desktop-only elements (TwoColumnLayout, InspiraFooterNav, PassageControls, floating arrows, ReadingHeader, TestHeader) render only below the mobile return
+- `highlighterActive={false}` already passed in both hosts
+- No code changes needed
+
+**Task 3.8 — Host-owned mobile shell state:**
+- Added `questionSheetOpen` and `passageScrollByPassage` state to both `ReadingTestPage.tsx` and `IELTSPracticeView.tsx`
+- Added `handleOpenQuestionSheet`, `handleCloseQuestionSheet`, `handlePassageScroll` callbacks
+- Wired real state into scaffold props (replacing hardcoded no-ops)
+
+**Foundational fix:**
+- `ReadingTestPage.tsx`: `isSubmitting` was hardcoded as `false` in scaffold props
+- Added `isSubmitting` to destructured return from `useTestSubmission` and wired real value
+
+### Test Results
+- 31/31 tests pass (23 shell component + 8 useMobileExamMode)
+- TypeScript compilation clean (only pre-existing `totalEvents` warning)
+
+### Commit
+`feat(mobile-ielts): wire scaffold layout, host state, and scroll persistence (Task 3.0)` — 6 files changed, 330 insertions, 67 deletions. Parent task 3.0 marked complete.
+
+### Files Modified
+- `src/components/test/mobile/MobileReadingExamScaffold.tsx` — Full scaffold layout replacing stub
+- `src/skills/reading/components/ReadingTestPage.tsx` — Host-owned mobile state, isSubmitting fix
+- `src/components/practice/IELTSPracticeView.tsx` — Host-owned mobile state
+- `documentation/tasks/tasks-0043-prd-mobile-ielts-reading-test-taking-interface.md` — Tasks 3.6-3.8 and parent 3.0 marked [x]
+- `documentation/tasks/findings-of-tasks-0043-prd-mobile-ielts-reading-test-taking-interface.md` — Findings for 3.6, 3.7, 3.8
