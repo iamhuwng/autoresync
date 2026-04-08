@@ -1,5 +1,6 @@
 // File: src/hooks/solo/useSoloResume.ts
 import { useState, useEffect } from 'react';
+import { storage } from '@/core/platform/storage';
 import type { SoloSessionProgress } from '../../types/practice.types';
 
 interface UseSoloResumeOptions {
@@ -26,28 +27,40 @@ export const useSoloResume = ({ materialId, studentId }: UseSoloResumeOptions): 
             return;
         }
 
-        const key = `solo_progress_${materialId}_${studentId}`;
-        try {
-            const stored = localStorage.getItem(key);
-            if (stored) {
-                const parsed = JSON.parse(stored) as SoloSessionProgress;
-                // Check if expired (7 days)
-                const expiryMs = 7 * 24 * 60 * 60 * 1000;
-                if (Date.now() - parsed.lastSavedAt < expiryMs) {
-                    setSavedProgress(parsed);
-                } else {
-                    localStorage.removeItem(key);
+        let cancelled = false;
+
+        void (async () => {
+            const key = `solo_progress_${materialId}_${studentId}`;
+            try {
+                const stored = await storage.get<SoloSessionProgress>(key);
+                if (stored && typeof stored === 'object' && 'lastSavedAt' in stored) {
+                    const parsed = stored as SoloSessionProgress;
+                    const expiryMs = 7 * 24 * 60 * 60 * 1000;
+                    if (Date.now() - parsed.lastSavedAt < expiryMs) {
+                        if (!cancelled) {
+                            setSavedProgress(parsed);
+                        }
+                    } else {
+                        await storage.remove(key);
+                    }
+                }
+            } catch {
+                // Corrupted — ignore
+            } finally {
+                if (!cancelled) {
+                    setChecking(false);
                 }
             }
-        } catch {
-            // Corrupted — ignore
-        }
-        setChecking(false);
+        })();
+
+        return () => {
+            cancelled = true;
+        };
     }, [materialId, studentId]);
 
     const discardProgress = () => {
         if (materialId && studentId) {
-            localStorage.removeItem(`solo_progress_${materialId}_${studentId}`);
+            void storage.remove(`solo_progress_${materialId}_${studentId}`);
         }
         setSavedProgress(null);
     };

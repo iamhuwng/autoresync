@@ -25,6 +25,7 @@ export const FEATURE_IDS = {
   homework: 'homework',
   results: 'results',
   studentDashboard: 'studentDashboard',
+  testTaking: 'testTaking',
   testCreation: 'testCreation',
 } as const;
 
@@ -32,7 +33,7 @@ export const FEATURE_IDS = {
 
 export const FEATURE_REGISTRY: FeatureDefinition[] = [
   {
-    id: 'testTaking',
+    id: FEATURE_IDS.testTaking,
     name: 'Test Taking',
     routes: [
       '/student-test/:sessionCode',
@@ -48,6 +49,17 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       'finishTest',
       'timeOut',
       'abandonTest',
+      'openQuestionSheet',
+      'closeQuestionSheet',
+      'openReviewSummary',
+      'closeReviewSummary',
+      'openOverflowMenu',
+      'closeOverflowMenu',
+      'openTextSizeControl',
+      'adjustTextSize',
+      'openInstructions',
+      'closeInstructions',
+      'leaveTest',
     ],
     description: 'Student test-taking and practice sessions',
   },

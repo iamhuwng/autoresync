@@ -2,7 +2,7 @@
 title: Homework Solo Practice Architecture
 description: 'Solo practice and homework system: data flows, status machine, result context, access control.'
 createdAt: '2026-02-27T16:20:59.562Z'
-updatedAt: '2026-04-05T03:52:39.030Z'
+updatedAt: '2026-04-08T17:36:17.507Z'
 tags:
   - architecture
   - homework
@@ -198,3 +198,16 @@ Scope boundary:
 
 Detailed reference:
 - @doc/architecture/ielts-writing/ielts-writing-copy-paste-toggle-and-attempt-persistence-2026-04-05
+
+## 2026-04-09 Amendment - Mobile IELTS Reading Homework Launch Integrity
+
+Homework mobile Reading now depends on two additional launch rules:
+- homework launchers must pass a non-empty `studentName` into the shared practice surface so submission creation never writes `undefined` into Firestore payloads
+- `StudentPracticePage.tsx` must preserve homework `timerMinutes` and `maxAttempts` from route state when handing off to the shared Reading practice host
+
+Why this matters:
+- mobile homework resume depends on the canonical launch state staying intact after navigation from the student homework detail surface
+- the resumed phone Reading route must restore the correct timed/attempt-limited behavior instead of silently degrading to the untimed solo default
+
+Reference:
+- @doc/architecture/mobile-ielts-reading-test-taking

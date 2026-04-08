@@ -1,4 +1,4 @@
-﻿# Homework Solo Practice Architecture
+# Homework Solo Practice Architecture
 
 Canonical visibility governance for homework and solo-practice results lives in:
 - `documentation/architecture/result-visibility-ownership-governance.md`
@@ -106,3 +106,24 @@ Scope boundary:
 
 Detailed reference:
 - `ielts-writing/copy-paste-toggle-and-attempt-persistence.md`
+## 2026-04-09 Amendment - Mobile IELTS Reading Delivery Contract
+
+Canonical architecture governance for the phone-specific IELTS Reading delivery surface now lives in:
+- `documentation/architecture/mobile-ielts-reading-test-taking-architecture.md`
+
+Scope note:
+- this applies to both live Reading sessions and the solo/homework Reading practice surface when `useMobileExamMode()` activates the shared mobile scaffold
+- homework and solo-practice flows must follow the same host/scaffold ownership split and the same persisted mobile Reading state contract documented there
+
+## 2026-04-09 Amendment - Mobile IELTS Reading Homework Launch Integrity
+
+Homework mobile Reading now depends on two additional launch rules:
+- homework launchers must pass a non-empty `studentName` into the shared practice surface so submission creation never writes `undefined` into Firestore payloads
+- `StudentPracticePage.tsx` must preserve homework `timerMinutes` and `maxAttempts` from route state when handing off to the shared Reading practice host
+
+Why this matters:
+- mobile homework resume depends on the canonical launch state staying intact after navigation from the student homework detail surface
+- the resumed phone Reading route must restore the correct timed/attempt-limited behavior instead of silently degrading to the untimed solo default
+
+Reference:
+- `documentation/architecture/mobile-ielts-reading-test-taking-architecture.md`

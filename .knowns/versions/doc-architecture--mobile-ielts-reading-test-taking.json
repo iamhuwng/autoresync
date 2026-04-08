@@ -1,0 +1,71 @@
+{
+  "docPath": "architecture/mobile-ielts-reading-test-taking",
+  "currentVersion": 2,
+  "versions": [
+    {
+      "id": "v1",
+      "docPath": "architecture/mobile-ielts-reading-test-taking",
+      "version": 1,
+      "timestamp": "2026-04-08T17:36:17.4878032Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "Mobile IELTS Reading Test Taking"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "Canonical architecture contract for the phone-specific IELTS Reading delivery surface across live, solo-practice, and homework modes."
+        },
+        {
+          "field": "tags",
+          "oldValue": null,
+          "newValue": [
+            "architecture",
+            "ielts",
+            "reading",
+            "mobile",
+            "student"
+          ]
+        }
+      ],
+      "snapshot": {
+        "description": "Canonical architecture contract for the phone-specific IELTS Reading delivery surface across live, solo-practice, and homework modes.",
+        "tags": [
+          "architecture",
+          "ielts",
+          "reading",
+          "mobile",
+          "student"
+        ],
+        "title": "Mobile IELTS Reading Test Taking"
+      }
+    },
+    {
+      "id": "v2",
+      "docPath": "architecture/mobile-ielts-reading-test-taking",
+      "version": 2,
+      "timestamp": "2026-04-08T17:36:41.7378332Z",
+      "changes": [
+        {
+          "field": "content",
+          "oldValue": null,
+          "newValue": "# Mobile IELTS Reading Test Taking\n\n## Purpose\n\nThis doc is the searchable Knowns source of truth for the phone-specific IELTS Reading delivery surface introduced by PRD-0043.\n\nIt exists so future Reading, homework, solo-practice, and student-route work can reuse one stable contract instead of re-deriving behavior from task logs.\n\n## Scope\n\nThis contract applies to:\n- `ReadingTestPage.tsx` for live Reading sessions\n- `IELTSPracticeView.tsx` for solo-practice and homework Reading sessions\n- `MobileReadingExamScaffold.tsx` as the shared mobile presentation shell\n\nIt does not replace the desktop or tablet two-column Reading surface.\n\n## Activation Contract\n\nMobile Reading is gated by `useMobileExamMode()`.\n\nRequired rules:\n- phone-classified Reading sessions render the shared mobile scaffold instead of the desktop two-column layout\n- live, solo-practice, and homework Reading all use the same scaffold contract once mobile exam mode is active\n- touch-only, no-hover widened phone sessions must still classify as mobile exam mode so library/homework entry points do not fall back to the desktop surface\n\n## Ownership Model\n\n### Host-owned responsibilities\n\n`ReadingTestPage.tsx` and `IELTSPracticeView.tsx` own:\n- active passage selection\n- answers and submission callbacks\n- overlay open/close state for question sheet, review summary, overflow menu, text-size control, and instructions\n- per-passage memory state\n- persisted mobile-state hydration/serialization\n- timer, interruption, autosave, and route-leave integration\n\n### Scaffold-owned responsibilities\n\n`MobileReadingExamScaffold.tsx` owns presentation and interaction composition only:\n- mobile header\n- passage tabs\n- passage content region\n- floating questions launcher\n- question sheet\n- review overlay\n- mapping taps from question pills and review chips back into host callbacks\n\nThe scaffold must not own long-lived Reading session state.\n\n## Persisted Mobile State Contract\n\nPersisted shape is defined by `SavedMobileState` and hydrated through `mobileReadingState.ts`.\n\nCurrent persisted state includes:\n- `activePassageId`\n- `questionSheetOpen`\n- `reviewSummaryOpen`\n- `passageScrollByPassage`\n- `activeQuestionGroupByPassage`\n- `questionSheetScrollByPassage`\n- `textSize`\n\nLegacy rule:\n- `flaggedQuestions` is legacy-only and optional; new mobile Reading state must not serialize it, but hydration must tolerate older payloads safely\n\n## Released Shell Chrome Contract\n\nRequired rules:\n- the centered mobile header action is `Submit`\n- manual submit on mobile continues through review summary plus final confirmation; the overflow menu must not expose a duplicate submit item\n- passage tabs always render short `Passage 1`, `Passage 2`, and `Passage 3` labels\n- the floating launcher label is `Questions`\n- the question sheet keeps the compact single-row pill navigator only; show-all mode is not part of the released phone contract\n\n## Question Navigation Contract\n\nRequired rules:\n- pill taps must jump to the exact target question, not only a shared group wrapper\n- grouped Reading inputs must register exact per-question anchors for embedded/mobile scrolling\n- host state remembers question-group context per passage; exact question taps are mapped back into the correct group and scroll target\n\nMobile-only pill semantics:\n- answered: green fill\n- unanswered: neutral slate fill\n- current: blue ring over the answered/unanswered base state\n\nDesktop/grid navigator styling is outside this mobile contract.\n\n## Mobile Input Adaptation Contract\n\nRequired rules:\n- embedded mobile matching-headings uses `MobileMatchingHeadingsInput.tsx`, not desktop drag-and-drop\n- the mobile matching-headings picker opens a focused modal per paragraph\n- long heading text must wrap safely inside phone-width cards and dialogs\n\n## Review Summary Contract\n\n`MobileReviewSummary.tsx` is the only manual pre-submit review surface on mobile.\n\nRequired rules:\n- questions are grouped by passage\n- mobile answer status is limited to answered vs unanswered\n- unanswered uses the same neutral family as the mobile pill row, not warning-heavy orange\n- review-chip taps must reopen the correct passage and exact question flow\n\n## Product Decision: No Mobile Flagging\n\nMobile Reading no longer includes `flagged` / `flag for review` behavior.\n\nRationale:\n- on the phone surface it added visual noise without changing scoring or flow control\n- unanswered plus review-summary jump-back already cover the main student recovery path\n- removing flagging simplified persistence and reduced contradictory small-screen signals\n\nRequired rules:\n- mobile Reading hosts do not own a `flaggedQuestions` runtime set\n- the scaffold, FAB, review summary, and embedded mobile Reading question blocks do not expose flagging UI\n\n## Related Docs\n\n- @doc/architecture/homework-solo-practice-architecture\n- @doc/architecture/student-experience-architecture\n- @doc/system/solo-study-homework-system\n- @doc/architecture/reading-passage-highlighting-architecture\n"
+        }
+      ],
+      "snapshot": {
+        "content": "# Mobile IELTS Reading Test Taking\n\n## Purpose\n\nThis doc is the searchable Knowns source of truth for the phone-specific IELTS Reading delivery surface introduced by PRD-0043.\n\nIt exists so future Reading, homework, solo-practice, and student-route work can reuse one stable contract instead of re-deriving behavior from task logs.\n\n## Scope\n\nThis contract applies to:\n- `ReadingTestPage.tsx` for live Reading sessions\n- `IELTSPracticeView.tsx` for solo-practice and homework Reading sessions\n- `MobileReadingExamScaffold.tsx` as the shared mobile presentation shell\n\nIt does not replace the desktop or tablet two-column Reading surface.\n\n## Activation Contract\n\nMobile Reading is gated by `useMobileExamMode()`.\n\nRequired rules:\n- phone-classified Reading sessions render the shared mobile scaffold instead of the desktop two-column layout\n- live, solo-practice, and homework Reading all use the same scaffold contract once mobile exam mode is active\n- touch-only, no-hover widened phone sessions must still classify as mobile exam mode so library/homework entry points do not fall back to the desktop surface\n\n## Ownership Model\n\n### Host-owned responsibilities\n\n`ReadingTestPage.tsx` and `IELTSPracticeView.tsx` own:\n- active passage selection\n- answers and submission callbacks\n- overlay open/close state for question sheet, review summary, overflow menu, text-size control, and instructions\n- per-passage memory state\n- persisted mobile-state hydration/serialization\n- timer, interruption, autosave, and route-leave integration\n\n### Scaffold-owned responsibilities\n\n`MobileReadingExamScaffold.tsx` owns presentation and interaction composition only:\n- mobile header\n- passage tabs\n- passage content region\n- floating questions launcher\n- question sheet\n- review overlay\n- mapping taps from question pills and review chips back into host callbacks\n\nThe scaffold must not own long-lived Reading session state.\n\n## Persisted Mobile State Contract\n\nPersisted shape is defined by `SavedMobileState` and hydrated through `mobileReadingState.ts`.\n\nCurrent persisted state includes:\n- `activePassageId`\n- `questionSheetOpen`\n- `reviewSummaryOpen`\n- `passageScrollByPassage`\n- `activeQuestionGroupByPassage`\n- `questionSheetScrollByPassage`\n- `textSize`\n\nLegacy rule:\n- `flaggedQuestions` is legacy-only and optional; new mobile Reading state must not serialize it, but hydration must tolerate older payloads safely\n\n## Released Shell Chrome Contract\n\nRequired rules:\n- the centered mobile header action is `Submit`\n- manual submit on mobile continues through review summary plus final confirmation; the overflow menu must not expose a duplicate submit item\n- passage tabs always render short `Passage 1`, `Passage 2`, and `Passage 3` labels\n- the floating launcher label is `Questions`\n- the question sheet keeps the compact single-row pill navigator only; show-all mode is not part of the released phone contract\n\n## Question Navigation Contract\n\nRequired rules:\n- pill taps must jump to the exact target question, not only a shared group wrapper\n- grouped Reading inputs must register exact per-question anchors for embedded/mobile scrolling\n- host state remembers question-group context per passage; exact question taps are mapped back into the correct group and scroll target\n\nMobile-only pill semantics:\n- answered: green fill\n- unanswered: neutral slate fill\n- current: blue ring over the answered/unanswered base state\n\nDesktop/grid navigator styling is outside this mobile contract.\n\n## Mobile Input Adaptation Contract\n\nRequired rules:\n- embedded mobile matching-headings uses `MobileMatchingHeadingsInput.tsx`, not desktop drag-and-drop\n- the mobile matching-headings picker opens a focused modal per paragraph\n- long heading text must wrap safely inside phone-width cards and dialogs\n\n## Review Summary Contract\n\n`MobileReviewSummary.tsx` is the only manual pre-submit review surface on mobile.\n\nRequired rules:\n- questions are grouped by passage\n- mobile answer status is limited to answered vs unanswered\n- unanswered uses the same neutral family as the mobile pill row, not warning-heavy orange\n- review-chip taps must reopen the correct passage and exact question flow\n\n## Product Decision: No Mobile Flagging\n\nMobile Reading no longer includes `flagged` / `flag for review` behavior.\n\nRationale:\n- on the phone surface it added visual noise without changing scoring or flow control\n- unanswered plus review-summary jump-back already cover the main student recovery path\n- removing flagging simplified persistence and reduced contradictory small-screen signals\n\nRequired rules:\n- mobile Reading hosts do not own a `flaggedQuestions` runtime set\n- the scaffold, FAB, review summary, and embedded mobile Reading question blocks do not expose flagging UI\n\n## Related Docs\n\n- @doc/architecture/homework-solo-practice-architecture\n- @doc/architecture/student-experience-architecture\n- @doc/system/solo-study-homework-system\n- @doc/architecture/reading-passage-highlighting-architecture\n",
+        "description": "Canonical architecture contract for the phone-specific IELTS Reading delivery surface across live, solo-practice, and homework modes.",
+        "tags": [
+          "architecture",
+          "ielts",
+          "reading",
+          "mobile",
+          "student"
+        ],
+        "title": "Mobile IELTS Reading Test Taking"
+      }
+    }
+  ]
+}

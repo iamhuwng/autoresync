@@ -5,12 +5,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import StudentHomeworkDetailPage from './StudentHomeworkDetailPage';
 
 const {
+  authState,
   getTestFromFirebaseMock,
   navigateMock,
   startAttemptMock,
   useHomeworkSubmissionMock,
   useNavigationMock,
 } = vi.hoisted(() => ({
+  authState: {
+    user: {
+      uid: 'student-1',
+      displayName: 'Student One',
+      email: 'student@example.com',
+    },
+  },
   getTestFromFirebaseMock: vi.fn(),
   navigateMock: vi.fn(),
   startAttemptMock: vi.fn(),
@@ -96,11 +104,7 @@ vi.mock('../hooks/useHomeworkSubmission', () => ({
 
 vi.mock('../contexts/AuthContext', () => ({
   useAuth: () => ({
-    user: {
-      uid: 'student-1',
-      displayName: 'Student One',
-      email: 'student@example.com',
-    },
+    user: authState.user,
     logout: vi.fn(),
   }),
 }));
@@ -144,6 +148,11 @@ function renderPage() {
 describe('StudentHomeworkDetailPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    authState.user = {
+      uid: 'student-1',
+      displayName: 'Student One',
+      email: 'student@example.com',
+    };
 
     useNavigationMock.mockReturnValue({
       navigateTo: vi.fn(),
@@ -202,6 +211,21 @@ describe('StudentHomeworkDetailPage', () => {
       hasInProgressAttempt: false,
       startAttempt: startAttemptMock,
     });
+  });
+
+  it('falls back to email when the student display name is missing', async () => {
+    authState.user = {
+      uid: 'student-1',
+      displayName: '',
+      email: 'student@example.com',
+    };
+
+    renderPage();
+    await screen.findByText('Reading Homework');
+
+    expect(useHomeworkSubmissionMock).toHaveBeenCalledWith(expect.objectContaining({
+      studentName: 'student@example.com',
+    }));
   });
 
   it('opens the slide panel locally from attempt history result links', async () => {

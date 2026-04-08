@@ -64,6 +64,21 @@ export const storage = {
   },
 
   /**
+   * List keys in persistent storage, optionally filtered by prefix.
+   */
+  async keys(prefix?: string): Promise<string[]> {
+    const keys: string[] = [];
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (!key) continue;
+      if (!prefix || key.startsWith(prefix)) {
+        keys.push(key);
+      }
+    }
+    return keys;
+  },
+
+  /**
    * Clear all persistent storage.
    * Use with caution — this removes ALL stored data.
    */
@@ -103,6 +118,18 @@ export const sessionStore = {
 
   async has(key: string): Promise<boolean> {
     return sessionStorage.getItem(key) !== null;
+  },
+
+  async keys(prefix?: string): Promise<string[]> {
+    const keys: string[] = [];
+    for (let index = 0; index < sessionStorage.length; index += 1) {
+      const key = sessionStorage.key(index);
+      if (!key) continue;
+      if (!prefix || key.startsWith(prefix)) {
+        keys.push(key);
+      }
+    }
+    return keys;
   },
 
   async clear(): Promise<void> {

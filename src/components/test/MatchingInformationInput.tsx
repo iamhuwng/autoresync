@@ -25,7 +25,10 @@ interface MatchingInformationInputProps {
     questions: Question[];
     answers: Record<number, string>;
     onAnswerChange: (questionNumber: number, answer: string) => void;
+    onQuestionRefChange?: (questionNumber: number, element: HTMLDivElement | null) => void;
     disabled?: boolean;
+    fontSize?: number;
+    lineSpacing?: number;
 }
 
 interface ResolvedSectionReference {
@@ -61,9 +64,14 @@ export const MatchingInformationInput: React.FC<MatchingInformationInputProps> =
     questions,
     answers,
     onAnswerChange,
+    onQuestionRefChange,
     disabled = false,
+    fontSize,
+    lineSpacing,
 }) => {
     const sectionReferences = getSectionReferences(questions[0]);
+    const questionFontSize = fontSize ? `${fontSize}px` : '16px';
+    const questionLineHeight = lineSpacing ?? 1.5;
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
@@ -134,6 +142,9 @@ export const MatchingInformationInput: React.FC<MatchingInformationInputProps> =
                     return (
                         <div
                             key={question.number}
+                            ref={(element) => {
+                                onQuestionRefChange?.(question.number, element);
+                            }}
                             style={{
                                 display: 'flex',
                                 flexDirection: 'column',
@@ -163,10 +174,10 @@ export const MatchingInformationInput: React.FC<MatchingInformationInputProps> =
                                 <div
                                     style={{
                                         flex: 1,
-                                        fontSize: '16px',
+                                        fontSize: questionFontSize,
                                         color: '#000',
                                         fontFamily: 'Arial, sans-serif',
-                                        lineHeight: 1.5,
+                                        lineHeight: questionLineHeight,
                                     }}
                                 >
                                     {question.question}

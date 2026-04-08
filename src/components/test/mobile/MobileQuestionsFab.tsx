@@ -2,14 +2,14 @@
  * MobileQuestionsFab — Floating action button showing question progress
  *
  * Bottom-right positioned, respects safe-area-inset-bottom.
- * Shows answered/total count with optional warning/info badges
- * for unanswered and flagged counts.
+ * Shows the compact "Questions" label with an unanswered badge.
  *
  * No @mantine imports. No internal state.
  * @see PRD-0043 Task 3.3
  */
 
 import React from 'react';
+import { MOBILE_READING_LAYER_Z_INDEX } from './mobileReadingLayering';
 
 export interface MobileQuestionsFabProps {
   /** Number of answered questions */
@@ -18,8 +18,6 @@ export interface MobileQuestionsFabProps {
   totalCount: number;
   /** Number of unanswered questions */
   unansweredCount: number;
-  /** Number of flagged questions */
-  flaggedCount: number;
   /** Callback when FAB is pressed */
   onPress: () => void;
 }
@@ -28,7 +26,7 @@ const fabContainerStyle: React.CSSProperties = {
   position: 'fixed',
   bottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
   right: 16,
-  zIndex: 1000,
+  zIndex: MOBILE_READING_LAYER_Z_INDEX.FAB,
 };
 
 const fabButtonStyle: React.CSSProperties = {
@@ -68,7 +66,6 @@ export const MobileQuestionsFab: React.FC<MobileQuestionsFabProps> = ({
   answeredCount,
   totalCount,
   unansweredCount,
-  flaggedCount,
   onPress,
 }) => {
   return (
@@ -77,7 +74,7 @@ export const MobileQuestionsFab: React.FC<MobileQuestionsFabProps> = ({
         data-testid="mobile-questions-fab"
         style={fabButtonStyle}
         onClick={onPress}
-        aria-label={`Questions ${answeredCount} of ${totalCount}. ${unansweredCount} unanswered. ${flaggedCount} flagged.`}
+        aria-label={`Questions. ${answeredCount} answered of ${totalCount}. ${unansweredCount} unanswered.`}
         type="button"
       >
         {/* Clipboard icon */}
@@ -87,7 +84,7 @@ export const MobileQuestionsFab: React.FC<MobileQuestionsFabProps> = ({
           <path d="M5.5 6.5h5M5.5 9h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
         </svg>
 
-        <span>{answeredCount}/{totalCount}</span>
+        <span>Questions</span>
 
         {/* Unanswered badge — warning amber */}
         {unansweredCount > 0 && (
@@ -100,20 +97,6 @@ export const MobileQuestionsFab: React.FC<MobileQuestionsFabProps> = ({
             }}
           >
             {unansweredCount}
-          </span>
-        )}
-
-        {/* Flagged badge — info blue */}
-        {flaggedCount > 0 && (
-          <span
-            data-testid="fab-flagged-badge"
-            style={{
-              ...badgeBaseStyle,
-              background: '#60a5fa',
-              color: '#1e3a5f',
-            }}
-          >
-            {flaggedCount}
           </span>
         )}
       </button>

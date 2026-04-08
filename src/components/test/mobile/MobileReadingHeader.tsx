@@ -9,6 +9,7 @@
  */
 
 import React from 'react';
+import { MOBILE_READING_LAYER_Z_INDEX } from './mobileReadingLayering';
 
 export interface MobileReadingHeaderProps {
   /** Exam mode */
@@ -17,12 +18,14 @@ export interface MobileReadingHeaderProps {
   timeRemaining: number;
   /** Timer formatter from host */
   formatTime: (seconds: number) => string;
-  /** Display label like "Passage 1" */
-  activePassageLabel: string;
+  /** Open the submit / review flow */
+  onSubmitPress: () => void;
   /** Toggle overflow menu */
   onOverflowMenuToggle: () => void;
   /** Whether exam is paused (live mode) */
   isPaused: boolean;
+  /** Whether submission is in progress */
+  isSubmitting: boolean;
   /** Whether test has been submitted */
   testSubmitted: boolean;
 }
@@ -30,7 +33,7 @@ export interface MobileReadingHeaderProps {
 const headerStyle: React.CSSProperties = {
   position: 'sticky',
   top: 0,
-  zIndex: 1100,
+  zIndex: MOBILE_READING_LAYER_Z_INDEX.HEADER,
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
@@ -55,17 +58,21 @@ const timerStyle: React.CSSProperties = {
   minWidth: 72,
 };
 
-const passageLabelStyle: React.CSSProperties = {
-  fontSize: '0.875rem',
-  fontWeight: 600,
-  color: '#334155',
-  textAlign: 'center',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-  flex: 1,
-  maxWidth: 180,
+const submitButtonStyle: React.CSSProperties = {
+  minHeight: 34,
+  padding: '0 16px',
+  borderRadius: 999,
+  border: 'none',
+  background: '#0f172a',
+  color: '#ffffff',
+  fontSize: '0.8125rem',
+  fontWeight: 700,
+  letterSpacing: '0.04em',
+  textTransform: 'uppercase',
+  cursor: 'pointer',
+  flexShrink: 0,
   margin: '0 8px',
+  WebkitTapHighlightColor: 'transparent',
 };
 
 const overflowBtnStyle: React.CSSProperties = {
@@ -87,13 +94,16 @@ const overflowBtnStyle: React.CSSProperties = {
 export const MobileReadingHeader: React.FC<MobileReadingHeaderProps> = ({
   timeRemaining,
   formatTime,
-  activePassageLabel,
+  onSubmitPress,
   onOverflowMenuToggle,
   isPaused,
+  isSubmitting,
   testSubmitted,
 }) => {
   const isTimeLow = timeRemaining > 0 && timeRemaining <= 300; // 5 min warning
-  const isUntimed = !isFinite(timeRemaining) || timeRemaining <= 0;
+  const isUntimed = !isFinite(timeRemaining);
+  const submitDisabled = isSubmitting || testSubmitted;
+  const submitLabel = testSubmitted ? 'Submitted' : isSubmitting ? 'Submitting' : 'Submit';
 
   return (
     <header
@@ -127,13 +137,22 @@ export const MobileReadingHeader: React.FC<MobileReadingHeaderProps> = ({
               : formatTime(timeRemaining)}
       </div>
 
-      {/* Passage Label — Center */}
-      <div
-        data-testid="mobile-header-passage-label"
-        style={passageLabelStyle}
+      {/* Submit CTA — Center */}
+      <button
+        data-testid="mobile-header-submit"
+        style={{
+          ...submitButtonStyle,
+          background: submitDisabled ? '#cbd5e1' : '#0f172a',
+          color: submitDisabled ? '#475569' : '#ffffff',
+          cursor: submitDisabled ? 'default' : 'pointer',
+        }}
+        onClick={onSubmitPress}
+        aria-label="Submit test"
+        type="button"
+        disabled={submitDisabled}
       >
-        {activePassageLabel}
-      </div>
+        {submitLabel}
+      </button>
 
       {/* Overflow Menu — Right */}
       <button

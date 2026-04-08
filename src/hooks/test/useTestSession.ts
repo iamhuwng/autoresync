@@ -13,6 +13,7 @@ import { database } from '../../services/firebase';
 import { ref, onValue, update, onDisconnect } from 'firebase/database';
 import type { MasterAudioState, AudioMode, HeadphoneRequest } from '../../types/audio.types';
 import type { AntiCheatConfig } from '../../types/integrity.types';
+import type { SavedMobileState } from '../../types/practice.types';
 
 export interface TestSession {
   testId: string;
@@ -93,6 +94,8 @@ interface UseTestSessionReturn {
   antiCheatConfig: AntiCheatConfig | null;
   /** PRD-0036: Session-level teacher request for clients to flush buffered integrity logs */
   integrityRefreshRequestedAt: number | null;
+  /** PRD-0043: Persisted mobile Reading shell state for the current player */
+  mobileState: SavedMobileState | null;
 }
 
 export const useTestSession = ({
@@ -122,6 +125,7 @@ export const useTestSession = ({
   // PRD-0036: Anti-cheat config from RTDB session data
   const [antiCheatConfig, setAntiCheatConfig] = useState<AntiCheatConfig | null>(null);
   const [integrityRefreshRequestedAt, setIntegrityRefreshRequestedAt] = useState<number | null>(null);
+  const [mobileState, setMobileState] = useState<SavedMobileState | null>(null);
   const lastMasterStateTimestampRef = useRef<number>(0);
   const lastSyncedStartTimeRef = useRef<number | null>(null);
 
@@ -273,6 +277,12 @@ export const useTestSession = ({
           setHeadphoneRequest(request);
         }
 
+        setMobileState(
+          currentPlayerId && data.players?.[currentPlayerId]?.mobileState
+            ? data.players[currentPlayerId].mobileState as SavedMobileState
+            : null,
+        );
+
         // PRD-0036: Extract anti-cheat config from session
         if (data.antiCheatConfig) {
           setAntiCheatConfig(data.antiCheatConfig);
@@ -367,5 +377,6 @@ export const useTestSession = ({
     // PRD-0036: Anti-cheat config
     antiCheatConfig,
     integrityRefreshRequestedAt,
+    mobileState,
   };
 };

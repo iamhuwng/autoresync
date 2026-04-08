@@ -8,7 +8,8 @@
  * 1. QA session-scoped override (__qa_mobile_exam_override__)
  * 2. Primary: navigator.userAgent mobile/handheld signals
  * 3. Secondary: useScreenSize().isMobile + pointer:coarse media query
- * 4. Fail-safe: returns false (desktop/tablet layout)
+ * 4. Phone-sized hardware fallback for "desktop site on phone" sessions
+ * 5. Fail-safe: returns false (desktop/tablet layout)
  *
  * @see documentation/rules/mobile-portability.md — Rule 19
  */
@@ -42,6 +43,28 @@ function detectMobileUserAgent(): boolean {
 function hasCoarsePointer(): boolean {
   if (typeof window === 'undefined' || !window.matchMedia) return false;
   return window.matchMedia('(pointer: coarse)').matches;
+}
+
+function hasHoverCapablePointer(): boolean {
+  if (typeof window === 'undefined' || !window.matchMedia) return false;
+  return window.matchMedia('(hover: hover)').matches || window.matchMedia('(any-hover: hover)').matches;
+}
+
+/**
+ * Detect phone-class hardware from the physical screen rather than the current
+ * layout viewport. This covers phone browsers that request a desktop viewport.
+ */
+function hasPhoneSizedScreen(): boolean {
+  if (typeof window === 'undefined' || !window.screen) return false;
+  const shortestSide = Math.min(window.screen.width || 0, window.screen.height || 0);
+  return shortestSide > 0 && shortestSide < 768;
+}
+
+function hasDesktopSitePhoneViewport(): boolean {
+  if (typeof window === 'undefined') return false;
+  const width = window.innerWidth || 0;
+  const height = window.innerHeight || 0;
+  return width >= 768 && width < 1024 && height > 0 && height < 900;
 }
 
 export interface UseMobileExamModeResult {
@@ -84,6 +107,15 @@ export function useMobileExamMode(): UseMobileExamModeResult {
 
     // 3. Secondary: small viewport + touch pointer
     if (isMobile && hasCoarsePointer()) return true;
+
+    // 4. Fallback: touch phone in a widened "desktop site" viewport
+    if (
+      hasCoarsePointer()
+      && !hasHoverCapablePointer()
+      && (hasPhoneSizedScreen() || hasDesktopSitePhoneViewport())
+    ) {
+      return true;
+    }
 
     // 4. Fail-safe: uncertain → default to desktop/tablet
     return false;

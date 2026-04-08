@@ -1,6 +1,6 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import PassageRenderer from './PassageRenderer';
 
 describe('PassageRenderer', () => {
@@ -19,6 +19,7 @@ describe('PassageRenderer', () => {
       root.unmount();
     });
     container.remove();
+    vi.restoreAllMocks();
   });
 
   it('creates highlights when the selection spans multiple paragraphs', () => {
@@ -59,5 +60,23 @@ describe('PassageRenderer', () => {
     expect(marks).toHaveLength(2);
     expect(marks[0]?.textContent).toBe('paragraph end.');
     expect(marks[1]?.textContent).toBe('Second');
+  });
+
+  it('does not persist font size to localStorage when an external fontSize prop is supplied', () => {
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
+
+    act(() => {
+      root.render(
+        <PassageRenderer
+          passage={{
+            type: 'text',
+            content: 'External font size should not update persisted storage.',
+          }}
+          fontSize={20}
+        />
+      );
+    });
+
+    expect(setItemSpy).not.toHaveBeenCalledWith('passage_font_size', '20');
   });
 });

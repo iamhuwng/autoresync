@@ -436,7 +436,7 @@ export const useSoloSubmission = ({
             }
 
             // Clear localStorage progress
-            clearSoloProgress(materialId, studentId);
+            await clearSoloProgress(materialId, studentId);
 
             // Update local state
             setTestResults(results);

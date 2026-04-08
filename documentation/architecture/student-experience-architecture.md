@@ -136,4 +136,15 @@ Key implementation files:
 - `documentation/architecture/student-shell-right-rail-architecture.md`
 - `documentation/architecture/student-shell-data-loading.md`
 - `documentation/architecture/browser-document-title-architecture.md`
+- `documentation/architecture/mobile-ielts-reading-test-taking-architecture.md`
 - `documentation/rules/student-data-loading.md`
+
+
+## Standalone Student Test Delivery Surfaces
+
+Some student routes intentionally bypass `StudentLayout` and own their own standalone delivery chrome.
+
+Required rules:
+- IELTS Reading live-test and practice routes are standalone student-facing pages and must not inherit shell rail chrome
+- when those routes classify as phone Reading, they must hand off to the shared mobile Reading scaffold contract documented in `documentation/architecture/mobile-ielts-reading-test-taking-architecture.md`
+- student shell entry points such as Library and Homework remain responsible for passing launch context intact into those standalone test routes

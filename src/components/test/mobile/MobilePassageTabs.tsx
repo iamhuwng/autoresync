@@ -114,7 +114,7 @@ export const MobilePassageTabs: React.FC<MobilePassageTabsProps> = ({
 
       {passages.map((passage, index) => {
         const isActive = passage.id === activePassageId;
-        const label = passage.title || `Passage ${index + 1}`;
+        const label = `Passage ${index + 1}`;
 
         return (
           <button

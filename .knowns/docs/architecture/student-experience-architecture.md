@@ -2,7 +2,7 @@
 title: Student Experience Architecture
 description: Student-facing system overview with shell, dashboard, and academic-record architecture contracts.
 createdAt: '2026-02-27T16:18:36.604Z'
-updatedAt: '2026-04-02T10:22:55.076Z'
+updatedAt: '2026-04-08T17:36:17.566Z'
 tags:
   - architecture
   - student
@@ -152,3 +152,12 @@ Required behavior:
 ## Related Docs
 
 - @doc/architecture/browser-document-title-architecture
+
+## Standalone Student Test Delivery Surfaces
+
+Some student routes intentionally bypass `StudentLayout` and own their own standalone delivery chrome.
+
+Required rules:
+- IELTS Reading live-test and practice routes are standalone student-facing pages and must not inherit shell rail chrome
+- when those routes classify as phone Reading, they must hand off to the shared mobile Reading scaffold contract documented in @doc/architecture/mobile-ielts-reading-test-taking
+- student shell entry points such as Library and Homework remain responsible for passing launch context intact into those standalone test routes

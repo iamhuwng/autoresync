@@ -21,6 +21,8 @@ export interface MobileQuestionSheetProps {
   onClose: () => void;
   /** Sheet title (optional) */
   title?: string;
+  /** Render the built-in header row */
+  showHeader?: boolean;
   /** Sheet body content */
   children: React.ReactNode;
 }
@@ -32,6 +34,7 @@ export const MobileQuestionSheet: React.FC<MobileQuestionSheetProps> = ({
   isOpen,
   onClose,
   title = 'Questions',
+  showHeader = true,
   children,
 }) => {
   const headerRef = useRef<HTMLDivElement>(null);
@@ -93,27 +96,28 @@ export const MobileQuestionSheet: React.FC<MobileQuestionSheetProps> = ({
         aria-modal="true"
         aria-label={title}
       >
-        {/* Header with swipe zone */}
-        <div
-          ref={headerRef}
-          className="mobile-question-sheet-header"
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
-        >
-          <div className="mobile-question-sheet-handle" aria-hidden="true" />
-          <span className="mobile-question-sheet-header-title">{title}</span>
-          <button
-            data-testid="mobile-question-sheet-close"
-            className="mobile-question-sheet-close-btn"
-            onClick={onClose}
-            aria-label="Close question sheet"
-            type="button"
+        {showHeader ? (
+          <div
+            ref={headerRef}
+            className="mobile-question-sheet-header"
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
           >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-              <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z" />
-            </svg>
-          </button>
-        </div>
+            <div className="mobile-question-sheet-handle" aria-hidden="true" />
+            <span className="mobile-question-sheet-header-title">{title}</span>
+            <button
+              data-testid="mobile-question-sheet-close"
+              className="mobile-question-sheet-close-btn"
+              onClick={onClose}
+              aria-label="Close question sheet"
+              type="button"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z" />
+              </svg>
+            </button>
+          </div>
+        ) : null}
 
         {/* Body */}
         <div className="mobile-question-sheet-body" data-testid="mobile-question-sheet-body">

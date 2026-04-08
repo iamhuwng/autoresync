@@ -165,6 +165,7 @@ export const StudentHomeworkDetailPage: React.FC = () => {
     const navigate = useNavigate();
     const { user, logout } = useAuth();
     const { navigateTo } = useNavigation('student');
+    const resolvedStudentName = user?.displayName || user?.email || 'Student';
 
     // State
     const [material, setMaterial] = useState<TestData | null>(null);
@@ -193,7 +194,7 @@ export const StudentHomeworkDetailPage: React.FC = () => {
     } = useHomeworkSubmission({
         homeworkId: homeworkId || '',
         studentId: user?.uid || '',
-        studentName: user?.displayName || undefined
+        studentName: resolvedStudentName,
     });
 
     // Load material data

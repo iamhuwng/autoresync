@@ -19,6 +19,12 @@ const mockScreenSize = vi.hoisted(() => ({
   current: { isMobile: false, isTablet: false, isDesktop: true, width: 1280, height: 900 },
 }));
 
+const mockMediaState = vi.hoisted(() => ({
+  coarse: false,
+  hover: false,
+  anyHover: false,
+}));
+
 vi.mock('./useScreenSize', () => ({
   useScreenSize: () => mockScreenSize.current,
 }));
@@ -34,9 +40,14 @@ function setUserAgent(ua: string) {
 
 // Helper to control matchMedia for pointer:coarse
 function setPointerCoarse(coarse: boolean) {
+  mockMediaState.coarse = coarse;
   Object.defineProperty(window, 'matchMedia', {
     value: vi.fn((query: string) => ({
-      matches: query === '(pointer: coarse)' ? coarse : false,
+      matches:
+        query === '(pointer: coarse)' ? mockMediaState.coarse
+          : query === '(hover: hover)' ? mockMediaState.hover
+            : query === '(any-hover: hover)' ? mockMediaState.anyHover
+              : false,
       media: query,
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
@@ -50,6 +61,29 @@ function setPointerCoarse(coarse: boolean) {
   });
 }
 
+function setHoverCapablePointer(hover: boolean) {
+  mockMediaState.hover = hover;
+  mockMediaState.anyHover = hover;
+}
+
+function setScreenDimensions(width: number, height: number) {
+  Object.defineProperty(window, 'screen', {
+    value: { ...window.screen, width, height },
+    configurable: true,
+  });
+}
+
+function setViewportDimensions(width: number, height: number) {
+  Object.defineProperty(window, 'innerWidth', {
+    value: width,
+    configurable: true,
+  });
+  Object.defineProperty(window, 'innerHeight', {
+    value: height,
+    configurable: true,
+  });
+}
+
 describe('useMobileExamMode', () => {
   const DESKTOP_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
   const MOBILE_UA = 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
@@ -59,6 +93,9 @@ describe('useMobileExamMode', () => {
     vi.clearAllMocks();
     setUserAgent(DESKTOP_UA);
     setPointerCoarse(false);
+    setHoverCapablePointer(false);
+    setScreenDimensions(1280, 900);
+    setViewportDimensions(1280, 900);
     mockScreenSize.current = { isMobile: false, isTablet: false, isDesktop: true, width: 1280, height: 900 };
     mockSessionStoreGetString.mockResolvedValue(null);
   });
@@ -94,6 +131,7 @@ describe('useMobileExamMode', () => {
     mockScreenSize.current = { isMobile: true, isTablet: false, isDesktop: false, width: 400, height: 800 };
     setUserAgent(DESKTOP_UA);
     setPointerCoarse(false);
+    setViewportDimensions(400, 800);
 
     const { result } = renderHook(() => useMobileExamMode());
     await waitFor(() => {
@@ -105,10 +143,39 @@ describe('useMobileExamMode', () => {
     mockScreenSize.current = { isMobile: true, isTablet: false, isDesktop: false, width: 400, height: 800 };
     setUserAgent(DESKTOP_UA);
     setPointerCoarse(true);
+    setViewportDimensions(400, 800);
 
     const { result } = renderHook(() => useMobileExamMode());
     await waitFor(() => {
       expect(result.current.isMobileExamMode).toBe(true);
+    });
+  });
+
+  it('returns true for a phone-sized touch screen even when a desktop site widens the viewport', async () => {
+    mockScreenSize.current = { isMobile: false, isTablet: true, isDesktop: false, width: 980, height: 844 };
+    setUserAgent(DESKTOP_UA);
+    setPointerCoarse(true);
+    setHoverCapablePointer(false);
+    setScreenDimensions(980, 844);
+    setViewportDimensions(980, 844);
+
+    const { result } = renderHook(() => useMobileExamMode());
+    await waitFor(() => {
+      expect(result.current.isMobileExamMode).toBe(true);
+    });
+  });
+
+  it('returns false for a touch tablet-sized viewport without phone-class signals', async () => {
+    mockScreenSize.current = { isMobile: false, isTablet: true, isDesktop: false, width: 820, height: 1180 };
+    setUserAgent(DESKTOP_UA);
+    setPointerCoarse(true);
+    setHoverCapablePointer(false);
+    setScreenDimensions(820, 1180);
+    setViewportDimensions(820, 1180);
+
+    const { result } = renderHook(() => useMobileExamMode());
+    await waitFor(() => {
+      expect(result.current.isMobileExamMode).toBe(false);
     });
   });
 
@@ -126,6 +193,7 @@ describe('useMobileExamMode', () => {
   it('force-standard override returns false on mobile device', async () => {
     setUserAgent(MOBILE_UA);
     setPointerCoarse(true);
+    setViewportDimensions(400, 800);
     mockScreenSize.current = { isMobile: true, isTablet: false, isDesktop: false, width: 400, height: 800 };
     mockSessionStoreGetString.mockResolvedValue('force-standard');
 

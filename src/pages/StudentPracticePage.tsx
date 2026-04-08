@@ -129,8 +129,11 @@ const StudentPracticePageContent: React.FC = () => {
                     );
                     setResolvedSettings(settings);
                 } else if (locationState.isHomework) {
-                    // Homework mode: use default settings (homework has its own timer/config)
-                    setResolvedSettings(DEFAULT_PRACTICE_SETTINGS);
+                    setResolvedSettings({
+                        ...DEFAULT_PRACTICE_SETTINGS,
+                        timerMinutes: locationState.timerMinutes ?? DEFAULT_PRACTICE_SETTINGS.timerMinutes,
+                        maxAttempts: locationState.maxAttempts ?? DEFAULT_PRACTICE_SETTINGS.maxAttempts,
+                    });
                 } else {
                     // Self-study: default settings
                     setResolvedSettings(DEFAULT_PRACTICE_SETTINGS);

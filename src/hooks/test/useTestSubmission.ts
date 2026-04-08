@@ -70,6 +70,7 @@ interface UseTestSubmissionOptions {
   sessionCode: string | undefined;
   answers: StudentAnswers;
   timeRemaining: number;
+  skipConfirm?: boolean;
   /** PRD-0036: Optional integrity report to attach on submission */
   integrityReport?: IntegrityReport | null;
   /**
@@ -98,6 +99,7 @@ export const useTestSubmission = ({
   sessionCode,
   answers,
   timeRemaining,
+  skipConfirm = false,
   integrityReport,
   questionsWithAnswersRef,
 }: UseTestSubmissionOptions): UseTestSubmissionReturn => {
@@ -561,7 +563,7 @@ export const useTestSubmission = ({
     const unansweredCount = testData.questionCount - Object.keys(answers).length;
 
     // Only show confirm dialog for manual submissions with unanswered questions
-    if (!isAutoSubmit && unansweredCount > 0) {
+    if (!isAutoSubmit && !skipConfirm && unansweredCount > 0) {
       const confirmed = window.confirm(
         `You have ${unansweredCount} unanswered question(s). Are you sure you want to submit?`
       );

@@ -86,8 +86,10 @@ export const PassageRenderer: React.FC<PassageRendererProps> = ({
 
   // Persist font size
   useEffect(() => {
-    localStorage.setItem('passage_font_size', fontSize.toString());
-  }, [fontSize]);
+    if (externalFontSize === undefined) {
+      localStorage.setItem('passage_font_size', internalFontSize.toString());
+    }
+  }, [externalFontSize, internalFontSize]);
 
   // Clear highlights when triggered
   useEffect(() => {

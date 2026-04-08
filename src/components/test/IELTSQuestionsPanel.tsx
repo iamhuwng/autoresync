@@ -11,8 +11,13 @@
 import React, { useRef, useEffect } from 'react';
 import { AuthenticAnswerInput } from './AuthenticAnswerInput';
 import { DragDropMatchingInput } from './DragDropMatchingInput';
+import { MobileMatchingHeadingsInput } from './MobileMatchingHeadingsInput';
 import { MatchingInformationInput } from './MatchingInformationInput';
 import { MatchingFeaturesInput } from './MatchingFeaturesInput';
+import {
+  groupReadingQuestionsByTaskType,
+  type ReadingQuestionGroup,
+} from './readingQuestionGroups';
 import type { ReadingSectionReference } from '../../types/document.types';
 import {
   getReadingOptionDisplayText,
@@ -56,18 +61,44 @@ interface IELTSQuestionsPanelProps {
   questionResults?: Record<number, boolean>;
   partIndex?: number;
   skill?: string;
-}
 
-interface QuestionGroup {
-  startNumber: number;
-  endNumber: number;
-  type: string;
-  questions: Question[];
-  instructions: string;
+  /**
+   * When true, suppresses the internal sticky header and scroll wrapper.
+   * The parent (mobile sheet) will handle scrolling and provide its own chrome.
+   */
+  embedded?: boolean;
+
+  /**
+   * Scroll container used by the mobile sheet so the panel can avoid
+   * re-scrolling to anchors that are already visible.
+   */
+  scrollContainerRef?: React.RefObject<HTMLElement | null>;
+
+  /**
+   * Reports rendered question-group anchor offsets back to the scaffold.
+   */
+  onQuestionGroupLayoutChange?: (
+    questionGroupAnchors: Array<{ startNumber: number; topOffset: number }>
+  ) => void;
+
+  /**
+   * Optional mobile-only font size for embedded question body content.
+   */
+  fontSize?: number;
+
+  /**
+   * Optional mobile-only line spacing for embedded question body content.
+   */
+  lineSpacing?: number;
 }
 
 type OptionLike = ReadingOptionDisplayValue;
 type OptionLabelFormat = NonNullable<Question['optionLabelFormat']>;
+type QuestionGroup = ReadingQuestionGroup<Question>;
+type MatchingHelpVariant =
+  | 'matching-headings-desktop'
+  | 'matching-headings-mobile'
+  | 'matching-sentence-endings';
 
 const getQuestionOptions = (question: Question): OptionLike[] => getReadingQuestionOptions(question);
 
@@ -251,6 +282,36 @@ const groupQuestionsByTaskType = (questions: Question[]): QuestionGroup[] => {
   return groups;
 };
 
+const MATCHING_HELP_CONTENT: Record<
+  MatchingHelpVariant,
+  {
+    title: string;
+    paragraphs: string[];
+  }
+> = {
+  'matching-headings-desktop': {
+    title: 'How to Match Headings',
+    paragraphs: [
+      "Drag a heading from the 'List of Headings' and drop it onto the target box for the correct paragraph.",
+      "You can change your answer by dragging a different heading onto the box or by clicking the '×' to clear it.",
+    ],
+  },
+  'matching-headings-mobile': {
+    title: 'How to Match Headings on Mobile',
+    paragraphs: [
+      "Open the heading picker for each paragraph card and choose the heading that fits best.",
+      "The selected heading stays visible under the paragraph card, and you can use Clear or pick a different heading at any time.",
+    ],
+  },
+  'matching-sentence-endings': {
+    title: 'How to Match Sentence Endings',
+    paragraphs: [
+      "Drag an ending from the list and drop it onto the matching sentence row.",
+      "You can change your answer by dragging a different ending onto the row or by clearing the current one.",
+    ],
+  },
+};
+
 export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
   questions,
   currentPassageId,
@@ -261,15 +322,26 @@ export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
   questionResults,
   partIndex: _partIndex,
   skill,
+  embedded = false,
+  scrollContainerRef,
+  onQuestionGroupLayoutChange,
+  fontSize,
+  lineSpacing,
 }) => {
-  const questionRefs = useRef<Record<number, HTMLDivElement | null>>({});
-  const [showHelp, setShowHelp] = React.useState(false);
+  const questionRefs = useRef<Record<number, HTMLElement | null>>({});
+  const questionGroupRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const [matchingHelpVariant, setMatchingHelpVariant] = React.useState<MatchingHelpVariant | null>(null);
+  const embeddedBodyFontSize = embedded && fontSize ? `${fontSize}px` : null;
+  const embeddedBodyLineHeight = embedded && lineSpacing ? lineSpacing : null;
+  const handleQuestionRefChange = React.useCallback((questionNumber: number, element: HTMLElement | null) => {
+    questionRefs.current[questionNumber] = element;
+  }, []);
 
   // Filter questions for current passage
   const passageQuestions = questions.filter(q => q.passageId === currentPassageId);
 
   // Group questions by task type
-  const questionGroups = groupQuestionsByTaskType(passageQuestions);
+  const questionGroups = groupReadingQuestionsByTaskType(passageQuestions) as Array<ReadingQuestionGroup<Question>>;
 
   // ── DIAGNOSTIC: Log matching-headings groups ──
   const matchingHeadingsGroups = questionGroups.filter(g => g.type === 'matching-headings');
@@ -292,13 +364,57 @@ export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
 
   // Scroll to active question when it changes
   useEffect(() => {
-    if (activeQuestionNumber && questionRefs.current[activeQuestionNumber]) {
-      questionRefs.current[activeQuestionNumber]?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'nearest',
-      });
+    const target = activeQuestionNumber ? questionRefs.current[activeQuestionNumber] : null;
+    if (!target) {
+      return;
     }
-  }, [activeQuestionNumber]);
+
+    if (embedded && scrollContainerRef?.current) {
+      const containerRect = scrollContainerRef.current.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      const visibilityPadding = 72;
+      const alreadyVisible =
+        targetRect.top >= containerRect.top + visibilityPadding &&
+        targetRect.top <= containerRect.bottom - visibilityPadding;
+
+      if (alreadyVisible) {
+        return;
+      }
+    }
+
+    target.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+    });
+  }, [activeQuestionNumber, embedded, scrollContainerRef]);
+
+  useEffect(() => {
+    if (!embedded || !onQuestionGroupLayoutChange) {
+      return;
+    }
+
+    const frameId = requestAnimationFrame(() => {
+      const anchors = questionGroups
+        .map((group) => {
+          const element = questionGroupRefs.current[group.startNumber];
+          if (!element) {
+            return null;
+          }
+
+          return {
+            startNumber: group.startNumber,
+            topOffset: element.offsetTop,
+          };
+        })
+        .filter((anchor): anchor is { startNumber: number; topOffset: number } => anchor !== null);
+
+      onQuestionGroupLayoutChange(anchors);
+    });
+
+    return () => {
+      cancelAnimationFrame(frameId);
+    };
+  }, [currentPassageId, embedded, onQuestionGroupLayoutChange, questionGroups]);
 
   if (passageQuestions.length === 0) {
     return (
@@ -324,50 +440,56 @@ export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
     <div style={{
       display: 'flex',
       flexDirection: 'column',
-      height: '100%',
+      height: embedded ? 'auto' : '100%',
       background: '#ffffff',
     }}>
-      {/* Header - Simplified (navigation moved to footer) */}
-      <div style={{
-        position: 'sticky',
-        top: 0,
-        zIndex: 10,
-        background: 'white',
-        borderBottom: '1px solid #d1d5db',
-        padding: '0.625rem 1.5rem',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        height: '40px',
-        flexShrink: 0,
-      }}>
+      {/* Header - hidden in embedded mode */}
+      {!embedded && (
         <div style={{
-          fontSize: '15px',
-          fontWeight: 700,
-          color: '#000000',
+          position: 'sticky',
+          top: 0,
+          zIndex: 10,
+          background: 'white',
+          borderBottom: '1px solid #d1d5db',
+          padding: '0.625rem 1.5rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          height: '40px',
+          flexShrink: 0,
         }}>
-          Questions {passageQuestions.length > 0
-            ? `${passageQuestions[0]?.number || 1}–${passageQuestions[passageQuestions.length - 1]?.number || 1}`
-            : ''}
+          <div style={{
+            fontSize: '15px',
+            fontWeight: 700,
+            color: '#000000',
+          }}>
+            Questions {passageQuestions.length > 0
+              ? `${passageQuestions[0]?.number || 1}–${passageQuestions[passageQuestions.length - 1]?.number || 1}`
+              : ''}
+          </div>
+          <div style={{
+            fontSize: '13px',
+            color: '#666666',
+          }}>
+            {Object.keys(answers).filter(n => passageQuestions.some(q => q.number === parseInt(n))).length} of {passageQuestions.length} answered
+          </div>
         </div>
-        <div style={{
-          fontSize: '13px',
-          color: '#666666',
-        }}>
-          {Object.keys(answers).filter(n => passageQuestions.some(q => q.number === parseInt(n))).length} of {passageQuestions.length} answered
-        </div>
-      </div>
+      )}
 
-      {/* Scrollable Questions Area */}
+      {/* Questions Area - no scroll wrapper in embedded mode */}
       <div style={{
-        flex: 1,
-        overflowY: 'auto',
+        flex: embedded ? 'unset' : 1,
+        overflowY: embedded ? 'visible' : 'auto',
         overflowX: 'hidden',
-        padding: '1.5rem',
+        padding: embedded ? '1rem' : '1.5rem',
       }}>
         {questionGroups.map((group, groupIndex) => (
           <div
             key={`group-${groupIndex}`}
+            ref={(element) => {
+              questionGroupRefs.current[group.startNumber] = element;
+            }}
+            data-question-group-start={group.startNumber}
             style={{
               marginBottom: groupIndex < questionGroups.length - 1 ? '3rem' : '0',
             }}
@@ -381,9 +503,9 @@ export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
               borderRadius: '2px',
             }}>
               <div style={{
-                fontSize: '16px',
+                fontSize: embeddedBodyFontSize ?? '16px',
                 color: '#000000',
-                lineHeight: 1.6,
+                lineHeight: embeddedBodyLineHeight ?? 1.6,
                 fontFamily: 'Arial, sans-serif',
               }}>
                 {/* Format the instructions with bold title + legend for T/F/NG and Y/N/NG */}
@@ -489,7 +611,10 @@ export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
                         questions={group.questions}
                         answers={groupAnswers}
                         onAnswerChange={(num: number, ans: string) => onAnswerChange(num, ans)}
+                        onQuestionRefChange={handleQuestionRefChange}
                         disabled={testSubmitted}
+                        fontSize={embedded && fontSize ? fontSize : undefined}
+                        lineSpacing={embedded && lineSpacing ? lineSpacing : undefined}
                       />
                     </div>
                   );
@@ -513,7 +638,10 @@ export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
                         questions={group.questions}
                         answers={groupAnswers}
                         onAnswerChange={(num: number, ans: string) => onAnswerChange(num, ans)}
+                        onQuestionRefChange={handleQuestionRefChange}
                         disabled={testSubmitted}
+                        fontSize={embedded && fontSize ? fontSize : undefined}
+                        lineSpacing={embedded && lineSpacing ? lineSpacing : undefined}
                       />
                     </div>
                   );
@@ -546,6 +674,12 @@ export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
                     listTitle = 'List of Endings';
                   }
 
+                  const useMobileMatchingHeadings = embedded && group.type === 'matching-headings';
+                  const helpVariant: MatchingHelpVariant =
+                    group.type === 'matching-headings'
+                      ? (useMobileMatchingHeadings ? 'matching-headings-mobile' : 'matching-headings-desktop')
+                      : 'matching-sentence-endings';
+
                   // ── DIAGNOSTIC: Log drag-drop matching data being passed ──
                   if (group.type === 'matching-headings') {
                     console.log('🎯 [IELTSQuestionsPanel] Rendering matching-headings DragDropMatchingInput');
@@ -575,7 +709,7 @@ export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
                     }}>
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
                         <button
-                          onClick={() => setShowHelp(true)}
+                          onClick={() => setMatchingHelpVariant(helpVariant)}
                           style={{
                             width: '24px',
                             height: '24px',
@@ -595,14 +729,31 @@ export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
                           ?
                         </button>
                       </div>
-                      <DragDropMatchingInput
-                        questions={group.questions}
-                        answers={groupAnswers}
-                        onAnswerChange={(num: number, ans: string) => onAnswerChange(num, ans)}
-                        disabled={testSubmitted}
-                        labelType={labelFormat === 'roman' ? 'roman' : 'letter'}
-                        listTitle={listTitle}
-                      />
+                      {useMobileMatchingHeadings ? (
+                        <MobileMatchingHeadingsInput
+                          questions={group.questions}
+                          answers={groupAnswers}
+                          onAnswerChange={(num: number, ans: string) => onAnswerChange(num, ans)}
+                          onQuestionRefChange={handleQuestionRefChange}
+                          disabled={testSubmitted}
+                          labelType={labelFormat === 'roman' ? 'roman' : 'letter'}
+                          listTitle={listTitle}
+                          fontSize={embedded && fontSize ? fontSize : undefined}
+                          lineSpacing={embedded && lineSpacing ? lineSpacing : undefined}
+                        />
+                      ) : (
+                        <DragDropMatchingInput
+                          questions={group.questions}
+                          answers={groupAnswers}
+                          onAnswerChange={(num: number, ans: string) => onAnswerChange(num, ans)}
+                          onQuestionRefChange={handleQuestionRefChange}
+                          disabled={testSubmitted}
+                          labelType={labelFormat === 'roman' ? 'roman' : 'letter'}
+                          listTitle={listTitle}
+                          fontSize={embedded && fontSize ? fontSize : undefined}
+                          lineSpacing={embedded && lineSpacing ? lineSpacing : undefined}
+                        />
+                      )}
                     </div>
                   );
                 }
@@ -671,14 +822,6 @@ export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
                     }}>
                       {/* Summary container card — flowing paragraph */}
                         <div
-                          ref={(el) => {
-                          // Register all question refs for scroll-to
-                          if (el) {
-                            group.questions.forEach(q => {
-                              questionRefs.current[q.number] = el;
-                            });
-                          }
-                        }}
                         style={{
                           border: '1px solid #d1d5db',
                           borderRadius: '4px',
@@ -703,7 +846,13 @@ export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
                           const isCorrect = testSubmitted && questionResults ? questionResults[qNum] : null;
 
                           return (
-                            <span key={`d-${segIdx}`} style={{ whiteSpace: 'nowrap' }}>
+                            <span
+                              key={`d-${segIdx}`}
+                              ref={(element) => {
+                                handleQuestionRefChange(qNum, element);
+                              }}
+                              style={{ whiteSpace: 'nowrap' }}
+                            >
                               <strong style={{
                                 color: testSubmitted && isCorrect !== null
                                   ? isCorrect ? '#16a34a' : '#dc2626'
@@ -1351,10 +1500,10 @@ export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
                         </div>
                         <div style={{
                           flex: 1,
-                          fontSize: '16px',
+                          fontSize: embeddedBodyFontSize ?? '16px',
                           fontWeight: 400,
                           color: '#000000',
-                          lineHeight: 1.6,
+                          lineHeight: embeddedBodyLineHeight ?? 1.6,
                           fontFamily: 'Arial, sans-serif',
                         }}>
                           {/* Skip rendering text here if it's a completion question with inline blanks, 
@@ -1413,7 +1562,7 @@ export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
         ))}
       </div>
 
-      {showHelp && (
+      {matchingHelpVariant && (
         <div style={{
           position: 'fixed',
           top: 0,
@@ -1433,11 +1582,17 @@ export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
             maxWidth: '400px',
             boxShadow: '0 4px 20px rgba(0,0,0,0.2)'
           }}>
-            <h3 style={{ marginTop: 0, color: 'rgb(65, 142, 200)' }}>How to Match Headings</h3>
-            <p style={{ fontSize: '15px', lineHeight: 1.5, color: '#333' }}>Drag a heading from the 'List of Headings' and drop it onto the target box for the correct paragraph.</p>
+            <h3 style={{ marginTop: 0, color: 'rgb(65, 142, 200)' }}>
+              {MATCHING_HELP_CONTENT[matchingHelpVariant].title}
+            </h3>
+            {MATCHING_HELP_CONTENT[matchingHelpVariant].paragraphs.map((paragraph) => (
+              <p key={paragraph} style={{ fontSize: '15px', lineHeight: 1.5, color: '#333' }}>
+                {paragraph}
+              </p>
+            ))}
             <p style={{ fontSize: '15px', lineHeight: 1.5, color: '#333' }}>You can change your answer by dragging a different heading onto the box or by clicking the '×' to clear it.</p>
             <button
-              onClick={() => setShowHelp(false)}
+              onClick={() => setMatchingHelpVariant(null)}
               style={{
                 width: '100%',
                 padding: '0.75rem',

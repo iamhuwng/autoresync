@@ -2,7 +2,7 @@
 title: Solo Study Homework System
 description: Architecture and implementation docs for solo study and homework system
 createdAt: '2026-02-27T15:25:43.328Z'
-updatedAt: '2026-04-02T04:50:17.841Z'
+updatedAt: '2026-04-08T17:36:17.610Z'
 tags:
   - solo
   - homework
@@ -343,3 +343,14 @@ For Reading solo practice and homework surfaces:
 - highlight selections must map back to full passage source offsets so cross-paragraph selections persist correctly
 
 See @doc/architecture/reading-passage-highlighting-architecture.
+
+## 2026-04-09 Amendment — Mobile IELTS Reading Homework Launch Integrity
+
+Shared homework-to-practice route handoff rules for mobile IELTS Reading:
+- homework launch must provide a non-empty `studentName`
+- homework launch must preserve `timerMinutes` and `maxAttempts`
+- resumed mobile Reading homework must restore the canonical timed/attempt-limited state instead of falling back to untimed solo defaults
+
+Related architecture:
+- @doc/architecture/mobile-ielts-reading-test-taking
+- @doc/architecture/homework-solo-practice-architecture

@@ -67,6 +67,22 @@ export interface StudentSoloPreferences {
 }
 
 /**
+ * Persisted mobile Reading shell state.
+ * Must remain JSON-safe because it is stored in RTDB/local storage.
+ */
+export interface SavedMobileState {
+    activePassageId?: string;
+    questionSheetOpen: boolean;
+    reviewSummaryOpen: boolean;
+    /** Legacy field kept optional so older persisted payloads still hydrate safely. */
+    flaggedQuestions?: number[];
+    passageScrollByPassage: Record<string, number>;
+    activeQuestionGroupByPassage: Record<string, number>;
+    questionSheetScrollByPassage: Record<string, number>;
+    textSize?: number;
+}
+
+/**
  * Solo session progress saved to localStorage for resume functionality.
  */
 export interface SoloSessionProgress {
@@ -77,6 +93,7 @@ export interface SoloSessionProgress {
     timeElapsed: number;  // seconds already spent
     startedAt: number;    // timestamp
     lastSavedAt: number;  // timestamp
+    mobileState?: SavedMobileState;
 }
 
 /** Default student preferences */
