@@ -1,10 +1,8 @@
 ---
 title: Course Class Management
+description: Course and class CRUD, enrollment flow, student-teacher assignments, access control, 8 services mapped.
 createdAt: '2026-02-27T17:02:32.879Z'
-updatedAt: '2026-03-20T02:28:32.512Z'
-description: >-
-  Course and class CRUD, enrollment flow, student-teacher assignments, access
-  control, 8 services mapped.
+updatedAt: '2026-04-09T07:59:21.823Z'
 tags:
   - architecture
   - course
@@ -12,6 +10,7 @@ tags:
   - enrollment
   - assignment
 ---
+
 # Course & Class Management Architecture
 
 ## Overview
@@ -127,3 +126,24 @@ See @doc/patterns/pattern-course-class-sync-thcs-title-resolution for full imple
 
 ### Sync Button Fix (2026-03-19)
 The Sync
+
+## Class-Code Enrollment Approval Contract
+
+Authenticated students joining a class by code are no longer immediately active.
+
+Required rules:
+- self-service class-code joins write `pending_approval` membership records first
+- `pending_approval` must not grant student shell class visibility
+- `pending_approval` must not auto-enroll linked class courses
+- teacher approval is the point where linked course inheritance becomes active
+- teacher/admin manual add-to-class remains the explicit immediate path and uses active enrollment directly
+
+Current repo anchors:
+- `src/services/classManager.ts`
+- `src/pages/StudentDashboardPage.jsx`
+- `src/pages/TeacherStudentsPage.tsx`
+- `src/pages/AdminUserManagementPage.jsx`
+- `src/pages/TeacherClassDetailPage.tsx`
+
+Related doc:
+- @doc/architecture/class-code-join-approval-gating

@@ -141,6 +141,8 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       'editClass',
       'addStudent',
       'removeStudent',
+      'approveStudent',
+      'rejectStudent',
       'viewHomeworkTab',
       'openHomeworkCreateModal',
       'openHomeworkDetail',

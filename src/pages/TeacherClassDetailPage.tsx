@@ -96,12 +96,16 @@ const TeacherClassDetailPage: React.FC = () => {
     const confirmed = window.confirm(
       `Remove ${studentName || 'this student'} from this class? This will also remove class-linked course access.`
     );
-    if (!confirmed) return;
+    if (!confirmed) {
+      trackAction('removeStudent', { classId, studentId, outcome: 'cancelled' });
+      return;
+    }
 
     setRemovingStudentId(studentId);
     try {
       const result = await removeStudentFromClass(classId, studentId);
       if (!result.success) {
+        trackAction('removeStudent', { classId, studentId, outcome: 'failure' });
         notifications.show({
           title: 'Remove Failed',
           message: result.error || 'Could not remove student from class',
@@ -110,6 +114,7 @@ const TeacherClassDetailPage: React.FC = () => {
         return;
       }
 
+      trackAction('removeStudent', { classId, studentId, outcome: 'success' });
       notifications.show({
         title: 'Student Removed',
         message: `${studentName || 'Student'} was removed from the class.`,
@@ -117,6 +122,7 @@ const TeacherClassDetailPage: React.FC = () => {
       });
     } catch (error) {
       console.error('Error removing student:', error);
+      trackAction('removeStudent', { classId, studentId, outcome: 'error' });
       notifications.show({
         title: 'Error',
         message: 'An unexpected error occurred while removing the student.',
@@ -133,6 +139,7 @@ const TeacherClassDetailPage: React.FC = () => {
     try {
       const result = await approveClassStudent(classId, studentId, user.uid);
       if (result.success) {
+        trackAction('approveStudent', { classId, studentId, outcome: 'success' });
         notifications.show({
           title: 'Student Approved',
           message: `${studentName} is now an active member of this class.`,
@@ -140,6 +147,7 @@ const TeacherClassDetailPage: React.FC = () => {
         });
         loadClassData();
       } else {
+        trackAction('approveStudent', { classId, studentId, outcome: 'failure' });
         notifications.show({
           title: 'Approval Failed',
           message: result.error || 'Could not approve student',
@@ -148,6 +156,7 @@ const TeacherClassDetailPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Error approving student:', error);
+      trackAction('approveStudent', { classId, studentId, outcome: 'error' });
       notifications.show({ title: 'Error', message: 'An unexpected error occurred.', color: 'red' });
     } finally {
       setApprovingStudentId(null);
@@ -159,12 +168,16 @@ const TeacherClassDetailPage: React.FC = () => {
     const confirmed = window.confirm(
       `Reject ${studentName || 'this student'}? They will be removed from the class.`
     );
-    if (!confirmed) return;
+    if (!confirmed) {
+      trackAction('rejectStudent', { classId, studentId, outcome: 'cancelled' });
+      return;
+    }
 
     setRejectingStudentId(studentId);
     try {
       const result = await rejectClassStudent(classId, studentId);
       if (result.success) {
+        trackAction('rejectStudent', { classId, studentId, outcome: 'success' });
         notifications.show({
           title: 'Student Rejected',
           message: `${studentName} has been removed from the class.`,
@@ -172,6 +185,7 @@ const TeacherClassDetailPage: React.FC = () => {
         });
         loadClassData();
       } else {
+        trackAction('rejectStudent', { classId, studentId, outcome: 'failure' });
         notifications.show({
           title: 'Rejection Failed',
           message: result.error || 'Could not reject student',
@@ -180,6 +194,7 @@ const TeacherClassDetailPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Error rejecting student:', error);
+      trackAction('rejectStudent', { classId, studentId, outcome: 'error' });
       notifications.show({ title: 'Error', message: 'An unexpected error occurred.', color: 'red' });
     } finally {
       setRejectingStudentId(null);

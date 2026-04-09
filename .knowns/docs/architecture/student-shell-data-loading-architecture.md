@@ -2,7 +2,7 @@
 title: Student Shell Data Loading Architecture
 description: 'Canonical ownership and loading contract for student shell routes: one persistent shell data owner, shared consumers, and route-safe page loading boundaries.'
 createdAt: '2026-03-31T02:54:47.750Z'
-updatedAt: '2026-04-01T05:44:56.018Z'
+updatedAt: '2026-04-09T07:59:21.828Z'
 tags:
   - architecture
   - student
@@ -195,3 +195,20 @@ For startup-sensitive changes on the student path, also verify:
 - @doc/architecture/student-experience-architecture
 - @doc/patterns/pattern-student-shell-single-data-owner
 - @doc/patterns/pattern-summary-first-detail-on-demand
+
+## Approval-Filtered Membership Visibility
+
+Shell-owned student class summaries are approval-filtered, not raw-roster mirrors.
+
+Required rules:
+- shell-owned enrolled class membership summaries must include only student-visible memberships
+- `pending_approval` and `removed` membership states must stay out of shell-owned class summaries even if the raw roster or projection record already exists
+- helper services receiving shell-owned class summaries must treat them as already approval-filtered
+- self-service join requests must not trigger downstream coursework visibility before teacher approval
+
+Dashboard-specific rule:
+- a successful class-code submission may update dashboard-local join request state, but it must not be treated as active shell membership
+- dashboard should not force homework refresh or equivalent coursework refresh while the join remains `pending_approval`
+
+Related doc:
+- @doc/architecture/class-code-join-approval-gating

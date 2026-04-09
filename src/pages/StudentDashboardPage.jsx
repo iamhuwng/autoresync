@@ -405,11 +405,10 @@ const StudentDashboardPage = () => {
                 return;
             }
 
-            trackAction('submitJoinClass', { outcome: 'success', code: normalizedCode });
-            setJoinSuccessMessage(`Successfully joined ${normalizedCode}.`);
+            trackAction('submitJoinClass', { outcome: 'success', code: normalizedCode, approvalState: 'pending' });
+            setJoinSuccessMessage(`Join request sent for ${normalizedCode}. Waiting for teacher approval.`);
             setClassCode('');
             await refreshClasses();
-            await refreshHomeworkData();
             setTimeout(() => {
                 setJoinSuccessMessage('');
                 closeJoinModal('auto_success');

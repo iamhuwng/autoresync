@@ -103,6 +103,22 @@ describe('useStudentShellData', () => {
 
     it('refreshes classes and homework when the student class projection changes', async () => {
         const refreshHomeworkData = vi.fn().mockResolvedValue(undefined);
+        vi.mocked(classManager.getStudentClasses)
+            .mockReset()
+            .mockResolvedValueOnce([])
+            .mockResolvedValueOnce([])
+            .mockResolvedValueOnce([
+                {
+                    id: 'class-1',
+                    classCode: 'ABC123',
+                    name: 'IELTS Class',
+                    status: 'active',
+                    createdAt: 1,
+                    studentCount: 1,
+                    activeAssignments: 0,
+                    completedAssignments: 0,
+                },
+            ]);
 
         vi.mocked(homeworkSubmissionHooks.useStudentHomeworkList).mockReturnValue({
             homeworkItems: [],
@@ -136,7 +152,18 @@ describe('useStudentShellData', () => {
         });
 
         await waitFor(() => {
-            expect(result.current.enrolledClasses).toHaveLength(1);
+            expect(result.current.enrolledClasses).toEqual([]);
+        });
+
+        expect(refreshHomeworkData).toHaveBeenCalledTimes(0);
+
+        await act(async () => {
+            membershipCallback?.({
+                'class-1': {
+                    joinedAt: 1,
+                    status: 'active',
+                },
+            });
         });
 
         await waitFor(() => {

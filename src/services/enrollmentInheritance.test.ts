@@ -50,11 +50,11 @@ describe('Enrollment Inheritance Integration', () => {
         });
     });
 
-    it('new student joining class via code should trigger auto-enrollment', async () => {
+    it('new student joining class via code should not auto-enroll before approval', async () => {
         const result = await enrollStudent('CLASS123', 'student-1', 'Student Name', 'student@test.com');
 
         expect(result.success).toBe(true);
-        expect(enrollmentManager.autoEnrollStudentInClassCourses).toHaveBeenCalledWith('CLASS123', 'student-1');
+        expect(enrollmentManager.autoEnrollStudentInClassCourses).not.toHaveBeenCalled();
     });
 
     it('new student added manually should trigger auto-enrollment', async () => {

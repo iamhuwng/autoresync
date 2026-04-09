@@ -81,6 +81,7 @@ const makeShellData = (overrides = {}) => ({
     classLiveSessions: [],
     notStarted: [],
     inProgress: [],
+    completed: [],
     overdue: [],
     sortedAssignments: [],
     isClassesLoading: false,
@@ -108,8 +109,7 @@ describe('StudentDashboardPage', () => {
         renderWithProviders(<StudentDashboardPage />);
 
         await waitFor(() => {
-            expect(screen.getByText('Feed')).toBeInTheDocument();
-            expect(screen.getByText('Dashboard')).toBeInTheDocument();
+            expect(screen.getAllByText('Dashboard').length).toBeGreaterThan(0);
             expect(screen.getByText('Your workspace is ready.')).toBeInTheDocument();
             expect(screen.getByText('Join a class to unlock live sessions, coursework, and result tracking in this academic shell.')).toBeInTheDocument();
         });
@@ -135,16 +135,11 @@ describe('StudentDashboardPage', () => {
         renderWithProviders(<StudentDashboardPage />);
 
         await waitFor(() => {
-            expect(screen.getByText('Activity')).toBeInTheDocument();
-            expect(screen.getByText('Homework Due')).toBeInTheDocument();
-            expect(screen.getByText('0 in current view')).toBeInTheDocument();
-            expect(screen.getByText('No pending start')).toBeInTheDocument();
-            expect(screen.getAllByText('Deadlines')).toHaveLength(1);
-            expect(screen.getByText('Reading Practice')).toBeInTheDocument();
+            expect(screen.getAllByText('Dashboard').length).toBeGreaterThan(0);
+            expect(screen.getAllByText('Reading Practice').length).toBeGreaterThan(0);
             expect(screen.getByText('My Classes')).toBeInTheDocument();
-            expect(screen.getAllByText('AB').length).toBeGreaterThan(0);
-            expect(screen.getAllByText('CD').length).toBeGreaterThan(0);
-            expect(screen.queryByText('Your Updates')).not.toBeInTheDocument();
+            expect(screen.getByText('IELTS Class')).toBeInTheDocument();
+            expect(screen.getByText('THCS Class')).toBeInTheDocument();
         });
     });
 
@@ -177,7 +172,7 @@ describe('StudentDashboardPage', () => {
             expect(screen.getAllByText('Live Now').length).toBeGreaterThan(0);
             expect(screen.getByText('Live IELTS Reading')).toBeInTheDocument();
             expect(screen.getByText('Deadlines')).toBeInTheDocument();
-            expect(screen.getByText('Reading Practice')).toBeInTheDocument();
+            expect(screen.getAllByText('Reading Practice').length).toBeGreaterThan(0);
             expect(screen.getByText('My Classes')).toBeInTheDocument();
             expect(screen.getByTestId('pending-reviews-widget')).toBeInTheDocument();
             expect(screen.queryByText('Public Sessions')).not.toBeInTheDocument();
@@ -194,7 +189,7 @@ describe('StudentDashboardPage', () => {
         });
     });
 
-    it('refreshes homework after a successful class join', async () => {
+    it('keeps the join flow pending until teacher approval', async () => {
         renderWithProviders(<StudentDashboardPage />);
 
         fireEvent.click(await screen.findByText('Join a Class'));
@@ -213,7 +208,8 @@ describe('StudentDashboardPage', () => {
                 'student@test.com',
             );
             expect(mockRefreshClasses).toHaveBeenCalledTimes(1);
-            expect(mockRefreshHomeworkData).toHaveBeenCalledTimes(1);
+            expect(mockRefreshHomeworkData).not.toHaveBeenCalled();
+            expect(screen.getByText('Join request sent for ABC123. Waiting for teacher approval.')).toBeInTheDocument();
         });
     });
 

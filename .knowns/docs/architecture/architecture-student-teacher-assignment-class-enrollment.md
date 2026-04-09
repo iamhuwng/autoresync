@@ -1,12 +1,8 @@
 ---
 title: 'Architecture: Student-Teacher Assignment & Class Enrollment'
+description: 'Documents the two distinct systems for managing student-teacher relationships: assignment requests vs direct class enrollment. Covers data flows, service functions, RTDB paths, and the 2026-03-04 fix that removed the admin approval gate for teacher-initiated additions.'
 createdAt: '2026-03-04T16:15:06.090Z'
-updatedAt: '2026-03-04T16:27:22.241Z'
-description: >-
-  Documents the two distinct systems for managing student-teacher relationships:
-  assignment requests vs direct class enrollment. Covers data flows, service
-  functions, RTDB paths, and the 2026-03-04 fix that removed the admin approval
-  gate for teacher-initiated additions.
+updatedAt: '2026-04-09T08:00:08.813Z'
 tags:
   - architecture
   - enrollment
@@ -14,46 +10,85 @@ tags:
   - teacher
   - student
 ---
+
 # Architecture: Student-Teacher Assignment & Class Enrollment
 
 ## Overview
 
-The system has **two distinct mechanisms** for managing student-teacher relationships. Confusing them is a common source of bugs.
+The system has two distinct relationship layers. Confusing them is a common source of bugs.
 
-| System | Purpose | RTDB Path | Gate |
-|--------|---------|-----------|------|
-| **Assignment** | Links student ↔ teacher | `student_teacher_assignments/{id}` | None (direct) |
-| **Class Enrollment** | Adds student to a class roster | `classes/{classId}/students/{studentId}` | None (direct) |
+| Layer | Purpose | Primary RTDB Path | Notes |
+|------|---------|-------------------|-------|
+| **Assignment** | Links student ↔ teacher for access control and ownership | `student_teacher_assignments/{id}` | Independent of whether the student is in a class |
+| **Class Enrollment** | Adds student to a specific class roster | `classes/{classId}/students/{studentId}` | Can be active immediately or pending teacher approval depending on entry path |
 
-There is also a **legacy request system** (now bypassed) at `student_requests/{id}` that was the original admin-approval gate.
+The approval gate now applies only to self-service class-code joins.
+
+## Current Enrollment Modes
+
+| Mode | Entry path | Initial status | Gate | Student-visible when |
+|------|------------|----------------|------|----------------------|
+| **Teacher/admin direct add** | `TeacherStudentsPage` or `AdminUserManagementPage` → `enrollStudent(..., { approvalMode: 'active' })` | `active` | None | Immediately |
+| **Student self-service join by code** | `StudentDashboardPage` → `enrollStudent(classCode, studentId, ...)` | `pending_approval` | Teacher approval in `TeacherClassDetailPage` | After `approveClassStudent()` |
+
+Assignment and class enrollment remain separate operations.
+
+Required rules:
+- staff-driven add-to-class remains immediate
+- self-service class-code join remains pending until teacher approval
+- approval is the point where class-linked course inheritance becomes active
+- pending memberships must stay out of student-visible class reads
 
 ## Data Flow: Teacher Adds Student by Email
 
-**Current flow (after 2026-03-04 fix):**
-```
+Current flow:
+```text
 TeacherStudentsPage → handleAddStudent(email)
-  → getUserByEmail(email)              // userService.ts
-  → createAssignment(studentUid, teacherUid, teacherUid)  // assignmentManager.ts
-  → Student appears in teacher's list immediately
+  → getUserByEmail(email)
+  → createAssignment(studentUid, teacherUid, teacherUid)
+  → Student appears in teacher student list immediately
 ```
 
-**Previous flow (admin-gated, now bypassed):**
-```
-TeacherStudentsPage → handleRequestStudent(email)
-  → createStudentRequest(teacherId, email)  // assignmentManager.ts
-  → Writes to student_requests/{id} with status: 'pending'
-  → Admin approves → approveStudentRequest() → creates assignment
+This creates the student-teacher relationship, not a class membership.
+
+## Data Flow: Teacher/Admin Adds Student to Class
+
+```text
+TeacherStudentsPage/AdminUserManagementPage → handleConfirmAddToClass(classId)
+  → enrollStudent(classId, student.uid, name, email, { approvalMode: 'active' })
+  → Writes classes/{classId}/students/{studentUid} with status: 'active'
+  → Writes student_classes/{studentUid}/{classId} with status: 'active'
+  → Auto-enrolls linked class courses immediately
 ```
 
-## Data Flow: Teacher Adds Student to Class
+## Data Flow: Student Joins Class by Code
 
-Once a student is in the teacher's student list, they can be added to a class:
+```text
+StudentDashboardPage → submitJoinClass(classCode)
+  → enrollStudent(classCode, student.uid, name, email)
+  → Writes classes/{classId}/students/{studentUid} with status: 'pending_approval'
+  → Writes student_classes/{studentUid}/{classId} with status: 'pending_approval'
+  → Shows request-submitted message
+  → Student remains blocked from shell class visibility and class-linked course access
 ```
-TeacherStudentsPage → handleConfirmAddToClass(classId)
-  → enrollStudent(classCode, student.uid, name, email)  // classManager.ts
-  → Writes to classes/{classCode}/students/{studentUid}
-  → Also writes legacy gameSessions/{classCode}/players/{studentUid}
-  → Auto-enrolls in class courses via autoEnrollStudentInClassCourses()
+
+## Data Flow: Teacher Approves or Rejects Pending Student
+
+### Approve
+```text
+TeacherClassDetailPage → approveClassStudent(classId, studentId, teacherUid)
+  → Updates roster membership to status: 'active'
+  → Promotes student_classes projection to status: 'active'
+  → Creates assignment if missing
+  → Auto-enrolls linked class courses
+```
+
+### Reject
+```text
+TeacherClassDetailPage → rejectClassStudent(classId, studentId)
+  → Removes pending roster member
+  → Removes student_classes projection
+  → Cleans stale class-based course inheritance
 ```
 
 ## Key Service Functions
@@ -62,17 +97,21 @@ TeacherStudentsPage → handleConfirmAddToClass(classId)
 | Function | Purpose |
 |----------|---------|
 | `createAssignment(studentId, teacherId, assignedBy)` | Creates RTDB record linking student to teacher |
-| `removeAssignment(id, reason)` | Soft-deletes assignment (status → 'removed') |
+| `removeAssignment(id, reason)` | Soft-deletes assignment (status → `removed`) |
 | `getAssignmentsByTeacher(teacherId)` | Gets all active assignments for a teacher |
 | `getAllAssignments()` | Batch fetch avoiding N+1 (returns byStudent + byTeacher maps) |
-| `createStudentRequest()` | **Legacy** - creates pending admin request |
-| `approveStudentRequest()` | **Legacy** - admin approves and creates assignment |
+| `createStudentRequest()` | Legacy admin-reviewed request path |
+| `approveStudentRequest()` | Legacy admin approval path |
 
 ### classManager.ts
 | Function | Purpose |
 |----------|---------|
-| `enrollStudent(classCode, uid, name, email)` | Enrolls authenticated user in a class |
-| `addStudent(classId, name, email?)` | Adds guest/anonymous student to a class |
+| `enrollStudent(classCode, uid, name, email, options?)` | Shared enrollment entry point for self-service join and staff-driven direct add |
+| `approveClassStudent(classId, studentId, teacherUid)` | Promotes pending membership to active and triggers inheritance |
+| `rejectClassStudent(classId, studentId)` | Removes pending membership and cleans stale inheritance |
+| `removeStudentFromClass(classId, studentId)` | Removes membership and class-based inheritance |
+| `addStudent(classId, name, email?)` | Adds guest or anonymous student |
+| `getStudentClasses(studentUid)` | Returns student-visible classes only |
 
 ## RTDB Schema
 
@@ -86,7 +125,7 @@ TeacherStudentsPage → handleConfirmAddToClass(classId)
   "assignedAt": 1709568000000,
   "unassignedAt": null,
   "coursesEnrolled": [],
-  "status": "active"  // or "removed"
+  "status": "active"
 }
 ```
 
@@ -100,9 +139,25 @@ TeacherStudentsPage → handleConfirmAddToClass(classId)
   "joinedAt": 1709568000000,
   "lastActiveAt": 1709568000000,
   "isOnline": true,
+  "status": "active",
   "assignments": {}
 }
 ```
+
+`status` may also be `pending_approval` or `removed`.
+
+### student_classes/{studentId}/{classId}
+```json
+{
+  "classId": "CLASS123",
+  "name": "IELTS Reading Class",
+  "teacherId": "teacher-uid",
+  "status": "active",
+  "joinedAt": 1709568000000
+}
+```
+
+This is the student shell projection and must mirror the same visibility contract as the roster source.
 
 ### student_requests/{requestId} (Legacy)
 ```json
@@ -111,7 +166,7 @@ TeacherStudentsPage → handleConfirmAddToClass(classId)
   "teacherId": "firebase-uid",
   "studentEmail": "student@example.com",
   "requestedAt": 1709568000000,
-  "status": "pending",  // "approved" | "denied"
+  "status": "pending",
   "reviewedBy": null,
   "reviewedAt": null
 }
@@ -121,23 +176,33 @@ TeacherStudentsPage → handleConfirmAddToClass(classId)
 
 | File | Responsibility |
 |------|---------------|
-| `services/assignmentManager.ts` | All assignment CRUD + request system |
-| `services/classManager.ts` | Class enrollment (`enrollStudent`, `addStudent`) |
+| `services/assignmentManager.ts` | Assignment CRUD plus legacy request system |
+| `services/classManager.ts` | Class enrollment, approval, rejection, removal |
+| `services/enrollmentManager.ts` | Course enrollment inheritance that consumes class visibility |
 | `services/userService.ts` | `getUserByEmail()` for email lookup |
-| `pages/TeacherStudentsPage.tsx` | Teacher UI for managing students |
-| `components/assignment/TeacherRequestModal.tsx` | "Add Student" modal (email input) |
-| `components/assignment/AddToClassModal.tsx` | "Add to Class" modal (class picker) |
-| `hooks/admin/useStudentRequests.ts` | Hook for legacy request management |
+| `pages/TeacherStudentsPage.tsx` | Teacher student list and direct add-to-class UI |
+| `pages/AdminUserManagementPage.jsx` | Admin direct add-to-class UI |
+| `pages/TeacherClassDetailPage.tsx` | Teacher approval, reject, and remove UI |
+| `pages/StudentDashboardPage.jsx` | Student class-code join request UI |
 
 ## Common Pitfalls
 
-1. **Assignment ≠ Class Enrollment**: A student can be assigned to a teacher but not enrolled in any class. They are separate operations.
-2. **The "Add Student" button opens TeacherRequestModal**, not AddToClassModal. These are two different modals serving different purposes.
-3. **`enrollStudent()` uses classCode as the path key**, not a separate classId. The classCode IS the class identifier in RTDB.
-4. **Guest vs Authenticated**: `addStudent()` generates a new ID for guests; `enrollStudent()` uses the Firebase Auth UID.
-5. **"Already enrolled" is a soft success, not an error** (fixed 2026-03-04): When a student is already in the class (e.g., teacher added them by email), `enrollStudent()` returns `{ success: true, alreadyEnrolled: true }` instead of a hard error. The UI shows a friendly message ("You're already in this class!") and still refreshes the class list. This prevents confusing error messages when students try to join a class they were already added to through a different mechanism.
-6. **Dashboard class list is a one-shot fetch**: `getStudentClasses()` runs once on mount. If a teacher adds a student after the dashboard loads, the student won't see the class until they navigate away and back (or refresh). This is why students may try to "join" a class they're already in — they can't see it yet.
+1. **Assignment ≠ Class Enrollment**: A student can be assigned to a teacher but not enrolled in any class.
+2. **Staff add and self-service join are different**: both use `enrollStudent()`, but only self-service join is approval-gated.
+3. **`pending_approval` is teacher-visible only**: if student shell reads show pending memberships, the approval contract is broken.
+4. **Class-linked course inheritance must not happen on pending self-joins**: inheritance belongs to approval time, not request-submission time.
+5. **`student_classes` is a projection, not a second source of truth**: it must mirror roster visibility and never drift into broader student access.
+6. **Already enrolled remains a soft success**: if the student is already active in the class, `enrollStudent()` may return a soft success instead of a hard error.
+
+## Related Docs
+
+- @doc/architecture/class-code-join-approval-gating
+- @doc/architecture/course-class-management
+- @doc/architecture/student-shell-data-loading-architecture
+- @doc/prd/prd-student-teacher-assignment
+
 ## Change History
 
-- **2026-03-04 (b)**: Fixed "Already enrolled" error → soft success. `enrollStudent()` now returns `{ success: true, alreadyEnrolled: true }` when student is already in the class, instead of `{ success: false, error: 'Already enrolled...' }`. UI in `StudentDashboardPage.jsx` handles this with a friendly message and class list refresh. Root cause: teacher-added students couldn't see the class on their dashboard (one-shot fetch), tried to join via code, got a confusing error.
-- **2026-03-04**: Removed admin approval gate. Teachers can now directly add students by email via `createAssignment()`. The `student_requests` system remains intact for audit/history but is no longer used for new additions.
+- **2026-04-09**: Self-service class-code joins moved behind teacher approval. Pending memberships now stay out of student-visible class reads and linked class-course inheritance does not activate until `approveClassStudent()`.
+- **2026-03-04 (b)**: Already-enrolled join attempts became a soft success instead of a hard error.
+- **2026-03-04**: Removed the admin approval gate for teacher-initiated student additions by email; the legacy `student_requests` path remains only for historical or legacy use.

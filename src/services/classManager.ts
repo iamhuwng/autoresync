@@ -39,6 +39,10 @@ interface StudentClassMembershipRow {
   status?: ClassStudent['status'];
 }
 
+interface EnrollStudentOptions {
+  approvalMode?: 'pending' | 'active';
+}
+
 /**
  * Generate a unique class code (6 alphanumeric characters)
  */
@@ -144,6 +148,49 @@ function buildStudentClassMembershipRow(student: Pick<ClassStudent, 'joinedAt' |
   };
 }
 
+function isStudentMembershipVisibleToStudent(
+  membership?: StudentClassMembershipRow | true | null,
+): boolean {
+  if (membership === true) {
+    return true;
+  }
+
+  if (!membership || typeof membership !== 'object') {
+    return false;
+  }
+
+  return !membership.status || membership.status === 'active';
+}
+
+async function cleanupClassBasedCourseEnrollments(
+  classId: string,
+  studentId: string,
+): Promise<void> {
+  const enrollmentQuery = query(
+    ref(database, 'course_enrollments'),
+    orderByChild('studentId'),
+    equalTo(studentId)
+  );
+  const enrollmentSnapshot = await get(enrollmentQuery);
+
+  if (!enrollmentSnapshot.exists()) {
+    return;
+  }
+
+  const enrollments = enrollmentSnapshot.val() as Record<string, { sourceClassId?: string }>;
+  const updates: Record<string, null> = {};
+
+  for (const [enrollmentId, enrollment] of Object.entries(enrollments)) {
+    if (enrollment.sourceClassId === classId) {
+      updates[`course_enrollments/${enrollmentId}`] = null;
+    }
+  }
+
+  if (Object.keys(updates).length > 0) {
+    await update(ref(database), updates);
+  }
+}
+
 async function getStudentClassesFromMembershipIndex(studentUid: string): Promise<ClassSummary[] | null> {
   const membershipRef = ref(database, `${STUDENT_CLASSES_REF}/${studentUid}`);
   const membershipSnapshot = await get(membershipRef);
@@ -153,7 +200,9 @@ async function getStudentClassesFromMembershipIndex(studentUid: string): Promise
   }
 
   const membershipMap = membershipSnapshot.val() as Record<string, StudentClassMembershipRow | true> | null;
-  const classIds = Object.keys(membershipMap || {});
+  const classIds = Object.entries(membershipMap || {})
+    .filter(([, membership]) => isStudentMembershipVisibleToStudent(membership))
+    .map(([classId]) => classId);
 
   if (!classIds.length) {
     return [];
@@ -193,15 +242,23 @@ async function getStudentClassesByLegacyScan(studentUid: string): Promise<ClassS
     const cls = classData as ClassSession;
     const studentEntries = Object.entries(cls.students || {});
 
-    const isEnrolled = studentEntries.some(
+    const matchedStudentEntry = studentEntries.find(
       ([key, student]) => student.uid === studentUid || key === studentUid
     );
 
-    if (!isEnrolled) {
+    if (!matchedStudentEntry) {
       const uidsInClass = studentEntries.map(([key, student]) => ({ key, uid: student.uid }));
       if (studentEntries.length > 0) {
         console.log(`[Courses DEBUG]   class "${cls.name}" (${id}) - not enrolled. Students:`, uidsInClass);
       }
+      continue;
+    }
+
+    const [, matchedStudent] = matchedStudentEntry;
+    if (matchedStudent.status === 'pending_approval' || matchedStudent.status === 'removed') {
+      console.log(
+        `[Courses DEBUG]   class "${cls.name}" (${id}) - membership status "${matchedStudent.status}" is not student-visible yet`
+      );
       continue;
     }
 
@@ -362,27 +419,7 @@ export async function removeStudentFromClass(
 
     // Clean up class-based course enrollments for this student
     try {
-      const enrollmentQuery = query(
-        ref(database, 'course_enrollments'),
-        orderByChild('studentId'),
-        equalTo(studentId)
-      );
-      const enrollmentSnapshot = await get(enrollmentQuery);
-
-      if (enrollmentSnapshot.exists()) {
-        const enrollments = enrollmentSnapshot.val() as Record<string, { sourceClassId?: string }>;
-        const updates: Record<string, null> = {};
-
-        for (const [enrollmentId, enrollment] of Object.entries(enrollments)) {
-          if (enrollment.sourceClassId === classId) {
-            updates[`course_enrollments/${enrollmentId}`] = null;
-          }
-        }
-
-        if (Object.keys(updates).length > 0) {
-          await update(ref(database), updates);
-        }
-      }
+      await cleanupClassBasedCourseEnrollments(classId, student.uid || studentId);
     } catch (cleanupError) {
       // Enrollment cleanup is best-effort; roster removal should still succeed.
       console.warn(`[ClassManager] Failed to clean up class-based enrollments for ${studentId}:`, cleanupError);
@@ -742,12 +779,14 @@ export async function addStudent(
  * @param studentUid - The authenticated student's UID from Firebase Auth
  * @param studentName - Student's display name from auth profile
  * @param studentEmail - Student's email from auth profile
+ * @param options - Enrollment mode. Student self-join uses pending approval; teacher/admin adds can bypass it.
  */
 export async function enrollStudent(
   classCode: string,
   studentUid: string,
   studentName: string,
-  studentEmail?: string
+  studentEmail?: string,
+  options: EnrollStudentOptions = {}
 ): Promise<{ success: boolean; classId?: string; error?: string }> {
   try {
     // Verify class exists and is active
@@ -777,13 +816,15 @@ export async function enrollStudent(
     }
 
     const now = Date.now();
+    const approvalMode = options.approvalMode ?? 'pending';
+    const status: ClassStudent['status'] = approvalMode === 'active' ? 'active' : 'pending_approval';
 
     const student: ClassStudent = {
       id: studentUid, // Use UID as student ID for authenticated users
       uid: studentUid, // Store UID for reference
       name: studentName,
       email: studentEmail,
-      status: 'pending_approval', // Awaiting teacher approval
+      status,
       joinedAt: now,
       lastActiveAt: now,
       isOnline: true,
@@ -804,49 +845,66 @@ export async function enrollStudent(
     // Update class stats
     await updateEnrollmentStatsIfAuthorized(classCode, classData, now);
 
-    // Auto-enroll in class courses
-    try {
-      const { autoEnrollStudentInClassCourses } = await import('./enrollmentManager');
-      await autoEnrollStudentInClassCourses(classCode, studentUid);
-    } catch (e) {
-      console.warn('Failed to auto-enroll student in class courses:', e);
-    }
-
-    // NOTE: Student-teacher assignment is NOT auto-created here.
-    // The student appears with "pending_approval" status in the teacher's class view.
-    // The teacher must explicitly approve the student, which creates the assignment.
-
-    // PRD-0002: Dashboard feed notification for student
-    try {
-      const { createNotification } = await import('./notificationService');
-      await createNotification({
-        userId: studentUid,
-        type: 'info',
-        title: '🏫 Joined Class — Pending Approval',
-        message: `You've requested to join ${classData.name || classCode}. Waiting for teacher approval.`,
-        link: '/student/dashboard',
-        metadata: { className: classData.name || classCode, classCode }
-      });
-    } catch (notifError) {
-      console.warn('⚠️ [ClassManager] Failed to send join-class notification (non-blocking):', notifError);
-    }
-
-    // Notify the class owner (teacher) about the pending student
-    try {
-      const { createNotification } = await import('./notificationService');
-      const teacherId = classData.createdBy;
-      if (teacherId && teacherId !== 'unknown') {
-        await createNotification({
-          userId: teacherId,
-          type: 'info',
-          title: '👋 New Student Request',
-          message: `${studentName} wants to join your class "${classData.name || classCode}". Review in class management.`,
-          link: `/teacher/classes/${classCode}`,
-          metadata: { studentName, studentUid, classCode, className: classData.name || classCode }
-        });
+    if (approvalMode === 'active') {
+      // Teacher/admin additions are effective immediately.
+      try {
+        const { autoEnrollStudentInClassCourses } = await import('./enrollmentManager');
+        await autoEnrollStudentInClassCourses(classCode, studentUid);
+      } catch (e) {
+        console.warn('Failed to auto-enroll student in class courses:', e);
       }
-    } catch (notifError) {
-      console.warn('⚠️ [ClassManager] Failed to send teacher notification (non-blocking):', notifError);
+    }
+
+    // NOTE: Student-teacher assignment is NOT auto-created here for self-join.
+    // Pending self-joins only become student-visible after teacher approval.
+
+    if (approvalMode === 'pending') {
+      // PRD-0002: Dashboard feed notification for student
+      try {
+        const { createNotification } = await import('./notificationService');
+        await createNotification({
+          userId: studentUid,
+          type: 'info',
+          title: '🏫 Joined Class — Pending Approval',
+          message: `You've requested to join ${classData.name || classCode}. Waiting for teacher approval.`,
+          link: '/student/dashboard',
+          metadata: { className: classData.name || classCode, classCode }
+        });
+      } catch (notifError) {
+        console.warn('⚠️ [ClassManager] Failed to send join-class notification (non-blocking):', notifError);
+      }
+
+      // Notify the class owner (teacher) about the pending student
+      try {
+        const { createNotification } = await import('./notificationService');
+        const teacherId = classData.createdBy;
+        if (teacherId && teacherId !== 'unknown') {
+          await createNotification({
+            userId: teacherId,
+            type: 'info',
+            title: '👋 New Student Request',
+            message: `${studentName} wants to join your class "${classData.name || classCode}". Review in class management.`,
+            link: `/teacher/classes/${classCode}`,
+            metadata: { studentName, studentUid, classCode, className: classData.name || classCode }
+          });
+        }
+      } catch (notifError) {
+        console.warn('⚠️ [ClassManager] Failed to send teacher notification (non-blocking):', notifError);
+      }
+    } else {
+      try {
+        const { createNotification } = await import('./notificationService');
+        await createNotification({
+          userId: studentUid,
+          type: 'success',
+          title: '✅ Added to Class',
+          message: `You've been added to ${classData.name || classCode}.`,
+          link: '/student/dashboard',
+          metadata: { className: classData.name || classCode, classCode }
+        });
+      } catch (notifError) {
+        console.warn('⚠️ [ClassManager] Failed to send active enrollment notification (non-blocking):', notifError);
+      }
     }
 
     return { success: true, classId: classCode };
@@ -886,6 +944,13 @@ export async function approveClassStudent(
         status: 'active',
       }),
     });
+
+    try {
+      const { autoEnrollStudentInClassCourses } = await import('./enrollmentManager');
+      await autoEnrollStudentInClassCourses(classCode, student.uid || studentId);
+    } catch (autoEnrollError) {
+      console.warn('⚠️ [ClassManager] Failed to auto-enroll approved student in class courses:', autoEnrollError);
+    }
 
     // Create student-teacher assignment (teacher is the authenticated user, so they have write permission)
     try {
@@ -942,6 +1007,12 @@ export async function rejectClassStudent(
     const student = classData.students?.[studentId];
     if (!student) {
       return { success: false, error: 'Student not found in this class' };
+    }
+
+    try {
+      await cleanupClassBasedCourseEnrollments(classCode, student.uid || studentId);
+    } catch (cleanupError) {
+      console.warn(`[ClassManager] Failed to clean up stale class-based enrollments for rejected student ${studentId}:`, cleanupError);
     }
 
     await update(ref(database), {

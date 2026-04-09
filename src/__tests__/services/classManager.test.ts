@@ -187,6 +187,7 @@ import {
   assignTestToClass,
   removeStudentFromClass,
   approveClassStudent,
+  rejectClassStudent,
   deleteClass,
   updateClassStatus,
 } from '../../services/classManager';
@@ -549,8 +550,9 @@ describe('Class Manager - Student Access Control', () => {
     class1Id = result1.classId!;
     class2Id = result2.classId!;
 
-    // Enroll student in class 1 only
+    // Approve enrollment in class 1 only
     await enrollStudent(class1Id, TEST_STUDENT_UID, 'Test Student', 'student@test.com');
+    await approveClassStudent(class1Id, TEST_STUDENT_UID, TEST_TEACHER_UID);
   });
 
   afterEach(async () => {
@@ -576,10 +578,11 @@ describe('Class Manager - Student Access Control', () => {
     vi.mocked(get).mockClear();
 
     await enrollStudent(class2Id, TEST_STUDENT_UID, 'Test Student', 'student@test.com');
+    await approveClassStudent(class2Id, TEST_STUDENT_UID, TEST_TEACHER_UID);
     await set(ref(database, `student_classes/${TEST_STUDENT_UID}`), {
       [class1Id]: {
         joinedAt: Date.now(),
-        status: 'pending_approval',
+        status: 'active',
       },
     });
 
@@ -703,6 +706,61 @@ describe('Class Manager - Student Membership Projection', () => {
     expect(projectionSnapshot.val()).toMatchObject({
       status: 'active',
     });
+  });
+
+  it('should keep pending self-joins out of student-visible class lists', async () => {
+    await enrollStudent(testClassId, TEST_STUDENT_UID, 'Projected Student', 'student@test.com');
+
+    const studentClasses = await getStudentClasses(TEST_STUDENT_UID);
+
+    expect(studentClasses).toEqual([]);
+  });
+
+  it('should defer class-linked course auto-enrollment until approval', async () => {
+    await set(ref(database, 'class_course_links/link-1'), {
+      id: 'link-1',
+      classId: testClassId,
+      courseId: 'course-1',
+      linkedAt: Date.now(),
+      expiresAt: 0,
+      isAutoEnroll: true,
+    });
+
+    await enrollStudent(testClassId, TEST_STUDENT_UID, 'Projected Student', 'student@test.com');
+
+    expect((await get(ref(database, 'course_enrollments'))).exists()).toBe(false);
+
+    const approved = await approveClassStudent(testClassId, TEST_STUDENT_UID, TEST_TEACHER_UID);
+    expect(approved.success).toBe(true);
+
+    const enrollments = (await get(ref(database, 'course_enrollments'))).val() as Record<string, Record<string, unknown>>;
+    expect(Object.values(enrollments)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          studentId: TEST_STUDENT_UID,
+          courseId: 'course-1',
+          sourceClassId: testClassId,
+          status: 'active',
+        }),
+      ]),
+    );
+  });
+
+  it('should clean up stale class-based enrollments when a pending student is rejected', async () => {
+    await enrollStudent(testClassId, TEST_STUDENT_UID, 'Projected Student', 'student@test.com');
+    await set(ref(database, 'course_enrollments/enrollment-pending'), {
+      id: 'enrollment-pending',
+      studentId: TEST_STUDENT_UID,
+      courseId: 'course-1',
+      sourceClassId: testClassId,
+      status: 'active',
+    });
+
+    const rejected = await rejectClassStudent(testClassId, TEST_STUDENT_UID);
+    expect(rejected.success).toBe(true);
+
+    expect((await get(ref(database, `student_classes/${TEST_STUDENT_UID}/${testClassId}`))).exists()).toBe(false);
+    expect((await get(ref(database, 'course_enrollments/enrollment-pending'))).exists()).toBe(false);
   });
 
   it('should remove student projection when a student is removed from class', async () => {

@@ -60,6 +60,10 @@ The shared shell owner is responsible for:
 - active live-session summaries derived from enrolled classes
 - homework summary groups used by shell widgets and badge-like page widgets
 
+Visibility rule:
+- shell-owned enrolled class membership summaries must include only student-visible memberships
+- `pending_approval` and `removed` membership states must stay out of shell-owned class summaries even if the raw roster or projection record already exists
+
 Right-rail upcoming, live-session, and class summary projections remain shell-owned even when dashboard-specific components restate them in a page-shaped composition.
 
 Current implementation anchors:
@@ -101,6 +105,10 @@ Current repo anchor:
 
 This prevents enrollment surfaces from rereading `getStudentClasses(studentId)` after the shell already resolved the same membership set.
 
+Class-approval rule:
+- helper services receiving shell-owned class summaries must treat them as already approval-filtered
+- self-service join requests must not trigger downstream coursework visibility before teacher approval
+
 ## Academic Record Boundary
 
 Academic Record is page-owned for its center-column record dataset.
@@ -131,6 +139,10 @@ Dashboard must consume shell-owned summaries instead of recreating them:
 - enrolled class membership summaries
 - class live-session summaries
 - homework summary groups used for dashboard metrics and urgency queues
+
+Join-class approval rule:
+- a successful class-code submission may update dashboard-local join request state, but it must not be treated as active shell membership
+- dashboard should not force homework refresh or equivalent coursework refresh while the join remains `pending_approval`
 
 Derived view models should be assembled in the page host before being passed down.
 
@@ -179,6 +191,7 @@ For startup-sensitive changes on the student path, also verify:
 - `documentation/architecture/student-shell-right-rail-architecture.md`
 - `documentation/architecture/student-startup-bundle-segmentation.md`
 - `documentation/architecture/academic-record/page-architecture.md`
+- `documentation/architecture/class-code-join-approval-gating.md`
 - `documentation/architecture/course-class-management.md`
 - `documentation/architecture/homework-solo-practice-architecture.md`
 - `documentation/rules/student-data-loading.md`

@@ -167,7 +167,9 @@ const AdminUserManagementPage = () => {
   const handleConfirmAddToClass = async (classId) => {
     if (!modals.modals.selectedStudentForClass) return;
     const student = modals.modals.selectedStudentForClass;
-    const result = await enrollStudent(classId, student.uid, student.displayName || 'Student', student.email);
+    const result = await enrollStudent(classId, student.uid, student.displayName || 'Student', student.email, {
+      approvalMode: 'active',
+    });
     result.success
       ? userManagement.setSuccessMessage(`Added ${student.displayName} to class`)
       : userManagement.setError(result.error || 'Failed to add to class');
