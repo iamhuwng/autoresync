@@ -21,6 +21,7 @@ import { typeClassifierService, TypeClassifierService } from './type-classifier.
 import { validatorService, ValidatorService } from './validator.service';
 import { learningService, LearningService } from './learning.service';
 import { offlineParserService, OfflineParserService } from './offline-parser.service';
+import type { LocalParseResult } from './offline-parser.service';
 
 // ═══════════════════════════════════════════════════════════════
 // TYPE RE-EXPORTS
@@ -202,6 +203,7 @@ class TestCreationService {
         let documentText = '';
         let checkpointId: string | undefined;
         let usedOfflineFallback = false;
+        let offlineParseResult: LocalParseResult | null = null;
         const resumedFromCheckpoint = false;
 
         try {
@@ -249,8 +251,8 @@ class TestCreationService {
                     onProgress?.('extracting', 10, 'Offline mode: using rule-based parsing...');
                 }
 
-                const offlineResult = await this.offlineParser.parseOffline(documentText, file.name);
-                rulesResult = offlineResult.questions
+                offlineParseResult = await this.offlineParser.parseOffline(documentText, file.name);
+                rulesResult = offlineParseResult.questions
                     .filter((q): q is typeof q & { classificationDetails: import('./type-classifier.service').ClassificationResult } =>
                         q.classificationDetails !== undefined
                     )
@@ -269,9 +271,11 @@ class TestCreationService {
                         timeout: aiTimeoutMs,
                     });
 
-                    if (extractResult.success && extractResult.data) {
-                        aiResult = extractResult.data;
+                    if (!extractResult.success || !extractResult.data) {
+                        throw new Error(extractResult.error || 'AI extraction returned no data');
                     }
+
+                    aiResult = extractResult.data;
 
                     stageTimesMs['extracting'] = Date.now() - extractionStart;
                     onProgress?.('extracting', 100, 'AI extraction complete');
@@ -279,8 +283,8 @@ class TestCreationService {
                     console.warn('[TestCreation] AI extraction failed, falling back to rules:', aiError);
 
                     // Fallback to rules
-                    const offlineResult = await this.offlineParser.parseOffline(documentText, file.name);
-                    rulesResult = offlineResult.questions
+                    offlineParseResult = await this.offlineParser.parseOffline(documentText, file.name);
+                    rulesResult = offlineParseResult.questions
                         .filter((q): q is typeof q & { classificationDetails: import('./type-classifier.service').ClassificationResult } =>
                             q.classificationDetails !== undefined
                         )
@@ -347,6 +351,23 @@ class TestCreationService {
                     optionLabelFormat: q.optionLabelFormat,
                     sectionReferences: q.sectionReferences || null,
                 }))
+                : offlineParseResult
+                    ? offlineParseResult.questions.map((q) => ({
+                        questionNumber: q.questionNumber,
+                        questionText: q.questionText,
+                        type: q.type,
+                        options: q.options || null,
+                        labeledOptions: null,
+                        answer: q.answer,
+                        passageId: q.passageId,
+                        confidence: q.confidence,
+                        optionLabelFormat: q.classificationDetails?.optionLabelFormat === 'roman'
+                            ? 'roman'
+                            : q.classificationDetails?.optionLabelFormat === 'number'
+                                ? 'number'
+                                : 'letter',
+                        sectionReferences: null,
+                    }))
                 : [];
 
             // Prepare rules questions for validator (independent classification)
@@ -390,7 +411,16 @@ class TestCreationService {
                 : (aiResult ? (rulesResult.length > 0 ? 'hybrid' : 'ai') : 'rules');
 
             // Collect passages from AI result or offline parsing
-            const extractedPassages = aiResult?.passages || [];
+            const extractedPassages = aiResult?.passages || offlineParseResult?.passages.map((passage) => ({
+                id: passage.id,
+                title: passage.title,
+                content: passage.content,
+                wordCount: passage.content.trim().split(/\s+/).filter(Boolean).length,
+            })) || [];
+
+            if (validationResult.mergedQuestions.length === 0) {
+                throw new Error('Parsing produced no questions');
+            }
 
             return {
                 success: true,

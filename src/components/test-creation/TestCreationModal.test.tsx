@@ -45,6 +45,8 @@ vi.mock('../../services/writingTestService', () => ({
     publishWritingTest: vi.fn(),
 }));
 import TestCreationModal from './TestCreationModal';
+import { testDraftService } from '../../services/draftCloudService';
+import testCreationService from '../../services/test-creation';
 
 // ═══════════════════════════════════════════════════════════════
 // TEST UTILITIES
@@ -491,6 +493,82 @@ describe('TestCreationModal', () => {
 
             const step1Indicator = screen.getByTitle(/Step 1: Test Type/i);
             expect(step1Indicator).toBeInTheDocument();
+        });
+    });
+
+    describe('Parsing Flow', () => {
+        it('shows an error and does not navigate when saving parsed content fails', async () => {
+            const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+            vi.mocked(testDraftService.createDraft).mockResolvedValue({
+                success: true,
+                data: { draftId: 'draft-1' },
+            } as any);
+            vi.mocked(testDraftService.updateDraftStatus).mockResolvedValue({
+                success: true,
+            } as any);
+            vi.mocked(testDraftService.saveParsedContent).mockResolvedValue({
+                success: false,
+                error: 'Firestore write failed',
+            } as any);
+            vi.mocked(testCreationService.parseText).mockResolvedValue({
+                success: true,
+                documentText: 'Passage text',
+                passages: [
+                    {
+                        id: 'passage_1',
+                        title: 'Passage 1',
+                        content: 'Paragraph text',
+                        wordCount: 2,
+                    },
+                ],
+                validationResult: {
+                    mergedQuestions: [
+                        {
+                            questionNumber: 1,
+                            questionText: 'Question 1',
+                            question: 'Question 1',
+                            type: 'matching-headings',
+                            options: [],
+                            labeledOptions: [],
+                            answer: 'I',
+                            passageId: 'passage_1',
+                            confidence: 95,
+                        },
+                    ],
+                },
+                metadata: {
+                    totalTimeMs: 1,
+                    stageTimesMs: {},
+                    extractionSource: 'offline',
+                    usedAI: false,
+                    usedOfflineFallback: true,
+                    resumedFromCheckpoint: false,
+                },
+            } as any);
+
+            renderModal({
+                initialStep: 'parsing',
+                initialData: {
+                    testType: 'IELTS',
+                    skillType: 'reading',
+                    format: 'academic',
+                    metadata: { title: 'Reading Test' },
+                    inputMethod: 'paste',
+                    sourceContent: 'Pasted reading content',
+                    sourceFile: null,
+                },
+            });
+
+            await waitFor(() => {
+                expect(testDraftService.saveParsedContent).toHaveBeenCalled();
+            });
+
+            expect(consoleErrorSpy).toHaveBeenCalledWith(
+                '❌ Parsing failed:',
+                expect.objectContaining({ message: 'Firestore write failed' })
+            );
+            expect(mockNavigate).not.toHaveBeenCalled();
+            consoleErrorSpy.mockRestore();
         });
     });
 });

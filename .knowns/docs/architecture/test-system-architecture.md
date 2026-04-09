@@ -2,7 +2,7 @@
 title: Test System Architecture
 description: 'Complete test lifecycle architecture: IELTS + THCS creation, editing, session management, test-taking, grading, results. The single entry point for understanding the test system.'
 createdAt: '2026-02-27T16:15:16.855Z'
-updatedAt: '2026-04-02T19:28:34.460Z'
+updatedAt: '2026-04-09T08:41:56.044Z'
 tags:
   - architecture
   - test
@@ -190,11 +190,13 @@ The test system is the core feature of the platform. It supports two test types 
 - See @doc/sop/test-end-flow-debug-retrospective
 
 ### Test Creation Pipeline (IELTS)
-- Upload → TypeClassifier (confidence scoring) → AI Extractor if <70% → Validation → Review
-- AI uses Gemini primary, Groq fallback
-- Checkpoint/resume for long documents
-- See @doc/system/project-structure-test-creation
-
+- Upload -> document conversion -> AI extraction -> independent rules classification -> validator merge -> review
+- AI uses Gemini primary and Groq fallback for the teacher Reading creator path
+- `extractReadingTest()` returning `success: false` is treated as extraction failure, not as partial success
+- AI extraction failure routes into offline/rules fallback; fallback output must still hydrate reviewable passages and merged questions
+- Parser success requires at least one merged question; blank parse output must fail before draft save or review navigation
+- Checkpoint/resume still applies for long documents
+- See @doc/architecture/ai-parsing-extraction and @doc/system/project-structure-test-creation
 ## Related PRDs
 - @doc/prd/prd-thcs-phase-1 — THCS test system foundation
 - @doc/prd/prd-thcs-phase-2 — THCS live session & monitoring
@@ -520,3 +522,39 @@ The acknowledgement page must not imply auto-grading. It exists to confirm persi
 ### Related docs
 
 - @doc/architecture/ielts-writing/ielts-writing-authoring-edit-shell-and-publish-contract-2026-04-03
+
+
+## 2026-04-09 Amendment - Teacher Reading Creation Parsing And Review Contract
+
+### Current state of the feature
+
+The teacher reading creation modal now depends on a fail-closed parsing contract before a draft can enter review.
+
+Current operational rules:
+- The parsing flow is `TestCreationModal -> testCreationService -> aiExtractor/offline parser -> validator -> testDraftService.saveParsedContent -> review route`.
+- Review transition requires non-empty merged questions. Blank parse output is not a valid intermediate success state.
+- Draft persistence is part of the success boundary. If `saveParsedContent()` fails, the modal must stay in error/retry state and must not advance to review.
+- Passages may come from AI extraction or offline parsing, but teacher review requires questions first; passage-only success is not enough.
+
+### Cross-feature interaction boundary
+
+#### AI provider failure -> teacher review route
+
+Gemini/Groq provider failures must be resolved before route transition. The modal and parser service must not convert provider outages into blank review drafts.
+
+#### Parser result -> draft persistence
+
+`testDraftService.saveParsedContent()` is the final write gate before review. A failed write must block navigation even if parsing itself succeeded.
+
+### Operational rule going forward
+
+Teacher-side reading creation must fail closed whenever the system cannot produce and persist reviewable question content. Retriable provider failures, offline fallback, and save errors are allowed; empty review drafts are not.
+
+Related implementation anchors:
+- `src/components/test-creation/TestCreationModal.tsx`
+- `src/services/test-creation/index.ts`
+- `src/services/draftCloudService.ts`
+- `src/components/test-creation/TestCreationModal.test.tsx`
+- `src/services/test-creation/index.test.ts`
+
+Source: @task-1bch3u

@@ -1,10 +1,8 @@
 ---
 title: AI Parsing Extraction
+description: Dual AI provider (Gemini/Groq), extraction pipeline, IELTS type classification, THCS regex parser, error handling.
 createdAt: '2026-02-27T17:10:22.717Z'
-updatedAt: '2026-02-27T17:10:51.734Z'
-description: >-
-  Dual AI provider (Gemini/Groq), extraction pipeline, IELTS type
-  classification, THCS regex parser, error handling.
+updatedAt: '2026-04-09T08:40:01.901Z'
 tags:
   - architecture
   - ai
@@ -13,6 +11,7 @@ tags:
   - groq
   - extraction
 ---
+
 # AI Parsing & Extraction Architecture
 
 ## Overview
@@ -112,3 +111,40 @@ const prompt = text.includes('**CRITICAL INSTRUCTIONS:**')
 - @doc/prd/prd-automated-ielts-reading — Automated IELTS extraction PRD
 - @doc/migration/lessons-learned — Parser migration lessons
 - @doc/architecture/quiz-editor-architecture — Quiz editor (cross-ref)
+
+
+## 2026-04-09 Amendment - IELTS Reading Creator Failure Handling
+
+### Current runtime rule
+- `src/services/test-creation/index.ts` owns the parse success contract for teacher-side IELTS Reading creation.
+- `AIExtractorService.extractReadingTest()` returning `success: false` or missing `data` is treated as extraction failure, not partial success.
+- Non-throwing AI failures must enter the same offline fallback branch as thrown provider errors.
+- Offline fallback must map its questions and passages into the same review payload consumed by the validator and draft-save flow.
+- Parser success now requires at least one merged question; zero-question results must surface an error instead of opening a blank review page.
+
+### Important boundary
+- This contract does not remove provider-level failures such as Gemini referrer `403` responses or Groq `429` limits.
+- It guarantees those failures degrade into offline fallback or a surfaced parse error instead of silently materializing an empty review draft.
+
+### Related docs
+- @doc/architecture/test-system-architecture
+- @doc/prd/prd-automated-ielts-reading
+
+
+## 2026-04-09 Amendment - Reading Creation Fail-Closed Fallback
+
+The teacher IELTS Reading creator now treats non-success AI extraction results as failures, not as usable partial output.
+
+Current operational rules:
+- `testCreationService.parseDocument()` must throw into the offline/rules fallback path when `aiExtractor.extractReadingTest()` returns `success: false` or no data.
+- Offline fallback is allowed to produce the review payload, but it must materialize reviewable `passages` and validator `mergedQuestions`, not just background rule classifications.
+- A parse that ends with zero merged questions is a terminal error. The parser must fail closed instead of returning success with blank review content.
+- Provider problems such as Gemini referrer-blocked `403` responses or Groq `429` exhaustion are upstream availability issues; the parser contract is to surface a retryable failure or a real offline fallback result, never an empty success.
+
+Current implementation anchors:
+- `src/services/test-creation/index.ts`
+- `src/services/test-creation/ai-extractor.service.ts`
+- `src/services/test-creation/offline-parser.service.ts`
+- `src/services/test-creation/index.test.ts`
+
+Source: @task-1bch3u
