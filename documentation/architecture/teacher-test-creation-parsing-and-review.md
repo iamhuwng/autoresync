@@ -102,6 +102,19 @@ Key runtime anchors:
 - `src/components/test-creation/TestCreationModal.tsx`
 - `src/services/draftCloudService.ts`
 
+## 2026-04-10 Amendment - Gemini Key Pool Hygiene
+
+Standalone Gemini probes on April 10, 2026 confirmed that the numbered Gemini browser keys succeed on both `https://mstu.work` and `https://kahoot.mstu.work`, while the legacy `VITE_GOOGLE_API_KEY` remains expired and returns `API_KEY_INVALID`.
+
+Required rules:
+- Gemini rotation must load only `VITE_GEMINI_API_KEY_1..5` plus active Firestore Gemini keys
+- `VITE_GOOGLE_API_KEY` must not be counted as a Gemini fallback, health-check key, or admin Gemini env key
+- the legacy Google key may remain only for the old Google Drive browser service until that service is retired or refactored
+
+Operational consequence:
+- teacher IELTS Reading creation must no longer fail because an expired legacy Google key was included in Gemini round-robin selection
+- if Gemini fails after this point, treat it as a real provider or prompt-size issue, not legacy-key contamination
+
 ## Related Docs
 
 - `documentation/tasks/0020-prd-automated-ielts-reading-test-creation.md`

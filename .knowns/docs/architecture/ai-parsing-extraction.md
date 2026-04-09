@@ -2,7 +2,7 @@
 title: AI Parsing Extraction
 description: Dual AI provider (Gemini/Groq), extraction pipeline, IELTS type classification, THCS regex parser, error handling.
 createdAt: '2026-02-27T17:10:22.717Z'
-updatedAt: '2026-04-09T08:40:01.901Z'
+updatedAt: '2026-04-09T17:39:25.499Z'
 tags:
   - architecture
   - ai
@@ -148,3 +148,22 @@ Current implementation anchors:
 - `src/services/test-creation/index.test.ts`
 
 Source: @task-1bch3u
+
+
+## 2026-04-10 Amendment - Gemini Legacy Key Exclusion
+
+Standalone Gemini probes on April 10, 2026 confirmed that `VITE_GEMINI_API_KEY_1` and `VITE_GEMINI_API_KEY_3` succeed from both `https://mstu.work` and `https://kahoot.mstu.work`, while the legacy `VITE_GOOGLE_API_KEY` returns `API_KEY_INVALID` because it is expired.
+
+Current operational rules:
+- `loadAllGeminiApiKeys()` must load only numbered Gemini env keys plus active Firestore Gemini keys.
+- `VITE_GOOGLE_API_KEY` must not participate in Gemini schema validation, runtime rotation, provider diagnostics, or admin Gemini env-key counts.
+- The legacy Google key remains valid only for the old `googleDrive.js` browser service until that service is retired or given its own dedicated configuration.
+
+Current implementation anchors:
+- `src/config/env.config.ts`
+- `src/pages/AdminSettingsPage.tsx`
+- `src/config/env.config.test.ts`
+
+Operational consequence:
+- teacher IELTS Reading creation no longer rotates onto the expired legacy Google key during Gemini parsing.
+- any further Gemini failure should be treated as a real provider failure, referrer issue, or prompt-size problem instead of legacy-key contamination.

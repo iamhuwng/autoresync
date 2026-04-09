@@ -27,6 +27,7 @@ export class GeminiProvider implements IAIService {
   private currentKeyIndex = 0;
   private apiKeys: string[] = [];
   private sdkLoaded = false;
+  private sdkModule: any | null = null;
   private sdkLoadPromise: Promise<any> | null = null;
 
   // Round-robin request counter for load balancing
@@ -48,13 +49,14 @@ export class GeminiProvider implements IAIService {
    * Lazy load the Gemini SDK
    */
   private async loadSDK(): Promise<any> {
-    if (this.sdkLoaded) {
-      return;
+    if (this.sdkLoaded && this.sdkModule) {
+      return this.sdkModule;
     }
 
     if (!this.sdkLoadPromise) {
       this.sdkLoadPromise = import('@google/generative-ai').then((module) => {
         this.sdkLoaded = true;
+        this.sdkModule = module;
         return module;
       });
     }
@@ -62,26 +64,44 @@ export class GeminiProvider implements IAIService {
     return this.sdkLoadPromise;
   }
 
+  private haveApiKeysChanged(nextKeys: string[]): boolean {
+    if (nextKeys.length !== this.apiKeys.length) {
+      return true;
+    }
+
+    return nextKeys.some((key, index) => key !== this.apiKeys[index]);
+  }
+
   /**
-   * Initialize Gemini clients with all available API keys (lazy)
+   * Initialize Gemini clients with all available API keys.
+   * `forceRefresh` reloads the current key inventory so long-lived sessions
+   * can pick up Firestore-managed keys that became available after first init.
    */
-  private async initialize(): Promise<void> {
+  private async initialize(forceRefresh = false): Promise<void> {
     try {
       // Load SDK first
       const { GoogleGenerativeAI } = await this.loadSDK();
 
-      this.apiKeys = await loadAllGeminiApiKeys();
+      const nextKeys = forceRefresh || this.clients.length === 0
+        ? await loadAllGeminiApiKeys()
+        : this.apiKeys;
 
-      if (this.apiKeys.length === 0) {
+      if (nextKeys.length === 0) {
         throw new Error('No Gemini API keys configured');
       }
 
-      // Create a client for each API key
-      this.clients = this.apiKeys.map(key => new GoogleGenerativeAI(key));
+      const shouldRebuildClients = this.clients.length === 0 || this.haveApiKeysChanged(nextKeys);
+      this.apiKeys = nextKeys;
+
+      if (shouldRebuildClients) {
+        this.clients = this.apiKeys.map(key => new GoogleGenerativeAI(key));
+        this.currentKeyIndex = 0;
+        const action = forceRefresh ? 'refreshed' : 'initialized';
+        console.log(`✅ Gemini provider ${action} with ${this.apiKeys.length} API key(s)`);
+      }
 
       this.status.available = true;
-
-      console.log(`✅ Gemini provider initialized with ${this.apiKeys.length} API key(s)`);
+      this.status.lastError = null;
     } catch (error) {
       this.status.available = false;
       this.status.lastError = error instanceof Error ? error.message : 'Unknown error';
@@ -93,10 +113,7 @@ export class GeminiProvider implements IAIService {
    * Parse chunk with Gemini (with round-robin load balancing and rate limit handling)
    */
   async parseChunk(chunk: Chunk): Promise<Result<AIParseResult>> {
-    // Lazy initialize on first use
-    if (this.clients.length === 0 && !this.sdkLoaded) {
-      await this.initialize();
-    }
+    await this.initialize(true);
 
     if (this.clients.length === 0) {
       return {
@@ -1066,10 +1083,7 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
    * Parse passages only (2-call split parsing - Call 1)
    */
   async parsePassagesOnly(text: string): Promise<Result<{ passages: AIParseResult['passages']; confidence: number; }>> {
-    // Lazy initialize on first use
-    if (this.clients.length === 0 && !this.sdkLoaded) {
-      await this.initialize();
-    }
+    await this.initialize(true);
 
     if (this.clients.length === 0) {
       return {
@@ -1237,10 +1251,7 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
    * Parse questions and answers (2-call split parsing - Call 2)
    */
   async parseQuestionsAndAnswers(text: string): Promise<Result<{ questions: AIParseResult['questions']; answerKey: AIParseResult['answerKey']; confidence: number; }>> {
-    // Lazy initialize on first use
-    if (this.clients.length === 0 && !this.sdkLoaded) {
-      await this.initialize();
-    }
+    await this.initialize(true);
 
     if (this.clients.length === 0) {
       return {

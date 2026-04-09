@@ -84,6 +84,37 @@ describe('Gemini Provider', () => {
       expect(loadAllGeminiApiKeys).toHaveBeenCalled();
       expect(provider.getStatus().available).toBe(true);
     });
+
+    it('should refresh Gemini clients when new keys appear after initial initialization', async () => {
+      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const { loadAllGeminiApiKeys } = await import('../../config/env.config');
+      const mockModel = {
+        generateContent: vi.fn().mockResolvedValue({
+          response: {
+            text: () => JSON.stringify({
+              passages: [],
+              questions: [],
+              answerKey: {},
+              confidence: 90,
+            }),
+          },
+        }),
+      };
+
+      vi.mocked(loadAllGeminiApiKeys)
+        .mockResolvedValueOnce(['env-key-1', 'env-key-2', 'env-key-3'])
+        .mockResolvedValueOnce(['env-key-1', 'env-key-2', 'env-key-3', 'firestore-key']);
+
+      vi.mocked(GoogleGenerativeAI).mockImplementation(() => ({
+        getGenerativeModel: vi.fn().mockReturnValue(mockModel),
+      }) as any);
+
+      await provider.parseChunk(mockChunk);
+      await provider.parseChunk(mockChunk);
+
+      expect(loadAllGeminiApiKeys).toHaveBeenCalledTimes(2);
+      expect(vi.mocked(GoogleGenerativeAI)).toHaveBeenCalledWith('firestore-key');
+    });
   });
 
   describe('Parse Chunk', () => {

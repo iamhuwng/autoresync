@@ -35,6 +35,27 @@
       "startedAt": "2026-04-09T08:33:25.784Z",
       "endedAt": "2026-04-09T08:40:17.1895866Z",
       "duration": 411
+    },
+    {
+      "id": "te-1775756474401-1bch3u",
+      "startedAt": "2026-04-09T17:41:14.4010413Z",
+      "endedAt": "2026-04-09T18:16:14.4010413Z",
+      "duration": 2100,
+      "note": "Legacy Google API key cleanup for Gemini rotation, docs refresh, verification, build, and deploy prep."
+    },
+    {
+      "id": "te-1775756477017-1bch3u",
+      "startedAt": "2026-04-09T17:41:17.0179355Z",
+      "endedAt": "2026-04-09T18:16:17.0179355Z",
+      "duration": 2100,
+      "note": "Removed legacy Google API key from Gemini rotation/admin diagnostics, documented the runtime contract, and reverified build/tests/deploy path."
+    },
+    {
+      "id": "te-1775756478757-1bch3u",
+      "startedAt": "2026-04-09T17:41:18.7575796Z",
+      "endedAt": "2026-04-09T18:26:18.7575796Z",
+      "duration": 2700,
+      "note": "Legacy Gemini key-pool cleanup: excluded VITE_GOOGLE_API_KEY from Gemini rotation/admin counts, preserved Google Drive usage, updated architecture docs, and reverified build/tests."
     }
   ],
   "34kty1": [
