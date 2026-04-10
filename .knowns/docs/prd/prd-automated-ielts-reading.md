@@ -1,14 +1,15 @@
 ---
 title: PRD Automated IELTS Reading
-createdAt: '2026-02-27T15:28:03.169Z'
-updatedAt: '2026-02-27T15:28:04.688Z'
 description: Product requirements for automated IELTS reading test creation
+createdAt: '2026-02-27T15:28:03.169Z'
+updatedAt: '2026-04-10T08:35:22.425Z'
 tags:
   - prd
   - ielts
   - reading
   - automated
 ---
+
 # 0020-prd-automated-ielts-reading-test-creation
 
 > **Status**: Draft - Pending Review  
@@ -572,3 +573,10 @@ Parsing patterns optimized for Cambridge IELTS book format:
 | Learning Scope | Global (all teachers) | Faster improvement |
 | Migration Strategy | Delete old tests | Clean slate, no legacy debt |
 | Schema Integration | Unified QuestionSchema.ts | Single source of truth |
+
+## 2026-04-10 Runtime Resilience Amendment
+
+- The teacher IELTS Reading creator treats Gemini `503` / `high demand` responses during extraction as transient availability failures and retries across the remaining Gemini keys before it falls back to Groq.
+- Groq `413` / `request too large` responses during question extraction are treated as prompt-budget failures rather than exhausted-key failures.
+- When the Groq question-extraction request is oversized, the provider retries with smaller output budgets before it benches or rotates the key.
+- Offline fallback now accepts markdown-numbered IELTS questions such as `**35.**`, bullet-prefixed numbered items, and `Question 35.` so pasted markdown can still produce reviewable question content.

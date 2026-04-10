@@ -321,6 +321,13 @@ Current system has inconsistent progress reporting:
 - System MUST reject zero-question parse results before draft save and review navigation.
 - Provider errors such as Gemini referrer `403` responses or downstream Groq `429` responses MUST NOT lead to a blank review draft.
 
+#### 2026-04-10 Runtime Resilience Amendment
+
+- System MUST treat Gemini `503` / `high demand` responses during reading extraction as transient availability failures and retry across the remaining Gemini keys before falling back to Groq.
+- System MUST treat Groq `413` / `request too large` responses during question extraction as prompt-budget failures, not exhausted-key failures.
+- When Groq question extraction is oversized, the system MUST retry with a reduced output budget before it benches or rotates the current Groq key.
+- Offline fallback MUST recognize markdown-numbered IELTS question text such as `**35.**`, bullet-prefixed numbered lines, and `Question 35.` so pasted markdown can still produce reviewable questions.
+
 Reference:
 - `documentation/architecture/teacher-test-creation-parsing-and-review.md`
 

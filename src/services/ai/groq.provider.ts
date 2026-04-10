@@ -223,6 +223,22 @@ export class GroqProvider implements IAIService {
     }
   }
 
+  private isRateLimitError(errorMessage?: string): boolean {
+    return !!errorMessage && (
+      errorMessage.includes('429') ||
+      errorMessage.includes('rate limit') ||
+      errorMessage.includes('quota')
+    );
+  }
+
+  private isRequestTooLargeError(errorMessage?: string): boolean {
+    return !!errorMessage && (
+      errorMessage.includes('413') ||
+      errorMessage.includes('Request too large') ||
+      errorMessage.includes('reduce your message size')
+    );
+  }
+
   /**
    * Parse chunk with Groq (with round-robin load balancing)
    */
@@ -254,9 +270,7 @@ export class GroqProvider implements IAIService {
     }
 
     // Check for rate limit error
-    const isRateLimitError = result.error?.includes('429') ||
-      result.error?.includes('rate limit') ||
-      result.error?.includes('quota');
+    const isRateLimitError = this.isRateLimitError(result.error);
 
     if (isRateLimitError) {
       console.warn(`⚠️ [Groq] Rate limit on key ${this.currentKeyIndex + 1}, trying other keys...`);
@@ -278,7 +292,7 @@ export class GroqProvider implements IAIService {
           return retryResult;
         }
 
-        if (retryResult.error?.includes('429') || retryResult.error?.includes('rate limit')) {
+        if (this.isRateLimitError(retryResult.error)) {
           this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
           continue;
         }
@@ -1018,12 +1032,29 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
       return result;
     }
 
-    // Check for rate limit error
-    const isRateLimitError = result.error?.includes('429') ||
-      result.error?.includes('rate limit') ||
-      result.error?.includes('quota');
+    if (this.isRequestTooLargeError(result.error)) {
+      const reducedBudgets = [4096, 2048];
 
-    if (isRateLimitError) {
+      for (const maxTokens of reducedBudgets) {
+        console.warn(`⚠️ [Groq parseQuestionsAndAnswers] Request too large, retrying with max_tokens=${maxTokens}...`);
+        const reducedResult = await this.attemptParseQuestions(text, maxTokens);
+
+        if (reducedResult.success) {
+          return reducedResult;
+        }
+
+        if (!this.isRequestTooLargeError(reducedResult.error)) {
+          return reducedResult;
+        }
+      }
+
+      return {
+        success: false,
+        error: 'Questions+Answers parsing failed: request too large even after reduced output budget',
+      };
+    }
+
+    if (this.isRateLimitError(result.error)) {
       console.warn(`⚠️ [Groq parseQuestionsAndAnswers] Rate limit on key ${this.currentKeyIndex + 1}, trying other keys...`);
       this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
 
@@ -1043,7 +1074,7 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
           return retryResult;
         }
 
-        if (retryResult.error?.includes('429') || retryResult.error?.includes('rate limit')) {
+        if (this.isRateLimitError(retryResult.error)) {
           this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
           continue;
         }
@@ -1063,7 +1094,7 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
   /**
    * Single attempt to parse questions
    */
-  private async attemptParseQuestions(text: string): Promise<Result<{ questions: AIParseResult['questions']; answerKey: AIParseResult['answerKey']; confidence: number; }>> {
+  private async attemptParseQuestions(text: string, maxTokens = 8192): Promise<Result<{ questions: AIParseResult['questions']; answerKey: AIParseResult['answerKey']; confidence: number; }>> {
     try {
       this.status.requestCount++;
       this.status.lastRequestTime = Date.now();
@@ -1081,7 +1112,7 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
           { role: 'user', content: this.buildQuestionsAndAnswersPrompt(chunk) },
         ],
         temperature: 0.1,
-        max_tokens: 8192, // Larger response (questions + answers)
+        max_tokens: maxTokens,
       });
 
       const text_response = completion.choices[0]?.message?.content;

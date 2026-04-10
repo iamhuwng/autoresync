@@ -2,7 +2,7 @@
 title: AI Parsing Extraction
 description: Dual AI provider (Gemini/Groq), extraction pipeline, IELTS type classification, THCS regex parser, error handling.
 createdAt: '2026-02-27T17:10:22.717Z'
-updatedAt: '2026-04-09T17:39:25.499Z'
+updatedAt: '2026-04-10T08:35:06.250Z'
 tags:
   - architecture
   - ai
@@ -167,3 +167,18 @@ Current implementation anchors:
 Operational consequence:
 - teacher IELTS Reading creation no longer rotates onto the expired legacy Google key during Gemini parsing.
 - any further Gemini failure should be treated as a real provider failure, referrer issue, or prompt-size problem instead of legacy-key contamination.
+
+## 2026-04-10 Amendment - Reading Question Extraction Resilience
+
+The teacher IELTS Reading extraction flow now has explicit runtime rules for transient provider failures during the question stage.
+
+### Current runtime rule
+
+- Gemini `503` / `high demand` failures during passage or question extraction are treated as transient availability failures and retried across the remaining Gemini keys before the router drops to Groq.
+- Groq `413` / `request too large` failures during question extraction are treated as prompt-budget failures, not exhausted-key failures.
+- When Groq question extraction is oversized, the provider retries with smaller `max_tokens` budgets before it benches or rotates the current key.
+- The offline parser now recognizes markdown-numbered IELTS questions such as `**35.**`, bullet-prefixed numbered items, and `Question 35.` so pasted markdown remains recoverable when AI providers fail.
+
+### Important boundary
+
+These rules improve stage-local recovery but do not change the broader architecture: the reading creator still uses a provider-first extraction chain rather than a staged parse job with durable intermediate artifacts.

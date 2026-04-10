@@ -396,25 +396,34 @@ class OfflineParserService {
      */
     private extractAndClassifyQuestions(text: string, passages: ParsedPassage[]): ParsedQuestion[] {
         const questions: ParsedQuestion[] = [];
+        const normalizedText = text.replace(/\r\n/g, '\n');
 
         // Pattern: "Questions X-Y" or "Question X"
         const questionSectionPattern = /Questions?\s+(\d+)(?:\s*[-–—to]\s*(\d+))?[.\s:]/gi;
-        const questionPattern = /^(\d+)\s*[.)]\s*(.+)/gm;
+        const questionPattern = /^\s*(?:[-*]\s*)?(?:\*\*|__)?(?:Question\s+)?(\d+)\s*[.)](?:\*\*|__)?\s*(.*)$/gmi;
 
         // Find question sections with instructions
-        const sections = [...text.matchAll(questionSectionPattern)];
+        const sections = [...normalizedText.matchAll(questionSectionPattern)];
 
         // Extract individual questions
-        const questionMatches = [...text.matchAll(questionPattern)];
+        const questionMatches = [...normalizedText.matchAll(questionPattern)];
 
         for (const qMatch of questionMatches) {
             if (!qMatch || !qMatch[1] || !qMatch[2]) continue;
 
             const questionNumber = parseInt(qMatch[1], 10);
-            const questionText = qMatch[2].trim();
+            let questionText = qMatch[2].trim();
+            if (!questionText) {
+                questionText = this.findNextQuestionText(
+                    normalizedText,
+                    (qMatch.index ?? 0) + qMatch[0].length
+                );
+            }
+
+            if (!questionText) continue;
 
             // Find which section this question belongs to
-            const sectionInstruction = this.findSectionInstruction(text, questionNumber, sections);
+            const sectionInstruction = this.findSectionInstruction(normalizedText, questionNumber, sections);
 
             // Classify using type classifier service with context
             const classification = sectionInstruction
@@ -438,6 +447,19 @@ class OfflineParserService {
         questions.sort((a, b) => a.questionNumber - b.questionNumber);
 
         return questions;
+    }
+
+    private findNextQuestionText(text: string, startIndex: number): string {
+        const remainingLines = text.slice(startIndex).split('\n');
+
+        for (const rawLine of remainingLines) {
+            const line = rawLine.trim();
+            if (!line) continue;
+            if (/^(?:Question\s+)?\d+\s*[.)]/i.test(line)) continue;
+            return line;
+        }
+
+        return '';
     }
 
     /**

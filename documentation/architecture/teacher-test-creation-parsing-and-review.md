@@ -115,6 +115,21 @@ Operational consequence:
 - teacher IELTS Reading creation must no longer fail because an expired legacy Google key was included in Gemini round-robin selection
 - if Gemini fails after this point, treat it as a real provider or prompt-size issue, not legacy-key contamination
 
+## 2026-04-10 Amendment - Question Extraction Resilience
+
+The Reading creator now has a stricter stage-local recovery contract for the question extraction step.
+
+Required rules:
+- transient Gemini availability failures such as `503` or `high demand` MUST retry across the remaining Gemini keys before the system degrades to Groq
+- Groq `413` or `request too large` failures during question extraction MUST be treated as prompt-budget failures, not key exhaustion
+- when Groq hits an oversized question-extraction request, it MUST retry with a reduced output budget before rotating or benching any key
+- offline fallback MUST recognize markdown-numbered IELTS question text such as `**35.**`, bulleted numbered items, and `Question 35.`
+
+Operational consequence:
+- a temporary Gemini spike should no longer force an immediate provider switch
+- a large Groq question-extraction prompt should shrink and retry before the system concludes that provider capacity is exhausted
+- pasted IELTS content that uses markdown numbering should remain recoverable by the offline parser instead of collapsing into a zero-question failure
+
 ## Related Docs
 
 - `documentation/tasks/0020-prd-automated-ielts-reading-test-creation.md`

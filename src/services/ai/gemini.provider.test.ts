@@ -22,6 +22,14 @@ vi.mock('./response.validator', () => ({
     success: true,
     data: data,
   })),
+  validatePassagesOnly: vi.fn((data) => ({
+    success: true,
+    data,
+  })),
+  validateQuestionsAndAnswers: vi.fn((data) => ({
+    success: true,
+    data,
+  })),
   normalizeQuestionType: vi.fn((type) => type),
   normalizeAnswer: vi.fn((answer) => answer),
 }));
@@ -114,6 +122,50 @@ describe('Gemini Provider', () => {
 
       expect(loadAllGeminiApiKeys).toHaveBeenCalledTimes(2);
       expect(vi.mocked(GoogleGenerativeAI)).toHaveBeenCalledWith('firestore-key');
+    });
+  });
+
+  describe('Split Parsing Retries', () => {
+    it('retries questions+answers on 503 high demand across keys', async () => {
+      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      let callCount = 0;
+
+      const mockModel = {
+        generateContent: vi.fn().mockImplementation(() => {
+          callCount++;
+          if (callCount === 1) {
+            return Promise.reject(new Error('503: This model is currently experiencing high demand'));
+          }
+
+          return Promise.resolve({
+            response: {
+              text: () => JSON.stringify({
+                questions: [
+                  {
+                    questionNumber: 35,
+                    questionText: 'removes carbon dioxide as soon as it is produced',
+                    type: 'multiple-choice',
+                    answer: 'A',
+                    options: ['A', 'B', 'C'],
+                    confidence: 90,
+                  },
+                ],
+                answerKey: { 35: 'A' },
+                confidence: 90,
+              }),
+            },
+          });
+        }),
+      };
+
+      vi.mocked(GoogleGenerativeAI).mockImplementation(() => ({
+        getGenerativeModel: vi.fn().mockReturnValue(mockModel),
+      }) as any);
+
+      const result = await provider.parseQuestionsAndAnswers('Questions 35-40\n**35.** removes carbon dioxide...');
+
+      expect(result.success).toBe(true);
+      expect(callCount).toBe(2);
     });
   });
 
@@ -339,6 +391,47 @@ describe('Gemini Provider', () => {
       if (!result.success) {
         expect(result.error).toContain('exhausted');
       }
+    });
+
+    it('should rotate keys on temporary 503 high-demand errors for questions+answers', async () => {
+      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      let callCount = 0;
+      const mockModel = {
+        generateContent: vi.fn().mockImplementation(() => {
+          callCount++;
+          if (callCount === 1) {
+            return Promise.reject(new Error('503 This model is currently experiencing high demand'));
+          }
+
+          return Promise.resolve({
+            response: {
+              text: () => JSON.stringify({
+                questions: [
+                  {
+                    questionNumber: 1,
+                    questionText: 'Paragraph B',
+                    type: 'matching-headings',
+                    answer: 'vii',
+                    confidence: 93,
+                  },
+                ],
+                answerKey: { 1: 'vii' },
+                confidence: 93,
+              }),
+            },
+          });
+        }),
+      };
+
+      vi.mocked(GoogleGenerativeAI).mockImplementation(() => ({
+        getGenerativeModel: vi.fn().mockReturnValue(mockModel),
+      }) as any);
+
+      provider = new GeminiProvider();
+      const result = await provider.parseQuestionsAndAnswers('Questions 1-1\n1. Paragraph B');
+
+      expect(result.success).toBe(true);
+      expect(callCount).toBe(2);
     });
   });
 

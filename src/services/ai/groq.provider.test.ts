@@ -26,6 +26,8 @@ vi.mock('../api-keys.service', () => ({
 // Mock response validator
 vi.mock('./response.validator', () => ({
   validateAIResponse: vi.fn((data) => ({ success: true, data })),
+  validatePassagesOnly: vi.fn((data) => ({ success: true, data })),
+  validateQuestionsAndAnswers: vi.fn((data) => ({ success: true, data })),
   normalizeQuestionType: vi.fn((type) => type),
   normalizeAnswer: vi.fn((answer) => answer),
 }));
@@ -190,6 +192,48 @@ describe('Groq Provider', () => {
       if (!result.success) {
         expect(result.error).toContain('not initialized');
       }
+    });
+
+    it('should retry questions+answers with a smaller output budget when the request is too large', async () => {
+      const oversizedError = new Error(
+        '413 {"error":{"message":"Request too large for model `llama-3.3-70b-versatile` please reduce your message size","type":"tokens","code":"rate_limit_exceeded"}}'
+      );
+      const create = vi.fn()
+        .mockRejectedValueOnce(oversizedError)
+        .mockResolvedValueOnce({
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                questions: [
+                  {
+                    questionNumber: 35,
+                    questionText: 'removes carbon dioxide as soon as it is produced',
+                    type: 'matching-information',
+                    answer: 'C',
+                    confidence: 90,
+                  },
+                ],
+                answerKey: { 35: 'C' },
+                confidence: 90,
+              }),
+            },
+          }],
+        });
+
+      const Groq = (await import('groq-sdk')).default;
+      vi.mocked(Groq).mockImplementation(() => ({
+        chat: {
+          completions: { create },
+        },
+      }) as any);
+
+      provider = new GroqProvider();
+      const result = await provider.parseQuestionsAndAnswers('Questions 35-40\n**35.** removes carbon dioxide as soon as it is produced');
+
+      expect(result.success).toBe(true);
+      expect(create).toHaveBeenCalledTimes(2);
+      expect(create.mock.calls[0]?.[0]?.max_tokens).toBe(8192);
+      expect(create.mock.calls[1]?.[0]?.max_tokens).toBe(4096);
     });
   });
 

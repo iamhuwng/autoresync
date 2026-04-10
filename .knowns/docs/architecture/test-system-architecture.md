@@ -2,7 +2,7 @@
 title: Test System Architecture
 description: 'Complete test lifecycle architecture: IELTS + THCS creation, editing, session management, test-taking, grading, results. The single entry point for understanding the test system.'
 createdAt: '2026-02-27T16:15:16.855Z'
-updatedAt: '2026-04-09T08:41:56.044Z'
+updatedAt: '2026-04-10T08:35:06.301Z'
 tags:
   - architecture
   - test
@@ -558,3 +558,27 @@ Related implementation anchors:
 - `src/services/test-creation/index.test.ts`
 
 Source: @task-1bch3u
+
+## 2026-04-10 Amendment - Teacher Reading Question Extraction Resilience
+
+### Current state of the feature
+
+Teacher IELTS Reading creation now retries transient Gemini `503` / `high demand` failures across the remaining Gemini keys before it degrades to Groq. If Groq question extraction fails because the request is too large, the provider retries with smaller output budgets instead of immediately marking the key exhausted. The local offline parser also accepts markdown-numbered IELTS questions so markdown paste input can still produce reviewable question content.
+
+### Cross-feature interaction boundary
+
+#### Provider transient failure -> question extraction stage
+
+A temporary Gemini high-demand response is now a stage-local retry event, not an immediate provider handoff.
+
+#### Provider prompt budget -> fallback path
+
+A Groq `413` oversized request is now treated as a prompt-shaping problem first. Key benching only belongs to actual provider rate-limit exhaustion.
+
+#### Markdown paste -> offline fallback
+
+Markdown numbering is now part of the accepted teacher authoring input shape, so offline fallback can still rescue pasted IELTS reading content when AI parsing fails.
+
+### Operational rule going forward
+
+The reading creator must prefer stage-local recovery before cross-provider fallback, and its non-AI rescue path must understand the markdown formats teachers actually paste into the creation modal.

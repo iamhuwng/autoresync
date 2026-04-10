@@ -72,6 +72,22 @@ export class GeminiProvider implements IAIService {
     return nextKeys.some((key, index) => key !== this.apiKeys[index]);
   }
 
+  private isRateLimitError(errorMessage?: string): boolean {
+    return !!errorMessage && (
+      errorMessage.includes('429') ||
+      errorMessage.includes('rate limit') ||
+      errorMessage.includes('quota')
+    );
+  }
+
+  private isTransientAvailabilityError(errorMessage?: string): boolean {
+    return !!errorMessage && (
+      errorMessage.includes('503') ||
+      errorMessage.includes('high demand') ||
+      errorMessage.includes('temporarily unavailable')
+    );
+  }
+
   /**
    * Initialize Gemini clients with all available API keys.
    * `forceRefresh` reloads the current key inventory so long-lived sessions
@@ -134,9 +150,8 @@ export class GeminiProvider implements IAIService {
     }
 
     // Separate error types
-    const isRateLimitError = result.error?.includes('429') ||
-      result.error?.includes('rate limit') ||
-      result.error?.includes('quota');
+    const isRateLimitError = this.isRateLimitError(result.error);
+    const isTransientAvailabilityError = this.isTransientAvailabilityError(result.error);
 
     const isTruncationError = result.error?.includes('Incomplete') ||
       result.error?.includes('truncated') ||
@@ -154,11 +169,13 @@ export class GeminiProvider implements IAIService {
     }
 
     // For rate limit errors, try other keys
-    if (isRateLimitError) {
-      console.warn(`⚠️ Rate limit on key ${this.currentKeyIndex + 1}, trying other keys...`);
+    if (isRateLimitError || isTransientAvailabilityError) {
+      const retryReason = isTransientAvailabilityError ? 'temporary provider demand' : 'rate limit';
+      console.warn(`⚠️ ${retryReason} on key ${this.currentKeyIndex + 1}, trying other keys...`);
 
-      // Mark current key as exhausted
-      this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
+      if (isRateLimitError) {
+        this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
+      }
 
       // Try remaining keys
       for (let attempt = 0; attempt < this.clients.length - 1; attempt++) {
@@ -177,9 +194,12 @@ export class GeminiProvider implements IAIService {
           return retryResult;
         }
 
-        // If also rate limited, mark and continue
-        if (retryResult.error?.includes('429') || retryResult.error?.includes('rate limit')) {
+        if (this.isRateLimitError(retryResult.error)) {
           this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
+          continue;
+        }
+
+        if (this.isTransientAvailabilityError(retryResult.error)) {
           continue;
         }
 
@@ -1111,13 +1131,15 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
     }
 
     // Check for rate limit error
-    const isRateLimitError = result.error?.includes('429') ||
-      result.error?.includes('rate limit') ||
-      result.error?.includes('quota');
+    const isRateLimitError = this.isRateLimitError(result.error);
+    const isTransientAvailabilityError = this.isTransientAvailabilityError(result.error);
 
-    if (isRateLimitError) {
-      console.warn(`⚠️ [parsePassagesOnly] Rate limit on key ${this.currentKeyIndex + 1}, trying other keys...`);
-      this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
+    if (isRateLimitError || isTransientAvailabilityError) {
+      const retryReason = isTransientAvailabilityError ? 'temporary provider demand' : 'rate limit';
+      console.warn(`⚠️ [parsePassagesOnly] ${retryReason} on key ${this.currentKeyIndex + 1}, trying other keys...`);
+      if (isRateLimitError) {
+        this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
+      }
 
       // Try remaining keys
       for (let attempt = 0; attempt < this.clients.length - 1; attempt++) {
@@ -1135,8 +1157,12 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
           return retryResult;
         }
 
-        if (retryResult.error?.includes('429') || retryResult.error?.includes('rate limit')) {
+        if (this.isRateLimitError(retryResult.error)) {
           this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
+          continue;
+        }
+
+        if (this.isTransientAvailabilityError(retryResult.error)) {
           continue;
         }
 
@@ -1279,13 +1305,15 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
     }
 
     // Check for rate limit error
-    const isRateLimitError = result.error?.includes('429') ||
-      result.error?.includes('rate limit') ||
-      result.error?.includes('quota');
+    const isRateLimitError = this.isRateLimitError(result.error);
+    const isTransientAvailabilityError = this.isTransientAvailabilityError(result.error);
 
-    if (isRateLimitError) {
-      console.warn(`⚠️ [parseQuestionsAndAnswers] Rate limit on key ${this.currentKeyIndex + 1}, trying other keys...`);
-      this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
+    if (isRateLimitError || isTransientAvailabilityError) {
+      const retryReason = isTransientAvailabilityError ? 'temporary provider demand' : 'rate limit';
+      console.warn(`⚠️ [parseQuestionsAndAnswers] ${retryReason} on key ${this.currentKeyIndex + 1}, trying other keys...`);
+      if (isRateLimitError) {
+        this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
+      }
 
       // Try remaining keys
       for (let attempt = 0; attempt < this.clients.length - 1; attempt++) {
@@ -1303,8 +1331,12 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
           return retryResult;
         }
 
-        if (retryResult.error?.includes('429') || retryResult.error?.includes('rate limit')) {
+        if (this.isRateLimitError(retryResult.error)) {
           this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
+          continue;
+        }
+
+        if (this.isTransientAvailabilityError(retryResult.error)) {
           continue;
         }
 
