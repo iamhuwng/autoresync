@@ -1,7 +1,7 @@
 ---
 id: g4ywj5
 title: Stabilize IELTS reading creator question extraction retries and markdown fallback
-status: in-progress
+status: done
 priority: high
 labels:
   - bugfix
@@ -9,8 +9,8 @@ labels:
   - test-creation
   - ai-parser
 createdAt: '2026-04-09T18:15:12.197Z'
-updatedAt: '2026-04-10T08:35:06.403Z'
-timeSpent: 0
+updatedAt: '2026-04-10T08:39:56.685Z'
+timeSpent: 267
 ---
 # Stabilize IELTS reading creator question extraction retries and markdown fallback
 
@@ -22,9 +22,9 @@ Harden the teacher IELTS Reading creation flow so transient Gemini high-demand f
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Gemini reading question extraction retries across remaining Gemini keys on transient 503/high-demand failures before falling back to Groq.
-- [ ] #2 Groq reading question extraction treats 413/request-too-large as a prompt-budget failure and retries with smaller output budgets without benching the key.
-- [ ] #3 Offline reading fallback parses markdown-numbered IELTS questions and the change is covered by targeted tests and architecture notes.
+- [x] #1 Gemini reading question extraction retries across remaining Gemini keys on transient 503/high-demand failures before falling back to Groq.
+- [x] #2 Groq reading question extraction treats 413/request-too-large as a prompt-budget failure and retries with smaller output budgets without benching the key.
+- [x] #3 Offline reading fallback parses markdown-numbered IELTS questions and the change is covered by targeted tests and architecture notes.
 <!-- AC:END -->
 
 ## Implementation Notes
