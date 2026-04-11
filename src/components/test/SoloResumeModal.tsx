@@ -24,7 +24,7 @@ export const SoloResumeModal: React.FC<SoloResumeModalProps> = ({
         if (!savedProgress?.startedAt) return 'Unknown Date';
         return new Date(savedProgress.startedAt).toLocaleString(undefined, {
             dateStyle: 'medium',
-            timeStyle: 'short'
+            timeStyle: 'short',
         });
     }, [savedProgress]);
 
@@ -53,12 +53,16 @@ export const SoloResumeModal: React.FC<SoloResumeModalProps> = ({
                     top: '50%',
                     left: '50%',
                     transform: 'translate(-50%, -50%)',
-                    width: 'min(420px, calc(100vw - 32px))',
+                    width: 'min(420px, calc(100vw - 24px))',
+                    maxWidth: 'calc(100vw - 24px)',
+                    maxHeight: 'calc(100vh - 24px)',
                     background: '#ffffff',
                     borderRadius: 16,
                     border: '1px solid #e5e7eb',
                     boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
                     padding: 24,
+                    overflowY: 'auto',
+                    WebkitOverflowScrolling: 'touch',
                     zIndex: 1001,
                 }}
             >
@@ -83,12 +87,14 @@ export const SoloResumeModal: React.FC<SoloResumeModalProps> = ({
                             background: 'transparent',
                             color: '#6b7280',
                             cursor: 'pointer',
-                            fontSize: '1.25rem',
+                            fontSize: '1rem',
                             lineHeight: 1,
+                            minWidth: 44,
+                            minHeight: 44,
                             padding: 0,
                         }}
                     >
-                        ×
+                        X
                     </button>
                 </div>
 
@@ -99,11 +105,13 @@ export const SoloResumeModal: React.FC<SoloResumeModalProps> = ({
                     You have <strong>{answeredCount}{totalQuestions > 0 ? `/${totalQuestions}` : ''}</strong> questions answered so far.
                 </p>
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24, flexWrap: 'wrap' }}>
                     <button
                         type="button"
                         onClick={onStartNew}
                         style={{
+                            minWidth: 44,
+                            minHeight: 44,
                             padding: '10px 16px',
                             borderRadius: 999,
                             border: '1px solid #d1d5db',
@@ -120,6 +128,8 @@ export const SoloResumeModal: React.FC<SoloResumeModalProps> = ({
                         type="button"
                         onClick={onResume}
                         style={{
+                            minWidth: 44,
+                            minHeight: 44,
                             padding: '10px 16px',
                             borderRadius: 999,
                             border: 'none',

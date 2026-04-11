@@ -14,7 +14,8 @@
 
 ### Tier 3 Pages (Phase 2)
 - `src/pages/StudentCoursesPage.tsx` — Course enrollment list. Has 2 grids using `repeat(auto-fill, minmax(300px, 1fr))` at lines 367 and 411. (567 lines)
-- `src/pages/StudentLibraryPage.tsx` — Material library. Grid at line 340 uses `repeat(auto-fill, minmax(280px, 1fr))`. Has `localStorage` on lines 102, 375, 392. Has `useNavigate` on line 2/65. (403 lines)
+- `src/pages/StudentLibraryPage.tsx` - Material library. Phase 2 now uses `useNavigation('student')`, async platform `storage`, shared mobile header/tab styles, stacked mobile filters, centered touch-friendly pagination, and single-column mobile cards. (403 lines)
+- `src/components/test/SoloResumeModal.tsx` - Resume-practice confirmation modal. Phase 2 now constrains the dialog to the mobile viewport, enables scrolling, and enforces 44px touch targets. (139 lines)
 - `src/pages/AcademicRecordPage.tsx` — Academic record with tab switching. (843 lines)
 - `src/components/academicRecord/THCSProgressTab.tsx` — THCS sub-tab rendered inside AcademicRecordPage.
 - `src/components/academicRecord/ResultTimeline.tsx` — Timeline sub-component.
@@ -287,98 +288,37 @@ Before proceeding to Phase 2, verify ALL of the following:
   - [x] 5.13 Run `npm run build`. Commit: This work shipped in the Phase 2 Courses commit after the mobile browser verification pass.
 
 ---
-- [ ] **6.0 `StudentLibraryPage.tsx` — Mobile grid, filter stacking, and `localStorage` migration**
+- [x] **6.0 `StudentLibraryPage.tsx` - Mobile grid, filter stacking, and `localStorage` migration**
 
   > **Goal:** Make the library page fully mobile-safe by covering shared shell header/filter refinements (FR-002 through FR-005), single-column cards (FR-060), stacked controls (FR-061, FR-062), centered touch-friendly pagination (FR-063), `SoloResumeModal` mobile behavior (FR-064), and `localStorage` migration (FR-065).
 
-  - [ ] 6.1 **Read rules first:** Open and read `documentation/rules/mobile-portability.md`. This is mandatory because you will be migrating `localStorage` calls and `useNavigate`.
+  - [x] 6.1 **Read rules first:** Re-checked `documentation/rules/mobile-portability.md` before replacing the page's raw `localStorage` access and `useNavigate` usage.
 
-  - [ ] 6.2 **Add imports.** At the top of `src/pages/StudentLibraryPage.tsx`:
-    - Add `useMediaQuery` import:
-      ```tsx
-      import { useMediaQuery } from '../hooks/useMediaQuery';
-      ```
-    - Add `mobileStyles` to existing `studentLayoutStyles` import:
-      ```tsx
-      import { S, studentTokens, mobileStyles } from '../components/layout/studentLayoutStyles';
-      ```
-    - Add platform storage import:
-      ```tsx
-      import { storage } from '../core/platform/storage';
-      ```
+  - [x] 6.2 **Add imports.** `src/pages/StudentLibraryPage.tsx` now imports `SoloSessionProgress`, `useMediaQuery`, `useNavigation`, `storage`, and `mobileStyles`.
 
-  - [ ] 6.3 **Replace `useNavigate` with `useNavigation`.** The file imports `useNavigate` and calls it in the component body. Replace:
-    - `import { useNavigate } from 'react-router-dom';`
-    - With `import { useNavigation } from '../hooks/useNavigation';`
-    - Replace `const navigate = useNavigate();` with `const { navigateTo } = useNavigation();`.
-    - Search the file for all `navigate(` calls and replace them with `navigateTo(ROUTE_NAME)` using route constants or `buildRoute(...)` if params are needed.
+  - [x] 6.3 **Replace `useNavigate` with `useNavigation`.** Replaced `useNavigate` with `const { navigateTo } = useNavigation('student');` and centralized the practice redirect in `navigateToLibraryPractice(...)` so both fresh starts and resume flows use the route abstraction and preserve the existing `context` state.
 
-  - [ ] 6.4 **Add `isMobile` hook call** inside the component:
-    ```tsx
-    const isMobile = useMediaQuery('(max-width: 768px)');
-    ```
+  - [x] 6.4 **Add `isMobile` hook call.** Added `const isMobile = useMediaQuery('(max-width: 768px)');` inside the component and used it to gate all mobile-only layout overrides.
 
-  - [ ] 6.5 **Feed header mobile adjustments (FR-002, FR-003).** This page renders `S.feedHeaderTitle` and `S.feedHeaderSubtitle`. Update the usage site so the title drops to `1.5rem` on mobile and the subtitle is hidden:
-    ```tsx
-    <h2 style={{ ...S.feedHeaderTitle, ...(isMobile ? { fontSize: '1.5rem' } : {}) }}>Practice Library</h2>
-    <p style={{ ...S.feedHeaderSubtitle, ...(isMobile ? mobileStyles.feedSubtitleHidden : {}) }}>...</p>
-    ```
+  - [x] 6.5 **Feed header mobile adjustments (FR-002, FR-003).** The page title now drops to `1.5rem` on mobile and the subtitle is hidden with `mobileStyles.feedSubtitleHidden`.
 
-  - [ ] 6.6 **Top tab strip mobile treatment (FR-004, FR-005).** This page renders a top tab strip with `S.filterBar` and `S.filterTab`. On mobile:
-    - Add `className={isMobile ? 'student-mobile-scrollbar-hidden' : undefined}` to the `S.filterBar` container.
-    - Reduce its gap to `16`.
-    - Add `...(isMobile ? mobileStyles.touchTarget : {})` to each tab button.
-    - Preserve `whiteSpace: 'nowrap'` on the tab labels so the strip scrolls horizontally.
+  - [x] 6.6 **Top tab strip mobile treatment (FR-004, FR-005).** The top tab strip now uses `className={isMobile ? 'student-mobile-scrollbar-hidden' : undefined}`, reduces the mobile gap to `16px`, and applies `mobileStyles.touchTarget` to each tab button while preserving horizontal scrolling.
 
-  - [ ] 6.7 **Fix material cards grid (FR-060).** Find:
-    ```tsx
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '24px' }}>
-    ```
-    Replace with:
-    ```tsx
-    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(280px, 1fr))', gap: isMobile ? '16px' : '24px' }}>
-    ```
+  - [x] 6.7 **Fix material cards grid (FR-060).** The materials grid now collapses to a single `1fr` column with a tighter `16px` gap on mobile, while desktop keeps the existing multi-column layout.
 
-  - [ ] 6.8 **Fix dropdown filter row for mobile (FR-061).** Find the control row that holds the Skill / Type / Difficulty `<select>` elements. The dropdowns currently use `flex: '1 1 200px'` or similar. On mobile, change each control to:
-    ```tsx
-    flex: isMobile ? '1 1 100%' : '1 1 200px'
-    ```
-    This forces full-width stacking.
+  - [x] 6.8 **Fix dropdown filter row for mobile (FR-061).** The expanded Skill / Type / Difficulty filter controls now stack at full width on mobile by switching each wrapper to `flex: '1 1 100%'` plus `width: '100%'`.
 
-  - [ ] 6.9 **Fix search input (FR-062).** If the search `<input>` has a `maxWidth` constraint, remove it on mobile:
-    ```tsx
-    maxWidth: isMobile ? '100%' : /* existing value */
-    ```
+  - [x] 6.9 **Fix search input (FR-062).** The search/filter control row now stacks vertically on mobile, the search wrapper grows to the full available width, and the Filters / Clear buttons expand to full-width 44px touch targets.
 
-  - [ ] 6.10 **Fix pagination controls (FR-063).** Find the pagination row. On mobile:
-    - Center the entire pagination row with `justifyContent: 'center'` if it is not already centered.
-    - Add `...(isMobile ? mobileStyles.touchTarget : {})` to both the "Previous" and "Next" buttons.
-    - Keep the desktop pagination layout unchanged.
+  - [x] 6.10 **Fix pagination controls (FR-063).** The pagination row now keeps `justifyContent: 'center'`, enables wrapping, and gives both Previous / Next buttons 44px minimum touch targets on mobile.
 
-  - [ ] 6.11 **Make `SoloResumeModal` mobile-safe (FR-064).** `StudentLibraryPage.tsx` renders `SoloResumeModal`, and the modal implementation lives in `src/components/test/SoloResumeModal.tsx`. Update whichever file is the cleanest owner so that on mobile the modal remains centered, fits within the viewport, and scrolls when content is taller than the screen. Minimum acceptable behavior:
-    ```tsx
-    ...(isMobile ? {
-        width: 'calc(100vw - 24px)',
-        maxHeight: '80vh',
-        overflowY: 'auto',
-        WebkitOverflowScrolling: 'touch',
-    } : {})
-    ```
-    The backdrop click-to-close behavior must still work.
+  - [x] 6.11 **Make `SoloResumeModal` mobile-safe (FR-064).** `src/components/test/SoloResumeModal.tsx` now constrains the dialog to `calc(100vw - 24px)` / `calc(100vh - 24px)`, enables `overflowY: 'auto'` with `WebkitOverflowScrolling: 'touch'`, and gives the close / action buttons 44px touch targets while preserving backdrop click-to-close behavior.
 
-  - [ ] 6.12 **Migrate `localStorage` to platform `storage` (FR-065, EC-7).** There are 3 occurrences:
-    - `const saved = localStorage.getItem(key);`
-      Replace with: `const saved = storage.getItem(key);`
-    - `const saved = JSON.parse(localStorage.getItem(...) || '{}');`
-      Replace with: `const saved = JSON.parse(storage.getItem(...) || '{}');`
-    - `savedProgress={JSON.parse(localStorage.getItem(...) || '{}')}`
-      Replace with: `savedProgress={JSON.parse(storage.getItem(...) || '{}')}`
+  - [x] 6.12 **Migrate `localStorage` to platform `storage` (FR-065, EC-7).** The library page now reads saved progress through `await storage.get<SoloSessionProgress>(key)`, caches the parsed result in `pendingProgress`, and passes that object through the resume/start-new modal flow instead of re-reading raw JSON inline.
 
-    **Important:** Check the API of `src/core/platform/storage.ts` first. If it exports `storage.getItem()`, use that. If it exports a different API (for example standalone helpers), adapt accordingly.
+  - [x] 6.13 **Verify:** Tested `/student/library` at 375px and 1440px against the built app. Confirmed the mobile title drops to `1.5rem`, subtitle hides, top tabs scroll with hidden scrollbar and 44px touch targets, the search/filter controls stack full width, the materials grid becomes single-column, pagination stays centered with 44px buttons, and `SoloResumeModal` stays centered and scrollable. The modal verification used a seeded `solo_progress_<materialId>_<studentId>` entry for a visible card, then triggered the real Start Practice flow.
 
-  - [ ] 6.13 **Verify:** Test at 375px — title is smaller, subtitle hidden, top tabs scroll horizontally with hidden scrollbar, material cards are single-column, dropdown filters stack full-width, search is full-width, pagination is centered with touch-friendly buttons, and `SoloResumeModal` stays centered and scrollable. Test at 1440px — no visual changes.
-
-  - [ ] 6.14 Run `npm run build`. Commit: `feat(library): mobile header, filters, modal, and storage migration [PRD-0044 Phase 2]`.
+  - [x] 6.14 Ran `cmd /c npx vitest run src/components/practice/IELTSPracticeView.test.tsx --reporter=basic`, ran `npm run build`, ran `npm run check:utf8 -- src/pages/StudentLibraryPage.tsx src/components/test/SoloResumeModal.tsx`, staged the Library phase files, and shipped the work in the Phase 2 Library commit.
 
 ---
 - [ ] **7.0 `AcademicRecordPage.tsx` — Mobile filter wrapping and full-width cards**
