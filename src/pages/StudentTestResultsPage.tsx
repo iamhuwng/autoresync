@@ -217,10 +217,19 @@ export const StudentTestResultsPage: React.FC = () => {
 
       if (isLegacyStudentResultLink) {
         try {
-          const directResult = await getTestResult(sessionCode);
-          if (!cancelled && directResult) {
-            navigateTo('RESULT_DETAIL', { resultId: sessionCode }, { replace: true, reason: 'legacy_student_result_redirect' });
+          const legacySessionRef = ref(database, `game_sessions/${sessionCode}`);
+          const legacySessionSnap = await get(legacySessionRef);
+
+          if (cancelled) {
             return;
+          }
+
+          if (!legacySessionSnap.exists()) {
+            const directResult = await getTestResult(sessionCode);
+            if (!cancelled && directResult) {
+              navigateTo('RESULT_DETAIL', { resultId: sessionCode }, { replace: true, reason: 'legacy_student_result_redirect' });
+              return;
+            }
           }
         } catch (legacyLookupError) {
           console.warn('[Results] Legacy result link lookup failed, falling back to session loading:', legacyLookupError);

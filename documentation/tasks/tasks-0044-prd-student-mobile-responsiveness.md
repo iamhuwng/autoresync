@@ -781,29 +781,47 @@ Before proceeding to Phase 5, verify ALL of the following:
 
 ---
 
+---
+
+
+- [ ] **18.0 Student results legacy alias - accept session codes under /student/results**
+
+  > **Goal:** Make the legacy `/student/results/:sessionCode` path honor session-code links while preserving redirects for true legacy result-id links.
+
+  - [x] 18.1 **Prefer session resolution for legacy alias loads.** Update `src/pages/StudentTestResultsPage.tsx` so `/student/results/:sessionCode` first checks for a real `game_sessions/{sessionCode}` record and only falls back to the legacy `getTestResult(...)` redirect path when the session does not exist.
+
+  - [x] 18.2 **Add alias regression coverage.** Extend `src/pages/StudentTestResultsPage.test.tsx` so the legacy alias still redirects for real legacy result ids and now loads the session-results view when given a real session code.
+
+  - [x] 18.3 **Verify route contract.** Run `cmd /c npx vitest run src/pages/StudentTestResultsPage.test.tsx --reporter=basic` and `cmd /c npm run build`. Then verify on `http://localhost:5173` that both `/student-test-results/:sessionCode` and `/student/results/:sessionCode` load and refresh correctly for the same student session code.
+
+  - [ ] 18.4 Commit: `fix(results): support session-code legacy student aliases [PRD-0044 Final]`.
+
+---
+
 ## Final Verification (After All Phases)
 
-After completing all 17 parent tasks:
+After completing all 18 parent tasks:
 
 1. **Full build:** `npm run build` — zero errors.
 2. **Pre-commit hook:** Stage all files, attempt commit — hook must not flag any new `@mantine/*` imports.
 3. **Manual visual regression at 1440px desktop:** Visit all 7 pages. Every page must look IDENTICAL to before this PRD's work started.
 4. **Manual visual testing at 375px (iPhone SE):** Visit all 7 pages:
-   - [ ] Dashboard: feed padded at 12px, title reduced to `1.5rem`, subtitle hidden, filter tabs scrollable with hidden scrollbar, notification cards use tighter side padding, Join a Class modal scrolls, no horizontal overflow.
-   - [ ] Courses: title reduced to `1.5rem`, subtitle hidden, filter tabs scrollable and touch-friendly, cards single-column, long course text truncates, unenroll modal opens as a bottom sheet, empty-state button full-width.
-   - [ ] Library: title reduced to `1.5rem`, subtitle hidden, top tabs scrollable and touch-friendly, dropdown filters stack full-width, search full-width, pagination centered with touch-friendly buttons, `SoloResumeModal` centered and scrollable.
-   - [ ] Academic Record: title reduced to `1.5rem`, subtitle hidden, tabs and date range stack cleanly, result cards full-width, THCS content single-column, AI banner readable.
-   - [ ] Homework List: title reduced to `1.5rem`, subtitle hidden, cards padded `12px 12px 16px`, buttons full-width, badges wrap, no Mantine Loader.
-   - [ ] Homework Detail: `StudentLayout` shell, no gradient, stacked info card, full-viewport modal.
-   - [ ] Test Results: `StudentLayout` shell, stacked score card, full-width buttons.
+   - [x] Dashboard: feed padded at 12px, title reduced to `1.5rem`, subtitle hidden, filter tabs scrollable with hidden scrollbar, notification cards use tighter side padding, Join a Class modal scrolls, no horizontal overflow.
+   - [x] Courses: title reduced to `1.5rem`, subtitle hidden, filter tabs scrollable and touch-friendly, cards single-column, long course text truncates, unenroll modal opens as a bottom sheet, empty-state button full-width.
+   - [x] Library: title reduced to `1.5rem`, subtitle hidden, top tabs scrollable and touch-friendly, dropdown filters stack full-width, search full-width, pagination centered with touch-friendly buttons, `SoloResumeModal` centered and scrollable.
+   - [x] Academic Record: title reduced to `1.5rem`, subtitle hidden, tabs and date range stack cleanly, result cards full-width, THCS content single-column, AI banner readable.
+   - [x] Homework List: title reduced to `1.5rem`, subtitle hidden, cards padded `12px 12px 16px`, buttons full-width, badges wrap, no Mantine Loader.
+   - [x] Homework Detail: `StudentLayout` shell, no gradient, stacked info card, full-viewport modal.
+   - [x] Test Results: `StudentLayout` shell, stacked score card, full-width buttons.
 5. **Mobile right-rail verification:**
    - [x] Open the right rail at 375px and 320px.
    - [x] Drawer does not overflow the viewport.
    - [x] `PendingReviewsWidget` remains readable, scrollable, and tappable.
    - [x] Shared shell header buttons and the `Find a session` CTA now meet the 44px touch-target rule at both widths without title collision or new console errors.
 6. **Route contract testing:**
-   - [ ] Directly load `/student/homework/any-id` — works.
-   - [ ] Directly load `/student-test-results/any-code` — works.
-   - [ ] Directly load `/student/results/any-code` — works (legacy path).
-   - [ ] Refresh each URL — still works.
+   - [x] Directly load `/student/homework/any-id` — works.
+   - [x] Directly load `/student-test-results/any-code` — works.
+   - [x] Directly load `/student/results/any-code` — works (legacy path).
+   - [x] Refresh each URL — still works.
 7. **Touch target testing:** On a real mobile device (or DevTools touch simulation), tap every button and link. Each must be easily tappable (≥44px target).
+

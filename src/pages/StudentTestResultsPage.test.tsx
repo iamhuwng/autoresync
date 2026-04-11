@@ -380,6 +380,31 @@ describe('StudentTestResultsPage', () => {
             studentId,
         });
 
+        (get as any).mockImplementation((refObj: any) => {
+            if (typeof refObj === 'string' && refObj.includes('game_sessions/')) {
+                return Promise.resolve({
+                    exists: () => false,
+                    val: () => null,
+                });
+            }
+
+            return Promise.resolve({
+                exists: () => true,
+                val: () => ({
+                    title: 'Test Title',
+                    type: 'reading',
+                    questions: [
+                        {
+                            number: 1,
+                            type: 'multiple-choice',
+                            answer: 'A',
+                            points: 1,
+                        },
+                    ],
+                }),
+            });
+        });
+
         render(
             <MemoryRouter initialEntries={['/student/results/result-legacy-1']}>
                 <Routes>
@@ -395,6 +420,49 @@ describe('StudentTestResultsPage', () => {
 
         expect(testResultsService.getTestResult).toHaveBeenCalledWith('result-legacy-1');
         expect(testResultsService.getStudentSessionResult).not.toHaveBeenCalled();
+    });
+
+    it('should load session results for legacy student alias links when the param is a session code', async () => {
+        (testResultsService.getStudentSessionResult as any).mockResolvedValue({
+            resultId: 'res-session-alias',
+            totalScore: 8,
+            maxScore: 10,
+            percentage: 80,
+            bandScore: 7.0,
+            questionResults: [],
+            summary: { correct: 8, incorrect: 2, partialCredit: 0, totalQuestions: 10 },
+            correct: 8,
+            incorrect: 2,
+            partialCredit: 0,
+            totalQuestions: 10,
+            submittedAt: Date.now(),
+            testTitle: 'Session Alias Result',
+            testType: 'reading',
+            testSkill: 'Reading',
+            testDuration: 30,
+        });
+
+        render(
+            <MemoryRouter initialEntries={[`/student/results/${sessionCode}`]}>
+                <Routes>
+                    <Route path="/student" element={<StudentShellRoute />}>
+                        <Route path="results/:sessionCode" element={<StudentTestResultsPage />} />
+                    </Route>
+                    <Route path="/result/:resultId" element={<div>Canonical Result Route</div>} />
+                </Routes>
+            </MemoryRouter>
+        );
+
+        await waitFor(() => {
+            expect(testResultsService.getStudentSessionResult).toHaveBeenCalledWith(studentId, sessionCode);
+        });
+
+        await waitFor(() => {
+            expect(screen.getByText('8/10')).toBeInTheDocument();
+        });
+
+        expect(screen.queryByText('Canonical Result Route')).not.toBeInTheDocument();
+        expect(testResultsService.getTestResult).not.toHaveBeenCalled();
     });
 
     it('should update the release banner when the live session state changes', async () => {
