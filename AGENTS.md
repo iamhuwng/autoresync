@@ -49,8 +49,8 @@ When testing authenticated teacher or student flows in this repo:
 | Writing `dangerouslySetInnerHTML` | [`rules/mobile-portability.md`](documentation/rules/mobile-portability.md) |
 | Writing `useNavigate()` from `react-router-dom` directly | [`rules/mobile-portability.md`](documentation/rules/mobile-portability.md) |
 | Writing `window.innerWidth` or `window.matchMedia()` | [`rules/mobile-portability.md`](documentation/rules/mobile-portability.md) |
-| Changing student shell layout, responsive styles, headers, tabs, cards, drawers, or right-rail composition | [`rules/student-mobile-design.md`](documentation/rules/student-mobile-design.md) |
-| Fixing student mobile overflow, touch targets, stacked actions, or drawer behavior | [`rules/student-mobile-design.md`](documentation/rules/student-mobile-design.md) |
+| Changing student shell layout, routed shell composition, responsive headers, cards/lists, or right-rail structure | [`rules/student-mobile-design.md`](documentation/rules/student-mobile-design.md) |
+| Changing student mobile tabs/filters, overlays, touch targets, overflow, or drawer behavior | [`rules/student-mobile-design.md`](documentation/rules/student-mobile-design.md) |
 | Changing student shell pages, Academic Record, Library, Homework, Courses, Class Detail, or any student tab/list data-loading path | [`rules/student-data-loading.md`](documentation/rules/student-data-loading.md) |
 
 ---
