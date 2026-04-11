@@ -3,6 +3,7 @@ import '@testing-library/jest-dom';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import StudentHomeworkDetailPage from './StudentHomeworkDetailPage';
+import StudentShellRoute from '../routes/StudentShellRoute';
 
 const {
   authState,
@@ -113,6 +114,10 @@ vi.mock('../hooks/useNavigation', () => ({
   useNavigation: () => useNavigationMock(),
 }));
 
+vi.mock('../context/StudentShellDataContext', () => ({
+  StudentShellDataProvider: ({ children }: any) => <>{children}</>,
+}));
+
 vi.mock('../services/testStorage', () => ({
   getTestFromFirebase: (...args: unknown[]) => getTestFromFirebaseMock(...args),
 }));
@@ -139,7 +144,9 @@ function renderPage() {
   return render(
     <MemoryRouter initialEntries={['/student/homework/hw-1']}>
       <Routes>
-        <Route path="/student/homework/:homeworkId" element={<StudentHomeworkDetailPage />} />
+        <Route path="/student" element={<StudentShellRoute />}>
+          <Route path="homework/:homeworkId" element={<StudentHomeworkDetailPage />} />
+        </Route>
       </Routes>
     </MemoryRouter>,
   );

@@ -53,3 +53,9 @@
 - Fixed a React console warning on the page by removing conflicting shorthand/longhand margin styles in the summary card typography.
 - Verified the live authenticated page at `http://localhost:5173/student/homework` on 1440px and 375px viewports; the mobile check showed a hidden subtitle, column summary cards, no horizontal overflow, and full-width CTA buttons, and the reloaded page reported 0 console errors.
 - Ran `cmd /c npx vitest run src/pages/StudentHomeworkListPage.test.tsx --reporter=basic` and `cmd /c npm run build`; both passed.
+## 2026-04-11 21:10 Phase 4 Homework Detail Route
+- Completed the Phase 4 route move in `src/routes/studentRoutes.tsx` by nesting both `/student/homework/:homeworkId` and `/student/homework/:homeworkId/test` under `StudentShellRoute` as relative child paths, preserving the public URLs.
+- Updated `src/pages/StudentHomeworkDetailPage.test.tsx` so its route helper mounts the detail page through `StudentShellRoute`, and added a pass-through `StudentShellDataProvider` mock to keep the focused route test isolated from the full shell data layer.
+- Confirmed `src/constants/routes.ts`, `src/config/routeSecurity.ts`, and `src/config/featureRegistry.ts` still expose `/student/homework/:homeworkId` unchanged after the nesting change.
+- Verified `cmd /c npx vitest run src/pages/StudentHomeworkDetailPage.test.tsx --reporter=basic` and `cmd /c npm run build` both passed.
+- Verified the route contract in the authenticated `http://localhost:5173` student session by directly loading and reloading `/student/homework/a883G44sgZ7NR4dmbWeb`; the page continued to load at the same public URL with 0 console errors.

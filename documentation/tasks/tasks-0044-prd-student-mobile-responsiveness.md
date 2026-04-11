@@ -29,7 +29,7 @@
 - `src/pages/StudentHomeworkListPage.tsx` - Homework list. Phase 3 now uses `useNavigation('student')`, a native CSS spinner, shared mobile header/tab treatment, stacked summary cards, tighter mobile card padding, full-width mobile CTA buttons, and homework action tracking. (740 lines)
 
 ### Route & Config Files (Phase 4)
-- `src/routes/studentRoutes.tsx` — Student route definitions. Shell children end at line 83. Homework detail is at line 122 (outside shell). Test results is at lines 98–99 and 110–111 (both outside shell). (134 lines)
+- `src/routes/studentRoutes.tsx` - Student route definitions. Phase 4 moved the homework detail and homework test routes into the `StudentShellRoute` children while preserving their public `/student/homework/...` URLs; test-results routes remain outside the shell pending task 11.0. (134 lines)
 - `src/routes/StudentShellRoute.tsx` — The shell route wrapper that provides sidebar/layout context.
 - `src/constants/routes.ts` — Route name constants and `buildRoute` utility.
 - `src/config/routeSecurity.ts` — Route security configuration.
@@ -40,7 +40,7 @@
 - `src/pages/StudentTestResultsPage.tsx` — FULL REWRITE target. Uses `Center`/`Loader` from Mantine (line 20), `useNavigate` (line 15), standalone layout (no `StudentLayout`). (1147 lines)
 
 ### Test Files
-- `src/pages/StudentHomeworkDetailPage.test.tsx` — Must update route-mount assertions if Phase 4 changes nesting.
+- `src/pages/StudentHomeworkDetailPage.test.tsx` - Phase 4 now mounts the detail page through `StudentShellRoute` so the route test matches the nested production structure.
 - `src/pages/StudentTestResultsPage.test.tsx` — Must preserve `/student/results/:sessionCode` coverage.
 - `src/pages/StudentHomeworkListPage.test.tsx` - Updated for the Phase 3 homework pass by removing Mantine mocks and covering navigation/tracking through the homework list interactions.
 - `src/pages/AcademicRecordPage.test.tsx` - Updated for the Academic Record mobile pass by mocking `studentTokens` and `mobileStyles` exports.
@@ -453,13 +453,13 @@ Before proceeding to Phase 2, verify ALL of the following:
   - [x] 9.13 Ran `cmd /c npm run build`, reloaded `http://localhost:5173/student/homework`, and confirmed the page had **0 console errors** after fixing the margin shorthand warning triggered during the mobile pass. This slice ships in the Phase 3 homework commit.
 
 ---
-- [ ] **10.0 Move `StudentHomeworkDetailPage` route under `StudentShellRoute`**
+- [x] **10.0 Move `StudentHomeworkDetailPage` route under `StudentShellRoute`**
 
   > **Goal:** Move the `/student/homework/:homeworkId` route from its current position (outside the shell, line 122 of `studentRoutes.tsx`) to inside the `StudentShellRoute` children array, while **preserving the exact public URL**.
 
-  - [ ] 10.1 **Read rules first:** Open `documentation/rules/navigation.md`. Open `documentation/rules/observability.md`.
+  - [x] 10.1 **Read rules first:** Open `documentation/rules/navigation.md`. Open `documentation/rules/observability.md`.
 
-  - [ ] 10.2 Open `src/routes/studentRoutes.tsx`. The `StudentShellRoute` children array starts at line 46 and ends at line 83 (the closing `]`). The homework detail route is currently at lines 121–124:
+  - [x] 10.2 Open `src/routes/studentRoutes.tsx`. The `StudentShellRoute` children array starts at line 46 and ends at line 83 (the closing `]`). The homework detail route is currently at lines 121–124:
     ```tsx
     {
         path: '/student/homework/:homeworkId',
@@ -467,7 +467,7 @@ Before proceeding to Phase 2, verify ALL of the following:
     },
     ```
 
-  - [ ] 10.3 **Move the route inside the shell children.** Cut lines 121–124 and paste them inside the children array (before the closing `]` on line 83). When moving inside the shell, the path becomes **relative** to the parent `/student` path. Change:
+  - [x] 10.3 **Move the route inside the shell children.** Cut lines 121–124 and paste them inside the children array (before the closing `]` on line 83). When moving inside the shell, the path becomes **relative** to the parent `/student` path. Change:
     ```tsx
     // INSIDE StudentShellRoute children:
     {
@@ -477,7 +477,7 @@ Before proceeding to Phase 2, verify ALL of the following:
     ```
     Note: The path changed from `/student/homework/:homeworkId` (absolute) to `homework/:homeworkId` (relative to the `/student` parent). The resulting public URL remains `/student/homework/:homeworkId`.
 
-  - [ ] 10.4 **Also move the homework test route.** The route at lines 125–128:
+  - [x] 10.4 **Also move the homework test route.** The route at lines 125–128:
     ```tsx
     {
         path: '/student/homework/:homeworkId/test',
@@ -492,16 +492,16 @@ Before proceeding to Phase 2, verify ALL of the following:
     },
     ```
 
-  - [ ] 10.5 **Verify route contract:** Open browser → navigate directly to `/student/homework/test-id-123`. The page must load. Refresh the page. It must still load. The URL in the browser bar must remain `/student/homework/test-id-123`.
+  - [x] 10.5 **Verify route contract:** Open browser → navigate directly to `/student/homework/test-id-123`. The page must load. Refresh the page. It must still load. The URL in the browser bar must remain `/student/homework/test-id-123`.
 
-  - [ ] 10.6 **Verify route registries.** Open each of these files and confirm the route path `/student/homework/:homeworkId` is still listed:
+  - [x] 10.6 **Verify route registries.** Open each of these files and confirm the route path `/student/homework/:homeworkId` is still listed:
     - `src/constants/routes.ts` — Look for `STUDENT_HOMEWORK_DETAIL`. Confirm the path matches.
     - `src/config/routeSecurity.ts` — Confirm the route is listed.
 - `src/config/featureRegistry.ts` - Feature tracking registry. Phase 3 homework updates add the student homework list actions used by `StudentHomeworkListPage`.
 
-  - [ ] 10.7 **Update test file if needed.** Open `src/pages/StudentHomeworkDetailPage.test.tsx`. If the test explicitly mounts the route at a specific path or tests route structure, update it to match the new nesting.
+  - [x] 10.7 **Update test file if needed.** Open `src/pages/StudentHomeworkDetailPage.test.tsx`. If the test explicitly mounts the route at a specific path or tests route structure, update it to match the new nesting.
 
-  - [ ] 10.8 Run `npm run build` and `npx vitest run src/pages/StudentHomeworkDetailPage.test.tsx`. Commit: `refactor(routes): move homework detail under StudentShellRoute [PRD-0044 Phase 4]`.
+  - [x] 10.8 Run `npm run build` and `npx vitest run src/pages/StudentHomeworkDetailPage.test.tsx`. Commit: `refactor(routes): move homework detail under StudentShellRoute [PRD-0044 Phase 4]`.
 
 ---
 
