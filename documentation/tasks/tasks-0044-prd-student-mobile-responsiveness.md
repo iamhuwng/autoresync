@@ -36,11 +36,11 @@
 - `src/config/featureRegistry.ts` - Feature tracking registry. Phase 3 homework updates add the student homework list actions used by `StudentHomeworkListPage`.
 
 ### Tier 1 Pages (Phase 5)
-- `src/pages/StudentHomeworkDetailPage.tsx` ? Phase 5A desktop shell migration is complete: the page now renders inside `StudentLayout`/`StudentSidebar` with the legacy `AppShell` wrapper removed, while the remaining Mantine imports and mobile overrides are deferred to Tasks 13.0 and 14.0. (846 lines)
+- `src/pages/StudentHomeworkDetailPage.tsx` ? Phase 5A homework detail migration is now complete: the page uses `StudentLayout`, local native primitives, inline SVG icons, shared mobile tokens, full-width 44px mobile actions, and a full-viewport start modal with sticky mobile actions. (1362 lines)
 - `src/pages/StudentTestResultsPage.tsx` — FULL REWRITE target. Uses `Center`/`Loader` from Mantine (line 20), `useNavigate` (line 15), standalone layout (no `StudentLayout`). (1147 lines)
 
 ### Test Files
-- `src/pages/StudentHomeworkDetailPage.test.tsx` - Phase 5A now mocks `StudentLayout`/`StudentSidebar` while continuing to mount through `StudentShellRoute`, keeping the homework-detail tests aligned with the desktop shell migration.
+- `src/pages/StudentHomeworkDetailPage.test.tsx` - Phase 5A now mounts through `StudentShellRoute` with `StudentLayout`/`StudentSidebar` mocks, covers the mobile start-modal/full-width action branch, and no longer needs Mantine or Tabler test stubs. (224 lines)
 - `src/pages/StudentTestResultsPage.test.tsx` - Phase 4 now drives the canonical `/student-test-results/:sessionCode` route directly and mounts the legacy `/student/results/:sessionCode` alias through `StudentShellRoute`.
 - `src/pages/StudentHomeworkListPage.test.tsx` - Updated for the Phase 3 homework pass by removing Mantine mocks and covering navigation/tracking through the homework list interactions.
 - `src/pages/AcademicRecordPage.test.tsx` - Updated for the Academic Record mobile pass by mocking `studentTokens` and `mobileStyles` exports.
@@ -599,13 +599,13 @@ Before proceeding to Phase 5, verify ALL of the following:
 
 ---
 
-- [ ] **13.0 `StudentHomeworkDetailPage.tsx` — Replace Mantine component imports (One at a Time)**
+- [x] **13.0 `StudentHomeworkDetailPage.tsx` ? Replace Mantine component imports (One at a Time)**
 
   > **Goal:** Remove all 13 `@mantine/core` imports and 14 `@tabler/icons-react` imports, replacing with native HTML/CSS. Per FR-011 and FR-012.
 
-  - [ ] 13.1 **CRITICAL: Work one import at a time.** Remove ONE import from the Mantine import block (lines 31–46), replace ALL usages of that component in the file, then run `npm run build` to confirm zero errors. Only then proceed to the next import.
+  - [x] 13.1 **CRITICAL: Work one import at a time.** Remove ONE import from the Mantine import block (lines 31–46), replace ALL usages of that component in the file, then run `npm run build` to confirm zero errors. Only then proceed to the next import.
 
-  - [ ] 13.2 **Replacement mapping** (follow this order exactly):
+  - [x] 13.2 **Replacement mapping** (follow this order exactly):
     | Mantine Component | Replace With | Token/Style |
     |---|---|---|
     | `Center` | `<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>` | — |
@@ -622,7 +622,7 @@ Before proceeding to Phase 5, verify ALL of the following:
     | `List` | Native `<ul>` / `<ol>` with `padding-left: 20px` | — |
     | `ThemeIcon` | `<span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: '50%', background: studentTokens.accentSoft, color: studentTokens.accent }}>` + inline SVG inside | — |
 
-  - [ ] 13.3 **Replace Tabler icons (FR-012).** For each `@tabler/icons-react` icon (listed on lines 47–65), create an inline SVG component using the same pattern as `StudentLibraryPage.tsx` lines 15–20. Example:
+  - [x] 13.3 **Replace Tabler icons (FR-012).** For each `@tabler/icons-react` icon (listed on lines 47–65), create an inline SVG component using the same pattern as `StudentLibraryPage.tsx` lines 15–20. Example:
     ```tsx
     const SvgArrowLeft = () => (
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -632,37 +632,37 @@ Before proceeding to Phase 5, verify ALL of the following:
     ```
     Place all SVG components near the top of the file (after imports, before the main component). You can find the SVG path data for each icon at https://tabler.io/icons or by inspecting the rendered HTML.
 
-  - [ ] 13.4 **Delete the entire `@mantine/core` import block** (lines 31–46) after ALL replacements are done.
-  - [ ] 13.5 **Delete the entire `@tabler/icons-react` import block** (lines 47–65) after ALL replacements are done.
+  - [x] 13.4 **Delete the entire `@mantine/core` import block** (lines 31–46) after ALL replacements are done.
+  - [x] 13.5 **Delete the entire `@tabler/icons-react` import block** (lines 47–65) after ALL replacements are done.
 
-  - [ ] 13.6 **Replace `useNavigate` with `useNavigation` (EC-10).** Line 30 imports `useNavigate`. Replace with `useNavigation` (which is already imported on line 68). Remove the `useNavigate` import from line 30.
+  - [x] 13.6 **Replace `useNavigate` with `useNavigation` (EC-10).** Line 30 imports `useNavigate`. Replace with `useNavigation` (which is already imported on line 68). Remove the `useNavigate` import from line 30.
 
-  - [ ] 13.7 Run `npm run build`. Verify zero Mantine imports remain in this file.
+  - [x] 13.7 Run `npm run build`. Verify zero Mantine imports remain in this file.
 
-  - [ ] 13.8 Commit: `refactor(homework-detail): remove all Mantine imports [PRD-0044 Phase 5A]`.
+  - [x] 13.8 Commit: `refactor(homework-detail): remove all Mantine imports [PRD-0044 Phase 5A]`.
 
 ---
 
-- [ ] **14.0 `StudentHomeworkDetailPage.tsx` — Add mobile responsive overrides**
+- [x] **14.0 `StudentHomeworkDetailPage.tsx` ? Add mobile responsive overrides**
 
   > **Goal:** Apply mobile-specific layout (FR-015 through FR-017) now that Mantine is removed and `StudentLayout` is in place.
 
-  - [ ] 14.1 **Add `useMediaQuery` and `isMobile`:**
+  - [x] 14.1 **Add `useMediaQuery` and `isMobile`:**
     ```tsx
     import { useMediaQuery } from '../hooks/useMediaQuery';
     // ...
     const isMobile = useMediaQuery('(max-width: 768px)');
     ```
 
-  - [ ] 14.2 **Homework info card stacking (FR-015).** Find the main homework info card. On mobile, stack its elements vertically:
+  - [x] 14.2 **Homework info card stacking (FR-015).** Find the main homework info card. On mobile, stack its elements vertically:
     - Title: full width
     - Badges row: `flexWrap: 'wrap'`, gap: 8
     - Instructions: `fontSize: '0.938rem'`, `lineHeight: 1.6`
     - CTA button: `...(isMobile ? mobileStyles.fullWidthButton : {})`
 
-  - [ ] 14.3 **Submission timeline single-column (FR-016).** The Timeline (now a native CSS timeline from task 13.2) should already be single-column. Verify it renders correctly on mobile at 375px.
+  - [x] 14.3 **Submission timeline single-column (FR-016).** The Timeline (now a native CSS timeline from task 13.2) should already be single-column. Verify it renders correctly on mobile at 375px.
 
-  - [ ] 14.4 **Start-attempt modal mobile (FR-017).** The modal (now a custom div from task 13.2) on mobile should:
+  - [x] 14.4 **Start-attempt modal mobile (FR-017).** The modal (now a custom div from task 13.2) on mobile should:
     ```tsx
     ...(isMobile ? {
         position: 'fixed',
@@ -676,11 +676,11 @@ Before proceeding to Phase 5, verify ALL of the following:
     Content area: `flex: 1`, `overflowY: 'auto'`, `WebkitOverflowScrolling: 'touch'`
     Bottom buttons: `position: 'sticky'`, `bottom: 0`, both buttons `minHeight: 44`.
 
-  - [ ] 14.5 **Back button styling (FR-014).** The "Back" button should use `studentTokens` styling, not Mantine Button. On mobile, ensure it has `minHeight: 44`.
+  - [x] 14.5 **Back button styling (FR-014).** The "Back" button should use `studentTokens` styling, not Mantine Button. On mobile, ensure it has `minHeight: 44`.
 
-  - [ ] 14.6 **Verify:** Test at 375px — info card stacks vertically, buttons are full-width, modal fills viewport. Test at 1440px — desktop unchanged from after task 12/13.
+  - [x] 14.6 **Verify:** Test at 375px — info card stacks vertically, buttons are full-width, modal fills viewport. Test at 1440px — desktop unchanged from after task 12/13.
 
-  - [ ] 14.7 Run `npm run build`. Run tests: `npx vitest run src/pages/StudentHomeworkDetailPage.test.tsx`. Commit: `feat(homework-detail): add mobile responsive overrides [PRD-0044 Phase 5A]`.
+  - [x] 14.7 Run `npm run build`. Run tests: `npx vitest run src/pages/StudentHomeworkDetailPage.test.tsx`. Commit: `feat(homework-detail): add mobile responsive overrides [PRD-0044 Phase 5A]`.
 
 ---
 

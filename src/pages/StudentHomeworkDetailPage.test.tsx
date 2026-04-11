@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -11,6 +11,7 @@ const {
   navigateMock,
   startAttemptMock,
   useHomeworkSubmissionMock,
+  useMediaQueryMock,
   useNavigationMock,
 } = vi.hoisted(() => ({
   authState: {
@@ -24,6 +25,7 @@ const {
   navigateMock: vi.fn(),
   startAttemptMock: vi.fn(),
   useHomeworkSubmissionMock: vi.fn(),
+  useMediaQueryMock: vi.fn(),
   useNavigationMock: vi.fn(),
 }));
 
@@ -32,70 +34,6 @@ vi.mock('react-router-dom', async () => {
   return {
     ...actual,
     useNavigate: () => navigateMock,
-  };
-});
-
-vi.mock('@mantine/core', () => {
-  const Wrap = ({ children }: any) => <div>{children}</div>;
-  const AppShell = ({ children }: any) => <div>{children}</div>;
-  AppShell.Header = Wrap;
-  AppShell.Main = Wrap;
-
-  const Grid = ({ children }: any) => <div>{children}</div>;
-  Grid.Col = Wrap;
-
-  const Timeline = ({ children }: any) => <div>{children}</div>;
-  Timeline.Item = ({ children, title }: any) => (
-    <div>
-      <div>{title}</div>
-      <div>{children}</div>
-    </div>
-  );
-
-  const List = ({ children }: any) => <ul>{children}</ul>;
-  List.Item = ({ children }: any) => <li>{children}</li>;
-
-  const Text = ({ children }: any) => <span>{children}</span>;
-  const Modal = ({ opened, title, children }: any) => (opened ? <div><div>{title}</div>{children}</div> : null);
-
-  return {
-    AppShell,
-    Badge: Wrap,
-    Group: Wrap,
-    Text,
-    Loader: () => <div>Loading...</div>,
-    Stack: Wrap,
-    ThemeIcon: Wrap,
-    Divider: () => <hr />,
-    Alert: Wrap,
-    Modal,
-    List,
-    Grid,
-    Timeline,
-    Center: Wrap,
-  };
-});
-
-vi.mock('@tabler/icons-react', () => {
-  const Icon = () => <span />;
-  return {
-    IconClipboard: Icon,
-    IconClock: Icon,
-    IconCalendar: Icon,
-    IconAlertTriangle: Icon,
-    IconPlaylistAdd: Icon,
-    IconBook: Icon,
-    IconArrowLeft: Icon,
-    IconCheck: Icon,
-    IconX: Icon,
-    IconInfoCircle: Icon,
-    IconPlayerPlay: Icon,
-    IconHistory: Icon,
-    IconTrophy: Icon,
-    IconEye: Icon,
-    IconEyeOff: Icon,
-    IconHome: Icon,
-    IconBooks: Icon,
   };
 });
 
@@ -113,6 +51,10 @@ vi.mock('../contexts/AuthContext', () => ({
 
 vi.mock('../hooks/useNavigation', () => ({
   useNavigation: () => useNavigationMock(),
+}));
+
+vi.mock('../hooks/useMediaQuery', () => ({
+  useMediaQuery: (...args: unknown[]) => useMediaQueryMock(...args),
 }));
 
 vi.mock('../context/StudentShellDataContext', () => ({
@@ -134,8 +76,8 @@ vi.mock('../services/testStorage', () => ({
 vi.mock('../components/modern', () => ({
   Card: ({ children }: any) => <div>{children}</div>,
   CardBody: ({ children }: any) => <div>{children}</div>,
-  Button: ({ children, onClick, disabled, loading }: any) => (
-    <button onClick={onClick} disabled={disabled || loading}>
+  Button: ({ children, onClick, disabled, loading, style, fullWidth }: any) => (
+    <button onClick={onClick} disabled={disabled || loading} style={style} data-full-width={fullWidth ? 'true' : 'false'}>
       {children}
     </button>
   ),
@@ -173,6 +115,7 @@ describe('StudentHomeworkDetailPage', () => {
     useNavigationMock.mockReturnValue({
       navigateTo: vi.fn(),
     });
+    useMediaQueryMock.mockReturnValue(false);
 
     startAttemptMock.mockResolvedValue({ id: 'submission-2' });
     getTestFromFirebaseMock.mockResolvedValue({
@@ -251,5 +194,31 @@ describe('StudentHomeworkDetailPage', () => {
 
     expect(screen.getByTestId('result-slide-panel')).toHaveAttribute('data-result-id', 'result-1');
     expect(navigateMock).not.toHaveBeenCalledWith('/student/academic-record', expect.anything());
+  });
+
+  it('opens the start modal with mobile full-width actions and starts the attempt', async () => {
+    const navigateTo = vi.fn();
+    useNavigationMock.mockReturnValue({
+      navigateTo,
+    });
+    useMediaQueryMock.mockReturnValue(true);
+
+    renderPage();
+
+    fireEvent.click(await screen.findByText('Start Homework'));
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    const cancelButton = screen.getByText('Cancel');
+    const startNowButton = screen.getByText('Start Now');
+
+    expect(cancelButton).toHaveStyle({ width: '100%', minHeight: '44px' });
+    expect(startNowButton).toHaveStyle({ width: '100%', minHeight: '44px' });
+
+    fireEvent.click(startNowButton);
+
+    await waitFor(() => {
+      expect(startAttemptMock).toHaveBeenCalledTimes(1);
+    });
   });
 });

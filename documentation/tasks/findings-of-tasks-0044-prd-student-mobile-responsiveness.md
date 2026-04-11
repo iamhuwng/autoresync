@@ -75,3 +75,17 @@
 - Verified `cmd /c npx vitest run src/pages/StudentHomeworkDetailPage.test.tsx --reporter=basic` and `cmd /c npm run build` both passed.
 - Verified the authenticated `http://localhost:5173/student/homework/a883G44sgZ7NR4dmbWeb` page at 1440px desktop width after a reload; the sidebar remained visible, the homework detail content rendered in the feed area, and the reloaded page reported 0 console errors.
 
+## 2026-04-11 22:33 Phase 5A Homework Detail Native Rewrite
+- Completed Task 13.0 in `src/pages/StudentHomeworkDetailPage.tsx` by replacing the remaining Mantine imports with local native primitives (`Badge`, `Group`, `Text`, `Loader`, `Stack`, `ThemeIcon`, `Divider`, `Alert`, `Modal`, `List`, `Grid`, `Timeline`, `Center`) implemented directly in the file.
+- Replaced the `@tabler/icons-react` dependency with inline SVG components for the homework detail page icons and swapped the lingering direct `useNavigate` call in `navigateToTest` to `useNavigation('student').navigateTo(...)`.
+- Simplified `src/pages/StudentHomeworkDetailPage.test.tsx` by deleting the obsolete Mantine and Tabler mock bundles; the test now relies only on the focused data/layout mocks still needed after the native rewrite.
+- Verified `cmd /c npx vitest run src/pages/StudentHomeworkDetailPage.test.tsx --reporter=basic` and `cmd /c npm run build` both passed after the native rewrite.
+- Verified the authenticated `http://localhost:5173/student/homework/a883G44sgZ7NR4dmbWeb` page reloaded at 1440px with the native timeline/modal primitives in place, while the sidebar, feed layout, and desktop controls still rendered and the page reported 0 console errors.
+
+
+## 2026-04-11 22:55 Phase 5A Homework Detail Mobile Overrides
+- Completed Task 14.0 in `src/pages/StudentHomeworkDetailPage.tsx` by adding `useMediaQuery('(max-width: 768px)')`, shared `mobileStyles` usage, token-based mobile back-button styling, stacked homework detail cards, wrapped badge/timeline rows, and full-width 44px mobile actions.
+- Updated the custom homework start modal to support a full-viewport mobile presentation with scrollable content and sticky bottom actions while preserving the desktop dialog layout.
+- Extended `src/pages/StudentHomeworkDetailPage.test.tsx` with a focused mobile regression that opens the start modal, asserts full-width action styling, and verifies the start-attempt path still fires.
+- Verified `cmd /c npx vitest run src/pages/StudentHomeworkDetailPage.test.tsx --reporter=basic` and `cmd /c npm run build` both passed after the mobile override pass.
+- Verified the root `http://localhost:5173/` dev entry flow using the built-in Student quick-login button, then checked `/student/homework/a883G44sgZ7NR4dmbWeb` at 1440px and 375px; the mobile route rendered the stacked header/actions without horizontal overflow (`clientWidth === scrollWidth === 375`) and reported no console errors, only pre-existing courses debug warnings.

@@ -27,51 +27,17 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import {
-    Badge,
-    Group,
-    Text,
-    Loader,
-    Stack,
-    ThemeIcon,
-    Divider,
-    Alert,
-    Modal,
-    List,
-    Grid,
-    Timeline,
-    Center
-} from '@mantine/core';
-import {
-    IconClipboard,
-    IconClock,
-    IconCalendar,
-    IconAlertTriangle,
-    IconPlaylistAdd,
-    IconBook,
-    IconArrowLeft,
-    IconCheck,
-    IconX,
-    IconInfoCircle,
-    IconPlayerPlay,
-    IconHistory,
-    IconTrophy,
-    IconEye,
-    IconEyeOff,
-    IconHome,
-    IconBooks
-} from '@tabler/icons-react';
+import { useParams } from 'react-router-dom';
 import { useHomeworkSubmission } from '../hooks/useHomeworkSubmission';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigation } from '../hooks/useNavigation';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 import { getTestFromFirebase, TestData } from '../services/testStorage';
 import { Card, CardBody, Button } from '../components/modern';
 import { DeferredResultSlidePanel } from '../components/results/DeferredResultSlidePanel';
 import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
-import { S, studentTokens } from '../components/layout/studentLayoutStyles';
-import { buildRoute } from '../constants/routes';
+import { S, studentTokens, mobileStyles } from '../components/layout/studentLayoutStyles';
 
 
 // ============================================================================
@@ -158,15 +124,450 @@ const formatSubmissionOutcome = (submission: { percentage?: number; bandScore?: 
     return null;
 };
 
+const SPACE_MAP: Record<string, string> = {
+    xs: '0.5rem',
+    sm: '0.75rem',
+    md: '1rem',
+    lg: '1.25rem',
+    xl: '1.5rem',
+};
+
+const TEXT_SIZE_MAP: Record<string, string> = {
+    xs: '0.75rem',
+    sm: '0.875rem',
+    md: '1rem',
+    lg: '1.125rem',
+    xl: '1.25rem',
+};
+
+const COLOR_MAP: Record<string, { lightBg: string; lightText: string; filledBg: string; filledText: string }> = {
+    blue: { lightBg: 'rgba(77, 68, 227, 0.12)', lightText: studentTokens.accent, filledBg: studentTokens.accent, filledText: '#faf6ff' },
+    gray: { lightBg: studentTokens.bgShell, lightText: studentTokens.textBody, filledBg: studentTokens.textBody, filledText: '#faf6ff' },
+    red: { lightBg: 'rgba(158, 63, 78, 0.12)', lightText: '#9e3f4e', filledBg: '#9e3f4e', filledText: '#faf6ff' },
+    orange: { lightBg: 'rgba(243, 144, 63, 0.12)', lightText: '#b66a0a', filledBg: '#f3903f', filledText: '#faf6ff' },
+    yellow: { lightBg: 'rgba(199, 155, 0, 0.12)', lightText: '#997400', filledBg: '#c79b00', filledText: '#faf6ff' },
+    green: { lightBg: 'rgba(38, 143, 78, 0.12)', lightText: '#1d7a46', filledBg: '#268f4e', filledText: '#faf6ff' },
+    teal: { lightBg: 'rgba(20, 184, 166, 0.12)', lightText: '#0f8a7b', filledBg: '#14b8a6', filledText: '#faf6ff' },
+    violet: { lightBg: 'rgba(124, 58, 237, 0.12)', lightText: '#7c3aed', filledBg: '#7c3aed', filledText: '#faf6ff' },
+    white: { lightBg: 'rgba(255, 255, 255, 0.18)', lightText: '#faf6ff', filledBg: '#faf6ff', filledText: studentTokens.textPrimary },
+};
+
+const resolveSpace = (value?: string | number): string | number | undefined => {
+    if (value === undefined) {
+        return undefined;
+    }
+
+    if (typeof value === 'number') {
+        return value;
+    }
+
+    return SPACE_MAP[value] || value;
+};
+
+const resolveTextSize = (value?: string): string | undefined => {
+    if (!value) {
+        return undefined;
+    }
+
+    return TEXT_SIZE_MAP[value] || value;
+};
+
+const resolveTone = (color = 'blue') => COLOR_MAP[color] || COLOR_MAP.blue;
+
+const iconBaseStyle = {
+    flexShrink: 0,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+};
+
+const IconClipboard = ({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={iconBaseStyle}>
+        <rect x="9" y="2" width="6" height="4" rx="1" />
+        <path d="M9 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3" />
+        <path d="M9 12h6" />
+        <path d="M9 16h4" />
+    </svg>
+);
+
+const IconClock = ({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={iconBaseStyle}>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l3 2" />
+    </svg>
+);
+
+const IconCalendar = ({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={iconBaseStyle}>
+        <rect x="3" y="4" width="18" height="17" rx="2" />
+        <path d="M8 2v4" />
+        <path d="M16 2v4" />
+        <path d="M3 10h18" />
+    </svg>
+);
+
+const IconAlertTriangle = ({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={iconBaseStyle}>
+        <path d="m10.29 3.86-7.5 13a2 2 0 0 0 1.73 3h15a2 2 0 0 0 1.73-3l-7.5-13a2 2 0 0 0-3.46 0Z" />
+        <path d="M12 9v4" />
+        <path d="M12 17h.01" />
+    </svg>
+);
+
+const IconPlaylistAdd = ({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={iconBaseStyle}>
+        <path d="M4 6h10" />
+        <path d="M4 12h10" />
+        <path d="M4 18h6" />
+        <path d="M18 11v6" />
+        <path d="M15 14h6" />
+    </svg>
+);
+
+const IconBook = ({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={iconBaseStyle}>
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" />
+    </svg>
+);
+
+const IconArrowLeft = ({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={iconBaseStyle}>
+        <path d="M19 12H5" />
+        <path d="m12 19-7-7 7-7" />
+    </svg>
+);
+
+const IconCheck = ({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={iconBaseStyle}>
+        <path d="m5 13 4 4L19 7" />
+    </svg>
+);
+
+const IconX = ({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={iconBaseStyle}>
+        <path d="M18 6 6 18" />
+        <path d="m6 6 12 12" />
+    </svg>
+);
+
+const IconInfoCircle = ({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={iconBaseStyle}>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 10v6" />
+        <path d="M12 7h.01" />
+    </svg>
+);
+
+const IconPlayerPlay = ({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" style={iconBaseStyle}>
+        <path d="M8 5.14v13.72c0 .8.87 1.29 1.55.87l9.55-5.86a1 1 0 0 0 0-1.7L9.55 4.27A1 1 0 0 0 8 5.14Z" />
+    </svg>
+);
+
+const IconHistory = ({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={iconBaseStyle}>
+        <path d="M3 3v5h5" />
+        <path d="M3.05 13a9 9 0 1 0 3-6.71L3 8" />
+        <path d="M12 7v5l3 3" />
+    </svg>
+);
+
+const IconTrophy = ({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={iconBaseStyle}>
+        <path d="M8 21h8" />
+        <path d="M12 17v4" />
+        <path d="M7 4h10v5a5 5 0 0 1-10 0V4Z" />
+        <path d="M17 5h2a2 2 0 0 1 0 4h-2" />
+        <path d="M7 5H5a2 2 0 0 0 0 4h2" />
+    </svg>
+);
+
+const IconEye = ({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={iconBaseStyle}>
+        <path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6Z" />
+        <circle cx="12" cy="12" r="3" />
+    </svg>
+);
+
+const IconEyeOff = ({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={iconBaseStyle}>
+        <path d="m3 3 18 18" />
+        <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+        <path d="M9.88 5.09A10.94 10.94 0 0 1 12 5c6.4 0 10 7 10 7a17.1 17.1 0 0 1-3.17 4.36" />
+        <path d="M6.71 6.71C3.93 8.27 2 12 2 12a17.2 17.2 0 0 0 5.09 5.91" />
+    </svg>
+);
+
+const IconHome = ({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={iconBaseStyle}>
+        <path d="m3 11 9-8 9 8" />
+        <path d="M5 10v10h14V10" />
+        <path d="M9 20v-6h6v6" />
+    </svg>
+);
+
+const IconBooks = ({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={iconBaseStyle}>
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" />
+        <path d="M8 6h8" />
+        <path d="M8 10h8" />
+    </svg>
+);
+
+const Center = ({ children, style }: any) => (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', ...style }}>{children}</div>
+);
+
+const Stack = ({ children, gap = 'md', align, style }: any) => (
+    <div
+        style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: resolveSpace(gap),
+            alignItems: align,
+            ...style,
+        }}
+    >
+        {children}
+    </div>
+);
+
+const Group = ({ children, gap = 'md', justify, align = 'center', mt, mb, style }: any) => (
+    <div
+        style={{
+            display: 'flex',
+            alignItems: align,
+            justifyContent: justify,
+            gap: resolveSpace(gap),
+            marginTop: resolveSpace(mt),
+            marginBottom: resolveSpace(mb),
+            flexWrap: style?.flexWrap || undefined,
+            ...style,
+        }}
+    >
+        {children}
+    </div>
+);
+
+const Text = ({ children, size, fw, c, style, mt, mb }: any) => (
+    <span
+        style={{
+            fontSize: resolveTextSize(size),
+            fontWeight: fw,
+            color: c?.startsWith?.('#') ? c : c === 'dimmed' ? studentTokens.textMuted : c ? resolveTone(c).lightText : undefined,
+            marginTop: resolveSpace(mt),
+            marginBottom: resolveSpace(mb),
+            ...style,
+        }}
+    >
+        {children}
+    </span>
+);
+
+const Loader = ({ size = 'xl', color = studentTokens.accent }: any) => {
+    const resolvedSize = typeof size === 'number' ? size : size === 'xl' ? 40 : 32;
+    return (
+        <span
+            aria-label="Loading"
+            style={{
+                width: resolvedSize,
+                height: resolvedSize,
+                borderRadius: '50%',
+                border: '3px solid rgba(77, 68, 227, 0.18)',
+                borderTopColor: color,
+                display: 'inline-block',
+                animation: 'studentSpin 0.8s linear infinite',
+            }}
+        />
+    );
+};
+
+const ThemeIcon = ({ children, color = 'blue', variant = 'light', size = 28, radius = '50%' }: any) => {
+    const tone = resolveTone(color);
+    const resolvedSize = typeof size === 'number' ? size : size === 'lg' ? 36 : size === 'xl' ? 42 : 28;
+    return (
+        <span
+            style={{
+                width: resolvedSize,
+                height: resolvedSize,
+                borderRadius: radius === 'xl' ? '999px' : radius,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: variant === 'filled' ? tone.filledBg : tone.lightBg,
+                color: variant === 'filled' ? tone.filledText : tone.lightText,
+                flexShrink: 0,
+            }}
+        >
+            {children}
+        </span>
+    );
+};
+
+const Divider = ({ style }: any) => (
+    <hr style={{ border: 'none', borderTop: `1px solid ${studentTokens.borderWhisper}`, margin: '0.5rem 0', ...style }} />
+);
+
+const Badge = ({ children, color = 'blue', variant = 'light', size, title, ml }: any) => {
+    const tone = resolveTone(color);
+    return (
+        <span
+            title={title}
+            style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: size === 'xs' ? '0.2rem 0.45rem' : size === 'lg' ? '0.35rem 0.7rem' : '0.3rem 0.55rem',
+                borderRadius: studentTokens.radiusPill,
+                background: variant === 'filled' ? tone.filledBg : tone.lightBg,
+                color: variant === 'filled' ? tone.filledText : tone.lightText,
+                fontSize: size === 'xs' ? '0.6875rem' : '0.75rem',
+                fontWeight: 700,
+                letterSpacing: '0.04em',
+                marginLeft: resolveSpace(ml),
+            }}
+        >
+            {children}
+        </span>
+    );
+};
+
+const Alert = ({ children, color = 'blue', icon }: any) => {
+    const tone = resolveTone(color);
+    return (
+        <div
+            style={{
+                display: 'flex',
+                gap: '0.75rem',
+                alignItems: 'flex-start',
+                padding: '0.9rem 1rem',
+                borderRadius: studentTokens.radiusSoft,
+                border: `1px solid ${tone.lightBg}`,
+                background: tone.lightBg,
+                color: tone.lightText,
+            }}
+        >
+            {icon ? <span style={{ display: 'inline-flex', marginTop: 1 }}>{icon}</span> : null}
+            <div style={{ minWidth: 0 }}>{children}</div>
+        </div>
+    );
+};
+
+const GridBase = ({ children, style }: any) => (
+    <div
+        style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+            gap: '1rem',
+            ...style,
+        }}
+    >
+        {children}
+    </div>
+);
+
+GridBase.Col = ({ children, style }: any) => <div style={style}>{children}</div>;
+const Grid = GridBase as any;
+
+const ListBase = ({ children, spacing = 'xs', style }: any) => (
+    <ul style={{ margin: 0, paddingLeft: '1.25rem', display: 'flex', flexDirection: 'column', gap: resolveSpace(spacing), ...style }}>
+        {children}
+    </ul>
+);
+
+ListBase.Item = ({ children, icon }: any) => (
+    <li style={{ paddingLeft: icon ? '0.25rem' : 0 }}>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
+            {icon ? <span style={{ display: 'inline-flex', marginTop: 2 }}>{icon}</span> : null}
+            <div>{children}</div>
+        </div>
+    </li>
+);
+const List = ListBase as any;
+
+const TimelineBase = ({ children }: any) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>{children}</div>
+);
+
+TimelineBase.Item = ({ bullet, title, children }: any) => (
+    <div style={{ display: 'grid', gridTemplateColumns: '32px 1fr', gap: '1rem' }}>
+        <div style={{ position: 'relative', display: 'flex', justifyContent: 'center' }}>
+            <div style={{ position: 'absolute', top: 28, bottom: -16, width: 2, background: studentTokens.borderWhisper }} />
+            <div style={{ position: 'relative', zIndex: 1 }}>{bullet}</div>
+        </div>
+        <div style={{ minWidth: 0 }}>
+            <div>{title}</div>
+            <div style={{ marginTop: '0.5rem' }}>{children}</div>
+        </div>
+    </div>
+);
+const Timeline = TimelineBase as any;
+
+const Modal = ({ opened, onClose, title, children, shellStyle, backdropStyle, contentStyle }: any) => {
+    if (!opened) {
+        return null;
+    }
+
+    return (
+        <div
+            role="dialog"
+            aria-modal="true"
+            style={{
+                position: 'fixed',
+                inset: 0,
+                zIndex: 9999,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '1rem',
+                ...shellStyle,
+            }}
+        >
+            <button
+                type="button"
+                aria-label="Close modal"
+                onClick={onClose}
+                style={{
+                    position: 'absolute',
+                    inset: 0,
+                    border: 'none',
+                    background: 'rgba(12, 15, 16, 0.45)',
+                    cursor: 'pointer',
+                    ...backdropStyle,
+                }}
+            />
+            <div
+                style={{
+                    position: 'relative',
+                    zIndex: 1,
+                    width: 'min(100%, 520px)',
+                    borderRadius: 16,
+                    background: studentTokens.bgSurface,
+                    border: `1px solid ${studentTokens.borderSoft}`,
+                    boxShadow: '0 20px 40px rgba(43, 52, 55, 0.18)',
+                    padding: '1.5rem',
+                    ...contentStyle,
+                }}
+                onClick={(event) => event.stopPropagation()}
+            >
+                {title ? <div style={{ marginBottom: '1rem' }}>{title}</div> : null}
+                {children}
+            </div>
+        </div>
+    );
+};
+
 // ============================================================================
 // COMPONENT
 // ============================================================================
 
 export const StudentHomeworkDetailPage: React.FC = () => {
     const { homeworkId } = useParams<{ homeworkId: string }>();
-    const navigate = useNavigate();
     const { user, profile, logout } = useAuth();
     const { navigateTo } = useNavigation('student');
+    const isMobile = useMediaQuery('(max-width: 768px)');
     const resolvedStudentName = user?.displayName || user?.email || 'Student';
     const sidebar = <StudentSidebar activePage="homework" />;
 
@@ -223,7 +624,8 @@ export const StudentHomeworkDetailPage: React.FC = () => {
 
     const navigateToTest = (submission?: any) => {
         if (!homework?.materialId || !homeworkId) return;
-        navigate(buildRoute('STUDENT_PRACTICE', { materialId: homework.materialId }), {
+        navigateTo('STUDENT_PRACTICE', { materialId: homework.materialId }, {
+            reason: submission?.id || currentSubmission?.id ? 'student_homework_continue' : 'student_homework_start',
             state: {
                 isHomework: true,
                 homeworkId,
@@ -328,19 +730,30 @@ export const StudentHomeworkDetailPage: React.FC = () => {
 
     const timeInfo = getTimeRemaining(homework.scheduling.dueDate);
     const completedSubmissions = allSubmissions.filter(s => s.status === 'submitted' || s.status === 'graded');
+    const tokenizedBackButtonStyle: React.CSSProperties = {
+        minHeight: 44,
+        borderRadius: studentTokens.radiusSoft,
+        border: `1px solid ${studentTokens.borderSoft}`,
+        background: studentTokens.bgSurface,
+        color: studentTokens.textBody,
+        boxShadow: 'none',
+    };
+    const mobileFullWidthButtonStyle: React.CSSProperties = isMobile ? { ...mobileStyles.fullWidthButton } : {};
+    const mobileHeaderTitleStyle: React.CSSProperties = isMobile ? { fontSize: '1.5rem' } : {};
+    const mobileSubtitleStyle: React.CSSProperties = isMobile ? mobileStyles.feedSubtitleHidden : {};
 
     return (
         <StudentLayout
             sidebar={sidebar}
             mobileTitle="Homework Details"
         >
-            <div style={{ maxWidth: '900px', margin: '0 auto', padding: '2rem 1rem', width: '100%' }}>
+            <div style={{ maxWidth: '900px', margin: '0 auto', padding: isMobile ? '1rem 0 1.5rem' : '2rem 1rem', width: '100%' }}>
                 <div
                     style={{
                         ...S.feedHeader,
-                        alignItems: 'center',
+                        alignItems: isMobile ? 'flex-start' : 'center',
                         flexWrap: 'wrap',
-                        gap: '1rem',
+                        gap: isMobile ? '0.75rem' : '1rem',
                         paddingBottom: '1.5rem',
                     }}
                 >
@@ -357,8 +770,8 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                         >
                             Homework Workspace
                         </p>
-                        <h1 style={S.feedHeaderTitle}>Homework Details</h1>
-                        <p style={S.feedHeaderSubtitle}>
+                        <h1 style={{ ...S.feedHeaderTitle, ...mobileHeaderTitleStyle }}>Homework Details</h1>
+                        <p style={{ ...S.feedHeaderSubtitle, ...mobileSubtitleStyle }}>
                             Review the assignment details, check past attempts, and launch the next available submission.
                         </p>
                     </div>
@@ -368,13 +781,19 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                             flexWrap: 'wrap',
                             gap: '0.75rem',
                             alignItems: 'center',
-                            marginLeft: 'auto',
+                            marginLeft: isMobile ? 0 : 'auto',
+                            width: isMobile ? '100%' : 'auto',
                         }}
                     >
                         <Button
-                            variant="glass"
+                            variant="outline"
                             onClick={() => navigateTo('STUDENT_HOMEWORK')}
                             leftSection={<IconArrowLeft size={16} />}
+                            fullWidth={isMobile}
+                            style={{
+                                ...tokenizedBackButtonStyle,
+                                ...(isMobile ? { flexBasis: '100%' } : {}),
+                            }}
                         >
                             Back
                         </Button>
@@ -382,6 +801,7 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                             variant="glass"
                             onClick={() => navigateTo('STUDENT_DASHBOARD')}
                             leftSection={<IconHome size={18} />}
+                            style={isMobile ? { minHeight: 44 } : undefined}
                         >
                             Dashboard
                         </Button>
@@ -389,6 +809,7 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                             variant="glass"
                             onClick={() => navigateTo('STUDENT_LIBRARY')}
                             leftSection={<IconBooks size={18} />}
+                            style={isMobile ? { minHeight: 44 } : undefined}
                         >
                             Library
                         </Button>
@@ -397,11 +818,12 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                                 fontSize: '0.875rem',
                                 color: studentTokens.textBody,
                                 padding: '0 0.25rem',
+                                width: isMobile ? '100%' : 'auto',
                             }}
                         >
                             {profile?.displayName || user?.displayName || profile?.email || user?.email}
                         </span>
-                        <Button variant="glass" onClick={handleLogout}>Logout</Button>
+                        <Button variant="glass" onClick={handleLogout} style={isMobile ? { minHeight: 44 } : undefined}>Logout</Button>
                     </div>
                 </div>
 
@@ -411,20 +833,29 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                             background: 'rgba(255, 255, 255, 0.95)',
                             animation: 'slideDown 0.5s ease-out'
                         }}>
-                            <CardBody style={{ padding: '2rem' }}>
+                            <CardBody style={{ padding: isMobile ? '1rem' : '2rem' }}>
                                 <Stack gap="md">
-                                    <Group justify="space-between" align="flex-start">
-                                        <div style={{ flex: 1 }}>
+                                    <Group
+                                        justify="space-between"
+                                        align="flex-start"
+                                        style={{
+                                            flexDirection: isMobile ? 'column' : 'row',
+                                            gap: isMobile ? '0.75rem' : '1rem',
+                                        }}
+                                    >
+                                        <div style={{ flex: 1, minWidth: 0, width: '100%' }}>
                                             <h1 style={{
-                                                fontSize: '1.75rem',
+                                                fontSize: isMobile ? '1.5rem' : '1.75rem',
                                                 fontWeight: '800',
                                                 color: '#1e293b',
                                                 margin: 0,
-                                                marginBottom: '0.75rem'
+                                                marginBottom: '0.75rem',
+                                                lineHeight: 1.2,
+                                                overflowWrap: 'anywhere',
                                             }}>
                                                 {homework.title || homework.materialTitle}
                                             </h1>
-                                            <Group gap="xs">
+                                            <Group gap="xs" style={{ flexWrap: 'wrap' }}>
                                                 <Badge color="blue" variant="light" size="lg">
                                                     {homework.materialSkill}
                                                 </Badge>
@@ -447,7 +878,7 @@ export const StudentHomeworkDetailPage: React.FC = () => {
 
                                     <Divider />
 
-                                    <Grid>
+                                    <Grid style={isMobile ? mobileStyles.singleColumnGrid : undefined}>
                                         <Grid.Col span={{ base: 12, sm: 6 }}>
                                             <Group gap="xs">
                                                 <ThemeIcon color="gray" variant="light" size="lg">
@@ -477,9 +908,9 @@ export const StudentHomeworkDetailPage: React.FC = () => {
 
                         {/* Configuration Info */}
                         <Card variant="glass" style={{ background: 'rgba(255, 255, 255, 0.95)' }}>
-                            <CardBody style={{ padding: '1.5rem' }}>
+                            <CardBody style={{ padding: isMobile ? '1rem' : '1.5rem' }}>
                                 <Text fw={700} size="lg" mb="md" c="#1e293b">📋 Assignment Details</Text>
-                                <Grid>
+                                <Grid style={isMobile ? mobileStyles.singleColumnGrid : undefined}>
                                     <Grid.Col span={{ base: 12, sm: 6 }}>
                                         <div style={{
                                             padding: '1rem',
@@ -586,7 +1017,14 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                                         </ThemeIcon>
                                         <Text fw={700} size="lg" c="#1e293b">Instructions</Text>
                                     </Group>
-                                    <Text style={{ whiteSpace: 'pre-wrap' }} c="#475569">
+                                    <Text
+                                        style={{
+                                            whiteSpace: 'pre-wrap',
+                                            fontSize: isMobile ? '0.938rem' : undefined,
+                                            lineHeight: isMobile ? 1.6 : undefined,
+                                        }}
+                                        c="#475569"
+                                    >
                                         {homework.description}
                                     </Text>
                                 </CardBody>
@@ -619,7 +1057,7 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                                                     </ThemeIcon>
                                                 }
                                                 title={
-                                                    <Group gap="xs">
+                                                    <Group gap="xs" style={{ flexWrap: 'wrap' }}>
                                                         <Text fw={600}>Attempt {submission.attemptNumber}</Text>
                                                         {submission.isLate && (
                                                             <Badge color="orange" size="xs">Late</Badge>
@@ -627,8 +1065,16 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                                                     </Group>
                                                 }
                                             >
-                                                <Group justify="space-between" mt="xs">
-                                                    <div>
+                                                <Group
+                                                    justify="space-between"
+                                                    mt="xs"
+                                                    style={{
+                                                        flexDirection: isMobile ? 'column' : 'row',
+                                                        alignItems: isMobile ? 'flex-start' : 'center',
+                                                        gap: isMobile ? '0.75rem' : undefined,
+                                                    }}
+                                                >
+                                                    <div style={{ minWidth: 0 }}>
                                                         <Text size="sm" c="dimmed">
                                                             {new Date(submission.submittedAt || 0).toLocaleString()}
                                                         </Text>
@@ -643,6 +1089,8 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                                                             variant="glass"
                                                             size="sm"
                                                             onClick={() => handleViewResult(submission.resultId!)}
+                                                            fullWidth={isMobile}
+                                                            style={isMobile ? { ...mobileStyles.touchTarget, width: '100%' } : undefined}
                                                         >
                                                             View Details
                                                         </Button>
@@ -704,8 +1152,15 @@ export const StudentHomeworkDetailPage: React.FC = () => {
 
                         {/* Action Buttons */}
                         <Card variant="glass" style={{ background: 'rgba(255, 255, 255, 0.95)' }}>
-                            <CardBody style={{ padding: '1.5rem' }}>
-                                <Group justify="center">
+                            <CardBody style={{ padding: isMobile ? '1rem' : '1.5rem' }}>
+                                <Group
+                                    justify="center"
+                                    style={{
+                                        width: '100%',
+                                        flexDirection: isMobile ? 'column' : 'row',
+                                        alignItems: isMobile ? 'stretch' : 'center',
+                                    }}
+                                >
                                     {hasInProgressAttempt ? (
                                         <Button
                                             variant="primary"
@@ -715,8 +1170,10 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                                             style={{
                                                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                                                 border: 'none',
-                                                boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)'
+                                                boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)',
+                                                ...mobileFullWidthButtonStyle,
                                             }}
+                                            fullWidth={isMobile}
                                         >
                                             Resume Attempt
                                         </Button>
@@ -729,8 +1186,10 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                                             style={{
                                                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                                                 border: 'none',
-                                                boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)'
+                                                boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)',
+                                                ...mobileFullWidthButtonStyle,
                                             }}
+                                            fullWidth={isMobile}
                                         >
                                             Start Homework
                                             {maxAttempts !== null && (
@@ -744,6 +1203,8 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                                             variant="glass"
                                             size="lg"
                                             disabled
+                                            fullWidth={isMobile}
+                                            style={mobileFullWidthButtonStyle}
                                         >
                                             {attemptsRemaining === 0
                                                 ? 'No Attempts Remaining'
@@ -763,51 +1224,96 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                 opened={showStartModal}
                 onClose={() => setShowStartModal(false)}
                 title={<Text fw={700} size="lg">Start Homework?</Text>}
-                centered
+                shellStyle={isMobile ? { padding: 0, alignItems: 'stretch', justifyContent: 'stretch' } : undefined}
+                contentStyle={
+                    isMobile
+                        ? {
+                            width: '100%',
+                            maxWidth: '100%',
+                            height: '100dvh',
+                            maxHeight: '100dvh',
+                            borderRadius: 0,
+                            padding: '1rem 1rem 0',
+                            display: 'flex',
+                            flexDirection: 'column',
+                        }
+                        : {
+                            maxHeight: 'min(85vh, 720px)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                        }
+                }
             >
-                <Stack gap="md">
-                    <Text>
-                        You are about to start <strong>{homework.title || homework.materialTitle}</strong>.
-                    </Text>
+                <Stack gap="md" style={{ flex: 1, minHeight: 0 }}>
+                    <div
+                        style={{
+                            flex: 1,
+                            overflowY: isMobile ? 'auto' : 'visible',
+                            WebkitOverflowScrolling: isMobile ? 'touch' : undefined,
+                            paddingBottom: isMobile ? '1rem' : 0,
+                        }}
+                    >
+                        <Stack gap="md">
+                            <Text>
+                                You are about to start <strong>{homework.title || homework.materialTitle}</strong>.
+                            </Text>
 
-                    <List size="sm" spacing="xs">
-                        {homework.config.timerMinutes && (
-                            <List.Item icon={
-                                <ThemeIcon color="blue" size={20} radius="xl">
-                                    <IconClock size={12} />
-                                </ThemeIcon>
-                            }>
-                                You will have <strong>{homework.config.timerMinutes} minutes</strong> to complete
-                            </List.Item>
-                        )}
-                        {maxAttempts !== null && (
-                            <List.Item icon={
-                                <ThemeIcon color="violet" size={20} radius="xl">
-                                    <IconPlaylistAdd size={12} />
-                                </ThemeIcon>
-                            }>
-                                This will be attempt <strong>{attemptsUsed + 1} of {maxAttempts}</strong>
-                            </List.Item>
-                        )}
-                        {isOverdue && (
-                            <List.Item icon={
-                                <ThemeIcon color="orange" size={20} radius="xl">
-                                    <IconAlertTriangle size={12} />
-                                </ThemeIcon>
-                            }>
-                                This submission will be marked as <strong>late</strong>
-                            </List.Item>
-                        )}
-                    </List>
+                            <List size="sm" spacing="xs">
+                                {homework.config.timerMinutes && (
+                                    <List.Item icon={
+                                        <ThemeIcon color="blue" size={20} radius="xl">
+                                            <IconClock size={12} />
+                                        </ThemeIcon>
+                                    }>
+                                        You will have <strong>{homework.config.timerMinutes} minutes</strong> to complete
+                                    </List.Item>
+                                )}
+                                {maxAttempts !== null && (
+                                    <List.Item icon={
+                                        <ThemeIcon color="violet" size={20} radius="xl">
+                                            <IconPlaylistAdd size={12} />
+                                        </ThemeIcon>
+                                    }>
+                                        This will be attempt <strong>{attemptsUsed + 1} of {maxAttempts}</strong>
+                                    </List.Item>
+                                )}
+                                {isOverdue && (
+                                    <List.Item icon={
+                                        <ThemeIcon color="orange" size={20} radius="xl">
+                                            <IconAlertTriangle size={12} />
+                                        </ThemeIcon>
+                                    }>
+                                        This submission will be marked as <strong>late</strong>
+                                    </List.Item>
+                                )}
+                            </List>
 
-                    {startError && (
-                        <Alert color="red" icon={<IconAlertTriangle size={16} />}>
-                            {startError}
-                        </Alert>
-                    )}
+                            {startError && (
+                                <Alert color="red" icon={<IconAlertTriangle size={16} />}>
+                                    {startError}
+                                </Alert>
+                            )}
+                        </Stack>
+                    </div>
 
-                    <Group justify="flex-end" mt="md">
-                        <Button variant="glass" onClick={() => setShowStartModal(false)}>
+                    <Group
+                        justify="flex-end"
+                        mt="md"
+                        style={{
+                            position: isMobile ? 'sticky' : 'static',
+                            bottom: isMobile ? 0 : undefined,
+                            background: isMobile ? studentTokens.bgSurface : 'transparent',
+                            paddingTop: '1rem',
+                            flexDirection: isMobile ? 'column' : 'row',
+                            alignItems: isMobile ? 'stretch' : 'center',
+                        }}
+                    >
+                        <Button
+                            variant="glass"
+                            onClick={() => setShowStartModal(false)}
+                            fullWidth={isMobile}
+                            style={isMobile ? mobileStyles.fullWidthButton : { minHeight: 44 }}
+                        >
                             Cancel
                         </Button>
                         <Button
@@ -815,9 +1321,11 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                             leftSection={<IconPlayerPlay size={16} />}
                             onClick={handleConfirmStart}
                             loading={isStarting}
+                            fullWidth={isMobile}
                             style={{
                                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                border: 'none'
+                                border: 'none',
+                                ...(isMobile ? mobileStyles.fullWidthButton : { minHeight: 44 }),
                             }}
                         >
                             Start Now
@@ -828,6 +1336,10 @@ export const StudentHomeworkDetailPage: React.FC = () => {
 
             {/* Animations */}
             <style>{`
+                @keyframes studentSpin {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
+                }
                 @keyframes slideDown {
                     from { opacity: 0; transform: translateY(-20px); }
                     to { opacity: 1; transform: translateY(0); }
