@@ -71,9 +71,9 @@ vi.mock('../components/layout/StudentSidebar', () => ({
 }));
 
 vi.mock('../components/modern', () => ({
-  Card: ({ children }: any) => <div>{children}</div>,
-    CardBody: ({ children }: any) => <div>{children}</div>,
-    Button: ({ children, onClick, style }: any) => <button onClick={onClick} style={style}>{children}</button>
+  Card: ({ children, style }: any) => <div style={style}>{children}</div>,
+    CardBody: ({ children, style }: any) => <div style={style}>{children}</div>,
+    Button: ({ children, onClick, style, ...props }: any) => <button onClick={onClick} style={style} {...props}>{children}</button>
 }));
 
 describe('StudentTestResultsPage', () => {
@@ -461,6 +461,9 @@ describe('StudentTestResultsPage', () => {
             expect(screen.getByText('8/10')).toBeInTheDocument();
         });
 
+        expect(screen.getByTestId('student-layout')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Return to Home' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Print Results' })).toBeInTheDocument();
         expect(screen.queryByText('Canonical Result Route')).not.toBeInTheDocument();
         expect(testResultsService.getTestResult).not.toHaveBeenCalled();
     });
@@ -563,8 +566,8 @@ describe('StudentTestResultsPage', () => {
             expect(screen.getByText('7/10')).toBeInTheDocument();
         });
 
-        expect(screen.getByText('🏠 Return to Home')).toHaveStyle({ width: '100%', minHeight: '44px' });
-        expect(screen.getByText('🖨️ Print Results')).toHaveStyle({ width: '100%', minHeight: '44px' });
+        expect(screen.getByRole('button', { name: 'Return to Home' })).toHaveStyle({ width: '100%', minHeight: '44px' });
+        expect(screen.getByRole('button', { name: 'Print Results' })).toHaveStyle({ width: '100%', minHeight: '44px' });
         expect(screen.getByRole('button', { name: /question 1/i })).toHaveStyle({ minHeight: '44px', minWidth: '44px' });
     });
 });

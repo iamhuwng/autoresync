@@ -42,11 +42,11 @@
 
 ### Tier 1 Pages (Phase 5)
 - `src/pages/StudentHomeworkDetailPage.tsx` - Phase 5A homework detail migration is now complete: the page uses `StudentLayout`, local native primitives, inline SVG icons, shared mobile tokens, full-width 44px mobile actions, a full-viewport start modal with sticky mobile actions, and Task 21 finishes the token migration by removing the remaining legacy gradient/glass styling from the visible homework-detail surfaces. (1353 lines)
-- `src/pages/StudentTestResultsPage.tsx` - Phase 5B now runs inside `StudentLayout` with `StudentSidebar activePage="records"`, native loading/error states, `useNavigation('student')`, tracked return/export/print/question actions, and the mobile pass adds `useMediaQuery`, stacked summary/question layouts, full-width touch-target buttons, and overflow-safe writing/result surfaces.
+- `src/pages/StudentTestResultsPage.tsx` - Phase 5B now runs inside `StudentLayout` with `StudentSidebar activePage="records"`, native loading/error states, `useNavigation('student')`, tracked return/export/print/question actions, stacked mobile layouts, and the follow-up token pass removes the remaining gradients/emoji labels while moving the header, release banners, summary cards, question review, and action buttons onto `studentTokens`.
 
 ### Test Files
 - `src/pages/StudentHomeworkDetailPage.test.tsx` - Phase 5A now mounts through `StudentShellRoute` with `StudentLayout`/`StudentSidebar` mocks; Task 21 extends it to guard the tokenized start/resume CTAs, preserve the mobile full-width modal actions, and keep legacy warning text out of the rendered page. (297 lines)
-- `src/pages/StudentTestResultsPage.test.tsx` - Phase 5B now mocks `StudentLayout`/`StudentSidebar`, keeps the canonical `/student-test-results/:sessionCode` coverage, preserves the legacy `/student/results/:sessionCode` alias regression, and adds a focused mobile full-width-actions/touch-target assertion.
+- `src/pages/StudentTestResultsPage.test.tsx` - Phase 5B now mocks `StudentLayout`/`StudentSidebar`, keeps the canonical `/student-test-results/:sessionCode` coverage, preserves the legacy `/student/results/:sessionCode` alias regression, and the follow-up pass adds tokenized-action/alias assertions while keeping the focused mobile full-width-actions/touch-target regression.
 - `src/pages/StudentHomeworkListPage.test.tsx` - Updated for the Phase 3 homework pass by removing Mantine mocks and covering navigation/tracking through the homework list interactions.
 - `src/pages/AcademicRecordPage.test.tsx` - Updated for the Academic Record mobile pass by mocking `studentTokens` and `mobileStyles` exports.
 - `src/components/dashboard/PendingReviewsWidget.test.tsx` - Phase 3 widget regression coverage; Final closeout adds a focused 44px mobile touch-target assertion for review rows and the See all control.
@@ -861,21 +861,21 @@ Before proceeding to Phase 5, verify ALL of the following:
 
 ---
 
-- [ ] **22.0 `StudentTestResultsPage.tsx` - finish tokenized results surface**
+- [x] **22.0 `StudentTestResultsPage.tsx` - finish tokenized results surface**
 
   > **Goal:** Remove the remaining non-PRD visual language from the results page and bring both the canonical and legacy student results surfaces in line with the shared student design system.
 
-  - [ ] 22.1 **Replace the remaining gradient and hard-coded color usage.** Rework the page/header backgrounds, title treatment, summary cards, and feedback surfaces so they use `studentTokens` rather than bespoke gradients and ad hoc color literals.
+  - [x] 22.1 **Replace the remaining gradient and hard-coded color usage.** Rework the page/header backgrounds, title treatment, summary cards, and feedback surfaces so they use `studentTokens` rather than bespoke gradients and ad hoc color literals.
 
-  - [ ] 22.2 **Remove emoji-driven UI labels and legacy flourish.** Replace the remaining emoji feedback/action labels with tokenized text/icon treatment that matches the student design standard while preserving the same actions and route behavior.
+  - [x] 22.2 **Remove emoji-driven UI labels and legacy flourish.** Replace the remaining emoji feedback/action labels with tokenized text/icon treatment that matches the student design standard while preserving the same actions and route behavior.
 
-  - [ ] 22.3 **Preserve the accepted route contract decisions.** Keep `/student-test-results/:sessionCode` top-level and `/student/results/:sessionCode` as the shell-hosted legacy alias; this follow-up should clean up presentation and navigation contract gaps, not reopen the accepted route-shape compromise.
+  - [x] 22.3 **Preserve the accepted route contract decisions.** Keep `/student-test-results/:sessionCode` top-level and `/student/results/:sessionCode` as the shell-hosted legacy alias; this follow-up should clean up presentation and navigation contract gaps, not reopen the accepted route-shape compromise.
 
-  - [ ] 22.4 **Add focused regression coverage.** Extend `src/pages/StudentTestResultsPage.test.tsx` so the tokenized action labels/surfaces and the preserved legacy alias behavior stay protected together.
+  - [x] 22.4 **Add focused regression coverage.** Extend `src/pages/StudentTestResultsPage.test.tsx` so the tokenized action labels/surfaces and the preserved legacy alias behavior stay protected together.
 
-  - [ ] 22.5 **Verify:** Run `cmd /c npx vitest run src/pages/StudentTestResultsPage.test.tsx --reporter=basic`, run `cmd /c npm run build`, and manually verify both `/student-test-results/:sessionCode` and `/student/results/:sessionCode` at 1440px and 375px.
+  - [x] 22.5 **Verify:** Run `cmd /c npx vitest run src/pages/StudentTestResultsPage.test.tsx --reporter=basic`, run `cmd /c npm run build`, and manually verify both `/student-test-results/:sessionCode` and `/student/results/:sessionCode` at 1440px and 375px.
 
-  - [ ] 22.6 Commit: `refactor(test-results): finish tokenized student results surface [PRD-0044 Follow-up]`.
+  - [x] 22.6 Commit: `refactor(test-results): finish tokenized student results surface [PRD-0044 Follow-up]`.
 
 ---
 
@@ -910,7 +910,7 @@ After completing all 23 parent tasks:
    - [x] Academic Record: title reduced to `1.5rem`, subtitle hidden, tabs and date range stack cleanly, result cards full-width, THCS content single-column, AI banner readable.
    - [x] Homework List: title reduced to `1.5rem`, subtitle hidden, cards padded `12px 12px 16px`, buttons full-width, badges wrap, no Mantine Loader.
    - [x] Homework Detail: `StudentLayout` shell, tokenized surfaces, no legacy gradients, stacked info card, full-viewport modal.
-   - [ ] Test Results: `StudentLayout` shell, tokenized header/surfaces, no legacy gradients or emoji labels, stacked score card, full-width buttons.
+   - [x] Test Results: `StudentLayout` shell, tokenized header/surfaces, no legacy gradients or emoji labels, stacked score card, full-width buttons.
 5. **Mobile right-rail verification:**
    - [x] Open the right rail at 375px and 320px.
    - [x] Drawer does not overflow the viewport.
@@ -924,6 +924,7 @@ After completing all 23 parent tasks:
 7. **Touch target testing:** On a real mobile device (or DevTools touch simulation), tap every button and link. Each must be easily tappable (Ã¢â€°Â¥44px target).
 8. **Architecture contract sweep:**
    - [ ] `rg -n "useNavigate" src/components/layout/StudentSidebar.tsx src/pages/StudentDashboardPage.jsx` returns no direct router-hook usage in the shared student shell.
-   - [ ] `rg -n "linear-gradient" src/pages/StudentHomeworkDetailPage.tsx src/pages/StudentTestResultsPage.tsx` returns no remaining Tier 1 legacy gradients.
+   - [x] `rg -n "linear-gradient" src/pages/StudentHomeworkDetailPage.tsx src/pages/StudentTestResultsPage.tsx` returns no remaining Tier 1 legacy gradients.
+
 
 
