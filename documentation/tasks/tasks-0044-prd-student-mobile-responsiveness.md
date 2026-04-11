@@ -204,19 +204,19 @@ Before proceeding to Phase 2, verify ALL of the following:
 ---
 ### Phase 2: Tier 3 — Grid Fixes (Lowest Risk)
 
-- [ ] **5.0 `StudentCoursesPage.tsx` — Mobile grid + touch targets**
+- [x] **5.0 `StudentCoursesPage.tsx` â€” Mobile grid + touch targets**
 
   > **Goal:** Make the courses page fully mobile-safe by covering shared shell header/filter refinements (FR-002 through FR-005), single-column grids (FR-050), bottom-sheet unenroll modal behavior (FR-051), overflow-safe card content (FR-052), and full-width mobile CTAs (FR-053).
 
-  - [ ] 5.1 **Read rules first:** Open and read `documentation/rules/react-patterns.md` (you are creating state / using hooks). Open and read `documentation/rules/mobile-portability.md` (you will be checking for portability violations).
+  - [x] 5.1 **Read rules first:** Open and read `documentation/rules/react-patterns.md` (you are creating state / using hooks). Open and read `documentation/rules/mobile-portability.md` (you will be checking for portability violations).
 
-  - [ ] 5.2 **Add `useMediaQuery` import.** At the top of `src/pages/StudentCoursesPage.tsx`, add this import (it is NOT currently imported in this file):
+  - [x] 5.2 **Add `useMediaQuery` import.** At the top of `src/pages/StudentCoursesPage.tsx`, add this import (it is NOT currently imported in this file):
     ```tsx
     import { useMediaQuery } from '../hooks/useMediaQuery';
     ```
     Place it after the existing imports (e.g., after line 12). Do NOT import `useScreenSize`. Do NOT import from `@mantine/hooks`.
 
-  - [ ] 5.3 **Add `mobileStyles` import.** Update the existing import from `studentLayoutStyles` (currently on line 11):
+  - [x] 5.3 **Add `mobileStyles` import.** Update the existing import from `studentLayoutStyles` (currently on line 11):
     ```tsx
     // BEFORE:
     import { S, studentTokens } from '../components/layout/studentLayoutStyles';
@@ -224,26 +224,26 @@ Before proceeding to Phase 2, verify ALL of the following:
     import { S, studentTokens, mobileStyles } from '../components/layout/studentLayoutStyles';
     ```
 
-  - [ ] 5.4 **Add `isMobile` hook call.** Inside the component function body (after the existing hook calls like `useAuth`, `useNavigation`, etc.), add:
+  - [x] 5.4 **Add `isMobile` hook call.** Inside the component function body (after the existing hook calls like `useAuth`, `useNavigation`, etc.), add:
     ```tsx
     const isMobile = useMediaQuery('(max-width: 768px)');
     ```
     Place it near the top of the component, alongside other hooks.
 
-  - [ ] 5.5 **Feed header mobile adjustments (FR-002, FR-003).** This page renders `S.feedHeaderTitle` and `S.feedHeaderSubtitle`. Update the title/subtitle styles inline at the usage site:
+  - [x] 5.5 **Feed header mobile adjustments (FR-002, FR-003).** This page renders `S.feedHeaderTitle` and `S.feedHeaderSubtitle`. Update the title/subtitle styles inline at the usage site:
     ```tsx
     <h2 style={{ ...S.feedHeaderTitle, ...(isMobile ? { fontSize: '1.5rem' } : {}) }}>My Courses</h2>
     <p style={{ ...S.feedHeaderSubtitle, ...(isMobile ? mobileStyles.feedSubtitleHidden : {}) }}>...</p>
     ```
     Do not change the desktop typography.
 
-  - [ ] 5.6 **Filter tab mobile treatment (FR-004, FR-005).** This page renders a tab strip with `S.filterBar` and `S.filterTab`. On mobile:
+  - [x] 5.6 **Filter tab mobile treatment (FR-004, FR-005).** This page renders a tab strip with `S.filterBar` and `S.filterTab`. On mobile:
     - Add `className={isMobile ? 'student-mobile-scrollbar-hidden' : undefined}` to the `S.filterBar` container.
     - Reduce the gap to `16`.
     - Add `...(isMobile ? mobileStyles.touchTarget : {})` to each tab button style.
     - Preserve `whiteSpace: 'nowrap'` so labels stay on one line and the tab strip scrolls horizontally instead of wrapping.
 
-  - [ ] 5.7 **Fix pending requests grid (FR-050).** Find this code:
+  - [x] 5.7 **Fix pending requests grid (FR-050).** Find this code:
     ```tsx
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16, padding: 16, animation: 'dashFadeIn 0.3s ease-out' }}>
     ```
@@ -252,15 +252,15 @@ Before proceeding to Phase 2, verify ALL of the following:
     <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(300px, 1fr))', gap: isMobile ? 12 : 16, padding: isMobile ? '0' : 16, animation: 'dashFadeIn 0.3s ease-out' }}>
     ```
 
-  - [ ] 5.8 **Fix enrolled courses grid (FR-050).** Find the identical grid pattern for enrolled courses and apply the same conditional override as 5.7.
+  - [x] 5.8 **Fix enrolled courses grid (FR-050).** Find the identical grid pattern for enrolled courses and apply the same conditional override as 5.7.
 
-  - [ ] 5.9 **Prevent course card content overflow (FR-052).** In the course card render block, search for the title, teacher/meta rows, progress section, and action row. On mobile:
+  - [x] 5.9 **Prevent course card content overflow (FR-052).** In the course card render block, search for the title, teacher/meta rows, progress section, and action row. On mobile:
     - Add `minWidth: 0` to any flex child that owns text.
     - Add `overflow: 'hidden'`, `textOverflow: 'ellipsis'`, and `whiteSpace: 'nowrap'` to long one-line labels such as the course title or teacher name.
     - If the action row overflows, add `flexWrap: 'wrap'` or `...(isMobile ? mobileStyles.stackVertical : {})` so buttons stack instead of pushing the card wider than the viewport.
     The requirement is no horizontal overflow, not a pixel-perfect rewrite.
 
-  - [ ] 5.10 **Convert the unenroll confirmation modal into a mobile bottom sheet (FR-051).** The modal is rendered in the `unenrollConfirm` block near the bottom of `StudentCoursesPage.tsx`. Keep the backdrop overlay, but on mobile change the modal container to a bottom-sheet style:
+  - [x] 5.10 **Convert the unenroll confirmation modal into a mobile bottom sheet (FR-051).** The modal is rendered in the `unenrollConfirm` block near the bottom of `StudentCoursesPage.tsx`. Keep the backdrop overlay, but on mobile change the modal container to a bottom-sheet style:
     ```tsx
     ...(isMobile ? {
         position: 'fixed',
@@ -277,14 +277,14 @@ Before proceeding to Phase 2, verify ALL of the following:
     ```
     If the modal action row becomes cramped, stack or wrap the buttons and give each mobile button `minHeight: 44`.
 
-  - [ ] 5.11 **Make "Browse Course Catalog" button full-width on mobile (FR-053).** Find the empty-state button and change it from `width: 'auto'` to a conditional:
+  - [x] 5.11 **Make "Browse Course Catalog" button full-width on mobile (FR-053).** Find the empty-state button and change it from `width: 'auto'` to a conditional:
     ```tsx
     <button style={{ ...localStyles.primaryBtn, width: isMobile ? '100%' : 'auto', ...(isMobile ? mobileStyles.touchTarget : {}) }} onClick={() => navigateTo('STUDENT_COURSE_CATALOG')}>Browse Course Catalog</button>
     ```
 
-  - [ ] 5.12 **Verify:** Test at 375px — title is smaller, subtitle hidden, filter tabs scroll horizontally with no visible scrollbar, course cards stack to one column, long course text truncates instead of overflowing, the unenroll modal opens as a bottom sheet, and the empty-state button is full-width. Test at 1440px — desktop remains unchanged.
+  - [x] 5.12 **Verify:** Tested at 375px and 1440px. Verified the smaller title, hidden subtitle, horizontal-scroll tabs with 44px touch targets, single-column grids, and overflow-safe course text in-browser. The unenroll bottom-sheet styling was verified from the implemented code path, but the current seeded data did not expose a public-course unenroll action to trigger that modal interactively.
 
-  - [ ] 5.13 Run `npm run build`. Commit: `feat(courses): mobile header, grid, overflow, and modal refinements [PRD-0044 Phase 2]`.
+  - [x] 5.13 Run `npm run build`. Commit: This work shipped in the Phase 2 Courses commit after the mobile browser verification pass.
 
 ---
 - [ ] **6.0 `StudentLibraryPage.tsx` — Mobile grid, filter stacking, and `localStorage` migration**
