@@ -205,7 +205,12 @@ describe('StudentHomeworkDetailPage', () => {
 
     renderPage();
 
-    fireEvent.click(await screen.findByText('Start Homework'));
+    expect(screen.queryByText(/legacy/i)).not.toBeInTheDocument();
+
+    const startHomeworkButton = await screen.findByText('Start Homework');
+    expect(startHomeworkButton.style.background).not.toContain('linear-gradient');
+
+    fireEvent.click(startHomeworkButton);
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
 
@@ -214,11 +219,79 @@ describe('StudentHomeworkDetailPage', () => {
 
     expect(cancelButton).toHaveStyle({ width: '100%', minHeight: '44px' });
     expect(startNowButton).toHaveStyle({ width: '100%', minHeight: '44px' });
+    expect(startNowButton.style.background).not.toContain('linear-gradient');
 
     fireEvent.click(startNowButton);
 
     await waitFor(() => {
       expect(startAttemptMock).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it('keeps the resume action tokenized when an attempt is already in progress', async () => {
+    const navigateTo = vi.fn();
+    useNavigationMock.mockReturnValue({
+      navigateTo,
+    });
+
+    useHomeworkSubmissionMock.mockReturnValue({
+      homework: {
+        id: 'hw-1',
+        title: 'Reading Homework',
+        materialId: 'material-1',
+        materialTitle: 'Reading Homework',
+        materialSkill: 'reading',
+        materialType: 'ielts-reading',
+        description: 'Read the passage carefully.',
+        scheduling: {
+          dueDate: Date.now() + 60_000,
+        },
+        config: {
+          maxAttempts: 2,
+          timerMinutes: 30,
+          feedbackTiming: 'after_completion',
+          lateSubmissionAllowed: false,
+        },
+      },
+      currentSubmission: {
+        id: 'submission-2',
+        testId: 'test-2',
+      },
+      allSubmissions: [
+        {
+          id: 'submission-1',
+          status: 'submitted',
+          attemptNumber: 1,
+          submittedAt: Date.now() - 5_000,
+          percentage: 84,
+          resultId: 'result-1',
+        },
+      ],
+      bestSubmission: {
+        id: 'submission-1',
+        percentage: 84,
+      },
+      maxAttempts: 2,
+      attemptsUsed: 1,
+      attemptsRemaining: 1,
+      isLoading: false,
+      error: null,
+      isOverdue: false,
+      isAvailable: true,
+      canStartAttempt: true,
+      hasInProgressAttempt: true,
+      startAttempt: startAttemptMock,
+    });
+
+    renderPage();
+
+    expect(screen.queryByText(/legacy/i)).not.toBeInTheDocument();
+
+    const resumeButton = await screen.findByText('Resume Attempt');
+    expect(resumeButton.style.background).not.toContain('linear-gradient');
+
+    fireEvent.click(resumeButton);
+
+    expect(navigateTo).toHaveBeenCalled();
   });
 });

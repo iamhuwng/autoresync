@@ -1,29 +1,9 @@
 /**
- * ╔══════════════════════════════════════════════════════════════════╗
- * ║  ⚠️  STUDENT VIEW DESIGN STANDARD v1.0 — ACTIVE               ║
- * ║                                                                 ║
- * ║  This file uses LEGACY styling (glassmorphism, #667eea, etc.)  ║
- * ║  that is DEPRECATED and scheduled for migration.                ║
- * ║                                                                 ║
- * ║  🚫 DO NOT copy styles from this file for new student pages.   ║
- * ║  ✅ Reference: src/pages/StudentDashboardPage.jsx               ║
- * ║  📖 Spec: documentation/design/student-view-design-standard.md ║
- * ║                                                                 ║
- * ║  BANNED patterns in this file (to be removed during migration): ║
- * ║  - #667eea / #764ba2 (purple gradients)                        ║
- * ║  - linear-gradient backgrounds                                  ║
- * ║  - .glass / .glass-card classes                                 ║
- * ║  - AppShell from @mantine/core                                  ║
- * ║  - Emoji navigation icons                                       ║
- * ╚══════════════════════════════════════════════════════════════════╝
- */
-
-/**
  * Student Homework Detail Page
  * PRD-0016: Solo Study & Homework System
- * 
- * UNIFIED DESIGN: Migrating away from the legacy AppShell shell while
- * preserving the existing homework detail workflow.
+ *
+ * Unified student-shell detail workspace that preserves the existing
+ * homework workflow while using the shared student design tokens.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -698,10 +678,10 @@ export const StudentHomeworkDetailPage: React.FC = () => {
             <StudentLayout sidebar={sidebar} mobileTitle="Homework Details">
                 <Center style={{ minHeight: '60vh' }}>
                     <Card
-                        variant="glass"
+                        variant="default"
+                        hover={false}
                         style={{
-                            background: studentTokens.bgSurface,
-                            border: `1px solid ${studentTokens.borderSoft}`,
+                            ...quietSurfaceStyle,
                             padding: '3rem',
                             width: '100%',
                             maxWidth: 520,
@@ -718,6 +698,7 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                                 variant="primary"
                                 leftSection={<IconArrowLeft size={16} />}
                                 onClick={() => navigateTo('STUDENT_HOMEWORK')}
+                                style={primaryActionButtonStyle}
                             >
                                 Back to Homework List
                             </Button>
@@ -738,6 +719,38 @@ export const StudentHomeworkDetailPage: React.FC = () => {
         color: studentTokens.textBody,
         boxShadow: 'none',
     };
+    const quietSurfaceStyle: React.CSSProperties = {
+        background: studentTokens.bgSurface,
+        border: `1px solid ${studentTokens.borderWhisper}`,
+        borderRadius: studentTokens.radiusPanel,
+        boxShadow: 'none',
+        backdropFilter: 'none',
+        WebkitBackdropFilter: 'none',
+    };
+    const quietInsetStyle: React.CSSProperties = {
+        padding: '1rem',
+        background: studentTokens.bgShell,
+        borderRadius: studentTokens.radiusSoft,
+        border: `1px solid ${studentTokens.borderWhisper}`,
+    };
+    const secondaryButtonStyle: React.CSSProperties = {
+        minHeight: 44,
+        borderRadius: studentTokens.radiusSoft,
+        border: `1px solid ${studentTokens.borderSoft}`,
+        background: studentTokens.bgSurface,
+        color: studentTokens.textBody,
+        boxShadow: 'none',
+        backdropFilter: 'none',
+        WebkitBackdropFilter: 'none',
+    };
+    const primaryActionButtonStyle: React.CSSProperties = {
+        minHeight: 44,
+        borderRadius: studentTokens.radiusSoft,
+        border: `1px solid ${studentTokens.accent}`,
+        background: studentTokens.accent,
+        color: '#ffffff',
+        boxShadow: 'none',
+    };
     const mobileFullWidthButtonStyle: React.CSSProperties = isMobile ? { ...mobileStyles.fullWidthButton } : {};
     const mobileHeaderTitleStyle: React.CSSProperties = isMobile ? { fontSize: '1.5rem' } : {};
     const mobileSubtitleStyle: React.CSSProperties = isMobile ? mobileStyles.feedSubtitleHidden : {};
@@ -747,7 +760,10 @@ export const StudentHomeworkDetailPage: React.FC = () => {
             sidebar={sidebar}
             mobileTitle="Homework Details"
         >
-            <div style={{ maxWidth: '900px', margin: '0 auto', padding: isMobile ? '1rem 0 1.5rem' : '2rem 1rem', width: '100%' }}>
+            <div
+                className="student-view-root"
+                style={{ maxWidth: '900px', margin: '0 auto', padding: isMobile ? '1rem 0 1.5rem' : '2rem 1rem', width: '100%' }}
+            >
                 <div
                     style={{
                         ...S.feedHeader,
@@ -798,18 +814,18 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                             Back
                         </Button>
                         <Button
-                            variant="glass"
+                            variant="outline"
                             onClick={() => navigateTo('STUDENT_DASHBOARD')}
                             leftSection={<IconHome size={18} />}
-                            style={isMobile ? { minHeight: 44 } : undefined}
+                            style={secondaryButtonStyle}
                         >
                             Dashboard
                         </Button>
                         <Button
-                            variant="glass"
+                            variant="outline"
                             onClick={() => navigateTo('STUDENT_LIBRARY')}
                             leftSection={<IconBooks size={18} />}
-                            style={isMobile ? { minHeight: 44 } : undefined}
+                            style={secondaryButtonStyle}
                         >
                             Library
                         </Button>
@@ -823,16 +839,13 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                         >
                             {profile?.displayName || user?.displayName || profile?.email || user?.email}
                         </span>
-                        <Button variant="glass" onClick={handleLogout} style={isMobile ? { minHeight: 44 } : undefined}>Logout</Button>
+                        <Button variant="outline" onClick={handleLogout} style={secondaryButtonStyle}>Logout</Button>
                     </div>
                 </div>
 
                 <Stack gap="xl">
                         {/* Header Card */}
-                        <Card variant="glass" style={{
-                            background: 'rgba(255, 255, 255, 0.95)',
-                            animation: 'slideDown 0.5s ease-out'
-                        }}>
+                        <Card variant="default" hover={false} style={{ ...quietSurfaceStyle, animation: 'slideDown 0.5s ease-out' }}>
                             <CardBody style={{ padding: isMobile ? '1rem' : '2rem' }}>
                                 <Stack gap="md">
                                     <Group
@@ -847,7 +860,7 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                                             <h1 style={{
                                                 fontSize: isMobile ? '1.5rem' : '1.75rem',
                                                 fontWeight: '800',
-                                                color: '#1e293b',
+                                                color: studentTokens.textPrimary,
                                                 margin: 0,
                                                 marginBottom: '0.75rem',
                                                 lineHeight: 1.2,
@@ -869,7 +882,7 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                                                 )}
                                                 {material?.updatedAt && (
                                                     <Badge color="teal" variant="light" size="lg" title={`Test last updated: ${new Date(material.updatedAt).toLocaleString()}`}>
-                                                        🔄 Updated {formatTimeAgo(material.updatedAt)}
+                                                        Updated {formatTimeAgo(material.updatedAt)}
                                                     </Badge>
                                                 )}
                                             </Group>
@@ -907,17 +920,12 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                         </Card>
 
                         {/* Configuration Info */}
-                        <Card variant="glass" style={{ background: 'rgba(255, 255, 255, 0.95)' }}>
+                        <Card variant="default" hover={false} style={quietSurfaceStyle}>
                             <CardBody style={{ padding: isMobile ? '1rem' : '1.5rem' }}>
-                                <Text fw={700} size="lg" mb="md" c="#1e293b">📋 Assignment Details</Text>
+                                <Text fw={700} size="lg" mb="md" c={studentTokens.textPrimary}>Assignment Details</Text>
                                 <Grid style={isMobile ? mobileStyles.singleColumnGrid : undefined}>
                                     <Grid.Col span={{ base: 12, sm: 6 }}>
-                                        <div style={{
-                                            padding: '1rem',
-                                            background: 'rgba(99, 102, 241, 0.05)',
-                                            borderRadius: '0.75rem',
-                                            border: '1px solid rgba(99, 102, 241, 0.1)'
-                                        }}>
+                                        <div style={quietInsetStyle}>
                                             <Group gap="xs">
                                                 <ThemeIcon color="blue" variant="light" size="lg">
                                                     <IconClock size={20} />
@@ -935,12 +943,7 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                                     </Grid.Col>
 
                                     <Grid.Col span={{ base: 12, sm: 6 }}>
-                                        <div style={{
-                                            padding: '1rem',
-                                            background: 'rgba(139, 92, 246, 0.05)',
-                                            borderRadius: '0.75rem',
-                                            border: '1px solid rgba(139, 92, 246, 0.1)'
-                                        }}>
+                                        <div style={quietInsetStyle}>
                                             <Group gap="xs">
                                                 <ThemeIcon color="violet" variant="light" size="lg">
                                                     <IconPlaylistAdd size={20} />
@@ -961,12 +964,7 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                                     </Grid.Col>
 
                                     <Grid.Col span={{ base: 12, sm: 6 }}>
-                                        <div style={{
-                                            padding: '1rem',
-                                            background: 'rgba(20, 184, 166, 0.05)',
-                                            borderRadius: '0.75rem',
-                                            border: '1px solid rgba(20, 184, 166, 0.1)'
-                                        }}>
+                                        <div style={quietInsetStyle}>
                                             <Group gap="xs">
                                                 <ThemeIcon color="teal" variant="light" size="lg">
                                                     <IconBook size={20} />
@@ -982,12 +980,7 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                                     </Grid.Col>
 
                                     <Grid.Col span={{ base: 12, sm: 6 }}>
-                                        <div style={{
-                                            padding: '1rem',
-                                            background: 'rgba(249, 115, 22, 0.05)',
-                                            borderRadius: '0.75rem',
-                                            border: '1px solid rgba(249, 115, 22, 0.1)'
-                                        }}>
+                                        <div style={quietInsetStyle}>
                                             <Group gap="xs">
                                                 <ThemeIcon color="orange" variant="light" size="lg">
                                                     {homework.config.feedbackTiming === 'never'
@@ -1009,13 +1002,13 @@ export const StudentHomeworkDetailPage: React.FC = () => {
 
                         {/* Teacher Instructions */}
                         {homework.description && (
-                            <Card variant="glass" style={{ background: 'rgba(255, 255, 255, 0.95)' }}>
+                            <Card variant="default" hover={false} style={quietSurfaceStyle}>
                                 <CardBody>
                                     <Group gap="xs" mb="md">
                                         <ThemeIcon color="gray" variant="light">
                                             <IconInfoCircle size={20} />
                                         </ThemeIcon>
-                                        <Text fw={700} size="lg" c="#1e293b">Instructions</Text>
+                                        <Text fw={700} size="lg" c={studentTokens.textPrimary}>Instructions</Text>
                                     </Group>
                                     <Text
                                         style={{
@@ -1023,7 +1016,7 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                                             fontSize: isMobile ? '0.938rem' : undefined,
                                             lineHeight: isMobile ? 1.6 : undefined,
                                         }}
-                                        c="#475569"
+                                        c={studentTokens.textBody}
                                     >
                                         {homework.description}
                                     </Text>
@@ -1033,13 +1026,13 @@ export const StudentHomeworkDetailPage: React.FC = () => {
 
                         {/* Attempt History */}
                         {completedSubmissions.length > 0 && (
-                            <Card variant="glass" style={{ background: 'rgba(255, 255, 255, 0.95)' }}>
+                            <Card variant="default" hover={false} style={quietSurfaceStyle}>
                                 <CardBody>
                                     <Group gap="xs" mb="md">
                                         <ThemeIcon color="gray" variant="light">
                                             <IconHistory size={20} />
                                         </ThemeIcon>
-                                        <Text fw={700} size="lg" c="#1e293b">Your Attempts</Text>
+                                        <Text fw={700} size="lg" c={studentTokens.textPrimary}>Your Attempts</Text>
                                     </Group>
 
                                     <Timeline active={-1} bulletSize={24} lineWidth={2}>
@@ -1086,11 +1079,14 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                                                     </div>
                                                     {submission.resultId && (
                                                         <Button
-                                                            variant="glass"
+                                                            variant="outline"
                                                             size="sm"
                                                             onClick={() => handleViewResult(submission.resultId!)}
                                                             fullWidth={isMobile}
-                                                            style={isMobile ? { ...mobileStyles.touchTarget, width: '100%' } : undefined}
+                                                            style={{
+                                                                ...secondaryButtonStyle,
+                                                                ...(isMobile ? { ...mobileStyles.touchTarget, width: '100%' } : {}),
+                                                            }}
                                                         >
                                                             View Details
                                                         </Button>
@@ -1101,13 +1097,7 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                                     </Timeline>
 
                                     {bestSubmission && completedSubmissions.length > 1 && (
-                                        <div style={{
-                                            padding: '1rem',
-                                            marginTop: '1rem',
-                                            background: 'rgba(99, 102, 241, 0.1)',
-                                            borderRadius: '0.75rem',
-                                            border: '1px solid rgba(99, 102, 241, 0.2)'
-                                        }}>
+                                        <div style={{ ...quietInsetStyle, marginTop: '1rem' }}>
                                             <Group gap="xs">
                                                 <ThemeIcon color="blue" variant="light">
                                                     <IconTrophy size={20} />
@@ -1151,7 +1141,7 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                         )}
 
                         {/* Action Buttons */}
-                        <Card variant="glass" style={{ background: 'rgba(255, 255, 255, 0.95)' }}>
+                        <Card variant="default" hover={false} style={quietSurfaceStyle}>
                             <CardBody style={{ padding: isMobile ? '1rem' : '1.5rem' }}>
                                 <Group
                                     justify="center"
@@ -1168,9 +1158,7 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                                             leftSection={<IconPlayerPlay size={20} />}
                                             onClick={handleResume}
                                             style={{
-                                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                                border: 'none',
-                                                boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)',
+                                                ...primaryActionButtonStyle,
                                                 ...mobileFullWidthButtonStyle,
                                             }}
                                             fullWidth={isMobile}
@@ -1184,9 +1172,7 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                                             leftSection={<IconPlayerPlay size={20} />}
                                             onClick={handleStartClick}
                                             style={{
-                                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                                border: 'none',
-                                                boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)',
+                                                ...primaryActionButtonStyle,
                                                 ...mobileFullWidthButtonStyle,
                                             }}
                                             fullWidth={isMobile}
@@ -1200,11 +1186,14 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                                         </Button>
                                     ) : (
                                         <Button
-                                            variant="glass"
+                                            variant="outline"
                                             size="lg"
                                             disabled
                                             fullWidth={isMobile}
-                                            style={mobileFullWidthButtonStyle}
+                                            style={{
+                                                ...secondaryButtonStyle,
+                                                ...mobileFullWidthButtonStyle,
+                                            }}
                                         >
                                             {attemptsRemaining === 0
                                                 ? 'No Attempts Remaining'
@@ -1309,10 +1298,13 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                         }}
                     >
                         <Button
-                            variant="glass"
+                            variant="outline"
                             onClick={() => setShowStartModal(false)}
                             fullWidth={isMobile}
-                            style={isMobile ? mobileStyles.fullWidthButton : { minHeight: 44 }}
+                            style={{
+                                ...secondaryButtonStyle,
+                                ...(isMobile ? mobileStyles.fullWidthButton : {}),
+                            }}
                         >
                             Cancel
                         </Button>
@@ -1323,8 +1315,7 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                             loading={isStarting}
                             fullWidth={isMobile}
                             style={{
-                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                border: 'none',
+                                ...primaryActionButtonStyle,
                                 ...(isMobile ? mobileStyles.fullWidthButton : { minHeight: 44 }),
                             }}
                         >

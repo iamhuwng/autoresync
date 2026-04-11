@@ -41,11 +41,11 @@
 - `src/config/featureRegistry.ts` - Feature tracking registry. Phase 5B adds the `printResults` student test-results action so the rewritten `StudentTestResultsPage` tracking stays synchronized with the shell migration.
 
 ### Tier 1 Pages (Phase 5)
-- `src/pages/StudentHomeworkDetailPage.tsx` ? Phase 5A homework detail migration is now complete: the page uses `StudentLayout`, local native primitives, inline SVG icons, shared mobile tokens, full-width 44px mobile actions, and a full-viewport start modal with sticky mobile actions. (1362 lines)
+- `src/pages/StudentHomeworkDetailPage.tsx` - Phase 5A homework detail migration is now complete: the page uses `StudentLayout`, local native primitives, inline SVG icons, shared mobile tokens, full-width 44px mobile actions, a full-viewport start modal with sticky mobile actions, and Task 21 finishes the token migration by removing the remaining legacy gradient/glass styling from the visible homework-detail surfaces. (1353 lines)
 - `src/pages/StudentTestResultsPage.tsx` - Phase 5B now runs inside `StudentLayout` with `StudentSidebar activePage="records"`, native loading/error states, `useNavigation('student')`, tracked return/export/print/question actions, and the mobile pass adds `useMediaQuery`, stacked summary/question layouts, full-width touch-target buttons, and overflow-safe writing/result surfaces.
 
 ### Test Files
-- `src/pages/StudentHomeworkDetailPage.test.tsx` - Phase 5A now mounts through `StudentShellRoute` with `StudentLayout`/`StudentSidebar` mocks, covers the mobile start-modal/full-width action branch, and no longer needs Mantine or Tabler test stubs. (224 lines)
+- `src/pages/StudentHomeworkDetailPage.test.tsx` - Phase 5A now mounts through `StudentShellRoute` with `StudentLayout`/`StudentSidebar` mocks; Task 21 extends it to guard the tokenized start/resume CTAs, preserve the mobile full-width modal actions, and keep legacy warning text out of the rendered page. (297 lines)
 - `src/pages/StudentTestResultsPage.test.tsx` - Phase 5B now mocks `StudentLayout`/`StudentSidebar`, keeps the canonical `/student-test-results/:sessionCode` coverage, preserves the legacy `/student/results/:sessionCode` alias regression, and adds a focused mobile full-width-actions/touch-target assertion.
 - `src/pages/StudentHomeworkListPage.test.tsx` - Updated for the Phase 3 homework pass by removing Mantine mocks and covering navigation/tracking through the homework list interactions.
 - `src/pages/AcademicRecordPage.test.tsx` - Updated for the Academic Record mobile pass by mocking `studentTokens` and `mobileStyles` exports.
@@ -843,21 +843,21 @@ Before proceeding to Phase 5, verify ALL of the following:
 
 ---
 
-- [ ] **21.0 `StudentHomeworkDetailPage.tsx` - finish legacy design-system removal**
+- [x] **21.0 `StudentHomeworkDetailPage.tsx` - finish legacy design-system removal**
 
   > **Goal:** Complete FR-013 / G5 fidelity by removing the remaining legacy gradient/glassmorphism styling from the homework detail page while preserving its current shell, workflow, and responsive layout.
 
-  - [ ] 21.1 **Audit the remaining legacy styling surface.** Re-scan `src/pages/StudentHomeworkDetailPage.tsx` for `linear-gradient`, hard-coded color literals, legacy badges/theme tones, and any other design-language leftovers called out by the file header comment.
+  - [x] 21.1 **Audit the remaining legacy styling surface.** Re-scan `src/pages/StudentHomeworkDetailPage.tsx` for `linear-gradient`, hard-coded color literals, legacy badges/theme tones, and any other design-language leftovers called out by the file header comment.
 
-  - [ ] 21.2 **Replace the remaining legacy visuals with `studentTokens`.** Tokenize the outstanding CTA/button backgrounds, card surfaces, headings, badges, and supporting text colors so the page no longer depends on the old purple-gradient/glassmorphism palette.
+  - [x] 21.2 **Replace the remaining legacy visuals with `studentTokens`.** Tokenize the outstanding CTA/button backgrounds, card surfaces, headings, badges, and supporting text colors so the page no longer depends on the old purple-gradient/glassmorphism palette.
 
-  - [ ] 21.3 **Remove stale legacy-only self-documentation.** Once the page is fully tokenized, delete or rewrite the top-of-file warning banner so it no longer claims the page intentionally ships with deprecated styling.
+  - [x] 21.3 **Remove stale legacy-only self-documentation.** Once the page is fully tokenized, delete or rewrite the top-of-file warning banner so it no longer claims the page intentionally ships with deprecated styling.
 
-  - [ ] 21.4 **Add focused regression coverage.** Extend `src/pages/StudentHomeworkDetailPage.test.tsx` so the preserved mobile/full-width action behavior stays covered while the visual-token cleanup removes the remaining legacy styling hooks.
+  - [x] 21.4 **Add focused regression coverage.** Extend `src/pages/StudentHomeworkDetailPage.test.tsx` so the preserved mobile/full-width action behavior stays covered while the visual-token cleanup removes the remaining legacy styling hooks.
 
-  - [ ] 21.5 **Verify:** Run `cmd /c npx vitest run src/pages/StudentHomeworkDetailPage.test.tsx --reporter=basic`, run `cmd /c npm run build`, and manually verify the page at 1440px and 375px for tokenized surfaces, no legacy gradients, and no horizontal overflow.
+  - [x] 21.5 **Verify:** Run `cmd /c npx vitest run src/pages/StudentHomeworkDetailPage.test.tsx --reporter=basic`, run `cmd /c npm run build`, and manually verify the page at 1440px and 375px for tokenized surfaces, no legacy gradients, and no horizontal overflow.
 
-  - [ ] 21.6 Commit: `refactor(homework-detail): finish student token migration [PRD-0044 Follow-up]`.
+  - [x] 21.6 Commit: `refactor(homework-detail): finish student token migration [PRD-0044 Follow-up]`.
 
 ---
 
@@ -909,7 +909,7 @@ After completing all 23 parent tasks:
    - [x] Library: title reduced to `1.5rem`, subtitle hidden, top tabs scrollable and touch-friendly, dropdown filters stack full-width, search full-width, pagination centered with touch-friendly buttons, `SoloResumeModal` centered and scrollable.
    - [x] Academic Record: title reduced to `1.5rem`, subtitle hidden, tabs and date range stack cleanly, result cards full-width, THCS content single-column, AI banner readable.
    - [x] Homework List: title reduced to `1.5rem`, subtitle hidden, cards padded `12px 12px 16px`, buttons full-width, badges wrap, no Mantine Loader.
-   - [ ] Homework Detail: `StudentLayout` shell, tokenized surfaces, no legacy gradients, stacked info card, full-viewport modal.
+   - [x] Homework Detail: `StudentLayout` shell, tokenized surfaces, no legacy gradients, stacked info card, full-viewport modal.
    - [ ] Test Results: `StudentLayout` shell, tokenized header/surfaces, no legacy gradients or emoji labels, stacked score card, full-width buttons.
 5. **Mobile right-rail verification:**
    - [x] Open the right rail at 375px and 320px.
@@ -925,4 +925,5 @@ After completing all 23 parent tasks:
 8. **Architecture contract sweep:**
    - [ ] `rg -n "useNavigate" src/components/layout/StudentSidebar.tsx src/pages/StudentDashboardPage.jsx` returns no direct router-hook usage in the shared student shell.
    - [ ] `rg -n "linear-gradient" src/pages/StudentHomeworkDetailPage.tsx src/pages/StudentTestResultsPage.tsx` returns no remaining Tier 1 legacy gradients.
+
 
