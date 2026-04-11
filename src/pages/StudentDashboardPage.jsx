@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { ref, get } from 'firebase/database';
 import { database } from '../services/firebase';
 import { useAuth } from '../hooks/useAuth';
@@ -8,6 +7,7 @@ import { getPaginatedUserNotifications, markNotificationAsRead, subscribeToNewNo
 import { sessionService } from '../services/sessionService';
 import { getStudentResults } from '../services/testResults.service';
 import { useNavigation } from '../hooks/useNavigation';
+import { extractParams } from '../constants/routes';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { useResolvedStudentShellData } from '../context/StudentShellDataContext';
 import { StudentLayout } from '../components/layout/StudentLayout';
@@ -200,7 +200,10 @@ function resolveNotificationResultId(notification) {
             return null;
         }
 
-        const url = new URL(notification.link, 'https://student.local');
+        const url = parseNotificationLink(notification.link);
+        if (!url) {
+            return null;
+        }
         const queryResultId = url.searchParams.get('result');
 
         if (queryResultId) {
@@ -218,9 +221,71 @@ function resolveNotificationResultId(notification) {
     }
 }
 
+const INTERNAL_NOTIFICATION_ROUTE_NAMES = [
+    'LOGIN',
+    'PROFILE',
+    'STUDENT_DASHBOARD',
+    'STUDENT_COURSES',
+    'STUDENT_COURSE_DETAIL',
+    'STUDENT_CLASS_DETAIL',
+    'STUDENT_WAITING',
+    'STUDENT_TEST',
+    'STUDENT_TEST_RESULTS',
+    'STUDENT_QUIZ',
+    'STUDENT_FEEDBACK',
+    'STUDENT_RESULTS',
+    'STUDENT_HOMEWORK',
+    'STUDENT_HOMEWORK_DETAIL',
+    'STUDENT_LIBRARY',
+    'STUDENT_ACADEMIC_RECORD',
+    'STUDENT_PRACTICE',
+    'RESULT_DETAIL',
+];
+
+function parseNotificationLink(notificationLink) {
+    if (!notificationLink) {
+        return null;
+    }
+
+    try {
+        return new URL(notificationLink, 'https://student.local');
+    } catch (_) {
+        return null;
+    }
+}
+
+function resolveNotificationLinkTarget(notificationLink) {
+    const url = parseNotificationLink(notificationLink);
+    if (!url) {
+        return null;
+    }
+
+    const hasExplicitProtocol = /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(notificationLink);
+    const currentOrigin = typeof window !== 'undefined' && window.location ? window.location.origin : null;
+
+    if (hasExplicitProtocol && currentOrigin && url.origin !== currentOrigin) {
+        return { kind: 'external', href: url.toString() };
+    }
+
+    for (const routeName of INTERNAL_NOTIFICATION_ROUTE_NAMES) {
+        const params = extractParams(routeName, url.pathname);
+
+        if (params) {
+            return { kind: 'internal', destination: routeName, params };
+        }
+    }
+
+    return hasExplicitProtocol ? { kind: 'external', href: url.toString() } : null;
+}
+
+function openExternalNotificationLink(href) {
+    if (typeof window !== 'undefined' && typeof window.open === 'function') {
+        window.open(href, '_blank', 'noopener,noreferrer');
+    }
+}
+
 const StudentDashboardPage = () => {
     const { user, profile } = useAuth();
-    const navigate = useNavigate();
     const { navigateTo } = useNavigation('student');
     const { trackAction } = useFeatureTracking(FEATURE_IDS.studentDashboard);
     const { enrolledClasses, classLiveSessions, notStarted, sortedAssignments, completed, refreshClasses, refreshHomeworkData } = useResolvedStudentShellData();
@@ -476,7 +541,20 @@ const StudentDashboardPage = () => {
 
         if (notification.link) {
             trackAction('openFeedLink', { link: notification.link, category: getFeedKind(notification) });
-            navigate(notification.link);
+
+            const linkTarget = resolveNotificationLinkTarget(notification.link);
+
+            if (linkTarget?.kind === 'internal') {
+                navigateTo(linkTarget.destination, linkTarget.params, { reason: 'dashboard_notification_link' });
+                return;
+            }
+
+            if (linkTarget?.kind === 'external') {
+                openExternalNotificationLink(linkTarget.href);
+                return;
+            }
+
+            console.warn('Unsupported dashboard notification link:', notification.link);
         }
     };
 
@@ -493,7 +571,7 @@ const StudentDashboardPage = () => {
 
     const handleOpenAcademicHistory = () => {
         trackAction('openAcademicHistory', { source: 'dashboard_topbar' });
-        navigate('/student/academic-record');
+        navigateTo('STUDENT_ACADEMIC_RECORD', undefined, { reason: 'dashboard_open_academic_history' });
     };
 
     const feedRows = useMemo(

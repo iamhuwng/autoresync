@@ -1,4 +1,4 @@
-# Tasks — PRD-0044: Student Module Mobile Responsiveness
+﻿# Tasks Ã¢â‚¬â€ PRD-0044: Student Module Mobile Responsiveness
 
 > **PRD:** `documentation/tasks/0044-prd-student-mobile-responsiveness.md`
 > **Assessment:** `documentation/tasks/assessment-0044-mobile-foundation.md`
@@ -10,7 +10,7 @@
 
 ### Core Layout Files (Phase 1)
 - `src/components/layout/StudentLayout.tsx` - The master layout shell. Phase 1 added mobile feed padding, the 320px-safe right-rail width cap, and the scoped scrollbar-hidden helper class; Phase 3 disables pointer events on closed mobile drawers and clips mobile horizontal overflow, and Final closeout raises the shared mobile header buttons to 44px touch targets. (207 lines)
-- `src/components/layout/studentLayoutStyles.ts` — Design token constants (`studentTokens`) and shared style objects (`S`). Phase 1 adds the shared `mobileStyles` export here. (277 lines)
+- `src/components/layout/studentLayoutStyles.ts` Ã¢â‚¬â€ Design token constants (`studentTokens`) and shared style objects (`S`). Phase 1 adds the shared `mobileStyles` export here. (277 lines)
 - `src/components/layout/StudentRightRail.tsx` - Shared student right rail. Final closeout raises the visible mobile CTA buttons to a guaranteed 44px minimum height without causing drawer overflow.
 - `src/components/layout/StudentLayout.test.tsx` - Focused shell regression coverage. Final closeout updates the shared right-rail expectations to the current class-title/meta contract and re-validates the mobile drawer flow.
 - `src/components/layout/StudentSidebar.tsx` - Shared student left rail. Final closeout raises the visible mobile navigation buttons to a guaranteed 44px minimum target without breaking badge or label layout.
@@ -35,9 +35,9 @@
 
 ### Route & Config Files (Phase 4)
 - `src/routes/studentRoutes.tsx` - Student route definitions. Phase 4 now nests the homework detail routes and the legacy `results/:sessionCode` alias under `StudentShellRoute` while keeping `/student-test-results/:sessionCode` top-level and preserving all public URLs. (134 lines)
-- `src/routes/StudentShellRoute.tsx` — The shell route wrapper that provides sidebar/layout context.
-- `src/constants/routes.ts` — Route name constants and `buildRoute` utility.
-- `src/config/routeSecurity.ts` — Route security configuration.
+- `src/routes/StudentShellRoute.tsx` Ã¢â‚¬â€ The shell route wrapper that provides sidebar/layout context.
+- `src/constants/routes.ts` Ã¢â‚¬â€ Route name constants and `buildRoute` utility.
+- `src/config/routeSecurity.ts` Ã¢â‚¬â€ Route security configuration.
 - `src/config/featureRegistry.ts` - Feature tracking registry. Phase 5B adds the `printResults` student test-results action so the rewritten `StudentTestResultsPage` tracking stays synchronized with the shell migration.
 
 ### Tier 1 Pages (Phase 5)
@@ -54,19 +54,19 @@
 - `src/components/dashboard/RecentGradesChart.test.jsx` - Focused regression coverage for the dashboard chart selector touch target and dropdown options.
 - `src/components/academicRecord/ResultTimeline.test.tsx` - Focused regression coverage for the Academic Record timeline load-more button touch target.
 
-### Reference Patterns (Read-Only — Do NOT modify)
-- `src/pages/StudentLibraryPage.tsx` lines 15–20 — Inline SVG icon pattern (`SvgBook`, `SvgClock`, etc.). Copy this pattern for new icons.
-- `src/hooks/useMediaQuery.ts` — The standard responsive hook. Use `useMediaQuery('(max-width: 768px)')`.
-- `src/hooks/useNavigation.ts` — The `useNavigation()` → `navigateTo(ROUTE_NAME)` abstraction. Use instead of `useNavigate`.
-- `src/core/platform/storage.ts` — Platform storage abstraction. Use instead of raw `localStorage`.
-- `src/core/platform/index.ts` — Platform barrel export.
+### Reference Patterns (Read-Only Ã¢â‚¬â€ Do NOT modify)
+- `src/pages/StudentLibraryPage.tsx` lines 15Ã¢â‚¬â€œ20 Ã¢â‚¬â€ Inline SVG icon pattern (`SvgBook`, `SvgClock`, etc.). Copy this pattern for new icons.
+- `src/hooks/useMediaQuery.ts` Ã¢â‚¬â€ The standard responsive hook. Use `useMediaQuery('(max-width: 768px)')`.
+- `src/hooks/useNavigation.ts` Ã¢â‚¬â€ The `useNavigation()` Ã¢â€ â€™ `navigateTo(ROUTE_NAME)` abstraction. Use instead of `useNavigate`.
+- `src/core/platform/storage.ts` Ã¢â‚¬â€ Platform storage abstraction. Use instead of raw `localStorage`.
+- `src/core/platform/index.ts` Ã¢â‚¬â€ Platform barrel export.
 
 ### Rules Files (Read Before Coding)
-- `documentation/rules/codebase-hygiene.md` — `@mantine/*` is BANNED for new imports.
-- `documentation/rules/mobile-portability.md` — No raw `localStorage`, `useNavigate`, `window.*`, `document.*`.
-- `documentation/rules/navigation.md` — All navigation must use `buildRoute()`.
-- `documentation/rules/observability.md` — Feature registry must stay synchronized.
-- `documentation/rules/react-patterns.md` — Component creation patterns.
+- `documentation/rules/codebase-hygiene.md` Ã¢â‚¬â€ `@mantine/*` is BANNED for new imports.
+- `documentation/rules/mobile-portability.md` Ã¢â‚¬â€ No raw `localStorage`, `useNavigate`, `window.*`, `document.*`.
+- `documentation/rules/navigation.md` Ã¢â‚¬â€ All navigation must use `buildRoute()`.
+- `documentation/rules/observability.md` Ã¢â‚¬â€ Feature registry must stay synchronized.
+- `documentation/rules/react-patterns.md` Ã¢â‚¬â€ Component creation patterns.
 
 ### Tracking Files
 - `documentation/tasks/findings-of-tasks-0044-prd-student-mobile-responsiveness.md` - Append-only implementation findings and task-list deltas discovered while executing PRD-0044.
@@ -75,7 +75,7 @@
 
 - Run `npm run build` after completing each parent task to verify zero build errors.
 - The pre-commit hook will block any NEW `@mantine/*` imports. Existing ones in Tier 1 pages will be removed during Phase 5.
-- Desktop viewport (≥1025px) must remain pixel-identical after every change. Verify by resizing browser to 1440px wide.
+- Desktop viewport (Ã¢â€°Â¥1025px) must remain pixel-identical after every change. Verify by resizing browser to 1440px wide.
 - Mobile viewport for testing: use Chrome DevTools device toolbar, select "iPhone SE" (375px) and "iPad Mini" (768px).
 
 ---
@@ -113,11 +113,11 @@
         }
         : {}),
     ```
-    **Why `16px 12px 24px`?** — `16px` top (breathing room below the 56px fixed header), `12px` left/right (matches IELTS mobile scaffold density), `24px` bottom (scroll breathing room).
+    **Why `16px 12px 24px`?** Ã¢â‚¬â€ `16px` top (breathing room below the 56px fixed header), `12px` left/right (matches IELTS mobile scaffold density), `24px` bottom (scroll breathing room).
 
-  - [x] 1.2 **Verify desktop is unchanged:** Open Chrome DevTools → toggle device toolbar OFF → set browser window to **1440px wide**. Navigate to any student page (e.g., `/student/courses`). Confirm the feed area still has its original `24px 48px 48px` padding. The change you made is gated behind `(isMobile || isTablet)` so desktop must be identical.
+  - [x] 1.2 **Verify desktop is unchanged:** Open Chrome DevTools Ã¢â€ â€™ toggle device toolbar OFF Ã¢â€ â€™ set browser window to **1440px wide**. Navigate to any student page (e.g., `/student/courses`). Confirm the feed area still has its original `24px 48px 48px` padding. The change you made is gated behind `(isMobile || isTablet)` so desktop must be identical.
 
-  - [x] 1.3 **Verify mobile padding:** In Chrome DevTools → toggle device toolbar ON → select **"iPhone SE" (375×667)**. Navigate to any student page. Confirm the feed content area now has `16px 12px 24px` padding instead of `24px 48px 48px`. Content should be closer to the screen edges.
+  - [x] 1.3 **Verify mobile padding:** In Chrome DevTools Ã¢â€ â€™ toggle device toolbar ON Ã¢â€ â€™ select **"iPhone SE" (375Ãƒâ€”667)**. Navigate to any student page. Confirm the feed content area now has `16px 12px 24px` padding instead of `24px 48px 48px`. Content should be closer to the screen edges.
 
   - [x] 1.4 Run `npm run build`. Confirm zero errors. This work shipped in the shared Phase 1 foundation commit because tasks 1.0-4.0 all touched the same two layout files.
 
@@ -125,7 +125,7 @@
 
 - [x] **2.0 Cap mobile right-rail drawer at `max-width: 85vw`**
 
-  > **Goal:** Prevent the 320px-wide right-rail drawer from overflowing on very narrow devices (≤320px viewport), per edge case EC-6.
+  > **Goal:** Prevent the 320px-wide right-rail drawer from overflowing on very narrow devices (Ã¢â€°Â¤320px viewport), per edge case EC-6.
 
   - [x] 2.1 In src/components/layout/StudentLayout.tsx, navigate to the right-rail <aside> element starting at **line 166**. Inside the mobile/tablet conditional style block (lines 177-193), replace the fixed mobile width rules with a real responsive cap: use width: 'min(320px, 85vw)', minWidth: 0, and maxWidth: '85vw' so the drawer can shrink on 320px devices instead of letting minWidth: 320 override the cap.
 
@@ -138,7 +138,7 @@
 
 - [x] **3.0 Export `mobileStyles` shared token object from `studentLayoutStyles.ts`**
 
-  > **Goal:** Provide a centralized set of reusable mobile CSS primitives that all subsequent phases will import, per PRD Section 7.2. This is a definition-only export — no page uses it yet.
+  > **Goal:** Provide a centralized set of reusable mobile CSS primitives that all subsequent phases will import, per PRD Section 7.2. This is a definition-only export Ã¢â‚¬â€ no page uses it yet.
 
   - [x] 3.1 Open `src/components/layout/studentLayoutStyles.ts`. Navigate to the **end of the file** (after line 277, which is the closing `};` of the `S` export).
 
@@ -199,7 +199,7 @@
 
 ---
 
-### ✅ Phase 1 Verification Checklist
+### Ã¢Å“â€¦ Phase 1 Verification Checklist
 
 Before proceeding to Phase 2, verify ALL of the following:
 
@@ -214,9 +214,9 @@ Before proceeding to Phase 2, verify ALL of the following:
 **Clarification:** FR-002 through FR-005 are shared consumer-page requirements. Because `S` is a static style object, each in-scope page that renders `S.feedHeaderTitle`, `S.feedHeaderSubtitle`, `S.filterBar`, or `S.filterTab` must apply its own mobile overrides in the page tasks below. Do NOT assume Phase 1 alone completes FR-002 through FR-005.
 
 ---
-### Phase 2: Tier 3 — Grid Fixes (Lowest Risk)
+### Phase 2: Tier 3 Ã¢â‚¬â€ Grid Fixes (Lowest Risk)
 
-- [x] **5.0 `StudentCoursesPage.tsx` â€” Mobile grid + touch targets**
+- [x] **5.0 `StudentCoursesPage.tsx` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Mobile grid + touch targets**
 
   > **Goal:** Make the courses page fully mobile-safe by covering shared shell header/filter refinements (FR-002 through FR-005), single-column grids (FR-050), bottom-sheet unenroll modal behavior (FR-051), overflow-safe card content (FR-052), and full-width mobile CTAs (FR-053).
 
@@ -467,7 +467,7 @@ Before proceeding to Phase 2, verify ALL of the following:
 
   - [x] 10.1 **Read rules first:** Open `documentation/rules/navigation.md`. Open `documentation/rules/observability.md`.
 
-  - [x] 10.2 Open `src/routes/studentRoutes.tsx`. The `StudentShellRoute` children array starts at line 46 and ends at line 83 (the closing `]`). The homework detail route is currently at lines 121–124:
+  - [x] 10.2 Open `src/routes/studentRoutes.tsx`. The `StudentShellRoute` children array starts at line 46 and ends at line 83 (the closing `]`). The homework detail route is currently at lines 121Ã¢â‚¬â€œ124:
     ```tsx
     {
         path: '/student/homework/:homeworkId',
@@ -475,7 +475,7 @@ Before proceeding to Phase 2, verify ALL of the following:
     },
     ```
 
-  - [x] 10.3 **Move the route inside the shell children.** Cut lines 121–124 and paste them inside the children array (before the closing `]` on line 83). When moving inside the shell, the path becomes **relative** to the parent `/student` path. Change:
+  - [x] 10.3 **Move the route inside the shell children.** Cut lines 121Ã¢â‚¬â€œ124 and paste them inside the children array (before the closing `]` on line 83). When moving inside the shell, the path becomes **relative** to the parent `/student` path. Change:
     ```tsx
     // INSIDE StudentShellRoute children:
     {
@@ -485,7 +485,7 @@ Before proceeding to Phase 2, verify ALL of the following:
     ```
     Note: The path changed from `/student/homework/:homeworkId` (absolute) to `homework/:homeworkId` (relative to the `/student` parent). The resulting public URL remains `/student/homework/:homeworkId`.
 
-  - [x] 10.4 **Also move the homework test route.** The route at lines 125–128:
+  - [x] 10.4 **Also move the homework test route.** The route at lines 125Ã¢â‚¬â€œ128:
     ```tsx
     {
         path: '/student/homework/:homeworkId/test',
@@ -500,11 +500,11 @@ Before proceeding to Phase 2, verify ALL of the following:
     },
     ```
 
-  - [x] 10.5 **Verify route contract:** Open browser → navigate directly to `/student/homework/test-id-123`. The page must load. Refresh the page. It must still load. The URL in the browser bar must remain `/student/homework/test-id-123`.
+  - [x] 10.5 **Verify route contract:** Open browser Ã¢â€ â€™ navigate directly to `/student/homework/test-id-123`. The page must load. Refresh the page. It must still load. The URL in the browser bar must remain `/student/homework/test-id-123`.
 
   - [x] 10.6 **Verify route registries.** Open each of these files and confirm the route path `/student/homework/:homeworkId` is still listed:
-    - `src/constants/routes.ts` — Look for `STUDENT_HOMEWORK_DETAIL`. Confirm the path matches.
-    - `src/config/routeSecurity.ts` — Confirm the route is listed.
+    - `src/constants/routes.ts` Ã¢â‚¬â€ Look for `STUDENT_HOMEWORK_DETAIL`. Confirm the path matches.
+    - `src/config/routeSecurity.ts` Ã¢â‚¬â€ Confirm the route is listed.
 - `src/config/featureRegistry.ts` - Feature tracking registry. Phase 3 homework updates add the student homework list actions used by `StudentHomeworkListPage`.
 
   - [x] 10.7 **Update test file if needed.** Open `src/pages/StudentHomeworkDetailPage.test.tsx`. If the test explicitly mounts the route at a specific path or tests route structure, update it to match the new nesting.
@@ -523,7 +523,7 @@ Before proceeding to Phase 2, verify ALL of the following:
 
   - [x] 11.2 **Strategy:** Move the legacy path `/student/results/:sessionCode` inside the shell children as `results/:sessionCode`. For the canonical `/student-test-results/:sessionCode`, it CANNOT be a relative child of `/student` since its path doesn't start with `/student`. **Keep it as a top-level route** but wrap the component in `<StudentLayout>` with `shellData` prop self-provided. Alternatively, if `StudentLayout` can work without shell context (using `<ConnectedStudentRightRail>` which fetches its own data), simply wrap it directly.
 
-  - [x] 11.3 **Move legacy route into shell.** Cut lines 110–112 from `studentRoutes.tsx`:
+  - [x] 11.3 **Move legacy route into shell.** Cut lines 110Ã¢â‚¬â€œ112 from `studentRoutes.tsx`:
     ```tsx
     {
         path: '/student/results/:sessionCode',
@@ -538,7 +538,7 @@ Before proceeding to Phase 2, verify ALL of the following:
     },
     ```
 
-  - [x] 11.4 **Keep canonical route at top-level.** Lines 97–100 stay as-is:
+  - [x] 11.4 **Keep canonical route at top-level.** Lines 97Ã¢â‚¬â€œ100 stay as-is:
     ```tsx
     {
         path: '/student-test-results/:sessionCode',
@@ -548,9 +548,9 @@ Before proceeding to Phase 2, verify ALL of the following:
     This route will be wrapped in `<StudentLayout>` inside the page component itself during Phase 5 (using `shellData` or `<ConnectedStudentRightRail>`).
 
   - [x] 11.5 **Verify route contract:**
-    - Navigate to `/student-test-results/abc123` — must load.
-    - Navigate to `/student/results/abc123` — must load.
-    - Refresh both URLs — must still work.
+    - Navigate to `/student-test-results/abc123` Ã¢â‚¬â€ must load.
+    - Navigate to `/student/results/abc123` Ã¢â‚¬â€ must load.
+    - Refresh both URLs Ã¢â‚¬â€ must still work.
 
   - [x] 11.6 **Verify registries.** Check `routes.ts`, `routeSecurity.ts`, `featureRegistry.ts` for both `STUDENT_TEST_RESULTS` and the legacy path.
 
@@ -560,7 +560,7 @@ Before proceeding to Phase 2, verify ALL of the following:
 
 ---
 
-### ✅ Phase 4 Verification Checklist
+### Ã¢Å“â€¦ Phase 4 Verification Checklist
 
 Before proceeding to Phase 5, verify ALL of the following:
 
@@ -574,11 +574,11 @@ Before proceeding to Phase 5, verify ALL of the following:
 
 ---
 
-### Phase 5: Tier 1 — Full Rewrites (Highest Risk)
+### Phase 5: Tier 1 Ã¢â‚¬â€ Full Rewrites (Highest Risk)
 
-> ⚠️ **Phase 5A and 5B should be done by one developer each.** Do NOT split a single page between developers. Work incrementally: desktop migration first, then mobile overrides.
+> Ã¢Å¡Â Ã¯Â¸Â **Phase 5A and 5B should be done by one developer each.** Do NOT split a single page between developers. Work incrementally: desktop migration first, then mobile overrides.
 
-- [x] **12.0 `StudentHomeworkDetailPage.tsx` — Remove Mantine `AppShell` wrapper (Desktop First)**
+- [x] **12.0 `StudentHomeworkDetailPage.tsx` Ã¢â‚¬â€ Remove Mantine `AppShell` wrapper (Desktop First)**
 
   > **Goal:** Replace the Mantine `AppShell` with `StudentLayout`, preserving all desktop behavior exactly.
 
@@ -611,26 +611,26 @@ Before proceeding to Phase 5, verify ALL of the following:
 
   > **Goal:** Remove all 13 `@mantine/core` imports and 14 `@tabler/icons-react` imports, replacing with native HTML/CSS. Per FR-011 and FR-012.
 
-  - [x] 13.1 **CRITICAL: Work one import at a time.** Remove ONE import from the Mantine import block (lines 31–46), replace ALL usages of that component in the file, then run `npm run build` to confirm zero errors. Only then proceed to the next import.
+  - [x] 13.1 **CRITICAL: Work one import at a time.** Remove ONE import from the Mantine import block (lines 31Ã¢â‚¬â€œ46), replace ALL usages of that component in the file, then run `npm run build` to confirm zero errors. Only then proceed to the next import.
 
   - [x] 13.2 **Replacement mapping** (follow this order exactly):
     | Mantine Component | Replace With | Token/Style |
     |---|---|---|
-    | `Center` | `<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>` | — |
+    | `Center` | `<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>` | Ã¢â‚¬â€ |
     | `Loader` | CSS spinner (same pattern as task 9.3) | `studentTokens.accent` for border-top |
     | `Group` | `<div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>` | Adjust gap as needed |
     | `Stack` | `<div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>` | Adjust gap as needed |
     | `Text` | `<p>` or `<span>` with inline style | Use `studentTokens.textPrimary` / `.textBody` / `.textMuted` for colors |
     | `Badge` | `<span style={{ padding: '4px 10px', borderRadius: studentTokens.radiusPill, fontSize: '0.75rem', fontWeight: 700, background: studentTokens.accentSoft, color: studentTokens.accentHover }}>` | Match original badge colors |
-    | `Divider` | `<hr style={{ border: 'none', borderTop: '1px solid ${studentTokens.borderWhisper}', margin: '16px 0' }} />` | — |
+    | `Divider` | `<hr style={{ border: 'none', borderTop: '1px solid ${studentTokens.borderWhisper}', margin: '16px 0' }} />` | Ã¢â‚¬â€ |
     | `Alert` | `<div style={{ padding: 16, borderRadius: studentTokens.radiusSoft, border: '1px solid ...', background: '...' }}>` | Match original alert colors |
     | `Grid` | `<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>` | Will be made responsive later |
-    | `Timeline` | Native CSS vertical timeline: parent `<div>` with children, each child has `borderLeft: '2px solid ${studentTokens.borderSoft}'`, `paddingLeft: 20`, and a `::before` dot (or an inline dot element) | — |
+    | `Timeline` | Native CSS vertical timeline: parent `<div>` with children, each child has `borderLeft: '2px solid ${studentTokens.borderSoft}'`, `paddingLeft: 20`, and a `::before` dot (or an inline dot element) | Ã¢â‚¬â€ |
     | `Modal` | Custom modal: `<div style={{ position: 'fixed', inset: 0, zIndex: 9999 }}>` with backdrop + content div. Add `onClick` on backdrop for close. | Use same pattern as Courses unenroll modal |
-    | `List` | Native `<ul>` / `<ol>` with `padding-left: 20px` | — |
-    | `ThemeIcon` | `<span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: '50%', background: studentTokens.accentSoft, color: studentTokens.accent }}>` + inline SVG inside | — |
+    | `List` | Native `<ul>` / `<ol>` with `padding-left: 20px` | Ã¢â‚¬â€ |
+    | `ThemeIcon` | `<span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: '50%', background: studentTokens.accentSoft, color: studentTokens.accent }}>` + inline SVG inside | Ã¢â‚¬â€ |
 
-  - [x] 13.3 **Replace Tabler icons (FR-012).** For each `@tabler/icons-react` icon (listed on lines 47–65), create an inline SVG component using the same pattern as `StudentLibraryPage.tsx` lines 15–20. Example:
+  - [x] 13.3 **Replace Tabler icons (FR-012).** For each `@tabler/icons-react` icon (listed on lines 47Ã¢â‚¬â€œ65), create an inline SVG component using the same pattern as `StudentLibraryPage.tsx` lines 15Ã¢â‚¬â€œ20. Example:
     ```tsx
     const SvgArrowLeft = () => (
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -640,8 +640,8 @@ Before proceeding to Phase 5, verify ALL of the following:
     ```
     Place all SVG components near the top of the file (after imports, before the main component). You can find the SVG path data for each icon at https://tabler.io/icons or by inspecting the rendered HTML.
 
-  - [x] 13.4 **Delete the entire `@mantine/core` import block** (lines 31–46) after ALL replacements are done.
-  - [x] 13.5 **Delete the entire `@tabler/icons-react` import block** (lines 47–65) after ALL replacements are done.
+  - [x] 13.4 **Delete the entire `@mantine/core` import block** (lines 31Ã¢â‚¬â€œ46) after ALL replacements are done.
+  - [x] 13.5 **Delete the entire `@tabler/icons-react` import block** (lines 47Ã¢â‚¬â€œ65) after ALL replacements are done.
 
   - [x] 13.6 **Replace `useNavigate` with `useNavigation` (EC-10).** Line 30 imports `useNavigate`. Replace with `useNavigation` (which is already imported on line 68). Remove the `useNavigate` import from line 30.
 
@@ -686,7 +686,7 @@ Before proceeding to Phase 5, verify ALL of the following:
 
   - [x] 14.5 **Back button styling (FR-014).** The "Back" button should use `studentTokens` styling, not Mantine Button. On mobile, ensure it has `minHeight: 44`.
 
-  - [x] 14.6 **Verify:** Test at 375px — info card stacks vertically, buttons are full-width, modal fills viewport. Test at 1440px — desktop unchanged from after task 12/13.
+  - [x] 14.6 **Verify:** Test at 375px Ã¢â‚¬â€ info card stacks vertically, buttons are full-width, modal fills viewport. Test at 1440px Ã¢â‚¬â€ desktop unchanged from after task 12/13.
 
   - [x] 14.7 Run `npm run build`. Run tests: `npx vitest run src/pages/StudentHomeworkDetailPage.test.tsx`. Commit: `feat(homework-detail): add mobile responsive overrides [PRD-0044 Phase 5A]`.
 
@@ -821,12 +821,87 @@ Before proceeding to Phase 5, verify ALL of the following:
 
 ---
 
+---
+
+- [x] **20.0 Shared student navigation portability cleanup**
+
+  > **Goal:** Bring the remaining shared student-shell navigation onto the route-registry abstraction and remove the last direct router coupling uncovered by the fidelity audit.
+
+  - [x] 20.1 **Load the navigation/mobile portability rules before coding.** Read `documentation/rules/navigation.md` and `documentation/rules/mobile-portability.md`. Treat this as a shared-shell refactor, not a page-local styling patch.
+
+  - [ ] 20.2 **Refactor `StudentSidebar.tsx` onto `useNavigation('student')`.** Remove the direct `useNavigate()` import, replace hard-coded route strings with route IDs / `navigateTo(...)`, and preserve the current `resetRecordsView` behavior for the Academic Record re-open path.
+
+  - [x] 20.3 **Harden sidebar menu dismissal for portability.** Replace or guard the raw `document.addEventListener(...)` menu-close wiring so the shared sidebar no longer depends on browser-only globals without an abstraction boundary.
+
+  - [ ] 20.4 **Refactor `StudentDashboardPage.jsx` navigation flows.** Replace the remaining direct `navigate(...)` calls with `useNavigation('student')`, route the Academic Record CTA through the registry, and distinguish internal vs external `notification.link` targets so external links do not get pushed through React Router.
+
+  - [x] 20.5 **Add focused regression coverage.** Extend or add tests covering `StudentSidebar` and `StudentDashboardPage` so the shared student shell keeps the navigation abstraction contract and notification-link behavior.
+
+  - [ ] 20.6 **Verify:** Run the relevant focused tests, run `cmd /c npm run build`, and manually confirm the student shell/dashboard still navigates correctly at 1440px and 375px.
+
+  - [ ] 20.7 Commit: `refactor(student-navigation): restore shared route abstraction compliance [PRD-0044 Follow-up]`.
+
+---
+
+- [ ] **21.0 `StudentHomeworkDetailPage.tsx` - finish legacy design-system removal**
+
+  > **Goal:** Complete FR-013 / G5 fidelity by removing the remaining legacy gradient/glassmorphism styling from the homework detail page while preserving its current shell, workflow, and responsive layout.
+
+  - [ ] 21.1 **Audit the remaining legacy styling surface.** Re-scan `src/pages/StudentHomeworkDetailPage.tsx` for `linear-gradient`, hard-coded color literals, legacy badges/theme tones, and any other design-language leftovers called out by the file header comment.
+
+  - [ ] 21.2 **Replace the remaining legacy visuals with `studentTokens`.** Tokenize the outstanding CTA/button backgrounds, card surfaces, headings, badges, and supporting text colors so the page no longer depends on the old purple-gradient/glassmorphism palette.
+
+  - [ ] 21.3 **Remove stale legacy-only self-documentation.** Once the page is fully tokenized, delete or rewrite the top-of-file warning banner so it no longer claims the page intentionally ships with deprecated styling.
+
+  - [ ] 21.4 **Add focused regression coverage.** Extend `src/pages/StudentHomeworkDetailPage.test.tsx` so the preserved mobile/full-width action behavior stays covered while the visual-token cleanup removes the remaining legacy styling hooks.
+
+  - [ ] 21.5 **Verify:** Run `cmd /c npx vitest run src/pages/StudentHomeworkDetailPage.test.tsx --reporter=basic`, run `cmd /c npm run build`, and manually verify the page at 1440px and 375px for tokenized surfaces, no legacy gradients, and no horizontal overflow.
+
+  - [ ] 21.6 Commit: `refactor(homework-detail): finish student token migration [PRD-0044 Follow-up]`.
+
+---
+
+- [ ] **22.0 `StudentTestResultsPage.tsx` - finish tokenized results surface**
+
+  > **Goal:** Remove the remaining non-PRD visual language from the results page and bring both the canonical and legacy student results surfaces in line with the shared student design system.
+
+  - [ ] 22.1 **Replace the remaining gradient and hard-coded color usage.** Rework the page/header backgrounds, title treatment, summary cards, and feedback surfaces so they use `studentTokens` rather than bespoke gradients and ad hoc color literals.
+
+  - [ ] 22.2 **Remove emoji-driven UI labels and legacy flourish.** Replace the remaining emoji feedback/action labels with tokenized text/icon treatment that matches the student design standard while preserving the same actions and route behavior.
+
+  - [ ] 22.3 **Preserve the accepted route contract decisions.** Keep `/student-test-results/:sessionCode` top-level and `/student/results/:sessionCode` as the shell-hosted legacy alias; this follow-up should clean up presentation and navigation contract gaps, not reopen the accepted route-shape compromise.
+
+  - [ ] 22.4 **Add focused regression coverage.** Extend `src/pages/StudentTestResultsPage.test.tsx` so the tokenized action labels/surfaces and the preserved legacy alias behavior stay protected together.
+
+  - [ ] 22.5 **Verify:** Run `cmd /c npx vitest run src/pages/StudentTestResultsPage.test.tsx --reporter=basic`, run `cmd /c npm run build`, and manually verify both `/student-test-results/:sessionCode` and `/student/results/:sessionCode` at 1440px and 375px.
+
+  - [ ] 22.6 Commit: `refactor(test-results): finish tokenized student results surface [PRD-0044 Follow-up]`.
+
+---
+
+- [ ] **23.0 Responsive regression coverage completion**
+
+  > **Goal:** Backfill automated coverage for the mobile layout behaviors that were only manually verified during the original PRD-0044 closeout.
+
+  - [ ] 23.1 **Extend `AcademicRecordPage.test.tsx`.** Add mobile-layout assertions for the page header/title/subtitle treatment, stacked tab/date-range controls, and touch-friendly mobile actions.
+
+  - [ ] 23.2 **Extend `StudentHomeworkListPage.test.tsx`.** Add assertions for the mobile summary-strip stacking, tighter card padding, and full-width CTA behavior.
+
+  - [ ] 23.3 **Extend `StudentLayout.test.tsx`.** Add assertions for the shared mobile feed padding and the 320px-safe right-rail width cap (`width: 'min(320px, 85vw)'`) so the shell overflow fix remains locked in.
+
+  - [ ] 23.4 **Add the missing dashboard/results responsive coverage.** Create or extend focused tests so student dashboard notification-link handling, mobile feed spacing, and the remaining Tier 1 responsive layout expectations are protected by automation rather than only manual QA.
+
+  - [ ] 23.5 **Verify:** Run the focused Vitest suite for the touched student shell/page tests, then run `cmd /c npm run build`.
+
+  - [ ] 23.6 Commit: `test(student-mobile): backfill responsive regression coverage [PRD-0044 Follow-up]`.
+
+---
 ## Final Verification (After All Phases)
 
-After completing all 19 parent tasks:
+After completing all 23 parent tasks:
 
-1. **Full build:** `npm run build` — zero errors.
-2. **Pre-commit hook:** Stage all files, attempt commit — hook must not flag any new `@mantine/*` imports.
+1. **Full build:** `npm run build` Ã¢â‚¬â€ zero errors.
+2. **Pre-commit hook:** Stage all files, attempt commit Ã¢â‚¬â€ hook must not flag any new `@mantine/*` imports.
 3. **Manual visual regression at 1440px desktop:** Visit all 7 pages. Every page must look IDENTICAL to before this PRD's work started.
 4. **Manual visual testing at 375px (iPhone SE):** Visit all 7 pages:
    - [x] Dashboard: feed padded at 12px, title reduced to `1.5rem`, subtitle hidden, filter tabs scrollable with hidden scrollbar, notification cards use tighter side padding, Join a Class modal scrolls, no horizontal overflow.
@@ -834,17 +909,20 @@ After completing all 19 parent tasks:
    - [x] Library: title reduced to `1.5rem`, subtitle hidden, top tabs scrollable and touch-friendly, dropdown filters stack full-width, search full-width, pagination centered with touch-friendly buttons, `SoloResumeModal` centered and scrollable.
    - [x] Academic Record: title reduced to `1.5rem`, subtitle hidden, tabs and date range stack cleanly, result cards full-width, THCS content single-column, AI banner readable.
    - [x] Homework List: title reduced to `1.5rem`, subtitle hidden, cards padded `12px 12px 16px`, buttons full-width, badges wrap, no Mantine Loader.
-   - [x] Homework Detail: `StudentLayout` shell, no gradient, stacked info card, full-viewport modal.
-   - [x] Test Results: `StudentLayout` shell, stacked score card, full-width buttons.
+   - [ ] Homework Detail: `StudentLayout` shell, tokenized surfaces, no legacy gradients, stacked info card, full-viewport modal.
+   - [ ] Test Results: `StudentLayout` shell, tokenized header/surfaces, no legacy gradients or emoji labels, stacked score card, full-width buttons.
 5. **Mobile right-rail verification:**
    - [x] Open the right rail at 375px and 320px.
    - [x] Drawer does not overflow the viewport.
    - [x] `PendingReviewsWidget` remains readable, scrollable, and tappable.
    - [x] Shared shell header buttons and the `Find a session` CTA now meet the 44px touch-target rule at both widths without title collision or new console errors.
 6. **Route contract testing:**
-   - [x] Directly load `/student/homework/any-id` — works.
-   - [x] Directly load `/student-test-results/any-code` — works.
-   - [x] Directly load `/student/results/any-code` — works (legacy path).
-   - [x] Refresh each URL — still works.
-7. **Touch target testing:** On a real mobile device (or DevTools touch simulation), tap every button and link. Each must be easily tappable (≥44px target).
+   - [x] Directly load `/student/homework/any-id` Ã¢â‚¬â€ works.
+   - [x] Directly load `/student-test-results/any-code` Ã¢â‚¬â€ works.
+   - [x] Directly load `/student/results/any-code` Ã¢â‚¬â€ works (legacy path).
+   - [x] Refresh each URL Ã¢â‚¬â€ still works.
+7. **Touch target testing:** On a real mobile device (or DevTools touch simulation), tap every button and link. Each must be easily tappable (Ã¢â€°Â¥44px target).
+8. **Architecture contract sweep:**
+   - [ ] `rg -n "useNavigate" src/components/layout/StudentSidebar.tsx src/pages/StudentDashboardPage.jsx` returns no direct router-hook usage in the shared student shell.
+   - [ ] `rg -n "linear-gradient" src/pages/StudentHomeworkDetailPage.tsx src/pages/StudentTestResultsPage.tsx` returns no remaining Tier 1 legacy gradients.
 
