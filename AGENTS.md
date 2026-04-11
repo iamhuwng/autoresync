@@ -1,6 +1,6 @@
-## 🔴 Integration Safety Rules (22 rules — ZERO BYPASS)
+﻿## ðŸ”´ Integration Safety Rules (22 rules â€” ZERO BYPASS)
 
-When your action matches a trigger below, **STOP and READ the linked file** before writing code. Do NOT load all files — only the one that matches.
+When your action matches a trigger below, **STOP and READ the linked file** before writing code. Do NOT load all files â€” only the one that matches.
 
 ## Sub-Agents (MANDATORY)
 
@@ -9,6 +9,7 @@ These rules are obligatory and must be treated as standard operating procedure:
 - You MUST offload research, exploration, and parallel analysis to subagents whenever the work can be decomposed safely.
 - For complex, ambiguous, or multi-part problems, you MUST throw more compute at the task via subagents instead of keeping all reasoning in the main thread.
 - Each subagent MUST own exactly one tack so execution stays focused and outputs remain composable.
+- When spawning subagents, default to the lowest-cost available model in this environment. As of 2026-04-12, that default is gpt-5.1-codex-mini. Only use a stronger subagent model when the task clearly needs deeper reasoning or a larger context budget.
 
 ## Text Encoding Guardrail (MANDATORY)
 
@@ -39,7 +40,7 @@ When testing authenticated teacher or student flows in this repo:
 | Writing a service that writes to DB on data events | [`rules/infrastructure.md`](documentation/rules/infrastructure.md) |
 | Building or modifying Cloudflare Workers (R2, backup, etc.) | [`rules/infrastructure.md`](documentation/rules/infrastructure.md) |
 | PRD says "replace ALL", "every", or "replaces existing" | [`rules/codebase-hygiene.md`](documentation/rules/codebase-hygiene.md) |
-| Writing ANY `import` — `@mantine/*` is **banned** | [`rules/codebase-hygiene.md`](documentation/rules/codebase-hygiene.md) |
+| Writing ANY `import` â€” `@mantine/*` is **banned** | [`rules/codebase-hygiene.md`](documentation/rules/codebase-hygiene.md) |
 | Writing data to a path where existing code reads | [`rules/codebase-hygiene.md`](documentation/rules/codebase-hygiene.md) |
 | Creating a new page component or route | [`rules/observability.md`](documentation/rules/observability.md) |
 | Adding or modifying user-facing actions (buttons, forms, workflows) | [`rules/observability.md`](documentation/rules/observability.md) |
@@ -77,7 +78,7 @@ mcp__knowns__set_project({ "projectRoot": "/path/to/project" })
 |------|-------------|
 | **Never edit .md** | Use MCP tools (preferred) or CLI. NEVER edit task/doc files directly |
 | **Docs first** | Read project docs BEFORE planning or coding |
-| **Plan → Approve → Code** | Share plan, WAIT for approval, then implement |
+| **Plan â†’ Approve â†’ Code** | Share plan, WAIT for approval, then implement |
 | **AC after work** | Only check acceptance criteria AFTER completing work |
 | **Time tracking** | `start_time` when taking task, `stop_time` when done |
 | **Validate** | Run `validate` before marking task done |
@@ -106,17 +107,17 @@ knowns task edit 35 --ac "Criterion text"
 
 **Only for view/list/search commands:**
 ```bash
-knowns task <id> --plain      # ✓
-knowns task list --plain      # ✓
-knowns task create --plain    # ✗ ERROR
-knowns task edit --plain      # ✗ ERROR
+knowns task <id> --plain      # âœ“
+knowns task list --plain      # âœ“
+knowns task create --plain    # âœ— ERROR
+knowns task edit --plain      # âœ— ERROR
 ```
 
 ### Subtasks
 
 ```bash
-knowns task create "Sub" --parent 48    # ✓ raw ID
-knowns task create "Sub" --parent task-48  # ✗ WRONG
+knowns task create "Sub" --parent 48    # âœ“ raw ID
+knowns task create "Sub" --parent task-48  # âœ— WRONG
 ```
 
 ---
@@ -141,3 +142,4 @@ Tasks and docs can reference each other:
 
 > **Full reference:** Run `knowns guidelines --plain` for complete documentation
 <!-- KNOWNS GUIDELINES END -->
+
