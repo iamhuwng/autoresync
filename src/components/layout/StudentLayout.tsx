@@ -62,7 +62,13 @@ export const StudentLayout: React.FC<StudentLayoutProps> = ({
     };
 
     return (
-        <div className="student-view-root" style={S.root}>
+        <div
+            className="student-view-root"
+            style={{
+                ...S.root,
+                ...((isMobile || isTablet) ? { overflowX: 'hidden' } : {}),
+            }}
+        >
             <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
             <style>{`
         * { box-sizing: border-box; }
@@ -130,6 +136,7 @@ export const StudentLayout: React.FC<StudentLayoutProps> = ({
                                 transform: showMobileLeft ? 'translateX(0)' : 'translateX(-100%)',
                                 transition: 'transform 0.3s ease-in-out',
                                 boxShadow: showMobileLeft ? '12px 0 32px rgba(43, 52, 55, 0.12)' : 'none',
+                                pointerEvents: showMobileLeft ? 'auto' : 'none',
                             }
                             : {}),
                     }}
@@ -193,6 +200,7 @@ export const StudentLayout: React.FC<StudentLayoutProps> = ({
                                     transform: showMobileRight ? 'translateX(0)' : 'translateX(100%)',
                                     transition: 'transform 0.3s ease-in-out',
                                     boxShadow: showMobileRight ? '-12px 0 32px rgba(43, 52, 55, 0.12)' : 'none',
+                                    pointerEvents: showMobileRight ? 'auto' : 'none',
                                 }
                                 : {}),
                         }}

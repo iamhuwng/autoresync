@@ -9,7 +9,7 @@
 ## Relevant Files
 
 ### Core Layout Files (Phase 1)
-- `src/components/layout/StudentLayout.tsx` — The master layout shell. Phase 1 now includes verified mobile feed padding, a true 320px-safe right-rail width cap, and the scoped scrollbar-hidden helper class here. (207 lines)
+- `src/components/layout/StudentLayout.tsx` - The master layout shell. Phase 1 added mobile feed padding, the 320px-safe right-rail width cap, and the scoped scrollbar-hidden helper class; Phase 3 now also disables pointer events on closed mobile drawers and clips mobile horizontal overflow at the shell root. (207 lines)
 - `src/components/layout/studentLayoutStyles.ts` — Design token constants (`studentTokens`) and shared style objects (`S`). Phase 1 adds the shared `mobileStyles` export here. (277 lines)
 
 ### Tier 3 Pages (Phase 2)
@@ -24,8 +24,9 @@
 - `src/components/ai/AIMaintenanceBanner.tsx` - Shared AI status banner. The Academic Record mobile pass now gives it tighter mobile padding and 44px touch targets.
 
 ### Tier 2 Pages (Phase 3)
-- `src/pages/StudentDashboardPage.jsx` — Main student dashboard. Already uses `StudentLayout`.
-- `src/pages/StudentHomeworkListPage.tsx` — Homework list. Has stray `import { Loader } from '@mantine/core'` on line 3, used on line 476. Has `useNavigate` on lines 2/354. (740 lines)
+- `src/pages/StudentDashboardPage.jsx` - Main student dashboard. Phase 3 now derives mobile state with `useMediaQuery`, passes it into the feed view, and makes the Join a Class modal scroll safely on mobile. (740 lines)
+- `src/components/dashboard/StudentDashboardFeedView.jsx` - Dashboard feed renderer. Phase 3 now applies the shared mobile header treatment, touch-friendly horizontal tabs, and tighter mobile card inset padding. (253 lines)
+- `src/pages/StudentHomeworkListPage.tsx` ? Homework list. Has stray `import { Loader } from '@mantine/core'` on line 3, used on line 476. Has `useNavigate` on lines 2/354. (740 lines)
 
 ### Route & Config Files (Phase 4)
 - `src/routes/studentRoutes.tsx` — Student route definitions. Shell children end at line 83. Homework detail is at line 122 (outside shell). Test results is at lines 98–99 and 110–111 (both outside shell). (134 lines)
@@ -42,7 +43,8 @@
 - `src/pages/StudentHomeworkDetailPage.test.tsx` — Must update route-mount assertions if Phase 4 changes nesting.
 - `src/pages/StudentTestResultsPage.test.tsx` — Must preserve `/student/results/:sessionCode` coverage.
 - `src/pages/StudentHomeworkListPage.test.tsx` — May need mock updates after Mantine removal.
-- `src/pages/AcademicRecordPage.test.tsx` ? Updated for the Academic Record mobile pass by mocking `studentTokens` and `mobileStyles` exports.
+- `src/pages/AcademicRecordPage.test.tsx` - Updated for the Academic Record mobile pass by mocking `studentTokens` and `mobileStyles` exports.
+- `src/components/dashboard/PendingReviewsWidget.test.tsx` - Phase 3 widget regression coverage; updated to match the current Pending Reviews copy without the removed Live badge.
 
 ### Reference Patterns (Read-Only — Do NOT modify)
 - `src/pages/StudentLibraryPage.tsx` lines 15–20 — Inline SVG icon pattern (`SvgBook`, `SvgClock`, etc.). Copy this pattern for new icons.
@@ -80,7 +82,7 @@
 
   > **Goal:** Reduce the horizontal padding of the `<main>` content area from `48px` to `12px` on mobile/tablet viewports, per FR-001. This is a single-line addition inside the existing mobile conditional block.
 
-  - [x] 1.1 Open `src/components/layout/StudentLayout.tsx`. Navigate to the `<main>` element starting at **line 145**. Inside the mobile/tablet conditional style block (lines 153–160), you will see this exact code:
+- `src/components/layout/StudentLayout.tsx` - The master layout shell. Phase 1 added mobile feed padding, the 320px-safe right-rail width cap, and the scoped scrollbar-hidden helper class; Phase 3 now also disables pointer events on closed mobile drawers and clips mobile horizontal overflow at the shell root. (207 lines)
     ```tsx
     ...((isMobile || isTablet)
         ? {
@@ -167,7 +169,7 @@
 
   > **Goal:** Provide a CSS class that hides scrollbars (for horizontal-scroll filter bars on mobile). Using a scoped class instead of a global override avoids hiding all scrollbars.
 
-  - [x] 4.1 In `src/components/layout/StudentLayout.tsx`, navigate to the `<style>` block starting at **line 67**. Find the closing `\`}</style>` at **line 83**. Insert the following two CSS rules **before** the closing backtick-brace on line 83:
+- `src/components/layout/StudentLayout.tsx` - The master layout shell. Phase 1 added mobile feed padding, the 320px-safe right-rail width cap, and the scoped scrollbar-hidden helper class; Phase 3 now also disables pointer events on closed mobile drawers and clips mobile horizontal overflow at the shell root. (207 lines)
     ```css
     .student-mobile-scrollbar-hidden::-webkit-scrollbar { display: none; }
     .student-mobile-scrollbar-hidden { scrollbar-width: none; -ms-overflow-style: none; }
@@ -370,11 +372,11 @@ Before proceeding to Phase 2, verify ALL of the following:
 
   - [x] 7.9 Ran `npm run build` and `cmd /c npx vitest run src/pages/AcademicRecordPage.test.tsx --reporter=basic`; both passed. This slice ships in the Phase 2 Academic Record commit.
 
-- [ ] **8.0 `StudentDashboardPage.jsx` — Mobile refinements**
+- [x] **8.0 `StudentDashboardPage.jsx` - Mobile refinements**
 
   > **Goal:** Complete the dashboard mobile pass by covering shared header/filter refinements (FR-002 through FR-005), scrollable filter tabs (FR-031), notification-card padding (FR-032), scrollable join-class modal behavior (FR-030), and right-rail `PendingReviewsWidget` usability (FR-033).
 
-  - [ ] 8.1 **Add imports** to `src/pages/StudentDashboardPage.jsx`:
+  - [x] 8.1 **Add imports** to `src/pages/StudentDashboardPage.jsx`:
     ```tsx
     import { useMediaQuery } from '../hooks/useMediaQuery';
     ```
@@ -384,12 +386,12 @@ Before proceeding to Phase 2, verify ALL of the following:
     ```
     Note: This file is `.jsx`, so TypeScript type annotations are not available. Import values only.
 
-  - [ ] 8.2 **Add `isMobile` hook call:**
+  - [x] 8.2 **Add `isMobile` hook call:**
     ```tsx
     const isMobile = useMediaQuery('(max-width: 768px)');
     ```
 
-  - [ ] 8.3 **Filter tabs scrollbar (FR-031).** Find the filter bar container (the element using `S.filterBar`). On mobile, add the hidden-scrollbar class:
+  - [x] 8.3 **Filter tabs scrollbar (FR-031).** Find the filter bar container (the element using `S.filterBar`). On mobile, add the hidden-scrollbar class:
     ```tsx
     <div
         style={S.filterBar}
@@ -397,7 +399,7 @@ Before proceeding to Phase 2, verify ALL of the following:
     >
     ```
 
-  - [ ] 8.4 **Filter tab gap (FR-004).** On mobile, reduce the `S.filterBar` gap to `16`:
+  - [x] 8.4 **Filter tab gap (FR-004).** On mobile, reduce the `S.filterBar` gap to `16`:
     ```tsx
     <div
         style={{
@@ -408,7 +410,7 @@ Before proceeding to Phase 2, verify ALL of the following:
     >
     ```
 
-  - [ ] 8.5 **Filter tab touch targets (FR-005).** For each filter tab button (elements using `S.filterTab`), add:
+  - [x] 8.5 **Filter tab touch targets (FR-005).** For each filter tab button (elements using `S.filterTab`), add:
     ```tsx
     style={{
         ...S.filterTab,
@@ -418,9 +420,9 @@ Before proceeding to Phase 2, verify ALL of the following:
     ```
     Keep the labels on one line; do not allow the tab strip to wrap.
 
-  - [ ] 8.6 **Feed header mobile adjustments (FR-002, FR-003).** Find the feed header title/subtitle and apply page-level overrides so the title becomes `1.5rem` on mobile and the subtitle is hidden with `mobileStyles.feedSubtitleHidden`.
+  - [x] 8.6 **Feed header mobile adjustments (FR-002, FR-003).** Find the feed header title/subtitle and apply page-level overrides so the title becomes `1.5rem` on mobile and the subtitle is hidden with `mobileStyles.feedSubtitleHidden`.
 
-  - [ ] 8.7 **Join-class modal (FR-030).** Find the "Join a Class" modal/overlay in `StudentDashboardPage.jsx`. If it uses `position: fixed` without internal scroll handling, add mobile-safe scrolling:
+  - [x] 8.7 **Join-class modal (FR-030).** Find the "Join a Class" modal/overlay in `StudentDashboardPage.jsx`. If it uses `position: fixed` without internal scroll handling, add mobile-safe scrolling:
     ```tsx
     style={{
         ...existingModalContentStyle,
@@ -428,13 +430,13 @@ Before proceeding to Phase 2, verify ALL of the following:
     }}
     ```
 
-  - [ ] 8.8 **Reduce notification-card inset padding (FR-032).** The dashboard feed cards are rendered through `src/components/dashboard/StudentDashboardFeedView.jsx`. Update the mobile feed-card or inset style there so mobile horizontal padding is `12px` instead of the wider desktop inset. The exact style name may be `inset` or the top-level article/card container; update the real owner rather than layering extra padding in the page wrapper.
+  - [x] 8.8 **Reduce notification-card inset padding (FR-032).** The dashboard feed cards are rendered through `src/components/dashboard/StudentDashboardFeedView.jsx`. Update the mobile feed-card or inset style there so mobile horizontal padding is `12px` instead of the wider desktop inset. The exact style name may be `inset` or the top-level article/card container; update the real owner rather than layering extra padding in the page wrapper.
 
-  - [ ] 8.9 **Verify the mobile right rail and `PendingReviewsWidget` (FR-033).** `StudentDashboardPage.jsx` passes `PendingReviewsWidget` into the right rail. At 375px and 320px widths, open the right-rail drawer and confirm the widget remains readable, scrollable, and tappable. If the narrower `85vw` drawer exposes a spacing problem, make the smallest possible mobile-only fix in `src/components/dashboard/PendingReviewsWidget.tsx` or the drawer container without changing desktop behavior.
+  - [x] 8.9 **Verify the mobile right rail and `PendingReviewsWidget` (FR-033).** `StudentDashboardPage.jsx` passes `PendingReviewsWidget` into the right rail. At 375px and 320px widths, open the right-rail drawer and confirm the widget remains readable, scrollable, and tappable. If the narrower `85vw` drawer exposes a spacing problem, make the smallest possible mobile-only fix in `src/components/dashboard/PendingReviewsWidget.tsx` or the drawer container without changing desktop behavior.
 
-  - [ ] 8.10 **Verify:** Test at 375px — title is smaller, subtitle hidden, filter tabs scroll horizontally with hidden scrollbar, tab text is touchable at 44px, notification cards use tighter side padding, the Join a Class modal scrolls, and the right rail still comfortably renders `PendingReviewsWidget`. Test at 1440px — unchanged.
+  - [x] 8.10 **Verify:** Verified on the live authenticated dashboard at `http://localhost:5173/student`. At 375px, the dashboard title rendered at the reduced mobile size, the filter tabs stayed on one line with hidden-scrollbar behavior and 44px touch targets, homework-style notification insets used the tighter mobile padding, the Join a Class modal opened as a scrollable mobile overlay, and the right rail remained readable. At 320px, the right-rail drawer still rendered the `PendingReviewsWidget` legibly and the shell no longer trapped taps behind a closed off-canvas drawer. At 1440px, the desktop dashboard layout remained intact.
 
-  - [ ] 8.11 Run `npm run build`. Commit: `feat(dashboard): mobile header, feed, filter tabs, and rail refinements [PRD-0044 Phase 3]`.
+  - [x] 8.11 Ran `npm run build` and `cmd /c npx vitest run src/components/dashboard/PendingReviewsWidget.test.tsx --reporter=basic`; both passed after updating the stale widget expectation. This slice ships in the Phase 3 dashboard commit.
 
 ---
 - [ ] **9.0 `StudentHomeworkListPage.tsx` — Mantine cleanup + mobile overrides**

@@ -1,5 +1,5 @@
 import React from 'react';
-import { studentTokens } from '../layout/studentLayoutStyles';
+import { mobileStyles, studentTokens } from '../layout/studentLayoutStyles';
 import { IconBriefcase, IconCheck, IconHomework, IconHistory, IconSearch } from '../layout/StudentIcons';
 import RecentGradesChart from './RecentGradesChart';
 
@@ -490,6 +490,7 @@ export default function StudentDashboardFeedView({
     mode = 'feed',
     title = 'Dashboard',
     subtitle,
+    isMobile = false,
     searchValue = '',
     onSearchChange,
     onSearchBlur,
@@ -526,8 +527,8 @@ export default function StudentDashboardFeedView({
             <section style={styles.root} aria-label="Student dashboard feed">
                 <header style={styles.topBar}>
                     <div style={styles.titleWrap}>
-                        <h2 style={styles.pageTitle}>{title}</h2>
-                        {subtitle ? <p style={styles.subtitle}>{subtitle}</p> : null}
+                        <h2 style={{ ...styles.pageTitle, ...(isMobile ? { fontSize: '1.5rem' } : {}) }}>{title}</h2>
+                        {subtitle ? <p style={{ ...styles.subtitle, ...(isMobile ? mobileStyles.feedSubtitleHidden : {}) }}>{subtitle}</p> : null}
                     </div>
 
                     {showFeed ? (
@@ -606,13 +607,28 @@ export default function StudentDashboardFeedView({
 
                 {showFeed && feedTabs.length > 0 ? (
                     <div style={styles.tabsWrap}>
-                        <nav style={styles.tabs} aria-label="Dashboard feed filters">
+                        <nav
+                            style={{
+                                ...styles.tabs,
+                                ...(isMobile ? {
+                                    gap: 16,
+                                    justifyContent: 'flex-start',
+                                    paddingBottom: 16,
+                                } : {}),
+                            }}
+                            className={isMobile ? 'student-mobile-scrollbar-hidden' : undefined}
+                            aria-label="Dashboard feed filters"
+                        >
                             {feedTabs.map(tab => (
                                 <button
                                     key={tab.key}
                                     type="button"
                                     onClick={() => onFilterChange?.(tab.key)}
-                                    style={{ ...styles.tab, ...(activeFilter === tab.key ? styles.tabActive : {}) }}
+                                    style={{
+                                        ...styles.tab,
+                                        ...(activeFilter === tab.key ? styles.tabActive : {}),
+                                        ...(isMobile ? mobileStyles.touchTarget : {}),
+                                    }}
                                 >
                                     {tab.label}
                                 </button>
@@ -681,7 +697,12 @@ export default function StudentDashboardFeedView({
                                                     <p style={styles.body}>{row.body}</p>
                                                 )
                                             ) : row.kind === 'homework' ? (
-                                                <div style={styles.inset}>
+                                                <div
+                                                    style={{
+                                                        ...styles.inset,
+                                                        ...(isMobile ? { padding: '12px 12px 16px' } : {}),
+                                                    }}
+                                                >
                                                     <p style={styles.quote}>{row.body}</p>
                                                     {row.tags?.length ? (
                                                         <p style={{ ...styles.body, margin: 0, fontSize: '0.6875rem', letterSpacing: '0.05em', textTransform: 'uppercase', color: studentTokens.textMuted }}>

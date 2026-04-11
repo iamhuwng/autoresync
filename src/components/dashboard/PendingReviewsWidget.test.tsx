@@ -40,7 +40,7 @@ describe('PendingReviewsWidget', () => {
         vi.clearAllMocks();
     });
 
-    it('renders canonical writing titles and normalized live badges', async () => {
+    it('renders canonical writing titles without exposing raw ids or context keys', async () => {
         getDocsMock.mockResolvedValue({
             docs: [
                 {
@@ -65,7 +65,6 @@ describe('PendingReviewsWidget', () => {
         });
 
         expect(screen.queryByText('-Omckd15l3a2iWqKTljt')).not.toBeInTheDocument();
-        expect(screen.getByText('Live')).toBeInTheDocument();
         expect(screen.queryByText('live-session')).not.toBeInTheDocument();
     });
 });

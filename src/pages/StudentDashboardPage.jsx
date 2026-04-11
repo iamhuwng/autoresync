@@ -8,10 +8,11 @@ import { getPaginatedUserNotifications, markNotificationAsRead, subscribeToNewNo
 import { sessionService } from '../services/sessionService';
 import { getStudentResults } from '../services/testResults.service';
 import { useNavigation } from '../hooks/useNavigation';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 import { useResolvedStudentShellData } from '../context/StudentShellDataContext';
 import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
-import { S, studentTokens } from '../components/layout/studentLayoutStyles';
+import { S, studentTokens, mobileStyles } from '../components/layout/studentLayoutStyles';
 import StudentDashboardFeedView from '../components/dashboard/StudentDashboardFeedView';
 import PendingReviewsWidget from '../components/dashboard/PendingReviewsWidget';
 
@@ -223,6 +224,7 @@ const StudentDashboardPage = () => {
     const { navigateTo } = useNavigation('student');
     const { trackAction } = useFeatureTracking(FEATURE_IDS.studentDashboard);
     const { enrolledClasses, classLiveSessions, notStarted, sortedAssignments, completed, refreshClasses, refreshHomeworkData } = useResolvedStudentShellData();
+    const isMobile = useMediaQuery('(max-width: 768px)');
 
     const [classCode, setClassCode] = useState('');
     const [isEnrolling, setIsEnrolling] = useState(false);
@@ -714,6 +716,7 @@ const StudentDashboardPage = () => {
                 <StudentDashboardFeedView
                     mode="feed"
                     title="Dashboard"
+                    isMobile={isMobile}
                     searchValue={searchQuery}
                     onSearchChange={setSearchQuery}
                     onSearchBlur={handleSearchBlur}
@@ -770,7 +773,27 @@ const StudentDashboardPage = () => {
             {showJoinModal ? (
                 <>
                     <div style={S.backdrop} onClick={() => closeJoinModal('backdrop')} />
-                    <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: studentTokens.bgSurface, borderRadius: 16, padding: 24, width: 400, maxWidth: '90vw', zIndex: 1001, boxShadow: '0 20px 60px rgba(43, 52, 55, 0.15)', border: `1px solid ${studentTokens.borderWhisper}` }}>
+                    <div
+                        style={{
+                            position: 'fixed',
+                            top: '50%',
+                            left: '50%',
+                            transform: 'translate(-50%, -50%)',
+                            background: studentTokens.bgSurface,
+                            borderRadius: 16,
+                            padding: isMobile ? 16 : 24,
+                            width: 400,
+                            maxWidth: '90vw',
+                            zIndex: 1001,
+                            boxShadow: '0 20px 60px rgba(43, 52, 55, 0.15)',
+                            border: `1px solid ${studentTokens.borderWhisper}`,
+                            ...(isMobile ? {
+                                maxHeight: '80vh',
+                                overflowY: 'auto',
+                                WebkitOverflowScrolling: 'touch',
+                            } : {}),
+                        }}
+                    >
                         <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0 0 16px', color: studentTokens.textPrimary }}>Join a Class</h2>
                         <form onSubmit={handleJoinClass}>
                             <input
@@ -782,12 +805,27 @@ const StudentDashboardPage = () => {
                             />
                             {joinSuccessMessage ? <p style={{ color: '#4c5458', fontSize: '0.875rem', marginTop: 8, fontWeight: 500 }}>{joinSuccessMessage}</p> : null}
                             {enrollError ? <p style={{ color: '#9e3f4e', fontSize: '0.875rem', marginTop: 8, fontWeight: 500 }}>{enrollError}</p> : null}
-                            <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-                                <button type="button" onClick={() => closeJoinModal('cancel_button')} style={localStyles.actionButtonLight}>Cancel</button>
+                            <div style={{ display: 'flex', gap: 8, marginTop: 16, flexDirection: isMobile ? 'column' : 'row' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => closeJoinModal('cancel_button')}
+                                    style={{
+                                        ...localStyles.actionButtonLight,
+                                        ...(isMobile ? mobileStyles.touchTarget : {}),
+                                    }}
+                                >
+                                    Cancel
+                                </button>
                                 <button
                                     type="submit"
                                     disabled={isEnrolling || !classCode.trim()}
-                                    style={{ ...localStyles.actionButtonDark, background: classCode.trim() ? studentTokens.accent : studentTokens.bgSurfaceStrong, color: classCode.trim() ? '#faf6ff' : studentTokens.textDim, cursor: classCode.trim() ? 'pointer' : 'default' }}
+                                    style={{
+                                        ...localStyles.actionButtonDark,
+                                        background: classCode.trim() ? studentTokens.accent : studentTokens.bgSurfaceStrong,
+                                        color: classCode.trim() ? '#faf6ff' : studentTokens.textDim,
+                                        cursor: classCode.trim() ? 'pointer' : 'default',
+                                        ...(isMobile ? mobileStyles.touchTarget : {}),
+                                    }}
                                 >
                                     {isEnrolling ? 'Joining...' : 'Join Class'}
                                 </button>

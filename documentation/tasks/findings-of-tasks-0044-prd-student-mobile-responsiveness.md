@@ -38,3 +38,10 @@
 - Verified at 1440px that the Academic Record desktop layout stayed intact, including the right rail and overall page composition.
 - Verified at 375px that the title reduced, the subtitle was hidden, the time filter and view tabs stacked cleanly, the overview metrics became full-width cards, and the THCS tab content collapsed to a single-column mobile flow with no horizontal overflow.
 - The seeded student session did not surface an active `AIMaintenanceBanner`, so the banner's mobile spacing remained a code-path verification rather than a live maintenance-state screenshot.
+
+## 2026-04-11 20:45 Phase 3 Dashboard
+- Completed the dashboard mobile pass across `src/pages/StudentDashboardPage.jsx`, `src/components/dashboard/StudentDashboardFeedView.jsx`, and `src/components/layout/StudentLayout.tsx`.
+- Added page-level mobile state, tightened dashboard feed title/tabs/inset spacing, made the Join a Class modal scrollable with 44px buttons, and fixed the shell so closed mobile drawers no longer intercept taps or create horizontal pan surfaces.
+- Verified the live student dashboard on `http://localhost:5173/student` at 1440px, 375px, and 320px, including the right-rail drawer and `PendingReviewsWidget` readability on narrow widths.
+- Updated `src/components/dashboard/PendingReviewsWidget.test.tsx` to match the widget's current canonical-title contract after the focused test exposed a stale expectation for a removed `Live` badge.
+- Ran `cmd /c npx vitest run src/components/dashboard/PendingReviewsWidget.test.tsx --reporter=basic` and `npm run build`; both passed.
