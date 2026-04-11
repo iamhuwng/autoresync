@@ -6,20 +6,30 @@ import { StudentHomeworkListPage } from './StudentHomeworkListPage';
 const {
   createSubmissionMock,
   navigateMock,
-  useStudentHomeworkListMock,
+  trackActionMock,
+  useResolvedStudentHomeworkListMock,
 } = vi.hoisted(() => ({
   createSubmissionMock: vi.fn(),
   navigateMock: vi.fn(),
-  useStudentHomeworkListMock: vi.fn(),
+  trackActionMock: vi.fn(),
+  useResolvedStudentHomeworkListMock: vi.fn(),
 }));
 
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
-  return {
-    ...actual,
-    useNavigate: () => navigateMock,
-  };
-});
+vi.mock('../hooks/useNavigation', () => ({
+  useNavigation: () => ({
+    navigateTo: navigateMock,
+  }),
+}));
+
+vi.mock('../hooks/useMediaQuery', () => ({
+  useMediaQuery: () => false,
+}));
+
+vi.mock('../hooks/useFeatureTracking', () => ({
+  useFeatureTracking: () => ({
+    trackAction: trackActionMock,
+  }),
+}));
 
 vi.mock('../hooks/useAuth', () => ({
   useAuth: () => ({
@@ -33,16 +43,12 @@ vi.mock('../hooks/useAuth', () => ({
   }),
 }));
 
-vi.mock('../hooks/useHomeworkSubmission', () => ({
-  useStudentHomeworkList: (...args: unknown[]) => useStudentHomeworkListMock(...args),
+vi.mock('../context/StudentShellDataContext', () => ({
+  useResolvedStudentHomeworkList: (...args: unknown[]) => useResolvedStudentHomeworkListMock(...args),
 }));
 
 vi.mock('../services/homeworkSubmissionService', () => ({
   createSubmission: (...args: unknown[]) => createSubmissionMock(...args),
-}));
-
-vi.mock('@mantine/core', () => ({
-  Loader: () => <div>Loading...</div>,
 }));
 
 vi.mock('../components/layout/StudentLayout', () => ({
@@ -60,14 +66,34 @@ vi.mock('../components/layout/StudentSidebar', () => ({
 
 vi.mock('../components/layout/studentLayoutStyles', () => ({
   S: {
-    rightSticky: {},
-    widget: {},
     widgetTitle: {},
     feedHeader: {},
+    feedHeaderText: {},
     feedHeaderTitle: {},
-    filterBar: {},
-    filterTab: {},
-    filterTabActive: {},
+    feedHeaderSubtitle: {},
+  },
+  mobileStyles: {
+    feedSubtitleHidden: {},
+    fullWidthButton: {},
+    touchTarget: {},
+  },
+  studentTokens: {
+    bgSurfaceAlt: '#f1f4f6',
+    textBody: '#586064',
+    outlineSoft: '#abb3b7',
+    accentSoft: '#ecebff',
+    accentHover: '#3f38c7',
+    bgSurface: '#ffffff',
+    textPrimary: '#2b3437',
+    textMuted: '#7a8488',
+    radiusPill: 999,
+    borderWhisper: '#d7dadd',
+    accent: '#4d44e3',
+    textDim: '#8f989c',
+    borderSoft: '#c8cdd1',
+    bgShell: '#f1f4f6',
+    radiusSoft: 12,
+    bgSurfaceStrong: '#e7eaed',
   },
 }));
 
@@ -116,7 +142,7 @@ describe('StudentHomeworkListPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     createSubmissionMock.mockResolvedValue({ id: 'submission-1' });
-    useStudentHomeworkListMock.mockReturnValue({
+    useResolvedStudentHomeworkListMock.mockReturnValue({
       homeworkItems: [],
       isLoading: false,
       error: null,
@@ -141,7 +167,7 @@ describe('StudentHomeworkListPage', () => {
       status: 'submitted',
     });
 
-    useStudentHomeworkListMock.mockReturnValue({
+    useResolvedStudentHomeworkListMock.mockReturnValue({
       homeworkItems: [completedItem],
       isLoading: false,
       error: null,
@@ -157,7 +183,10 @@ describe('StudentHomeworkListPage', () => {
     fireEvent.click(screen.getByText('Your Score'));
 
     expect(screen.getByTestId('result-slide-panel')).toHaveAttribute('data-result-id', 'result-1');
-    expect(navigateMock).not.toHaveBeenCalledWith('/student/academic-record', expect.anything());
+    expect(trackActionMock).toHaveBeenCalledWith('viewHomeworkResult', expect.objectContaining({
+      resultId: 'result-1',
+      source: 'result_panel',
+    }));
   });
 
   it('opens the result slide panel from submitted homework actions', () => {
@@ -173,7 +202,7 @@ describe('StudentHomeworkListPage', () => {
       status: 'submitted',
     });
 
-    useStudentHomeworkListMock.mockReturnValue({
+    useResolvedStudentHomeworkListMock.mockReturnValue({
       homeworkItems: [completedItem],
       isLoading: false,
       error: null,
@@ -189,13 +218,16 @@ describe('StudentHomeworkListPage', () => {
     fireEvent.click(screen.getByText('View Details'));
 
     expect(screen.getByTestId('result-slide-panel')).toHaveAttribute('data-result-id', 'result-2');
-    expect(navigateMock).not.toHaveBeenCalledWith('/student/academic-record', expect.anything());
+    expect(trackActionMock).toHaveBeenCalledWith('viewHomeworkResult', expect.objectContaining({
+      resultId: 'result-2',
+      source: 'homework_card',
+    }));
   });
 
   it('creates a submission and navigates into practice for a new attempt', async () => {
     const notStartedItem = makeHomeworkItem();
 
-    useStudentHomeworkListMock.mockReturnValue({
+    useResolvedStudentHomeworkListMock.mockReturnValue({
       homeworkItems: [notStartedItem],
       isLoading: false,
       error: null,
@@ -212,14 +244,19 @@ describe('StudentHomeworkListPage', () => {
 
     await waitFor(() => {
       expect(createSubmissionMock).toHaveBeenCalledWith('hw-1', 'student-1', 'Student One');
-      expect(navigateMock).toHaveBeenCalledWith('/student/practice/material-1', {
-        state: expect.objectContaining({
-          isHomework: true,
-          homeworkId: 'hw-1',
-          submissionId: 'submission-1',
-          teacherId: 'teacher-1',
+      expect(navigateMock).toHaveBeenCalledWith(
+        'STUDENT_PRACTICE',
+        { materialId: 'material-1' },
+        expect.objectContaining({
+          reason: 'student_homework_start',
+          state: expect.objectContaining({
+            isHomework: true,
+            homeworkId: 'hw-1',
+            submissionId: 'submission-1',
+            teacherId: 'teacher-1',
+          }),
         }),
-      });
+      );
     });
   });
 
@@ -239,7 +276,7 @@ describe('StudentHomeworkListPage', () => {
       status: 'submitted',
     });
 
-    useStudentHomeworkListMock.mockReturnValue({
+    useResolvedStudentHomeworkListMock.mockReturnValue({
       homeworkItems: [pendingReviewItem],
       isLoading: false,
       error: null,

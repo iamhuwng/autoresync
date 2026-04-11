@@ -26,14 +26,14 @@
 ### Tier 2 Pages (Phase 3)
 - `src/pages/StudentDashboardPage.jsx` - Main student dashboard. Phase 3 now derives mobile state with `useMediaQuery`, passes it into the feed view, and makes the Join a Class modal scroll safely on mobile. (740 lines)
 - `src/components/dashboard/StudentDashboardFeedView.jsx` - Dashboard feed renderer. Phase 3 now applies the shared mobile header treatment, touch-friendly horizontal tabs, and tighter mobile card inset padding. (253 lines)
-- `src/pages/StudentHomeworkListPage.tsx` ? Homework list. Has stray `import { Loader } from '@mantine/core'` on line 3, used on line 476. Has `useNavigate` on lines 2/354. (740 lines)
+- `src/pages/StudentHomeworkListPage.tsx` - Homework list. Phase 3 now uses `useNavigation('student')`, a native CSS spinner, shared mobile header/tab treatment, stacked summary cards, tighter mobile card padding, full-width mobile CTA buttons, and homework action tracking. (740 lines)
 
 ### Route & Config Files (Phase 4)
 - `src/routes/studentRoutes.tsx` — Student route definitions. Shell children end at line 83. Homework detail is at line 122 (outside shell). Test results is at lines 98–99 and 110–111 (both outside shell). (134 lines)
 - `src/routes/StudentShellRoute.tsx` — The shell route wrapper that provides sidebar/layout context.
 - `src/constants/routes.ts` — Route name constants and `buildRoute` utility.
 - `src/config/routeSecurity.ts` — Route security configuration.
-- `src/config/featureRegistry.ts` — Feature tracking registry.
+- `src/config/featureRegistry.ts` - Feature tracking registry. Phase 3 homework updates add the student homework list actions used by `StudentHomeworkListPage`.
 
 ### Tier 1 Pages (Phase 5)
 - `src/pages/StudentHomeworkDetailPage.tsx` — FULL REWRITE target. Uses 13 Mantine components (lines 31–46), 14 Tabler icons (lines 47–65), `useNavigate` (line 30), legacy gradient background. (871 lines)
@@ -42,7 +42,7 @@
 ### Test Files
 - `src/pages/StudentHomeworkDetailPage.test.tsx` — Must update route-mount assertions if Phase 4 changes nesting.
 - `src/pages/StudentTestResultsPage.test.tsx` — Must preserve `/student/results/:sessionCode` coverage.
-- `src/pages/StudentHomeworkListPage.test.tsx` — May need mock updates after Mantine removal.
+- `src/pages/StudentHomeworkListPage.test.tsx` - Updated for the Phase 3 homework pass by removing Mantine mocks and covering navigation/tracking through the homework list interactions.
 - `src/pages/AcademicRecordPage.test.tsx` - Updated for the Academic Record mobile pass by mocking `studentTokens` and `mobileStyles` exports.
 - `src/components/dashboard/PendingReviewsWidget.test.tsx` - Phase 3 widget regression coverage; updated to match the current Pending Reviews copy without the removed Live badge.
 
@@ -391,34 +391,17 @@ Before proceeding to Phase 2, verify ALL of the following:
     const isMobile = useMediaQuery('(max-width: 768px)');
     ```
 
-  - [x] 8.3 **Filter tabs scrollbar (FR-031).** Find the filter bar container (the element using `S.filterBar`). On mobile, add the hidden-scrollbar class:
+  - [x] 8.3 **Filter tabs scrollbar (FR-031).** The dashboard tab strip lives in `src/components/dashboard/StudentDashboardFeedView.jsx`, not in `StudentDashboardPage.jsx`. On the feed-view nav block, add the hidden-scrollbar class on mobile:
     ```tsx
-    <div
-        style={S.filterBar}
+    <nav
         className={isMobile ? 'student-mobile-scrollbar-hidden' : undefined}
+        ...
     >
     ```
 
-  - [x] 8.4 **Filter tab gap (FR-004).** On mobile, reduce the `S.filterBar` gap to `16`:
-    ```tsx
-    <div
-        style={{
-            ...S.filterBar,
-            ...(isMobile ? { gap: 16 } : {}),
-        }}
-        className={isMobile ? 'student-mobile-scrollbar-hidden' : undefined}
-    >
-    ```
+  - [x] 8.4 **Filter tab gap (FR-004).** In that same feed-view nav block, reduce the mobile gap to `16` and keep the tabs left-aligned so the strip scrolls horizontally.
 
-  - [x] 8.5 **Filter tab touch targets (FR-005).** For each filter tab button (elements using `S.filterTab`), add:
-    ```tsx
-    style={{
-        ...S.filterTab,
-        ...(isActive ? S.filterTabActive : {}),
-        ...(isMobile ? mobileStyles.touchTarget : {}),
-    }}
-    ```
-    Keep the labels on one line; do not allow the tab strip to wrap.
+  - [x] 8.5 **Filter tab touch targets (FR-005).** For each dashboard filter tab button in `StudentDashboardFeedView.jsx`, add `mobileStyles.touchTarget` on mobile while preserving one-line labels and the existing active-tab treatment.
 
   - [x] 8.6 **Feed header mobile adjustments (FR-002, FR-003).** Find the feed header title/subtitle and apply page-level overrides so the title becomes `1.5rem` on mobile and the subtitle is hidden with `mobileStyles.feedSubtitleHidden`.
 
@@ -439,79 +422,35 @@ Before proceeding to Phase 2, verify ALL of the following:
   - [x] 8.11 Ran `npm run build` and `cmd /c npx vitest run src/components/dashboard/PendingReviewsWidget.test.tsx --reporter=basic`; both passed after updating the stale widget expectation. This slice ships in the Phase 3 dashboard commit.
 
 ---
-- [ ] **9.0 `StudentHomeworkListPage.tsx` — Mantine cleanup + mobile overrides**
+- [x] **9.0 `StudentHomeworkListPage.tsx` ? Mantine cleanup + mobile overrides**
 
   > **Goal:** Remove the stray Mantine `Loader` (FR-039), replace `useNavigate` with `useNavigation`, apply shared feed-header refinements (FR-002, FR-003), add mobile card padding (FR-040), full-width action buttons (FR-041, FR-043), and wrapping badge rows (FR-042).
 
-  - [ ] 9.1 **Read rules first:** Open `documentation/rules/codebase-hygiene.md` — `@mantine/*` is banned. Open `documentation/rules/mobile-portability.md` — `useNavigate` is banned.
+  - [x] 9.1 **Read rules first:** Rechecked `documentation/rules/codebase-hygiene.md`, `documentation/rules/mobile-portability.md`, `documentation/rules/student-data-loading.md`, and `documentation/rules/observability.md` before editing the homework list page.
 
-  - [ ] 9.2 **Remove Mantine `Loader` import (FR-039).** Delete:
-    ```tsx
-    import { Loader } from '@mantine/core';
-    ```
+  - [x] 9.2 **Remove Mantine `Loader` import (FR-039).** Deleted the stray `@mantine/core` import from `StudentHomeworkListPage.tsx`.
 
-  - [ ] 9.3 **Replace `<Loader />` usage.** Find the JSX `<Loader />` usage and replace it with a native CSS spinner. Use this pattern (same as used in `StudentLibraryPage.tsx` loading states):
-    ```tsx
-    <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0' }}>
-        <div style={{
-            width: 32,
-            height: 32,
-            border: `3px solid ${studentTokens.borderSoft}`,
-            borderTop: `3px solid ${studentTokens.accent}`,
-            borderRadius: '50%',
-            animation: 'spin 0.8s linear infinite',
-        }} />
-    </div>
-    ```
-    Add a matching `@keyframes spin` if the file or a shared shell style does not already define one.
+  - [x] 9.3 **Replace `<Loader />` usage.** Replaced the Mantine loader with a native CSS spinner and added a local `@keyframes studentSpinner` block inside the page.
 
-  - [ ] 9.4 **Replace `useNavigate` with `useNavigation`.**
-    - Remove `import { useNavigate } from 'react-router-dom';`
-    - Add `import { useNavigation } from '../hooks/useNavigation';`
-    - Replace `const navigate = useNavigate();` with `const { navigateTo } = useNavigation();`
-    - Search the file for all `navigate(` calls and replace them with route-registry-safe navigation helpers.
+  - [x] 9.4 **Replace `useNavigate` with `useNavigation`.** Swapped the page to `useNavigation('student')` and updated the homework start/continue flows to use `navigateTo('STUDENT_PRACTICE', ...)` with explicit route state.
 
-  - [ ] 9.5 **Add `useMediaQuery` and `mobileStyles` imports:**
-    ```tsx
-    import { useMediaQuery } from '../hooks/useMediaQuery';
-    import { S, studentTokens, mobileStyles } from '../components/layout/studentLayoutStyles';
-    ```
+  - [x] 9.5 **Add `useMediaQuery` and `mobileStyles` imports.** Imported `useMediaQuery` plus shared `mobileStyles` from `studentLayoutStyles`.
 
-  - [ ] 9.6 **Add `isMobile` hook call:**
-    ```tsx
-    const isMobile = useMediaQuery('(max-width: 768px)');
-    ```
+  - [x] 9.6 **Add `isMobile` hook call.** Added `const isMobile = useMediaQuery('(max-width: 768px)');` near the top of the page component.
 
-  - [ ] 9.7 **Feed header mobile adjustments (FR-002, FR-003).** This page renders `S.feedHeaderTitle` and `S.feedHeaderSubtitle`. Update the usage site so the title becomes `1.5rem` on mobile and the subtitle is hidden with `mobileStyles.feedSubtitleHidden`.
+  - [x] 9.7 **Feed header mobile adjustments (FR-002, FR-003).** Reduced the homework page title to `1.5rem` on mobile and hid the subtitle with `mobileStyles.feedSubtitleHidden`.
 
-  - [ ] 9.8 **Mobile card padding (FR-040).** Find the homework card containers. Reduce their mobile padding to:
-    ```tsx
-    padding: isMobile ? '12px 12px 16px' : /* existing value */
-    ```
+  - [x] 9.8 **Mobile card padding (FR-040).** Reduced homework card padding to `12px 12px 16px` on mobile and also stacked the top summary strip into single-column cards to prevent horizontal overflow on phones.
 
-  - [ ] 9.9 **Full-width action buttons (FR-041, FR-043).** Find the "View Details" / "Start" / "View Results" buttons inside homework cards. On mobile, make them full-width:
-    ```tsx
-    style={{
-        ...existingButtonStyle,
-        ...(isMobile ? mobileStyles.fullWidthButton : {}),
-    }}
-    ```
+  - [x] 9.9 **Full-width action buttons (FR-041, FR-043).** Made the homework card CTA buttons full-width on mobile with 44px minimum height.
 
-  - [ ] 9.10 **Wrapping badges (FR-042).** Find the status badge + time-remaining indicator row. Add mobile wrapping:
-    ```tsx
-    style={{
-        display: 'flex',
-        gap: 8,
-        alignItems: 'center',
-        ...(isMobile ? { flexWrap: 'wrap' } : {}),
-    }}
-    ```
+  - [x] 9.10 **Wrapping badges (FR-042).** Kept the homework metadata row wrapping on mobile, let the status badge/header row wrap safely, and applied 44px touch targets to the top filter tabs so the mobile strip remains tappable.
 
-  - [ ] 9.11 **Verify:** After removing the Mantine import, run `npm run build` immediately to confirm no build errors. Then test at 375px — title is smaller, subtitle hidden, homework cards have reduced padding, buttons are full-width, and badges wrap. Test at 1440px — unchanged.
+  - [x] 9.11 **Verify:** Verified the live authenticated homework page at `http://localhost:5173/student/homework`. At 375px, the title rendered at `21px` (1.5rem), the subtitle was hidden, the summary strip stacked vertically, homework cards used `12px 12px 16px` padding, the first action button rendered at full card width with `44px` min-height, the tabs had `44px` min-height, and there was no horizontal overflow (`scrollWidth 365 <= viewport 375`). At 1440px, the title remained `32px`, the subtitle stayed visible, the summary strip stayed in a row, the first card kept `20px 24px` padding, and there was no horizontal overflow.
 
-  - [ ] 9.12 **Run existing tests:** `npx vitest run src/pages/StudentHomeworkListPage.test.tsx`. If the test mocks `@mantine/core`, remove or update those mocks since `Loader` is no longer imported.
+- `src/pages/StudentHomeworkListPage.test.tsx` - Updated for the Phase 3 homework pass by removing Mantine mocks and covering navigation/tracking through the homework list interactions.
 
-  - [ ] 9.13 Commit: `fix(homework-list): remove Mantine Loader and add mobile header/card overrides [PRD-0044 Phase 3]`.
+  - [x] 9.13 Ran `cmd /c npm run build`, reloaded `http://localhost:5173/student/homework`, and confirmed the page had **0 console errors** after fixing the margin shorthand warning triggered during the mobile pass. This slice ships in the Phase 3 homework commit.
 
 ---
 - [ ] **10.0 Move `StudentHomeworkDetailPage` route under `StudentShellRoute`**
@@ -558,7 +497,7 @@ Before proceeding to Phase 2, verify ALL of the following:
   - [ ] 10.6 **Verify route registries.** Open each of these files and confirm the route path `/student/homework/:homeworkId` is still listed:
     - `src/constants/routes.ts` — Look for `STUDENT_HOMEWORK_DETAIL`. Confirm the path matches.
     - `src/config/routeSecurity.ts` — Confirm the route is listed.
-    - `src/config/featureRegistry.ts` — Confirm the `homework` feature maps to this route.
+- `src/config/featureRegistry.ts` - Feature tracking registry. Phase 3 homework updates add the student homework list actions used by `StudentHomeworkListPage`.
 
   - [ ] 10.7 **Update test file if needed.** Open `src/pages/StudentHomeworkDetailPage.test.tsx`. If the test explicitly mounts the route at a specific path or tests route structure, update it to match the new nesting.
 

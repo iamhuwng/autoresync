@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Loader } from '@mantine/core';
 import type { StudentHomeworkItem } from '../hooks/useHomeworkSubmission';
 import { useAuth } from '../hooks/useAuth';
 import { createSubmission } from '../services/homeworkSubmissionService';
 import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
-import { S, studentTokens } from '../components/layout/studentLayoutStyles';
+import { S, mobileStyles, studentTokens } from '../components/layout/studentLayoutStyles';
 import { DeferredResultSlidePanel } from '../components/results/DeferredResultSlidePanel';
-import { buildRoute } from '../constants/routes';
 import { useResolvedStudentHomeworkList } from '../context/StudentShellDataContext';
+import { useNavigation } from '../hooks/useNavigation';
+import { useMediaQuery } from '../hooks/useMediaQuery';
+import { useFeatureTracking } from '../hooks/useFeatureTracking';
+import { FEATURE_IDS } from '../config/featureRegistry';
 
 const formatDate = (timestamp: number): string => {
     const date = new Date(timestamp);
@@ -103,6 +104,7 @@ const localStyles: Record<string, React.CSSProperties> = {
     summaryGrid: {
         display: 'flex',
         gap: 32,
+        flexWrap: 'wrap',
     },
     summaryCard: {
         background: '#ffffff',
@@ -115,13 +117,15 @@ const localStyles: Record<string, React.CSSProperties> = {
         minWidth: 0,
     },
     summaryLabel: {
-        margin: 0,
+        marginTop: 0,
+        marginRight: 0,
+        marginBottom: 0,
+        marginLeft: 0,
         fontSize: '0.625rem',
         fontWeight: 700,
         letterSpacing: '0.14em',
         textTransform: 'uppercase',
         color: studentTokens.textMuted,
-        marginBottom: 0,
     },
     summaryValue: {
         margin: 0,
@@ -131,7 +135,9 @@ const localStyles: Record<string, React.CSSProperties> = {
         lineHeight: 1.15,
     },
     summaryHint: {
-        margin: 0,
+        marginRight: 0,
+        marginBottom: 0,
+        marginLeft: 0,
         fontSize: '0.6875rem',
         fontWeight: 500,
         color: studentTokens.textMuted,
@@ -159,6 +165,7 @@ const localStyles: Record<string, React.CSSProperties> = {
         justifyContent: 'space-between',
         alignItems: 'flex-start',
         gap: 16,
+        flexWrap: 'wrap',
     },
     titleBlock: {
         display: 'flex',
@@ -225,6 +232,14 @@ const localStyles: Record<string, React.CSSProperties> = {
     sourceText: {
         fontSize: '0.75rem',
         color: studentTokens.textMuted,
+    },
+    loaderWrap: {
+        width: 32,
+        height: 32,
+        border: `3px solid ${studentTokens.borderSoft}`,
+        borderTop: `3px solid ${studentTokens.accent}`,
+        borderRadius: '50%',
+        animation: 'studentSpinner 0.8s linear infinite',
     },
     emptyState: {
         padding: '48px 24px',
@@ -351,7 +366,9 @@ function getHomeworkResultDisplay(
 
 export const StudentHomeworkListPage: React.FC = () => {
     const { user, profile } = useAuth();
-    const navigate = useNavigate();
+    const { navigateTo } = useNavigation('student');
+    const isMobile = useMediaQuery('(max-width: 768px)');
+    const { trackAction } = useFeatureTracking(FEATURE_IDS.homework);
     const [activeTab, setActiveTab] = useState<string>('all');
     const [selectedResultId, setSelectedResultId] = useState<string | null>(null);
 
@@ -384,12 +401,22 @@ export const StudentHomeworkListPage: React.FC = () => {
         }
 
         if ((status === 'submitted' || status === 'graded') && latestSubmission?.resultId) {
+            trackAction('viewHomeworkResult', {
+                homeworkId: homework.id,
+                resultId: latestSubmission.resultId,
+                source: 'homework_card',
+            });
             setSelectedResultId(latestSubmission.resultId);
             return;
         }
 
         if (status === 'in_progress' && latestSubmission?.id) {
-            navigate(buildRoute('STUDENT_PRACTICE', { materialId: homework.materialId }), {
+            trackAction('continueHomework', {
+                homeworkId: homework.id,
+                submissionId: latestSubmission.id,
+            });
+            navigateTo('STUDENT_PRACTICE', { materialId: homework.materialId }, {
+                reason: 'student_homework_continue',
                 state: {
                     isHomework: true,
                     homeworkId: homework.id,
@@ -413,7 +440,12 @@ export const StudentHomeworkListPage: React.FC = () => {
                     user.displayName || 'Student',
                 );
 
-                navigate(buildRoute('STUDENT_PRACTICE', { materialId: homework.materialId }), {
+                trackAction('startHomework', {
+                    homeworkId: homework.id,
+                    submissionId: submission.id,
+                });
+                navigateTo('STUDENT_PRACTICE', { materialId: homework.materialId }, {
+                    reason: 'student_homework_start',
                     state: {
                         isHomework: true,
                         homeworkId: homework.id,
@@ -472,8 +504,8 @@ export const StudentHomeworkListPage: React.FC = () => {
     const renderCenterContent = () => {
         if (isLoading) {
             return (
-                <div style={{ textAlign: 'center', padding: '60px' }}>
-                    <Loader />
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0' }}>
+                    <div aria-label="Loading homework" role="status" style={localStyles.loaderWrap} />
                 </div>
             );
         }
@@ -483,7 +515,14 @@ export const StudentHomeworkListPage: React.FC = () => {
                 <div style={localStyles.contentStack}>
                     <div style={localStyles.emptyState}>
                         <h2 style={{ fontSize: '1.25rem', color: '#9e3f4e', margin: '0 0 16px' }}>{error}</h2>
-                        <button type="button" style={localStyles.primaryBtn} onClick={refreshData}>
+                        <button
+                            type="button"
+                            style={{ ...localStyles.primaryBtn, ...(isMobile ? mobileStyles.fullWidthButton : {}) }}
+                            onClick={() => {
+                                trackAction('refreshHomeworkList', { source: 'error_state' });
+                                refreshData();
+                            }}
+                        >
                             Try Again
                         </button>
                     </div>
@@ -493,11 +532,14 @@ export const StudentHomeworkListPage: React.FC = () => {
 
         return (
             <div style={localStyles.contentStack}>
-                <div style={localStyles.summaryGrid}>
+                <div style={{ ...localStyles.summaryGrid, ...(isMobile ? { flexDirection: 'column', gap: 12 } : {}) }}>
                     {summaryCards.map((card) => (
                         <div
                             key={card.label}
-                            style={localStyles.summaryCard}
+                            style={{
+                                ...localStyles.summaryCard,
+                                ...(isMobile ? { padding: '16px 14px', width: '100%' } : {}),
+                            }}
                         >
                             <p style={localStyles.summaryLabel}>{card.label}</p>
                             <div>
@@ -537,12 +579,16 @@ export const StudentHomeworkListPage: React.FC = () => {
                             return (
                                 <article
                                     key={homework.id}
-                                    style={{ ...localStyles.rowCard, borderTopColor: statusVisual.border }}
+                                    style={{
+                                        ...localStyles.rowCard,
+                                        borderTopColor: statusVisual.border,
+                                        ...(isMobile ? { padding: '12px 12px 16px', gap: 12 } : {}),
+                                    }}
                                     onClick={() => {
                                         void handleStartHomework(item);
                                     }}
                                 >
-                                    <div style={localStyles.rowHeader}>
+                                    <div style={{ ...localStyles.rowHeader, ...(isMobile ? { alignItems: 'stretch' } : {}) }}>
                                         <div style={localStyles.titleBlock}>
                                             <h3 style={localStyles.title}>{homework.title || homework.materialTitle}</h3>
                                             <div style={localStyles.pillRow}>
@@ -555,12 +601,12 @@ export const StudentHomeworkListPage: React.FC = () => {
                                             </div>
                                         </div>
 
-                                        <span style={{ ...localStyles.pill, background: statusVisual.bg, color: statusVisual.text }}>
+                                        <span style={{ ...localStyles.pill, background: statusVisual.bg, color: statusVisual.text, ...(isMobile ? { alignSelf: 'flex-start' } : {}) }}>
                                             {formatStatus(status)}
                                         </span>
                                     </div>
 
-                                    <div style={localStyles.metaRow}>
+                                    <div style={{ ...localStyles.metaRow, ...(isMobile ? { gap: 8 } : {}) }}>
                                         <span style={{ fontWeight: 600, color: timeInfo.urgent ? '#9e3f4e' : studentTokens.textMuted }}>
                                             Due: {formatDate(homework.scheduling.dueDate)}
                                         </span>
@@ -583,6 +629,11 @@ export const StudentHomeworkListPage: React.FC = () => {
                                             onClick={(event) => {
                                                 if (canViewFeedback && latestSubmission.resultId) {
                                                     event.stopPropagation();
+                                                    trackAction('viewHomeworkResult', {
+                                                        homeworkId: homework.id,
+                                                        resultId: latestSubmission.resultId,
+                                                        source: 'result_panel',
+                                                    });
                                                     setSelectedResultId(latestSubmission.resultId);
                                                 }
                                             }}
@@ -594,15 +645,18 @@ export const StudentHomeworkListPage: React.FC = () => {
                                         </div>
                                     ) : null}
 
-                                    <div style={localStyles.actionRow}>
-                                        <span style={localStyles.sourceText}>
+                                    <div style={{ ...localStyles.actionRow, ...(isMobile ? { flexDirection: 'column', alignItems: 'stretch' } : {}) }}>
+                                        <span style={{ ...localStyles.sourceText, ...(isMobile ? { width: '100%' } : {}) }}>
                                             {homework.target.type === 'class' ? `From: ${homework.target.className}` : 'Assigned to you'}
                                         </span>
 
                                         {canSubmit ? (
                                             <button
                                                 type="button"
-                                                style={status === 'not_started' ? localStyles.primaryBtn : localStyles.outlineBtn}
+                                                style={{
+                                                    ...(status === 'not_started' ? localStyles.primaryBtn : localStyles.outlineBtn),
+                                                    ...(isMobile ? mobileStyles.fullWidthButton : {}),
+                                                }}
                                                 onClick={(event) => {
                                                     void handleStartHomework(item, event);
                                                 }}
@@ -612,7 +666,10 @@ export const StudentHomeworkListPage: React.FC = () => {
                                         ) : (
                                             <button
                                                 type="button"
-                                                style={localStyles.outlineBtn}
+                                                style={{
+                                                    ...localStyles.outlineBtn,
+                                                    ...(isMobile ? mobileStyles.fullWidthButton : {}),
+                                                }}
                                                 onClick={(event) => {
                                                     event.stopPropagation();
                                                     void handleStartHomework(item);
@@ -679,21 +736,30 @@ export const StudentHomeworkListPage: React.FC = () => {
             )}
             rightPanel={renderRightPanel()}
         >
+            <style>{`
+                @keyframes studentSpinner {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
+                }
+            `}</style>
             <div style={S.feedHeader}>
                 <div style={S.feedHeaderText}>
-                    <h2 style={S.feedHeaderTitle}>My Homework</h2>
-                    <p style={S.feedHeaderSubtitle}>Track upcoming assignments, review progress, and continue active work without losing the calm academic workspace.</p>
+                    <h2 style={{ ...S.feedHeaderTitle, ...(isMobile ? { fontSize: '1.5rem' } : {}) }}>My Homework</h2>
+                    <p style={{ ...S.feedHeaderSubtitle, ...(isMobile ? mobileStyles.feedSubtitleHidden : {}) }}>Track upcoming assignments, review progress, and continue active work without losing the calm academic workspace.</p>
                 </div>
             </div>
 
-            <div style={{
-                display: 'flex',
-                gap: 32,
-                overflowX: 'auto',
-                padding: '0 0 0',
-                marginTop: 32,
-                borderBottom: `1px solid rgba(171, 179, 183, 0.1)`,
-            }}>
+            <div
+                className={isMobile ? 'student-mobile-scrollbar-hidden' : undefined}
+                style={{
+                    display: 'flex',
+                    gap: isMobile ? 16 : 32,
+                    overflowX: 'auto',
+                    padding: '0 0 0',
+                    marginTop: 32,
+                    borderBottom: `1px solid rgba(171, 179, 183, 0.1)`,
+                }}
+            >
                 {[
                     { key: 'all', label: `All (${homeworkItems.length})` },
                     { key: 'not_started', label: 'Not Started' },
@@ -704,7 +770,10 @@ export const StudentHomeworkListPage: React.FC = () => {
                     <button
                         key={tab.key}
                         type="button"
-                        onClick={() => setActiveTab(tab.key)}
+                        onClick={() => {
+                            setActiveTab(tab.key);
+                            trackAction('filterHomeworkList', { filter: tab.key });
+                        }}
                         style={{
                             padding: '0 0 16px',
                             fontWeight: activeTab === tab.key ? 600 : 500,
@@ -717,6 +786,7 @@ export const StudentHomeworkListPage: React.FC = () => {
                             transition: 'color 0.15s ease, border-color 0.15s ease',
                             whiteSpace: 'nowrap',
                             fontFamily: 'inherit',
+                            ...(isMobile ? mobileStyles.touchTarget : {}),
                         }}
                     >
                         {tab.label}
@@ -729,7 +799,10 @@ export const StudentHomeworkListPage: React.FC = () => {
             {selectedResultId ? (
                 <DeferredResultSlidePanel
                     resultId={selectedResultId}
-                    onClose={() => setSelectedResultId(null)}
+                    onClose={() => {
+                        trackAction('closeHomeworkResult', { resultId: selectedResultId });
+                        setSelectedResultId(null);
+                    }}
                 />
             ) : null}
         </StudentLayout>

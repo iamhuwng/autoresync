@@ -45,3 +45,11 @@
 - Verified the live student dashboard on `http://localhost:5173/student` at 1440px, 375px, and 320px, including the right-rail drawer and `PendingReviewsWidget` readability on narrow widths.
 - Updated `src/components/dashboard/PendingReviewsWidget.test.tsx` to match the widget's current canonical-title contract after the focused test exposed a stale expectation for a removed `Live` badge.
 - Ran `cmd /c npx vitest run src/components/dashboard/PendingReviewsWidget.test.tsx --reporter=basic` and `npm run build`; both passed.
+
+## 2026-04-11 21:00 Phase 3 Homework List
+- Completed the homework list mobile pass across `src/pages/StudentHomeworkListPage.tsx`, `src/pages/StudentHomeworkListPage.test.tsx`, and `src/config/featureRegistry.ts`.
+- Removed the stray Mantine loader, migrated the page to `useNavigation('student')`, added homework action tracking, and applied the shared mobile header/tab treatment with 44px touch targets.
+- Tightened mobile card padding to `12px 12px 16px`, stacked the summary strip into a single column on phones to eliminate overflow, and made the homework CTA buttons full-width at 44px minimum height.
+- Fixed a React console warning on the page by removing conflicting shorthand/longhand margin styles in the summary card typography.
+- Verified the live authenticated page at `http://localhost:5173/student/homework` on 1440px and 375px viewports; the mobile check showed a hidden subtitle, column summary cards, no horizontal overflow, and full-width CTA buttons, and the reloaded page reported 0 console errors.
+- Ran `cmd /c npx vitest run src/pages/StudentHomeworkListPage.test.tsx --reporter=basic` and `cmd /c npm run build`; both passed.
