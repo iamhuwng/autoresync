@@ -80,6 +80,8 @@ export const StudentLayout: React.FC<StudentLayoutProps> = ({
           0%, 100% { opacity: 1; transform: scale(1); }
           50% { opacity: 0.5; transform: scale(0.85); }
         }
+        .student-mobile-scrollbar-hidden::-webkit-scrollbar { display: none; }
+        .student-mobile-scrollbar-hidden { scrollbar-width: none; -ms-overflow-style: none; }
       `}</style>
 
             {(isMobile || isTablet) && (
@@ -156,6 +158,7 @@ export const StudentLayout: React.FC<StudentLayoutProps> = ({
                                     maxWidth: '100%',
                                     width: '100%',
                                     boxShadow: 'none',
+                                    padding: '16px 12px 24px',
                                 }
                                 : {}),
                         }}
@@ -179,8 +182,9 @@ export const StudentLayout: React.FC<StudentLayoutProps> = ({
                                     position: 'fixed',
                                     top: 0,
                                     right: 0,
-                                    width: 320,
-                                    minWidth: 320,
+                                    width: 'min(320px, 85vw)',
+                                    minWidth: 0,
+                                    maxWidth: '85vw',
                                     height: '100vh',
                                     background: '#f1f4f6',
                                     zIndex: 1000,
