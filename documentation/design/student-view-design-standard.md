@@ -160,6 +160,16 @@ The old rigid `max-width: 600px` center rule is replaced with page-class widths:
 - Left and right drawers remain mutually exclusive
 - The mobile shell should inherit the same tonal language, not revert to older student-feed styling
 
+### Mobile Supplement Contract
+- Mobile is a compressed presentation of the desktop student workspace, not a separate product or alternate information architecture
+- Preserve the same page purpose, route contract, data owner, and right-rail presence unless a PRD explicitly changes them
+- Prefer stacking, collapsing secondary copy, scrollable tab/filter rows, and full-width narrow-screen actions over inventing mobile-only workflows
+- Hide or de-emphasize secondary header copy before rewriting primary titles or moving actions into unrelated surfaces
+- Any visible student-shell control on mobile must keep a 44x44 minimum interactive target at 375px and 320px
+- Student mobile layouts must remain overflow-safe: no horizontal page overflow except for intentional tab/filter rows with hidden scrollbars
+
+See `documentation/rules/student-mobile-design.md` for the implementation gate and verification contract.
+
 ---
 
 ## 6.5. Vertical Alignment Contract
