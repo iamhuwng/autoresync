@@ -5,6 +5,7 @@ import type { EnhancedTestResultRecord } from '../../types/results.types';
 import { studentTokens } from '../layout/studentLayoutStyles';
 
 interface ResultsByCourseProps {
+    isMobile?: boolean;
     results: EnhancedTestResultRecord[];
     onResultClick?: (resultId: string) => void;
     variant?: 'default' | 'glass' | 'lavender' | 'sky' | 'mint' | 'rose' | 'peach';
@@ -262,6 +263,7 @@ function buildCourseRow(
 }
 
 export const ResultsByCourse: React.FC<ResultsByCourseProps> = ({
+    isMobile = false,
     results,
     onResultClick,
 }) => {
@@ -331,7 +333,7 @@ export const ResultsByCourse: React.FC<ResultsByCourseProps> = ({
 
     return (
         <div style={styles.stack}>
-            <div style={styles.summaryGrid}>
+            <div style={{ ...styles.summaryGrid, ...(isMobile ? { flexDirection: 'column' } : {}) }}>
                 <div style={styles.summaryCard}>
                     <p style={{ ...styles.summaryLabel, color: summaryCardVisuals[0].labelColor }}>Courses</p>
                     <div style={styles.summaryValueRow}>

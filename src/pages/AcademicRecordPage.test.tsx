@@ -124,9 +124,30 @@ vi.mock('../components/layout/studentLayoutStyles', () => ({
     S: {
         feedHeader: {},
         feedHeaderTitle: {},
+        feedHeaderSubtitle: {},
         filterBar: {},
         filterTab: {},
         filterTabActive: {},
+    },
+    mobileStyles: {
+        singleColumnGrid: {},
+        fullWidthButton: {},
+        feedSubtitleHidden: {},
+        touchTarget: {},
+    },
+    studentTokens: {
+        bgSurfaceAlt: '#f5f5f5',
+        borderSoft: '#e5e7eb',
+        borderWhisper: '#f1f5f9',
+        textPrimary: '#111827',
+        textMuted: '#6b7280',
+        accent: '#2563eb',
+        accentSoft: '#dbeafe',
+        accentHover: '#1d4ed8',
+        danger: '#dc2626',
+        success: '#16a34a',
+        warning: '#d97706',
+        shadowCard: '0 1px 2px rgba(0,0,0,0.08)',
     },
 }));
 

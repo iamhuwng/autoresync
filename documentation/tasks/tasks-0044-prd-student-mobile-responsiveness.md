@@ -13,14 +13,15 @@
 - `src/components/layout/studentLayoutStyles.ts` — Design token constants (`studentTokens`) and shared style objects (`S`). Phase 1 adds the shared `mobileStyles` export here. (277 lines)
 
 ### Tier 3 Pages (Phase 2)
-- `src/pages/StudentCoursesPage.tsx` — Course enrollment list. Has 2 grids using `repeat(auto-fill, minmax(300px, 1fr))` at lines 367 and 411. (567 lines)
+- `src/pages/StudentCoursesPage.tsx` - Course enrollment list. Has 2 grids using `repeat(auto-fill, minmax(300px, 1fr))` at lines 367 and 411. (567 lines)
 - `src/pages/StudentLibraryPage.tsx` - Material library. Phase 2 now uses `useNavigation('student')`, async platform `storage`, shared mobile header/tab styles, stacked mobile filters, centered touch-friendly pagination, and single-column mobile cards. (403 lines)
 - `src/components/test/SoloResumeModal.tsx` - Resume-practice confirmation modal. Phase 2 now constrains the dialog to the mobile viewport, enables scrolling, and enforces 44px touch targets. (139 lines)
-- `src/pages/AcademicRecordPage.tsx` — Academic record with tab switching. (843 lines)
-- `src/components/academicRecord/THCSProgressTab.tsx` — THCS sub-tab rendered inside AcademicRecordPage.
-- `src/components/academicRecord/ResultTimeline.tsx` — Timeline sub-component.
-- `src/components/academicRecord/ResultsBySkill.tsx` — Skill-view sub-component.
-- `src/components/academicRecord/ResultsByCourse.tsx` — Course-view sub-component.
+- `src/pages/AcademicRecordPage.tsx` - Academic record with tab switching. Phase 2 now applies shared mobile header overrides, stacked mobile tab/date controls, single-column overview cards, and tighter mobile AI banner spacing. (843 lines)
+- `src/components/academicRecord/THCSProgressTab.tsx` - THCS sub-tab rendered inside AcademicRecordPage. Phase 2 now accepts `isMobile` and collapses its stats/skill grids to single-column mobile layouts.
+- `src/components/academicRecord/ResultTimeline.tsx` - Timeline sub-component.
+- `src/components/academicRecord/ResultsBySkill.tsx` - Skill-view sub-component. Phase 2 now stacks its summary metrics vertically on mobile.
+- `src/components/academicRecord/ResultsByCourse.tsx` - Course-view sub-component. Phase 2 now stacks its summary metrics vertically on mobile.
+- `src/components/ai/AIMaintenanceBanner.tsx` - Shared AI status banner. The Academic Record mobile pass now gives it tighter mobile padding and 44px touch targets.
 
 ### Tier 2 Pages (Phase 3)
 - `src/pages/StudentDashboardPage.jsx` — Main student dashboard. Already uses `StudentLayout`.
@@ -41,7 +42,7 @@
 - `src/pages/StudentHomeworkDetailPage.test.tsx` — Must update route-mount assertions if Phase 4 changes nesting.
 - `src/pages/StudentTestResultsPage.test.tsx` — Must preserve `/student/results/:sessionCode` coverage.
 - `src/pages/StudentHomeworkListPage.test.tsx` — May need mock updates after Mantine removal.
-- `src/pages/AcademicRecordPage.test.tsx` — May need mock updates.
+- `src/pages/AcademicRecordPage.test.tsx` ? Updated for the Academic Record mobile pass by mocking `studentTokens` and `mobileStyles` exports.
 
 ### Reference Patterns (Read-Only — Do NOT modify)
 - `src/pages/StudentLibraryPage.tsx` lines 15–20 — Inline SVG icon pattern (`SvgBook`, `SvgClock`, etc.). Copy this pattern for new icons.
@@ -321,11 +322,11 @@ Before proceeding to Phase 2, verify ALL of the following:
   - [x] 6.14 Ran `cmd /c npx vitest run src/components/practice/IELTSPracticeView.test.tsx --reporter=basic`, ran `npm run build`, ran `npm run check:utf8 -- src/pages/StudentLibraryPage.tsx src/components/test/SoloResumeModal.tsx`, staged the Library phase files, and shipped the work in the Phase 2 Library commit.
 
 ---
-- [ ] **7.0 `AcademicRecordPage.tsx` — Mobile filter wrapping and full-width cards**
+- [x] **7.0 `AcademicRecordPage.tsx` - Mobile filter wrapping and full-width cards**
 
   > **Goal:** Make Academic Record fully mobile-safe by covering shared feed-header refinements (FR-002, FR-003), view-tab/date-selector wrapping (FR-070), full-width result cards (FR-071), single-column THCS content (FR-072), and full-width AI banner behavior (FR-073).
 
-  - [ ] 7.1 **Add imports** to `src/pages/AcademicRecordPage.tsx`:
+  - [x] 7.1 **Add imports** to `src/pages/AcademicRecordPage.tsx`:
     ```tsx
     import { useMediaQuery } from '../hooks/useMediaQuery';
     import { mobileStyles } from '../components/layout/studentLayoutStyles';
@@ -335,14 +336,14 @@ Before proceeding to Phase 2, verify ALL of the following:
     import { S, studentTokens, mobileStyles } from '../components/layout/studentLayoutStyles';
     ```
 
-  - [ ] 7.2 **Add `isMobile` hook call** in the component body:
+  - [x] 7.2 **Add `isMobile` hook call** in the component body:
     ```tsx
     const isMobile = useMediaQuery('(max-width: 768px)');
     ```
 
-  - [ ] 7.3 **Feed header mobile adjustments (FR-002, FR-003).** This page renders `S.feedHeaderTitle` and `S.feedHeaderSubtitle`. Update the usage site so the title becomes `1.5rem` on mobile and the subtitle is hidden with `mobileStyles.feedSubtitleHidden`.
+  - [x] 7.3 **Feed header mobile adjustments (FR-002, FR-003).** This page renders `S.feedHeaderTitle` and `S.feedHeaderSubtitle`. Update the usage site so the title becomes `1.5rem` on mobile and the subtitle is hidden with `mobileStyles.feedSubtitleHidden`.
 
-  - [ ] 7.4 **Fix view tabs + date range layout (FR-070).** Find the container that holds the view-switching buttons (Overview / THCS / IELTS / Course) and the date-range selector. On mobile, make it stack vertically:
+  - [x] 7.4 **Fix view tabs + date range layout (FR-070).** Find the container that holds the view-switching buttons (Overview / THCS / IELTS / Course) and the date-range selector. On mobile, make it stack vertically:
     ```tsx
     style={{
         ...existingStyle,
@@ -351,25 +352,24 @@ Before proceeding to Phase 2, verify ALL of the following:
     ```
     This should make the date-range selector drop below the view tabs on narrow screens.
 
-  - [ ] 7.5 **Fix result cards (FR-071).** Search for any grid or flex container that holds result timeline cards or result-by-skill cards. If they use a multi-column layout, add:
+  - [x] 7.5 **Fix result cards (FR-071).** Search for any grid or flex container that holds result timeline cards or result-by-skill cards. If they use a multi-column layout, add:
     ```tsx
     ...(isMobile ? mobileStyles.singleColumnGrid : {})
     ```
     If the container is flex-based rather than grid-based, use a mobile `flexDirection: 'column'` equivalent instead.
 
-  - [ ] 7.6 **Pass `isMobile` to `THCSProgressTab` (FR-072).** If `THCSProgressTab` renders multi-column content, add an `isMobile` prop:
+  - [x] 7.6 **Pass `isMobile` to `THCSProgressTab` (FR-072).** If `THCSProgressTab` renders multi-column content, add an `isMobile` prop:
     ```tsx
     <THCSProgressTab ... isMobile={isMobile} />
     ```
-    Then inside `src/components/academicRecord/THCSProgressTab.tsx`, accept the prop and apply single-column mobile layout to any internal grid containers. If the component already owns its own `useMediaQuery`, that is also acceptable — just do not mix `useMediaQuery` and `useScreenSize` in the same file.
+    Then inside `src/components/academicRecord/THCSProgressTab.tsx`, accept the prop and apply single-column mobile layout to any internal grid containers. If the component already owns its own `useMediaQuery`, that is also acceptable - just do not mix `useMediaQuery` and `useScreenSize` in the same file.
 
-  - [ ] 7.7 **AI Maintenance Banner (FR-073).** The `<AIMaintenanceBanner />` component is imported and rendered on this page. Verify it renders full-width on mobile without text overflow. If it has a `maxWidth`, fixed horizontal padding, or non-wrapping text, make that behavior conditional for mobile.
+  - [x] 7.7 **AI Maintenance Banner (FR-073).** The `<AIMaintenanceBanner />` component is imported and rendered on this page. Verify it renders full-width on mobile without text overflow. If it has a `maxWidth`, fixed horizontal padding, or non-wrapping text, make that behavior conditional for mobile.
 
-  - [ ] 7.8 **Verify:** Test at 375px — title is smaller, subtitle hidden, tabs and date picker stack cleanly, result cards are full-width, THCS content is single-column, and the AI banner remains readable. Test at 1440px — unchanged.
+  - [x] 7.8 **Verify:** Verified on the real authenticated student route at `http://localhost:5173/student/academic-record`. At 1440px, the Academic Record desktop layout remained intact. At 375px, the title rendered at the reduced mobile size, the subtitle was hidden, the time-range controls sat above the view tabs without overflow, the overview cards stacked to full width, and the THCS tab rendered as a single-column flow with no horizontal scroll. The seeded session did not expose an active `AIMaintenanceBanner`, so banner readability was confirmed from the responsive code path rather than a live maintenance-state render.
 
-  - [ ] 7.9 Run `npm run build`. Commit: `feat(academic-record): mobile header, filter wrapping, and full-width cards [PRD-0044 Phase 2]`.
+  - [x] 7.9 Ran `npm run build` and `cmd /c npx vitest run src/pages/AcademicRecordPage.test.tsx --reporter=basic`; both passed. This slice ships in the Phase 2 Academic Record commit.
 
----
 - [ ] **8.0 `StudentDashboardPage.jsx` — Mobile refinements**
 
   > **Goal:** Complete the dashboard mobile pass by covering shared header/filter refinements (FR-002 through FR-005), scrollable filter tabs (FR-031), notification-card padding (FR-032), scrollable join-class modal behavior (FR-030), and right-rail `PendingReviewsWidget` usability (FR-033).

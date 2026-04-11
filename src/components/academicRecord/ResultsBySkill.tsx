@@ -5,6 +5,7 @@ import type { EnhancedTestResultRecord } from '../../types/results.types';
 import { studentTokens } from '../layout/studentLayoutStyles';
 
 interface ResultsBySkillProps {
+    isMobile?: boolean;
     results: EnhancedTestResultRecord[];
     onResultClick?: (resultId: string) => void;
     variant?: 'default' | 'glass' | 'lavender' | 'sky' | 'mint' | 'rose' | 'peach';
@@ -392,6 +393,7 @@ function buildEmptySummary(skill: string): SkillBandSummary {
 }
 
 export const ResultsBySkill: React.FC<ResultsBySkillProps> = ({
+    isMobile = false,
     results,
     onResultClick,
 }) => {
@@ -478,7 +480,7 @@ export const ResultsBySkill: React.FC<ResultsBySkillProps> = ({
 
     return (
         <div style={styles.stack}>
-            <div style={styles.summaryStack}>
+            <div style={{ ...styles.summaryStack, ...(isMobile ? { flexDirection: 'column' } : {}) }}>
                 <div style={styles.summaryCard}>
                     <p style={{ ...styles.summaryLabel, color: summaryCardVisuals.neutral.labelColor }}>Tests Completed</p>
                     <div style={styles.summaryValueRow}>
