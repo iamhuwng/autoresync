@@ -13,6 +13,7 @@
 - `src/components/layout/studentLayoutStyles.ts` — Design token constants (`studentTokens`) and shared style objects (`S`). Phase 1 adds the shared `mobileStyles` export here. (277 lines)
 - `src/components/layout/StudentRightRail.tsx` - Shared student right rail. Final closeout raises the visible mobile CTA buttons to a guaranteed 44px minimum height without causing drawer overflow.
 - `src/components/layout/StudentLayout.test.tsx` - Focused shell regression coverage. Final closeout updates the shared right-rail expectations to the current class-title/meta contract and re-validates the mobile drawer flow.
+- `src/components/layout/StudentSidebar.tsx` - Shared student left rail. Final closeout raises the visible mobile navigation buttons to a guaranteed 44px minimum target without breaking badge or label layout.
 
 ### Tier 3 Pages (Phase 2)
 - `src/pages/StudentCoursesPage.tsx` - Course enrollment list. Has 2 grids using `repeat(auto-fill, minmax(300px, 1fr))` at lines 367 and 411. (567 lines)
@@ -20,14 +21,16 @@
 - `src/components/test/SoloResumeModal.tsx` - Resume-practice confirmation modal. Phase 2 now constrains the dialog to the mobile viewport, enables scrolling, and enforces 44px touch targets. (139 lines)
 - `src/pages/AcademicRecordPage.tsx` - Academic record with tab switching. Phase 2 now applies shared mobile header overrides, stacked mobile tab/date controls, single-column overview cards, and tighter mobile AI banner spacing. (843 lines)
 - `src/components/academicRecord/THCSProgressTab.tsx` - THCS sub-tab rendered inside AcademicRecordPage. Phase 2 now accepts `isMobile` and collapses its stats/skill grids to single-column mobile layouts.
-- `src/components/academicRecord/ResultTimeline.tsx` - Timeline sub-component.
+- `src/components/academicRecord/ResultTimeline.tsx` - Timeline sub-component. Final closeout raises the visible mobile load-more button to the 44px touch-target floor.
 - `src/components/academicRecord/ResultsBySkill.tsx` - Skill-view sub-component. Phase 2 now stacks its summary metrics vertically on mobile.
 - `src/components/academicRecord/ResultsByCourse.tsx` - Course-view sub-component. Phase 2 now stacks its summary metrics vertically on mobile.
 - `src/components/ai/AIMaintenanceBanner.tsx` - Shared AI status banner. The Academic Record mobile pass now gives it tighter mobile padding and 44px touch targets.
 
 ### Tier 2 Pages (Phase 3)
 - `src/pages/StudentDashboardPage.jsx` - Main student dashboard. Phase 3 now derives mobile state with `useMediaQuery`, passes it into the feed view, and makes the Join a Class modal scroll safely on mobile. (740 lines)
-- `src/components/dashboard/StudentDashboardFeedView.jsx` - Dashboard feed renderer. Phase 3 now applies the shared mobile header treatment, touch-friendly horizontal tabs, and tighter mobile card inset padding. (253 lines)
+- `src/components/dashboard/StudentDashboardFeedView.jsx` - Dashboard feed renderer. Phase 3 now applies the shared mobile header treatment, touch-friendly horizontal tabs, and tighter mobile card inset padding, and Final closeout raises the remaining visible mobile CTA/link buttons to 44px. (253 lines)
+- `src/components/dashboard/RecentGradesChart.jsx` - Dashboard chart card. Final closeout raises the visible mobile category selector and dropdown options to the 44px touch-target floor.
+- `src/components/dashboard/PendingReviewsWidget.tsx` - Right-rail review widget. Final closeout raises visible review rows and the See all control to 44px on mobile.
 - `src/pages/StudentHomeworkListPage.tsx` - Homework list. Phase 3 now uses `useNavigation('student')`, a native CSS spinner, shared mobile header/tab treatment, stacked summary cards, tighter mobile card padding, full-width mobile CTA buttons, and homework action tracking. (740 lines)
 
 ### Route & Config Files (Phase 4)
@@ -46,7 +49,10 @@
 - `src/pages/StudentTestResultsPage.test.tsx` - Phase 5B now mocks `StudentLayout`/`StudentSidebar`, keeps the canonical `/student-test-results/:sessionCode` coverage, preserves the legacy `/student/results/:sessionCode` alias regression, and adds a focused mobile full-width-actions/touch-target assertion.
 - `src/pages/StudentHomeworkListPage.test.tsx` - Updated for the Phase 3 homework pass by removing Mantine mocks and covering navigation/tracking through the homework list interactions.
 - `src/pages/AcademicRecordPage.test.tsx` - Updated for the Academic Record mobile pass by mocking `studentTokens` and `mobileStyles` exports.
-- `src/components/dashboard/PendingReviewsWidget.test.tsx` - Phase 3 widget regression coverage; updated to match the current Pending Reviews copy without the removed Live badge.
+- `src/components/dashboard/PendingReviewsWidget.test.tsx` - Phase 3 widget regression coverage; Final closeout adds a focused 44px mobile touch-target assertion for review rows and the See all control.
+- `src/components/layout/StudentSidebar.test.tsx` - Focused regression coverage for the mobile 44px sidebar navigation target contract.
+- `src/components/dashboard/RecentGradesChart.test.jsx` - Focused regression coverage for the dashboard chart selector touch target and dropdown options.
+- `src/components/academicRecord/ResultTimeline.test.tsx` - Focused regression coverage for the Academic Record timeline load-more button touch target.
 
 ### Reference Patterns (Read-Only — Do NOT modify)
 - `src/pages/StudentLibraryPage.tsx` lines 15–20 — Inline SVG icon pattern (`SvgBook`, `SvgClock`, etc.). Copy this pattern for new icons.
@@ -784,7 +790,7 @@ Before proceeding to Phase 5, verify ALL of the following:
 ---
 
 
-- [ ] **18.0 Student results legacy alias - accept session codes under /student/results**
+- [x] **18.0 Student results legacy alias - accept session codes under /student/results**
 
   > **Goal:** Make the legacy `/student/results/:sessionCode` path honor session-code links while preserving redirects for true legacy result-id links.
 
@@ -794,13 +800,30 @@ Before proceeding to Phase 5, verify ALL of the following:
 
   - [x] 18.3 **Verify route contract.** Run `cmd /c npx vitest run src/pages/StudentTestResultsPage.test.tsx --reporter=basic` and `cmd /c npm run build`. Then verify on `http://localhost:5173` that both `/student-test-results/:sessionCode` and `/student/results/:sessionCode` load and refresh correctly for the same student session code.
 
-  - [ ] 18.4 Commit: `fix(results): support session-code legacy student aliases [PRD-0044 Final]`.
+  - [x] 18.4 Commit: `fix(results): support session-code legacy student aliases [PRD-0044 Final]`.
+
+---
+
+---
+
+
+- [ ] **19.0 Shared student mobile controls - close the remaining 44px gaps**
+
+  > **Goal:** Fix the visible student-shell controls that still render below the 44px touch-target floor during the full 375px verification sweep.
+
+  - [x] 19.1 **Raise shared shell navigation targets.** Update the student navigation buttons in `src/components/layout/StudentSidebar.tsx` so the visible mobile navigation controls render at least 44px tall without breaking the sidebar layout.
+
+  - [x] 19.2 **Raise remaining dashboard and record controls.** Update the shared dashboard and Academic Record controls in `src/components/dashboard/StudentDashboardFeedView.jsx`, `src/components/dashboard/RecentGradesChart.jsx`, `src/components/dashboard/PendingReviewsWidget.tsx`, and `src/components/academicRecord/ResultTimeline.tsx` so visible mobile links, selectors, review rows, and load-more controls meet the 44px target.
+
+  - [x] 19.3 **Verify mobile controls.** Run the relevant focused tests, run `cmd /c npm run build`, and re-verify at `http://localhost:5173` on the impacted student routes that no visible button/link/control remains under 44px at 375px.
+
+  - [ ] 19.4 Commit: `fix(student-ui): raise remaining shared mobile touch targets [PRD-0044 Final]`.
 
 ---
 
 ## Final Verification (After All Phases)
 
-After completing all 18 parent tasks:
+After completing all 19 parent tasks:
 
 1. **Full build:** `npm run build` — zero errors.
 2. **Pre-commit hook:** Stage all files, attempt commit — hook must not flag any new `@mantine/*` imports.

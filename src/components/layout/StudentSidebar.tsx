@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { S, studentTokens } from './studentLayoutStyles';
+import { mobileStyles, S, studentTokens } from './studentLayoutStyles';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 import {
     IconHome,
     IconHomework,
@@ -109,6 +110,7 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
 }) => {
     const navigate = useNavigate();
     const { user, profile, logout } = useAuth();
+    const isMobile = useMediaQuery('(max-width: 768px)');
     const displayName = profile?.displayName || user?.displayName || 'Student';
     const email = profile?.email || user?.email || '';
     const avatarSrc = profile?.avatarUrl || user?.photoURL || null;
@@ -299,13 +301,13 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
                     borderLeft: isActive ? `2px solid ${studentTokens.accent}` : '2px solid transparent',
                     color: isActive ? studentTokens.accent : studentTokens.textMuted,
                     outline: 'none',
-                    padding: '8px 10px 8px 12px',
                     borderRadius: 0,
                     textTransform: 'uppercase',
                     letterSpacing: '0.05em',
                     fontSize: '0.625rem',
                     fontWeight: 600,
-                    minHeight: 36,
+                    minHeight: isMobile ? mobileStyles.touchTarget.minHeight : 36,
+                    padding: isMobile ? '10px 10px 10px 12px' : '8px 10px 8px 12px',
                 }}
             >
                 {item.icon}

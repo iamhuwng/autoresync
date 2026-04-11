@@ -67,4 +67,85 @@ describe('PendingReviewsWidget', () => {
         expect(screen.queryByText('-Omckd15l3a2iWqKTljt')).not.toBeInTheDocument();
         expect(screen.queryByText('live-session')).not.toBeInTheDocument();
     });
+
+    it('keeps visible review controls at the mobile 44px touch target', async () => {
+        getDocsMock.mockResolvedValue({
+            docs: [
+                {
+                    id: 'submission-1',
+                    data: () => ({
+                        submittedAt: Date.UTC(2026, 3, 1),
+                        markingStatus: 'pending-review',
+                        context: { type: 'live-session' },
+                        testMeta: {
+                            testTitle: 'MD IELTS1 Writing Lesson 5',
+                        },
+                    }),
+                },
+                {
+                    id: 'submission-2',
+                    data: () => ({
+                        submittedAt: Date.UTC(2026, 3, 2),
+                        markingStatus: 'pending-review',
+                        context: { type: 'live-session' },
+                        testMeta: {
+                            testTitle: 'MD IELTS1 Writing Lesson 6',
+                        },
+                    }),
+                },
+                {
+                    id: 'submission-3',
+                    data: () => ({
+                        submittedAt: Date.UTC(2026, 3, 3),
+                        markingStatus: 'pending-review',
+                        context: { type: 'live-session' },
+                        testMeta: {
+                            testTitle: 'MD IELTS1 Writing Lesson 7',
+                        },
+                    }),
+                },
+                {
+                    id: 'submission-4',
+                    data: () => ({
+                        submittedAt: Date.UTC(2026, 3, 4),
+                        markingStatus: 'pending-review',
+                        context: { type: 'live-session' },
+                        testMeta: {
+                            testTitle: 'MD IELTS1 Writing Lesson 8',
+                        },
+                    }),
+                },
+                {
+                    id: 'submission-5',
+                    data: () => ({
+                        submittedAt: Date.UTC(2026, 3, 5),
+                        markingStatus: 'pending-review',
+                        context: { type: 'live-session' },
+                        testMeta: {
+                            testTitle: 'MD IELTS1 Writing Lesson 9',
+                        },
+                    }),
+                },
+                {
+                    id: 'submission-6',
+                    data: () => ({
+                        submittedAt: Date.UTC(2026, 3, 6),
+                        markingStatus: 'pending-review',
+                        context: { type: 'live-session' },
+                        testMeta: {
+                            testTitle: 'MD IELTS1 Writing Lesson 10',
+                        },
+                    }),
+                },
+            ],
+        });
+
+        render(<PendingReviewsWidget />);
+
+        const reviewRow = await screen.findByRole('button', { name: /MD IELTS1 Writing Lesson 5/i });
+        const seeAllButton = await screen.findByRole('button', { name: /See all reviews/i });
+
+        expect(reviewRow).toHaveStyle({ minHeight: '44px' });
+        expect(seeAllButton).toHaveStyle({ minHeight: '44px' });
+    });
 });

@@ -377,8 +377,10 @@ const styles = {
     dropdownTrigger: {
         display: 'inline-flex',
         alignItems: 'center',
+        justifyContent: 'center',
         gap: 6,
-        padding: '5px 10px',
+        minHeight: 44,
+        padding: '10px 12px',
         fontSize: '0.6875rem',
         fontWeight: 600,
         color: '#555a5f',
@@ -408,8 +410,9 @@ const styles = {
     dropdownItem: {
         display: 'flex',
         alignItems: 'center',
+        minHeight: 44,
         gap: 8,
-        padding: '7px 14px',
+        padding: '10px 14px',
         fontSize: '0.6875rem',
         fontWeight: 500,
         color: '#4c5458',

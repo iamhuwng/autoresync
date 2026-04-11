@@ -547,7 +547,11 @@ export default function StudentDashboardFeedView({
 
                             <button
                                 type="button"
-                                style={{ ...styles.utilityButton, ...(showUnreadOnly ? styles.utilityButtonActive : {}) }}
+                                style={{
+                                    ...styles.utilityButton,
+                                    ...(showUnreadOnly ? styles.utilityButtonActive : {}),
+                                    ...(isMobile ? mobileStyles.touchTarget : {}),
+                                }}
                                 onClick={() => onToggleUnreadOnly?.()}
                                 aria-pressed={showUnreadOnly}
                                 title="Toggle unread feed items"
@@ -556,7 +560,12 @@ export default function StudentDashboardFeedView({
                                 {unreadCount > 0 ? <span style={styles.badge}>{unreadCount > 99 ? '99+' : unreadCount}</span> : null}
                             </button>
 
-                            <button type="button" style={styles.utilityButton} onClick={() => onOpenAcademicHistory?.()} title="Open academic history">
+                            <button
+                                type="button"
+                                style={{ ...styles.utilityButton, ...(isMobile ? mobileStyles.touchTarget : {}) }}
+                                onClick={() => onOpenAcademicHistory?.()}
+                                title="Open academic history"
+                            >
                                 <IconHistory />
                             </button>
                         </div>
@@ -649,7 +658,11 @@ export default function StudentDashboardFeedView({
                         <h3 style={styles.emptyTitle}>{emptyTitle}</h3>
                         <p style={styles.emptyBody}>{emptyBody}</p>
                         {onEmptyAction ? (
-                            <button type="button" style={styles.emptyAction} onClick={() => onEmptyAction?.()}>
+                            <button
+                                type="button"
+                                style={{ ...styles.emptyAction, ...(isMobile ? mobileStyles.touchTarget : {}) }}
+                                onClick={() => onEmptyAction?.()}
+                            >
                                 {emptyActionLabel}
                             </button>
                         ) : null}
@@ -716,7 +729,7 @@ export default function StudentDashboardFeedView({
                                                     {row.actionLabel || row.onAction ? (
                                                         <button
                                                             type="button"
-                                                            style={styles.linkBtn}
+                                                            style={{ ...styles.linkBtn, ...(isMobile ? mobileStyles.touchTarget : {}) }}
                                                             onClick={event => {
                                                                 event.stopPropagation();
                                                                 row.onAction?.();
@@ -751,7 +764,11 @@ export default function StudentDashboardFeedView({
                             <h3 style={styles.emptyTitle}>No classes yet.</h3>
                             <p style={styles.emptyBody}>Join a class to see its roster, sessions, and assigned work.</p>
                             {onJoinClass ? (
-                                <button type="button" style={styles.emptyAction} onClick={() => onJoinClass?.()}>
+                                <button
+                                    type="button"
+                                    style={{ ...styles.emptyAction, ...(isMobile ? mobileStyles.touchTarget : {}) }}
+                                    onClick={() => onJoinClass?.()}
+                                >
                                     Join a Class
                                 </button>
                             ) : null}
@@ -788,7 +805,12 @@ export default function StudentDashboardFeedView({
 
                 {showFeed && hasMore ? (
                 <div style={styles.loadMoreWrap}>
-                    <button type="button" style={styles.loadMoreButton} onClick={() => onLoadMore?.()} disabled={loadingMore}>
+                    <button
+                        type="button"
+                        style={{ ...styles.loadMoreButton, ...(isMobile ? mobileStyles.touchTarget : {}) }}
+                        onClick={() => onLoadMore?.()}
+                        disabled={loadingMore}
+                    >
                         {loadingMore ? 'Loading...' : 'Load More Activities'}
                     </button>
                 </div>
