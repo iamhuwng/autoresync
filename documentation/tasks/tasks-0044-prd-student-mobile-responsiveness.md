@@ -9,8 +9,10 @@
 ## Relevant Files
 
 ### Core Layout Files (Phase 1)
-- `src/components/layout/StudentLayout.tsx` - The master layout shell. Phase 1 added mobile feed padding, the 320px-safe right-rail width cap, and the scoped scrollbar-hidden helper class; Phase 3 now also disables pointer events on closed mobile drawers and clips mobile horizontal overflow at the shell root. (207 lines)
+- `src/components/layout/StudentLayout.tsx` - The master layout shell. Phase 1 added mobile feed padding, the 320px-safe right-rail width cap, and the scoped scrollbar-hidden helper class; Phase 3 disables pointer events on closed mobile drawers and clips mobile horizontal overflow, and Final closeout raises the shared mobile header buttons to 44px touch targets. (207 lines)
 - `src/components/layout/studentLayoutStyles.ts` — Design token constants (`studentTokens`) and shared style objects (`S`). Phase 1 adds the shared `mobileStyles` export here. (277 lines)
+- `src/components/layout/StudentRightRail.tsx` - Shared student right rail. Final closeout raises the visible mobile CTA buttons to a guaranteed 44px minimum height without causing drawer overflow.
+- `src/components/layout/StudentLayout.test.tsx` - Focused shell regression coverage. Final closeout updates the shared right-rail expectations to the current class-title/meta contract and re-validates the mobile drawer flow.
 
 ### Tier 3 Pages (Phase 2)
 - `src/pages/StudentCoursesPage.tsx` - Course enrollment list. Has 2 grids using `repeat(auto-fill, minmax(300px, 1fr))` at lines 367 and 411. (567 lines)
@@ -684,7 +686,7 @@ Before proceeding to Phase 5, verify ALL of the following:
 
 ---
 
-- [x] **15.0 `StudentTestResultsPage.tsx` ? Mantine removal + `StudentLayout` wrap**
+- [x] **15.0 `StudentTestResultsPage.tsx` - Mantine removal + `StudentLayout` wrap**
 
   > **Goal:** Replace Mantine `Center`/`Loader` (FR-021), replace `useNavigate` (FR-022), wrap in `StudentLayout` (FR-020).
 
@@ -720,7 +722,7 @@ Before proceeding to Phase 5, verify ALL of the following:
 
 ---
 
-- [ ] **16.0 `StudentTestResultsPage.tsx` ? Mobile responsive overrides**
+- [x] **16.0 `StudentTestResultsPage.tsx` - Mobile responsive overrides**
 
   > **Goal:** Apply mobile-specific layout (FR-023 through FR-027).
 
@@ -761,13 +763,27 @@ Before proceeding to Phase 5, verify ALL of the following:
 
   - [x] 16.7 **Verify:** Test at 375px ? score card stacked vertically, question cards full-width, buttons full-width, no horizontal overflow. Test at 1440px ? desktop unchanged.
 
-  - [ ] 16.8 Run `npm run build`. Run tests: `npx vitest run src/pages/StudentTestResultsPage.test.tsx`. Commit: `feat(test-results): add mobile responsive overrides [PRD-0044 Phase 5B]`.
+  - [x] 16.8 Run `npm run build`. Run tests: `npx vitest run src/pages/StudentTestResultsPage.test.tsx`. Commit: `feat(test-results): add mobile responsive overrides [PRD-0044 Phase 5B]`.
+
+---
+
+- [ ] **17.0 Student shell mobile controls - enforce 44px targets**
+
+  > **Goal:** Ensure shared shell controls and right-rail CTAs now satisfy the 44px touch-target requirement uncovered during final verification.
+
+  - [x] 17.1 **Audit the shared mobile controls.** Verify every button rendered inside `StudentLayout` mobile header/drawer chrome plus the visible `StudentRightRail` CTA buttons currently measures at least 44px and identify the ones that do not.
+
+  - [x] 17.2 **Raise the shared mobile control touch targets.** Update `src/components/layout/studentLayoutStyles.ts`, `StudentLayout.tsx`, and `src/components/layout/StudentRightRail.tsx` so the mobile navigation/right-rail buttons and visible CTAs guarantee a 44px target without causing 320px overflow.
+
+  - [x] 17.3 **Verify at 375px and 320px.** Open the student shell with the right rail visible. Confirm the drawer still fits, the header title does not collide with the buttons, the right-rail CTA buttons reach 44px, and the shared controls remain tappable.
+
+  - [ ] 17.4 Run `npm run build`. Commit: `fix(student-shell): enforce 44px mobile control targets [PRD-0044 Final]`.
 
 ---
 
 ## Final Verification (After All Phases)
 
-After completing all 16 parent tasks:
+After completing all 17 parent tasks:
 
 1. **Full build:** `npm run build` — zero errors.
 2. **Pre-commit hook:** Stage all files, attempt commit — hook must not flag any new `@mantine/*` imports.
@@ -781,9 +797,10 @@ After completing all 16 parent tasks:
    - [ ] Homework Detail: `StudentLayout` shell, no gradient, stacked info card, full-viewport modal.
    - [ ] Test Results: `StudentLayout` shell, stacked score card, full-width buttons.
 5. **Mobile right-rail verification:**
-   - [ ] Open the right rail at 375px and 320px.
-   - [ ] Drawer does not overflow the viewport.
-   - [ ] `PendingReviewsWidget` remains readable, scrollable, and tappable.
+   - [x] Open the right rail at 375px and 320px.
+   - [x] Drawer does not overflow the viewport.
+   - [x] `PendingReviewsWidget` remains readable, scrollable, and tappable.
+   - [x] Shared shell header buttons and the `Find a session` CTA now meet the 44px touch-target rule at both widths without title collision or new console errors.
 6. **Route contract testing:**
    - [ ] Directly load `/student/homework/any-id` — works.
    - [ ] Directly load `/student-test-results/any-code` — works.

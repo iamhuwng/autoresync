@@ -95,7 +95,21 @@ export const StudentLayout: React.FC<StudentLayoutProps> = ({
                     <button type="button" style={S.mobileBtn} onClick={toggleLeft} aria-label="Open navigation">
                         {defaultMobileLeftAction}
                     </button>
-                    <span style={{ fontWeight: 700, fontSize: '1rem', color: '#2b3437', letterSpacing: '-0.02em' }}>
+                    <span
+                        style={{
+                            flex: 1,
+                            minWidth: 0,
+                            padding: '0 8px',
+                            textAlign: 'center',
+                            fontWeight: 700,
+                            fontSize: '1rem',
+                            color: '#2b3437',
+                            letterSpacing: '-0.02em',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                        }}
+                    >
                         {mobileTitle}
                     </span>
                     <button type="button" style={S.mobileBtn} onClick={toggleRight} aria-label="Open right rail">

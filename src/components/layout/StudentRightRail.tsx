@@ -187,10 +187,13 @@ const v2 = {
     } as React.CSSProperties,
     /* CTA button */
     cta: {
-        display: 'block',
+        display: 'flex',
         width: '100%',
         marginTop: 32,
+        minHeight: 44,
         padding: '12px 0',
+        alignItems: 'center',
+        justifyContent: 'center',
         fontSize: 9,
         fontWeight: 700,
         textTransform: 'uppercase' as const,

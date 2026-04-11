@@ -123,8 +123,8 @@ describe('StudentLayout', () => {
             </StudentLayout>,
         );
 
-        expect(screen.getAllByText('A5')).toHaveLength(2);
-        expect(screen.getByText('8 students - 2 active')).toBeInTheDocument();
+        expect(screen.getByText('IELTS Class 5')).toBeInTheDocument();
+        expect(screen.getByText('8 Students · 2 Active')).toBeInTheDocument();
     });
 
     it('uses the shared live and up-next module pattern for the dashboard right rail', () => {
