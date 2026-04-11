@@ -12,12 +12,10 @@
  */
 
 import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { useLocation, useParams, useNavigate } from 'react-router-dom';
+import { useLocation, useParams } from 'react-router-dom';
 import { ref, get, onValue } from 'firebase/database';
 // @ts-ignore
 import { database } from '../services/firebase';
-import { buildRoute } from '../constants/routes';
-import { Center, Loader } from '@mantine/core';
 import { Card, CardBody } from '../components/modern';
 import { Button } from '../components/modern';
 import {
@@ -39,6 +37,10 @@ import type { WritingSubmission } from '../types/ielts-writing.types';
 import { deriveSessionReleaseState, getReleaseVisibility } from '../types/releaseState.types';
 import { FEATURE_IDS } from '../config/featureRegistry';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
+import { useNavigation } from '../hooks/useNavigation';
+import { StudentLayout } from '../components/layout/StudentLayout';
+import { StudentSidebar } from '../components/layout/StudentSidebar';
+import { studentTokens } from '../components/layout/studentLayoutStyles';
 
 
 // PRD-0030 Task 6.1.1: Lazy-load WritingResultView for Writing tests
@@ -64,11 +66,29 @@ interface TestData {
   duration: number;
 }
 
+const centerStateStyle: React.CSSProperties = {
+  minHeight: '60vh',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+};
+
+const spinnerStyle: React.CSSProperties = {
+  width: '2.5rem',
+  height: '2.5rem',
+  borderRadius: '50%',
+  border: `3px solid ${studentTokens.borderWhisper}`,
+  borderTopColor: studentTokens.accent,
+  display: 'inline-block',
+  animation: 'studentResultsSpin 0.8s linear infinite',
+};
+
 export const StudentTestResultsPage: React.FC = () => {
   const { sessionCode } = useParams<{ sessionCode: string }>();
-  const navigate = useNavigate();
   const location = useLocation();
+  const { navigateTo } = useNavigation('student');
   const { trackAction } = useFeatureTracking(FEATURE_IDS.results);
+  const sidebar = <StudentSidebar activePage="records" />;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -197,7 +217,7 @@ export const StudentTestResultsPage: React.FC = () => {
         try {
           const directResult = await getTestResult(sessionCode);
           if (!cancelled && directResult) {
-            navigate(buildRoute('RESULT_DETAIL', { resultId: sessionCode }), { replace: true });
+            navigateTo('RESULT_DETAIL', { resultId: sessionCode }, { replace: true, reason: 'legacy_student_result_redirect' });
             return;
           }
         } catch (legacyLookupError) {
@@ -220,7 +240,7 @@ export const StudentTestResultsPage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [sessionCode, location.pathname, navigate]);
+  }, [sessionCode, location.pathname, navigateTo]);
 
   const loadResults = async (retryCount = 0) => {
     try {
@@ -496,11 +516,17 @@ export const StudentTestResultsPage: React.FC = () => {
    */
   const toggleQuestion = (questionNumber: number) => {
     const newExpanded = new Set(expandedQuestions);
+    const willExpand = !newExpanded.has(questionNumber);
     if (newExpanded.has(questionNumber)) {
       newExpanded.delete(questionNumber);
     } else {
       newExpanded.add(questionNumber);
     }
+    trackAction('viewQuestion', {
+      source: 'student_test_results_page',
+      questionNumber,
+      expanded: willExpand,
+    });
     setExpandedQuestions(newExpanded);
   };
 
@@ -522,9 +548,15 @@ export const StudentTestResultsPage: React.FC = () => {
    */
   if (loading) {
     return (
-      <Center style={{ height: '100vh' }}>
-        <Loader size="xl" />
-      </Center>
+      <StudentLayout sidebar={sidebar} mobileTitle="Test Results">
+        <div style={centerStateStyle}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+            <span aria-label="Loading" style={spinnerStyle} />
+            <span style={{ fontSize: '0.95rem', fontWeight: 600, color: studentTokens.textBody }}>Loading results...</span>
+          </div>
+        </div>
+        <style>{`@keyframes studentResultsSpin { to { transform: rotate(360deg); } }`}</style>
+      </StudentLayout>
     );
   }
 
@@ -533,15 +565,26 @@ export const StudentTestResultsPage: React.FC = () => {
    */
   if (error || !session || !testData || (!results && !writingSubmission)) {
     return (
-      <Center style={{ height: '100vh', flexDirection: 'column', gap: '1rem' }}>
-        <div style={{ fontSize: '3rem' }}>⚠️</div>
-        <div style={{ fontSize: '1.5rem', fontWeight: 600, color: '#1e293b' }}>
-          {error || 'Failed to load results'}
+      <StudentLayout sidebar={sidebar} mobileTitle="Test Results">
+        <div style={centerStateStyle}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', textAlign: 'center' }}>
+            <div style={{ fontSize: '3rem' }}>⚠️</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 600, color: '#1e293b' }}>
+              {error || 'Failed to load results'}
+            </div>
+            <Button
+              variant="primary"
+              onClick={() => {
+                trackAction('returnToDashboard', { source: 'student_results_error_state' });
+                navigateTo('STUDENT_DASHBOARD', {}, { reason: 'student_results_error_return' });
+              }}
+            >
+              Return to Home
+            </Button>
+          </div>
         </div>
-        <Button variant="primary" onClick={() => navigate('/')}>
-          Return to Home
-        </Button>
-      </Center>
+        <style>{`@keyframes studentResultsSpin { to { transform: rotate(360deg); } }`}</style>
+      </StudentLayout>
     );
   }
 
@@ -561,15 +604,15 @@ export const StudentTestResultsPage: React.FC = () => {
   // PRD-0030 Task 6.1.1: Writing test — render WritingResultView
   if (writingSubmission && testData.skill === 'Writing') {
     return (
-      <div className="student-view-root" style={{ background: '#f3f4f6', minHeight: '100vh' }}>
+      <StudentLayout sidebar={sidebar} mobileTitle="Test Results">
         <div
           style={{
-            maxWidth: '1280px',
+            maxWidth: '1200px',
             margin: '0 auto',
             display: 'grid',
             gridTemplateColumns: '256px minmax(0, 980px) 1fr',
             gap: '24px',
-            padding: '24px 16px 40px',
+            padding: '24px 0 40px',
           }}
         >
           <aside
@@ -598,7 +641,7 @@ export const StudentTestResultsPage: React.FC = () => {
                 type="button"
                 onClick={() => {
                   trackAction('returnToDashboard', { source: 'student_writing_result_page' });
-                  navigate('/');
+                  navigateTo('STUDENT_DASHBOARD', {}, { reason: 'student_writing_results_return' });
                 }}
                 style={{
                   border: 'none',
@@ -677,7 +720,8 @@ export const StudentTestResultsPage: React.FC = () => {
 
           <aside aria-hidden="true" />
         </div>
-      </div>
+        <style>{`@keyframes studentResultsSpin { to { transform: rotate(360deg); } }`}</style>
+      </StudentLayout>
     );
   }
 
@@ -691,13 +735,14 @@ export const StudentTestResultsPage: React.FC = () => {
 
   // PRD-0040 Task 4.4: Release-state governance for session-scoped results
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: 'linear-gradient(135deg, rgba(250, 245, 255, 0.95) 0%, rgba(240, 249, 255, 0.95) 50%, rgba(240, 253, 250, 0.95) 100%)',
-        padding: '2rem',
-      }}
-    >
+    <StudentLayout sidebar={sidebar} mobileTitle="Test Results">
+      <div
+        style={{
+          minHeight: '100%',
+          background: 'linear-gradient(135deg, rgba(250, 245, 255, 0.95) 0%, rgba(240, 249, 255, 0.95) 50%, rgba(240, 253, 250, 0.95) 100%)',
+          padding: '2rem',
+        }}
+      >
       <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
         {/* Header */}
         <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
@@ -1059,7 +1104,13 @@ export const StudentTestResultsPage: React.FC = () => {
 
         {/* Action Buttons */}
         <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '2rem', flexWrap: 'wrap' }}>
-          <Button variant="primary" onClick={() => navigate('/')}>
+          <Button
+            variant="primary"
+            onClick={() => {
+              trackAction('returnToDashboard', { source: 'student_test_results_page' });
+              navigateTo('STUDENT_DASHBOARD', {}, { reason: 'student_results_return' });
+            }}
+          >
             🏠 Return to Home
           </Button>
 
@@ -1067,6 +1118,11 @@ export const StudentTestResultsPage: React.FC = () => {
             <Button
               variant="primary"
               onClick={async () => {
+                trackAction('exportResultsPdf', {
+                  source: 'student_test_results_page',
+                  sessionCode,
+                  hasPermanentRecord: Boolean(permanentResultRecord),
+                });
                 // Scenario A: Use Permanent Record (Preferred)
                 if (permanentResultRecord) {
                   await generateCertificatePDF(permanentResultRecord);
@@ -1123,7 +1179,16 @@ export const StudentTestResultsPage: React.FC = () => {
             </Button>
           )}
 
-          <Button variant="glass" onClick={() => window.print()}>
+          <Button
+            variant="glass"
+            onClick={() => {
+              trackAction('printResults', {
+                source: 'student_test_results_page',
+                sessionCode,
+              });
+              window.print();
+            }}
+          >
             🖨️ Print Results
           </Button>
         </div>
@@ -1139,7 +1204,9 @@ export const StudentTestResultsPage: React.FC = () => {
           </div>
         )}
       </div>
-    </div>
+      </div>
+      <style>{`@keyframes studentResultsSpin { to { transform: rotate(360deg); } }`}</style>
+    </StudentLayout>
   );
 };
 

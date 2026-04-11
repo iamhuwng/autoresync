@@ -33,15 +33,15 @@
 - `src/routes/StudentShellRoute.tsx` — The shell route wrapper that provides sidebar/layout context.
 - `src/constants/routes.ts` — Route name constants and `buildRoute` utility.
 - `src/config/routeSecurity.ts` — Route security configuration.
-- `src/config/featureRegistry.ts` - Feature tracking registry. Phase 3 homework updates add the student homework list actions used by `StudentHomeworkListPage`.
+- `src/config/featureRegistry.ts` - Feature tracking registry. Phase 5B adds the `printResults` student test-results action so the rewritten `StudentTestResultsPage` tracking stays synchronized with the shell migration.
 
 ### Tier 1 Pages (Phase 5)
 - `src/pages/StudentHomeworkDetailPage.tsx` ? Phase 5A homework detail migration is now complete: the page uses `StudentLayout`, local native primitives, inline SVG icons, shared mobile tokens, full-width 44px mobile actions, and a full-viewport start modal with sticky mobile actions. (1362 lines)
-- `src/pages/StudentTestResultsPage.tsx` — FULL REWRITE target. Uses `Center`/`Loader` from Mantine (line 20), `useNavigate` (line 15), standalone layout (no `StudentLayout`). (1147 lines)
+- `src/pages/StudentTestResultsPage.tsx` - Phase 5B now runs inside `StudentLayout` with `StudentSidebar activePage="records"`, native loading/error states, `useNavigation('student')`, tracked return/export/print/question actions, and the existing writing-results branch preserved inside the student shell.
 
 ### Test Files
 - `src/pages/StudentHomeworkDetailPage.test.tsx` - Phase 5A now mounts through `StudentShellRoute` with `StudentLayout`/`StudentSidebar` mocks, covers the mobile start-modal/full-width action branch, and no longer needs Mantine or Tabler test stubs. (224 lines)
-- `src/pages/StudentTestResultsPage.test.tsx` - Phase 4 now drives the canonical `/student-test-results/:sessionCode` route directly and mounts the legacy `/student/results/:sessionCode` alias through `StudentShellRoute`.
+- `src/pages/StudentTestResultsPage.test.tsx` - Phase 5B now mocks `StudentLayout`/`StudentSidebar`, keeps the canonical `/student-test-results/:sessionCode` coverage, and preserves the legacy `/student/results/:sessionCode` alias regression through `StudentShellRoute`.
 - `src/pages/StudentHomeworkListPage.test.tsx` - Updated for the Phase 3 homework pass by removing Mantine mocks and covering navigation/tracking through the homework list interactions.
 - `src/pages/AcademicRecordPage.test.tsx` - Updated for the Academic Record mobile pass by mocking `studentTokens` and `mobileStyles` exports.
 - `src/components/dashboard/PendingReviewsWidget.test.tsx` - Phase 3 widget regression coverage; updated to match the current Pending Reviews copy without the removed Live badge.
@@ -688,9 +688,9 @@ Before proceeding to Phase 5, verify ALL of the following:
 
   > **Goal:** Replace Mantine `Center`/`Loader` (FR-021), replace `useNavigate` (FR-022), wrap in `StudentLayout` (FR-020).
 
-  - [ ] 15.1 **Read the entire file first.** At 1147 lines, this is the largest page in scope. Understand the structure: score summary, question-by-question review, writing results (lazy-loaded), IELTS band display.
+  - [x] 15.1 **Read the entire file first.** At 1147 lines, this is the largest page in scope. Understand the structure: score summary, question-by-question review, writing results (lazy-loaded), IELTS band display.
 
-  - [ ] 15.2 **Wrap in `StudentLayout` (FR-020).** The page currently has no layout wrapper. Wrap the return JSX:
+  - [x] 15.2 **Wrap in `StudentLayout` (FR-020).** The page currently has no layout wrapper. Wrap the return JSX:
     ```tsx
     import { StudentLayout } from '../components/layout/StudentLayout';
     import { StudentSidebar } from '../components/layout/StudentSidebar';
@@ -706,15 +706,15 @@ Before proceeding to Phase 5, verify ALL of the following:
     ```
     **Note:** Since the canonical route `/student-test-results/:sessionCode` is still outside the shell (from Phase 4 task 11.4), the `StudentLayout` here will use `<ConnectedStudentRightRail>` which self-provides its data. This works without `shellData`.
 
-  - [ ] 15.3 **Remove Mantine `Center`/`Loader` (FR-021).** Line 20: `import { Center, Loader } from '@mantine/core';`. Delete this import. Replace all `<Center>` usages with flex-center divs. Replace all `<Loader />` with native CSS spinners (same as task 9.3).
+  - [x] 15.3 **Remove Mantine `Center`/`Loader` (FR-021).** Line 20: `import { Center, Loader } from "@mantine/core";`. Delete this import. Replace all `<Center>` usages with flex-center divs. Replace all `<Loader />` with native CSS spinners (same as task 9.3).
 
-  - [ ] 15.4 **Replace `useNavigate` with `useNavigation` (FR-022).** Line 15 imports `useNavigate`. Remove it. The file already imports `buildRoute` (line 19). Add:
+  - [x] 15.4 **Replace `useNavigate` with `useNavigation` (FR-022).** Line 15 imports `useNavigate`. Remove it. The file already imports `buildRoute` (line 19). Add:
     ```tsx
     import { useNavigation } from '../hooks/useNavigation';
     ```
     Replace `const navigate = useNavigate()` with `const { navigateTo } = useNavigation()`. Update all `navigate(...)` calls.
 
-  - [ ] 15.5 **STOP and verify desktop.** `npm run build`. Open page at 1440px. Confirm all content renders: score, questions, feedback, certificates. Fix issues before proceeding.
+  - [x] 15.5 **STOP and verify desktop.** `npm run build`. Open page at 1440px. Confirm all content renders: score, questions, feedback, certificates. Fix issues before proceeding.
 
   - [ ] 15.6 Commit: `refactor(test-results): remove Mantine + wrap in StudentLayout [PRD-0044 Phase 5B]`.
 

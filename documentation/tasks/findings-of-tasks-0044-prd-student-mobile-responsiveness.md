@@ -89,3 +89,10 @@
 - Extended `src/pages/StudentHomeworkDetailPage.test.tsx` with a focused mobile regression that opens the start modal, asserts full-width action styling, and verifies the start-attempt path still fires.
 - Verified `cmd /c npx vitest run src/pages/StudentHomeworkDetailPage.test.tsx --reporter=basic` and `cmd /c npm run build` both passed after the mobile override pass.
 - Verified the root `http://localhost:5173/` dev entry flow using the built-in Student quick-login button, then checked `/student/homework/a883G44sgZ7NR4dmbWeb` at 1440px and 375px; the mobile route rendered the stacked header/actions without horizontal overflow (`clientWidth === scrollWidth === 375`) and reported no console errors, only pre-existing courses debug warnings.
+
+## 2026-04-12 01:28 Phase 5B Test Results Shell
+- Completed the Task 15.0 implementation work in `src/pages/StudentTestResultsPage.tsx` by removing Mantine `Center`/`Loader`, wrapping the loading, error, writing, and main results branches in `StudentLayout` with `StudentSidebar activePage="records"`, and replacing direct router navigation with `useNavigation('student')`.
+- Added the missing student results action tracking for question expansion, return-home flows, PDF export, and print, and synchronized the new `printResults` action in `src/config/featureRegistry.ts`.
+- Updated `src/pages/StudentTestResultsPage.test.tsx` to mock `StudentLayout` and `StudentSidebar` while keeping both the canonical `/student-test-results/:sessionCode` coverage and the legacy `/student/results/:sessionCode` alias regression.
+- Verified `cmd /c npx vitest run src/pages/StudentTestResultsPage.test.tsx --reporter=basic` and `cmd /c npm run build` both passed after the shell/native rewrite.
+- Verified the root `http://localhost:5173/` dev-entry flow using the built-in Student quick-login button, then checked `/student-test-results/VASMIX` and `/student/results/VASMIX` in the authenticated session at desktop and mobile widths; both routes rendered inside `StudentLayout` with no runtime console errors, aside from an existing form-field accessibility warning.

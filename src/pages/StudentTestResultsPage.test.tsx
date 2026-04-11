@@ -49,14 +49,21 @@ vi.mock('../context/StudentShellDataContext', () => ({
     StudentShellDataProvider: ({ children }: any) => <>{children}</>,
 }));
 
-// Mock sub-components/modules that might cause issues in test env
-vi.mock('@mantine/core', () => ({
-    Center: ({ children }: any) => <div>{children}</div>,
-    Loader: () => <div>Loading...</div>
+vi.mock('../components/layout/StudentLayout', () => ({
+    StudentLayout: ({ children, sidebar }: any) => (
+        <div data-testid="student-layout">
+            <div data-testid="student-layout-sidebar">{sidebar}</div>
+            {children}
+        </div>
+    ),
+}));
+
+vi.mock('../components/layout/StudentSidebar', () => ({
+    StudentSidebar: () => <div data-testid="student-sidebar" />,
 }));
 
 vi.mock('../components/modern', () => ({
-    Card: ({ children }: any) => <div>{children}</div>,
+  Card: ({ children }: any) => <div>{children}</div>,
     CardBody: ({ children }: any) => <div>{children}</div>,
     Button: ({ children, onClick }: any) => <button onClick={onClick}>{children}</button>
 }));
@@ -141,7 +148,7 @@ describe('StudentTestResultsPage', () => {
         );
 
         // Should display loading initially
-        expect(screen.getByText('Loading...')).toBeInTheDocument();
+        expect(screen.getByText('Loading results...')).toBeInTheDocument();
 
         // Verify it called getStudentSessionResult
         await waitFor(() => {

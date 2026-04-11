@@ -375,6 +375,7 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       'retryAiFeedback',
       'returnToDashboard',
       'printWritingResults',
+      'printResults',
       'switchWritingMarkupMode',
       'toggleWritingCriteriaFeedback',
     ],
