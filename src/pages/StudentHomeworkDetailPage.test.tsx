@@ -106,6 +106,7 @@ vi.mock('../hooks/useHomeworkSubmission', () => ({
 vi.mock('../contexts/AuthContext', () => ({
   useAuth: () => ({
     user: authState.user,
+    profile: null,
     logout: vi.fn(),
   }),
 }));
@@ -116,6 +117,14 @@ vi.mock('../hooks/useNavigation', () => ({
 
 vi.mock('../context/StudentShellDataContext', () => ({
   StudentShellDataProvider: ({ children }: any) => <>{children}</>,
+}));
+
+vi.mock('../components/layout/StudentLayout', () => ({
+  StudentLayout: ({ children }: any) => <div data-testid="student-layout">{children}</div>,
+}));
+
+vi.mock('../components/layout/StudentSidebar', () => ({
+  StudentSidebar: () => <div data-testid="student-sidebar" />,
 }));
 
 vi.mock('../services/testStorage', () => ({

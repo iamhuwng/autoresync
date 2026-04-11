@@ -36,11 +36,11 @@
 - `src/config/featureRegistry.ts` - Feature tracking registry. Phase 3 homework updates add the student homework list actions used by `StudentHomeworkListPage`.
 
 ### Tier 1 Pages (Phase 5)
-- `src/pages/StudentHomeworkDetailPage.tsx` — FULL REWRITE target. Uses 13 Mantine components (lines 31–46), 14 Tabler icons (lines 47–65), `useNavigate` (line 30), legacy gradient background. (871 lines)
+- `src/pages/StudentHomeworkDetailPage.tsx` ? Phase 5A desktop shell migration is complete: the page now renders inside `StudentLayout`/`StudentSidebar` with the legacy `AppShell` wrapper removed, while the remaining Mantine imports and mobile overrides are deferred to Tasks 13.0 and 14.0. (846 lines)
 - `src/pages/StudentTestResultsPage.tsx` — FULL REWRITE target. Uses `Center`/`Loader` from Mantine (line 20), `useNavigate` (line 15), standalone layout (no `StudentLayout`). (1147 lines)
 
 ### Test Files
-- `src/pages/StudentHomeworkDetailPage.test.tsx` - Phase 4 now mounts the detail page through `StudentShellRoute` so the route test matches the nested production structure.
+- `src/pages/StudentHomeworkDetailPage.test.tsx` - Phase 5A now mocks `StudentLayout`/`StudentSidebar` while continuing to mount through `StudentShellRoute`, keeping the homework-detail tests aligned with the desktop shell migration.
 - `src/pages/StudentTestResultsPage.test.tsx` - Phase 4 now drives the canonical `/student-test-results/:sessionCode` route directly and mounts the legacy `/student/results/:sessionCode` alias through `StudentShellRoute`.
 - `src/pages/StudentHomeworkListPage.test.tsx` - Updated for the Phase 3 homework pass by removing Mantine mocks and covering navigation/tracking through the homework list interactions.
 - `src/pages/AcademicRecordPage.test.tsx` - Updated for the Academic Record mobile pass by mocking `studentTokens` and `mobileStyles` exports.
@@ -570,13 +570,13 @@ Before proceeding to Phase 5, verify ALL of the following:
 
 > ⚠️ **Phase 5A and 5B should be done by one developer each.** Do NOT split a single page between developers. Work incrementally: desktop migration first, then mobile overrides.
 
-- [ ] **12.0 `StudentHomeworkDetailPage.tsx` — Remove Mantine `AppShell` wrapper (Desktop First)**
+- [x] **12.0 `StudentHomeworkDetailPage.tsx` — Remove Mantine `AppShell` wrapper (Desktop First)**
 
   > **Goal:** Replace the Mantine `AppShell` with `StudentLayout`, preserving all desktop behavior exactly.
 
-  - [ ] 12.1 **Read the entire current file first.** Open `src/pages/StudentHomeworkDetailPage.tsx` (871 lines). Read and understand the full structure before making changes. Note all Mantine component usages and their desktop rendering.
+  - [x] 12.1 **Read the entire current file first.** Open `src/pages/StudentHomeworkDetailPage.tsx` (871 lines). Read and understand the full structure before making changes. Note all Mantine component usages and their desktop rendering.
 
-  - [ ] 12.2 **Replace `AppShell` with `StudentLayout`.** The current return JSX starts with `<AppShell header={{ height: 70 }} ...>`. Replace this outer wrapper with:
+  - [x] 12.2 **Replace `AppShell` with `StudentLayout`.** The current return JSX starts with `<AppShell header={{ height: 70 }} ...>`. Replace this outer wrapper with:
     ```tsx
     <StudentLayout
         sidebar={<StudentSidebar />}
@@ -591,11 +591,11 @@ Before proceeding to Phase 5, verify ALL of the following:
     ```
     Remove the matching `</AppShell>` closing tag and replace with `</StudentLayout>`.
 
-  - [ ] 12.3 **Remove `linear-gradient` background (FR-013).** Find `background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'` and remove it entirely. The `StudentLayout` already provides `studentTokens.bgPage` (`#f8f9fa`) as the page background.
+  - [x] 12.3 **Remove `linear-gradient` background (FR-013).** Find `background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'` and remove it entirely. The `StudentLayout` already provides `studentTokens.bgPage` (`#f8f9fa`) as the page background.
 
-  - [ ] 12.4 **Remove the AppShell header.** The AppShell has a custom `header` element with the purple gradient. Delete the entire header section. `StudentLayout` provides its own mobile header.
+  - [x] 12.4 **Remove the AppShell header.** The AppShell has a custom `header` element with the purple gradient. Delete the entire header section. `StudentLayout` provides its own mobile header.
 
-  - [ ] 12.5 **STOP and verify desktop.** Build the project (`npm run build`). Open the page at 1440px desktop width. Confirm the homework detail content is rendered correctly inside the new shell layout. The sidebar should be visible. The content should be in the feed area. Fix any layout issues before proceeding.
+  - [x] 12.5 **STOP and verify desktop.** Build the project (`npm run build`). Open the page at 1440px desktop width. Confirm the homework detail content is rendered correctly inside the new shell layout. The sidebar should be visible. The content should be in the feed area. Fix any layout issues before proceeding.
 
 ---
 

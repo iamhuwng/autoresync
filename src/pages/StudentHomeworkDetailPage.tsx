@@ -22,14 +22,13 @@
  * Student Homework Detail Page
  * PRD-0016: Solo Study & Homework System
  * 
- * UNIFIED DESIGN: Now follows app-wide design patterns with AppShell,
- * header navigation, gradient background, and modern components.
+ * UNIFIED DESIGN: Migrating away from the legacy AppShell shell while
+ * preserving the existing homework detail workflow.
  */
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-    AppShell,
     Badge,
     Group,
     Text,
@@ -69,6 +68,9 @@ import { useNavigation } from '../hooks/useNavigation';
 import { getTestFromFirebase, TestData } from '../services/testStorage';
 import { Card, CardBody, Button } from '../components/modern';
 import { DeferredResultSlidePanel } from '../components/results/DeferredResultSlidePanel';
+import { StudentLayout } from '../components/layout/StudentLayout';
+import { StudentSidebar } from '../components/layout/StudentSidebar';
+import { S, studentTokens } from '../components/layout/studentLayoutStyles';
 import { buildRoute } from '../constants/routes';
 
 
@@ -163,9 +165,10 @@ const formatSubmissionOutcome = (submission: { percentage?: number; bandScore?: 
 export const StudentHomeworkDetailPage: React.FC = () => {
     const { homeworkId } = useParams<{ homeworkId: string }>();
     const navigate = useNavigate();
-    const { user, logout } = useAuth();
+    const { user, profile, logout } = useAuth();
     const { navigateTo } = useNavigation('student');
     const resolvedStudentName = user?.displayName || user?.email || 'Student';
+    const sidebar = <StudentSidebar activePage="homework" />;
 
     // State
     const [material, setMaterial] = useState<TestData | null>(null);
@@ -276,88 +279,50 @@ export const StudentHomeworkDetailPage: React.FC = () => {
     // Loading state
     if (isLoading || materialLoading) {
         return (
-            <AppShell
-                header={{ height: 70 }}
-                padding="md"
-                style={{
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    minHeight: '100vh'
-                }}
-            >
-                <AppShell.Header style={{
-                    background: 'rgba(255, 255, 255, 0.95)',
-                    backdropFilter: 'blur(12px)',
-                    borderBottom: '1px solid rgba(203, 213, 225, 0.3)'
-                }}>
-                    <div style={{
-                        height: '100%',
-                        padding: '0 1.5rem',
-                        display: 'flex',
-                        alignItems: 'center'
-                    }}>
-                        <Group gap="sm">
-                            <IconClipboard size={28} color="#8b5cf6" />
-                            <h2 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#1e293b', margin: 0 }}>
-                                Homework Details
-                            </h2>
-                        </Group>
-                    </div>
-                </AppShell.Header>
-                <AppShell.Main>
-                    <Center style={{ height: '60vh' }}>
-                        <Stack align="center" gap="md">
-                            <Loader size="xl" color="white" type="bars" />
-                            <Text c="white" fw={500}>Loading homework...</Text>
-                        </Stack>
-                    </Center>
-                </AppShell.Main>
-            </AppShell>
+            <StudentLayout sidebar={sidebar} mobileTitle="Homework Details">
+                <Center style={{ minHeight: '60vh' }}>
+                    <Stack align="center" gap="md">
+                        <Loader size="xl" color={studentTokens.accent} type="bars" />
+                        <Text c={studentTokens.textBody} fw={500}>Loading homework...</Text>
+                    </Stack>
+                </Center>
+            </StudentLayout>
         );
     }
 
     // Error state
     if (error || !homework) {
         return (
-            <AppShell
-                header={{ height: 70 }}
-                padding="md"
-                style={{
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    minHeight: '100vh'
-                }}
-            >
-                <AppShell.Header style={{
-                    background: 'rgba(255, 255, 255, 0.95)',
-                    backdropFilter: 'blur(12px)'
-                }}>
-                    <div style={{ height: '100%', padding: '0 1.5rem', display: 'flex', alignItems: 'center' }}>
-                        <h2 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#1e293b', margin: 0 }}>
-                            Homework Details
-                        </h2>
-                    </div>
-                </AppShell.Header>
-                <AppShell.Main>
-                    <Center style={{ height: '60vh' }}>
-                        <Card variant="glass" style={{ background: 'rgba(255, 255, 255, 0.95)', padding: '3rem' }}>
-                            <Stack align="center" gap="md">
-                                <ThemeIcon size="xl" color="red" variant="light">
-                                    <IconAlertTriangle size={32} />
-                                </ThemeIcon>
-                                <Text size="xl" fw={700} c="#1e293b">
-                                    {error || 'Homework not found'}
-                                </Text>
-                                <Button
-                                    variant="primary"
-                                    leftSection={<IconArrowLeft size={16} />}
-                                    onClick={() => navigateTo('STUDENT_HOMEWORK')}
-                                >
-                                    Back to Homework List
-                                </Button>
-                            </Stack>
-                        </Card>
-                    </Center>
-                </AppShell.Main>
-            </AppShell>
+            <StudentLayout sidebar={sidebar} mobileTitle="Homework Details">
+                <Center style={{ minHeight: '60vh' }}>
+                    <Card
+                        variant="glass"
+                        style={{
+                            background: studentTokens.bgSurface,
+                            border: `1px solid ${studentTokens.borderSoft}`,
+                            padding: '3rem',
+                            width: '100%',
+                            maxWidth: 520,
+                        }}
+                    >
+                        <Stack align="center" gap="md">
+                            <ThemeIcon size="xl" color="red" variant="light">
+                                <IconAlertTriangle size={32} />
+                            </ThemeIcon>
+                            <Text size="xl" fw={700} c={studentTokens.textPrimary}>
+                                {error || 'Homework not found'}
+                            </Text>
+                            <Button
+                                variant="primary"
+                                leftSection={<IconArrowLeft size={16} />}
+                                onClick={() => navigateTo('STUDENT_HOMEWORK')}
+                            >
+                                Back to Homework List
+                            </Button>
+                        </Stack>
+                    </Card>
+                </Center>
+            </StudentLayout>
         );
     }
 
@@ -365,28 +330,47 @@ export const StudentHomeworkDetailPage: React.FC = () => {
     const completedSubmissions = allSubmissions.filter(s => s.status === 'submitted' || s.status === 'graded');
 
     return (
-        <AppShell
-            header={{ height: 70 }}
-            padding="md"
-            style={{
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                minHeight: '100vh'
-            }}
+        <StudentLayout
+            sidebar={sidebar}
+            mobileTitle="Homework Details"
         >
-            {/* Header */}
-            <AppShell.Header style={{
-                background: 'rgba(255, 255, 255, 0.95)',
-                backdropFilter: 'blur(12px)',
-                borderBottom: '1px solid rgba(203, 213, 225, 0.3)'
-            }}>
-                <div style={{
-                    height: '100%',
-                    padding: '0 1.5rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between'
-                }}>
-                    <Group gap="sm">
+            <div style={{ maxWidth: '900px', margin: '0 auto', padding: '2rem 1rem', width: '100%' }}>
+                <div
+                    style={{
+                        ...S.feedHeader,
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: '1rem',
+                        paddingBottom: '1.5rem',
+                    }}
+                >
+                    <div style={S.feedHeaderText}>
+                        <p
+                            style={{
+                                margin: 0,
+                                fontSize: '0.6875rem',
+                                fontWeight: 700,
+                                letterSpacing: '0.08em',
+                                textTransform: 'uppercase',
+                                color: studentTokens.textMuted,
+                            }}
+                        >
+                            Homework Workspace
+                        </p>
+                        <h1 style={S.feedHeaderTitle}>Homework Details</h1>
+                        <p style={S.feedHeaderSubtitle}>
+                            Review the assignment details, check past attempts, and launch the next available submission.
+                        </p>
+                    </div>
+                    <div
+                        style={{
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            gap: '0.75rem',
+                            alignItems: 'center',
+                            marginLeft: 'auto',
+                        }}
+                    >
                         <Button
                             variant="glass"
                             onClick={() => navigateTo('STUDENT_HOMEWORK')}
@@ -394,12 +378,6 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                         >
                             Back
                         </Button>
-                        <IconClipboard size={28} color="#8b5cf6" />
-                        <h2 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#1e293b', margin: 0 }}>
-                            Homework Details
-                        </h2>
-                    </Group>
-                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
                         <Button
                             variant="glass"
                             onClick={() => navigateTo('STUDENT_DASHBOARD')}
@@ -414,17 +392,20 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                         >
                             Library
                         </Button>
-                        <span style={{ fontSize: '0.875rem', color: '#64748b' }}>
-                            {user?.displayName || user?.email}
+                        <span
+                            style={{
+                                fontSize: '0.875rem',
+                                color: studentTokens.textBody,
+                                padding: '0 0.25rem',
+                            }}
+                        >
+                            {profile?.displayName || user?.displayName || profile?.email || user?.email}
                         </span>
                         <Button variant="glass" onClick={handleLogout}>Logout</Button>
                     </div>
                 </div>
-            </AppShell.Header>
 
-            <AppShell.Main>
-                <div style={{ maxWidth: '900px', margin: '0 auto', padding: '2rem 1rem' }}>
-                    <Stack gap="xl">
+                <Stack gap="xl">
                         {/* Header Card */}
                         <Card variant="glass" style={{
                             background: 'rgba(255, 255, 255, 0.95)',
@@ -774,9 +755,8 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                                 </Group>
                             </CardBody>
                         </Card>
-                    </Stack>
-                </div>
-            </AppShell.Main>
+                </Stack>
+            </div>
 
             {/* Start Confirmation Modal */}
             <Modal
@@ -863,7 +843,7 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                     onClose={() => setSelectedResultId(null)}
                 />
             )}
-        </AppShell>
+        </StudentLayout>
     );
 };
 

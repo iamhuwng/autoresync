@@ -67,3 +67,11 @@
 - Verified `cmd /c npx vitest run src/pages/StudentTestResultsPage.test.tsx --reporter=basic` and `cmd /c npm run build` both passed.
 - Verified the authenticated `http://localhost:5173/student-test-results/VASMIX` route loads and reloads cleanly with 0 console errors.
 - Verified the authenticated legacy alias `http://localhost:5173/student/results/VASMIX` resolves and reloads after the route move, but it still hits the page's pre-existing legacy-result lookup branch and falls back to `Session not found` with permission-denied console errors when given a session code instead of a legacy result id.
+
+## 2026-04-11 22:23 Phase 5A Homework Detail Shell
+- Completed Task 12.0 in `src/pages/StudentHomeworkDetailPage.tsx` by removing the legacy Mantine `AppShell` wrapper from the loading, error, and success branches and rendering the page inside `StudentLayout` with `StudentSidebar activePage="homework"`.
+- Preserved the legacy desktop utility actions by moving the Back, Dashboard, Library, student identity, and Logout controls into a feed-header action row inside the new shell instead of dropping them with the deleted AppShell header.
+- Updated `src/pages/StudentHomeworkDetailPage.test.tsx` to mock `StudentLayout` and `StudentSidebar` while continuing to mount through `StudentShellRoute`, keeping the focused route/detail coverage aligned with the shell migration.
+- Verified `cmd /c npx vitest run src/pages/StudentHomeworkDetailPage.test.tsx --reporter=basic` and `cmd /c npm run build` both passed.
+- Verified the authenticated `http://localhost:5173/student/homework/a883G44sgZ7NR4dmbWeb` page at 1440px desktop width after a reload; the sidebar remained visible, the homework detail content rendered in the feed area, and the reloaded page reported 0 console errors.
+
