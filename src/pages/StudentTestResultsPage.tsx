@@ -38,9 +38,10 @@ import { deriveSessionReleaseState, getReleaseVisibility } from '../types/releas
 import { FEATURE_IDS } from '../config/featureRegistry';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
 import { useNavigation } from '../hooks/useNavigation';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
-import { studentTokens } from '../components/layout/studentLayoutStyles';
+import { mobileStyles, studentTokens } from '../components/layout/studentLayoutStyles';
 
 
 // PRD-0030 Task 6.1.1: Lazy-load WritingResultView for Writing tests
@@ -89,6 +90,7 @@ export const StudentTestResultsPage: React.FC = () => {
   const { navigateTo } = useNavigation('student');
   const { trackAction } = useFeatureTracking(FEATURE_IDS.results);
   const sidebar = <StudentSidebar activePage="records" />;
+  const isMobile = useMediaQuery('(max-width: 768px)');
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -610,15 +612,15 @@ export const StudentTestResultsPage: React.FC = () => {
             maxWidth: '1200px',
             margin: '0 auto',
             display: 'grid',
-            gridTemplateColumns: '256px minmax(0, 980px) 1fr',
-            gap: '24px',
-            padding: '24px 0 40px',
+            gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '256px minmax(0, 980px) 1fr',
+            gap: isMobile ? '16px' : '24px',
+            padding: isMobile ? '16px 0 24px' : '24px 0 40px',
           }}
         >
           <aside
             style={{
-              position: 'sticky',
-              top: 24,
+              position: isMobile ? 'static' : 'sticky',
+              top: isMobile ? 0 : 24,
               alignSelf: 'start',
               display: 'grid',
               gap: '16px',
@@ -651,6 +653,7 @@ export const StudentTestResultsPage: React.FC = () => {
                   padding: '12px 16px',
                   fontWeight: 700,
                   cursor: 'pointer',
+                  ...(isMobile ? mobileStyles.fullWidthButton : {}),
                 }}
               >
                 Return to Home
@@ -672,6 +675,7 @@ export const StudentTestResultsPage: React.FC = () => {
                   padding: '12px 16px',
                   fontWeight: 700,
                   cursor: 'pointer',
+                  ...(isMobile ? mobileStyles.fullWidthButton : {}),
                 }}
               >
                 Print Result
@@ -718,7 +722,7 @@ export const StudentTestResultsPage: React.FC = () => {
             </Suspense>
           </main>
 
-          <aside aria-hidden="true" />
+          {!isMobile && <aside aria-hidden="true" />}
         </div>
         <style>{`@keyframes studentResultsSpin { to { transform: rotate(360deg); } }`}</style>
       </StudentLayout>
@@ -740,7 +744,7 @@ export const StudentTestResultsPage: React.FC = () => {
         style={{
           minHeight: '100%',
           background: 'linear-gradient(135deg, rgba(250, 245, 255, 0.95) 0%, rgba(240, 249, 255, 0.95) 50%, rgba(240, 253, 250, 0.95) 100%)',
-          padding: '2rem',
+          padding: isMobile ? mobileStyles.feedPadding.padding : '2rem',
         }}
       >
       <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
@@ -749,7 +753,7 @@ export const StudentTestResultsPage: React.FC = () => {
           <h1
             style={{
               margin: 0,
-              fontSize: '2.5rem',
+              fontSize: isMobile ? '2rem' : '2.5rem',
               fontWeight: 800,
               background: 'linear-gradient(135deg, #8b5cf6 0%, #06b6d4 100%)',
               WebkitBackgroundClip: 'text',
@@ -763,7 +767,7 @@ export const StudentTestResultsPage: React.FC = () => {
           <div style={{ fontSize: '1.125rem', color: '#64748b', fontWeight: 500 }}>
             {testData.title}
           </div>
-          <div style={{ fontSize: '0.875rem', color: '#94a3b8', marginTop: '0.25rem' }}>
+          <div style={{ fontSize: isMobile ? '0.8125rem' : '0.875rem', color: '#94a3b8', marginTop: '0.25rem' }}>
             {testData.type} - {testData.skill}
           </div>
         </div>
@@ -776,7 +780,8 @@ export const StudentTestResultsPage: React.FC = () => {
             border: '1px solid rgba(100, 116, 139, 0.2)',
             borderRadius: '0.75rem',
             display: 'flex',
-            alignItems: 'center',
+            flexDirection: isMobile ? 'column' : 'row',
+            alignItems: isMobile ? 'flex-start' : 'center',
             gap: '0.75rem',
             marginBottom: '1.5rem',
           }}>
@@ -794,7 +799,8 @@ export const StudentTestResultsPage: React.FC = () => {
             border: '1px solid rgba(59, 130, 246, 0.15)',
             borderRadius: '0.75rem',
             display: 'flex',
-            alignItems: 'center',
+            flexDirection: isMobile ? 'column' : 'row',
+            alignItems: isMobile ? 'flex-start' : 'center',
             gap: '0.75rem',
             marginBottom: '1.5rem',
           }}>
@@ -807,17 +813,24 @@ export const StudentTestResultsPage: React.FC = () => {
         )}
 
         {/* Score Summary Cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(250px, 1fr))',
+            gap: isMobile ? '1rem' : '1.5rem',
+            marginBottom: '2rem',
+          }}
+        >
           {/* Total Score */}
           <Card variant="glass">
-            <CardBody style={{ padding: '2rem', textAlign: 'center' }}>
+            <CardBody style={{ padding: isMobile ? '1.25rem' : '2rem', textAlign: 'center' }}>
               <div style={{ fontSize: '0.875rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.5rem' }}>
                 Your Score
               </div>
-              <div style={{ fontSize: '3rem', fontWeight: 800, color: '#8b5cf6', marginBottom: '0.5rem' }}>
+              <div style={{ fontSize: isMobile ? '2.25rem' : '3rem', fontWeight: 800, color: '#8b5cf6', marginBottom: '0.5rem', wordBreak: 'break-word' }}>
                 {safeResults.totalScore}/{safeResults.maxScore}
               </div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#64748b' }}>
+              <div style={{ fontSize: isMobile ? '1.125rem' : '1.25rem', fontWeight: 700, color: '#64748b' }}>
                 {safeResults.percentage.toFixed(1)}%
               </div>
             </CardBody>
@@ -825,11 +838,11 @@ export const StudentTestResultsPage: React.FC = () => {
 
           {/* Band Score */}
           <Card variant="glass">
-            <CardBody style={{ padding: '2rem', textAlign: 'center' }}>
+            <CardBody style={{ padding: isMobile ? '1.25rem' : '2rem', textAlign: 'center' }}>
               <div style={{ fontSize: '0.875rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.5rem' }}>
                 IELTS Band Score
               </div>
-              <div style={{ fontSize: '3rem', fontWeight: 800, color: '#10b981', marginBottom: '0.5rem' }}>
+              <div style={{ fontSize: isMobile ? '2.25rem' : '3rem', fontWeight: 800, color: '#10b981', marginBottom: '0.5rem' }}>
                 {bandScore.toFixed(1)}
               </div>
               <div style={{ fontSize: '0.875rem', color: '#64748b' }}>
@@ -840,25 +853,34 @@ export const StudentTestResultsPage: React.FC = () => {
 
           {/* Questions Summary */}
           <Card variant="glass">
-            <CardBody style={{ padding: '2rem', textAlign: 'center' }}>
+            <CardBody style={{ padding: isMobile ? '1.25rem' : '2rem', textAlign: 'center' }}>
               <div style={{ fontSize: '0.875rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.5rem' }}>
                 Questions
               </div>
-              <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '1rem' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: isMobile ? 'column' : 'row',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  gap: isMobile ? '0.75rem' : '1rem',
+                  marginTop: '1rem',
+                }}
+              >
                 <div>
-                  <div style={{ fontSize: '2rem', fontWeight: 800, color: '#10b981' }}>
+                  <div style={{ fontSize: isMobile ? '1.75rem' : '2rem', fontWeight: 800, color: '#10b981' }}>
                     {safeResults.summary.correct}
                   </div>
                   <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Correct</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '2rem', fontWeight: 800, color: '#f59e0b' }}>
+                  <div style={{ fontSize: isMobile ? '1.75rem' : '2rem', fontWeight: 800, color: '#f59e0b' }}>
                     {safeResults.summary.partialCredit}
                   </div>
                   <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Partial</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '2rem', fontWeight: 800, color: '#ef4444' }}>
+                  <div style={{ fontSize: isMobile ? '1.75rem' : '2rem', fontWeight: 800, color: '#ef4444' }}>
                     {safeResults.summary.incorrect}
                   </div>
                   <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Incorrect</div>
@@ -870,17 +892,22 @@ export const StudentTestResultsPage: React.FC = () => {
           {/* Course Average Card */}
           {session.courseId && courseAverage !== null && (
             <Card variant="glass">
-              <CardBody style={{ padding: '2rem', textAlign: 'center' }}>
+              <CardBody style={{ padding: isMobile ? '1.25rem' : '2rem', textAlign: 'center' }}>
                 <div style={{ fontSize: '0.875rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.5rem' }}>
                   {session.courseName ? `${session.courseName} Avg` : 'Course Average'}
                 </div>
-                <div style={{ fontSize: '3rem', fontWeight: 800, color: '#3b82f6', marginBottom: '0.5rem' }}>
+                <div style={{ fontSize: isMobile ? '2.25rem' : '3rem', fontWeight: 800, color: '#3b82f6', marginBottom: '0.5rem' }}>
                   {courseAverage.toFixed(1)}%
                 </div>
                 <div style={{
                   fontSize: '0.875rem',
                   color: safeResults.percentage >= courseAverage ? '#10b981' : '#ef4444',
-                  fontWeight: 700
+                  fontWeight: 700,
+                  display: 'flex',
+                  flexDirection: isMobile ? 'column' : 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: isMobile ? '0.25rem' : '0.5rem',
                 }}>
                   {safeResults.percentage >= courseAverage ? 'Above Average' : 'Below Average'}
                 </div>
@@ -892,12 +919,12 @@ export const StudentTestResultsPage: React.FC = () => {
         {/* Performance Feedback — gated by release state */}
         {visibility.showAIFeedback && (
         <Card variant="glass" style={{ marginBottom: '2rem' }}>
-          <CardBody style={{ padding: '2rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <CardBody style={{ padding: isMobile ? '1.25rem' : '2rem' }}>
+            <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'flex-start' : 'center', gap: '1rem' }}>
               <div style={{ fontSize: '3rem' }}>
                 {safeResults.percentage >= 80 ? '🎉' : safeResults.percentage >= 60 ? '👍' : '📚'}
               </div>
-              <div style={{ flex: 1 }}>
+              <div style={{ flex: 1, width: '100%' }}>
                 <div style={{ fontSize: '1.125rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.5rem' }}>
                   Performance Feedback
                 </div>
@@ -950,24 +977,40 @@ export const StudentTestResultsPage: React.FC = () => {
 
               return (
                 <Card key={result.questionNumber} variant="glass">
-                  <CardBody style={{ padding: '1.5rem' }}>
+                  <CardBody style={{ padding: isMobile ? '1rem' : '1.5rem' }}>
                     {/* Question Header */}
-                    <div
+                    <button
+                      type="button"
                       onClick={() => toggleQuestion(result.questionNumber)}
                       style={{
                         display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
+                        width: '100%',
+                        border: 'none',
+                        background: 'transparent',
+                        padding: 0,
+                        textAlign: 'left',
                         cursor: 'pointer',
                         marginBottom: isExpanded ? '1rem' : 0,
+                        ...(isMobile ? mobileStyles.touchTarget : {}),
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1 }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexDirection: isMobile ? 'column' : 'row',
+                          justifyContent: 'space-between',
+                          alignItems: isMobile ? 'stretch' : 'center',
+                          gap: '1rem',
+                          flex: 1,
+                          width: '100%',
+                          minWidth: 0,
+                        }}
+                      >
                         {/* Question Number */}
                         <div
                           style={{
-                            width: '3rem',
-                            height: '3rem',
+                            width: isMobile ? '2.75rem' : '3rem',
+                            height: isMobile ? '2.75rem' : '3rem',
                             borderRadius: '50%',
                             background: statusColor.bg,
                             border: `2px solid ${statusColor.border}`,
@@ -984,11 +1027,11 @@ export const StudentTestResultsPage: React.FC = () => {
                         </div>
 
                         {/* Question Info */}
-                        <div style={{ flex: 1 }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: '1rem', fontWeight: 600, color: '#1e293b', marginBottom: '0.25rem' }}>
                             Question {result.questionNumber}
                           </div>
-                          <div style={{ fontSize: '0.875rem', color: statusColor.text, fontWeight: 600 }}>
+                          <div style={{ fontSize: '0.875rem', color: statusColor.text, fontWeight: 600, lineHeight: 1.5 }}>
                             {visibility.showQuestionScoring
                               ? `${result.isCorrect ? '✓ Correct' : result.partialCredit ? '⚡ Partial Credit' : '✗ Incorrect'} - ${result.score}/${result.maxScore} points`
                               : 'Tap to view your answer'}
@@ -996,11 +1039,19 @@ export const StudentTestResultsPage: React.FC = () => {
                         </div>
 
                         {/* Expand Icon */}
-                        <div style={{ fontSize: '1.5rem', color: '#64748b', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                        <div
+                          style={{
+                            fontSize: '1.5rem',
+                            color: '#64748b',
+                            transition: 'transform 0.2s',
+                            transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                            alignSelf: isMobile ? 'flex-end' : 'center',
+                          }}
+                        >
                           ▼
                         </div>
                       </div>
-                    </div>
+                    </button>
 
                     {/* Question Details (Expanded) */}
                     {isExpanded && (
@@ -1012,7 +1063,7 @@ export const StudentTestResultsPage: React.FC = () => {
                           </div>
                           <div
                             style={{
-                              padding: '1rem',
+                              padding: isMobile ? '0.875rem' : '1rem',
                               background: statusColor.bg,
                               border: `1px solid ${statusColor.border}`,
                               borderRadius: '0.5rem',
@@ -1036,7 +1087,7 @@ export const StudentTestResultsPage: React.FC = () => {
                             </div>
                             <div
                               style={{
-                                padding: '1rem',
+                                padding: isMobile ? '0.875rem' : '1rem',
                                 background: 'rgba(16, 185, 129, 0.1)',
                                 border: '1px solid #10b981',
                                 borderRadius: '0.5rem',
@@ -1057,7 +1108,7 @@ export const StudentTestResultsPage: React.FC = () => {
                         {visibility.showAIFeedback && (
                         <div
                           style={{
-                            padding: '0.75rem 1rem',
+                            padding: isMobile ? '0.875rem' : '0.75rem 1rem',
                             background: 'rgba(248, 250, 252, 0.8)',
                             borderRadius: '0.5rem',
                             fontSize: '0.875rem',
@@ -1103,13 +1154,24 @@ export const StudentTestResultsPage: React.FC = () => {
         </div>
 
         {/* Action Buttons */}
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '2rem', flexWrap: 'wrap' }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: isMobile ? 'column' : 'row',
+            justifyContent: 'center',
+            alignItems: isMobile ? 'stretch' : 'center',
+            gap: '1rem',
+            marginTop: '2rem',
+            flexWrap: 'wrap',
+          }}
+        >
           <Button
             variant="primary"
             onClick={() => {
               trackAction('returnToDashboard', { source: 'student_test_results_page' });
               navigateTo('STUDENT_DASHBOARD', {}, { reason: 'student_results_return' });
             }}
+            style={isMobile ? mobileStyles.fullWidthButton : undefined}
           >
             🏠 Return to Home
           </Button>
@@ -1174,6 +1236,7 @@ export const StudentTestResultsPage: React.FC = () => {
 
                 await generateCertificatePDF(resultRecord);
               }}
+              style={isMobile ? mobileStyles.fullWidthButton : undefined}
             >
               📄 Download Certificate
             </Button>
@@ -1188,6 +1251,7 @@ export const StudentTestResultsPage: React.FC = () => {
               });
               window.print();
             }}
+            style={isMobile ? mobileStyles.fullWidthButton : undefined}
           >
             🖨️ Print Results
           </Button>
@@ -1195,7 +1259,7 @@ export const StudentTestResultsPage: React.FC = () => {
 
         {/* Writing/Speaking Placeholder */}
         {(permanentResultRecord?.writingSubmission || permanentResultRecord?.speakingSubmission) && (
-          <div style={{ marginTop: '2rem' }}>
+          <div style={{ marginTop: '2rem', width: '100%', minWidth: 0 }}>
             <WritingSpeakingPlaceholder
               type={permanentResultRecord.testSkill === 'speaking' ? 'speaking' : 'writing'}
               submission={permanentResultRecord.writingSubmission || permanentResultRecord.speakingSubmission}

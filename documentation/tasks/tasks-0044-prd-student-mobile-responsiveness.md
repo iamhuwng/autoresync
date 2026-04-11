@@ -37,11 +37,11 @@
 
 ### Tier 1 Pages (Phase 5)
 - `src/pages/StudentHomeworkDetailPage.tsx` ? Phase 5A homework detail migration is now complete: the page uses `StudentLayout`, local native primitives, inline SVG icons, shared mobile tokens, full-width 44px mobile actions, and a full-viewport start modal with sticky mobile actions. (1362 lines)
-- `src/pages/StudentTestResultsPage.tsx` - Phase 5B now runs inside `StudentLayout` with `StudentSidebar activePage="records"`, native loading/error states, `useNavigation('student')`, tracked return/export/print/question actions, and the existing writing-results branch preserved inside the student shell.
+- `src/pages/StudentTestResultsPage.tsx` - Phase 5B now runs inside `StudentLayout` with `StudentSidebar activePage="records"`, native loading/error states, `useNavigation('student')`, tracked return/export/print/question actions, and the mobile pass adds `useMediaQuery`, stacked summary/question layouts, full-width touch-target buttons, and overflow-safe writing/result surfaces.
 
 ### Test Files
 - `src/pages/StudentHomeworkDetailPage.test.tsx` - Phase 5A now mounts through `StudentShellRoute` with `StudentLayout`/`StudentSidebar` mocks, covers the mobile start-modal/full-width action branch, and no longer needs Mantine or Tabler test stubs. (224 lines)
-- `src/pages/StudentTestResultsPage.test.tsx` - Phase 5B now mocks `StudentLayout`/`StudentSidebar`, keeps the canonical `/student-test-results/:sessionCode` coverage, and preserves the legacy `/student/results/:sessionCode` alias regression through `StudentShellRoute`.
+- `src/pages/StudentTestResultsPage.test.tsx` - Phase 5B now mocks `StudentLayout`/`StudentSidebar`, keeps the canonical `/student-test-results/:sessionCode` coverage, preserves the legacy `/student/results/:sessionCode` alias regression, and adds a focused mobile full-width-actions/touch-target assertion.
 - `src/pages/StudentHomeworkListPage.test.tsx` - Updated for the Phase 3 homework pass by removing Mantine mocks and covering navigation/tracking through the homework list interactions.
 - `src/pages/AcademicRecordPage.test.tsx` - Updated for the Academic Record mobile pass by mocking `studentTokens` and `mobileStyles` exports.
 - `src/components/dashboard/PendingReviewsWidget.test.tsx` - Phase 3 widget regression coverage; updated to match the current Pending Reviews copy without the removed Live badge.
@@ -684,7 +684,7 @@ Before proceeding to Phase 5, verify ALL of the following:
 
 ---
 
-- [ ] **15.0 `StudentTestResultsPage.tsx` — Mantine removal + `StudentLayout` wrap**
+- [x] **15.0 `StudentTestResultsPage.tsx` ? Mantine removal + `StudentLayout` wrap**
 
   > **Goal:** Replace Mantine `Center`/`Loader` (FR-021), replace `useNavigate` (FR-022), wrap in `StudentLayout` (FR-020).
 
@@ -716,15 +716,15 @@ Before proceeding to Phase 5, verify ALL of the following:
 
   - [x] 15.5 **STOP and verify desktop.** `npm run build`. Open page at 1440px. Confirm all content renders: score, questions, feedback, certificates. Fix issues before proceeding.
 
-  - [ ] 15.6 Commit: `refactor(test-results): remove Mantine + wrap in StudentLayout [PRD-0044 Phase 5B]`.
+  - [x] 15.6 Commit: `refactor(test-results): remove Mantine + wrap in StudentLayout [PRD-0044 Phase 5B]`.
 
 ---
 
-- [ ] **16.0 `StudentTestResultsPage.tsx` — Mobile responsive overrides**
+- [ ] **16.0 `StudentTestResultsPage.tsx` ? Mobile responsive overrides**
 
   > **Goal:** Apply mobile-specific layout (FR-023 through FR-027).
 
-  - [ ] 16.1 **Add `isMobile`:**
+  - [x] 16.1 **Add `isMobile`:**
     ```tsx
     import { useMediaQuery } from '../hooks/useMediaQuery';
     import { mobileStyles } from '../components/layout/studentLayoutStyles';
@@ -732,7 +732,7 @@ Before proceeding to Phase 5, verify ALL of the following:
     const isMobile = useMediaQuery('(max-width: 768px)');
     ```
 
-  - [ ] 16.2 **Score summary card (FR-023).** On mobile, stack vertically:
+  - [x] 16.2 **Score summary card (FR-023).** On mobile, stack vertically:
     ```tsx
     ...(isMobile ? {
         flexDirection: 'column',
@@ -742,24 +742,24 @@ Before proceeding to Phase 5, verify ALL of the following:
     ```
     Score circle: `maxWidth: isMobile ? 120 : /* existing */`
 
-  - [ ] 16.3 **Question review cards (FR-024).** Each question card on mobile:
+  - [x] 16.3 **Question review cards (FR-024).** Each question card on mobile:
     - Full-width: `width: '100%'`
     - Answer comparison stacked (not side-by-side): `flexDirection: isMobile ? 'column' : 'row'`
     - Expand/collapse toggle: `...(isMobile ? mobileStyles.touchTarget : {})`
 
-  - [ ] 16.4 **Full-width buttons (FR-025).** "Download Certificate" and "Back to Dashboard" buttons:
+  - [x] 16.4 **Full-width buttons (FR-025).** "Download Certificate" and "Back to Dashboard" buttons:
     ```tsx
     ...(isMobile ? mobileStyles.fullWidthButton : {})
     ```
 
-  - [ ] 16.5 **Writing result width (FR-026).** The `WritingResultView` is lazy-loaded via `<Suspense>`. Pass width context if needed. If `WritingResultView` handles its own responsive layout, no change needed. Verify at 375px that writing results don't overflow.
+  - [x] 16.5 **Writing result width (FR-026).** The `WritingResultView` is lazy-loaded via `<Suspense>`. Pass width context if needed. If `WritingResultView` handles its own responsive layout, no change needed. Verify at 375px that writing results don't overflow.
 
-  - [ ] 16.6 **Course average stacking (FR-027).** If there's a score-vs-average comparison layout, on mobile:
+  - [x] 16.6 **Course average stacking (FR-027).** If there's a score-vs-average comparison layout, on mobile:
     ```tsx
     flexDirection: isMobile ? 'column' : 'row'
     ```
 
-  - [ ] 16.7 **Verify:** Test at 375px — score card stacked vertically, question cards full-width, buttons full-width, no horizontal overflow. Test at 1440px — desktop unchanged.
+  - [x] 16.7 **Verify:** Test at 375px ? score card stacked vertically, question cards full-width, buttons full-width, no horizontal overflow. Test at 1440px ? desktop unchanged.
 
   - [ ] 16.8 Run `npm run build`. Run tests: `npx vitest run src/pages/StudentTestResultsPage.test.tsx`. Commit: `feat(test-results): add mobile responsive overrides [PRD-0044 Phase 5B]`.
 

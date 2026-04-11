@@ -96,3 +96,10 @@
 - Updated `src/pages/StudentTestResultsPage.test.tsx` to mock `StudentLayout` and `StudentSidebar` while keeping both the canonical `/student-test-results/:sessionCode` coverage and the legacy `/student/results/:sessionCode` alias regression.
 - Verified `cmd /c npx vitest run src/pages/StudentTestResultsPage.test.tsx --reporter=basic` and `cmd /c npm run build` both passed after the shell/native rewrite.
 - Verified the root `http://localhost:5173/` dev-entry flow using the built-in Student quick-login button, then checked `/student-test-results/VASMIX` and `/student/results/VASMIX` in the authenticated session at desktop and mobile widths; both routes rendered inside `StudentLayout` with no runtime console errors, aside from an existing form-field accessibility warning.
+
+## 2026-04-12 01:43 Phase 5B Test Results Mobile Overrides
+- Completed the Task 16.0 mobile pass in `src/pages/StudentTestResultsPage.tsx` by adding `useMediaQuery('(max-width: 768px)')`, shared `mobileStyles`, stacked score/feedback/question layouts, full-width 44px action buttons, and a one-column writing-results shell on phones.
+- Reworked the question-review toggle into a semantic button with the mobile touch-target treatment, reduced mobile card padding/font sizes, and made the score/course-average summary cards collapse cleanly without horizontal overflow.
+- Updated `src/pages/StudentTestResultsPage.test.tsx` with the new `useMediaQuery` mock and a focused mobile regression that asserts the full-width action buttons and question-card touch target.
+- Verified `cmd /c npx vitest run src/pages/StudentTestResultsPage.test.tsx --reporter=basic` and `cmd /c npm run build` both passed after the mobile override pass.
+- Verified the root `http://localhost:5173/` dev-entry flow using the built-in Student quick-login button, then checked `/student-test-results/VASMIX` at 1440px and 375px; the desktop shell stayed intact, the mobile score cards and action buttons stacked correctly, and `document.documentElement.scrollWidth === clientWidth` confirmed there was no horizontal overflow.

@@ -10,6 +10,10 @@ import { get, onValue, ref } from 'firebase/database';
 import * as testResultsService from '../services/testResults.service';
 import * as sessionService from '../services/sessionService';
 
+const { useMediaQueryMock } = vi.hoisted(() => ({
+    useMediaQueryMock: vi.fn(),
+}));
+
 // Mock Firebase
 vi.mock('../services/firebase', () => ({
     database: {}
@@ -49,6 +53,10 @@ vi.mock('../context/StudentShellDataContext', () => ({
     StudentShellDataProvider: ({ children }: any) => <>{children}</>,
 }));
 
+vi.mock('../hooks/useMediaQuery', () => ({
+    useMediaQuery: (...args: unknown[]) => useMediaQueryMock(...args),
+}));
+
 vi.mock('../components/layout/StudentLayout', () => ({
     StudentLayout: ({ children, sidebar }: any) => (
         <div data-testid="student-layout">
@@ -65,7 +73,7 @@ vi.mock('../components/layout/StudentSidebar', () => ({
 vi.mock('../components/modern', () => ({
   Card: ({ children }: any) => <div>{children}</div>,
     CardBody: ({ children }: any) => <div>{children}</div>,
-    Button: ({ children, onClick }: any) => <button onClick={onClick}>{children}</button>
+    Button: ({ children, onClick, style }: any) => <button onClick={onClick} style={style}>{children}</button>
 }));
 
 describe('StudentTestResultsPage', () => {
@@ -76,6 +84,7 @@ describe('StudentTestResultsPage', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         sessionListeners.clear();
+        useMediaQueryMock.mockReturnValue(false);
 
         // Default mocks
         (sessionService.sessionService.getPlayerId as any).mockReturnValue(studentId);
@@ -440,5 +449,54 @@ describe('StudentTestResultsPage', () => {
         await waitFor(() => {
             expect(screen.getByText('Answers Released')).toBeInTheDocument();
         });
+    });
+
+    it('applies mobile stacking and full-width actions when the breakpoint matches', async () => {
+        useMediaQueryMock.mockReturnValue(true);
+
+        (testResultsService.getStudentSessionResult as any).mockResolvedValue({
+            resultId: 'res-mobile',
+            totalScore: 7,
+            maxScore: 10,
+            percentage: 70,
+            questionResults: [
+                {
+                    questionNumber: 1,
+                    questionType: 'multiple-choice',
+                    isCorrect: true,
+                    partialCredit: 0,
+                    score: 1,
+                    maxScore: 1,
+                    studentAnswer: 'A',
+                    correctAnswer: 'A',
+                    feedback: 'Nice work',
+                },
+            ],
+            correct: 1,
+            incorrect: 0,
+            partialCredit: 0,
+            totalQuestions: 1,
+            summary: { correct: 1, incorrect: 0, partialCredit: 0, totalQuestions: 1 },
+            submittedAt: Date.now(),
+            testTitle: 'Mobile Result',
+            testType: 'reading',
+            testSkill: 'Reading',
+        });
+
+        render(
+            <MemoryRouter initialEntries={[`/student-test-results/${sessionCode}`]}>
+                <Routes>
+                    <Route path="/student-test-results/:sessionCode" element={<StudentTestResultsPage />} />
+                </Routes>
+            </MemoryRouter>
+        );
+
+        await waitFor(() => {
+            expect(screen.getByText('7/10')).toBeInTheDocument();
+        });
+
+        expect(screen.getByText('🏠 Return to Home')).toHaveStyle({ width: '100%', minHeight: '44px' });
+        expect(screen.getByText('🖨️ Print Results')).toHaveStyle({ width: '100%', minHeight: '44px' });
+        expect(screen.getByRole('button', { name: /question 1/i })).toHaveStyle({ minHeight: '44px', minWidth: '44px' });
     });
 });
