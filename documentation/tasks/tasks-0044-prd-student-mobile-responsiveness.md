@@ -807,7 +807,7 @@ Before proceeding to Phase 5, verify ALL of the following:
 ---
 
 
-- [ ] **19.0 Shared student mobile controls - close the remaining 44px gaps**
+- [x] **19.0 Shared student mobile controls - close the remaining 44px gaps**
 
   > **Goal:** Fix the visible student-shell controls that still render below the 44px touch-target floor during the full 375px verification sweep.
 
@@ -817,7 +817,7 @@ Before proceeding to Phase 5, verify ALL of the following:
 
   - [x] 19.3 **Verify mobile controls.** Run the relevant focused tests, run `cmd /c npm run build`, and re-verify at `http://localhost:5173` on the impacted student routes that no visible button/link/control remains under 44px at 375px.
 
-  - [ ] 19.4 Commit: `fix(student-ui): raise remaining shared mobile touch targets [PRD-0044 Final]`.
+  - [x] 19.4 Commit: `fix(student-ui): raise remaining shared mobile touch targets [PRD-0044 Final]`.
 
 ---
 
