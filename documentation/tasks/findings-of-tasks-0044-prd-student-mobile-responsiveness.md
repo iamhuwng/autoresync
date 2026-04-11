@@ -59,3 +59,11 @@
 - Confirmed `src/constants/routes.ts`, `src/config/routeSecurity.ts`, and `src/config/featureRegistry.ts` still expose `/student/homework/:homeworkId` unchanged after the nesting change.
 - Verified `cmd /c npx vitest run src/pages/StudentHomeworkDetailPage.test.tsx --reporter=basic` and `cmd /c npm run build` both passed.
 - Verified the route contract in the authenticated `http://localhost:5173` student session by directly loading and reloading `/student/homework/a883G44sgZ7NR4dmbWeb`; the page continued to load at the same public URL with 0 console errors.
+
+## 2026-04-11 21:20 Phase 4 Test Results Routes
+- Completed the Phase 4 router pass in `src/routes/studentRoutes.tsx` by moving the legacy `/student/results/:sessionCode` alias into the `StudentShellRoute` children as `results/:sessionCode` while keeping the canonical `/student-test-results/:sessionCode` route top-level.
+- Updated `src/pages/StudentTestResultsPage.test.tsx` so the main route coverage now mounts the real canonical `/student-test-results/:sessionCode` path, and the legacy alias coverage mounts through `StudentShellRoute` with a pass-through `StudentShellDataProvider` mock.
+- Confirmed `src/constants/routes.ts`, `src/config/routeSecurity.ts`, and `src/config/featureRegistry.ts` still expose `/student-test-results/:sessionCode` and `/student/results/:sessionCode` unchanged after the nesting change.
+- Verified `cmd /c npx vitest run src/pages/StudentTestResultsPage.test.tsx --reporter=basic` and `cmd /c npm run build` both passed.
+- Verified the authenticated `http://localhost:5173/student-test-results/VASMIX` route loads and reloads cleanly with 0 console errors.
+- Verified the authenticated legacy alias `http://localhost:5173/student/results/VASMIX` resolves and reloads after the route move, but it still hits the page's pre-existing legacy-result lookup branch and falls back to `Session not found` with permission-denied console errors when given a session code instead of a legacy result id.

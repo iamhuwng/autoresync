@@ -29,7 +29,7 @@
 - `src/pages/StudentHomeworkListPage.tsx` - Homework list. Phase 3 now uses `useNavigation('student')`, a native CSS spinner, shared mobile header/tab treatment, stacked summary cards, tighter mobile card padding, full-width mobile CTA buttons, and homework action tracking. (740 lines)
 
 ### Route & Config Files (Phase 4)
-- `src/routes/studentRoutes.tsx` - Student route definitions. Phase 4 moved the homework detail and homework test routes into the `StudentShellRoute` children while preserving their public `/student/homework/...` URLs; test-results routes remain outside the shell pending task 11.0. (134 lines)
+- `src/routes/studentRoutes.tsx` - Student route definitions. Phase 4 now nests the homework detail routes and the legacy `results/:sessionCode` alias under `StudentShellRoute` while keeping `/student-test-results/:sessionCode` top-level and preserving all public URLs. (134 lines)
 - `src/routes/StudentShellRoute.tsx` — The shell route wrapper that provides sidebar/layout context.
 - `src/constants/routes.ts` — Route name constants and `buildRoute` utility.
 - `src/config/routeSecurity.ts` — Route security configuration.
@@ -41,7 +41,7 @@
 
 ### Test Files
 - `src/pages/StudentHomeworkDetailPage.test.tsx` - Phase 4 now mounts the detail page through `StudentShellRoute` so the route test matches the nested production structure.
-- `src/pages/StudentTestResultsPage.test.tsx` — Must preserve `/student/results/:sessionCode` coverage.
+- `src/pages/StudentTestResultsPage.test.tsx` - Phase 4 now drives the canonical `/student-test-results/:sessionCode` route directly and mounts the legacy `/student/results/:sessionCode` alias through `StudentShellRoute`.
 - `src/pages/StudentHomeworkListPage.test.tsx` - Updated for the Phase 3 homework pass by removing Mantine mocks and covering navigation/tracking through the homework list interactions.
 - `src/pages/AcademicRecordPage.test.tsx` - Updated for the Academic Record mobile pass by mocking `studentTokens` and `mobileStyles` exports.
 - `src/components/dashboard/PendingReviewsWidget.test.tsx` - Phase 3 widget regression coverage; updated to match the current Pending Reviews copy without the removed Live badge.
@@ -505,17 +505,17 @@ Before proceeding to Phase 2, verify ALL of the following:
 
 ---
 
-- [ ] **11.0 Move `StudentTestResultsPage` routes under `StudentShellRoute`**
+- [x] **11.0 Move `StudentTestResultsPage` routes under `StudentShellRoute`**
 
   > **Goal:** Move both `/student-test-results/:sessionCode` (line 98) and `/student/results/:sessionCode` (line 110) under the shell, preserving both public URLs.
 
-  - [ ] 11.1 **This is trickier than 10.0** because:
+  - [x] 11.1 **This is trickier than 10.0** because:
     - The canonical path `/student-test-results/:sessionCode` is NOT under `/student` (it's a top-level path).
     - The legacy path `/student/results/:sessionCode` IS logically under `/student` but is currently outside the shell.
 
-  - [ ] 11.2 **Strategy:** Move the legacy path `/student/results/:sessionCode` inside the shell children as `results/:sessionCode`. For the canonical `/student-test-results/:sessionCode`, it CANNOT be a relative child of `/student` since its path doesn't start with `/student`. **Keep it as a top-level route** but wrap the component in `<StudentLayout>` with `shellData` prop self-provided. Alternatively, if `StudentLayout` can work without shell context (using `<ConnectedStudentRightRail>` which fetches its own data), simply wrap it directly.
+  - [x] 11.2 **Strategy:** Move the legacy path `/student/results/:sessionCode` inside the shell children as `results/:sessionCode`. For the canonical `/student-test-results/:sessionCode`, it CANNOT be a relative child of `/student` since its path doesn't start with `/student`. **Keep it as a top-level route** but wrap the component in `<StudentLayout>` with `shellData` prop self-provided. Alternatively, if `StudentLayout` can work without shell context (using `<ConnectedStudentRightRail>` which fetches its own data), simply wrap it directly.
 
-  - [ ] 11.3 **Move legacy route into shell.** Cut lines 110–112 from `studentRoutes.tsx`:
+  - [x] 11.3 **Move legacy route into shell.** Cut lines 110–112 from `studentRoutes.tsx`:
     ```tsx
     {
         path: '/student/results/:sessionCode',
@@ -530,7 +530,7 @@ Before proceeding to Phase 2, verify ALL of the following:
     },
     ```
 
-  - [ ] 11.4 **Keep canonical route at top-level.** Lines 97–100 stay as-is:
+  - [x] 11.4 **Keep canonical route at top-level.** Lines 97–100 stay as-is:
     ```tsx
     {
         path: '/student-test-results/:sessionCode',
@@ -539,16 +539,16 @@ Before proceeding to Phase 2, verify ALL of the following:
     ```
     This route will be wrapped in `<StudentLayout>` inside the page component itself during Phase 5 (using `shellData` or `<ConnectedStudentRightRail>`).
 
-  - [ ] 11.5 **Verify route contract:**
+  - [x] 11.5 **Verify route contract:**
     - Navigate to `/student-test-results/abc123` — must load.
     - Navigate to `/student/results/abc123` — must load.
     - Refresh both URLs — must still work.
 
-  - [ ] 11.6 **Verify registries.** Check `routes.ts`, `routeSecurity.ts`, `featureRegistry.ts` for both `STUDENT_TEST_RESULTS` and the legacy path.
+  - [x] 11.6 **Verify registries.** Check `routes.ts`, `routeSecurity.ts`, `featureRegistry.ts` for both `STUDENT_TEST_RESULTS` and the legacy path.
 
-  - [ ] 11.7 **Update test file.** Open `src/pages/StudentTestResultsPage.test.tsx`. Verify legacy `/student/results/:sessionCode` compatibility test cases still pass.
+  - [x] 11.7 **Update test file.** Open `src/pages/StudentTestResultsPage.test.tsx`. Verify legacy `/student/results/:sessionCode` compatibility test cases still pass.
 
-  - [ ] 11.8 Run `npm run build` and `npx vitest run src/pages/StudentTestResultsPage.test.tsx`. Commit: `refactor(routes): move test results legacy path under shell [PRD-0044 Phase 4]`.
+  - [x] 11.8 Run `npm run build` and `npx vitest run src/pages/StudentTestResultsPage.test.tsx`. Commit: `refactor(routes): move test results legacy path under shell [PRD-0044 Phase 4]`.
 
 ---
 

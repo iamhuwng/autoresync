@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { StudentTestResultsPage } from './StudentTestResultsPage';
+import StudentShellRoute from '../routes/StudentShellRoute';
 // @ts-ignore
 import { database } from '../services/firebase';
 import { get, onValue, ref } from 'firebase/database';
@@ -42,6 +43,10 @@ vi.mock('../services/writingSubmissionService', () => ({
         success: true,
         data: [],
     }),
+}));
+
+vi.mock('../context/StudentShellDataContext', () => ({
+    StudentShellDataProvider: ({ children }: any) => <>{children}</>,
 }));
 
 // Mock sub-components/modules that might cause issues in test env
@@ -128,9 +133,9 @@ describe('StudentTestResultsPage', () => {
         (testResultsService.getStudentSessionResult as any).mockResolvedValue(mockPermanentResult);
 
         render(
-            <MemoryRouter initialEntries={[`/results/${sessionCode}`]}>
+            <MemoryRouter initialEntries={[`/student-test-results/${sessionCode}`]}>
                 <Routes>
-                    <Route path="/results/:sessionCode" element={<StudentTestResultsPage />} />
+                    <Route path="/student-test-results/:sessionCode" element={<StudentTestResultsPage />} />
                 </Routes>
             </MemoryRouter>
         );
@@ -207,9 +212,9 @@ describe('StudentTestResultsPage', () => {
         });
 
         render(
-            <MemoryRouter initialEntries={[`/results/${sessionCode}`]}>
+            <MemoryRouter initialEntries={[`/student-test-results/${sessionCode}`]}>
                 <Routes>
-                    <Route path="/results/:sessionCode" element={<StudentTestResultsPage />} />
+                    <Route path="/student-test-results/:sessionCode" element={<StudentTestResultsPage />} />
                 </Routes>
             </MemoryRouter>
         );
@@ -268,9 +273,9 @@ describe('StudentTestResultsPage', () => {
         });
 
         render(
-            <MemoryRouter initialEntries={[`/results/${sessionCode}`]}>
+            <MemoryRouter initialEntries={[`/student-test-results/${sessionCode}`]}>
                 <Routes>
-                    <Route path="/results/:sessionCode" element={<StudentTestResultsPage />} />
+                    <Route path="/student-test-results/:sessionCode" element={<StudentTestResultsPage />} />
                 </Routes>
             </MemoryRouter>
         );
@@ -333,9 +338,9 @@ describe('StudentTestResultsPage', () => {
         });
 
         render(
-            <MemoryRouter initialEntries={[`/results/${sessionCode}`]}>
+            <MemoryRouter initialEntries={[`/student-test-results/${sessionCode}`]}>
                 <Routes>
-                    <Route path="/results/:sessionCode" element={<StudentTestResultsPage />} />
+                    <Route path="/student-test-results/:sessionCode" element={<StudentTestResultsPage />} />
                 </Routes>
             </MemoryRouter>
         );
@@ -362,7 +367,9 @@ describe('StudentTestResultsPage', () => {
         render(
             <MemoryRouter initialEntries={['/student/results/result-legacy-1']}>
                 <Routes>
-                    <Route path="/student/results/:sessionCode" element={<StudentTestResultsPage />} />
+                    <Route path="/student" element={<StudentShellRoute />}>
+                        <Route path="results/:sessionCode" element={<StudentTestResultsPage />} />
+                    </Route>
                     <Route path="/result/:resultId" element={<div>Canonical Result Route</div>} />
                 </Routes>
             </MemoryRouter>
@@ -392,9 +399,9 @@ describe('StudentTestResultsPage', () => {
         });
 
         render(
-            <MemoryRouter initialEntries={[`/results/${sessionCode}`]}>
+            <MemoryRouter initialEntries={[`/student-test-results/${sessionCode}`]}>
                 <Routes>
-                    <Route path="/results/:sessionCode" element={<StudentTestResultsPage />} />
+                    <Route path="/student-test-results/:sessionCode" element={<StudentTestResultsPage />} />
                 </Routes>
             </MemoryRouter>
         );

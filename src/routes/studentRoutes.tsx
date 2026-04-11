@@ -88,6 +88,10 @@ export const studentRoutes: RouteObject[] = [
         path: 'academic-record',
         element: asStudentPage(<AcademicRecordPage />, 'academicRecords'),
       },
+      {
+        path: 'results/:sessionCode',
+        element: asStudentPage(<StudentTestResultsPage />, 'results'),
+      },
     ],
   },
   {
@@ -113,10 +117,6 @@ export const studentRoutes: RouteObject[] = [
   {
     path: '/student-results/:gameSessionId',
     element: asStudentPage(<StudentResultsPage />, 'results'),
-  },
-  {
-    path: '/student/results/:sessionCode',
-    element: asStudentPage(<StudentTestResultsPage />, 'results'),
   },
   {
     path: '/student/practice/:materialId',
