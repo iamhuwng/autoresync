@@ -767,7 +767,7 @@ Before proceeding to Phase 5, verify ALL of the following:
 
 ---
 
-- [ ] **17.0 Student shell mobile controls - enforce 44px targets**
+- [x] **17.0 Student shell mobile controls - enforce 44px targets**
 
   > **Goal:** Ensure shared shell controls and right-rail CTAs now satisfy the 44px touch-target requirement uncovered during final verification.
 
@@ -777,7 +777,7 @@ Before proceeding to Phase 5, verify ALL of the following:
 
   - [x] 17.3 **Verify at 375px and 320px.** Open the student shell with the right rail visible. Confirm the drawer still fits, the header title does not collide with the buttons, the right-rail CTA buttons reach 44px, and the shared controls remain tappable.
 
-  - [ ] 17.4 Run `npm run build`. Commit: `fix(student-shell): enforce 44px mobile control targets [PRD-0044 Final]`.
+  - [x] 17.4 Run `npm run build`. Commit: `fix(student-shell): enforce 44px mobile control targets [PRD-0044 Final]`.
 
 ---
 
