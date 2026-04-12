@@ -1,0 +1,47 @@
+{
+  "docPath": "architecture/student-mobile-responsiveness-architecture",
+  "currentVersion": 1,
+  "versions": [
+    {
+      "id": "v1",
+      "docPath": "architecture/student-mobile-responsiveness-architecture",
+      "version": 1,
+      "timestamp": "2026-04-12T00:46:37.0999792Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "Student Mobile Responsiveness Architecture"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "Canonical architecture contract for student-shell mobile responsiveness after PRD-0044, covering shared shell primitives, route hosting, drawers, overlays, touch targets, and verification boundaries."
+        },
+        {
+          "field": "tags",
+          "oldValue": null,
+          "newValue": [
+            "architecture",
+            "student",
+            "mobile",
+            "responsive",
+            "shell"
+          ]
+        }
+      ],
+      "snapshot": {
+        "content": "# Student Mobile Responsiveness Architecture\n\n## Purpose\n\nThis document captures the durable architecture contract that came out of PRD-0044 so future student-shell work does not have to reconstruct mobile behavior from task history.\n\n## Core Model\n\nStudent mobile is a supplement to the desktop workspace, not a separate product.\n\nRequired rules:\n- desktop at `\u003e=1025px` remains the reference composition unless a PRD explicitly changes desktop\n- mobile may stack, collapse, truncate, drawerize, or convert overlays, but it must preserve the same route semantics, page purpose, and data owner as desktop\n- the student right rail remains structurally present on shell pages even when moved into a drawer\n\n## Shared Shell Primitives\n\n`StudentLayout` owns the shared mobile shell behavior for student pages that use the workspace language.\n\nShared primitives:\n- `mobileTitle` for the visible mobile title and browser-title ownership on shell pages\n- feed/content inset of `16px 12px 24px`\n- mutually exclusive left and right drawers\n- hidden-scrollbar treatment for intentional horizontal rows\n- visible shell controls sized to `44px x 44px`\n- right-rail drawer width contract of `min(320px, 85vw)` with `minWidth: 0` and `maxWidth: 85vw`\n\n`studentLayoutStyles.ts` exports the shared responsive helper set through `mobileStyles`.\n\nApproved helpers:\n- `feedPadding`\n- `fullWidthButton`\n- `singleColumnGrid`\n- `stackVertical`\n- `touchTarget`\n- `hiddenScrollbar`\n- `feedSubtitleHidden`\n\n## Route And Hosting Contract\n\nPRD-0044 established that mobile behavior depends on route hosting, not only CSS.\n\nShell-hosted routes that preserve their public URLs:\n- `/student/homework/:homeworkId`\n- `/student/results/:sessionCode`\n\nLayout-hosted but not shell-routed:\n- `/student-test-results/:sessionCode`\n\nRule:\n- public student URLs and their semantics remain part of the product contract unless a PRD explicitly approves a path change\n- if a path changes, keep routes, security, feature registry, and focused route tests synchronized in the same edit set\n\n## Overlay Contract\n\nStudent mobile overlays preserve the same desktop workflow while adapting layout.\n\nRequired rules:\n- long-content or confirmation-heavy overlays should use full-viewport or bottom-sheet mobile presentations\n- scrollable overlay bodies scroll internally\n- sticky bottom action bars are the default when the body scrolls\n- visible modal actions must satisfy the shared `44px` target floor\n- `100dvh` with `100vh` fallback is the approved pattern when viewport-height stability matters\n\n## Verification Boundary\n\nMinimum responsive verification widths:\n- `1440px` when shared shell composition, route placement, or title alignment changes\n- `375px` for baseline phone verification\n- `320px` when drawers, headers, overlays, or dense controls are touched\n\nRequired checks:\n- no unintended horizontal overflow\n- visible controls satisfy the `44px` floor\n- drawers remain mutually exclusive and readable\n- overlays keep explicit dismiss behavior and usable actions\n- canonical and supported legacy routes still direct-load and refresh correctly\n\n## Related Docs\n\n- @doc/design/student-view-design-standard\n- @doc/architecture/student-experience-architecture\n- @doc/architecture/student-shell-right-rail-architecture\n- @doc/architecture/student-shell-data-loading-architecture\n- @doc/architecture/student-dashboard-architecture\n- @doc/architecture/mobile-ielts-reading-test-taking\n",
+        "description": "Canonical architecture contract for student-shell mobile responsiveness after PRD-0044, covering shared shell primitives, route hosting, drawers, overlays, touch targets, and verification boundaries.",
+        "tags": [
+          "architecture",
+          "student",
+          "mobile",
+          "responsive",
+          "shell"
+        ],
+        "title": "Student Mobile Responsiveness Architecture"
+      }
+    }
+  ]
+}

@@ -7,11 +7,13 @@ The student shell is a shared platform feature owned by `StudentLayout`, not by 
 This architecture applies to:
 - `StudentDashboardPage`
 - `StudentHomeworkListPage`
+- `StudentHomeworkDetailPage`
 - `AcademicRecordPage`
 - `StudentCoursesPage`
 - `StudentCourseDetailPage`
 - `StudentClassDetailPage`
 - `StudentLibraryPage`
+- `StudentTestResultsPage`
 - `ProfilePage`
 
 ## Layout Contract
@@ -31,6 +33,13 @@ The center canvas is intentionally wider than the old `600px` cap so Academic Re
 
 Tablet and mobile remain shell-first layouts. The left navigation and right rail move into off-canvas drawers owned by `StudentLayout`. Pages should rely on the shell toggle behavior instead of implementing their own mobile right-rail trigger unless they need a deliberate override.
 
+Required mobile drawer rules:
+- left and right drawers remain mutually exclusive
+- the right-rail drawer width stays within `width: min(320px, 85vw)`, `minWidth: 0`, and `maxWidth: 85vw`
+- opening a drawer must not create horizontal page overflow
+- closed drawers must not intercept taps or pointer events
+- shell header controls and visible rail CTAs must stay at or above the shared `44px` target floor
+
 ## Right Rail Ownership
 
 The global right rail is rendered by `StudentRightRail` and always appears on student shell pages unless a page-specific override is explicitly approved.
@@ -47,6 +56,7 @@ Rules:
 - shell-owned summaries remain shell-owned even when a page-specific rail restates them differently
 - page surfaces may reshape shell summaries, but must not re-own or reacquire them
 - all variants (dashboard, default, academic-record) must use the unified v2 editorial token system — no variant may fall back to legacy CSS-in-JS styling
+- supplemental modules must remain readable and tappable at `375px` and `320px`
 
 ## Extension Pattern
 
@@ -67,6 +77,7 @@ Rules:
 - if a page has an approved page-specific rail contract, pass a full page-owned rail override through `rightPanel` instead of rebuilding shell data ownership
 - dashboard currently does not use a full right-rail override on the live route
 - dashboard variant in `StudentLayout` may still tune spacing or width without changing right-rail ownership
+- a page supplement may not force the shell to violate the shared mobile drawer width or touch-target contract
 
 ## v2 Visual Token System
 
@@ -76,7 +87,7 @@ v2 design tokens define:
 - section headers: 10px / 800wt / uppercase / `#2b3437` / 0.12em letter-spacing
 - flat white cards: `#ffffff` background, 1px `#eceef0` border, 2px radius
 - dot-list rows: 6px `#b9c4ca` dot + truncated title + right-aligned time label
-- thumbnail-list rows: 36×36 gradient square (grayscale filter, color on hover) + name + meta
+- thumbnail-list rows: 36x36 gradient square (grayscale filter, color on hover) + name + meta
 - CTA buttons: `#dce4e8` background / `#cdd6da` hover / 12px font
 - empty states: 11px / `#737c7f`
 
@@ -97,6 +108,7 @@ Required rules:
 - the shared shell modules must remain visible unless a future architecture revision explicitly approves a replacement
 - `PendingReviewsWidget` may self-frame, but it must not duplicate shell module headings or replace shell-owned summaries
 - `StudentDashboardRightRail.jsx` is not the active right-rail owner for the current dashboard route
+- dashboard mobile behavior keeps `PendingReviewsWidget` inside the same shared rail drawer instead of moving it into dashboard-center layout
 
 ## Shared Data Contract
 
@@ -138,9 +150,9 @@ As of 2026-04-02 the widget uses the open-section editorial layout — the same 
 
 Visual structure:
 - section header: uses shared `S.widgetTitle` token (no count badge — matches sibling sections)
-- item rows: left date badge (42×42 rounded, white bg, whisper border, month+day from `submittedAt`) + title + pill row
+- item rows: left date badge (42x42 rounded, white bg, whisper border, month+day from `submittedAt`) + title + pill row
 - title: `0.875rem / 400wt` with `rail-title-marquee` class for overflow scroll-on-hover
-- pill row: lowercase source pill with SVG icon (homework / live / solo practice) + amber "Awaiting review" status pill
+- pill row: lowercase source pill with SVG icon (homework / live / solo practice) + amber `Awaiting review` status pill
 - hover: rows highlight to `bgSurfaceAlt`
 - see-all: accent uppercase link shown when total > 5
 
@@ -151,7 +163,8 @@ Design rules:
 - item rows must not introduce card wrappers or shadow effects
 - date badges must match the Up Next date badge pattern (month abbreviated uppercase in accent, day bold)
 - source pills must be lowercase with SVG prefix icons — no emojis, no uppercase labels
-- the amber "Awaiting review" pill provides semantic differentiation from Up Next items
+- the amber `Awaiting review` pill provides semantic differentiation from Up Next items
+- visible item rows and `See all` must remain at or above the shared mobile touch-target floor after responsive adjustments
 
 Note: `PendingReviewsWidget` is the only rail module that still uses date badges. The shell-owned sections (Up Next, Live Now, My Classes) all use the v2 dot-list and thumbnail-list patterns instead.
 
@@ -168,6 +181,7 @@ Key files:
 
 ## Related Docs
 
+- `documentation/architecture/student-mobile-responsiveness-architecture.md`
 - `documentation/architecture/student-dashboard-architecture.md`
 - `documentation/architecture/student-experience-architecture.md`
 - `documentation/architecture/student-shell-data-loading.md`

@@ -2,7 +2,7 @@
 title: Student Dashboard Architecture
 description: Source of truth for the live student dashboard center canvas, shared rail composition, result-opening behavior, and v2 editorial right-rail token compliance.
 createdAt: '2026-03-31T22:18:34.333Z'
-updatedAt: '2026-04-02T10:23:42.350Z'
+updatedAt: '2026-04-12T00:46:37.201Z'
 tags:
   - architecture
   - student
@@ -255,3 +255,17 @@ Rules:
 ## Related Docs
 
 - @doc/architecture/browser-document-title-architecture
+
+## Mobile Dashboard Contract (2026-04-12)
+
+Dashboard mobile behavior is a compressed form of the same dashboard, not a separate feed product.
+
+Required mobile rules:
+- reuse the shared shell feed inset of `16px 12px 24px`
+- keep the same center-canvas order as desktop; mobile may stack or tighten spacing, but must not reorder the dashboard structure
+- the editorial tab row may scroll horizontally on narrow widths, but it must use the shared hidden-scrollbar treatment and keep `44px` touch targets
+- feed row actions, chart selectors, review rows, and load-more controls must remain at or above the shared `44px` target floor
+- the Join a Class modal must remain scroll-safe on mobile
+- dashboard mobile work must keep `PendingReviewsWidget` inside the shared shell right-rail drawer rather than recreating that queue inside the center column
+
+See @doc/architecture/student-mobile-responsiveness-architecture for the shared mobile shell contract.

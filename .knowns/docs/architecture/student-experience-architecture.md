@@ -2,7 +2,7 @@
 title: Student Experience Architecture
 description: Student-facing system overview with shell, dashboard, and academic-record architecture contracts.
 createdAt: '2026-02-27T16:18:36.604Z'
-updatedAt: '2026-04-08T17:36:17.566Z'
+updatedAt: '2026-04-12T00:46:37.141Z'
 tags:
   - architecture
   - student
@@ -161,3 +161,21 @@ Required rules:
 - IELTS Reading live-test and practice routes are standalone student-facing pages and must not inherit shell rail chrome
 - when those routes classify as phone Reading, they must hand off to the shared mobile Reading scaffold contract documented in @doc/architecture/mobile-ielts-reading-test-taking
 - student shell entry points such as Library and Homework remain responsible for passing launch context intact into those standalone test routes
+
+## Responsive Supplement Contract (2026-04-12)
+
+Student mobile work preserves the desktop workspace and compresses it through shared shell primitives rather than page-local mobile systems.
+
+Required rules:
+- shared shell pages should reuse `StudentLayout` mobile behavior and `mobileStyles`
+- shared feed/content inset on collapsed widths is `16px 12px 24px`
+- visible mobile shell controls and repeated page actions must meet the `44px x 44px` minimum target
+- only intentional tab or filter rows may scroll horizontally, and those rows must hide scrollbars and remain fully reachable
+- mobile overlays should preserve the same workflow meaning as desktop while using full-viewport or bottom-sheet presentations when space is constrained
+- student mobile layouts must remain free of unintended horizontal overflow at phone widths
+
+Shell-hosting clarification:
+- `/student/homework/:homeworkId` and `/student/results/:sessionCode` are now shell-hosted routes that preserve their public URLs
+- `/student-test-results/:sessionCode` remains top-level but still renders the shared student shell language through `StudentLayout`
+
+See @doc/architecture/student-mobile-responsiveness-architecture for the full mobile shell contract.

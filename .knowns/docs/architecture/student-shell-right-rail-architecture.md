@@ -2,7 +2,7 @@
 title: Student Shell Right Rail Architecture
 description: Architecture contract for the shared student shell layout, right rail ownership, v2 editorial token system, and dashboard supplemental rail pattern. All three variants (dashboard, default, academic-record) use the unified v2 tokens as of 2026-04-02.
 createdAt: '2026-03-30T03:14:40.723Z'
-updatedAt: '2026-04-01T22:47:36.921Z'
+updatedAt: '2026-04-12T00:46:37.168Z'
 tags:
   - architecture
   - student
@@ -162,3 +162,19 @@ Key files:
 - **Real-time**: Uses existing RTDB `onValue` subscriptions via `subscribeToActiveSessions` + `subscribeToSession` — sessions auto-appear/disappear without page refresh
 - **Conditional rendering**: Banner only renders when `classLiveSessions.length > 0`
 - **Position contract**: Live Now MUST appear before all other right-rail content in every variant
+
+## Mobile Drawer Contract (2026-04-12)
+
+Student mobile keeps the right rail under shell ownership even when it moves off canvas.
+
+Required rules:
+- the right-rail drawer width stays within `width: min(320px, 85vw)`, `minWidth: 0`, and `maxWidth: 85vw`
+- left and right drawers remain mutually exclusive
+- opening a drawer must not create horizontal page overflow
+- closed drawers must not intercept taps or pointer events
+- shell header controls and visible rail CTAs must stay at or above the shared `44px` target floor
+- page supplements may not force the shell to violate the shared mobile drawer width or touch-target contract
+
+This applies to shell-owned modules and page supplements such as `PendingReviewsWidget`.
+
+See @doc/architecture/student-mobile-responsiveness-architecture for the broader mobile shell contract.
