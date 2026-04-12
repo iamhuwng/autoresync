@@ -43,6 +43,7 @@ import { toast } from '../modern/ToastNotification';
 import { toHomeworkIntegrity } from '../../utils/integrityUtils';
 import { getIELTSQuestionsForStudent } from '../../utils/thcsShuffle';
 import { FEATURE_IDS } from '../../config/featureRegistry';
+import { studentResumeService } from '../../services/studentResume.service';
 
 // Reuse existing live-test UI components
 // @ts-ignore
@@ -71,6 +72,7 @@ export interface IELTSPracticeViewProps {
     materialId: string;
     resolvedSettings: ResolvedPracticeSettings;
     practiceContext: PracticeContext;
+    autoResume?: boolean;
 }
 
 // ── Component ──────────────────────────────────────────────────────────────────
@@ -79,6 +81,7 @@ export const IELTSPracticeView: React.FC<IELTSPracticeViewProps> = ({
     materialId,
     resolvedSettings,
     practiceContext,
+    autoResume = false,
 }) => {
     const { navigateTo } = useNavigation('student');
     const { isMobileExamMode } = useMobileExamMode();
@@ -148,12 +151,12 @@ export const IELTSPracticeView: React.FC<IELTSPracticeViewProps> = ({
         if (
             !checking
             && savedProgress !== null
-            && practiceContext.type === 'homework'
+            && (practiceContext.type === 'homework' || autoResume)
             && resumeDecision === 'pending'
         ) {
             setResumeDecision('resume');
         }
-    }, [checking, practiceContext.type, resumeDecision, savedProgress]);
+    }, [autoResume, checking, practiceContext.type, resumeDecision, savedProgress]);
 
     // Auto-resolve: when no saved progress exists, skip the modal
     useEffect(() => {
@@ -433,6 +436,7 @@ export const IELTSPracticeView: React.FC<IELTSPracticeViewProps> = ({
 
     // ── Back navigation (context-aware) ───────────────────────────────────────
     const handleBack = useCallback(() => {
+        void studentResumeService.clearResume();
         if (practiceContext.type === 'homework') {
             navigateTo('STUDENT_HOMEWORK');
         } else if (practiceContext.courseId) {
@@ -441,6 +445,12 @@ export const IELTSPracticeView: React.FC<IELTSPracticeViewProps> = ({
             navigateTo('STUDENT_LIBRARY');
         }
     }, [navigateTo, practiceContext]);
+
+    useEffect(() => {
+        if (error) {
+            void studentResumeService.clearResume();
+        }
+    }, [error]);
 
     // ── Warn on page leave ────────────────────────────────────────────────────
     useBeforeUnloadWarning({

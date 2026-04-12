@@ -17,6 +17,7 @@ import {
     summarizeIntegritySnapshot,
     trackAntiCheatAction,
 } from '../../services/antiCheatReporting';
+import { studentResumeService } from '../../services/studentResume.service';
 
 interface TestData {
     id: string;
@@ -437,6 +438,7 @@ export const useSoloSubmission = ({
 
             // Clear localStorage progress
             await clearSoloProgress(materialId, studentId);
+            await studentResumeService.clearResume();
 
             // Update local state
             setTestResults(results);
