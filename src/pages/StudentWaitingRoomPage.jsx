@@ -114,9 +114,7 @@ const StudentWaitingRoomPage = () => {
       playerName = user.displayName || user.email?.split('@')[0] || 'Student';
 
       // Persist to sessionStorage for test page authentication
-      sessionService.setPlayerId(playerId);
-      sessionService.setPlayerName(playerName);
-      sessionService.setSessionCode(gameSessionId);
+      sessionService.setPlayerData(playerId, playerName, gameSessionId);
 
       // Also register this player in the session if not already present
       const registerPlayer = async () => {
@@ -154,7 +152,7 @@ const StudentWaitingRoomPage = () => {
     }
 
     // Ensure sessionCode is synced with URL parameter
-    sessionService.setSessionCode(gameSessionId);
+    sessionService.setPlayerData(playerId, playerName, gameSessionId);
 
     const gameSessionRef = ref(database, `game_sessions/${gameSessionId}`);
     const unsubscribe = onValue(gameSessionRef, (snapshot) => {

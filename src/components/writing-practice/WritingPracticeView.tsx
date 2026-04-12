@@ -33,6 +33,7 @@ import { getUserById } from '../../services/userService';
 import { createSubmission, materializeSubmissionResult } from '../../services/writingSubmissionService';
 import { submitHomework } from '../../services/homeworkSubmissionService';
 import { notifyTeacherWritingSubmitted, notifyWritingSubmitted } from '../../services/notificationService';
+import { studentResumeService } from '../../services/studentResume.service';
 import { useExternalPastePrevention } from '../../hooks/useExternalPastePrevention';
 import { useActiveTimeTracking } from '../../hooks/useActiveTimeTracking';
 import WritingPromptPanel from '../writing-student/WritingPromptPanel';
@@ -60,6 +61,7 @@ interface WritingPracticeViewProps {
     materialId: string;
     testData: IELTSWritingTest;
     homeworkContext?: HomeworkWritingContext;
+    autoResume?: boolean;
 }
 
 interface SavedPracticeState {
@@ -126,7 +128,7 @@ function getTimerSecondsRemaining(timerMinutes: number | null, startedAt?: numbe
 }
 
 // ── Component ──────────────────────────────────────────────
-export default function WritingPracticeView({ materialId, testData, homeworkContext }: WritingPracticeViewProps) {
+export default function WritingPracticeView({ materialId, testData, homeworkContext, autoResume = false }: WritingPracticeViewProps) {
     const { user } = useAuth();
     const navigate = useNavigate();
     const studentId = user?.uid || '';
@@ -192,6 +194,16 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
 
     const saveKey = getSaveKey(materialId, studentId);
 
+    const handleBack = useCallback(() => {
+        void studentResumeService.clearResume();
+        if (isHomework) {
+            navigate(buildRoute('STUDENT_HOMEWORK'));
+            return;
+        }
+
+        navigate(-1);
+    }, [isHomework, navigate]);
+
     const applySavedProgress = useCallback((saved: SavedPracticeState) => {
         setEssays(saved.essays);
         setActiveTask(saved.activeTask);
@@ -253,7 +265,7 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
 
         const saved = loadSavedState(saveKey);
         if (saved) {
-            if (shouldForceResume) {
+            if (shouldForceResume || autoResume) {
                 applySavedProgress(saved);
                 setPersistenceReady(true);
             } else {
@@ -263,7 +275,7 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
             startedAtRef.current = homeworkContext?.startedAt ?? Date.now();
             setPersistenceReady(true);
         }
-    }, [applySavedProgress, homeworkContext?.startedAt, saveKey, shouldForceResume, studentId]);
+    }, [applySavedProgress, autoResume, homeworkContext?.startedAt, saveKey, shouldForceResume, studentId]);
 
     useEffect(() => {
         essaysRef.current = essays;
@@ -576,6 +588,7 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
 
             // Clear localStorage
             clearPracticeState(saveKey);
+            void studentResumeService.clearResume();
             setSubmitted(true);
 
             // Show brief confirmation, then navigate
@@ -667,7 +680,7 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
                 <div style={{ fontSize: 64 }}>⏰</div>
                 <h1>Deadline Passed</h1>
                 <p>The deadline for this homework has passed. Submissions are no longer accepted.</p>
-                <button className="wpv-done-btn" onClick={() => navigate(buildRoute('STUDENT_HOMEWORK'), { replace: true })}>
+                <button className="wpv-done-btn" onClick={handleBack}>
                     ← Back to Homework
                 </button>
             </div>
@@ -678,7 +691,7 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
         <div className="wpv-page">
             {/* ── Header ──────────────────────────────────── */}
             <div className="wpv-header">
-                <button className="wpv-back-btn" onClick={() => isHomework ? navigate(buildRoute('STUDENT_HOMEWORK')) : navigate(-1)}>
+                <button className="wpv-back-btn" onClick={handleBack}>
                     ← Back
                 </button>
                 <div className="wpv-title-area">
