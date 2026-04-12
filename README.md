@@ -73,7 +73,7 @@ A full-featured, real-time educational platform built with **React 19**, **Fireb
 
 - **Dual Provider** — Google Gemini 2.5 Flash (primary) + Groq Llama 3.1 70B (fallback)
 - **Document Extraction** — PDF, DOCX, and image parsing via `pdfjs-dist` and `mammoth`
-- **Smart Chunking** — Adaptive text chunking for large documents
+- **AI-First Reading Parsing** — Staged Gemini/Groq extraction for teacher reading creation; legacy chunking utilities are isolated from the live env contract
 - **Type Classification** — Automatic IELTS question type detection
 - **THCS Regex Parser** — Pattern-based extraction for Vietnamese test formats
 

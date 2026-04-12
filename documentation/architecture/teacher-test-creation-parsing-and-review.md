@@ -135,3 +135,37 @@ Operational consequence:
 - `documentation/tasks/0020-prd-automated-ielts-reading-test-creation.md`
 - `documentation/tasks/0022-prd-test-creation-modal-with-drafts.md`
 - `documentation/ai-system-research-report.md`
+## 2026-04-10 Amendment - Staged Parse Job Artifacts
+
+The Reading creator now uses an explicit internal parse-job model inside `src/services/test-creation/index.ts` while preserving the existing modal-facing contract.
+
+Current internal stages:
+- normalized source
+- extraction
+- classification
+- validation
+- review draft assembly
+
+Required rules:
+- `parseDocument()` and `parseText()` MUST continue to return the existing teacher-facing contract: `documentText`, `passages`, `validationResult`, and fail-closed metadata
+- internal stage artifacts MAY evolve, but they MUST preserve the canonical Reading question shape before any draft persistence boundary
+- stage-local data MUST remain explicit enough for future resume, diagnostics, and provider-specific recovery work
+- review payload assembly MUST happen before success is reported so passage/question completeness is checked in one place
+- the modal and review page remain consumers of the final assembled draft payload, not of provider-specific intermediate results
+
+Operational consequence:
+- future parser work can add stage-local recovery, audit logging, or resumable artifacts without rewriting the teacher modal or review page contracts
+- extraction, rules classification, validation, and review payload assembly are now separable boundaries instead of one opaque orchestration block
+
+## 2026-04-12 Amendment - Legacy Chunking Config Retirement
+
+The live teacher Reading creation path no longer treats chunking as part of the environment contract.
+
+Required rules:
+- the current reading creator MUST use the staged AI/offline extraction pipeline without reading `VITE_CHUNK_SIZE`, `VITE_CHUNK_OVERLAP`, or `VITE_MAX_DOCUMENT_SIZE`
+- legacy chunking utilities MAY remain as isolated helpers, but they MUST carry their own internal defaults instead of extending the shared env schema
+- parser or review work MUST NOT reintroduce chunking env variables unless a real runtime consumer is restored and documented first
+
+Operational consequence:
+- removing the chunking env keys from local setup should not change the current teacher Reading creation flow
+- future parser cleanup can delete or refactor the legacy chunking services without touching the app-level env contract

@@ -19,9 +19,6 @@ const baseEnv = {
   VITE_GEMINI_API_KEY_5: '',
   VITE_GOOGLE_API_KEY: '',
   VITE_GOOGLE_DRIVE_CLIENT_ID: 'client-id.apps.googleusercontent.com',
-  VITE_CHUNK_SIZE: '1000',
-  VITE_CHUNK_OVERLAP: '50',
-  VITE_MAX_DOCUMENT_SIZE: '10000',
 };
 
 function stubBaseEnv() {

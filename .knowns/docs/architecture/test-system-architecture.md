@@ -2,7 +2,7 @@
 title: Test System Architecture
 description: 'Complete test lifecycle architecture: IELTS + THCS creation, editing, session management, test-taking, grading, results. The single entry point for understanding the test system.'
 createdAt: '2026-02-27T16:15:16.855Z'
-updatedAt: '2026-04-10T08:35:06.301Z'
+updatedAt: '2026-04-12T00:32:08.089Z'
 tags:
   - architecture
   - test
@@ -582,3 +582,26 @@ Markdown numbering is now part of the accepted teacher authoring input shape, so
 ### Operational rule going forward
 
 The reading creator must prefer stage-local recovery before cross-provider fallback, and its non-AI rescue path must understand the markdown formats teachers actually paste into the creation modal.
+
+## 2026-04-10 Amendment - IELTS Reading Staged Parse Job
+The teacher IELTS Reading creation pipeline now keeps the external flow unchanged while splitting internal orchestration into explicit artifacts for normalized source, extraction, classification, validation, and review-draft assembly.
+
+Current runtime rule:
+- modal/review consumers continue to depend on final assembled draft-ready payloads rather than provider-specific intermediate results
+- future parser extensions should attach to stage artifacts, not bypass them
+
+Related docs:
+- @doc/architecture/reading-staged-parse-job
+- @doc/architecture/ai-parsing-extraction
+
+
+## 2026-04-12 Amendment - Reading Chunking Env Retirement
+The teacher IELTS Reading creation system no longer exposes document chunking through the shared Vite environment contract.
+
+Current runtime rule:
+- the live reading-creation path uses staged extraction and validation, not env-driven chunk sizing
+- any remaining chunking utilities are legacy helpers and must carry local defaults instead of extending the app env schema
+
+Related docs:
+- @doc/architecture/ai-parsing-extraction
+- @doc/architecture/reading-staged-parse-job

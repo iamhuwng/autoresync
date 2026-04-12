@@ -2,7 +2,7 @@
 title: AI Parsing Extraction
 description: Dual AI provider (Gemini/Groq), extraction pipeline, IELTS type classification, THCS regex parser, error handling.
 createdAt: '2026-02-27T17:10:22.717Z'
-updatedAt: '2026-04-10T08:35:06.250Z'
+updatedAt: '2026-04-12T00:32:08.060Z'
 tags:
   - architecture
   - ai
@@ -182,3 +182,39 @@ The teacher IELTS Reading extraction flow now has explicit runtime rules for tra
 ### Important boundary
 
 These rules improve stage-local recovery but do not change the broader architecture: the reading creator still uses a provider-first extraction chain rather than a staged parse job with durable intermediate artifacts.
+
+## 2026-04-10 Amendment - Reading Staged Parse Job
+The teacher IELTS Reading creator now exposes an internal staged parse-job model in `src/services/test-creation/index.ts`.
+
+Current stages:
+- `normalized-source`
+- `extraction`
+- `classification`
+- `validation`
+- `review-draft`
+
+Current runtime rule:
+- the staged job is an internal architecture boundary only; the public teacher-facing contract remains `documentText`, `passages`, `validationResult`, and fail-closed parse metadata
+- canonical Reading question data must still be assembled before any draft persistence boundary
+- future provider recovery and resume work should extend these stage artifacts rather than reintroducing one opaque orchestration block
+
+Related docs:
+- @doc/architecture/reading-staged-parse-job
+- @doc/architecture/test-system-architecture
+
+
+## 2026-04-12 Amendment - Legacy Chunking Config Retirement
+The live teacher IELTS Reading creation path no longer uses chunking as part of the shared environment contract.
+
+Current runtime rule:
+- the staged extraction pipeline MUST not read `VITE_CHUNK_SIZE`, `VITE_CHUNK_OVERLAP`, or `VITE_MAX_DOCUMENT_SIZE`
+- legacy chunking helpers may remain only as isolated internal utilities with local defaults
+- future parser work must not reintroduce chunking env variables without restoring a documented runtime consumer first
+
+Operational consequence:
+- removing the chunking env keys does not change the live teacher Reading creation flow
+- parser cleanup can further prune legacy chunking utilities without changing app setup requirements
+
+Related docs:
+- @doc/architecture/reading-staged-parse-job
+- @doc/architecture/test-system-architecture

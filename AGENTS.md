@@ -29,6 +29,15 @@ When testing authenticated teacher or student flows in this repo:
 - Treat these buttons as the default path for browser verification unless the task explicitly requires manual credential entry or a different account.
 - If the quick-login buttons fail, check app/runtime configuration first (for example Firebase API key referrer restrictions) before assuming the accounts are broken.
 
+## Google Cloud CLI First (MANDATORY)
+
+When the task involves Google Cloud, Gemini, Vertex AI, Google AI Studio, Google developer APIs, API keys, service enablement, project/account mismatch, IAM, or MCP authentication:
+- Prefer `gcloud` as the first diagnostic surface before web research, console clicking, or speculative fixes.
+- Start by checking active auth and project context with `gcloud auth list` and `gcloud config get-value project`.
+- For API-key problems, inspect restrictions and targets with `gcloud services api-keys list`, `describe`, and `get-key-string` before assuming the key value itself is bad.
+- For service availability problems, inspect enablement with `gcloud services list --enabled` before changing code or rotating secrets.
+- Load `.agent/skills/google-cloud-cli-first/SKILL.md` and keep the mirrored `.agents/skills/google-cloud-cli-first/SKILL.md` in sync when this rule evolves.
+
 | When you are... | READ this file |
 |----------------|----------------|
 | Writing `navigate()`, `<Link>`, redirect URLs, or notification links | [`rules/navigation.md`](documentation/rules/navigation.md) |
@@ -137,6 +146,7 @@ Tasks and docs can reference each other:
 ### Skills
 
 - Observability/page-action work: load `.agent/skills/observability-tracking/SKILL.md` so feature registry and tracking stay synchronized.
+- Google Cloud, Gemini, Vertex AI, API key, service enablement, or MCP auth troubleshooting: load `.agent/skills/google-cloud-cli-first/SKILL.md` and keep the mirrored `.agents/skills/google-cloud-cli-first/SKILL.md` synchronized.
 
 ---
 

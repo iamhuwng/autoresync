@@ -27,11 +27,6 @@ interface ImportMetaEnv {
   // Admin
   readonly VITE_ADMIN_USERNAME?: string;
   readonly VITE_ADMIN_PASSWORD?: string;
-  
-  // Chunking
-  readonly VITE_CHUNK_SIZE: string;
-  readonly VITE_CHUNK_OVERLAP: string;
-  readonly VITE_MAX_DOCUMENT_SIZE: string;
 }
 
 interface ImportMeta {
