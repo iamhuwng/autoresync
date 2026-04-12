@@ -554,7 +554,7 @@ describe('StudentTestResultsPage', () => {
             testSkill: 'Reading',
         });
 
-        render(
+        const { container } = render(
             <MemoryRouter initialEntries={[`/student-test-results/${sessionCode}`]}>
                 <Routes>
                     <Route path="/student-test-results/:sessionCode" element={<StudentTestResultsPage />} />
@@ -566,6 +566,8 @@ describe('StudentTestResultsPage', () => {
             expect(screen.getByText('7/10')).toBeInTheDocument();
         });
 
+        expect(container.querySelector('.student-view-root')).toHaveStyle({ padding: '16px 12px 24px' });
+        expect(screen.getByRole('button', { name: 'Return to Home' }).parentElement).toHaveStyle({ flexDirection: 'column' });
         expect(screen.getByRole('button', { name: 'Return to Home' })).toHaveStyle({ width: '100%', minHeight: '44px' });
         expect(screen.getByRole('button', { name: 'Print Results' })).toHaveStyle({ width: '100%', minHeight: '44px' });
         expect(screen.getByRole('button', { name: /question 1/i })).toHaveStyle({ minHeight: '44px', minWidth: '44px' });

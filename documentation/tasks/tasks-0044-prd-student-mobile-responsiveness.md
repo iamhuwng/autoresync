@@ -12,7 +12,7 @@
 - `src/components/layout/StudentLayout.tsx` - The master layout shell. Phase 1 added mobile feed padding, the 320px-safe right-rail width cap, and the scoped scrollbar-hidden helper class; Phase 3 disables pointer events on closed mobile drawers and clips mobile horizontal overflow, and Final closeout raises the shared mobile header buttons to 44px touch targets. (207 lines)
 - `src/components/layout/studentLayoutStyles.ts` Ã¢â‚¬â€ Design token constants (`studentTokens`) and shared style objects (`S`). Phase 1 adds the shared `mobileStyles` export here. (277 lines)
 - `src/components/layout/StudentRightRail.tsx` - Shared student right rail. Final closeout raises the visible mobile CTA buttons to a guaranteed 44px minimum height without causing drawer overflow.
-- `src/components/layout/StudentLayout.test.tsx` - Focused shell regression coverage. Final closeout updates the shared right-rail expectations to the current class-title/meta contract and re-validates the mobile drawer flow.
+- `src/components/layout/StudentLayout.test.tsx` - Focused shell regression coverage. Final closeout updates the shared right-rail expectations to the current class-title/meta contract, and Task 23 locks the mobile feed padding plus 320px-safe right-rail width cap into automation.
 - `src/components/layout/StudentSidebar.tsx` - Shared student left rail. Final closeout raises the visible mobile navigation buttons to a guaranteed 44px minimum target without breaking badge or label layout.
 
 ### Tier 3 Pages (Phase 2)
@@ -46,12 +46,15 @@
 
 ### Test Files
 - `src/pages/StudentHomeworkDetailPage.test.tsx` - Phase 5A now mounts through `StudentShellRoute` with `StudentLayout`/`StudentSidebar` mocks; Task 21 extends it to guard the tokenized start/resume CTAs, preserve the mobile full-width modal actions, and keep legacy warning text out of the rendered page. (297 lines)
-- `src/pages/StudentTestResultsPage.test.tsx` - Phase 5B now mocks `StudentLayout`/`StudentSidebar`, keeps the canonical `/student-test-results/:sessionCode` coverage, preserves the legacy `/student/results/:sessionCode` alias regression, and the follow-up pass adds tokenized-action/alias assertions while keeping the focused mobile full-width-actions/touch-target regression.
-- `src/pages/StudentHomeworkListPage.test.tsx` - Updated for the Phase 3 homework pass by removing Mantine mocks and covering navigation/tracking through the homework list interactions.
-- `src/pages/AcademicRecordPage.test.tsx` - Updated for the Academic Record mobile pass by mocking `studentTokens` and `mobileStyles` exports.
+- `src/pages/StudentTestResultsPage.test.tsx` - Phase 5B now mocks `StudentLayout`/`StudentSidebar`, keeps the canonical `/student-test-results/:sessionCode` coverage, preserves the legacy `/student/results/:sessionCode` alias regression, and the follow-up pass adds tokenized-action/alias assertions while Task 23 extends the focused mobile regression to cover feed padding and the stacked mobile action row.
+- `src/pages/StudentHomeworkListPage.test.tsx` - Updated for the Phase 3 homework pass by removing Mantine mocks and covering navigation/tracking through the homework list interactions; Task 23 adds focused mobile summary-strip, card-padding, and full-width CTA assertions.
+- `src/pages/AcademicRecordPage.test.tsx` - Updated for the Academic Record mobile pass by mocking `studentTokens` and `mobileStyles` exports, and Task 23 adds focused mobile header/filter/touch-target assertions.
 - `src/components/dashboard/PendingReviewsWidget.test.tsx` - Phase 3 widget regression coverage; Final closeout adds a focused 44px mobile touch-target assertion for review rows and the See all control.
+- `src/components/dashboard/StudentDashboardFeedView.test.jsx` - Focused dashboard-feed responsive regression coverage for mobile header treatment, feed spacing, hidden-scrollbar tabs, and 44px touch targets.
 - `src/components/layout/StudentSidebar.test.tsx` - Focused regression coverage for the mobile 44px sidebar navigation target contract.
 - `src/components/dashboard/RecentGradesChart.test.jsx` - Focused regression coverage for the dashboard chart selector touch target and dropdown options.
+- `src/pages/StudentDashboardPage.teachers.test.jsx` - Existing dashboard behavior coverage. Task 23 adds a mobile Join a Class modal regression for stacked actions, scroll-safe modal padding, and 44px touch targets.
+- `src/pages/StudentDashboardPage.navigation.test.jsx` - Focused dashboard navigation portability coverage; Task 23 extends it with a mobile notification-link routing regression.
 - `src/components/academicRecord/ResultTimeline.test.tsx` - Focused regression coverage for the Academic Record timeline load-more button touch target.
 
 ### Reference Patterns (Read-Only Ã¢â‚¬â€ Do NOT modify)
@@ -829,17 +832,17 @@ Before proceeding to Phase 5, verify ALL of the following:
 
   - [x] 20.1 **Load the navigation/mobile portability rules before coding.** Read `documentation/rules/navigation.md` and `documentation/rules/mobile-portability.md`. Treat this as a shared-shell refactor, not a page-local styling patch.
 
-  - [ ] 20.2 **Refactor `StudentSidebar.tsx` onto `useNavigation('student')`.** Remove the direct `useNavigate()` import, replace hard-coded route strings with route IDs / `navigateTo(...)`, and preserve the current `resetRecordsView` behavior for the Academic Record re-open path.
+  - [x] 20.2 **Refactor `StudentSidebar.tsx` onto `useNavigation('student')`.** Remove the direct `useNavigate()` import, replace hard-coded route strings with route IDs / `navigateTo(...)`, and preserve the current `resetRecordsView` behavior for the Academic Record re-open path.
 
   - [x] 20.3 **Harden sidebar menu dismissal for portability.** Replace or guard the raw `document.addEventListener(...)` menu-close wiring so the shared sidebar no longer depends on browser-only globals without an abstraction boundary.
 
-  - [ ] 20.4 **Refactor `StudentDashboardPage.jsx` navigation flows.** Replace the remaining direct `navigate(...)` calls with `useNavigation('student')`, route the Academic Record CTA through the registry, and distinguish internal vs external `notification.link` targets so external links do not get pushed through React Router.
+  - [x] 20.4 **Refactor `StudentDashboardPage.jsx` navigation flows.** Replace the remaining direct `navigate(...)` calls with `useNavigation('student')`, route the Academic Record CTA through the registry, and distinguish internal vs external `notification.link` targets so external links do not get pushed through React Router.
 
   - [x] 20.5 **Add focused regression coverage.** Extend or add tests covering `StudentSidebar` and `StudentDashboardPage` so the shared student shell keeps the navigation abstraction contract and notification-link behavior.
 
-  - [ ] 20.6 **Verify:** Run the relevant focused tests, run `cmd /c npm run build`, and manually confirm the student shell/dashboard still navigates correctly at 1440px and 375px.
+  - [x] 20.6 **Verify:** Run the relevant focused tests, run `cmd /c npm run build`, and manually confirm the student shell/dashboard still navigates correctly at 1440px and 375px.
 
-  - [ ] 20.7 Commit: `refactor(student-navigation): restore shared route abstraction compliance [PRD-0044 Follow-up]`.
+  - [x] 20.7 Commit: `refactor(student-navigation): restore shared route abstraction compliance [PRD-0044 Follow-up]`.
 
 ---
 
@@ -879,21 +882,21 @@ Before proceeding to Phase 5, verify ALL of the following:
 
 ---
 
-- [ ] **23.0 Responsive regression coverage completion**
+- [x] **23.0 Responsive regression coverage completion**
 
   > **Goal:** Backfill automated coverage for the mobile layout behaviors that were only manually verified during the original PRD-0044 closeout.
 
-  - [ ] 23.1 **Extend `AcademicRecordPage.test.tsx`.** Add mobile-layout assertions for the page header/title/subtitle treatment, stacked tab/date-range controls, and touch-friendly mobile actions.
+  - [x] 23.1 **Extend `AcademicRecordPage.test.tsx`.** Add mobile-layout assertions for the page header/title/subtitle treatment, stacked tab/date-range controls, and touch-friendly mobile actions.
 
-  - [ ] 23.2 **Extend `StudentHomeworkListPage.test.tsx`.** Add assertions for the mobile summary-strip stacking, tighter card padding, and full-width CTA behavior.
+  - [x] 23.2 **Extend `StudentHomeworkListPage.test.tsx`.** Add assertions for the mobile summary-strip stacking, tighter card padding, and full-width CTA behavior.
 
-  - [ ] 23.3 **Extend `StudentLayout.test.tsx`.** Add assertions for the shared mobile feed padding and the 320px-safe right-rail width cap (`width: 'min(320px, 85vw)'`) so the shell overflow fix remains locked in.
+  - [x] 23.3 **Extend `StudentLayout.test.tsx`.** Add assertions for the shared mobile feed padding and the 320px-safe right-rail width cap (`width: 'min(320px, 85vw)'`) so the shell overflow fix remains locked in.
 
-  - [ ] 23.4 **Add the missing dashboard/results responsive coverage.** Create or extend focused tests so student dashboard notification-link handling, mobile feed spacing, and the remaining Tier 1 responsive layout expectations are protected by automation rather than only manual QA.
+  - [x] 23.4 **Add the missing dashboard/results responsive coverage.** Create or extend focused tests so student dashboard notification-link handling, mobile feed spacing, the mobile Join a Class modal layout, and the remaining Tier 1 responsive layout expectations are protected by automation rather than only manual QA.
 
-  - [ ] 23.5 **Verify:** Run the focused Vitest suite for the touched student shell/page tests, then run `cmd /c npm run build`.
+  - [x] 23.5 **Verify:** Run the focused Vitest suite for the touched student shell/page tests, then run `cmd /c npm run build`.
 
-  - [ ] 23.6 Commit: `test(student-mobile): backfill responsive regression coverage [PRD-0044 Follow-up]`.
+  - [x] 23.6 Commit: `test(student-mobile): backfill responsive regression coverage [PRD-0044 Follow-up]`.
 
 ---
 ## Final Verification (After All Phases)
@@ -923,7 +926,7 @@ After completing all 23 parent tasks:
    - [x] Refresh each URL Ã¢â‚¬â€ still works.
 7. **Touch target testing:** On a real mobile device (or DevTools touch simulation), tap every button and link. Each must be easily tappable (Ã¢â€°Â¥44px target).
 8. **Architecture contract sweep:**
-   - [ ] `rg -n "useNavigate" src/components/layout/StudentSidebar.tsx src/pages/StudentDashboardPage.jsx` returns no direct router-hook usage in the shared student shell.
+   - [x] `rg -n "useNavigate" src/components/layout/StudentSidebar.tsx src/pages/StudentDashboardPage.jsx` returns no direct router-hook usage in the shared student shell.
    - [x] `rg -n "linear-gradient" src/pages/StudentHomeworkDetailPage.tsx src/pages/StudentTestResultsPage.tsx` returns no remaining Tier 1 legacy gradients.
 
 

@@ -9,6 +9,7 @@ const {
     markNotificationAsReadMock,
     getNotificationsMock,
     getStudentResultsMock,
+    useMediaQueryMock,
     useResolvedStudentShellDataMock,
     cleanupExpiredProgressMock,
 } = vi.hoisted(() => ({
@@ -17,6 +18,7 @@ const {
     markNotificationAsReadMock: vi.fn(),
     getNotificationsMock: vi.fn(),
     getStudentResultsMock: vi.fn(),
+    useMediaQueryMock: vi.fn(),
     useResolvedStudentShellDataMock: vi.fn(),
     cleanupExpiredProgressMock: vi.fn(),
 }));
@@ -45,7 +47,7 @@ vi.mock('../hooks/useFeatureTracking', () => ({
 }));
 
 vi.mock('../hooks/useMediaQuery', () => ({
-    useMediaQuery: () => false,
+    useMediaQuery: (...args) => useMediaQueryMock(...args),
 }));
 
 vi.mock('../context/StudentShellDataContext', () => ({
@@ -109,8 +111,8 @@ vi.mock('../components/results/DeferredResultSlidePanel', () => ({
 
 vi.mock('../components/dashboard/StudentDashboardFeedView', () => ({
     __esModule: true,
-    default: ({ feedRows = [], onOpenAcademicHistory }) => (
-        <div>
+    default: ({ feedRows = [], isMobile = false, onOpenAcademicHistory }) => (
+        <div data-testid="dashboard-feed-view" data-mobile={isMobile ? 'true' : 'false'}>
             <button type="button" onClick={onOpenAcademicHistory}>
                 Academic History
             </button>
@@ -136,6 +138,7 @@ const makeShellData = () => ({
 describe('StudentDashboardPage navigation portability', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        useMediaQueryMock.mockReturnValue(false);
         useResolvedStudentShellDataMock.mockReturnValue(makeShellData());
         getStudentResultsMock.mockResolvedValue([]);
         getNotificationsMock.mockResolvedValue({
@@ -217,5 +220,35 @@ describe('StudentDashboardPage navigation portability', () => {
             undefined,
             { reason: 'dashboard_open_academic_history' },
         );
+    });
+
+    it('keeps internal notification routing working when the dashboard renders in mobile mode', async () => {
+        useMediaQueryMock.mockReturnValue(true);
+        getNotificationsMock.mockResolvedValue({
+            notifications: [{
+                id: 'notif-mobile-library',
+                title: 'Open Library',
+                message: 'Continue in the practice library.',
+                link: '/student/library',
+                createdAt: Date.now(),
+                read: false,
+                metadata: {},
+            }],
+            hasMore: false,
+            lastKey: undefined,
+        });
+
+        render(<StudentDashboardPage />);
+
+        expect(await screen.findByTestId('dashboard-feed-view')).toHaveAttribute('data-mobile', 'true');
+        fireEvent.click(await screen.findByRole('button', { name: 'Open Library' }));
+
+        await waitFor(() => {
+            expect(navigateToMock).toHaveBeenCalledWith(
+                'STUDENT_LIBRARY',
+                {},
+                { reason: 'dashboard_notification_link' },
+            );
+        });
     });
 });

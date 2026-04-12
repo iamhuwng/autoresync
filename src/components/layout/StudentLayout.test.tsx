@@ -246,7 +246,10 @@ describe('StudentLayout', () => {
         );
 
         const rightRail = screen.getByTestId('student-layout-right-rail');
+        const mainContent = screen.getByText('Main Content').closest('main');
         expect(rightRail).toHaveStyle({ transform: 'translateX(100%)' });
+        expect(mainContent).toHaveStyle({ padding: '16px 12px 24px' });
+        expect(rightRail).toHaveStyle({ width: 'min(320px, 85vw)', maxWidth: '85vw' });
 
         fireEvent.click(screen.getByRole('button', { name: /open right rail/i }));
 

@@ -4,7 +4,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation, useSearchParams } from 'react-router-dom';
 import React from 'react';
 
-const { mockResults } = vi.hoisted(() => ({
+const { mockResults, useMediaQueryMock } = vi.hoisted(() => ({
     mockResults: [
         {
             resultId: 'res-1',
@@ -69,6 +69,7 @@ const { mockResults } = vi.hoisted(() => ({
             questionResults: [],
         },
     ] as any[],
+    useMediaQueryMock: vi.fn(),
 }));
 
 vi.mock('../hooks/useAuth', () => ({
@@ -120,6 +121,10 @@ vi.mock('../components/layout/StudentSidebar', () => ({
     StudentSidebar: () => <div data-testid="student-sidebar" />,
 }));
 
+vi.mock('../hooks/useMediaQuery', () => ({
+    useMediaQuery: (...args: unknown[]) => useMediaQueryMock(...args),
+}));
+
 vi.mock('../components/layout/studentLayoutStyles', () => ({
     S: {
         feedHeader: {},
@@ -130,10 +135,10 @@ vi.mock('../components/layout/studentLayoutStyles', () => ({
         filterTabActive: {},
     },
     mobileStyles: {
-        singleColumnGrid: {},
-        fullWidthButton: {},
-        feedSubtitleHidden: {},
-        touchTarget: {},
+        singleColumnGrid: { gridTemplateColumns: '1fr' },
+        fullWidthButton: { width: '100%', minHeight: '44px' },
+        feedSubtitleHidden: { display: 'none' },
+        touchTarget: { minHeight: '44px', minWidth: '44px' },
     },
     studentTokens: {
         bgSurfaceAlt: '#f5f5f5',
@@ -290,6 +295,7 @@ const renderPage = (options: RenderOptions = {}) => {
 describe('AcademicRecordPage query-param management', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        useMediaQueryMock.mockReturnValue(false);
     });
 
     it('shows the Course tab, removes the Writing tab, and keeps overview browse sections removed', async () => {
@@ -420,5 +426,21 @@ describe('AcademicRecordPage query-param management', () => {
         });
 
         expect(progressiveFeedbackService.refreshProgressiveFeedback).not.toHaveBeenCalled();
+    });
+
+    it('applies the mobile header, filter, and touch-target layout at the student breakpoint', async () => {
+        useMediaQueryMock.mockReturnValue(true);
+
+        renderPage();
+
+        await waitFor(() => {
+            expect(screen.getByTestId('result-timeline')).toBeInTheDocument();
+        });
+
+        expect(screen.getByRole('heading', { name: 'Academic Record' })).toHaveStyle({ fontSize: '1.5rem' });
+        expect(screen.getByText('Holistic performance tracking and feedback synthesis.')).toHaveStyle({ display: 'none' });
+        expect(screen.getByLabelText('Filter by time period')).toHaveStyle({ width: '100%' });
+        expect(screen.getByRole('button', { name: 'Last 3 Months' })).toHaveStyle({ minHeight: '44px', minWidth: '44px' });
+        expect(screen.getByRole('button', { name: 'IELTS' })).toHaveStyle({ minHeight: '44px', minWidth: '44px' });
     });
 });

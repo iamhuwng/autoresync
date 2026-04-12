@@ -7,11 +7,13 @@ const {
   createSubmissionMock,
   navigateMock,
   trackActionMock,
+  useMediaQueryMock,
   useResolvedStudentHomeworkListMock,
 } = vi.hoisted(() => ({
   createSubmissionMock: vi.fn(),
   navigateMock: vi.fn(),
   trackActionMock: vi.fn(),
+  useMediaQueryMock: vi.fn(),
   useResolvedStudentHomeworkListMock: vi.fn(),
 }));
 
@@ -22,7 +24,7 @@ vi.mock('../hooks/useNavigation', () => ({
 }));
 
 vi.mock('../hooks/useMediaQuery', () => ({
-  useMediaQuery: () => false,
+  useMediaQuery: (...args: unknown[]) => useMediaQueryMock(...args),
 }));
 
 vi.mock('../hooks/useFeatureTracking', () => ({
@@ -73,9 +75,9 @@ vi.mock('../components/layout/studentLayoutStyles', () => ({
     feedHeaderSubtitle: {},
   },
   mobileStyles: {
-    feedSubtitleHidden: {},
-    fullWidthButton: {},
-    touchTarget: {},
+    feedSubtitleHidden: { display: 'none' },
+    fullWidthButton: { width: '100%', minHeight: '44px' },
+    touchTarget: { minHeight: '44px', minWidth: '44px' },
   },
   studentTokens: {
     bgSurfaceAlt: '#f1f4f6',
@@ -141,6 +143,7 @@ function makeHomeworkItem(overrides: Record<string, unknown> = {}) {
 describe('StudentHomeworkListPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useMediaQueryMock.mockReturnValue(false);
     createSubmissionMock.mockResolvedValue({ id: 'submission-1' });
     useResolvedStudentHomeworkListMock.mockReturnValue({
       homeworkItems: [],
@@ -291,5 +294,31 @@ describe('StudentHomeworkListPage', () => {
 
     expect(screen.getAllByText('Pending Review')[0]).toBeInTheDocument();
     expect(screen.getByText('Awaiting teacher')).toBeInTheDocument();
+  });
+
+  it('stacks the homework summary and full-width actions on mobile', () => {
+    useMediaQueryMock.mockReturnValue(true);
+
+    const notStartedItem = makeHomeworkItem();
+
+    useResolvedStudentHomeworkListMock.mockReturnValue({
+      homeworkItems: [notStartedItem],
+      isLoading: false,
+      error: null,
+      refreshData: vi.fn(),
+      notStarted: [notStartedItem],
+      inProgress: [],
+      completed: [],
+      overdue: [],
+    });
+
+    render(<StudentHomeworkListPage />);
+
+    expect(screen.getByRole('heading', { name: 'My Homework' })).toHaveStyle({ fontSize: '1.5rem' });
+    expect(screen.getByText('Track upcoming assignments, review progress, and continue active work without losing the calm academic workspace.')).toHaveStyle({ display: 'none' });
+    expect(screen.getByText('Assignments').closest('div')).toHaveStyle({ width: '100%', padding: '16px 14px' });
+    expect(screen.getByRole('button', { name: 'Not Started' })).toHaveStyle({ minHeight: '44px', minWidth: '44px' });
+    expect(screen.getByRole('button', { name: 'Start Homework' })).toHaveStyle({ width: '100%', minHeight: '44px' });
+    expect(screen.getByRole('button', { name: 'Start Homework' }).parentElement).toHaveStyle({ flexDirection: 'column' });
   });
 });
