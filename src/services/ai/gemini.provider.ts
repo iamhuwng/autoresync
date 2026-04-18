@@ -1,6 +1,14 @@
 import type { Chunk, ReadingLabeledOption } from '../../types/document.types';
 import type { Result } from '../../types/result.types';
-import type { IAIService, AIParseResult, ProviderStatus } from './ai.service';
+import type {
+  IAIService,
+  AIParseResult,
+  ProviderStatus,
+  AIStructuredGenerationOptions,
+  WritingSuggestionBatchRequest,
+  WritingSuggestionBatchResponse,
+  WritingSuggestionScope,
+} from './ai.service';
 import { loadAllGeminiApiKeys } from '../../config/env.config';
 import { validateAIResponse, validatePassagesOnly, validateQuestionsAndAnswers, normalizeQuestionType, normalizeAnswer } from './response.validator';
 import { benchKey, isKeyBenched } from '../key-cooldown.service';
@@ -19,6 +27,7 @@ export class GeminiProvider implements IAIService {
   private currentKeyIndex = 0;
   private apiKeys: string[] = [];
   private sdkLoaded = false;
+  private sdkModule: any | null = null;
   private sdkLoadPromise: Promise<any> | null = null;
 
   // Round-robin request counter for load balancing
@@ -40,13 +49,14 @@ export class GeminiProvider implements IAIService {
    * Lazy load the Gemini SDK
    */
   private async loadSDK(): Promise<any> {
-    if (this.sdkLoaded) {
-      return;
+    if (this.sdkLoaded && this.sdkModule) {
+      return this.sdkModule;
     }
 
     if (!this.sdkLoadPromise) {
       this.sdkLoadPromise = import('@google/generative-ai').then((module) => {
         this.sdkLoaded = true;
+        this.sdkModule = module;
         return module;
       });
     }
@@ -54,26 +64,60 @@ export class GeminiProvider implements IAIService {
     return this.sdkLoadPromise;
   }
 
+  private haveApiKeysChanged(nextKeys: string[]): boolean {
+    if (nextKeys.length !== this.apiKeys.length) {
+      return true;
+    }
+
+    return nextKeys.some((key, index) => key !== this.apiKeys[index]);
+  }
+
+  private isRateLimitError(errorMessage?: string): boolean {
+    return !!errorMessage && (
+      errorMessage.includes('429') ||
+      errorMessage.includes('rate limit') ||
+      errorMessage.includes('quota')
+    );
+  }
+
+  private isTransientAvailabilityError(errorMessage?: string): boolean {
+    return !!errorMessage && (
+      errorMessage.includes('503') ||
+      errorMessage.includes('high demand') ||
+      errorMessage.includes('temporarily unavailable')
+    );
+  }
+
   /**
-   * Initialize Gemini clients with all available API keys (lazy)
+   * Initialize Gemini clients with all available API keys.
+   * `forceRefresh` reloads the current key inventory so long-lived sessions
+   * can pick up Firestore-managed keys that became available after first init.
    */
-  private async initialize(): Promise<void> {
+  private async initialize(forceRefresh = false): Promise<void> {
     try {
       // Load SDK first
       const { GoogleGenerativeAI } = await this.loadSDK();
 
-      this.apiKeys = await loadAllGeminiApiKeys();
+      const nextKeys = forceRefresh || this.clients.length === 0
+        ? await loadAllGeminiApiKeys()
+        : this.apiKeys;
 
-      if (this.apiKeys.length === 0) {
+      if (nextKeys.length === 0) {
         throw new Error('No Gemini API keys configured');
       }
 
-      // Create a client for each API key
-      this.clients = this.apiKeys.map(key => new GoogleGenerativeAI(key));
+      const shouldRebuildClients = this.clients.length === 0 || this.haveApiKeysChanged(nextKeys);
+      this.apiKeys = nextKeys;
+
+      if (shouldRebuildClients) {
+        this.clients = this.apiKeys.map(key => new GoogleGenerativeAI(key));
+        this.currentKeyIndex = 0;
+        const action = forceRefresh ? 'refreshed' : 'initialized';
+        console.log(`✅ Gemini provider ${action} with ${this.apiKeys.length} API key(s)`);
+      }
 
       this.status.available = true;
-
-      console.log(`✅ Gemini provider initialized with ${this.apiKeys.length} API key(s)`);
+      this.status.lastError = null;
     } catch (error) {
       this.status.available = false;
       this.status.lastError = error instanceof Error ? error.message : 'Unknown error';
@@ -85,10 +129,7 @@ export class GeminiProvider implements IAIService {
    * Parse chunk with Gemini (with round-robin load balancing and rate limit handling)
    */
   async parseChunk(chunk: Chunk): Promise<Result<AIParseResult>> {
-    // Lazy initialize on first use
-    if (this.clients.length === 0 && !this.sdkLoaded) {
-      await this.initialize();
-    }
+    await this.initialize(true);
 
     if (this.clients.length === 0) {
       return {
@@ -109,9 +150,8 @@ export class GeminiProvider implements IAIService {
     }
 
     // Separate error types
-    const isRateLimitError = result.error?.includes('429') ||
-      result.error?.includes('rate limit') ||
-      result.error?.includes('quota');
+    const isRateLimitError = this.isRateLimitError(result.error);
+    const isTransientAvailabilityError = this.isTransientAvailabilityError(result.error);
 
     const isTruncationError = result.error?.includes('Incomplete') ||
       result.error?.includes('truncated') ||
@@ -129,11 +169,13 @@ export class GeminiProvider implements IAIService {
     }
 
     // For rate limit errors, try other keys
-    if (isRateLimitError) {
-      console.warn(`⚠️ Rate limit on key ${this.currentKeyIndex + 1}, trying other keys...`);
+    if (isRateLimitError || isTransientAvailabilityError) {
+      const retryReason = isTransientAvailabilityError ? 'temporary provider demand' : 'rate limit';
+      console.warn(`⚠️ ${retryReason} on key ${this.currentKeyIndex + 1}, trying other keys...`);
 
-      // Mark current key as exhausted
-      this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
+      if (isRateLimitError) {
+        this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
+      }
 
       // Try remaining keys
       for (let attempt = 0; attempt < this.clients.length - 1; attempt++) {
@@ -152,9 +194,12 @@ export class GeminiProvider implements IAIService {
           return retryResult;
         }
 
-        // If also rate limited, mark and continue
-        if (retryResult.error?.includes('429') || retryResult.error?.includes('rate limit')) {
+        if (this.isRateLimitError(retryResult.error)) {
           this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
+          continue;
+        }
+
+        if (this.isTransientAvailabilityError(retryResult.error)) {
           continue;
         }
 
@@ -904,6 +949,18 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
    ✅ If 8-11 heading options (i-xi) → **matching-headings**
    ✅ "multiple-choice" = typically 4 options (A-D) per question
 
+**═══════════════════════════════════════════════════════════════**
+**STRUCTURED LABEL CONTRACT**
+**═══════════════════════════════════════════════════════════════**
+
+- For label-bearing Reading option lists, prefer labeledOptions over free-text labels
+- Each labeled option must be shaped like { "label": "A", "text": "Option text" }
+- Set optionLabelFormat to "letter", "roman", or "number" whenever labels exist
+- If you also include options, it must contain TEXT ONLY with no embedded labels
+- Never duplicate a label inside text
+- Never return conflicting shapes like { "label": "B", "text": "A option text" }
+- For unlabeled question types, return labeledOptions: null and optionLabelFormat: null
+
 **OUTPUT (JSON object only, no markdown):**
 {
   "questions": [
@@ -934,7 +991,13 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
       "questionText": "discovered the vaccination technique",
       "type": "matching-features",
       "sectionInstruction": "Look at the following statements and the list of researchers below. Match each statement with the correct researcher, A-C.",
-      "options": ["A. Louis Pasteur", "B. Edward Jenner", "C. Robert Koch"],
+      "options": ["Louis Pasteur", "Edward Jenner", "Robert Koch"],
+      "labeledOptions": [
+        { "label": "A", "text": "Louis Pasteur" },
+        { "label": "B", "text": "Edward Jenner" },
+        { "label": "C", "text": "Robert Koch" }
+      ],
+      "optionLabelFormat": "letter",
       "answer": "",
       "passageId": "passage-2",
       "confidence": 90,
@@ -957,7 +1020,14 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
       "type": "summary-completion-list",
       "summaryGroupId": "sc-1",
       "sectionInstruction": "The value attached to original works of art. Complete the summary using the list of words, A-L, below.",
-      "options": ["A. mechanical__(word)", "B.__(word)", "C.__(word)", "D. __(word)", "E. __(word)", "F. __(word)", "G. __(word)", "H. __(word)"],
+      "options": ["mechanical", "ideas", "assistants", "colour"],
+      "labeledOptions": [
+        { "label": "A", "text": "mechanical" },
+        { "label": "B", "text": "ideas" },
+        { "label": "C", "text": "assistants" },
+        { "label": "D", "text": "colour" }
+      ],
+      "optionLabelFormat": "letter",
       "answer": "",
       "passageId": "passage-3",
       "confidence": 95,
@@ -969,7 +1039,14 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
       "type": "summary-completion-list",
       "summaryGroupId": "sc-1",
       "sectionInstruction": "The value attached to original works of art. Complete the summary using the list of words, A-L, below.",
-      "options": ["A. mechanical__(word)", "B. __(word)", "C. __(word)", "D. __(word)", "E. __(word)", "F. __(word)", "G. __(word)", "H. __(word)"],
+      "options": ["mechanical", "ideas", "assistants", "colour"],
+      "labeledOptions": [
+        { "label": "A", "text": "mechanical" },
+        { "label": "B", "text": "ideas" },
+        { "label": "C", "text": "assistants" },
+        { "label": "D", "text": "colour" }
+      ],
+      "optionLabelFormat": "letter",
       "answer": "",
       "passageId": "passage-3",
       "confidence": 95,
@@ -1058,10 +1135,7 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
    * Parse passages only (2-call split parsing - Call 1)
    */
   async parsePassagesOnly(text: string): Promise<Result<{ passages: AIParseResult['passages']; confidence: number; }>> {
-    // Lazy initialize on first use
-    if (this.clients.length === 0 && !this.sdkLoaded) {
-      await this.initialize();
-    }
+    await this.initialize(true);
 
     if (this.clients.length === 0) {
       return {
@@ -1089,13 +1163,15 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
     }
 
     // Check for rate limit error
-    const isRateLimitError = result.error?.includes('429') ||
-      result.error?.includes('rate limit') ||
-      result.error?.includes('quota');
+    const isRateLimitError = this.isRateLimitError(result.error);
+    const isTransientAvailabilityError = this.isTransientAvailabilityError(result.error);
 
-    if (isRateLimitError) {
-      console.warn(`⚠️ [parsePassagesOnly] Rate limit on key ${this.currentKeyIndex + 1}, trying other keys...`);
-      this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
+    if (isRateLimitError || isTransientAvailabilityError) {
+      const retryReason = isTransientAvailabilityError ? 'temporary provider demand' : 'rate limit';
+      console.warn(`⚠️ [parsePassagesOnly] ${retryReason} on key ${this.currentKeyIndex + 1}, trying other keys...`);
+      if (isRateLimitError) {
+        this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
+      }
 
       // Try remaining keys
       for (let attempt = 0; attempt < this.clients.length - 1; attempt++) {
@@ -1113,8 +1189,12 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
           return retryResult;
         }
 
-        if (retryResult.error?.includes('429') || retryResult.error?.includes('rate limit')) {
+        if (this.isRateLimitError(retryResult.error)) {
           this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
+          continue;
+        }
+
+        if (this.isTransientAvailabilityError(retryResult.error)) {
           continue;
         }
 
@@ -1229,10 +1309,7 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
    * Parse questions and answers (2-call split parsing - Call 2)
    */
   async parseQuestionsAndAnswers(text: string): Promise<Result<{ questions: AIParseResult['questions']; answerKey: AIParseResult['answerKey']; confidence: number; }>> {
-    // Lazy initialize on first use
-    if (this.clients.length === 0 && !this.sdkLoaded) {
-      await this.initialize();
-    }
+    await this.initialize(true);
 
     if (this.clients.length === 0) {
       return {
@@ -1260,13 +1337,15 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
     }
 
     // Check for rate limit error
-    const isRateLimitError = result.error?.includes('429') ||
-      result.error?.includes('rate limit') ||
-      result.error?.includes('quota');
+    const isRateLimitError = this.isRateLimitError(result.error);
+    const isTransientAvailabilityError = this.isTransientAvailabilityError(result.error);
 
-    if (isRateLimitError) {
-      console.warn(`⚠️ [parseQuestionsAndAnswers] Rate limit on key ${this.currentKeyIndex + 1}, trying other keys...`);
-      this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
+    if (isRateLimitError || isTransientAvailabilityError) {
+      const retryReason = isTransientAvailabilityError ? 'temporary provider demand' : 'rate limit';
+      console.warn(`⚠️ [parseQuestionsAndAnswers] ${retryReason} on key ${this.currentKeyIndex + 1}, trying other keys...`);
+      if (isRateLimitError) {
+        this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
+      }
 
       // Try remaining keys
       for (let attempt = 0; attempt < this.clients.length - 1; attempt++) {
@@ -1284,8 +1363,12 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
           return retryResult;
         }
 
-        if (retryResult.error?.includes('429') || retryResult.error?.includes('rate limit')) {
+        if (this.isRateLimitError(retryResult.error)) {
           this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
+          continue;
+        }
+
+        if (this.isTransientAvailabilityError(retryResult.error)) {
           continue;
         }
 
@@ -1805,6 +1888,186 @@ Respond with JSON array only:
         this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
       }
       return { success: false, error: `Suggestion generation failed: ${msg}` };
+    }
+  }
+
+  async generateStructuredJson(
+    prompt: string,
+    options: AIStructuredGenerationOptions = {}
+  ): Promise<Result<unknown>> {
+    if (this.clients.length === 0 && !this.sdkLoaded) await this.initialize();
+    if (this.clients.length === 0) return { success: false, error: 'Gemini clients not initialized' };
+
+    this.currentKeyIndex = this.getNextAvailableKeyRoundRobin();
+
+    try {
+      this.status.requestCount++;
+      this.status.lastRequestTime = Date.now();
+      const client = this.clients[this.currentKeyIndex];
+      if (!client) throw new Error('No client available');
+
+      const model = client.getGenerativeModel({
+        model: 'gemini-2.5-flash',
+        generationConfig: {
+          temperature: options.temperature ?? 0.1,
+          maxOutputTokens: options.maxOutputTokens ?? 8192,
+          responseMimeType: 'application/json',
+        },
+      });
+
+      const request = options.systemInstruction
+        ? [
+          { text: `${options.systemInstruction}\n\n${prompt}` },
+        ]
+        : prompt;
+      const result = await model.generateContent(request as any);
+      const text = result.response.text();
+      const parsed = this.extractJSON(text);
+
+      return {
+        success: true,
+        data: parsed,
+      };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      this.status.lastError = msg;
+      if (msg.includes('429') || msg.includes('rate limit')) {
+        this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
+      }
+      return { success: false, error: `Structured generation failed: ${msg}` };
+    }
+  }
+
+  private getWritingSuggestionScopeInstruction(scope: WritingSuggestionScope): string {
+    switch (scope) {
+      case 'grammar-correction':
+        return 'Return grammar findings only. Return only precise micro-fixes that can be corrected with a short replacement.';
+      case 'grammar-improvement':
+        return 'Return grammar findings only. Return only broader improvement guidance items that should stay as comments, not direct micro-corrections.';
+      case 'vocabulary-correction':
+        return 'Return vocabulary/expression findings only. Return only precise micro-fixes that can be corrected with a short replacement.';
+      case 'vocabulary-improvement':
+        return 'Return vocabulary/expression findings only. Return only broader improvement guidance items that should stay as comments, not direct micro-corrections.';
+      case 'combined':
+      default:
+        return 'Return both grammar and vocabulary/expression findings. Include both corrections and improvement comments when appropriate.';
+    }
+  }
+
+  private buildWritingSuggestionPrompt(request: WritingSuggestionBatchRequest): string {
+    const priorLedger = request.priorFindingsLedger.length > 0
+      ? JSON.stringify(request.priorFindingsLedger, null, 2)
+      : '[]';
+
+    return [
+      'You are a careful IELTS writing grading assistant.',
+      'Return only valid JSON with no markdown fences and no explanatory prose.',
+      'Analyze the full essay as one entity while anchoring each finding to the provided indexed sentence text.',
+      this.getWritingSuggestionScopeInstruction(request.scope),
+      `Return up to ${request.maxFindings} distinct findings in this batch.`,
+      'Prefer distinct issues over alternate rewrites of the same issue.',
+      'Do not return any finding that substantially repeats something already present in priorFindingsLedger.',
+      'If there are clearly more worthwhile new findings after this batch, set hasMorePotential to true. Otherwise set it to false.',
+      'anchorText must exactly match the provided sentence text.',
+      'confidence must be an integer from 0 to 100.',
+      'replacementText is optional and should be omitted for comment-style findings.',
+      'Use only these issueFamily values:',
+      'tense, agreement, article, plural, preposition, punctuation, sentence-structure, capitalization, pronoun, word-choice, collocation, word-form, spelling, register, awkward-phrase, task1-reporting.',
+      '',
+      'Return exactly this JSON shape:',
+      '{',
+      '  "findings": [',
+      '    {',
+      '      "focus": "grammar" | "vocabulary-expression",',
+      '      "kind": "comment" | "correction",',
+      '      "sentenceIndex": 0,',
+      '      "anchorText": "",',
+      '      "issueFamily": "",',
+      '      "title": "",',
+      '      "reason": "",',
+      '      "replacementText": "",',
+      '      "confidence": 0',
+      '    }',
+      '  ],',
+      '  "hasMorePotential": false',
+      '}',
+      '',
+      `Task prompt:\n${request.taskPrompt}`,
+      '',
+      `Essay structure:\n${JSON.stringify(request.essay, null, 2)}`,
+      '',
+      `Prior findings ledger:\n${priorLedger}`,
+    ].join('\n');
+  }
+
+  async generateWritingSuggestionBatch(
+    request: WritingSuggestionBatchRequest,
+    options: AIStructuredGenerationOptions & {
+      preferredKeyIndex?: number;
+      keyLeaseId?: string | null;
+    } = {}
+  ): Promise<Result<WritingSuggestionBatchResponse>> {
+    if (this.clients.length === 0 && !this.sdkLoaded) await this.initialize();
+    if (this.clients.length === 0) return { success: false, error: 'Gemini clients not initialized' };
+
+    if (
+      typeof options.preferredKeyIndex === 'number'
+      && this.clients[options.preferredKeyIndex]
+      && !this.isKeyExhausted(options.preferredKeyIndex)
+    ) {
+      this.currentKeyIndex = options.preferredKeyIndex;
+    } else {
+      this.currentKeyIndex = this.getNextAvailableKeyRoundRobin();
+    }
+
+    try {
+      this.status.requestCount++;
+      this.status.lastRequestTime = Date.now();
+      const client = this.clients[this.currentKeyIndex];
+      if (!client) throw new Error('No client available');
+
+      const modelName = 'gemini-2.5-flash';
+      const model = client.getGenerativeModel({
+        model: modelName,
+        generationConfig: {
+          temperature: options.temperature ?? 0.1,
+          maxOutputTokens: options.maxOutputTokens ?? 16384,
+          responseMimeType: 'application/json',
+        },
+      });
+
+      const rawPrompt = this.buildWritingSuggestionPrompt(request);
+      const result = await model.generateContent(rawPrompt);
+      const response = result.response as any;
+      const rawResponse = response.text();
+      const repairedParsedJson = this.extractJSON(rawResponse) as Record<string, any>;
+
+      if (!repairedParsedJson || !Array.isArray(repairedParsedJson.findings) || typeof repairedParsedJson.hasMorePotential !== 'boolean') {
+        throw new Error('Invalid writing suggestion batch response shape');
+      }
+
+      return {
+        success: true,
+        data: {
+          findings: repairedParsedJson.findings,
+          hasMorePotential: repairedParsedJson.hasMorePotential,
+          provider: 'gemini',
+          model: modelName,
+          rawPrompt,
+          rawResponse,
+          repairedParsedJson,
+          finishReason: response.candidates?.[0]?.finishReason ?? null,
+          usageMetadata: response.usageMetadata ?? null,
+          keyLeaseId: options.keyLeaseId ?? null,
+        },
+      };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      this.status.lastError = msg;
+      if (msg.includes('429') || msg.includes('rate limit') || msg.includes('403')) {
+        this.markKeyExhausted(this.currentKeyIndex, msg.includes('403') ? '403 Forbidden' : 'Rate limit');
+      }
+      return { success: false, error: `Writing suggestion batch failed: ${msg}` };
     }
   }
 
