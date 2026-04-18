@@ -121,6 +121,29 @@ const classifyOptionLabel = (label: string): ReadingOptionLabelFormat | undefine
   return undefined;
 };
 
+const isAmbiguousSingleLetterLabel = (label: string): boolean => /^(?:i|v|x)$/i.test(label);
+
+const resolveAmbiguousLabelFormat = (
+  label: string,
+  format: ReadingOptionLabelFormat | undefined,
+  preferredFormat?: ReadingOptionLabelFormat,
+  dominantFormat?: ReadingOptionLabelFormat,
+): ReadingOptionLabelFormat | undefined => {
+  if (!format || !isAmbiguousSingleLetterLabel(label)) {
+    return format;
+  }
+
+  if (preferredFormat === 'letter' || preferredFormat === 'roman') {
+    return preferredFormat;
+  }
+
+  if (dominantFormat === 'letter' || dominantFormat === 'roman') {
+    return dominantFormat;
+  }
+
+  return format;
+};
+
 const buildGeneratedLabel = (index: number, format: ReadingOptionLabelFormat): string => {
   if (format === 'number') return String(index + 1);
   if (format === 'roman') return ROMAN_SEQUENCE[index] || String(index + 1);
@@ -299,6 +322,7 @@ const collectLabelIssues = (
     conflictingEmbeddedLabel?: string;
   }>,
   issues: ReadingQuestionIssue[],
+  preferredFormat?: ReadingOptionLabelFormat,
 ): {
   hasLabels: boolean;
   optionLabelFormat: ReadingOptionLabelFormat;
@@ -307,10 +331,23 @@ const collectLabelIssues = (
   const hasLabels = labeledCount > 0;
   const allHaveLabels = labeledCount === normalizedEntries.length;
 
+  const unambiguousFormats = Array.from(
+    new Set(
+      normalizedEntries
+        .filter((entry) => entry.label && !isAmbiguousSingleLetterLabel(entry.label))
+        .map((entry) => entry.format)
+        .filter((format): format is ReadingOptionLabelFormat => Boolean(format)),
+    ),
+  );
+
+  const dominantFormat = unambiguousFormats.length === 1 ? unambiguousFormats[0] : undefined;
+
   const inferredFormats = Array.from(
     new Set(
       normalizedEntries
-        .map((entry) => entry.format)
+        .map((entry) =>
+          resolveAmbiguousLabelFormat(entry.label, entry.format, preferredFormat, dominantFormat),
+        )
         .filter((format): format is ReadingOptionLabelFormat => Boolean(format)),
     ),
   );
@@ -341,7 +378,7 @@ const collectLabelIssues = (
 
   return {
     hasLabels,
-    optionLabelFormat: inferredFormats[0] || 'letter',
+    optionLabelFormat: inferredFormats[0] || preferredFormat || 'letter',
   };
 };
 
@@ -389,6 +426,7 @@ export const canonicalizeReadingQuestion = (
   const rawQuestionText = question.questionText ?? question.question ?? '';
   const questionText = sanitizeReadingQuestionText(rawQuestionText, questionNumber);
   const issues: ReadingQuestionIssue[] = [];
+  const preferredLabelFormat = question.optionLabelFormat || defaultLabelFormatForType(question.type);
 
   if (isMatchingInformationType(question.type)) {
     const sourceSections =
@@ -410,7 +448,7 @@ export const canonicalizeReadingQuestion = (
         questionText,
         question: questionText,
         options: [],
-        optionLabelFormat: question.optionLabelFormat || defaultLabelFormatForType(question.type),
+        optionLabelFormat: preferredLabelFormat,
         sectionReferences: [],
         issues,
       };
@@ -421,12 +459,13 @@ export const canonicalizeReadingQuestion = (
       questionNumber,
       normalizedSections,
       issues,
+      preferredLabelFormat,
     );
 
     const optionLabelFormat =
       question.optionLabelFormat ||
       inferredFormat ||
-      defaultLabelFormatForType(question.type);
+      preferredLabelFormat;
 
     const canonicalSections = normalizedSections.map((section, index) => {
       const label = section.label || (!hasLabels ? buildGeneratedLabel(index, optionLabelFormat) : '');
@@ -502,7 +541,7 @@ export const canonicalizeReadingQuestion = (
     return {
       questionText,
       question: questionText,
-      optionLabelFormat: question.optionLabelFormat || defaultLabelFormatForType(question.type),
+      optionLabelFormat: preferredLabelFormat,
       issues,
     };
   }
@@ -512,12 +551,13 @@ export const canonicalizeReadingQuestion = (
     questionNumber,
     normalizedOptions,
     issues,
+    preferredLabelFormat,
   );
 
   const optionLabelFormat =
     question.optionLabelFormat ||
     inferredFormat ||
-    defaultLabelFormatForType(question.type);
+    preferredLabelFormat;
 
   const generatedOptions = normalizedOptions.map((option, index) => ({
     label: option.label || (!hasLabels ? buildGeneratedLabel(index, optionLabelFormat) : ''),
