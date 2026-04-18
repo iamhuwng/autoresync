@@ -75,6 +75,49 @@ describe('canonicalizeReadingQuestion', () => {
     ]);
   });
 
+  it('treats A-J summary-completion-list banks as a uniform letter label set', () => {
+    const result = canonicalizeReadingQuestion({
+      number: 31,
+      type: 'summary-completion-list',
+      question: 'Complete the summary.',
+      optionLabelFormat: 'letter',
+      labeledOptions: [
+        { label: 'A', text: 'opinions' },
+        { label: 'I', text: 'range' },
+        { label: 'J', text: 'reasons' },
+      ],
+    });
+
+    expect(result.issues).toEqual([]);
+    expect(result.optionLabelFormat).toBe('letter');
+    expect(result.labeledOptions).toEqual([
+      { label: 'A', text: 'opinions' },
+      { label: 'I', text: 'range' },
+      { label: 'J', text: 'reasons' },
+    ]);
+  });
+
+  it('keeps ambiguous single-letter roman labels in matching-headings banks', () => {
+    const result = canonicalizeReadingQuestion({
+      number: 12,
+      type: 'matching-headings',
+      question: 'Choose the correct heading.',
+      labeledOptions: [
+        { label: 'i', text: 'The first heading' },
+        { label: 'ii', text: 'The second heading' },
+        { label: 'iii', text: 'The third heading' },
+      ],
+    });
+
+    expect(result.issues).toEqual([]);
+    expect(result.optionLabelFormat).toBe('roman');
+    expect(result.labeledOptions).toEqual([
+      { label: 'i', text: 'The first heading' },
+      { label: 'ii', text: 'The second heading' },
+      { label: 'iii', text: 'The third heading' },
+    ]);
+  });
+
   it('flags mixed labeled and unlabeled option groups', () => {
     const result = canonicalizeReadingQuestion({
       number: 9,
