@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Modal } from '@mantine/core';
 import { EditorTab } from './test/editor/EditTestFrame';
 import { ReadingEditorLayout } from './test/editor/layouts/ReadingEditorLayout';
@@ -28,12 +28,30 @@ import { adaptTestToResources, adaptResourcesToTest, linkQuestionsToResources } 
 import { getGroupQuestions } from '../utils/summaryGroupUtils';
 import { useAuth } from '../hooks/useAuth';
 import { PracticeSettingsModal } from './PracticeSettingsModal';
+import { storage } from '../core/platform/storage';
 
 interface TestEditorProps {
   test: TestData;
   show: boolean;
   handleClose: () => void;
 }
+
+const isStorageQuotaError = (error: unknown): boolean => {
+  if (typeof DOMException !== 'undefined' && error instanceof DOMException) {
+    return (
+      error.name === 'QuotaExceededError' ||
+      error.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+      error.code === 22 ||
+      error.code === 1014
+    );
+  }
+
+  if (error instanceof Error) {
+    return /quota/i.test(`${error.name} ${error.message}`);
+  }
+
+  return false;
+};
 
 const TestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
   const { user, isAdmin } = useAuth();
@@ -65,6 +83,9 @@ const TestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
   const [isPublicModified, setIsPublicModified] = useState(false);
   const [activeTab, setActiveTab] = useState<EditorTab>('questions');
   const [resources, setResources] = useState<ContextResource[]>([]);
+  const [resourcesModified, setResourcesModified] = useState(false);
+  const disabledDraftStorageKeysRef = useRef(new Set<string>());
+  const warnedDraftStorageKeysRef = useRef(new Set<string>());
 
   // Legacy states for backward compat while refactoring (will be replaced by resources)
   const [answerKeySubMode, setAnswerKeySubMode] = useState<'none' | 'manual' | 'massImport'>('none');
@@ -112,6 +133,7 @@ const TestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
           setEditedIsPublic(parsed.isPublic ?? test.isPublic ?? false);
           setTitleModified(parsed.titleModified || false);
           setIsPublicModified(parsed.isPublicModified || false);
+          setResourcesModified(Boolean(parsed.resourcesModified));
 
           if (parsed.resources) {
             setResources(parsed.resources);
@@ -158,6 +180,7 @@ const TestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
     setEditedIsPublic(test.isPublic || false);
     setTitleModified(false);
     setIsPublicModified(false);
+    setResourcesModified(false);
 
 
   };
@@ -165,6 +188,17 @@ const TestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
   useEffect(() => {
     if (test && Object.keys(editedQuestions).length > 0) {
       const storageKey = getStorageKey();
+      const hasDraftChanges =
+        modifiedQuestions.size > 0 ||
+        titleModified ||
+        isPublicModified ||
+        resourcesModified ||
+        editedDuration !== (test.duration || 0);
+
+      if (!hasDraftChanges || disabledDraftStorageKeysRef.current.has(storageKey)) {
+        return;
+      }
+
       const dataToSave = {
         timestamp: new Date().toISOString(),
         questions: editedQuestions,
@@ -173,13 +207,28 @@ const TestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
         titleModified,
         isPublic: editedIsPublic,
         isPublicModified,
+        resourcesModified,
         resources,
         duration: editedDuration,
         activeTab,
       };
-      localStorage.setItem(storageKey, JSON.stringify(dataToSave));
+      void storage.set(storageKey, dataToSave).catch((error: unknown) => {
+        disabledDraftStorageKeysRef.current.add(storageKey);
+        void storage.remove(storageKey).catch(() => undefined);
+
+        if (!warnedDraftStorageKeysRef.current.has(storageKey)) {
+          warnedDraftStorageKeysRef.current.add(storageKey);
+          console.warn('[TestEditor] Local draft persistence disabled:', error);
+
+          const message = isStorageQuotaError(error)
+            ? 'Browser storage is full, so local draft backup is paused. You can keep editing; use Save to persist changes.'
+            : 'Local draft backup is unavailable. You can keep editing; use Save to persist changes.';
+
+          toast.warning(message);
+        }
+      });
     }
-  }, [editedQuestions, modifiedQuestions, test, editedTitle, titleModified, editedIsPublic, isPublicModified, resources, editedDuration, activeTab]);
+  }, [editedQuestions, modifiedQuestions, test, editedTitle, titleModified, editedIsPublic, isPublicModified, resourcesModified, resources, editedDuration, activeTab]);
 
   useEffect(() => {
     if (selectedQuestionIndex !== null) {
@@ -357,6 +406,11 @@ const TestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
   const handleTitleChange = (newTitle: string) => {
     setEditedTitle(newTitle);
     setTitleModified(true);
+  };
+
+  const handleResourcesUpdate = (updatedResources: ContextResource[]) => {
+    setResources(updatedResources);
+    setResourcesModified(true);
   };
 
   // Handle answer key mode selection
@@ -606,6 +660,7 @@ const TestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
         console.log(`📝 Test save: isComplete=${isComplete}, missingAnswerCount=${missingAnswerCount}`);
 
         await update(ref(database), updates);
+        setResourcesModified(false);
 
         // Clear localStorage
         const storageKey = getStorageKey();
@@ -715,7 +770,7 @@ const TestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
   const resourceManagerPanel = (
     <ResourceManager
       resources={resources}
-      onUpdateResources={setResources}
+      onUpdateResources={handleResourcesUpdate}
       skill={(test as any).skill || 'Reading'}
       totalQuestions={test.questions.length}
       readOnly={isReadOnly}
