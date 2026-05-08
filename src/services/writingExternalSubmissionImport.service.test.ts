@@ -239,7 +239,7 @@ describe('writingExternalSubmissionImport.service', () => {
         mockMaterial();
     });
 
-    it('lists teacher-owned Writing homework options using material as fallback truth', async () => {
+    it('lists teacher-owned Writing homework options including legacy title hints', async () => {
         mockGetHomeworkByTeacher.mockResolvedValue([
             buildHomework({ id: 'writing-homework', title: 'Writing task' }),
             buildHomework({
@@ -250,28 +250,13 @@ describe('writingExternalSubmissionImport.service', () => {
             }),
             buildHomework({
                 id: 'reading-homework',
+                title: 'Reading task',
                 materialId: 'reading-test',
+                materialTitle: 'Reading Test',
                 materialSkill: 'reading',
             }),
             buildHomework({ id: 'archived-writing', archived: true }),
         ]);
-        mockGetRtdb.mockImplementation(async (path: string) => {
-            const materialByPath: Record<string, unknown> = {
-                'tests/legacy-writing-test': {
-                    ...buildMaterial(),
-                    id: 'legacy-writing-test',
-                },
-                'tests/reading-test': {
-                    testType: 'IELTS',
-                    skill: 'Reading',
-                },
-            };
-            const material = materialByPath[path];
-            return {
-                exists: () => Boolean(material),
-                val: () => material,
-            };
-        });
 
         const result = await listWritingImportHomeworkOptions(teacherId);
 
@@ -288,6 +273,7 @@ describe('writingExternalSubmissionImport.service', () => {
                 materialId: 'legacy-writing-test',
             }),
         ]);
+        expect(mockGetRtdb).not.toHaveBeenCalled();
     });
 
     it('imports Task 2-only homework as pending-review external work', async () => {

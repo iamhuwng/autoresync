@@ -277,32 +277,30 @@ function buildSubmissionTasks(
     return { success: true, data: submissionTasks };
 }
 
+function hasWritingHomeworkHint(homework: HomeworkAssignment): boolean {
+    const searchableText = [
+        homework.title,
+        homework.materialTitle,
+    ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+    return /\bwriting\b|\btask\s*[12]\b/.test(searchableText);
+}
+
 export async function listWritingImportHomeworkOptions(
     importerTeacherId: string
 ): Promise<ServiceResult<WritingImportHomeworkOption[]>> {
     try {
         const homework = await getHomeworkByTeacher(importerTeacherId);
-        const importableHomework = await Promise.all(
-            homework
-                .filter((item) => item.archived !== true)
-                .map(async (item) => {
-                    if (item.materialSkill === 'writing') {
-                        return item;
-                    }
-
-                    try {
-                        const materialResult = await loadWritingMaterial(item.materialId);
-                        return materialResult.success ? item : null;
-                    } catch {
-                        return null;
-                    }
-                })
-        );
-
         return {
             success: true,
-            data: importableHomework
-                .filter((item): item is HomeworkAssignment => Boolean(item))
+            data: homework
+                .filter((item) => (
+                    item.archived !== true &&
+                    (item.materialSkill === 'writing' || hasWritingHomeworkHint(item))
+                ))
                 .map((item) => ({
                     homeworkId: item.id,
                     title: item.title || item.materialTitle,
