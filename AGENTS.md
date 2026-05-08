@@ -40,16 +40,12 @@ When the task involves Google Cloud, Gemini, Vertex AI, Google AI Studio, Google
 
 ## Feature Merge And Main Refresh Safety (MANDATORY)
 
-When the user says a feature branch/worktree is done and should be merged to `main` or `origin/main`, enforce this workflow.
-- Identify the source worktree, source branch, exact source `HEAD`, upstream/tracking branch, and dirty status.
-- If the source worktree is dirty, do not merge it directly; first commit, stash, patch, or exclude dirty work with owner approval.
-- Fetch `origin main`, then update local `main` with `git merge --ff-only origin/main`; if local `main` has commits not on `origin/main`, stop and report.
-- Never start merge work from stale local `main`.
-- Merge through a PR by default. Direct push to `main` is allowed only after the user explicitly approves direct push.
-- Before PR/direct push, show included commits, changed-file summary, excluded dirty/unrelated work, and focused verification results.
-- After `origin/main` changes, fetch `origin main` again and fast-forward local `main` so `main == origin/main`.
-- Only after remote and local main match, consider feature cleanup.
-- Delete/remove a feature worktree only after verifying its branch commits are reachable from `origin/main`, it has no uncommitted work, and the owner approves deletion.
+When merging finished feature work to `main`/`origin/main`:
+- Inspect source branch/worktree: `HEAD`, upstream, dirty status, included/excluded work.
+- Sync local `main` first: `git fetch origin main` then `git merge --ff-only origin/main`; stop on local-only `main` commits or dirty source.
+- Prefer PR. Direct push to `main` requires explicit user approval plus diff/commit/test summary.
+- After remote merge, fetch and fast-forward local `main` so `main == origin/main`.
+- Remove feature worktree only after commits are reachable from `origin/main`, worktree is clean, and user approves deletion.
 
 | When you are... | READ this file |
 |----------------|----------------|
