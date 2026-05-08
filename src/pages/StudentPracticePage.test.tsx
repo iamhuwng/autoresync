@@ -18,6 +18,8 @@ const {
 
 vi.mock('firebase/database', () => ({
   get: (...args: unknown[]) => getMock(...args),
+  getDatabase: vi.fn(() => ({})),
+  onValue: vi.fn(),
   ref: (...args: unknown[]) => refMock(...args),
 }));
 
@@ -27,6 +29,13 @@ vi.mock('../services/firebase', () => ({
 
 vi.mock('../services/practiceSettingsResolver', () => ({
   resolvePracticeSettings: (...args: unknown[]) => resolvePracticeSettingsMock(...args),
+}));
+
+vi.mock('../hooks/useAuth', () => ({
+  useAuth: () => ({
+    user: { uid: 'student-1', email: 'student@test.com' },
+    profile: { fullName: 'Test Student', role: 'student' },
+  }),
 }));
 
 vi.mock('../components/test/TestErrorBoundary', () => ({
