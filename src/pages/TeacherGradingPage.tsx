@@ -37,9 +37,8 @@ export function TeacherGradingPage() {
     const navigate = useNavigate();
     const location = useLocation();
 
-    // Determine initial tab from URL or location state
-    const initialTab: GradingTab = location.pathname.includes('/teacher/grading/writing') ||
-        (location.state as any)?.tab === 'writing' ? 'writing' : 'thcs';
+    // Determine initial tab from location state; base grading now opens IELTS Writing.
+    const initialTab: GradingTab = (location.state as any)?.tab === 'thcs' ? 'thcs' : 'writing';
 
     const [gradingTab, setGradingTab] = useState<GradingTab>(initialTab);
     const [viewMode, setViewMode] = useState<ViewMode>('by-test');

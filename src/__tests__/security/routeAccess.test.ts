@@ -64,8 +64,8 @@ const ROUTE_CONFIG: RouteDefinition[] = [
     { path: '/teacher/thcs-test/create', allowedRoles: ['teacher', 'super_admin'], description: 'THCS-THPT test editor (new)' },
     { path: '/teacher/thcs-test/edit/:draftId', allowedRoles: ['teacher', 'super_admin'], description: 'THCS-THPT test editor (edit draft)' },
 
-    // PRD-0028: THCS Grading Tab
-    { path: '/teacher/grading', allowedRoles: ['teacher', 'super_admin'], description: 'THCS grading tab' },
+    // PRD-0028/0030: Teacher grading workspace
+    { path: '/teacher/grading', allowedRoles: ['teacher', 'super_admin'], description: 'Teacher grading workspace' },
 ];
 
 // =============================================================================

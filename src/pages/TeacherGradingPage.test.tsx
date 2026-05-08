@@ -139,6 +139,18 @@ describe('TeacherGradingPage import submission wiring', () => {
         expect(screen.getByRole('dialog', { name: 'Import modal' })).toBeTruthy();
     });
 
+    it('opens IELTS Writing by default on the base grading route', async () => {
+        mockUseLocation.mockReturnValue({
+            pathname: '/teacher/grading',
+            state: null,
+        });
+
+        render(<TeacherGradingPage />);
+
+        expect(await screen.findByRole('button', { name: 'Import submission' })).toBeTruthy();
+        expect(mockGetPendingSubmissions).toHaveBeenCalledWith('teacher-1');
+    });
+
     it('refreshes queue and routes grade-now imports through TEACHER_GRADING_DETAIL', async () => {
         const user = userEvent.setup();
         render(<TeacherGradingPage />);
