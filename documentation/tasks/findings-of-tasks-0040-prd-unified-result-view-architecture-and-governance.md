@@ -931,3 +931,14 @@ The first remediation round fixed the bad class-result route by requiring canoni
 
 ### Finding R-2026-03-27-5: Result observability and governance matching now include the primary claim-recovery route and class-result producers
 `/profile/complete` is now tracked under the `results` feature in `App.jsx` and `featureRegistry.ts`, closing the main claim-recovery observability gap. The PRD-0040 governance matcher was also widened to cover `StudentClassDetailPage`, `useTestSubmission`, and `class.types`, so future changes to canonical class-result production paths cannot bypass the doc/change-record gate.
+
+## Continuation Findings (2026-05-08)
+
+### Finding R-2026-05-08-1: PRD-0043 external Writing import reuses the existing Writing lifecycle
+PRD-0043 adds a Teacher Grading -> IELTS Writing external/admin homework import intake on `TeacherGradingPage`. This remains the existing Writing `queue` lifecycle role and routes imported records into the existing `WritingGradingPage` editor at `/teacher/grading/writing/:submissionId`. No new result shell, saved-result host, or dormant writing surface is introduced.
+
+### Finding R-2026-05-08-2: Import metadata is audit data, not a teacher-ownership source
+Imported Writing homework records carry `context.externalImport` on `writing_submissions` and `administrativeImport` on `homework_submissions`, including importing teacher metadata and source notes. These fields do not change PRD-0040 ownership rules: linked homework ownership remains authoritative, and `importedByTeacherId` must not be used as a result visibility owner.
+
+### Finding R-2026-05-08-3: PRD-0043 verification anchors are writing-lifecycle anchors
+The corrective rebase verification used focused Writing import and queue/editor anchors: `writingExternalSubmissionImport.service.test.ts`, `homeworkSubmissionService.test.ts`, `writingSubmissionService.test.ts`, `ImportWritingSubmissionModal.test.tsx`, `TeacherGradingPage.test.tsx`, `WritingGradingPage.test.tsx`, `featureRegistry.test.ts`, build, UTF-8/diff checks, PRD-0040 enforcement, and Playwright MCP live browser verification. The PRD-0040 FR closure status remains verified.
