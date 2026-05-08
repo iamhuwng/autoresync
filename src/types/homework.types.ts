@@ -375,6 +375,14 @@ export interface HomeworkSubmission {
     attemptsNullified?: boolean;
     /** PRD-0036: Integrity report data written by the client during the test session (Task 6.5) */
     integrity?: import('./integrity.types').HomeworkIntegrity;
+
+    /** Administrative import metadata for off-app submissions added by a teacher */
+    administrativeImport?: {
+        source: 'external-admin-import';
+        importedByTeacherId: string;
+        importedAt: number;
+        sourceNote?: string;
+    };
 }
 
 // ============================================================================

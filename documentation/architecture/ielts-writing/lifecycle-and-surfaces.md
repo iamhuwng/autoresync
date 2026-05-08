@@ -38,6 +38,8 @@ Teacher creates/publishes writing test
   Canonical edit/resume surface for existing writing drafts and published materials.
 - `WritingGradingQueuePage`  
   Operational front door for pending-review work.
+- `TeacherGradingPage` -> IELTS Writing tab -> `Import submission`
+  Administrative intake for off-app homework submissions. Creates the same pending-review Writing submission and homework/result projection consumed by the normal queue/editor.
 - `WritingGradingPage`  
   Canonical grading editor.
 - `TeacherTestResultsPage` + `WritingTestResultsSection`  
@@ -79,6 +81,19 @@ In the wide student slide modal:
 - task-aware summaries and criteria feedback
 - published markup and ordered feedback items
 - audit metadata and re-open path when permissions allow
+
+## External Homework Import Contract
+
+Teachers may import off-app IELTS Writing homework only through the grading workflow: `Teacher View -> Grading -> IELTS Writing -> Import submission`.
+
+Import rules:
+- the selected homework must belong to the current teacher and must be a Writing homework
+- the selected student must be assigned to that homework
+- the import creates a canonical Firestore `writing_submissions/{submissionId}` row with `context.type = 'homework'`
+- the same ID links the Writing submission, homework submission bridge, and RTDB result projection
+- imported work stays `pending-review` until the teacher publishes grading
+- import audit metadata lives in `WritingSubmission.context.externalImport`
+- import does not notify or blame the student as if they pasted inside the app
 
 ## Teacher Authoring Contract
 

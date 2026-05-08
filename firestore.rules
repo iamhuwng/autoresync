@@ -93,7 +93,11 @@ service cloud.firestore {
     match /homework_submissions/{submissionId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null
-        && request.resource.data.studentId == request.auth.uid;
+        && (request.resource.data.studentId == request.auth.uid
+            || (request.resource.data.teacherId == request.auth.uid
+                && request.resource.data.administrativeImport.source == 'external-admin-import'
+                && request.resource.data.administrativeImport.importedByTeacherId == request.auth.uid
+                && get(/databases/$(database)/documents/homework_assignments/$(request.resource.data.homeworkId)).data.createdBy == request.auth.uid));
       // Students can update own submissions; teachers can update for grading
       // Third condition: allows teacher to backfill teacherId on old submissions
       // (created before teacherId was introduced) by writing their own UID.

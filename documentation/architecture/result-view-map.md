@@ -34,6 +34,10 @@ Writing lifecycle keys:
 
 PRD-0049 reconciles the live-parity local `main` history back into `origin/main`. The result-related files entering `origin/main` through that reconciliation preserve the existing surface map below; no new result shell, route owner, or lifecycle role is introduced by the reconcile itself.
 
+## PRD-0043 External Writing Import Note
+
+PRD-0043 adds an external/admin homework Writing import intake to `TeacherGradingPage`, which is already the active Writing queue surface. The import creates canonical Firestore `writing_submissions` with homework context plus matching homework/result projections, then continues through the existing `/teacher/grading/writing/:submissionId` editor path. No new result shell, saved-result host, or Writing lifecycle role is introduced.
+
 ## Surface Inventory
 
 | Surface | Status | Domain | Writing lifecycle | Route / host | Primary data path | Owner / host contract | Coverage anchor | Resolution disposition | Notes |
@@ -65,7 +69,7 @@ PRD-0049 reconciles the live-parity local `main` history back into `origin/main`
 | `WritingTestPage` | active | writing | draft | student writing test flow | RTDB `game_sessions/{sessionCode}/writing/...` | student writing draft/edit host | static audit only | - | Draft/autosave front door. |
 | `WritingMonitorCard` | active | writing | monitor | mounted by teacher monitor | RTDB live writing draft paths | teacher monitor card | `WritingMonitorCard.test.tsx` | - | Monitor-time operational surface. |
 | `WritingPeekModal` | active | writing | monitor | mounted by teacher monitor | RTDB live draft text | teacher monitor peek | static audit only | - | Reads live draft, not final submission. |
-| `TeacherGradingPage` | active | writing | queue | `/teacher/grading`, `/teacher/grading/writing` | Firestore `writing_submissions` query | teacher grading queue | static audit only | - | Operational front door for grading. |
+| `TeacherGradingPage` | active | writing | queue | `/teacher/grading`, `/teacher/grading/writing` | Firestore `writing_submissions` query | teacher grading queue | static audit only | - | Operational front door for grading. PRD-0043 adds external/admin homework import intake here without changing the queue lifecycle role. |
 | `WritingGradingPage` | active | writing | editor | `/teacher/grading/writing/:submissionId` | Firestore `writing_submissions/{submissionId}` | active grading editor | static audit only | - | Autosave and Save Draft currently mark work graded. |
 | `WritingResultView` | active | writing | result | mounted by student/teacher result bridges | Firestore `writing_submissions/{submissionId}` | writing result viewer | static audit only | - | Result surface, not front door. |
 | `WritingResultDetailModal` | active | writing | result | mounted by writing result flows | Firestore `writing_submissions/{submissionId}` | writing result modal | static audit only | - | Can reopen grading. |

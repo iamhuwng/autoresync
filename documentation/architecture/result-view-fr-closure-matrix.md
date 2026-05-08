@@ -16,6 +16,10 @@ Companion docs:
 
 PRD-0049 is a branch/source-of-truth reconciliation, not a new result-view feature phase. The result-related history entering `origin/main` keeps the closure statuses below at `verified`; the required PRD-0040 governance docs are updated in the same changeset so reviewers can see that no FR closure status changed.
 
+## PRD-0043 External Writing Import Note
+
+PRD-0043 adds a Writing queue intake, not a new result-view closure phase. The Writing linked-source ownership and grading-surface row remains `passing`; added verification anchors are `writingExternalSubmissionImport.service.test.ts`, `TeacherGradingPage.test.tsx`, `ImportWritingSubmissionModal.test.tsx`, `writingSubmissionService.test.ts`, and live browser verification of the existing queue/editor path.
+
 Status keys:
 - `planned`
 - `in-progress`

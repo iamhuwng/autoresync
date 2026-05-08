@@ -19,8 +19,10 @@ import { Card, CardBody, Button, Input } from '../components/modern';
 import { TeacherHeader } from '../components/navigation';
 import { GradingTestCard } from '../components/thcs-grading/GradingTestCard';
 import type { GradingTestCardData } from '../components/thcs-grading/GradingTestCard';
+import ImportWritingSubmissionModal from '../components/writing-grading/ImportWritingSubmissionModal';
 // PRD-0030: Writing grading queue
 import { getPendingSubmissions } from '../services/writingSubmissionService';
+import type { WritingExternalSubmissionImportResult } from '../services/writingExternalSubmissionImport.service';
 import type { WritingSubmission } from '../types/ielts-writing.types';
 
 type ViewMode = 'by-test' | 'by-question';
@@ -53,6 +55,7 @@ export function TeacherGradingPage() {
     const [writingError, setWritingError] = useState<string | null>(null);
     const [contextFilter, setContextFilter] = useState<ContextFilter>('all');
     const [sortOption, setSortOption] = useState<SortOption>('newest');
+    const [importModalOpen, setImportModalOpen] = useState(false);
 
     // Ref for unsubscribe
     const unsubRef = useRef<(() => void) | null>(null);
@@ -289,6 +292,30 @@ export function TeacherGradingPage() {
             { reason: 'teacher_open_writing_submission' },
         );
     }, [navigateTo, trackAction, user?.uid]);
+
+    const handleOpenImportModal = useCallback(() => {
+        trackAction('importSubmissionOpen', {
+            source: 'teacher_grading_writing_tab',
+        });
+        setImportModalOpen(true);
+    }, [trackAction]);
+
+    const handleWritingImportComplete = useCallback(async (
+        result: WritingExternalSubmissionImportResult,
+        options: { gradeNow: boolean }
+    ) => {
+        setImportModalOpen(false);
+        setContextFilter('homework');
+        await fetchWritingSubmissions();
+
+        if (options.gradeNow) {
+            navigateTo(
+                'TEACHER_GRADING_DETAIL',
+                { submissionId: result.submissionId },
+                { reason: 'teacher_import_writing_submission_grade_now' },
+            );
+        }
+    }, [fetchWritingSubmissions, navigateTo]);
 
     return (
         <div
@@ -599,7 +626,21 @@ export function TeacherGradingPage() {
                                                     <option value="oldest">Oldest First</option>
                                                 </select>
                                             </div>
-                                            <div style={{ marginLeft: 'auto' }}>
+                                            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                                                <Button
+                                                    variant="secondary"
+                                                    size="sm"
+                                                    onClick={handleOpenImportModal}
+                                                    disabled={!user?.uid}
+                                                    style={{
+                                                        borderColor: '#ea580c',
+                                                        color: '#c2410c',
+                                                        fontSize: '0.8125rem',
+                                                        fontWeight: 700,
+                                                    }}
+                                                >
+                                                    Import submission
+                                                </Button>
                                                 <span style={{
                                                     display: 'inline-flex',
                                                     alignItems: 'center',
@@ -785,6 +826,14 @@ export function TeacherGradingPage() {
                     </div>
                 </AppShell.Main>
             </AppShell>
+
+            <ImportWritingSubmissionModal
+                isOpen={importModalOpen}
+                teacherId={user?.uid}
+                onClose={() => setImportModalOpen(false)}
+                onImported={handleWritingImportComplete}
+                trackAction={trackAction}
+            />
 
             {/* Animations */}
             <style>{`

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { get, push, set, update } from 'firebase/database';
-import { deleteDoc, getDoc, getDocs, setDoc, updateDoc } from 'firebase/firestore';
+import { deleteDoc, getDoc, getDocFromServer, getDocs, setDoc, updateDoc } from 'firebase/firestore';
 import {
     autoSubmitFromRTDB,
     getWritingSubmissionForGrading,
@@ -42,6 +42,7 @@ vi.mock('firebase/firestore', () => ({
     setDoc: vi.fn(),
     deleteDoc: vi.fn(),
     getDoc: vi.fn(),
+    getDocFromServer: vi.fn(),
     getDocs: vi.fn(),
     updateDoc: vi.fn(),
     collection: vi.fn(),
@@ -115,6 +116,7 @@ describe('writingSubmissionService', () => {
         (setDoc as any).mockResolvedValue(undefined);
         (set as any).mockResolvedValue(undefined);
         (deleteDoc as any).mockResolvedValue(undefined);
+        (getDocFromServer as any).mockImplementation((...args: unknown[]) => (getDoc as any)(...args));
         (updateDoc as any).mockResolvedValue(undefined);
         (update as any).mockResolvedValue(undefined);
     });
@@ -499,6 +501,66 @@ describe('writingSubmissionService', () => {
             })
         );
         expect(mockClearUnresolvedResultVisibilityReport).not.toHaveBeenCalled();
+    });
+
+    it('carries homework attempt and late provenance into the materialized result context', async () => {
+        mockResolveResultOwnership.mockResolvedValueOnce({
+            visibility: {
+                contextType: 'homework',
+                sourceType: 'homework',
+                sourceId: 'homework-import',
+                sourceNameSnapshot: 'Imported Homework',
+                visibilityOwnerTeacherId: 'teacher-1',
+                ownerResolutionSource: 'homework.createdBy',
+                ownershipResolved: true,
+                unresolvedReason: null,
+                homeworkId: 'homework-import',
+                sessionCode: null,
+                courseId: null,
+                classId: null,
+                assignmentId: null,
+            },
+            sourceLookupAttempted: true,
+            strongestKnownSourceClue: 'homework:homework-import',
+        });
+
+        await materializeSubmissionResult({
+            id: 'result-import',
+            studentId: 'student-import',
+            studentName: 'Student Import',
+            context: {
+                type: 'homework',
+                homeworkId: 'homework-import',
+                assigningTeacherId: 'teacher-1',
+                attemptNumber: 3,
+                isLate: true,
+            },
+            testMeta: {
+                testId: 'test-import',
+                testTitle: 'Imported Writing',
+                format: 'task2-only',
+                duration: 40,
+            },
+            tasks: [],
+            submittedAt: 4500,
+            totalElapsedTimeSeconds: 60,
+            pasteAttemptCount: 0,
+            markingStatus: 'pending-review',
+            annotations: [],
+            auditTrail: [],
+        } as any);
+
+        expect(getSetCall(0)[1]).toEqual(
+            expect.objectContaining({
+                context: expect.objectContaining({
+                    assignment: {
+                        homeworkId: 'homework-import',
+                        attemptNumber: 3,
+                        isLate: true,
+                    },
+                }),
+            })
+        );
     });
 
     it('syncs grading through the normalized owner instead of raw teacher fallbacks', async () => {

@@ -12,6 +12,7 @@ import {
     doc,
     setDoc,
     getDoc,
+    getDocFromServer,
     getDocs,
     updateDoc,
     deleteDoc,
@@ -243,7 +244,8 @@ function mapSubmissionContextToResultContext(submission: WritingSubmission): Res
             assignment: submission.context.homeworkId
                 ? {
                     homeworkId: submission.context.homeworkId,
-                    attemptNumber: 1,
+                    attemptNumber: submission.context.attemptNumber ?? 1,
+                    isLate: submission.context.isLate,
                 }
                 : undefined,
             configApplied: {
@@ -391,6 +393,14 @@ function getSubmissionRef(submissionId: string) {
 
 function getGradingDraftRef(submissionId: string) {
     return doc(db, GRADING_DRAFTS_COLLECTION, submissionId);
+}
+
+async function getDocPreferServer(documentRef: ReturnType<typeof doc>) {
+    try {
+        return await getDocFromServer(documentRef);
+    } catch {
+        return getDoc(documentRef);
+    }
 }
 
 function getCurrentPublishedGrading(submission: WritingSubmission): PublishedWritingGrading | null {
@@ -994,8 +1004,8 @@ export async function getWritingSubmissionForGrading(
 ): Promise<{ success: boolean; data?: WritingSubmissionForGrading; error?: string }> {
     try {
         const [submissionSnap, draftSnap] = await Promise.all([
-            getDoc(getSubmissionRef(submissionId)),
-            getDoc(getGradingDraftRef(submissionId)),
+            getDocPreferServer(getSubmissionRef(submissionId)),
+            getDocPreferServer(getGradingDraftRef(submissionId)),
         ]);
 
         if (!submissionSnap.exists()) {

@@ -23,6 +23,18 @@ Canonical visibility governance for homework and solo-practice results lives in:
 - Producers must persist the canonical `result.visibility` snapshot.
 - Consumers must not promote `selectedTeacherId`, `assigningTeacherId`, or assignment status into ownership.
 
+## Administrative External Writing Import Contract
+
+Teacher-initiated off-app IELTS Writing imports are allowed only when the teacher owns the homework and the target student is assigned to it.
+
+Import writes must:
+- create a real `writing_submissions/{submissionId}` row
+- create or update the matching `homework_submissions/{submissionId}` row to `submitted`
+- set `resultId`, `attemptNumber`, `submittedAt`, `timeSpent`, and late-state fields for Homework Detail consumers
+- preserve administrative audit metadata under `administrativeImport`
+- keep the Writing submission in `pending-review` until grading is published
+- block duplicate imports when latest homework work is already `submitted` or `graded`
+
 ## 2026-04-02 Amendment - Reading Passage Highlight Contract
 
 Solo practice and homework Reading flows now share one source-of-truth renderer contract:

@@ -17,6 +17,10 @@ Companion docs:
 
 PRD-0049 brings the already-verified live-parity local `main` result and writing-surface history into `origin/main`. The reconciliation does not change the permission model in this matrix: teacher access still starts with the outer assignment gate, writing linked results still depend on linked-source ownership, and unresolved rows remain excluded from teacher-owned surfaces.
 
+## PRD-0043 External Writing Import Note
+
+PRD-0043 imported homework Writing submissions remain governed by the existing `writing_submission` linked-result row below. The authoritative owner remains the linked homework assignment (`homework_assignments/{homeworkId}.createdBy`); `context.externalImport`, `administrativeImport`, `importedByTeacherId`, and grading/import teacher metadata are audit signals, not ownership signals.
+
 ## Global Rules
 
 - Teacher access always starts with the outer `student_teacher_assignments` gate.
@@ -33,7 +37,7 @@ PRD-0049 brings the already-verified live-parity local `main` result and writing
 | `class_session` | Yes | `game_sessions/{sessionCode}` | `createdByUserId`, then safe `createdBy` fallback only | Include when session owner resolves and matches the teacher | Exclude when only `session.teacherId` exists or owner cannot be proven | Teacher-owned rows may be indexed | Included in teacher-owned analytics | Visible with snapshot label if ownership was proven at submission time |
 | `course_material` linked to class | Yes | `classes/{classId}` | `createdBy` | Include when class owner resolves and matches the teacher | Exclude when class owner is missing or unsafe | Teacher-owned rows may be indexed | Included in teacher-owned analytics | Visible with snapshot label if ownership was proven at submission time |
 | `course_material` standalone | Yes | `courses/{courseId}` | `ownerId` | Include when course owner resolves and matches the teacher | Exclude when owner cannot be proven | Teacher-owned rows may be indexed | Included in teacher-owned analytics | Visible with snapshot label if ownership was proven at submission time |
-| `writing_submission` linked result | Yes | `writing_submissions/{submissionId}` plus linked homework/session/class/course source | linked-source precedence only | Include only after linked-source ownership resolves to the teacher | Exclude when only grading/selected teacher metadata exists | Follows the linked-source verdict only | Follows the linked-source verdict only | Follows the linked-source snapshot only when ownership was proven |
+| `writing_submission` linked result | Yes | `writing_submissions/{submissionId}` plus linked homework/session/class/course source | linked-source precedence only | Include only after linked-source ownership resolves to the teacher, including external/admin imports whose homework owner is proven | Exclude when only grading/selected/importing teacher metadata exists | Follows the linked-source verdict only | Follows the linked-source verdict only | Follows the linked-source snapshot only when ownership was proven |
 | `solo_practice` | Yes | no teacher-owner source | no teacher owner | Visible to any currently assigned teacher | Exclude only when outer assignment gate fails | Never indexed in `test_results_by_teacher/*` | Always excluded from teacher-owned analytics | Show student-owned snapshot metadata and `Solo Practice` label |
 | `unresolved` | Yes for teacher surface, student rules remain separate | none proven | none | Never included in teacher-owned views | Always excluded from teacher history, detail, and analytics | Never indexed in `test_results_by_teacher/*` | Always excluded | Hidden from teacher surfaces; reported to admin diagnostics only |
 
