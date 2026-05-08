@@ -192,3 +192,18 @@
 - Added merge-parent commit `6ca06ae chore(repo): record origin main reconciliation parent` with `git merge --no-ff -s ours origin/main`. This records `origin/main` ancestry without changing the reconciled tree and avoids force push.
 - PR became mergeable after the merge-parent commit, but GitHub governance check failed because result-related historical changes entering `origin/main` require PRD-0040 living docs in the same changeset.
 - Updated PRD-0040 governance docs and finding record to state that PRD-0049 changes branch/source truth only and does not alter result-view surface map, permission model, or FR closure status.
+
+## 2026-05-08 16:30 +07:00 - Phase 6 Remote Main Updated
+
+- GitHub governance check passed after the PRD-0040 doc packet update.
+- PR `https://github.com/iamhuwng/autoresync/pull/1` was merged through GitHub with merge commit `dd9dfa5336287ea8a9101a3b8f0d2971dc1b7aa2`.
+- Remote `origin/main` was confirmed at `dd9dfa5336287ea8a9101a3b8f0d2971dc1b7aa2` immediately after merge.
+- Remote `origin/codex/reconcile-live-main` remained at `3c85ee7c99cabe4603276e077b5ddf4ecde89b6a`.
+- `origin/main` now contains local live-parity `main`, accepted hotfixes `2631703`, `c809fd6`, and `ff3e29a`, branch-doctor guardrails, source-of-truth docs, and PRD-0040 governance notes.
+- Local `main` at `aa9c30aec4c463e7e43444c41247fa627f803d91` is an ancestor of `origin/main`; it can fast-forward after owner-approved backup checks. No local `main` reset was performed.
+- Recovery anchors remain:
+  - `safety/0049-origin-main-20260508-150400` -> `ff3e29ac2a2798494d3aef6ce5a7ce9386fae74a`
+  - `safety/0049-local-main-20260508-150400` -> `aa9c30aec4c463e7e43444c41247fa627f803d91`
+  - `safety/0049-backup-wip-preserve-local-changes-20260412-20260508-150400` -> `711204141f8bf496a1173895d3b810ca26d00f2a`
+  - `safety/0049-codex-writing-homework-import-20260508-150400` -> `ff3e29ac2a2798494d3aef6ce5a7ce9386fae74a`
+- This closeout note is committed after the merge so the tasklist records that remote main was actually updated.
